@@ -34,6 +34,7 @@ trait JPool {
 object JoinRun {
 
   // Wait until the join definition to which `molecule` belongs becomes quiescent, then inject `callback`.
+  // TODO: implement
   def wait_until_quiet[T](molecule: JAsynChan[T], callback: JAsynChan[Unit]): Unit = {
     molecule.owner match {
       case Some(owner) => owner.setQuiescenceCallback(callback)
@@ -76,15 +77,18 @@ object JoinRun {
     override def getValue[T]: T = jsv.v.asInstanceOf[T]
   }
 
-  sealed trait MoleculeType
-  case object JAsyncMoleculeType extends MoleculeType
-  case object JSyncMoleculeType extends MoleculeType
+  private[jc] sealed trait MoleculeType
+  private[jc] case object JAsyncMoleculeType extends MoleculeType
+  private[jc] case object JSyncMoleculeType extends MoleculeType
 
   // Abstract molecule. This type is used in collections of molecules that only require to know the owner.
-  private[jc] abstract class JChan(name: Option[String]) {
+  abstract class JChan(name: Option[String]) {
     var owner: Option[JoinDefinition] = None
+
     def setLogLevel(logLevel: Int): Unit = { owner.foreach(o => o.logLevel = logLevel) }
+
     def moleculeType: MoleculeType
+
     override def toString: String = {
       val moleculeTypeSuffix = moleculeType match {
         case JAsyncMoleculeType => ""
@@ -104,7 +108,7 @@ object JoinRun {
   def js[T,R](name: String) = new JSynChan[T,R](Some(name))
 
   // Asynchronous molecule.
-  class JAsynChan[T](name: Option[String] = None) extends JChan(name) {
+  private[jc] class JAsynChan[T](name: Option[String] = None) extends JChan(name) {
     def apply(v: T): Unit = {
       // Inject an asynchronous molecule.
       owner match {

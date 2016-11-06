@@ -29,11 +29,13 @@ More documentation and tutorials are forthcoming.
 
 Compared to `ScalaJoin` (Jiansen He's 2011 implementation of JC), `JoinRun` offers the following improvements:
 
-- Channels are _locally scoped values_ rather than singleton objects as in `ScalaJoin`; 
-this is more faithful to the semantics of join calculus.
-- No limit on the number of reactions in one join definition, and no limit on the number of channels
-- Reactions and channels are composable (e.g. we can construct a join definition
- with `n` reactions and `n` channels, where `n` is a runtime parameter)
+- Channels are _locally scoped values_ (instances of abstract class `JChan` having types `JA[T]` or `JS[T,R]`) rather than singleton objects, as in `ScalaJoin`; 
+this is more faithful to the semantics of JC
+- Reactions are also locally scoped values (instances of `JReaction`)
+- Reactions and channels are composable: e.g. we can construct a join definition
+ with `n` reactions and `n` channels, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of channels
+- "Join definitions" are instances of class `JoinDefinition` which are invisible to the user (as they should be according to the semantics of JC)
+- Some common cases of invalid join definitions are flagged (as run-time errors) even before starting any processes
 - Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool
 - "Fair" nondeterminism: whenever a message can start several reactions, the reaction is chosen at random
 - Fault tolerance: failed reactions are restarted
@@ -82,9 +84,9 @@ The counter is initialized to zero.
       val get = js[Unit, Int]
     
       join {
-        &{ counter(n) + incr(_) => counter(n+1) },
-        &{ counter(n) + decr(_) => counter(n-1) },
-        &{ counter(n) + get(_,res) => counter(n) + res(n) }
+        run { counter(n) + incr(_) => counter(n+1) },
+        run { counter(n) + decr(_) => counter(n-1) },
+        run { counter(n) + get(_,res) => counter(n) + res(n) }
       }
     
       counter(initCount)
