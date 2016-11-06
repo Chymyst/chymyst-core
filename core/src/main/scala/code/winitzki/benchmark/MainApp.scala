@@ -1,8 +1,10 @@
-package code.winitzki.jc
+package code.winitzki.benchmark
 
-import Benchmarks1._
-import Benchmarks4._
-import Benchmarks7._
+import code.winitzki.benchmark.Benchmarks1._
+import code.winitzki.benchmark.Benchmarks4._
+import code.winitzki.benchmark.Benchmarks7._
+
+import code.winitzki.jc.JoinRun.{defaultJoinPool, defaultProcessPool}
 
 object MainApp extends App {
   val version = "0.0.1"
@@ -30,5 +32,8 @@ object MainApp extends App {
       .zipWithIndex.foreach {
     case ((benchmark, flag), i) => if(flag) println(s"Benchmark ${i+1} took ${benchmark(n,threads)} ms") else println(s"Benchmark ${i+1} skipped")
   }
+
+  defaultJoinPool.shutdownNow()
+  defaultProcessPool.shutdownNow()
 
 }

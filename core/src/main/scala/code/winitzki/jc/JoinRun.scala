@@ -65,21 +65,21 @@ object JoinRun {
   def run(body: JReactionBody): JReaction = JReaction(body, defaultProcessPool)
 
   // Container for molecule values
-  private[jc] sealed trait JMolValue {
+  private sealed trait JMolValue {
     def getValue[T]: T
 
     override def toString: String = getValue[Any] match { case () => ""; case v@_ => v.toString }
   }
-  private[jc] case class JAMV(v: Any) extends JMolValue {
+  private case class JAMV(v: Any) extends JMolValue {
     override def getValue[T]: T = v.asInstanceOf[T]
   }
-  private[jc] case class JSMV(jsv: JReplyVal[_,_]) extends JMolValue {
+  private case class JSMV(jsv: JReplyVal[_,_]) extends JMolValue {
     override def getValue[T]: T = jsv.v.asInstanceOf[T]
   }
 
-  private[jc] sealed trait MoleculeType
-  private[jc] case object JAsyncMoleculeType extends MoleculeType
-  private[jc] case object JSyncMoleculeType extends MoleculeType
+  private[JoinRun] sealed trait MoleculeType
+  private case object JAsyncMoleculeType extends MoleculeType
+  private case object JSyncMoleculeType extends MoleculeType
 
   // Abstract molecule. This type is used in collections of molecules that only require to know the owner.
   abstract class JChan(name: Option[String]) {
@@ -108,7 +108,7 @@ object JoinRun {
   def js[T,R](name: String) = new JSynChan[T,R](Some(name))
 
   // Asynchronous molecule.
-  private[jc] class JAsynChan[T](name: Option[String] = None) extends JChan(name) {
+  private[JoinRun] class JAsynChan[T](name: Option[String] = None) extends JChan(name) {
     def apply(v: T): Unit = {
       // Inject an asynchronous molecule.
       owner match {
@@ -147,7 +147,7 @@ object JoinRun {
   }
 
   // Reply-value wrapper for synchronous molecules.
-  private[jc] case class JReplyVal[T, R](
+  private[JoinRun] case class JReplyVal[T, R](
     v: T,
     var result: Option[R] = None,
     var semaphore: Semaphore = { val s = new Semaphore(0, true); s.drainPermits(); s },
@@ -173,7 +173,7 @@ object JoinRun {
   }
 
   // Synchronous molecule.
-  private[jc] class JSynChan[T,R](name: Option[String] = None) extends JChan(name) {
+  private[JoinRun] class JSynChan[T,R](name: Option[String] = None) extends JChan(name) {
 
     def apply(v: T): R = {
       // Inject a synchronous molecule.
@@ -216,14 +216,14 @@ object JoinRun {
   implicit val defaultJoinPool = new JJoinPool
   implicit val defaultProcessPool = new JProcessPool(2)
 
-  private[jc] sealed trait JUnapplyArg // The disjoint union type for arguments passed to the unapply methods.
-  private[jc] case class JUnapplyCheck(inputMolecules: mutable.Set[JChan]) extends JUnapplyArg
-  private[jc] case class JUnapplyRun(moleculeValues: LinearMoleculeBag) extends JUnapplyArg
-  private[jc] case class JUnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends JUnapplyArg
+  private[JoinRun] sealed trait JUnapplyArg // The disjoint union type for arguments passed to the unapply methods.
+  private case class JUnapplyCheck(inputMolecules: mutable.Set[JChan]) extends JUnapplyArg
+  private case class JUnapplyRun(moleculeValues: LinearMoleculeBag) extends JUnapplyArg
+  private case class JUnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends JUnapplyArg
 
   private[jc] type JReactionBody = PartialFunction[JUnapplyArg, Any]
 
-  case class JReaction(body: JReactionBody, threadPool: JPool) {
+  private[jc] case class JReaction(body: JReactionBody, threadPool: JPool) {
     lazy val inputMoleculesUsed: Set[JChan] = {
       val moleculesInThisReaction = JUnapplyCheck(mutable.Set.empty)
       body.isDefinedAt(moleculesInThisReaction)
@@ -256,17 +256,17 @@ object JoinRun {
 
   }
 
-  implicit class ShufflableSeq[T](a: Seq[T]) {
+  private implicit class ShufflableSeq[T](a: Seq[T]) {
     def shuffle: Seq[T] = scala.util.Random.shuffle(a)
   }
 
-  // for JA[T] molecules, the value is of type T; for JS[T,R] molecules, the value is of type JReplyVal[T,R]
-  private[jc] type MoleculeBag = MutableBag[JChan, JMolValue]
-  private[jc] type MutableLinearMoleculeBag = mutable.Map[JChan, JMolValue]
-  private[jc] type LinearMoleculeBag = Map[JChan, JMolValue]
+  // for JA[T] molecules, the value inside JMolValue is of type T; for JS[T,R] molecules, the value is of type JReplyVal[T,R]
+  private type MoleculeBag = MutableBag[JChan, JMolValue]
+  private type MutableLinearMoleculeBag = mutable.Map[JChan, JMolValue]
+  private type LinearMoleculeBag = Map[JChan, JMolValue]
 
   // The user will never see any instances of this class.
-  class JoinDefinition(val inputMolecules: Map[JReaction, Set[JChan]])(jProcessPool: JProcessPool, jJoinPool: JJoinPool) {
+  private[JoinRun] class JoinDefinition(val inputMolecules: Map[JReaction, Set[JChan]])(var jProcessPool: JProcessPool, var jJoinPool: JJoinPool) {
 
     private val quiescenceCallbacks: mutable.Set[JAsynChan[Unit]] = mutable.Set.empty
 

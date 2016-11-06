@@ -1,9 +1,10 @@
-package code.winitzki.jc
+package code.winitzki.benchmark
 
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
-import JoinRun._
+import code.winitzki.jc.JoinRun.{&, _}
+import code.winitzki.jc._
 
 object Benchmarks1 {
 

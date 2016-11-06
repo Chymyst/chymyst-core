@@ -1,9 +1,9 @@
-package code.winitzki.jc
+package code.winitzki.benchmark
 
-import org.scalatest.{FlatSpec, Matchers}
+import code.winitzki.jc.JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
-import JoinRun._
+import org.scalatest.{FlatSpec, Matchers}
 
 class ExamplesSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
@@ -55,6 +55,9 @@ class ExamplesSpec extends FlatSpec with Matchers with TimeLimitedTests {
     f12() + f23() + f34() + f45() + f51()
 
     check() shouldEqual ()
+
+    defaultJoinPool.shutdownNow()
+    defaultProcessPool.shutdownNow()
   }
 
   it should "sort an array using concurrent merge sort more quickly with more threads" in {

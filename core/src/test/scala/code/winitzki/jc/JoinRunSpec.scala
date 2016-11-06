@@ -179,8 +179,9 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = ja[Int]("counter")
     val d = ja[Unit]("decrement")
     val g = js[Unit, Int]("getValue")
+    val tp = new JProcessPool(2)
     join(
-      & { case c(x) + d(_) => c(x - 1) },
+      & { case c(x) + d(_) => c(x - 1) } onThreads tp,
       & { case c(x) + g(_, r) => c(x) + r(x) }
     )
     c(n)
@@ -198,10 +199,12 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = ja[Int]("counter")
     val d = ja[Unit]("decrement")
     val g = js[Unit, Int]("getValue")
+    val tp = new JProcessPool(2)
+
     join(
       & { case c(x) + d(_) =>
         if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's ok, ignore this)")
-      },
+      } onThreads tp,
       & { case c(x) + g(_, r) => c(x) + r(x) }
     )
     c(n)

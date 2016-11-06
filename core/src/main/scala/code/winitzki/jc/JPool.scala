@@ -22,7 +22,13 @@ class JThreadPoolExecutor(threads: Int = 1) extends JThreadPool {
 class JPoolExecutor(threads: Int = 8) extends JPool {
   val execService = Executors.newFixedThreadPool(threads)
 
-  def shutdownNow() = execService.shutdownNow()
+  val sleepTime = 100
+
+  def shutdownNow() = new Thread {
+    execService.shutdown()
+    Thread.sleep(sleepTime)
+    execService.shutdownNow()
+  }
 
   def runProcess(task: => Unit): Unit = execService.execute(new Runnable {
     override def run(): Unit = task
