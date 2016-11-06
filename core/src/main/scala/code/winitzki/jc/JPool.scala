@@ -11,6 +11,8 @@ class JProcessPool(threads: Int) extends JPoolExecutor(threads)
 class JThreadPoolExecutor(threads: Int = 1) extends JThreadPool {
   val execContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(threads))
 
+  def shutdownNow() = ()
+
   def runTask(task: JThreadPool => Unit) = {
     Future { task(JThreadPoolExecutor.this)}(execContext)
   }
@@ -18,9 +20,11 @@ class JThreadPoolExecutor(threads: Int = 1) extends JThreadPool {
 */
 /* */
 class JPoolExecutor(threads: Int = 8) extends JPool {
-  val execContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(threads))
+  val execService = Executors.newFixedThreadPool(threads)
 
-  def runTask(task: => Unit): Unit = execContext.execute(new Runnable {
+  def shutdownNow() = execService.shutdownNow()
+
+  def runProcess(task: => Unit): Unit = execService.execute(new Runnable {
     override def run(): Unit = task
   })
 }

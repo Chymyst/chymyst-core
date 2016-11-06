@@ -27,6 +27,8 @@ More documentation and tutorials are forthcoming.
 
 `sbt test`
 
+The tests will produce some error messages and stack traces - this is normal, as long as all tests pass.
+
 # Build the benchmark application
 
 ```

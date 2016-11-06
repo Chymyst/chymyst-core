@@ -2,11 +2,11 @@ package code.winitzki.jc
 
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.time.SpanSugar._
+import org.scalatest.time.{Millis, Span}
 
 class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = 200 millis
+  val timeLimit = Span(200, Millis)
 
   it should "create empty bag" in {
     val b = new MutableBag[Int, String]

@@ -28,7 +28,8 @@ import scala.collection.mutable
 // A pool of execution threads, or another way of running tasks (could use actors or whatever else).
 
 trait JPool {
-  def runTask(task: => Unit): Unit
+  def runProcess(task: => Unit): Unit
+  def shutdownNow(): Unit
   def apply(body: JoinRun.JReactionBody) = JoinRun.JReaction(body, this)
 }
 
@@ -144,11 +145,25 @@ object JoinRun {
   private[jc] case class JReplyVal[T, R](
     v: T,
     var result: Option[R] = None,
-    var semaphore: Semaphore = { val s = new Semaphore(0, true); s.drainPermits(); s }
+    var semaphore: Semaphore = { val s = new Semaphore(0, true); s.drainPermits(); s },
+    var errorMessage: Option[String] = None,
+    var repliedTwice: Boolean = false
   ) {
+    def releaseSemaphore() = if (semaphore != null) semaphore.release()
+
+    def acquireSemaphore(): Unit = if (semaphore != null) semaphore.acquire()
+
+    def deleteSemaphore(): Unit = {
+      releaseSemaphore()
+      semaphore = null
+    }
+
     def apply(x: R): Unit = {
-      result = Some(x)
-      semaphore.release()
+      if (result.nonEmpty)
+        repliedTwice = true // We do not reassign the reply value. Error will be reported.
+      else {
+        result = Some(x)
+      }
     }
   }
 
@@ -250,7 +265,7 @@ object JoinRun {
 
     private val quiescenceCallbacks: mutable.Set[JAsy[Unit]] = mutable.Set.empty
 
-    override def toString = s"JoinDef{${inputMolecules.keys.mkString("; ")}}"
+    override def toString = s"Join{${inputMolecules.keys.mkString("; ")}}"
 
     var logLevel = 0
 
@@ -285,7 +300,7 @@ object JoinRun {
       }.mkString(", ")
 
     // Adding an asynchronous molecule may trigger at most one reaction.
-    def injectAsync[T](m: JAbs, jmv: JMolValue): Unit = jJoinPool.runTask {
+    def injectAsync[T](m: JAbs, jmv: JMolValue): Unit = jJoinPool.runProcess {
       val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
         moleculesPresent.addToBag(m, jmv)
         if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $jJoinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
@@ -296,7 +311,9 @@ object JoinRun {
             r.body.isDefinedAt(JUnapplyRunCheck(moleculesPresent, usedInputs))
           }))
         reaction match {
-          case Some(r) => // If we are here, we have found reactions that will proceed.
+          case Some(r) =>
+            // If we are here, we have found a reaction that can be started.
+            // We need to remove the input molecules from the bag, as per JC execution semantics.
             moleculesPresent.removeFromBag(usedInputs)
           case None => ()
         }
@@ -305,19 +322,71 @@ object JoinRun {
       // We are just starting a reaction, so we don't need to hold the thread any more.
       reaction match {
         case Some(r) =>
-          if (logLevel > 1) println(s"Debug: $this starting reaction {$r} on thread pool ${r.threadPool} while on thread pool $jJoinPool with inputs ${moleculeBagToString(usedInputs)}")
+          if (logLevel > 1) println(s"Debug: In $this: starting reaction {$r} on thread pool ${r.threadPool} while on thread pool $jJoinPool with inputs ${moleculeBagToString(usedInputs)}")
           if (logLevel > 2) println(
             if (moleculesPresent.size == 0)
-              s"Debug: $this has no molecules remaining"
+              s"Debug: In $this: no molecules remaining"
             else
-              s"Debug: $this remaining molecules ${moleculeBagToString(moleculesPresent)}"
+              s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
           )
-          // A basic check that we are using our mutable structures safely.
-          if (! r.inputMoleculesUsed.equals(usedInputs.keys.toSet)) throw new Exception(s"Internal error: $this will not start reaction {$r} with incorrect inputs ${moleculeBagToString(usedInputs)}")
-          r.threadPool.runTask {
-            if (logLevel > 1) println(s"Debug: $this reaction {$r} started on thread pool $jJoinPool with thread id ${Thread.currentThread().getId}")
-            r.body.apply(JUnapplyRun(usedInputs))
+          // A basic check that we are using our mutable structures safely. We should never see this message.
+          if (! r.inputMoleculesUsed.equals(usedInputs.keys.toSet)) {
+            val message = s"Internal error: In $this: attempt to start reaction {$r} with incorrect inputs ${moleculeBagToString(usedInputs)}"
+            println(message)
+            throw new Exception(message)
           }
+          // Run the reaction process on the reaction's thread pool.
+          r.threadPool.runProcess {
+            if (logLevel > 1) println(s"Debug: In $this: reaction {$r} started on thread pool $jJoinPool with thread id ${Thread.currentThread().getId}")
+            try {
+              // Here we actually apply the reaction body to its input molecules.
+              r.body.apply(JUnapplyRun(usedInputs))
+            } catch {
+              case e: Throwable =>
+                // Running the reaction body produced an exception. Note that the exception has killed a thread.
+                // We will now re-insert the input molecules. Hopefully, no side-effects or output molecules were produced so far.
+                usedInputs.foreach { case (mol, v) => injectAsync(mol, v) }
+                println(s"In $this: Reaction {$r} produced an exception. Input molecules ${moleculeBagToString(usedInputs)} were injected again. Exception trace will be printed.")
+                e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
+            }
+            // For any synchronous input molecules that have no reply, put an error message into them and reply with empty value to unblock the threads.
+
+            def nonemptyOpt[T](s: Seq[T]): Option[Seq[T]] = if (s.isEmpty) None else Some(s)
+
+            // Compute error messages here in case we will need them later.
+            val syncMoleculesWithNoReply = nonemptyOpt(usedInputs
+              .filter { case (_, JSMV(jsv)) => jsv.result.isEmpty; case _ => false }
+              .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
+
+            val messageNoReply = syncMoleculesWithNoReply map { s => s"Error: In $this: Reaction {$r} finished without replying to $s" }
+
+            val syncMoleculesWithMultipleReply = nonemptyOpt(usedInputs
+              .filter { case (_, JSMV(jsv)) => jsv.repliedTwice; case _ => false }
+              .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
+
+            val messageMultipleReply = syncMoleculesWithMultipleReply map { s => s"Error: In $this: Reaction {$r} replied to $s more than once" }
+
+            // We will report all errors to each synchronous molecule.
+            val errorMessage = Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
+            val haveError = syncMoleculesWithNoReply.nonEmpty || syncMoleculesWithMultipleReply.nonEmpty
+
+            // Insert error messages into synchronous reply wrappers and release semaphores.
+            usedInputs.foreach {
+              case p@(mol, JSMV(jsv)) =>
+                if (haveError) {
+                  jsv.errorMessage = Some(errorMessage)
+                }
+                jsv.releaseSemaphore()
+
+              case _ => ()
+            }
+
+            if (haveError) {
+              println(errorMessage)
+              throw new Exception(errorMessage)
+            }
+          }
+
         case None =>
           if (logLevel > 2) println(s"Debug: joindef $this: no reactions started")
           ()
@@ -330,13 +399,22 @@ object JoinRun {
     // This must be a blocking call.
     def injectSyncAndReply[T,R](m: JSyn[T,R], valueWithResult: JReplyVal[T,R]): R = {
       injectAsync(m, JSMV(valueWithResult))
-//      try
-      valueWithResult.semaphore.acquire()
-//      catch {
-//        case e: InterruptedException => e.printStackTrace()
-//      }
-      valueWithResult.semaphore = null // make sure it's gone
-      valueWithResult.result.get
+      try  // not sure we need this.
+        valueWithResult.acquireSemaphore()
+      catch {
+        case e: InterruptedException => e.printStackTrace()
+      }
+      valueWithResult.deleteSemaphore() // make sure it's gone
+
+      // check if we had any errors, and that we have a result value
+      valueWithResult.errorMessage match {
+        case Some(message) => throw new Exception(message)
+        case None => valueWithResult.result match {
+          case Some(result) => result
+          case None => throw new Exception(s"Internal error: $m received an empty reply without an error message")
+        }
+
+      }
     }
   }
 
