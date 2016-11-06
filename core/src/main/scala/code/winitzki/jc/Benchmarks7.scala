@@ -3,6 +3,8 @@ package code.winitzki.jc
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
+import JoinRun._
+
 object Benchmarks7 {
 
   /// Concurrent decrement of `n` counters, each going from `count` to 0 concurrently.
@@ -18,7 +20,7 @@ object Benchmarks7 {
     val all_done = ja[Int]("all_done")
     val f = js[LocalDateTime,Long]("f")
 
-    val tp = new JThreadPoolForReactions(threads)
+    val tp = new JProcessPool(threads)
 
     join(
       run { case all_done(0) + f(tInit, r) =>
@@ -68,7 +70,7 @@ object Benchmarks7 {
     val c = ja[Int]("c")
     val d = ja[Unit]("d")
 
-    val tp = new JThreadPoolForReactions(threads)
+    val tp = new JProcessPool(threads)
 
     join(
       tp{ case c(0) => done() },

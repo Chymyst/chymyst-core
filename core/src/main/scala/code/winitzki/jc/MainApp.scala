@@ -1,5 +1,9 @@
 package code.winitzki.jc
 
+import Benchmarks1._
+import Benchmarks4._
+import Benchmarks7._
+
 object MainApp extends App {
   val version = "0.0.1"
 

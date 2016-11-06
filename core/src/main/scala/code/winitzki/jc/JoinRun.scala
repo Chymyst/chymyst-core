@@ -10,8 +10,6 @@ and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 
 TODO
  * - make thread pools an Option, so that default thread pool can be used for all reactions except some
- * - simplify reactions, so that it's not tp => body but simply body (we probably can do this)
- * - use implicit(?) thread pool to detect invalid synchronous injection (what is a use case for that?)
  * - go through possible values when matching (can do?) Important: can get stuck when molecules are in different order. Or need to shuffle.
  * - define a special "switch off" molecule - per-join, with a callback parameter
  * - use dsinfo to automate molecule naming
@@ -19,11 +17,20 @@ TODO
  * - benchmark merge-sort
  * - benchmark dining philosophers
  * - implement disjoin
+ * - implement fault tolerance (catch exception in task)
+ * - implement event-driven actors for threadpool
   * */
 
 import java.util.concurrent.Semaphore
 
 import scala.collection.mutable
+
+// A pool of execution threads, or another way of running tasks (could use actors or whatever else).
+
+trait JPool {
+  def runTask(task: => Unit): Unit
+  def apply(body: JoinRun.JReactionBody) = JoinRun.JReaction(body, this)
+}
 
 object JoinRun {
 
@@ -48,25 +55,25 @@ object JoinRun {
     def unapply(attr:Any) = Some(attr,attr)
 
     // Users will create reactions using these functions.
-    def apply(body: JReactionBody): JReaction = JReaction(body, defaultThreadPoolForReactions)
+    def apply(body: JReactionBody): JReaction = JReaction(body, defaultProcessPool)
   }
 
   // Users will create reactions using these functions.
   // Examples: run { a(_) => ... }
   // run { a (_) => ...} onThreads jPool
 
-  def run(body: JReactionBody): JReaction = JReaction(body, defaultThreadPoolForReactions)
+  def run(body: JReactionBody): JReaction = JReaction(body, defaultProcessPool)
 
   // Container for molecule values
-  private[winitzki] sealed trait JMolValue {
+  private[jc] sealed trait JMolValue {
     def getValue[T]: T
 
     override def toString: String = getValue[Any] match { case () => ""; case v@_ => v.toString }
   }
-  private[winitzki] case class JAMV(v: Any) extends JMolValue {
+  private[jc] case class JAMV(v: Any) extends JMolValue {
     override def getValue[T]: T = v.asInstanceOf[T]
   }
-  private[winitzki] case class JSMV(jsv: JReplyVal[_,_]) extends JMolValue {
+  private[jc] case class JSMV(jsv: JReplyVal[_,_]) extends JMolValue {
     override def getValue[T]: T = jsv.v.asInstanceOf[T]
   }
 
@@ -75,7 +82,7 @@ object JoinRun {
   case object JSyncMoleculeType extends MoleculeType
 
   // Abstract molecule. This type is used in collections of molecules that only require to know the owner.
-  private[winitzki] abstract class JAbs(name: Option[String]) {
+  private[jc] abstract class JAbs(name: Option[String]) {
     var owner: Option[JoinDefinition] = None
     def setLogLevel(logLevel: Int): Unit = { owner.foreach(o => o.logLevel = logLevel) }
     def moleculeType: MoleculeType
@@ -134,7 +141,7 @@ object JoinRun {
   }
 
   // Reply-value wrapper for synchronous molecules.
-  private[winitzki] case class JReplyVal[T, R](
+  private[jc] case class JReplyVal[T, R](
     v: T,
     var result: Option[R] = None,
     var semaphore: Semaphore = { val s = new Semaphore(0, true); s.drainPermits(); s }
@@ -146,7 +153,7 @@ object JoinRun {
   }
 
   // Synchronous molecule.
-  private[winitzki] class JSyn[T,R](name: Option[String] = None) extends JAbs(name) {
+  private[jc] class JSyn[T,R](name: Option[String] = None) extends JAbs(name) {
 
     def apply(v: T): R = {
       // Inject a synchronous molecule.
@@ -186,24 +193,24 @@ object JoinRun {
     }
   }
 
-  implicit val defaultThreadPoolForJoins = new JThreadPoolForJoins
-  implicit val defaultThreadPoolForReactions = new JThreadPoolForReactions(2)
+  implicit val defaultJoinPool = new JJoinPool
+  implicit val defaultProcessPool = new JProcessPool(2)
 
-  private[winitzki] sealed trait JUnapplyArg // The disjoint union type for arguments passed to the unapply methods.
-  private[winitzki] case class JUnapplyCheck(inputMolecules: mutable.Set[JAbs]) extends JUnapplyArg
-  private[winitzki] case class JUnapplyRun(moleculeValues: LinearMoleculeBag) extends JUnapplyArg
-  private[winitzki] case class JUnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends JUnapplyArg
+  private[jc] sealed trait JUnapplyArg // The disjoint union type for arguments passed to the unapply methods.
+  private[jc] case class JUnapplyCheck(inputMolecules: mutable.Set[JAbs]) extends JUnapplyArg
+  private[jc] case class JUnapplyRun(moleculeValues: LinearMoleculeBag) extends JUnapplyArg
+  private[jc] case class JUnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends JUnapplyArg
 
-  private type JReactionBody = PartialFunction[JUnapplyArg, Any]
+  private[jc] type JReactionBody = PartialFunction[JUnapplyArg, Any]
 
-  case class JReaction(body: JReactionBody, threadPool: JThreadPool) {
+  case class JReaction(body: JReactionBody, threadPool: JPool) {
     lazy val inputMoleculesUsed: Set[JAbs] = {
       val moleculesInThisReaction = JUnapplyCheck(mutable.Set.empty)
       body.isDefinedAt(moleculesInThisReaction)
       moleculesInThisReaction.inputMolecules.toSet
     }
 
-    def onThreads(newThreadPool: JThreadPool): JReaction = JReaction(body, newThreadPool)
+    def onThreads(newThreadPool: JPool): JReaction = JReaction(body, newThreadPool)
 
     override def toString = s"${inputMoleculesUsed.toSeq.map(_.toString).sorted.mkString(" + ")} => ..."
   }
@@ -211,13 +218,13 @@ object JoinRun {
   // Users will call join(...) in order to introduce a new Join Definition (JD).
   // All input and output molecules for this JD should have been already defined, and inputs should not yet have been used in any other JD.
   def join(rs: JReaction*)
-          (implicit threadPoolForReactions: JThreadPoolForReactions,
-              threadPoolForJoins: JThreadPoolForJoins): Unit = {
+          (implicit jProcessPool: JProcessPool,
+           jJoinPool: JJoinPool): Unit = {
 
     val knownMolecules : Map[JReaction, Set[JAbs]] = rs.map { r => (r, r.inputMoleculesUsed) }.toMap
 
     // create a join definition object holding the given reactions and inputs
-    val join = new JoinDefinition(knownMolecules)(threadPoolForReactions, threadPoolForJoins)
+    val join = new JoinDefinition(knownMolecules)(jProcessPool, jJoinPool)
 
     // set the owner on all input molecules in this join definition
     knownMolecules.values.toSet.flatten.foreach { m =>
@@ -234,12 +241,12 @@ object JoinRun {
   }
 
   // for JA[T] molecules, the value is of type T; for JS[T,R] molecules, the value is of type JReplyVal[T,R]
-  private[winitzki] type MoleculeBag = MutableBag[JAbs, JMolValue]
-  private[winitzki] type MutableLinearMoleculeBag = mutable.Map[JAbs, JMolValue]
-  private[winitzki] type LinearMoleculeBag = Map[JAbs, JMolValue]
+  private[jc] type MoleculeBag = MutableBag[JAbs, JMolValue]
+  private[jc] type MutableLinearMoleculeBag = mutable.Map[JAbs, JMolValue]
+  private[jc] type LinearMoleculeBag = Map[JAbs, JMolValue]
 
   // The user will never see any instances of this class.
-  class JoinDefinition(val inputMolecules: Map[JReaction, Set[JAbs]])(threadPoolForReactions: JThreadPoolForReactions, threadPoolForJoins: JThreadPoolForJoins) {
+  class JoinDefinition(val inputMolecules: Map[JReaction, Set[JAbs]])(jProcessPool: JProcessPool, jJoinPool: JJoinPool) {
 
     private val quiescenceCallbacks: mutable.Set[JAsy[Unit]] = mutable.Set.empty
 
@@ -278,10 +285,10 @@ object JoinRun {
       }.mkString(", ")
 
     // Adding an asynchronous molecule may trigger at most one reaction.
-    def injectAsync[T](m: JAbs, jmv: JMolValue): Unit = threadPoolForJoins.runTask { tp =>
+    def injectAsync[T](m: JAbs, jmv: JMolValue): Unit = jJoinPool.runTask {
       val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
         moleculesPresent.addToBag(m, jmv)
-        if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $tp, now have molecules ${moleculeBagToString(moleculesPresent)}")
+        if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $jJoinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
         val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
         val reaction = possibleReactions.get(m)
           .flatMap(_.shuffle.find(r => {
@@ -298,12 +305,12 @@ object JoinRun {
       // We are just starting a reaction, so we don't need to hold the thread any more.
       reaction match {
         case Some(r) =>
-          if (logLevel > 1) println(s"Debug: $this starting reaction $r on thread pool ${r.threadPool} while on thread pool $tp with inputs ${moleculeBagToString(usedInputs)}")
+          if (logLevel > 1) println(s"Debug: $this starting reaction $r on thread pool ${r.threadPool} while on thread pool $jJoinPool with inputs ${moleculeBagToString(usedInputs)}")
           if (logLevel > 2) println(s"Debug: $this remaining molecules ${moleculeBagToString(moleculesPresent)}")
           // A basic check that we are using our mutable structures safely.
           if (! r.inputMoleculesUsed.equals(usedInputs.keys.toSet)) throw new Exception(s"Internal error: $this will not start reaction $r with incorrect inputs ${moleculeBagToString(usedInputs)}")
-          r.threadPool.runTask { ttp =>
-            if (logLevel > 1) println(s"Debug: $this reaction $r started on thread pool $ttp with thread id ${Thread.currentThread().getId}")
+          r.threadPool.runTask {
+            if (logLevel > 1) println(s"Debug: $this reaction $r started on thread pool $jJoinPool with thread id ${Thread.currentThread().getId}")
             r.body.apply(JUnapplyRun(usedInputs))
           }
         case None =>

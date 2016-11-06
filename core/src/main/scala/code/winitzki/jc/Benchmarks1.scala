@@ -3,6 +3,8 @@ package code.winitzki.jc
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
+import JoinRun._
+
 object Benchmarks1 {
 
   def benchmark1(count: Int, threads: Int = 2): Long = {
@@ -13,7 +15,7 @@ object Benchmarks1 {
     val d = ja[Unit]("d")
     val f = js[LocalDateTime,Long]("f")
 
-    val tp = new JThreadPoolForReactions(threads)
+    val tp = new JProcessPool(threads)
 
     join(
       run { case c(0) & f(tInit, r) =>
@@ -59,7 +61,7 @@ object Benchmarks1 {
     val d = ja[Unit]("d")
     val f = js[LocalDateTime,Long]("f")
 
-    val tp = new JThreadPoolForReactions(threads)
+    val tp = new JProcessPool(threads)
 
     join(
       tp { case c(0) & f(tInit, r) =>

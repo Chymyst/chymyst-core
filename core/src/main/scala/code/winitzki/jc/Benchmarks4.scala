@@ -3,6 +3,8 @@ package code.winitzki.jc
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
+import JoinRun._
+
 object Benchmarks4 {
   def benchmark4_100(count: Int, threads: Int = 2): Long = {
     val initialTime = LocalDateTime.now

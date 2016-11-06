@@ -1,6 +1,7 @@
 package code.winitzki.jc
 
-import JoinRun.{&, +, _}
+import JoinRun._
+
 import org.scalatest.concurrent.Waiters.Waiter
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -127,4 +128,14 @@ class JoinRunSpec extends FlatSpec with Matchers {
     g() shouldEqual 0
 
   }
+
+  it should "use two threads for concurrent computations" in {
+    val c = ja[Int]("counter")
+    val d = ja[Unit]("decrement")
+    val g = js[Unit,Int]("getValue")
+
+    val tp = JThre
+
+  }
+
 }
