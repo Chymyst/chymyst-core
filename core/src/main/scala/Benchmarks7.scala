@@ -3,7 +3,7 @@ package sample
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
-import sample.JoinDef._
+import sample.JoinRun._
 
 object Benchmarks7 {
 

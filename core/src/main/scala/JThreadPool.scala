@@ -2,7 +2,7 @@ package sample
 
 import java.util.concurrent.Executors
 
-import sample.JoinDef.{JReaction, JUnapplyArg}
+import sample.JoinRun.{JReaction, JUnapplyArg}
 
 import scala.concurrent.{ExecutionContext, Future}
 

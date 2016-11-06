@@ -3,7 +3,7 @@ package sample
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
-import JoinDef._
+import JoinRun._
 
 object Benchmarks4 {
   def benchmark4_100(count: Int, threads: Int = 2): Long = {
