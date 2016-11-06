@@ -1,9 +1,7 @@
-package sample
+package code.winitzki.jc
 
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
-
-import sample.JoinRun._
 
 object Benchmarks1 {
 
@@ -17,7 +15,7 @@ object Benchmarks1 {
 
     val tp = new JThreadPoolForReactions(threads)
 
-    joindef(
+    join(
       run { case c(0) & f(tInit, r) =>
         val t = LocalDateTime.now
         r(tInit.until(t, ChronoUnit.MILLIS))
@@ -63,7 +61,7 @@ object Benchmarks1 {
 
     val tp = new JThreadPoolForReactions(threads)
 
-    joindef(
+    join(
       tp { case c(0) & f(tInit, r) =>
         val t = LocalDateTime.now
         r(tInit.until(t, ChronoUnit.MILLIS))

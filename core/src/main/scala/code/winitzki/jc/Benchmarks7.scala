@@ -1,9 +1,7 @@
-package sample
+package code.winitzki.jc
 
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
-
-import sample.JoinRun._
 
 object Benchmarks7 {
 
@@ -22,7 +20,7 @@ object Benchmarks7 {
 
     val tp = new JThreadPoolForReactions(threads)
 
-    joindef(
+    join(
       run { case all_done(0) + f(tInit, r) =>
         r(tInit.until(LocalDateTime.now, ChronoUnit.MILLIS))
       },
@@ -72,7 +70,7 @@ object Benchmarks7 {
 
     val tp = new JThreadPoolForReactions(threads)
 
-    joindef(
+    join(
       tp{ case c(0) => done() },
       tp{ case c(n) + d(_) if n > 0 => c(n - 1) }
     )

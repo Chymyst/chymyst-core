@@ -1,8 +1,6 @@
-package sample
+package code.winitzki.jc
 
-import com.sun.xml.internal.ws.client.sei.ResponseBuilder.Body
-
-import language.experimental.macros
+import scala.language.experimental.macros
 import scala.reflect.macros._
 
 object Macros {
@@ -22,7 +20,7 @@ object Macros {
     val thetype = tq"$vartype"
 
 //    val result = (q"""object $varname { self => val $varname: $thetype = $realbody }""")
-    val result = (q"""val $varname : $thetype = $realbody """)
+    val result = q"""val $varname : $thetype = $realbody """
     // a block was implicitly created.
     // No way to create a new val or object definition via macro! The error is obscure: the AST "val x = 0" has type <notype>,
     // and we can't typecheck the expression "c.Expr()" with that. We can't say "c.Expr[notype]" since there is no such type.

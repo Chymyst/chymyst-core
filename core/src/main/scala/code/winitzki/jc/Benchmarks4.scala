@@ -1,9 +1,7 @@
-package sample
+package code.winitzki.jc
 
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
-
-import JoinRun._
 
 object Benchmarks4 {
   def benchmark4_100(count: Int, threads: Int = 2): Long = {
@@ -26,7 +24,7 @@ object Benchmarks4 {
             run { case a(m) => b(m) }
         }
       )
-      joindef(jrs: _*)
+      join(jrs: _*)
       as(0)(count)
       g
     }

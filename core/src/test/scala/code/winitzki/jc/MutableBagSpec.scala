@@ -1,6 +1,6 @@
-package sample
+package code.winitzki.jc
 
-import org.scalatest.{Matchers, FlatSpec}
+import org.scalatest.{FlatSpec, Matchers}
 
 class MutableBagSpec extends FlatSpec with Matchers {
   it should "create empty bag" in {

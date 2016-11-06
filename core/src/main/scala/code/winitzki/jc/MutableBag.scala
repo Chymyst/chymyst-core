@@ -1,4 +1,4 @@
-package sample
+package code.winitzki.jc
 
 import scala.collection.mutable
 

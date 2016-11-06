@@ -1,4 +1,4 @@
-package sample
+package code.winitzki.jc
 
 /* This file is copied from He Jiansen's ScalaJoin, see https://github.com/Jiansen/ScalaJoin.
 This file is not a part of JoinRun. Only the benchmark application uses this file
@@ -28,9 +28,8 @@ Some minor changes were made to accomodate updates in Scala standard library sin
   *  @version 0.3.6, 14/11/2011
   */
 
-import scala.collection.immutable.{HashMap}
-import scala.collection.mutable.{Queue, MutableList, Set, HashSet, Stack}
-import scala.concurrent.{Lock, SyncVar}
+import scala.collection.immutable.HashMap
+import scala.collection.mutable.{HashSet, MutableList, Queue, Set, Stack}
 
 // Base class for local channels
 trait NameBase{

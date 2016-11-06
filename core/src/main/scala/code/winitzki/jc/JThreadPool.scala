@@ -1,10 +1,8 @@
-package sample
+package code.winitzki.jc
 
 import java.util.concurrent.Executors
 
-import sample.JoinRun.{JReaction, JUnapplyArg}
-
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 // A pool of execution threads, or another way of running tasks (could use actors or whatever else).
 
