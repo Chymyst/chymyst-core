@@ -6,7 +6,7 @@ import org.scalatest.time.{Millis, Span}
 
 class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(200, Millis)
+  val timeLimit = Span(300, Millis)
 
   it should "create empty bag" in {
     val b = new MutableBag[Int, String]
