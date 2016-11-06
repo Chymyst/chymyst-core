@@ -10,20 +10,24 @@ Join calculus (JC) is somewhat similar to the well-known “actors” framework 
 
 JC has these features that are similar to actors:
 
-- the user's code does not explicitly work with threads / semaphores / locks, synchronization is declarative
-- concurrent processes interact by message-passing
+- the user's code does not explicitly work with mutexes / semaphores / locks
+- concurrent processes interact by message-passing; messages carry immutable data
+- JC processes start when messages of certain type become available, just as actors start processing when a message is received
 
 Main differences between actors and JC processes:
 
-- actors are untyped and mutable (an actor can "become" another actor); JC processes is type-safe and (is designed to be) immutable and purely functional
-- actors can hold mutable state; JC processes are stateless
-- actors are created and maintained by hand, so the user's code needs to manipulate references to actors;
-JC processes are implicit, so that new JC processes are started automatically, and the user's code does not need to describe threads
-by the runtime whenever input data is available for processing
-- actors wait on a channel that holds messages in an ordered queue; JC processes can wait on several channels at once,
-while messages are accumulated in an unordered bag
+| JC | Actors |
+|---|---|
+| processes start concurrently whenever input data is available | a desired number of actors must be created manually|
+| processes are implicit, the user's code only manipulates "concurrent data" | the user's code must manipulate explicit references to actors |
+| processes can wait for several messages at once | actors wait for one message at a time |
+| processes are immutable and stateless, all data lives on messages | actors can mutate ("become another actor"); actors can hold mutable state |
+| messages are held in an unordered bag | messages are held in an ordered queue and processed in the order received |
+| messages are typed | messages are untyped |
 
-More documentation and tutorials are forthcoming.
+
+More documentation is forthcoming.
+
 
 # Main improvements
 
@@ -55,14 +59,20 @@ Current version is `0.0.3`
 
 The tests will produce some error messages and stack traces - this is normal, as long as all tests pass.
 
+Some tests are timed and will fail on a slow machine.
+
 # Build the benchmark application
+
+`sbt run` will run the benchmark application.
+
+To build a JAR:
 
 ```
 sbt assembly
 ```
 will prepare a "root", "core", and "macros" assemblies.
 
-Run the benchmark application:
+Run the benchmark application from JAR:
 
 `java -jar core/target/scala-2.11/core-assembly-1.0.0.jar`
 
@@ -78,10 +88,10 @@ The counter is initialized to zero.
      
     def makeCounter(initCount: Int)
                   : (JA[Unit], JA[Unit], JS[Unit, Int]) = {
-      val counter = ja[Int] // same as new JAsynChan[T]
+      val counter = ja[Int] // concurrent integer
       val incr = ja[Unit]
       val decr = ja[Unit]
-      val get = js[Unit, Int]
+      val get = js[Unit, Int] // concurrent blocking call
     
       join {
         run { counter(n) + incr(_) => counter(n+1) },
