@@ -63,6 +63,7 @@ object Benchmarks4 {
 
   }
 
+  // this generates a stack overflow with more than about 50 reactions when count is about 10
   def benchmark5_100(count: Int, threads: Int = 2): Long = {
 
     object j5_100 extends Join {

@@ -1,7 +1,7 @@
 # joinrun - A new implementation of Join Calculus in Scala
 This is a micro-framework for purely functional concurrency, called “join calculus”.
 
-The code is inspired by previous implementations by He Jiansen (https://github.com/Jiansen/ScalaJoin, 2011)
+The code is inspired by previous implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011)
 and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 
 Join calculus (JC) is somewhat similar to the well-known “actors” framework (e.g. Akka).
@@ -32,5 +32,8 @@ More documentation and tutorials are forthcoming.
 ```
 sbt assembly
 ```
-will prepare a "root", "core", and "macros" assemblies. Run `java -jar core/target/scala-2.11/core-assembly-1.0.0.jar` to demo this.
+will prepare a "root", "core", and "macros" assemblies.
 
+Run the benchmark application:
+
+`java -jar core/target/scala-2.11/core-assembly-1.0.0.jar`

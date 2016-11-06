@@ -307,7 +307,7 @@ object JoinRun {
         case Some(r) =>
           if (logLevel > 1) println(s"Debug: $this starting reaction {$r} on thread pool ${r.threadPool} while on thread pool $jJoinPool with inputs ${moleculeBagToString(usedInputs)}")
           if (logLevel > 2) println(
-            if (moleculesPresent.getMap.isEmpty)
+            if (moleculesPresent.size == 0)
               s"Debug: $this has no molecules remaining"
             else
               s"Debug: $this remaining molecules ${moleculeBagToString(moleculesPresent)}"

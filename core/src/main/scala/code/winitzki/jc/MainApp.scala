@@ -7,7 +7,7 @@ import Benchmarks7._
 object MainApp extends App {
   val version = "0.0.1"
 
-  val n = 10
+  val n = 1000
 
   val threads = 8
 
@@ -20,10 +20,10 @@ object MainApp extends App {
     benchmark2a _ -> true,
     benchmark4_100 _ -> true,
     benchmark5_6 _ -> false,
-    benchmark5_100 _ -> false,
+    benchmark5_100 _ -> false, // this deadlocks
 */
     benchmark7 _ -> true,
-    benchmark8 _ -> true,
+    benchmark8 _ -> false, // this deadlocks
 
     benchmark1 _ -> false
   )

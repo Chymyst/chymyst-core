@@ -29,9 +29,9 @@ class MutableBag[K,V] { // quadratic time, extremely slow
 
 class MutableBag[K,V] {
 
-  override def toString = bag.toString
-
   private val bag: mutable.Map[K, mutable.Map[V, Int]] = mutable.Map.empty
+
+  override def toString = bag.toString
 
   def getMap: Map[K, Map[V, Int]] = bag.toMap.mapValues(_.toMap)
 
@@ -62,8 +62,13 @@ class MutableBag[K,V] {
 }
 
 // previous implementation - becomes slow if we have many repeated values
-class MutableBag0[K,V] {
-  val bag: mutable.Map[K, mutable.ArrayBuffer[V]] = mutable.Map.empty
+class MutableBag_Slower[K,V] {
+
+  private val bag: mutable.Map[K, mutable.ArrayBuffer[V]] = mutable.Map.empty
+
+  override def toString = bag.toString
+
+  def getMap: Map[K, Map[V, Int]] = bag.toMap.mapValues(_.groupBy(identity).mapValues(_.size))
 
   def size: Int = bag.values.map(_.size).sum
 
