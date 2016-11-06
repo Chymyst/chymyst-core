@@ -3,8 +3,8 @@ package code.winitzki.benchmark
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
-import code.winitzki.jc.JoinRun.{+, JAsynChan, _}
 import code.winitzki.jc._
+import code.winitzki.jc.JoinRun._
 
 object Benchmarks7 {
 
@@ -34,11 +34,13 @@ object Benchmarks7 {
     val initialTime = LocalDateTime.now
     all_done(counters)
 
-    val d = make_counters(done, counters, count, threads)
+    val d = make_counters(done, counters, count, tp)
 //    d.setLogLevel(2)
     (1 to (count*counters)).foreach{ _ => d() }
 
-    f(initialTime)
+    var result = f(initialTime)
+    tp.shutdownNow()
+    result
   }
 
   // this deadlocks whenever `count` * `counters` becomes large.
@@ -66,11 +68,9 @@ object Benchmarks7 {
     j8.f(initialTime)
   }
 
-  def make_counters(done: JA[Unit], counters: Int, init: Int, threads: Int) = {
+  def make_counters(done: JA[Unit], counters: Int, init: Int, tp: JProcessPool) = {
     val c = ja[Int]("c")
     val d = ja[Unit]("d")
-
-    val tp = new JProcessPool(threads)
 
     join(
       tp{ case c(0) => done() },

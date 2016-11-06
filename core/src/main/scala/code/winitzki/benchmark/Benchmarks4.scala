@@ -226,6 +226,8 @@ object Benchmarks4 {
         case a48(n) => a49(n)
         case a49(n) => a50(n)
         case a50(n) => a99(n)
+
+          // any more channels and we get a stack overflow really quickly
 //        case a51(n) => a52(n)
 //        case a52(n) => a53(n)
 //        case a53(n) => a54(n)

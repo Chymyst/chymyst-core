@@ -140,7 +140,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val a = ja[Int]("all_finished")
     val g = js[Unit,Int]("getValue")
 
-    val tp = new JPoolExecutor(1)
+    val tp = new JProcessPool(1)
 
     join(
       &{ case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
@@ -152,6 +152,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     g() shouldEqual 1
     Thread.sleep(150) // Now we should have finished the second computation.
     g() shouldEqual 2
+
+    tp.shutdownNow()
   }
 
   it should "use two threads for concurrent computations" in {
@@ -161,7 +163,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val a = ja[Int]("all_finished")
     val g = js[Unit,Int]("getValue")
 
-    val tp = new JPoolExecutor(2)
+    val tp = new JProcessPool(2)
 
     join(
       &{ case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
@@ -171,6 +173,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     a(0) + c(1) + c(1) + d() + d()
     Thread.sleep(150) // This is less than 200ms, and the test fails unless we use 2 threads concurrently.
     g() shouldEqual 2
+
+    tp.shutdownNow()
   }
 
   it should "process simple reactions quickly enough" in {
@@ -189,6 +193,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     Thread.sleep(400)
     g() shouldEqual 0
+
+    tp.shutdownNow()
   }
 
   it should "complete the task even if processes will crash with fixed probability" in {
@@ -212,6 +218,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     Thread.sleep(warmupTimeMs+200) // give it some more time to compensate for crashes
     g() shouldEqual 0
+
+    tp.shutdownNow()
   }
 
   it should "throw exception when a reaction attempts to reply twice" in {
@@ -279,6 +287,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       println(s"got result2: ${g()} but should not have printed this!")
     }
     thrown.getMessage shouldEqual "Error: In Join{d => ...; c + g/S + g2/S => ...}: Reaction {c + g/S + g2/S => ...} finished without replying to g/S, g2/S"
+
     tp.shutdownNow()
   }
 
@@ -299,6 +308,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       println(s"got result: ${g()} but should not have printed this!")
     }
     thrown.getMessage shouldEqual "Error: In Join{d => ...; c + g/S + g2/S => ...}: Reaction {c + g/S + g2/S => ...} finished without replying to g2/S"
+
     tp.shutdownNow()
   }
 
@@ -321,6 +331,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     g() shouldEqual 0
     // now we should also have e(0)
     h() shouldEqual 0
+
     tp.shutdownNow()
 
   }
@@ -352,6 +363,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     d()
     Thread.sleep(warmupTimeMs)
     h() shouldEqual 2
+
     tp.shutdownNow()
   }
 

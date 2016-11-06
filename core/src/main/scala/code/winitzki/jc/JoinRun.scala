@@ -305,7 +305,7 @@ object JoinRun {
       }.mkString(", ")
 
     // Adding an asynchronous molecule may trigger at most one reaction.
-    def injectAsync[T](m: JChan, jmv: JMolValue): Unit = jJoinPool.runProcess {
+    def injectAsync[T](m: JChan, jmv: JMolValue): Unit = if (!Thread.currentThread().isInterrupted) jJoinPool.runProcess {
       val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
         moleculesPresent.addToBag(m, jmv)
         if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $jJoinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
@@ -341,7 +341,7 @@ object JoinRun {
             throw new Exception(message)
           }
           // Run the reaction process on the reaction's thread pool.
-          r.threadPool.runProcess {
+          if (!Thread.currentThread().isInterrupted) r.threadPool.runProcess {
             if (logLevel > 1) println(s"Debug: In $this: reaction {$r} started on thread pool $jJoinPool with thread id ${Thread.currentThread().getId}")
             try {
               // Here we actually apply the reaction body to its input molecules.
@@ -375,9 +375,9 @@ object JoinRun {
             val errorMessage = Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
             val haveError = syncMoleculesWithNoReply.nonEmpty || syncMoleculesWithMultipleReply.nonEmpty
 
-            // Insert error messages into synchronous reply wrappers and release semaphores.
+            // Insert error messages into synchronous reply wrappers and release all semaphores.
             usedInputs.foreach {
-              case p@(mol, JSMV(jsv)) =>
+              case (_, JSMV(jsv)) =>
                 if (haveError) {
                   jsv.errorMessage = Some(errorMessage)
                 }
@@ -399,6 +399,7 @@ object JoinRun {
       }
 
     }
+
 
     // Adding a synchronous molecule may trigger at most one reaction and must return a value of type R.
     // This must be a blocking call.

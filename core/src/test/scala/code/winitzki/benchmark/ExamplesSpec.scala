@@ -51,11 +51,21 @@ class ExamplesSpec extends FlatSpec with Matchers with TimeLimitedTests {
       & { case h4(n) + f45(_) + f34(_) => rw(t4); t4(n) + f45() + f34() },
       & { case h5(n) + f51(_) + f45(_) => rw(t5); t5(n) + f51() + f45() }
     )
+
     t1(cycles) + t2(cycles) + t3(cycles) + t4(cycles) + t5(cycles)
     f12() + f23() + f34() + f45() + f51()
 
     check() shouldEqual ()
 
+    // stop the simulation: this should be in unit tests, not here
+    // not yet implemented
+/*
+    val stop = ja[Unit]
+    val wait_for_stop = js[Unit,Unit]
+    join( &{ case stop(_) + wait_for_stop(_,r) => r() } )
+    wait_until_quiet(t1, stop)
+    wait_for_stop()
+*/
     defaultJoinPool.shutdownNow()
     defaultProcessPool.shutdownNow()
   }

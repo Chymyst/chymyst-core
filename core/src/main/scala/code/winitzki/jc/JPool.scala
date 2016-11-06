@@ -1,6 +1,6 @@
 package code.winitzki.jc
 
-import java.util.concurrent.Executors
+import java.util.concurrent.{Executors, TimeUnit}
 
 import scala.concurrent.ExecutionContext
 
@@ -19,14 +19,16 @@ class JThreadPoolExecutor(threads: Int = 1) extends JThreadPool {
 }
 */
 /* */
-class JPoolExecutor(threads: Int = 8) extends JPool {
+private[jc] class JPoolExecutor(threads: Int = 8) extends JPool {
   val execService = Executors.newFixedThreadPool(threads)
 
   val sleepTime = 100
 
   def shutdownNow() = new Thread {
     execService.shutdown()
-    Thread.sleep(sleepTime)
+    execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
+    execService.shutdownNow()
+    execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
     execService.shutdownNow()
   }
 
