@@ -405,11 +405,11 @@ object JoinRun {
     // This must be a blocking call.
     def injectSyncAndReply[T,R](m: JSynChan[T,R], valueWithResult: JReplyVal[T,R]): R = {
       injectAsync(m, JSMV(valueWithResult))
-      try  // not sure we need this.
+//      try  // not sure we need this.
         valueWithResult.acquireSemaphore()
-      catch {
-        case e: InterruptedException => e.printStackTrace()
-      }
+//      catch {
+//        case e: InterruptedException => e.printStackTrace()
+//      }
       valueWithResult.deleteSemaphore() // make sure it's gone
 
       // check if we had any errors, and that we have a result value
