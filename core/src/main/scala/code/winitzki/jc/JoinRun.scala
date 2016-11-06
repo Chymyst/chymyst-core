@@ -34,7 +34,7 @@ trait JPool {
 object JoinRun {
 
   // Wait until the join definition to which `molecule` belongs becomes quiescent, then inject `callback`.
-  def wait_until_quiet[T](molecule: JAsy[T], callback: JAsy[Unit]): Unit = {
+  def wait_until_quiet[T](molecule: JAsynChan[T], callback: JAsynChan[Unit]): Unit = {
     molecule.owner match {
       case Some(owner) => owner.setQuiescenceCallback(callback)
       case None => throw new Exception(s"Molecule $molecule belongs to no join definition")
@@ -81,7 +81,7 @@ object JoinRun {
   case object JSyncMoleculeType extends MoleculeType
 
   // Abstract molecule. This type is used in collections of molecules that only require to know the owner.
-  private[jc] abstract class JAbs(name: Option[String]) {
+  private[jc] abstract class JChan(name: Option[String]) {
     var owner: Option[JoinDefinition] = None
     def setLogLevel(logLevel: Int): Unit = { owner.foreach(o => o.logLevel = logLevel) }
     def moleculeType: MoleculeType
@@ -95,13 +95,13 @@ object JoinRun {
     }
   }
 
-  def ja[T] = new JAsy[T]
-  def js[T,R] = new JSyn[T,R]
-  def ja[T](name: String) = new JAsy[T](Some(name))
-  def js[T,R](name: String) = new JSyn[T,R](Some(name))
+  def ja[T] = new JAsynChan[T]
+  def js[T,R] = new JSynChan[T,R]
+  def ja[T](name: String) = new JAsynChan[T](Some(name))
+  def js[T,R](name: String) = new JSynChan[T,R](Some(name))
 
   // Asynchronous molecule.
-  class JAsy[T](name: Option[String] = None) extends JAbs(name) {
+  class JAsynChan[T](name: Option[String] = None) extends JChan(name) {
     def apply(v: T): Unit = {
       // Inject an asynchronous molecule.
       owner match {
@@ -166,7 +166,7 @@ object JoinRun {
   }
 
   // Synchronous molecule.
-  private[jc] class JSyn[T,R](name: Option[String] = None) extends JAbs(name) {
+  private[jc] class JSynChan[T,R](name: Option[String] = None) extends JChan(name) {
 
     def apply(v: T): R = {
       // Inject a synchronous molecule.
@@ -210,14 +210,14 @@ object JoinRun {
   implicit val defaultProcessPool = new JProcessPool(2)
 
   private[jc] sealed trait JUnapplyArg // The disjoint union type for arguments passed to the unapply methods.
-  private[jc] case class JUnapplyCheck(inputMolecules: mutable.Set[JAbs]) extends JUnapplyArg
+  private[jc] case class JUnapplyCheck(inputMolecules: mutable.Set[JChan]) extends JUnapplyArg
   private[jc] case class JUnapplyRun(moleculeValues: LinearMoleculeBag) extends JUnapplyArg
   private[jc] case class JUnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends JUnapplyArg
 
   private[jc] type JReactionBody = PartialFunction[JUnapplyArg, Any]
 
   case class JReaction(body: JReactionBody, threadPool: JPool) {
-    lazy val inputMoleculesUsed: Set[JAbs] = {
+    lazy val inputMoleculesUsed: Set[JChan] = {
       val moleculesInThisReaction = JUnapplyCheck(mutable.Set.empty)
       body.isDefinedAt(moleculesInThisReaction)
       moleculesInThisReaction.inputMolecules.toSet
@@ -234,7 +234,7 @@ object JoinRun {
           (implicit jProcessPool: JProcessPool,
            jJoinPool: JJoinPool): Unit = {
 
-    val knownMolecules : Map[JReaction, Set[JAbs]] = rs.map { r => (r, r.inputMoleculesUsed) }.toMap
+    val knownMolecules : Map[JReaction, Set[JChan]] = rs.map { r => (r, r.inputMoleculesUsed) }.toMap
 
     // create a join definition object holding the given reactions and inputs
     val join = new JoinDefinition(knownMolecules)(jProcessPool, jJoinPool)
@@ -254,30 +254,30 @@ object JoinRun {
   }
 
   // for JA[T] molecules, the value is of type T; for JS[T,R] molecules, the value is of type JReplyVal[T,R]
-  private[jc] type MoleculeBag = MutableBag[JAbs, JMolValue]
-  private[jc] type MutableLinearMoleculeBag = mutable.Map[JAbs, JMolValue]
-  private[jc] type LinearMoleculeBag = Map[JAbs, JMolValue]
+  private[jc] type MoleculeBag = MutableBag[JChan, JMolValue]
+  private[jc] type MutableLinearMoleculeBag = mutable.Map[JChan, JMolValue]
+  private[jc] type LinearMoleculeBag = Map[JChan, JMolValue]
 
   // The user will never see any instances of this class.
-  class JoinDefinition(val inputMolecules: Map[JReaction, Set[JAbs]])(jProcessPool: JProcessPool, jJoinPool: JJoinPool) {
+  class JoinDefinition(val inputMolecules: Map[JReaction, Set[JChan]])(jProcessPool: JProcessPool, jJoinPool: JJoinPool) {
 
-    private val quiescenceCallbacks: mutable.Set[JAsy[Unit]] = mutable.Set.empty
+    private val quiescenceCallbacks: mutable.Set[JAsynChan[Unit]] = mutable.Set.empty
 
     override def toString = s"Join{${inputMolecules.keys.mkString("; ")}}"
 
     var logLevel = 0
 
-    def setQuiescenceCallback(callback: JAsy[Unit]): Unit = {
+    def setQuiescenceCallback(callback: JAsynChan[Unit]): Unit = {
       quiescenceCallbacks.add(callback)
     }
 
-    private lazy val possibleReactions: Map[JAbs, Seq[JReaction]] = inputMolecules.toSeq
+    private lazy val possibleReactions: Map[JChan, Seq[JReaction]] = inputMolecules.toSeq
       .flatMap { case (r, ms) => ms.toSeq.map { m => (m, r) } }
       .groupBy { case (m, r) => m }
       .map { case (m, rs) => (m, rs.map(_._2)) }
 
     // Initially, there are no molecules present.
-    private var moleculesPresent: MoleculeBag = new MutableBag[JAbs, JMolValue]
+    private var moleculesPresent: MoleculeBag = new MutableBag[JChan, JMolValue]
 
     private def moleculeBagToString(mb: MoleculeBag): String =
       mb.getMap.flatMap {
@@ -298,7 +298,7 @@ object JoinRun {
       }.mkString(", ")
 
     // Adding an asynchronous molecule may trigger at most one reaction.
-    def injectAsync[T](m: JAbs, jmv: JMolValue): Unit = jJoinPool.runProcess {
+    def injectAsync[T](m: JChan, jmv: JMolValue): Unit = jJoinPool.runProcess {
       val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
         moleculesPresent.addToBag(m, jmv)
         if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $jJoinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
@@ -395,7 +395,7 @@ object JoinRun {
 
     // Adding a synchronous molecule may trigger at most one reaction and must return a value of type R.
     // This must be a blocking call.
-    def injectSyncAndReply[T,R](m: JSyn[T,R], valueWithResult: JReplyVal[T,R]): R = {
+    def injectSyncAndReply[T,R](m: JSynChan[T,R], valueWithResult: JReplyVal[T,R]): R = {
       injectAsync(m, JSMV(valueWithResult))
       try  // not sure we need this.
         valueWithResult.acquireSemaphore()

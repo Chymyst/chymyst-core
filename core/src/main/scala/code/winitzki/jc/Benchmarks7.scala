@@ -65,7 +65,7 @@ object Benchmarks7 {
     j8.f(initialTime)
   }
 
-  def make_counters(done: JAsy[Unit], counters: Int, init: Int, threads: Int) = {
+  def make_counters(done: JAsynChan[Unit], counters: Int, init: Int, threads: Int) = {
     val c = ja[Int]("c")
     val d = ja[Unit]("d")
 
