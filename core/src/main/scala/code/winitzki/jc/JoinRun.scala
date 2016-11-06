@@ -95,6 +95,9 @@ object JoinRun {
     }
   }
 
+  type JA[T] = JAsynChan[T]
+  type JS[T,R] = JSynChan[T,R]
+
   def ja[T] = new JAsynChan[T]
   def js[T,R] = new JSynChan[T,R]
   def ja[T](name: String) = new JAsynChan[T](Some(name))

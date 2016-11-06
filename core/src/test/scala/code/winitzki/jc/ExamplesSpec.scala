@@ -57,7 +57,7 @@ class ExamplesSpec extends FlatSpec with Matchers with TimeLimitedTests {
     check() shouldEqual ()
   }
 
-  it should "sort an array using concurrent merge sort quickly" in {
+  it should "sort an array using concurrent merge sort more quickly with more threads" in {
 
   }
 }
