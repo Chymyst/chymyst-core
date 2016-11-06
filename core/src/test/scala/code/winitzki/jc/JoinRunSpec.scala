@@ -23,7 +23,7 @@ class JoinRunSpec extends FlatSpec with Matchers {
     val a = ja[Unit]("a")
     val b = ja[Unit]("b")
     join( &{ case a(_) => b() }, &{ case b(_) => waiter.dismiss() })
-    a.setLogLevel(3)
+//    a.setLogLevel(3)
     a()
     waiter.await()
   }
@@ -129,13 +129,52 @@ class JoinRunSpec extends FlatSpec with Matchers {
 
   }
 
+  it should "use one thread for concurrent computations" in {
+    val c = ja[Int]("counter")
+    val d = ja[Unit]("decrement")
+    val f = ja[Unit]("finished")
+    val a = ja[Int]("all_finished")
+    val g = js[Unit,Int]("getValue")
+
+    val tp = new JPoolExecutor(1)
+
+    join(
+      &{ case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
+      &{ case a(x) + g(_, r) => a(x) + r(x) },
+      &{ case f(_) + a(x) => a(x+1) }
+    )
+    a(0)
+    c(1)
+    c(1)
+    d()
+    d()
+    Thread.sleep(150) // This is less than 200ms, so we have not yet finished the second computation.
+    g() shouldEqual 1
+    Thread.sleep(150) // Now we should have finished the second computation.
+    g() shouldEqual 2
+  }
+
   it should "use two threads for concurrent computations" in {
     val c = ja[Int]("counter")
     val d = ja[Unit]("decrement")
+    val f = ja[Unit]("finished")
+    val a = ja[Int]("all_finished")
     val g = js[Unit,Int]("getValue")
 
-    val tp = JThre
+    val tp = new JPoolExecutor(2)
 
+    join(
+      &{ case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
+      &{ case a(x) + g(_, r) => r(x) },
+      &{ case f(_) + a(x) => a(x+1) }
+    )
+    a(0)
+    c(1)
+    c(1)
+    d()
+    d()
+    Thread.sleep(150) // This is less than 200ms, and the test fails unless we use 2 threads concurrently.
+    g() shouldEqual 2
   }
 
 }

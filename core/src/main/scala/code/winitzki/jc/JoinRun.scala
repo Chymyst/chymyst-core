@@ -305,12 +305,17 @@ object JoinRun {
       // We are just starting a reaction, so we don't need to hold the thread any more.
       reaction match {
         case Some(r) =>
-          if (logLevel > 1) println(s"Debug: $this starting reaction $r on thread pool ${r.threadPool} while on thread pool $jJoinPool with inputs ${moleculeBagToString(usedInputs)}")
-          if (logLevel > 2) println(s"Debug: $this remaining molecules ${moleculeBagToString(moleculesPresent)}")
+          if (logLevel > 1) println(s"Debug: $this starting reaction {$r} on thread pool ${r.threadPool} while on thread pool $jJoinPool with inputs ${moleculeBagToString(usedInputs)}")
+          if (logLevel > 2) println(
+            if (moleculesPresent.getMap.isEmpty)
+              s"Debug: $this has no molecules remaining"
+            else
+              s"Debug: $this remaining molecules ${moleculeBagToString(moleculesPresent)}"
+          )
           // A basic check that we are using our mutable structures safely.
-          if (! r.inputMoleculesUsed.equals(usedInputs.keys.toSet)) throw new Exception(s"Internal error: $this will not start reaction $r with incorrect inputs ${moleculeBagToString(usedInputs)}")
+          if (! r.inputMoleculesUsed.equals(usedInputs.keys.toSet)) throw new Exception(s"Internal error: $this will not start reaction {$r} with incorrect inputs ${moleculeBagToString(usedInputs)}")
           r.threadPool.runTask {
-            if (logLevel > 1) println(s"Debug: $this reaction $r started on thread pool $jJoinPool with thread id ${Thread.currentThread().getId}")
+            if (logLevel > 1) println(s"Debug: $this reaction {$r} started on thread pool $jJoinPool with thread id ${Thread.currentThread().getId}")
             r.body.apply(JUnapplyRun(usedInputs))
           }
         case None =>
