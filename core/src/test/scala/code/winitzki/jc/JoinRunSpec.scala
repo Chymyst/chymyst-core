@@ -200,7 +200,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g = js[Unit, Int]("getValue")
     join(
       & { case c(x) + d(_) =>
-        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash!")
+        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's ok, ignore this)")
       },
       & { case c(x) + g(_, r) => c(x) + r(x) }
     )

@@ -1,7 +1,7 @@
 package code.winitzki.jc
 
 /*
-This is a micro-framework for purely functional concurrency, called “join calculus” (JC).
+Join Calculus (JC) is a micro-framework for declarative concurrency.
 
 JC is basically “Actors” but made type-safe, purely functional, and significantly more high-level.
 
@@ -13,11 +13,9 @@ TODO
  * - go through possible values when matching (can do?) Important: can get stuck when molecules are in different order. Or need to shuffle.
  * - define a special "switch off" molecule - per-join, with a callback parameter
  * - use dsinfo to automate molecule naming
- * - benchmark multicore with some thread.sleep
  * - benchmark merge-sort
  * - benchmark dining philosophers
  * - implement disjoin
- * - implement fault tolerance (catch exception in task)
  * - implement event-driven actors for threadpool
   * */
 

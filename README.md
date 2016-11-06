@@ -1,5 +1,5 @@
 # joinrun - A new implementation of Join Calculus in Scala
-This is a micro-framework for purely functional concurrency, called “join calculus”.
+Join Calculus (JC) is a micro-framework for purely functional concurrency.
 
 The code is inspired by previous implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011)
 and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
