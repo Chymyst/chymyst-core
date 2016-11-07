@@ -16,11 +16,11 @@ JC has these features that are similar to actors:
 
 Main differences between actors and JC processes:
 
-| JC | Actors |
+| JC processes | Actors |
 |---|---|
-| processes start concurrently whenever input data is available | a desired number of actors must be created manually|
+| concurrent processes start automatically whenever several sets of input messages are available | a desired number of actors must be created manually|
 | processes are implicit, the user's code only manipulates "concurrent data" | the user's code must manipulate explicit references to actors |
-| processes can wait for several messages at once | actors wait for one message at a time |
+| processes typically wait for (and process) several input messages at once | actors wait for (and process) only one input message at a time |
 | processes are immutable and stateless, all data lives on messages | actors can mutate ("become another actor"); actors can hold mutable state |
 | messages are held in an unordered bag | messages are held in an ordered queue and processed in the order received |
 | messages are typed | messages are untyped |
@@ -78,20 +78,21 @@ Run the benchmark application from JAR:
 
 # Basic usage of `JoinRun`
 
-Here is an example of "synchronized non-blocking counter".
+Here is an example of "single-access non-blocking counter".
 There is an integer counter value, to which we have non-blocking access
 via `incr` and `decr` messages.
 We can also fetch the current counter value via the `get` message, which is blocking.
-The counter is initialized to zero.
+The counter is initialized to the number we specify.
 
     import code.winitzki.jc.JoinRun._
      
+    // Define the logic of the "non-blocking counter".
     def makeCounter(initCount: Int)
                   : (JA[Unit], JA[Unit], JS[Unit, Int]) = {
-      val counter = ja[Int] // concurrent integer
-      val incr = ja[Unit]
-      val decr = ja[Unit]
-      val get = js[Unit, Int] // concurrent blocking call
+      val counter = ja[Int] // non-blocking channel with integer value
+      val incr = ja[Unit] // non-blocking channel with empty value
+      val decr = ja[Unit] // non-blocking channel with empty value
+      val get = js[Unit, Int] // blocking channel returning integer value
     
       join {
         run { counter(n) + incr(_) => counter(n+1) },
@@ -99,18 +100,17 @@ The counter is initialized to zero.
         run { counter(n) + get(_,res) => counter(n) + res(n) }
       }
     
-      counter(initCount)
+      counter(initCount) // inject a single "counter(initCount)" message
       
-      (incr, decr, get)
+      (incr, decr, get) // return the channels
     }
 
-    // make a new counter
-    
+    // make a new counter: get the channels
     val (inc, dec, get) = makeCounter(100)
     
     // use the counter: we can be on any thread,
     // we can increment and decrement multiple times,
-    // and still there will be no race conditions
+    // and there will be no race conditions
     
     inc() // non-blocking increment
           // more code

@@ -2,6 +2,10 @@ package code.winitzki.jc
 
 import java.util.concurrent.{Executors, TimeUnit}
 
+import akka.actor.{Actor, ActorSystem, PoisonPill, Props}
+import akka.dispatch.Dispatchers
+import akka.routing.{BalancingPool, Broadcast, RoundRobinPool, SmallestMailboxPool}
+
 import scala.concurrent.ExecutionContext
 
 class JJoinPool extends JPoolExecutor(1)
@@ -19,6 +23,42 @@ class JThreadPoolExecutor(threads: Int = 1) extends JThreadPool {
 }
 */
 /* */
+
+
+private[jc] class JActor extends Actor {
+
+
+  def receive = {
+    case _:Unit => {
+      Thread.currentThread().interrupt()
+      context.stop(self)
+    }
+    case task: Runnable => {
+//      println(s"Debug: JActor starting task $task")
+      task.run()
+    }
+  }
+}
+
+private[jc] class JActorExecutor(threads: Int = 8) extends JPool {
+
+  val actorSystem = ActorSystem("JActorExecutor")
+  val router = actorSystem.actorOf(SmallestMailboxPool(threads).props(Props[JActor]), name = "workerRouter")
+//  val router = actorSystem.actorOf(Props[JActor].withRouter(SmallestMailboxPool(threads)), name = "workerRouter")
+
+  override def shutdownNow(): Unit = {
+    router ! Broadcast(())
+    router ! PoisonPill
+    actorSystem.terminate()
+  }
+
+  override def runProcess(task: => Unit): Unit =
+    router ! new Runnable {
+      override def run(): Unit = task
+    }
+
+}
+
 private[jc] class JPoolExecutor(threads: Int = 8) extends JPool {
   val execService = Executors.newFixedThreadPool(threads)
 

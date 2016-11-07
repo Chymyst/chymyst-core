@@ -99,16 +99,17 @@ object JoinRun {
     }
   }
 
+  // These type aliases are intended for users.
   type JA[T] = JAsynChan[T]
   type JS[T,R] = JSynChan[T,R]
 
   def ja[T] = new JAsynChan[T]
   def js[T,R] = new JSynChan[T,R]
-  def ja[T](name: String) = new JAsynChan[T](Some(name))
-  def js[T,R](name: String) = new JSynChan[T,R](Some(name))
+  def ja[T](name: String) = JAsynChan[T](Some(name))
+  def js[T,R](name: String) = JSynChan[T,R](Some(name))
 
-  // Asynchronous molecule.
-  private[JoinRun] class JAsynChan[T](name: Option[String] = None) extends JChan(name) {
+  // Asynchronous molecule. This is an immutable class.
+  private[JoinRun] case class JAsynChan[T](name: Option[String] = None) extends JChan(name) {
     def apply(v: T): Unit = {
       // Inject an asynchronous molecule.
       owner match {
@@ -146,7 +147,7 @@ object JoinRun {
     }
   }
 
-  // Reply-value wrapper for synchronous molecules.
+  // Reply-value wrapper for synchronous molecules. This is a mutable class.
   private[JoinRun] case class JReplyVal[T, R](
     v: T,
     var result: Option[R] = None,
@@ -172,8 +173,8 @@ object JoinRun {
     }
   }
 
-  // Synchronous molecule.
-  private[JoinRun] class JSynChan[T,R](name: Option[String] = None) extends JChan(name) {
+  // Synchronous channel. This is an immutable value.
+  private[JoinRun] case class JSynChan[T,R](name: Option[String] = None) extends JChan(name) {
 
     def apply(v: T): R = {
       // Inject a synchronous molecule.
@@ -223,6 +224,7 @@ object JoinRun {
 
   private[jc] type JReactionBody = PartialFunction[JUnapplyArg, Any]
 
+  // immutable
   private[jc] case class JReaction(body: JReactionBody, threadPool: JPool) {
     lazy val inputMoleculesUsed: Set[JChan] = {
       val moleculesInThisReaction = JUnapplyCheck(mutable.Set.empty)
@@ -356,7 +358,7 @@ object JoinRun {
             }
             // For any synchronous input molecules that have no reply, put an error message into them and reply with empty value to unblock the threads.
 
-            def nonemptyOpt[T](s: Seq[T]): Option[Seq[T]] = if (s.isEmpty) None else Some(s)
+            def nonemptyOpt[S](s: Seq[S]): Option[Seq[S]] = if (s.isEmpty) None else Some(s)
 
             // Compute error messages here in case we will need them later.
             val syncMoleculesWithNoReply = nonemptyOpt(usedInputs
@@ -393,7 +395,7 @@ object JoinRun {
           }
 
         case None =>
-          if (logLevel > 2) println(s"Debug: joindef $this: no reactions started")
+          if (logLevel > 2) println(s"Debug: In $this: no reactions started")
           ()
 
       }
@@ -417,7 +419,7 @@ object JoinRun {
         case Some(message) => throw new Exception(message)
         case None => valueWithResult.result match {
           case Some(result) => result
-          case None => throw new Exception(s"Internal error: $m received an empty reply without an error message")
+          case None => throw new Exception(s"Internal error: In $this: $m received an empty reply without an error message")
         }
 
       }

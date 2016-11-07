@@ -55,6 +55,10 @@ object MyBuild extends Build {
     "core",
     file("core"),
     settings = buildSettings ++ Seq(
-      libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.0" % "test")
+      libraryDependencies ++= Seq(
+        "com.typesafe.akka" %% "akka-actor" % "2.4.12",
+        "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+      )
+    )
   ) dependsOn macros
 }
