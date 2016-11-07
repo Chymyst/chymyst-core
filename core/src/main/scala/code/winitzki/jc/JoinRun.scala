@@ -16,7 +16,7 @@ TODO
  * - benchmark merge-sort
  * - benchmark dining philosophers
  * - implement disjoin
- * - implement event-driven actors for threadpool
+ * - benchmark fairness
   * */
 
 import java.util.concurrent.Semaphore
@@ -105,11 +105,11 @@ object JoinRun {
 
   def ja[T] = new JAsynChan[T]
   def js[T,R] = new JSynChan[T,R]
-  def ja[T](name: String) = JAsynChan[T](Some(name))
-  def js[T,R](name: String) = JSynChan[T,R](Some(name))
+  def ja[T](name: String) = new JAsynChan[T](Some(name))
+  def js[T,R](name: String) = new JSynChan[T,R](Some(name))
 
   // Asynchronous molecule. This is an immutable class.
-  private[JoinRun] case class JAsynChan[T](name: Option[String] = None) extends JChan(name) {
+  private[JoinRun] class JAsynChan[T](name: Option[String] = None) extends JChan(name) {
     def apply(v: T): Unit = {
       // Inject an asynchronous molecule.
       owner match {
@@ -174,7 +174,7 @@ object JoinRun {
   }
 
   // Synchronous channel. This is an immutable value.
-  private[JoinRun] case class JSynChan[T,R](name: Option[String] = None) extends JChan(name) {
+  private[JoinRun] class JSynChan[T,R](name: Option[String] = None) extends JChan(name) {
 
     def apply(v: T): R = {
       // Inject a synchronous molecule.
