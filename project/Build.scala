@@ -10,7 +10,7 @@ $ sbt
 
 object BuildSettings {
   val buildSettings = Defaults.coreDefaultSettings ++ Seq(
-    organization := "org.scalamacros",
+    organization := "code.winitzki",
     version := "1.0.0",
     scalaVersion := "2.11.8",
     crossScalaVersions := Seq("2.10.2", "2.10.3", "2.10.4", "2.10.5", "2.10.6", "2.11.0", "2.11.1", "2.11.2", "2.11.3", "2.11.4", "2.11.5", "2.11.6", "2.11.7", "2.11.8"),
@@ -24,7 +24,7 @@ object MyBuild extends Build {
   import BuildSettings._
 
   lazy val root: Project = Project(
-    "root",
+    "joinrun",
     file("."),
     settings = buildSettings ++ Seq(
       libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.0" % "test",
@@ -45,11 +45,16 @@ object MyBuild extends Build {
           case Some((2, 10)) =>
             libraryDependencies.value ++ Seq(
               compilerPlugin("org.scalamacros" % "paradise" % "2.1.0-M5" cross CrossVersion.full),
-              "org.scalamacros" %% "quasiquotes" % "2.1.0-M5" cross CrossVersion.binary)
+              "org.scalamacros" %% "quasiquotes" % "2.1.0-M5" cross CrossVersion.binary
+            )
         }
-      }
+      },
+      libraryDependencies ++= Seq(
+        "org.bitbucket.inkytonik.dsinfo" %% "dsinfo" % "0.4.0",
+        "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+      )
     )
-  )
+  ) dependsOn core
 
   lazy val core: Project = Project(
     "core",
@@ -60,5 +65,5 @@ object MyBuild extends Build {
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"
       )
     )
-  ) dependsOn macros
+  )
 }

@@ -23,6 +23,8 @@ TODO
  * - fix the problem with pattern-matching not at the end of input channel list.
   * Look at http://missingfaktor.blogspot.com/2011/08/emulating-cs-default-keyword-in-scala.html
   * and http://stackoverflow.com/questions/5260298/how-can-i-obtain-the-default-value-for-a-type-in-scala
+  * - add javadoc for the library
+  * - repackage as library + library unit tests + benchmark app
   * */
 
 import java.util.concurrent.Semaphore

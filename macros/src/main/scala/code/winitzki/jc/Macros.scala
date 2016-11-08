@@ -1,80 +1,51 @@
 package code.winitzki.jc
 
+import code.winitzki.jc.Macros.theContext
+
 import scala.language.experimental.macros
 import scala.reflect.macros._
+import scala.reflect.NameTransformer.LOCAL_SUFFIX_STRING
+
+//import org.bitbucket.inkytonik.dsinfo.DSInfo.makeCallWithName
+
+import JoinRun.{ja,js,JA,JS}
 
 object Macros {
-  def mkval(valbody: Nothing => Any): Any = macro mkvalImpl
 
-  def mkvalImpl(c: blackbox.Context)(valbody: c.Tree) = {
+  type theContext = blackbox.Context
+
+  def getName: String = macro getNameImpl
+
+  def getNameImpl(c: theContext): c.Expr[String] = {
     import c.universe._
 
-//    val (varname, realbody) = valbody match {
-//      case q"${x: TermName} => $b" => (x, b)
-//    }
+    val s = c.internal.enclosingOwner.name.decodedName.toString
+      .stripSuffix("$lzy").stripSuffix(LOCAL_SUFFIX_STRING)
 
-    val q"(..$params) => $realbody" = valbody
-    val List(q"$_ val $varname: $vartype") = params
-    println(s"Debug: got varname=$varname, vartype=$vartype, realbody=$realbody")
-
-    val thetype = tq"$vartype"
-
-//    val result = (q"""object $varname { self => val $varname: $thetype = $realbody }""")
-    val result = q"""val $varname : $thetype = $realbody """
-    // a block was implicitly created.
-    // No way to create a new val or object definition via macro! The error is obscure: the AST "val x = 0" has type <notype>,
-    // and we can't typecheck the expression "c.Expr()" with that. We can't say "c.Expr[notype]" since there is no such type.
-
-    // also note that incremental compilation is screwed: to force recompilation of macro code, need to force recompilation of dependent main code.
-
-    // def macros seem to always return expressions?
-
-//    println(s"Debug: returning result=${show(result.tree)}")
-    result
+    c.Expr(Literal(Constant(s)))
   }
 
+  def jA[T]: JA[T] = macro jAImpl[T]
 
-  def impl(c: whitebox.Context) = {
+  def jAImpl[T: c.WeakTypeTag](c: theContext): c.universe.Tree = {
     import c.universe._
-    c.Expr[Unit](q"""println("Hello World")""")
+    val s = c.internal.enclosingOwner.name.decodedName.toString.stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
+
+    val t = c.weakTypeOf[T]
+
+    q"JoinRun.ja[$t]($s)"
   }
 
-  def hello: Unit = macro impl
-  // Returns the tree of `a` after the typer, printed as source code.
-  def desugar(a: Any): String = macro desugarImpl
+  def jS[T, R]: JS[T, R] = macro jSImpl[T, R]
 
-  def desugarImpl(c: whitebox.Context)(a: c.Expr[Any]) = {
+  def jSImpl[T: c.WeakTypeTag, R: c.WeakTypeTag](c: blackbox.Context): c.Expr[JS[T, R]] = {
     import c.universe._
+    val s = c.internal.enclosingOwner.name.decodedName.toString.stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
 
-    val s = show(a.tree)
-    c.Expr(
-      Literal(Constant(s))
-    )
+    val t = c.weakTypeOf[T]
+    val r = c.weakTypeOf[R]
+
+    c.Expr[JS[T, R]](q"JoinRun.js[$t,$r]($s)")
   }
 
-  def desugarF[T](a: Any => T): String = macro desugarFImpl
-
-  def desugarFImpl(c: blackbox.Context)(a: c.Expr[Any]) = {
-    import c.universe._
-
-    val s = show(a.tree)
-    c.Expr[String](q"$s")
-
-  }
-
-  def joindef[T](b: PartialFunction[Any, Any]): String = macro joindefImpl
-
-  def joindefImpl(c: blackbox.Context)(b: c.Expr[PartialFunction[Any, Any]]) = {
-    import c.universe._
-    val s = showRaw(b.tree)
-    c.Expr[String](q"$s")
-  }
-
-  def joindefT[T](b: PartialFunction[Any, Any]): T = macro joindefTImpl
-
-  def joindefTImpl(c: blackbox.Context)(b: c.Tree): c.Tree = {
-    import c.universe._
-    val s = showRaw(b) + " *** desugared: *** " + show(b)
-    q"$s"
-  }
 }
