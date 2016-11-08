@@ -60,6 +60,7 @@ object MyBuild extends Build {
     "core",
     file("core"),
     settings = buildSettings ++ Seq(
+      parallelExecution in Test := false,
       libraryDependencies ++= Seq(
         "com.typesafe.akka" %% "akka-actor" % "2.4.12",
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"
