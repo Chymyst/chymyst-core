@@ -28,6 +28,8 @@ Main differences between actors and JC processes:
 
 More documentation is forthcoming.
 
+For a general introduction to Join Calculus, see [this JoCaml tutorial](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml).
+
 
 # Main improvements
 

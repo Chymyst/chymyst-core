@@ -19,13 +19,13 @@ object Benchmarks1 {
     val tp = new JProcessPool(threads)
 
     join(
-      run { case c(0) & f(tInit, r) =>
+      run { case c(0) + f(tInit, r) =>
         val t = LocalDateTime.now
         r(tInit.until(t, ChronoUnit.MILLIS))
       } onThreads tp,
-      tp{ case g(_,reply) & c(n) => c(n); reply(n) },
-      tp{ case c(n) & i(_) => c(n+1)  },
-      tp{ case c(n) & d(_) if n > 0 => c(n-1) }
+      tp{ case g(_,reply) + c(n) => c(n); reply(n) },
+      tp{ case c(n) + i(_) => c(n+1)  },
+      tp{ case c(n) + d(_) if n > 0 => c(n-1) }
     )
 
     val initialTime = LocalDateTime.now
@@ -66,13 +66,13 @@ object Benchmarks1 {
     val f = js[LocalDateTime,Long]("f")
 
     join(
-      tp { case c(0) & f(tInit, r) =>
+      tp { case c(0) + f(tInit, r) =>
         val t = LocalDateTime.now
         r(tInit.until(t, ChronoUnit.MILLIS))
       },
-      tp{ case g(_,reply) & c(n) => c(n); reply(n) },
-      tp{ case c(n) & i(_) => c(n+1) },
-      tp{ case c(n) & d(_) if n > 0 => c(n-1) }
+      tp{ case g(_,reply) + c(n) => c(n); reply(n) },
+      tp{ case c(n) + i(_) => c(n+1) },
+      tp{ case c(n) + d(_) if n > 0 => c(n-1) }
     )
     c(init)
     (d,i,f,g)

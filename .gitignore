@@ -21,3 +21,5 @@ project/project
 project/target
 .idea*
 .iml*
+root.ipr
+root.iws
