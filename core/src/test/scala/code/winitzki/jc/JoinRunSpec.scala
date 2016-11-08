@@ -14,6 +14,9 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
+
+
+
   it should "define a reaction with correct inputs" in {
     val a = ja[Unit]("a")
     val b = ja[Unit]("b")

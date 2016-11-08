@@ -8,7 +8,7 @@ import akka.routing.{BalancingPool, Broadcast, RoundRobinPool, SmallestMailboxPo
 
 import scala.concurrent.ExecutionContext
 
-class JJoinPool extends JPoolExecutor(1)
+class JJoinPool extends JPoolExecutor(2)
 class JProcessPool(threads: Int) extends JPoolExecutor(threads)
 
 /*
