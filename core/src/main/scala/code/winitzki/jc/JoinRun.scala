@@ -17,7 +17,8 @@ TODO
  * - benchmark dining philosophers
  * - implement disjoin
  * - benchmark fairness
- * - LAZY values on molecules?
+ * - LAZY values on molecules? Probably need to refactor JSMV and JAMV into non-case classes and change some other logic.
+ * - make JMV into parameterized class and get rid of Any in JMolValue and its derived classes?
  * - make JA, JS into case classes and eliminate MoleculeType altogether?
  * - fix the problem with pattern-matching not at the end of input channel list.
   * Look at http://missingfaktor.blogspot.com/2011/08/emulating-cs-default-keyword-in-scala.html
@@ -113,7 +114,7 @@ object JoinRun {
 
   // Asynchronous molecule. This is an immutable class.
   private[JoinRun] class JAsynChan[T](name: Option[String] = None) extends JChan(name) {
-    def apply(v: T): Unit = {
+    def apply(v: => T): Unit = {
       // Inject an asynchronous molecule.
       joinDef match {
         case Some(o) => o.injectAsync[T](this, JAMV(v))
@@ -179,7 +180,7 @@ object JoinRun {
   // Synchronous channel. This is an immutable value.
   private[JoinRun] class JSynChan[T,R](name: Option[String] = None) extends JChan(name) {
 
-    def apply(v: T): R = {
+    def apply(v: => T): R = {
       // Inject a synchronous molecule.
       joinDef.map(_.injectSyncAndReply[T,R](this, JReplyVal[T,R](v)))
         .getOrElse(throw new Exception(s"Molecule $this does not belong to any join definition"))
@@ -218,7 +219,7 @@ object JoinRun {
   }
 
   implicit val defaultJoinPool = new JJoinPool
-  implicit val defaultProcessPool = new JProcessPool(2)
+  implicit val defaultProcessPool = new JProcessPool(4)
 
   private[JoinRun] sealed trait JUnapplyArg // The disjoint union type for arguments passed to the unapply methods.
   private case class JUnapplyCheck(inputMolecules: mutable.Set[JChan]) extends JUnapplyArg
@@ -295,7 +296,7 @@ object JoinRun {
       .map { case (m, rs) => (m, rs.map(_._2)) }
 
     // Initially, there are no molecules present.
-    private var messagesPresent: MessageBag = new MutableBag[JChan, JMolValue]
+    private val messagesPresent: MessageBag = new MutableBag[JChan, JMolValue]
 
     private def moleculeBagToString(mb: MessageBag): String =
       mb.getMap.toSeq
