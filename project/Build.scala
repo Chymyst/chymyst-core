@@ -50,7 +50,6 @@ object MyBuild extends Build {
         }
       },
       libraryDependencies ++= Seq(
-        "org.bitbucket.inkytonik.dsinfo" %% "dsinfo" % "0.4.0",
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"
       )
     )

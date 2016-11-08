@@ -45,8 +45,9 @@ object JoinRun {
   type JA[T] = JAsynChan[T]
   type JS[T,R] = JSynChan[T,R]
 
-  def ja[T] = new JAsynChan[T]
-  def js[T,R] = new JSynChan[T,R]
+  // Users will call these functions to create new channels (a.k.a. "molecule injectors").
+  def ja[T] = new JAsynChan[T](None)
+  def js[T,R] = new JSynChan[T,R](None)
   def ja[T](name: String) = new JAsynChan[T](Some(name))
   def js[T,R](name: String) = new JSynChan[T,R](Some(name))
 

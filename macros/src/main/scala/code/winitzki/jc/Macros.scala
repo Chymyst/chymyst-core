@@ -1,12 +1,8 @@
 package code.winitzki.jc
 
-import code.winitzki.jc.Macros.theContext
-
 import scala.language.experimental.macros
 import scala.reflect.macros._
 import scala.reflect.NameTransformer.LOCAL_SUFFIX_STRING
-
-//import org.bitbucket.inkytonik.dsinfo.DSInfo.makeCallWithName
 
 import JoinRun.{ja,js,JA,JS}
 
@@ -16,20 +12,23 @@ object Macros {
 
   def getName: String = macro getNameImpl
 
+  def getEnclosingName(c: theContext): String =
+    c.internal.enclosingOwner.name.decodedName.toString
+      .stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
+
   def getNameImpl(c: theContext): c.Expr[String] = {
     import c.universe._
 
-    val s = c.internal.enclosingOwner.name.decodedName.toString
-      .stripSuffix("$lzy").stripSuffix(LOCAL_SUFFIX_STRING)
+    val s = getEnclosingName(c)
 
-    c.Expr(Literal(Constant(s)))
+    c.Expr[String](q"$s")
   }
 
   def jA[T]: JA[T] = macro jAImpl[T]
 
   def jAImpl[T: c.WeakTypeTag](c: theContext): c.universe.Tree = {
     import c.universe._
-    val s = c.internal.enclosingOwner.name.decodedName.toString.stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
+    val s = getEnclosingName(c)
 
     val t = c.weakTypeOf[T]
 
