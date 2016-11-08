@@ -5,7 +5,7 @@ import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
-class ExamplesSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class VariousExamples3Spec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(10000, Millis)
 
@@ -70,7 +70,4 @@ class ExamplesSpec extends FlatSpec with Matchers with TimeLimitedTests {
     defaultProcessPool.shutdownNow()
   }
 
-  it should "sort an array using concurrent merge sort more quickly with more threads" in {
-
-  }
 }
