@@ -17,6 +17,11 @@ TODO
  * - benchmark dining philosophers
  * - implement disjoin
  * - benchmark fairness
+ * - LAZY values on molecules?
+ * - make JA, JS into case classes and eliminate MoleculeType altogether?
+ * - fix the problem with pattern-matching not at the end of input channel list.
+  * Look at http://missingfaktor.blogspot.com/2011/08/emulating-cs-default-keyword-in-scala.html
+  * and http://stackoverflow.com/questions/5260298/how-can-i-obtain-the-default-value-for-a-type-in-scala
   * */
 
 import java.util.concurrent.Semaphore
@@ -33,29 +38,30 @@ trait JPool {
 
 object JoinRun {
 
+  // These type aliases are intended for users.
+  type JA[T] = JAsynChan[T]
+  type JS[T,R] = JSynChan[T,R]
+
+  def ja[T] = new JAsynChan[T]
+  def js[T,R] = new JSynChan[T,R]
+  def ja[T](name: String) = new JAsynChan[T](Some(name))
+  def js[T,R](name: String) = new JSynChan[T,R](Some(name))
+
   // Wait until the join definition to which `molecule` belongs becomes quiescent, then inject `callback`.
   // TODO: implement
   def wait_until_quiet[T](molecule: JAsynChan[T], callback: JAsynChan[Unit]): Unit = {
-    molecule.owner match {
+    molecule.joinDef match {
       case Some(owner) => owner.setQuiescenceCallback(callback)
       case None => throw new Exception(s"Molecule $molecule belongs to no join definition")
     }
   }
 
   implicit class JoinableUnit(x: Unit) {
-    def &(n: Unit): Unit = () // just make sure they are both evaluated
-    def +(n: Unit): Unit = ()
+    def +(n: Unit): Unit = () // just make sure they are both evaluated
   }
 
   object + {
     def unapply(attr:Any) = Some(attr,attr)
-  }
-
-  object & {
-    def unapply(attr:Any) = Some(attr,attr)
-
-    // Users will create reactions using these functions.
-    def apply(body: JReactionBody): JReaction = JReaction(body, defaultProcessPool)
   }
 
   // Users will create reactions using these functions.
@@ -63,6 +69,12 @@ object JoinRun {
   // run { a (_) => ...} onThreads jPool
 
   def run(body: JReactionBody): JReaction = JReaction(body, defaultProcessPool)
+
+  // This is an alias for JoinRun.run _
+  object & {
+    // Users will create reactions using these functions.
+    def apply(body: JReactionBody): JReaction = JReaction(body, defaultProcessPool)
+  }
 
   // Container for molecule values
   private sealed trait JMolValue {
@@ -83,9 +95,9 @@ object JoinRun {
 
   // Abstract molecule. This type is used in collections of molecules that only require to know the owner.
   abstract class JChan(name: Option[String]) {
-    var owner: Option[JoinDefinition] = None
+    var joinDef: Option[JoinDefinition] = None
 
-    def setLogLevel(logLevel: Int): Unit = { owner.foreach(o => o.logLevel = logLevel) }
+    def setLogLevel(logLevel: Int): Unit = { joinDef.foreach(o => o.logLevel = logLevel) }
 
     def moleculeType: MoleculeType
 
@@ -99,20 +111,11 @@ object JoinRun {
     }
   }
 
-  // These type aliases are intended for users.
-  type JA[T] = JAsynChan[T]
-  type JS[T,R] = JSynChan[T,R]
-
-  def ja[T] = new JAsynChan[T]
-  def js[T,R] = new JSynChan[T,R]
-  def ja[T](name: String) = new JAsynChan[T](Some(name))
-  def js[T,R](name: String) = new JSynChan[T,R](Some(name))
-
   // Asynchronous molecule. This is an immutable class.
   private[JoinRun] class JAsynChan[T](name: Option[String] = None) extends JChan(name) {
     def apply(v: T): Unit = {
       // Inject an asynchronous molecule.
-      owner match {
+      joinDef match {
         case Some(o) => o.injectAsync[T](this, JAMV(v))
         case None => throw new Exception(s"Molecule ${this} does not belong to any join definition")
       }
@@ -178,7 +181,7 @@ object JoinRun {
 
     def apply(v: T): R = {
       // Inject a synchronous molecule.
-      owner.map(_.injectSyncAndReply[T,R](this, JReplyVal[T,R](v)))
+      joinDef.map(_.injectSyncAndReply[T,R](this, JReplyVal[T,R](v)))
         .getOrElse(throw new Exception(s"Molecule $this does not belong to any join definition"))
     }
 
@@ -220,9 +223,9 @@ object JoinRun {
   private[JoinRun] sealed trait JUnapplyArg // The disjoint union type for arguments passed to the unapply methods.
   private case class JUnapplyCheck(inputMolecules: mutable.Set[JChan]) extends JUnapplyArg
   private case class JUnapplyRun(moleculeValues: LinearMoleculeBag) extends JUnapplyArg
-  private case class JUnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends JUnapplyArg
+  private case class JUnapplyRunCheck(moleculeValues: MessageBag, usedInputs: MutableLinearMoleculeBag) extends JUnapplyArg
 
-  private[jc] type JReactionBody = PartialFunction[JUnapplyArg, Any]
+  private[jc] type JReactionBody = PartialFunction[JUnapplyArg, Unit]
 
   // immutable
   private[jc] case class JReaction(body: JReactionBody, threadPool: JPool) {
@@ -250,9 +253,9 @@ object JoinRun {
 
     // set the owner on all input molecules in this join definition
     knownMolecules.values.toSet.flatten.foreach { m =>
-      m.owner match {
+      m.joinDef match {
         case Some(owner) => throw new Exception(s"Molecule $m cannot be used as input since it was already used in $owner")
-        case None => m.owner = Some(join)
+        case None => m.joinDef = Some(join)
       }
     }
 
@@ -263,7 +266,7 @@ object JoinRun {
   }
 
   // for JA[T] molecules, the value inside JMolValue is of type T; for JS[T,R] molecules, the value is of type JReplyVal[T,R]
-  private type MoleculeBag = MutableBag[JChan, JMolValue]
+  private type MessageBag = MutableBag[JChan, JMolValue]
   private type MutableLinearMoleculeBag = mutable.Map[JChan, JMolValue]
   private type LinearMoleculeBag = Map[JChan, JMolValue]
 
@@ -276,6 +279,12 @@ object JoinRun {
 
     var logLevel = 0
 
+    def printBag: String = {
+      val messages = if (messagesPresent.size > 0) s"Messages: ${moleculeBagToString(messagesPresent)}" else "No messages"
+
+      s"${this.toString}\n$messages"
+    }
+
     def setQuiescenceCallback(callback: JAsynChan[Unit]): Unit = {
       quiescenceCallbacks.add(callback)
     }
@@ -286,10 +295,13 @@ object JoinRun {
       .map { case (m, rs) => (m, rs.map(_._2)) }
 
     // Initially, there are no molecules present.
-    private var moleculesPresent: MoleculeBag = new MutableBag[JChan, JMolValue]
+    private var messagesPresent: MessageBag = new MutableBag[JChan, JMolValue]
 
-    private def moleculeBagToString(mb: MoleculeBag): String =
-      mb.getMap.flatMap {
+    private def moleculeBagToString(mb: MessageBag): String =
+      mb.getMap.toSeq
+        .map{ case (m, vs) => (m.toString, vs) }
+        .sortBy(_._1)
+        .flatMap {
         case (m, vs) => vs.map {
           case (mv, 1) => s"$m($mv)"
           case (mv, i) => s"$m($mv) * $i"
@@ -309,19 +321,19 @@ object JoinRun {
     // Adding an asynchronous molecule may trigger at most one reaction.
     def injectAsync[T](m: JChan, jmv: JMolValue): Unit = if (!Thread.currentThread().isInterrupted) jJoinPool.runProcess {
       val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
-        moleculesPresent.addToBag(m, jmv)
-        if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $jJoinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+        messagesPresent.addToBag(m, jmv)
+        if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $jJoinPool, now have molecules ${moleculeBagToString(messagesPresent)}")
         val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
         val reaction = possibleReactions.get(m)
           .flatMap(_.shuffle.find(r => {
             usedInputs.clear()
-            r.body.isDefinedAt(JUnapplyRunCheck(moleculesPresent, usedInputs))
+            r.body.isDefinedAt(JUnapplyRunCheck(messagesPresent, usedInputs))
           }))
         reaction match {
           case Some(r) =>
             // If we are here, we have found a reaction that can be started.
             // We need to remove the input molecules from the bag, as per JC execution semantics.
-            moleculesPresent.removeFromBag(usedInputs)
+            messagesPresent.removeFromBag(usedInputs)
           case None => ()
         }
         (reaction, usedInputs.toMap)
@@ -331,10 +343,10 @@ object JoinRun {
         case Some(r) =>
           if (logLevel > 1) println(s"Debug: In $this: starting reaction {$r} on thread pool ${r.threadPool} while on thread pool $jJoinPool with inputs ${moleculeBagToString(usedInputs)}")
           if (logLevel > 2) println(
-            if (moleculesPresent.size == 0)
+            if (messagesPresent.size == 0)
               s"Debug: In $this: no molecules remaining"
             else
-              s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
+              s"Debug: In $this: remaining molecules ${moleculeBagToString(messagesPresent)}"
           )
           // A basic check that we are using our mutable structures safely. We should never see this message.
           if (! r.inputMoleculesUsed.equals(usedInputs.keys.toSet)) {

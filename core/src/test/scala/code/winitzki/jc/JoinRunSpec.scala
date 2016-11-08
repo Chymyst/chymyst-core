@@ -12,6 +12,104 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val warmupTimeMs = 50
 
+  def waitSome(): Unit = Thread.sleep(warmupTimeMs)
+
+  it should "define a reaction with correct inputs" in {
+    val a = ja[Unit]("a")
+    val b = ja[Unit]("b")
+    val c = ja[Unit]("c")
+
+    a.joinDef.isEmpty shouldEqual true
+    a.toString shouldEqual "a"
+
+    join(&{ case a(_) + b(_) + c(_) => })
+
+    a.joinDef.isEmpty shouldEqual false
+    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo messages"
+
+    a()
+    a()
+    b()
+    waitSome()
+    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nMessages: a() * 2, b()"
+  }
+
+  it should "define a reaction with correct inputs with non-default pattern-matching at end of reaction" in {
+    val a = ja[Option[Int]]("a")
+    val b = ja[Unit]("b")
+    val c = ja[Unit]("c")
+
+    join(&{ case b(_) + c(_) + a(Some(x)) => })
+
+    a.joinDef.isEmpty shouldEqual false
+    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo messages"
+  }
+
+  /*it should "define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
+    val a = ja[Option[Int]]("a")
+    val b = ja[Unit]("b")
+    val c = ja[Unit]("c")
+
+    join(&{ case b(_) + a(Some(x)) + c(_) => })
+
+    a.joinDef.isEmpty shouldEqual false
+    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo messages"
+  }
+
+  it should "define a reaction with correct inputs with empty option pattern-matching at start of reaction" in {
+    val a = ja[Option[Int]]("a")
+    val b = ja[Unit]("b")
+    val c = ja[Unit]("c")
+
+    join(&{ case a(None) + b(_) + c(_) => })
+
+    a.joinDef.isEmpty shouldEqual false
+    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo messages"
+  }
+
+  it should "define a reaction with correct inputs with constant non-default pattern-matching at start of reaction" in {
+    val a = ja[Int]("a")
+    val b = ja[Unit]("b")
+    val c = ja[Unit]("c")
+
+    join(&{ case a(1) + b(_) + c(_) => })
+
+    a.joinDef.isEmpty shouldEqual false
+    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo messages"
+  }
+*/
+  it should "define a reaction with correct inputs with constant non-default pattern-matching at end of reaction" in {
+    val a = ja[Int]("a")
+    val b = ja[Unit]("b")
+    val c = ja[Unit]("c")
+
+    join(&{ case b(_) + c(_) + a(1) => })
+
+    a.joinDef.isEmpty shouldEqual false
+    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo messages"
+  }
+
+  /*it should "define a reaction with correct inputs with non-default pattern-matching at start of reaction" in {
+    val a = ja[Option[Int]]("a")
+    val b = ja[Unit]("b")
+    val c = ja[Unit]("c")
+
+    join(&{ case a(Some(x)) + b(_) + c(_) => })
+
+    a.joinDef.isEmpty shouldEqual false
+    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo messages"
+  }
+*/
+  it should "start a simple reaction with one input, defining the injector explicitly" in {
+
+    val waiter = new Waiter
+
+    val a = new JA[Unit]
+    join( &{ case a(_) => waiter.dismiss() })
+    a()
+    waiter.await()
+  }
+
   it should "start a simple reaction with one input" in {
 
     val waiter = new Waiter
@@ -29,7 +127,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val a = ja[Unit]("a")
     val b = ja[Unit]("b")
     join( &{ case a(_) => b() }, &{ case b(_) => waiter.dismiss() })
-//    a.setLogLevel(3)
+
     a()
     waiter.await()
   }
@@ -115,7 +213,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     join( &{ case a(x) + b(0) => a(x+1) }, &{ case a(z) + f(_, r) => r(z) })
     a(1)
     b(2)
-    Thread.sleep(warmupTimeMs)
+    waitSome()
     f() shouldEqual 1
   }
 
@@ -128,7 +226,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       &{ case c(n) + g(_,r) => c(n) + r(n) }
     )
     c(2) + d() + d()
-    Thread.sleep(warmupTimeMs)
+    waitSome()
     g() shouldEqual 0
 
   }
@@ -216,7 +314,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     c(n)
     (1 to n).foreach { _ => d() }
 
-    Thread.sleep(warmupTimeMs+200) // give it some more time to compensate for crashes
+    waitSome()
+    Thread.sleep(200) // give it some more time to compensate for crashes
     g() shouldEqual 0
 
     tp.shutdownNow()
@@ -229,7 +328,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       &{ case c(n) + g(_,r) => c(n) + r(n) + r(n+1) }
     )
     c(2)
-    Thread.sleep(warmupTimeMs)
+    waitSome()
 
     val thrown = intercept[Exception] {
       println(s"got result: ${g()} but should not have printed this!")
@@ -247,7 +346,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       &{ case c(n) + g(_,r) + g2(_, r2) => c(n) + r(n) + r(n+1) + r2(n) + r2(n+1) }
     )
     c(2) + d()
-    Thread.sleep(warmupTimeMs)
+    waitSome()
 
     val thrown = intercept[Exception] {
       println(s"got result: ${g()} but should not have printed this!")
@@ -262,7 +361,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       &{ case c(_) + g(_,r) => c() }
     )
     c()
-    Thread.sleep(warmupTimeMs)
+    waitSome()
 
     val thrown = intercept[Exception] {
       println(s"got result: ${g()} but should not have printed this!")
@@ -281,7 +380,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       &{ case c(_) + g(_,_) + g2(_,_) => c() }
     )
     c() + d()
-    Thread.sleep(warmupTimeMs)
+    waitSome()
 
     val thrown = intercept[Exception] {
       println(s"got result2: ${g()} but should not have printed this!")
@@ -302,7 +401,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       &{ case c(_) + g(_,r) + g2(_,_) => c() + r(0) }
     )
     c() + d()
-    Thread.sleep(warmupTimeMs)
+    waitSome()
 
     val thrown = intercept[Exception] {
       println(s"got result: ${g()} but should not have printed this!")
@@ -327,7 +426,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       &{ case e(x) + h(_,r) =>  r(x) }
     )
     c()+d()
-    Thread.sleep(warmupTimeMs)
+    waitSome()
     g() shouldEqual 0
     // now we should also have e(0)
     h() shouldEqual 0
@@ -353,15 +452,15 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       &{ case f(_) + e(_) => e(1) }
     )
     d()
-    Thread.sleep(warmupTimeMs)
+    waitSome()
     c()
-    Thread.sleep(warmupTimeMs)
+    waitSome()
     // if e(0) exists now, it will react with f() and produce e(1)
     f()
-    Thread.sleep(warmupTimeMs)
+    waitSome()
     // if e(0) did not appear, f() is still available and will now react with d and produce e(2)
     d()
-    Thread.sleep(warmupTimeMs)
+    waitSome()
     h() shouldEqual 2
 
     tp.shutdownNow()
