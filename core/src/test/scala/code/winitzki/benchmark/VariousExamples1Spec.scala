@@ -1,8 +1,5 @@
 package code.winitzki.benchmark
 
-import java.time.LocalDateTime
-import java.time.temporal.ChronoUnit
-
 import code.winitzki.jc.{AsyName, Join, SynName, and}
 import code.winitzki.jc.JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests

@@ -1,8 +1,7 @@
 package code.winitzki.benchmark
 
 import java.time.LocalDateTime
-import java.time.temporal.ChronoUnit
-
+import code.winitzki.benchmark.Common._
 import code.winitzki.jc._
 import code.winitzki.jc.JoinRun._
 
@@ -21,7 +20,7 @@ object Benchmarks1 {
     join(
       run { case c(0) + f(tInit, r) =>
         val t = LocalDateTime.now
-        r(tInit.until(t, ChronoUnit.MILLIS))
+        r(elapsed(tInit))
       } onThreads tp,
       tp{ case g(_,reply) + c(n) => c(n); reply(n) },
       tp{ case c(n) + i(_) => c(n+1)  },
@@ -47,7 +46,7 @@ object Benchmarks1 {
 
       join {
         case c(0) and f(tInit) =>
-          f.reply(tInit.until(LocalDateTime.now, ChronoUnit.MILLIS))
+          f.reply(elapsed(tInit))
         case c(n) and d(_) if n > 0 => c(n-1)
         case c(n) and i(_) => c(n+1)
         case c(n) and g(_) => c(n); g.reply(n)
@@ -68,7 +67,7 @@ object Benchmarks1 {
     join(
       tp { case c(0) + f(tInit, r) =>
         val t = LocalDateTime.now
-        r(tInit.until(t, ChronoUnit.MILLIS))
+        r(elapsed(tInit))
       },
       tp{ case g(_,reply) + c(n) => c(n); reply(n) },
       tp{ case c(n) + i(_) => c(n+1) },
@@ -90,7 +89,7 @@ object Benchmarks1 {
 
       join {
         case c(0) and f(tInit) =>
-          f.reply(tInit.until(LocalDateTime.now, ChronoUnit.MILLIS))
+          f.reply(elapsed(tInit))
         case c(n) and d(_) if n > 0 => c(n-1)
         case c(n) and i(_) => c(n+1)
         case c(n) and g(_) => c(n); g.reply(n)

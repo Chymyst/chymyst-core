@@ -59,7 +59,7 @@ and the performance bottleneck is the thread switching and pattern-matching.
 
 Known limitations:
 
-- `JoinRun` is currently at most 2x slower than `ScalaJoin` on certain benchmarks
+- `JoinRun` is currently at most 20% slower than `ScalaJoin` on certain benchmarks that exercise a very large number of very short reactions.
 - Pattern-matching in join definitions is quite limited due to Scala's pattern matcher being too greedy (but this does not restrict the expressiveness of the language)
 - No fairness with respect to the choice of molecules: if the same reaction could proceed with many input molecules, the input molecules are not chosen at random
 - No distributed execution (Jiansen's `Disjoin.scala` is still not ported to `JoinRun`)
