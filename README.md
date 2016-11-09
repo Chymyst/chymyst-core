@@ -39,21 +39,31 @@ Compared to `ScalaJoin` (Jiansen He's 2011 implementation of JC), `JoinRun` offe
 this is more faithful to the semantics of JC
 - Reactions are also locally scoped values (instances of `JReaction`)
 - Reactions and channels are composable: e.g. we can construct a join definition
- with `n` reactions and `n` channels, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of channels
+ with `n` reactions and `n` channels, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of channels (no stack overflows)
 - "Join definitions" are instances of class `JoinDefinition` which are invisible to the user (as they should be according to the semantics of JC)
-- Some common cases of invalid join definitions are flagged (as run-time errors) even before starting any processes
-- Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool
+- Some common cases of invalid join definitions are flagged (as run-time errors) even before starting any processes; others are flagged when reactions are run (e.g. if a synchronous molecule gets no reply)
+- Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; can use actor-based or thread executor-based pools
 - "Fair" nondeterminism: whenever a message can start several reactions, the reaction is chosen at random
 - Fault tolerance: failed reactions are restarted
-- Somewhat lighter syntax (but still no macros and no introspection)
+- Somewhat lighter syntax for join definitions
+- The user can trace the execution via logging levels; automatic naming of molecules for debugging is available (via macro)
 - Unit tests and benchmarks
 
 # Status
 
-Current version is `0.0.3`
+Current version is `0.0.5`.
+The semantics of Join Calculus (restricted to single machine) is fully implemented and tested.
+Unit tests include examples such as concurrent counters, parallel "or", concurrent merge-sort, and "dining philosophers".
+Performance tests indicate that the runtime can schedule about 200,000 - 500,000 reactions per second per CPU core,
+and the performance bottleneck is the thread switching and pattern-matching.
+
+Known limitations:
 
 - `JoinRun` is currently at most 2x slower than `ScalaJoin` on certain benchmarks
-- Actor-based concurrency, distribution, and a few other significant features are not yet implemented
+- Pattern-matching in join definitions is quite limited due to Scala's pattern matcher being too greedy (but this does not restrict the expressiveness of the language)
+- No fairness with respect to the choice of molecules: if the same reaction could proceed with many input molecules, the input molecules are not chosen at random
+- No distributed execution (Jiansen's `Disjoin.scala` is still not ported to `JoinRun`)
+- No packaging as a library - so far the project is monolithic
 
 # Run unit tests
 
