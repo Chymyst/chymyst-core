@@ -8,23 +8,52 @@ JC is basically “Actors” made type-safe, stateless, and more high-level.
 The code is inspired by previous implementations by He Jiansen (https://github.com/Jiansen/ScalaJoin, 2011)
 and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 
-TODO
- * - make thread pools an Option, so that default thread pool can be used for all reactions except some
+TODO and roadmap:
+  value * difficulty - description
+ 4 * 2 - make thread pools an Option, so that default thread pool can be used for all reactions except some. Do not use implicit arguments - use default arguments.
+
+ 4 * 2 - make helper functions to create a new joinpool
+
+ 3 * 1 - make helper functions to create new single-thread pools using a given thread or a given executor/handler
+
+ 4 * 2 - make helper functions to create an actor-based pool
+
+ 3 * 1 - rename jprocesspool to reactionpool; remove j from longer and more unique names; generally prefer "chemical" terms to channel/message/process
+
+ 5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark
+
+ 5 * 5 - implement fairness with respect to molecules
  * - go through possible values when matching (can do?) Important: can get stuck when molecules are in different order. Or need to shuffle.
- * - define a special "switch off" molecule - per-join, with a callback parameter
- * - use dsinfo to automate molecule naming
- * - benchmark merge-sort
- * - benchmark dining philosophers
- * - implement disjoin
- * - benchmark fairness
- * - LAZY values on molecules? Probably need to refactor JSMV and JAMV into non-case classes and change some other logic.
- * - make JMV into parameterized class and get rid of Any in JMolValue and its derived classes?
- * - make JA, JS into case classes and eliminate MoleculeType altogether?
- * - fix the problem with pattern-matching not at the end of input channel list.
+
+ 5 * 5 - allow unrestricted pattern-matching in reactions
+* - fix the problem with pattern-matching not at the end of input channel list.
   * Look at http://missingfaktor.blogspot.com/2011/08/emulating-cs-default-keyword-in-scala.html
   * and http://stackoverflow.com/questions/5260298/how-can-i-obtain-the-default-value-for-a-type-in-scala
-  * - add javadoc for the library
-  * - repackage as library + library unit tests + benchmark app
+
+ 3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter
+
+ 4 * 5 - implement disjoin
+
+ 3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor JSMV and JAMV into non-case classes and change some other logic.
+
+ 2 * 1 - make JMV into parameterized class and get rid of Any in JMolValue and its derived classes?
+
+ 2 * 1 - make JA, JS into case classes and eliminate MoleculeType altogether?
+
+ 4 * 3 - add javadoc for the library
+
+ 4 * 2 - repackage as library + library unit tests + benchmark app
+
+ 5 * 5 - try to inspect the reaction body using a macro. Can we match on q"{ case a(_) + ... => ... }"?
+ Can we return the list of input molecules and other info - e.g. whether the pattern-match
+ is nontrivial in this molecule, whether sync. molecultes have a reply matcher specified,
+  whether the reply molecule is being used in the body, whether all other output molecules are already defined
+
+ 2 * 3 - understand the "reader-writer" example
+
+ 3 * 2 - add per-molecule logging; log to file or to logger function
+
+ 3 * 3 - go through examples in Jiansen's project and in my JoCaml tutorial
   * */
 
 import java.util.concurrent.Semaphore
