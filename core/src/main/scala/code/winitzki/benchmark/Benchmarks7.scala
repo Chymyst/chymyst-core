@@ -1,8 +1,7 @@
 package code.winitzki.benchmark
 
 import java.time.LocalDateTime
-import java.time.temporal.ChronoUnit
-
+import code.winitzki.benchmark.Common._
 import code.winitzki.jc._
 import code.winitzki.jc.JoinRun._
 
@@ -12,7 +11,7 @@ object Benchmarks7 {
 
   /// create `n` asynchronous counters, initialize each to `count`, then decrement `count*n` times, until all counters are zero.
   /// collect the zero-counter events, make sure there are `n` of them, then fire an `all_done` event that yields the benchmark time.
-  val counters = 1000
+  val counters = 20
 
   def benchmark7(count: Int, threads: Int = 2): Long = {
 
@@ -25,7 +24,7 @@ object Benchmarks7 {
 
     join(
       run { case all_done(0) + f(tInit, r) =>
-        r(tInit.until(LocalDateTime.now, ChronoUnit.MILLIS))
+        r(elapsed(tInit))
       },
 
       run { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
@@ -55,7 +54,7 @@ object Benchmarks7 {
 
       join {
         case all_done(0) and f(tInit) =>
-          f.reply(tInit.until(LocalDateTime.now, ChronoUnit.MILLIS))
+          f.reply(elapsed(tInit))
         case all_done(x) and done(_) if x > 0 => all_done(x-1)
       }
 

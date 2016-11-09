@@ -1,9 +1,9 @@
 package code.winitzki.benchmark
 
-import java.time.temporal.ChronoUnit
 import java.time.LocalDateTime
 
 import code.winitzki.jc.JProcessPool
+import code.winitzki.benchmark.Common._
 
 import scala.collection.mutable
 import code.winitzki.jc.JoinRun._
@@ -18,26 +18,6 @@ class VariousExamples2Spec extends FlatSpec with Matchers with TimeLimitedTests 
 
   val timeLimit = Span(30000, Millis)
 
-  val warmupTimeMs = 50
-
-  def elapsed(initTime: LocalDateTime): Long = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
-
-  def timeThis(task: => Unit): Long = {
-    val initTime = LocalDateTime.now
-    task
-    elapsed(initTime)
-  }
-
-  def timeWithPriming(task: => Unit): Long = {
-    val prime1 = timeThis{task}
-    val prime2 = timeThis{task}
-    val result = timeThis{task}
-//    println(s"timing with priming: prime1 = $prime1, prime2 = $prime2, result = $result")
-    (result + prime2 + 1)/2
-  }
-
-  def waitSome(): Unit = Thread.sleep(warmupTimeMs)
-
   var initTimeAll = LocalDateTime.now
 
   before {
@@ -50,9 +30,10 @@ class VariousExamples2Spec extends FlatSpec with Matchers with TimeLimitedTests 
 
   // auxiliary functions for merge-sort tests
 
+  // this object is not used now
   object amCounter {
     var c:Int = 0
-    def inc: Unit = {
+    def inc(): Unit = {
       synchronized {
         c += 1
       }
@@ -61,7 +42,7 @@ class VariousExamples2Spec extends FlatSpec with Matchers with TimeLimitedTests 
 
   def arrayMerge[T : Ordering : ClassTag](arr1: Array[T], arr2: Array[T]): Array[T] = {
     val id = amCounter.c
-    //      amCounter.inc // avoid this for now - this is a debugging tool
+    //      amCounter.inc() // avoid this for now - this is a debugging tool
     val wantToLog = false // (arr1.length > 20000 && arr1.length < 41000)
     if (wantToLog) println(s"${System.currentTimeMillis} start merging #$id")
 
@@ -127,7 +108,7 @@ class VariousExamples2Spec extends FlatSpec with Matchers with TimeLimitedTests 
   }
 
   it should "perform a map/reduce-like computation" in {
-    val n = 10
+    val count = 10
 
     val initTime = LocalDateTime.now
 
@@ -142,14 +123,14 @@ class VariousExamples2Spec extends FlatSpec with Matchers with TimeLimitedTests 
       &{ case get(_, reply) + res(list) => reply(list) }
     )
 
-    (1 to n).foreach(x => d(x))
-    val expectedResult = (1 to n).map(_ * 2)
+    (1 to count).foreach(x => d(x))
+    val expectedResult = (1 to count).map(_ * 2)
     res(Nil)
 
     waitSome()
     get().toSet shouldEqual expectedResult.toSet
 
-    println(s"map/reduce test with n=$n took ${elapsed(initTime)} ms")
+    println(s"map/reduce test with n=$count took ${elapsed(initTime)} ms")
   }
 
   it should "merge arrays correctly" in {

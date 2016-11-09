@@ -1,22 +1,21 @@
 package code.winitzki.benchmark
 
 import java.time.LocalDateTime
-import java.time.temporal.ChronoUnit
-
-import code.winitzki.jc.JoinRun.{&, _}
+import code.winitzki.benchmark.Common._
+import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.{AsyName, Join, SynName, and}
 
 object Benchmarks4 {
   def benchmark4_100(count: Int, threads: Int = 2): Long = {
     val initialTime = LocalDateTime.now
-    val n = 100
+    val n = 20
     val g = {
       val is: IndexedSeq[Int] = 0 until n
       val f = ja[Unit]("f")
       val g = js[LocalDateTime, Long]("g")
       val as = is.map(i => ja[Int](s"a$i"))
       val jrs = IndexedSeq(
-        run { case f(_) + g(initTime, r) => r(initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)) }
+        run { case f(_) + g(initTime, r) => r(elapsed(initTime)) }
       ) ++ is.map(
         i => {
           val a = as(i)
@@ -47,7 +46,7 @@ object Benchmarks4 {
       object a5 extends AsyName[Int]
       join {
         case f(_) and g(tInit) =>
-          g.reply(tInit.until(LocalDateTime.now, ChronoUnit.MILLIS))
+          g.reply(elapsed(tInit))
         case a0(n) => a1(n)
         case a1(n) => a2(n)
         case a2(n) => a3(n)
@@ -173,7 +172,7 @@ object Benchmarks4 {
 
       join {
         case f(_) and g(tInit) =>
-          g.reply(tInit.until(LocalDateTime.now, ChronoUnit.MILLIS))
+          g.reply(elapsed(tInit))
 
         case a0(n) => a1(n);
         case a1(n) => a2(n);
