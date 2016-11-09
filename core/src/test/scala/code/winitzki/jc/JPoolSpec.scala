@@ -42,6 +42,9 @@ class JPoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
       } catch {
         case e: InterruptedException => waiter.dismiss()
+        case other: Exception =>
+          other.printStackTrace()
+          waiter.dismiss()
       }
     }
     Thread.sleep(200)
