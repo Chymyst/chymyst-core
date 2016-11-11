@@ -1,4 +1,4 @@
-package code.winitzki.jc
+package code.winitzki.benchmark
 
 /* This file is copied from He Jiansen's ScalaJoin, see https://github.com/Jiansen/ScalaJoin.
 This file is not a part of JoinRun. Only the benchmark application uses this file

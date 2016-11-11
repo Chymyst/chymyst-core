@@ -6,7 +6,7 @@ import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
-class VariousExamples3Spec extends FlatSpec with Matchers with TimeLimitedTests {
+class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(10000, Millis)
 

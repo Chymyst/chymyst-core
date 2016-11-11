@@ -26,7 +26,7 @@ class MutableBag[K,V] { // quadratic time, extremely slow
 
 }
 */
-
+/*
 class MutableBag[K,V] {
 
   private val bag: mutable.Map[K, mutable.Map[V, Int]] = mutable.Map.empty
@@ -60,10 +60,10 @@ class MutableBag[K,V] {
     another.foreach { case (k, v) => removeFromBag(k, v) }
 
 }
-
+*/
 // previous implementation - becomes slow if we have many repeated values, fails performance test
-/*
-class MutableBag_Slower[K,V] {
+/* */
+class MutableBag[K,V] {
 
   private val bag: mutable.Map[K, mutable.ArrayBuffer[V]] = mutable.Map.empty
 
@@ -96,4 +96,4 @@ class MutableBag_Slower[K,V] {
     another.foreach { case (k, v) => removeFromBag(k, v) }
 
 }
-*/
+/* */

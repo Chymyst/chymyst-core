@@ -23,14 +23,15 @@ object BuildSettings {
 object MyBuild extends Build {
   import BuildSettings._
 
-  lazy val root: Project = Project(
+  lazy val joinrun: Project = Project(
     "joinrun",
     file("."),
     settings = buildSettings ++ Seq(
       libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.0" % "test",
-      run <<= run in Compile in core)
-  ) aggregate(macros, core)
+      run <<= run in Compile in lib)
+  ) aggregate(macros, lib)
 
+  // Macros for the JoinRun library - the users will need this too.
   lazy val macros: Project = Project(
     "macros",
     file("macros"),
@@ -53,11 +54,12 @@ object MyBuild extends Build {
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"
       )
     )
-  ) dependsOn core
+  ) dependsOn lib
 
-  lazy val core: Project = Project(
-    "core",
-    file("core"),
+  // The JoinRun library itself - this is what users depend on.
+  lazy val lib: Project = Project(
+    "lib",
+    file("lib"),
     settings = buildSettings ++ Seq(
       parallelExecution in Test := false,
       libraryDependencies ++= Seq(
@@ -66,4 +68,16 @@ object MyBuild extends Build {
       )
     )
   )
+
+  // Benchmarks - users do not need to depend on this.
+  lazy val benchmark: Project = Project(
+    "benchmark",
+    file("benchmark"),
+    settings = buildSettings ++ Seq(
+      libraryDependencies ++= Seq(
+        "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+      )
+    )
+  ) dependsOn lib
+
 }
