@@ -30,20 +30,30 @@ More documentation is forthcoming.
 
 For a general introduction to Join Calculus, see [this JoCaml tutorial](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml).
 
+I follow the "chemical machine" metaphor and terminology, which differs from the terminology usually employed in academic papers on JC. Here is the dictionary:
+
+| “Chemistry”  | JC terminology | JoinRun |
+|---|---|---|
+| molecule | message on channel | `a(123)` _// side effect_ |
+| injector | channel (port) name | `val a :  JA[Int]` |
+| blocking injector | blocking channel | `val q :  JS[Int]` |
+| reaction | process | `run { case a(x)+...=> }` |
+| injecting a molecule | sending a message | `a(123)` _// side effect_ |
+| join definition | join definition | `join(r1, r2, ...)` |
 
 # Main improvements
 
 Compared to `ScalaJoin` (Jiansen He's 2011 implementation of JC), `JoinRun` offers the following improvements:
 
-- Channels are _locally scoped values_ (instances of abstract class `JChan` having types `JA[T]` or `JS[T,R]`) rather than singleton objects, as in `ScalaJoin`; 
+- Molecule injectors ("channels") are _locally scoped values_ (instances of abstract class `AbsMol` having types `JA[T]` or `JS[T,R]`) rather than singleton objects, as in `ScalaJoin`; 
 this is more faithful to the semantics of JC
 - Reactions are also locally scoped values (instances of `JReaction`)
-- Reactions and channels are composable: e.g. we can construct a join definition
- with `n` reactions and `n` channels, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of channels (no stack overflows)
-- "Join definitions" are instances of class `JoinDefinition` which are invisible to the user (as they should be according to the semantics of JC)
+- Reactions and molecules are composable: e.g. we can construct a join definition
+ with `n` reactions and `n` molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of molecules (no stack overflows and no runtime penalty)
+- "Join definitions" are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC)
 - Some common cases of invalid join definitions are flagged (as run-time errors) even before starting any processes; others are flagged when reactions are run (e.g. if a synchronous molecule gets no reply)
-- Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; can use actor-based or thread executor-based pools
-- "Fair" nondeterminism: whenever a message can start several reactions, the reaction is chosen at random
+- Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use actor-based or thread executor-based pools
+- "Fair" nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random
 - Fault tolerance: failed reactions are restarted
 - Somewhat lighter syntax for join definitions
 - The user can trace the execution via logging levels; automatic naming of molecules for debugging is available (via macro)
@@ -60,10 +70,10 @@ and the performance bottleneck is the thread switching and pattern-matching.
 Known limitations:
 
 - `JoinRun` is currently at most 20% slower than `ScalaJoin` on certain benchmarks that exercise a very large number of very short reactions.
-- Pattern-matching in join definitions is quite limited due to Scala's pattern matcher being too greedy (but this does not restrict the expressiveness of the language)
+- Pattern-matching in join definitions is limited due to Scala's pattern matcher being too greedy (but this does not restrict the expressiveness of the language)
 - No fairness with respect to the choice of molecules: if the same reaction could proceed with many input molecules, the input molecules are not chosen at random
 - No distributed execution (Jiansen's `Disjoin.scala` is still not ported to `JoinRun`)
-- No packaging as a library - so far the project is monolithic
+- No javadocs and no packaging as a library - so far the project is a monolithic prototype
 
 # Run unit tests
 
@@ -92,8 +102,8 @@ Run the benchmark application from JAR:
 
 Here is an example of "single-access non-blocking counter".
 There is an integer counter value, to which we have non-blocking access
-via `incr` and `decr` messages.
-We can also fetch the current counter value via the `get` message, which is blocking.
+via `incr` and `decr` molecules.
+We can also fetch the current counter value via the `get` molecule, which is blocking.
 The counter is initialized to the number we specify.
 
     import code.winitzki.jc.JoinRun._
@@ -131,4 +141,40 @@ The counter is initialized to the number we specify.
           // more code
      
     val x = get() // blocking call, returns the current value of the counter
+    
+# Debugging and macros
+
+It is sometimes not easy to make sure that the reactions are correctly designed.
+The library offers some debugging facilities:
+
+- each molecule can be named
+- a macro is available to assign names automatically
+- the user can set a log level on each join definition
+ 
+ Here are the typical results:
+ 
+    import code.winitzki.jc.JoinRun._
+    import code.winitzki.jc.Macros._
+    
+    val counter = jA[Int]
+    val decr = jA[Unit]
+    val get = jS[Unit,Int]
+    
+    join {
+        run { counter(n) + decr(_) if n > 0 => counter(n-1) },
+        run { counter(n) + get(_, res) => res(n) + counter(n) }
+    )
+    
+    counter(5)
+    counter.setLogLevel(2)
+    
+    decr()+decr()+decr()
+
+    println(counter.joinDef.get.printBag)
+
+    decr()+decr()+decr()
+    
+    println(counter.joinDef.get.printBag)
+    
+    println(get())    
     
