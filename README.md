@@ -35,7 +35,7 @@ I follow the "chemical machine" metaphor and terminology, which differs from the
 | “Chemistry”  | JC terminology | JoinRun |
 |---|---|---|
 | molecule | message on channel | `a(123)` _// side effect_ |
-| injector | channel (port) name | `val a :  JA[Int]` |
+| molecule injector | channel (port) name | `val a :  JA[Int]` |
 | blocking injector | blocking channel | `val q :  JS[Int]` |
 | reaction | process | `run { case a(x)+...=> }` |
 | injecting a molecule | sending a message | `a(123)` _// side effect_ |
@@ -61,7 +61,7 @@ this is more faithful to the semantics of JC
 
 # Status
 
-Current version is `0.0.5`.
+Current version is `0.0.6`.
 The semantics of Join Calculus (restricted to single machine) is fully implemented and tested.
 Unit tests include examples such as concurrent counters, parallel "or", concurrent merge-sort, and "dining philosophers".
 Performance tests indicate that the runtime can schedule about 200,000 - 500,000 reactions per second per CPU core,
