@@ -18,23 +18,23 @@ TODO and roadmap:
 
  4 * 2 - make helper functions to create an actor-based pool
 
- 5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark
+ 5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
 
  5 * 5 - implement fairness with respect to molecules
  * - go through possible values when matching (can do?) Important: can get stuck when molecules are in different order. Or need to shuffle.
 
  5 * 5 - allow unrestricted pattern-matching in reactions
-* - fix the problem with pattern-matching not at the end of input molecule list.
-  * Look at http://missingfaktor.blogspot.com/2011/08/emulating-cs-default-keyword-in-scala.html
-  * and http://stackoverflow.com/questions/5260298/how-can-i-obtain-the-default-value-for-a-type-in-scala
+
+ - completely fix the problem with pattern-matching not at the end of input molecule list.
+  Probably will need a macro. At the moment, we can have some pattern-matching but it's not correct.
 
  3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter
 
- 4 * 5 - implement disjoin
+ 4 * 5 - implement disjoin by sharing the join pool with another machine (but running the join definitions only on the master node)
 
- 3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor JSMV and JAMV into non-case classes and change some other logic.
+ 3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic.
 
- 2 * 1 - make JMV into parameterized class and get rid of Any in JMolValue and its derived classes?
+ 2 * 1 - make AbsMolValue into parameterized class and get rid of Any in MolValue and its derived classes?
 
  2 * 1 - make JA, JS into case classes and eliminate MoleculeType altogether?
 
@@ -51,7 +51,7 @@ TODO and roadmap:
 
  3 * 2 - add per-molecule logging; log to file or to logger function
 
- 3 * 3 - go through examples in Jiansen's project and in my JoCaml tutorial
+ 3 * 3 - go through examples in Jiansen's project (done) and in my JoCaml tutorial
   * */
 
 import DefaultValue.defaultValue

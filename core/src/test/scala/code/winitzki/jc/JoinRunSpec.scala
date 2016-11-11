@@ -149,12 +149,31 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     // when the problem is fixed, this test will have to be rewritten
   }
 
+  it should "generate an error message when the inputs are incorrectly inferred from reaction" in {
+    val a = ja[Option[Int]]("a")
+    val b = ja[Unit]("b")
+
+    join(&{ case a(Some(x)) + b(_) => }) // currently, the limitations in the pattern-macher will cause this
+    // to fail to recognize that "b" is an input molecule in this reaction.
+
+    // when the problem is fixed, this test will have to be rewritten
+
+    a(Some(1))
+    val thrown = intercept[Exception] {
+      b()
+    }
+    thrown.getMessage shouldEqual "Molecule b does not belong to any join definition"
+
+  }
+
   it should "start a simple reaction with one input, defining the injector explicitly" in {
 
     val waiter = new Waiter
 
     val a = new JA[Unit]
+
     join( &{ case a(_) => waiter.dismiss() })
+
     a()
     waiter.await()
   }
