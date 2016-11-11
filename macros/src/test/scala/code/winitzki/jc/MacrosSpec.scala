@@ -1,7 +1,7 @@
 package code.winitzki.jc
 
 import org.scalatest.{FlatSpec, Matchers}
-
+import JoinRun.{ja, js}
 import Macros.{jA, jS}
 
 class MacrosSpec extends FlatSpec with Matchers {

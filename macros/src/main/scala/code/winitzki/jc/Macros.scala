@@ -32,7 +32,7 @@ object Macros {
 
     val t = c.weakTypeOf[T]
 
-    q"JoinRun.ja[$t]($s)"
+    q"ja[$t]($s)"
   }
 
   def jS[T, R]: JS[T, R] = macro jSImpl[T, R]
@@ -44,7 +44,7 @@ object Macros {
     val t = c.weakTypeOf[T]
     val r = c.weakTypeOf[R]
 
-    c.Expr[JS[T, R]](q"JoinRun.js[$t,$r]($s)")
+    c.Expr[JS[T, R]](q"js[$t,$r]($s)")
   }
 
 }
