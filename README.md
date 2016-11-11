@@ -30,7 +30,9 @@ More documentation is forthcoming.
 
 For a general introduction to Join Calculus, see [this JoCaml tutorial](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml).
 
-I follow the "chemical machine" metaphor and terminology, which differs from the terminology usually employed in academic papers on JC. Here is the dictionary:
+See also my presentation at _Scala by the Bay 2016_ ([talk slides are available](https://github.com/winitzki/talks)).
+
+In describing `JoinRun`, I follow the "chemical machine" metaphor and terminology, which differs from the terminology usually employed in academic papers on JC. Here is the dictionary:
 
 | “Chemistry”  | JC terminology | JoinRun |
 |---|---|---|
