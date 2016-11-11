@@ -56,9 +56,11 @@ TODO and roadmap:
  3 * 3 - go through examples in Jiansen's project and in my JoCaml tutorial
   * */
 
+import DefaultValue.defaultValue
 import java.util.concurrent.Semaphore
 
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 // A pool of execution threads, or another way of running tasks (could use actors or whatever else).
 
@@ -75,10 +77,10 @@ object JoinRun {
   type JS[T,R] = JSynChan[T,R]
 
   // Users will call these functions to create new channels (a.k.a. "molecule injectors").
-  def ja[T] = new JAsynChan[T](None)
-  def js[T,R] = new JSynChan[T,R](None)
-  def ja[T](name: String) = new JAsynChan[T](Some(name))
-  def js[T,R](name: String) = new JSynChan[T,R](Some(name))
+  def ja[T: ClassTag] = new JAsynChan[T](None)
+  def js[T: ClassTag,R] = new JSynChan[T,R](None)
+  def ja[T: ClassTag](name: String) = new JAsynChan[T](Some(name))
+  def js[T: ClassTag,R](name: String) = new JSynChan[T,R](Some(name))
 
   // Wait until the join definition to which `molecule` belongs becomes quiescent, then inject `callback`.
   // TODO: implement
@@ -145,7 +147,7 @@ object JoinRun {
   }
 
   // Asynchronous molecule. This is an immutable class.
-  private[JoinRun] class JAsynChan[T](name: Option[String] = None) extends JChan(name) {
+  private[JoinRun] class JAsynChan[T: ClassTag](name: Option[String] = None) extends JChan(name) {
     def apply(v: => T): Unit = {
       // Inject an asynchronous molecule.
       joinDef match {
@@ -164,9 +166,10 @@ object JoinRun {
         if (inputMoleculesProbe contains this) {
           throw new Exception(s"Nonlinear pattern: ${this} used twice")
         }
-        else
+        else {
           inputMoleculesProbe.add(this)
-        Some(null.asInstanceOf[T]) // hack. This value will not be used.
+        }
+        Some(defaultValue[T]) // hack. This value will not be used.
 
       // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
       // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
@@ -210,7 +213,7 @@ object JoinRun {
   }
 
   // Synchronous channel. This is an immutable value.
-  private[JoinRun] class JSynChan[T,R](name: Option[String] = None) extends JChan(name) {
+  private[JoinRun] class JSynChan[T: ClassTag,R](name: Option[String] = None) extends JChan(name) {
 
     def apply(v: => T): R = {
       // Inject a synchronous molecule.
@@ -228,9 +231,10 @@ object JoinRun {
         if (inputMoleculesProbe contains this) {
           throw new Exception(s"Nonlinear pattern: ${this} used twice")
         }
-        else
+        else {
           inputMoleculesProbe.add(this)
-        Some((null, null).asInstanceOf[(T, JReplyVal[T,R])]) // hack. This value will not be used.
+        }
+        Some((defaultValue[T], null).asInstanceOf[(T, JReplyVal[T,R])]) // hack. This value will not be used.
 
       // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
       // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
@@ -313,7 +317,7 @@ object JoinRun {
     var logLevel = 0
 
     def printBag: String = {
-      val messages = if (messagesPresent.size > 0) s"Messages: ${moleculeBagToString(messagesPresent)}" else "No messages"
+      val messages = if (messagesPresent.size > 0) s"Messages: ${moleculeBagToString(messagesPresent)}" else "No molecules"
 
       s"${this.toString}\n$messages"
     }
