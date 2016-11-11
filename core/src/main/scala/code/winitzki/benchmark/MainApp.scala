@@ -4,7 +4,7 @@ import code.winitzki.benchmark.Benchmarks1._
 import code.winitzki.benchmark.Benchmarks4._
 import code.winitzki.benchmark.Benchmarks7._
 
-import code.winitzki.jc.JoinRun.{defaultJoinPool, defaultProcessPool}
+import code.winitzki.jc.JoinRun.{defaultJoinPool, defaultReactionPool}
 
 object MainApp extends App {
   val version = "0.0.5"
@@ -48,6 +48,6 @@ object MainApp extends App {
   }
 
   defaultJoinPool.shutdownNow()
-  defaultProcessPool.shutdownNow()
+  defaultReactionPool.shutdownNow()
 
 }

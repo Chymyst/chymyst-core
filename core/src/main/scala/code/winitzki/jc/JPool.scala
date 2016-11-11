@@ -9,7 +9,7 @@ import akka.routing.{BalancingPool, Broadcast, RoundRobinPool, SmallestMailboxPo
 import scala.concurrent.ExecutionContext
 
 class JJoinPool extends JPoolExecutor(2)
-class JProcessPool(threads: Int) extends JPoolExecutor(threads)
+class JReactionPool(threads: Int) extends JPoolExecutor(threads)
 
 /*
 class JThreadPoolExecutor(threads: Int = 1) extends JThreadPool {
@@ -52,7 +52,7 @@ private[jc] class JActorExecutor(threads: Int = 8) extends JPool {
     actorSystem.terminate()
   }
 
-  override def runProcess(task: => Unit): Unit =
+  override def runClosure(task: => Unit): Unit =
     router ! new Runnable {
       override def run(): Unit = task
     }
@@ -72,7 +72,7 @@ private[jc] class JPoolExecutor(threads: Int = 8) extends JPool {
     execService.shutdownNow()
   }
 
-  def runProcess(task: => Unit): Unit = execService.execute(new Runnable {
+  def runClosure(task: => Unit): Unit = execService.execute(new Runnable {
     override def run(): Unit = task
   })
 }

@@ -18,15 +18,13 @@ TODO and roadmap:
 
  4 * 2 - make helper functions to create an actor-based pool
 
- 3 * 1 - rename jprocesspool to reactionpool; remove j from longer and more unique names; generally prefer "chemical" terms to channel/message/process
-
  5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark
 
  5 * 5 - implement fairness with respect to molecules
  * - go through possible values when matching (can do?) Important: can get stuck when molecules are in different order. Or need to shuffle.
 
  5 * 5 - allow unrestricted pattern-matching in reactions
-* - fix the problem with pattern-matching not at the end of input channel list.
+* - fix the problem with pattern-matching not at the end of input molecule list.
   * Look at http://missingfaktor.blogspot.com/2011/08/emulating-cs-default-keyword-in-scala.html
   * and http://stackoverflow.com/questions/5260298/how-can-i-obtain-the-default-value-for-a-type-in-scala
 
@@ -65,26 +63,26 @@ import scala.reflect.ClassTag
 // A pool of execution threads, or another way of running tasks (could use actors or whatever else).
 
 trait JPool {
-  def runProcess(task: => Unit): Unit
+  def runClosure(task: => Unit): Unit
   def shutdownNow(): Unit
-  def apply(body: JoinRun.JReactionBody) = JoinRun.JReaction(body, this)
+  def apply(body: JoinRun.ReactionBody) = JoinRun.Reaction(body, this)
 }
 
 object JoinRun {
 
   // These type aliases are intended for users.
-  type JA[T] = JAsynChan[T]
-  type JS[T,R] = JSynChan[T,R]
+  type JA[T] = AsynMol[T]
+  type JS[T,R] = SynMol[T,R]
 
-  // Users will call these functions to create new channels (a.k.a. "molecule injectors").
-  def ja[T: ClassTag] = new JAsynChan[T](None)
-  def js[T: ClassTag,R] = new JSynChan[T,R](None)
-  def ja[T: ClassTag](name: String) = new JAsynChan[T](Some(name))
-  def js[T: ClassTag,R](name: String) = new JSynChan[T,R](Some(name))
+  // Users will call these functions to create new molecules (a.k.a. "molecule injectors").
+  def ja[T: ClassTag] = new AsynMol[T](None)
+  def js[T: ClassTag,R] = new SynMol[T,R](None)
+  def ja[T: ClassTag](name: String) = new AsynMol[T](Some(name))
+  def js[T: ClassTag,R](name: String) = new SynMol[T,R](Some(name))
 
   // Wait until the join definition to which `molecule` belongs becomes quiescent, then inject `callback`.
   // TODO: implement
-  def wait_until_quiet[T](molecule: JAsynChan[T], callback: JAsynChan[Unit]): Unit = {
+  def wait_until_quiet[T](molecule: AsynMol[T], callback: AsynMol[Unit]): Unit = {
     molecule.joinDef match {
       case Some(owner) => owner.setQuiescenceCallback(callback)
       case None => throw new Exception(s"Molecule $molecule belongs to no join definition")
@@ -103,33 +101,34 @@ object JoinRun {
   // Examples: run { a(_) => ... }
   // run { a (_) => ...} onThreads jPool
 
-  def run(body: JReactionBody): JReaction = JReaction(body, defaultProcessPool)
+  def run(body: ReactionBody): Reaction = Reaction(body, defaultReactionPool)
 
-  // This is an alias for JoinRun.run _
+  // This is an alias for JoinRun.run, to be used in case `run` clashes with another name imported into the local scope (e.g. in  scalatest).
   object & {
     // Users will create reactions using these functions.
-    def apply(body: JReactionBody): JReaction = JReaction(body, defaultProcessPool)
+    def apply(body: ReactionBody): Reaction = Reaction(body, defaultReactionPool)
   }
 
   // Container for molecule values
-  private sealed trait JMolValue {
+  // TODO: this is ugly - refactor!
+  private sealed trait AbsMolValue {
     def getValue[T]: T
 
     override def toString: String = getValue[Any] match { case () => ""; case v@_ => v.toString }
   }
-  private case class JAMV(v: Any) extends JMolValue {
+  private case class AsyncMolValue(v: Any) extends AbsMolValue {
     override def getValue[T]: T = v.asInstanceOf[T]
   }
-  private case class JSMV(jsv: JReplyVal[_,_]) extends JMolValue {
+  private case class SyncMolValue(jsv: SyncReplyValue[_,_]) extends AbsMolValue {
     override def getValue[T]: T = jsv.v.asInstanceOf[T]
   }
 
   private[JoinRun] sealed trait MoleculeType
-  private case object JAsyncMoleculeType extends MoleculeType
-  private case object JSyncMoleculeType extends MoleculeType
+  private case object AsyncMoleculeType extends MoleculeType
+  private case object SyncMoleculeType extends MoleculeType
 
-  // Abstract molecule. This type is used in collections of molecules that only require to know the owner.
-  abstract class JChan(name: Option[String]) {
+  // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
+  abstract class AbsMol(name: Option[String]) {
     var joinDef: Option[JoinDefinition] = None
 
     def setLogLevel(logLevel: Int): Unit = { joinDef.foreach(o => o.logLevel = logLevel) }
@@ -138,8 +137,8 @@ object JoinRun {
 
     override def toString: String = {
       val moleculeTypeSuffix = moleculeType match {
-        case JAsyncMoleculeType => ""
-        case JSyncMoleculeType => "/S"
+        case AsyncMoleculeType => ""
+        case SyncMoleculeType => "/S"
       }
 
       s"${name.getOrElse(super.toString)}$moleculeTypeSuffix"
@@ -147,22 +146,22 @@ object JoinRun {
   }
 
   // Asynchronous molecule. This is an immutable class.
-  private[JoinRun] class JAsynChan[T: ClassTag](name: Option[String] = None) extends JChan(name) {
+  private[JoinRun] class AsynMol[T: ClassTag](name: Option[String] = None) extends AbsMol(name) {
     def apply(v: => T): Unit = {
       // Inject an asynchronous molecule.
       joinDef match {
-        case Some(o) => o.injectAsync[T](this, JAMV(v))
+        case Some(o) => o.injectAsync[T](this, AsyncMolValue(v))
         case None => throw new Exception(s"Molecule ${this} does not belong to any join definition")
       }
     }
 
-    override def moleculeType = JAsyncMoleculeType
+    override def moleculeType = AsyncMoleculeType
 
-    def unapply(arg: JUnapplyArg): Option[T] = arg match {
+    def unapply(arg: UnapplyArg): Option[T] = arg match {
       // When we are gathering information about the input molecules, `unapply` will always return Some(...),
       // so that any pattern-matching on arguments will continue with null (since, at this point, we have no values).
       // Any pattern-matching will work unless null fails.
-      case JUnapplyCheck(inputMoleculesProbe) =>
+      case UnapplyCheck(inputMoleculesProbe) =>
         if (inputMoleculesProbe contains this) {
           throw new Exception(s"Nonlinear pattern: ${this} used twice")
         }
@@ -173,7 +172,7 @@ object JoinRun {
 
       // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
       // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
-      case JUnapplyRunCheck(moleculeValues, usedInputs) =>
+      case UnapplyRunCheck(moleculeValues, usedInputs) =>
         for {
           v <- moleculeValues.getOne(this)
         } yield {
@@ -182,12 +181,12 @@ object JoinRun {
         }
 
       // This is used when running the chosen reaction.
-      case JUnapplyRun(moleculeValues) => moleculeValues.get(this).map(_.getValue[T])
+      case UnapplyRun(moleculeValues) => moleculeValues.get(this).map(_.getValue[T])
     }
   }
 
   // Reply-value wrapper for synchronous molecules. This is a mutable class.
-  private[JoinRun] case class JReplyVal[T, R](
+  private[JoinRun] case class SyncReplyValue[T, R](
     v: T,
     var result: Option[R] = None,
     var semaphore: Semaphore = { val s = new Semaphore(0, true); s.drainPermits(); s },
@@ -212,81 +211,81 @@ object JoinRun {
     }
   }
 
-  // Synchronous channel. This is an immutable value.
-  private[JoinRun] class JSynChan[T: ClassTag,R](name: Option[String] = None) extends JChan(name) {
+  // Synchronous molecule injector. This is an immutable value.
+  private[JoinRun] class SynMol[T: ClassTag,R](name: Option[String] = None) extends AbsMol(name) {
 
     def apply(v: => T): R = {
       // Inject a synchronous molecule.
-      joinDef.map(_.injectSyncAndReply[T,R](this, JReplyVal[T,R](v)))
+      joinDef.map(_.injectSyncAndReply[T,R](this, SyncReplyValue[T,R](v)))
         .getOrElse(throw new Exception(s"Molecule $this does not belong to any join definition"))
     }
 
-    override def moleculeType = JSyncMoleculeType
+    override def moleculeType = SyncMoleculeType
 
-    def unapply(arg: JUnapplyArg): Option[(T, JReplyVal[T,R])] = arg match {
+    def unapply(arg: UnapplyArg): Option[(T, SyncReplyValue[T,R])] = arg match {
       // When we are gathering information about the input molecules, `unapply` will always return Some(...),
       // so that any pattern-matching on arguments will continue with null (since, at this point, we have no values).
       // Any pattern-matching will work unless null fails.
-      case JUnapplyCheck(inputMoleculesProbe) =>
+      case UnapplyCheck(inputMoleculesProbe) =>
         if (inputMoleculesProbe contains this) {
           throw new Exception(s"Nonlinear pattern: ${this} used twice")
         }
         else {
           inputMoleculesProbe.add(this)
         }
-        Some((defaultValue[T], null).asInstanceOf[(T, JReplyVal[T,R])]) // hack. This value will not be used.
+        Some((defaultValue[T], null).asInstanceOf[(T, SyncReplyValue[T,R])]) // hack. This value will not be used.
 
       // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
       // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
-      case JUnapplyRunCheck(moleculeValues, usedInputs) =>
+      case UnapplyRunCheck(moleculeValues, usedInputs) =>
         for {
           v <- moleculeValues.getOne(this)
         } yield {
           usedInputs += (this -> v)
-          (v.getValue[T], null).asInstanceOf[(T, JReplyVal[T,R])]
+          (v.getValue[T], null).asInstanceOf[(T, SyncReplyValue[T,R])]
         }
 
       // This is used when running the chosen reaction.
-      case JUnapplyRun(moleculeValues) => moleculeValues.get(this).map {
-        case JSMV(jsv) => (jsv.v, jsv).asInstanceOf[(T, JReplyVal[T, R])]
+      case UnapplyRun(moleculeValues) => moleculeValues.get(this).map {
+        case SyncMolValue(jsv) => (jsv.v, jsv).asInstanceOf[(T, SyncReplyValue[T, R])]
         case m@_ => throw new Exception(s"Internal error: molecule $this with no synchronous value wrapper around value $m")
       }
     }
   }
 
   implicit val defaultJoinPool = new JJoinPool
-  implicit val defaultProcessPool = new JProcessPool(4)
+  implicit val defaultReactionPool = new JReactionPool(4)
 
-  private[JoinRun] sealed trait JUnapplyArg // The disjoint union type for arguments passed to the unapply methods.
-  private case class JUnapplyCheck(inputMolecules: mutable.Set[JChan]) extends JUnapplyArg
-  private case class JUnapplyRun(moleculeValues: LinearMoleculeBag) extends JUnapplyArg
-  private case class JUnapplyRunCheck(moleculeValues: MessageBag, usedInputs: MutableLinearMoleculeBag) extends JUnapplyArg
+  private[JoinRun] sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
+  private case class UnapplyCheck(inputMolecules: mutable.Set[AbsMol]) extends UnapplyArg
+  private case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg
+  private case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg
 
-  private[jc] type JReactionBody = PartialFunction[JUnapplyArg, Unit]
+  private[jc] type ReactionBody = PartialFunction[UnapplyArg, Unit]
 
   // immutable
-  private[jc] case class JReaction(body: JReactionBody, threadPool: JPool) {
-    lazy val inputMoleculesUsed: Set[JChan] = {
-      val moleculesInThisReaction = JUnapplyCheck(mutable.Set.empty)
+  private[jc] case class Reaction(body: ReactionBody, threadPool: JPool) {
+    lazy val inputMoleculesUsed: Set[AbsMol] = {
+      val moleculesInThisReaction = UnapplyCheck(mutable.Set.empty)
       body.isDefinedAt(moleculesInThisReaction)
       moleculesInThisReaction.inputMolecules.toSet
     }
 
-    def onThreads(newThreadPool: JPool): JReaction = JReaction(body, newThreadPool)
+    def onThreads(newThreadPool: JPool): Reaction = Reaction(body, newThreadPool)
 
     override def toString = s"${inputMoleculesUsed.toSeq.map(_.toString).sorted.mkString(" + ")} => ..."
   }
 
   // Users will call join(...) in order to introduce a new Join Definition (JD).
   // All input and output molecules for this JD should have been already defined, and inputs should not yet have been used in any other JD.
-  def join(rs: JReaction*)
-          (implicit jProcessPool: JProcessPool,
+  def join(rs: Reaction*)
+          (implicit jReactionPool: JReactionPool,
            jJoinPool: JJoinPool): Unit = {
 
-    val knownMolecules : Map[JReaction, Set[JChan]] = rs.map { r => (r, r.inputMoleculesUsed) }.toMap
+    val knownMolecules : Map[Reaction, Set[AbsMol]] = rs.map { r => (r, r.inputMoleculesUsed) }.toMap
 
     // create a join definition object holding the given reactions and inputs
-    val join = new JoinDefinition(knownMolecules)(jProcessPool, jJoinPool)
+    val join = new JoinDefinition(knownMolecules)(jReactionPool, jJoinPool)
 
     // set the owner on all input molecules in this join definition
     knownMolecules.values.toSet.flatten.foreach { m =>
@@ -302,39 +301,40 @@ object JoinRun {
     def shuffle: Seq[T] = scala.util.Random.shuffle(a)
   }
 
-  // for JA[T] molecules, the value inside JMolValue is of type T; for JS[T,R] molecules, the value is of type JReplyVal[T,R]
-  private type MessageBag = MutableBag[JChan, JMolValue]
-  private type MutableLinearMoleculeBag = mutable.Map[JChan, JMolValue]
-  private type LinearMoleculeBag = Map[JChan, JMolValue]
+  // for JA[T] molecules, the value inside AbsMolValue is of type T; for JS[T,R] molecules, the value is of type SyncReplyValue[T,R]
+  private type MoleculeBag = MutableBag[AbsMol, AbsMolValue]
+  private type MutableLinearMoleculeBag = mutable.Map[AbsMol, AbsMolValue]
+  private type LinearMoleculeBag = Map[AbsMol, AbsMolValue]
 
   // The user will never see any instances of this class.
-  private[JoinRun] class JoinDefinition(val inputMolecules: Map[JReaction, Set[JChan]])(var jProcessPool: JProcessPool, var jJoinPool: JJoinPool) {
+  private[JoinRun] class JoinDefinition(val inputMolecules: Map[Reaction, Set[AbsMol]])
+                                       (var jReactionPool: JReactionPool, var jJoinPool: JJoinPool) {
 
-    private val quiescenceCallbacks: mutable.Set[JAsynChan[Unit]] = mutable.Set.empty
+    private val quiescenceCallbacks: mutable.Set[AsynMol[Unit]] = mutable.Set.empty
 
     override def toString = s"Join{${inputMolecules.keys.mkString("; ")}}"
 
     var logLevel = 0
 
     def printBag: String = {
-      val messages = if (messagesPresent.size > 0) s"Messages: ${moleculeBagToString(messagesPresent)}" else "No molecules"
+      val moleculesPrettyPrinted = if (moleculesPresent.size > 0) s"Molecules: ${moleculeBagToString(moleculesPresent)}" else "No molecules"
 
-      s"${this.toString}\n$messages"
+      s"${this.toString}\n$moleculesPrettyPrinted"
     }
 
-    def setQuiescenceCallback(callback: JAsynChan[Unit]): Unit = {
+    def setQuiescenceCallback(callback: AsynMol[Unit]): Unit = {
       quiescenceCallbacks.add(callback)
     }
 
-    private lazy val possibleReactions: Map[JChan, Seq[JReaction]] = inputMolecules.toSeq
+    private lazy val possibleReactions: Map[AbsMol, Seq[Reaction]] = inputMolecules.toSeq
       .flatMap { case (r, ms) => ms.toSeq.map { m => (m, r) } }
       .groupBy { case (m, r) => m }
       .map { case (m, rs) => (m, rs.map(_._2)) }
 
     // Initially, there are no molecules present.
-    private val messagesPresent: MessageBag = new MutableBag[JChan, JMolValue]
+    private val moleculesPresent: MoleculeBag = new MutableBag[AbsMol, AbsMolValue]
 
-    private def moleculeBagToString(mb: MessageBag): String =
+    private def moleculeBagToString(mb: MoleculeBag): String =
       mb.getMap.toSeq
         .map{ case (m, vs) => (m.toString, vs) }
         .sortBy(_._1)
@@ -356,21 +356,21 @@ object JoinRun {
       }.mkString(", ")
 
     // Adding an asynchronous molecule may trigger at most one reaction.
-    def injectAsync[T](m: JChan, jmv: JMolValue): Unit = if (!Thread.currentThread().isInterrupted) jJoinPool.runProcess {
+    def injectAsync[T](m: AbsMol, jmv: AbsMolValue): Unit = if (!Thread.currentThread().isInterrupted) jJoinPool.runClosure {
       val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
-        messagesPresent.addToBag(m, jmv)
-        if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $jJoinPool, now have molecules ${moleculeBagToString(messagesPresent)}")
+        moleculesPresent.addToBag(m, jmv)
+        if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $jJoinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
         val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
         val reaction = possibleReactions.get(m)
           .flatMap(_.shuffle.find(r => {
             usedInputs.clear()
-            r.body.isDefinedAt(JUnapplyRunCheck(messagesPresent, usedInputs))
+            r.body.isDefinedAt(UnapplyRunCheck(moleculesPresent, usedInputs))
           }))
         reaction match {
           case Some(r) =>
             // If we are here, we have found a reaction that can be started.
             // We need to remove the input molecules from the bag, as per JC execution semantics.
-            messagesPresent.removeFromBag(usedInputs)
+            moleculesPresent.removeFromBag(usedInputs)
           case None => ()
         }
         (reaction, usedInputs.toMap)
@@ -380,10 +380,10 @@ object JoinRun {
         case Some(r) =>
           if (logLevel > 1) println(s"Debug: In $this: starting reaction {$r} on thread pool ${r.threadPool} while on thread pool $jJoinPool with inputs ${moleculeBagToString(usedInputs)}")
           if (logLevel > 2) println(
-            if (messagesPresent.size == 0)
+            if (moleculesPresent.size == 0)
               s"Debug: In $this: no molecules remaining"
             else
-              s"Debug: In $this: remaining molecules ${moleculeBagToString(messagesPresent)}"
+              s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
           )
           // A basic check that we are using our mutable structures safely. We should never see this message.
           if (! r.inputMoleculesUsed.equals(usedInputs.keys.toSet)) {
@@ -391,12 +391,12 @@ object JoinRun {
             println(message)
             throw new Exception(message)
           }
-          // Run the reaction process on the reaction's thread pool.
-          if (!Thread.currentThread().isInterrupted) r.threadPool.runProcess {
+          // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
+          if (!Thread.currentThread().isInterrupted) r.threadPool.runClosure {
             if (logLevel > 1) println(s"Debug: In $this: reaction {$r} started on thread pool $jJoinPool with thread id ${Thread.currentThread().getId}")
             try {
               // Here we actually apply the reaction body to its input molecules.
-              r.body.apply(JUnapplyRun(usedInputs))
+              r.body.apply(UnapplyRun(usedInputs))
             } catch {
               case e: Throwable =>
                 // Running the reaction body produced an exception. Note that the exception has killed a thread.
@@ -411,13 +411,13 @@ object JoinRun {
 
             // Compute error messages here in case we will need them later.
             val syncMoleculesWithNoReply = nonemptyOpt(usedInputs
-              .filter { case (_, JSMV(jsv)) => jsv.result.isEmpty; case _ => false }
+              .filter { case (_, SyncMolValue(jsv)) => jsv.result.isEmpty; case _ => false }
               .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
 
             val messageNoReply = syncMoleculesWithNoReply map { s => s"Error: In $this: Reaction {$r} finished without replying to $s" }
 
             val syncMoleculesWithMultipleReply = nonemptyOpt(usedInputs
-              .filter { case (_, JSMV(jsv)) => jsv.repliedTwice; case _ => false }
+              .filter { case (_, SyncMolValue(jsv)) => jsv.repliedTwice; case _ => false }
               .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
 
             val messageMultipleReply = syncMoleculesWithMultipleReply map { s => s"Error: In $this: Reaction {$r} replied to $s more than once" }
@@ -428,7 +428,7 @@ object JoinRun {
 
             // Insert error messages into synchronous reply wrappers and release all semaphores.
             usedInputs.foreach {
-              case (_, JSMV(jsv)) =>
+              case (_, SyncMolValue(jsv)) =>
                 if (haveError) {
                   jsv.errorMessage = Some(errorMessage)
                 }
@@ -454,8 +454,8 @@ object JoinRun {
 
     // Adding a synchronous molecule may trigger at most one reaction and must return a value of type R.
     // This must be a blocking call.
-    def injectSyncAndReply[T,R](m: JSynChan[T,R], valueWithResult: JReplyVal[T,R]): R = {
-      injectAsync(m, JSMV(valueWithResult))
+    def injectSyncAndReply[T,R](m: SynMol[T,R], valueWithResult: SyncReplyValue[T,R]): R = {
+      injectAsync(m, SyncMolValue(valueWithResult))
 //      try  // not sure we need this.
         valueWithResult.acquireSemaphore()
 //      catch {
