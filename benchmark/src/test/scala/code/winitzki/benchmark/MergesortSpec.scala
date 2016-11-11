@@ -2,31 +2,16 @@ package code.winitzki.benchmark
 
 import java.time.LocalDateTime
 
+import Common._
 import code.winitzki.jc.JReactionPool
-import code.winitzki.benchmark.Common._
-
-import scala.collection.mutable
 import code.winitzki.jc.JoinRun._
-import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers}
 
 import scala.annotation.tailrec
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
-class VariousExamples2Spec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfter {
-
-  val timeLimit = Span(30000, Millis)
-
-  var initTimeAll = LocalDateTime.now
-
-  before {
-    initTimeAll = LocalDateTime.now
-  }
-
-  after {
-    println(s"Elapsed time: ${elapsed(initTimeAll)}")
-  }
+class MergesortSpec extends FlatSpec with Matchers {
 
   // auxiliary functions for merge-sort tests
 
@@ -107,32 +92,6 @@ class VariousExamples2Spec extends FlatSpec with Matchers with TimeLimitedTests 
     result
   }
 
-  it should "perform a map/reduce-like computation" in {
-    val count = 10
-
-    val initTime = LocalDateTime.now
-
-    val res = ja[List[Int]]
-    val r = ja[Int]
-    val d = ja[Int]
-    val get = js[Unit, List[Int]]
-
-    join(
-      &{ case d(n) => r(n*2) },
-      &{ case res(list) + r(s) => res(s::list) },
-      &{ case get(_, reply) + res(list) => reply(list) }
-    )
-
-    (1 to count).foreach(x => d(x))
-    val expectedResult = (1 to count).map(_ * 2)
-    res(Nil)
-
-    waitSome()
-    get().toSet shouldEqual expectedResult.toSet
-
-    println(s"map/reduce test with n=$count took ${elapsed(initTime)} ms")
-  }
-
   it should "merge arrays correctly" in {
     arrayMerge(Array(1,2,5), Array(3,6)) shouldEqual Array(1,2,3,5,6)
   }
@@ -159,8 +118,6 @@ class VariousExamples2Spec extends FlatSpec with Matchers with TimeLimitedTests 
     performMergeSort(arr, threads) shouldEqual expectedResult
   }
 
-
-
   it should "sort an array using concurrent merge-sort more quickly with many threads than with one thread" in {
 
     val count = 100000 // 1000000
@@ -175,33 +132,4 @@ class VariousExamples2Spec extends FlatSpec with Matchers with TimeLimitedTests 
     println(s"concurrent merge-sort test with count=$count and 1 threads took $result1 ms")
   }
 
-  it should "run tasks on many threads much faster than on one thread" in {
-
-    def runWork(threads: Int) = {
-
-      def performWork(): Unit = {
-        val n = 100
-
-        (1 to n).foreach(i => (1 to i).foreach(j => (1 to j).foreach(k => math.cos(10000.0))))
-      }
-
-      val a = ja[Int]
-      val never = js[Unit, Unit]
-      val tp = new JReactionPool(threads)
-      join(
-        tp { case a(c) if c > 0 => performWork(); a(c - 1) },
-        tp { case never(_, r) + a(0) => r() }
-      )
-
-      (1 to 10).foreach(_ => a(10))
-      never()
-    }
-
-    val result8 = timeWithPriming{runWork(8)}
-    val result1 = timeWithPriming{runWork(1)}
-
-    println(s"with 1 thread $result1 ms, with 8 threads $result8 ms")
-
-    (3 * result8 < result1) shouldEqual true
-  }
 }

@@ -3,7 +3,6 @@ package code.winitzki.benchmark
 import java.time.LocalDateTime
 import code.winitzki.benchmark.Common._
 import code.winitzki.jc.JoinRun._
-import code.winitzki.jc.{AsyName, Join, SynName, and}
 
 object Benchmarks4 {
   def benchmark4_100(count: Int, threads: Int = 2): Long = {
