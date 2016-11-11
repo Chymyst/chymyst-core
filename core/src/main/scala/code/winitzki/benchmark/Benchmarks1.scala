@@ -15,7 +15,7 @@ object Benchmarks1 {
     val d = ja[Unit]("d")
     val f = js[LocalDateTime,Long]("f")
 
-    val tp = new JProcessPool(threads)
+    val tp = new JReactionPool(threads)
 
     join(
       run { case c(0) + f(tInit, r) =>
@@ -57,7 +57,7 @@ object Benchmarks1 {
     (j2.d,j2.i,j2.f,j2.g)
   }
 
-  def make_counter(init: Int, threads: Int, tp: JProcessPool) = {
+  def make_counter(init: Int, threads: Int, tp: JReactionPool) = {
     val c = ja[Int]("c")
     val g = js[Unit,Int]("g")
     val i = ja[Unit]("i")
@@ -115,7 +115,7 @@ object Benchmarks1 {
 
     val initialTime = LocalDateTime.now
 
-    val tp = new JProcessPool(threads)
+    val tp = new JReactionPool(threads)
 
     val (d,_,f,_) = make_counter(count, threads, tp)
     (1 to count).foreach{ _ => d() }

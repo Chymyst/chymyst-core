@@ -32,7 +32,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     a()
     b()
     waitSome()
-    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nMessages: a() * 2, b()"
+    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nMolecules: a() * 2, b()"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at end of reaction" in {
@@ -287,7 +287,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val a = ja[Int]("all_finished")
     val g = js[Unit,Int]("getValue")
 
-    val tp = new JProcessPool(1)
+    val tp = new JReactionPool(1)
 
     join(
       &{ case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
@@ -310,7 +310,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val a = ja[Int]("all_finished")
     val g = js[Unit,Int]("getValue")
 
-    val tp = new JProcessPool(2)
+    val tp = new JReactionPool(2)
 
     join(
       &{ case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
@@ -330,7 +330,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = ja[Int]("counter")
     val d = ja[Unit]("decrement")
     val g = js[Unit, Int]("getValue")
-    val tp = new JProcessPool(2)
+    val tp = new JReactionPool(2)
     join(
       & { case c(x) + d(_) => c(x - 1) } onThreads tp,
       & { case c(x) + g(_, r) => c(x) + r(x) }
@@ -352,7 +352,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = ja[Int]("counter")
     val d = ja[Unit]("decrement")
     val g = js[Unit, Int]("getValue")
-    val tp = new JProcessPool(2)
+    val tp = new JReactionPool(2)
 
     join(
       & { case c(x) + d(_) =>
@@ -423,7 +423,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val d = ja[Unit]("d")
     val g = js[Unit,Int]("g")
     val g2 = js[Unit,Int]("g2")
-    val tp = new JProcessPool(2)
+    val tp = new JReactionPool(2)
     join(
       &{ case d(_) => g2() } onThreads tp,
       &{ case c(_) + g(_,_) + g2(_,_) => c() }
@@ -444,7 +444,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val d = ja[Unit]("d")
     val g = js[Unit,Int]("g")
     val g2 = js[Unit,Int]("g2")
-    val tp = new JProcessPool(2)
+    val tp = new JReactionPool(2)
     join(
       &{ case d(_) => g2() } onThreads tp,
       &{ case c(_) + g(_,r) + g2(_,_) => c() + r(0) }
@@ -468,7 +468,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g = js[Unit,Int]("g")
     val g2 = js[Unit,Int]("g2")
     val h = js[Unit,Int]("h")
-    val tp = new JProcessPool(2)
+    val tp = new JReactionPool(2)
     join(
       &{ case c(_) => e(g2()) } onThreads tp, // e(0) should be injected now
       &{ case d(_) + g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
@@ -492,7 +492,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g = js[Unit,Int]("g")
     val g2 = js[Unit,Int]("g2")
     val h = js[Unit,Int]("h")
-    val tp = new JProcessPool(2)
+    val tp = new JReactionPool(2)
     join(
       &{ case c(_) => val x = g() + g2(); e(x) } onThreads tp, // e(0) should never be injected because this thread is deadlocked
       &{ case d(_) + g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,

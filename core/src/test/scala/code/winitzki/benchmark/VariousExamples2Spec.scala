@@ -2,7 +2,7 @@ package code.winitzki.benchmark
 
 import java.time.LocalDateTime
 
-import code.winitzki.jc.JProcessPool
+import code.winitzki.jc.JReactionPool
 import code.winitzki.benchmark.Common._
 
 import scala.collection.mutable
@@ -79,7 +79,7 @@ class VariousExamples2Spec extends FlatSpec with Matchers with TimeLimitedTests 
 
     val mergesort = new JA[(Array[T], JA[Array[T]])]
 
-    val tp = new JProcessPool(threads)
+    val tp = new JReactionPool(threads)
     join(
       tp{
         case mergesort((arr, resultToYield)) =>
@@ -187,7 +187,7 @@ class VariousExamples2Spec extends FlatSpec with Matchers with TimeLimitedTests 
 
       val a = ja[Int]
       val never = js[Unit, Unit]
-      val tp = new JProcessPool(threads)
+      val tp = new JReactionPool(threads)
       join(
         tp { case a(c) if c > 0 => performWork(); a(c - 1) },
         tp { case never(_, r) + a(0) => r() }

@@ -13,9 +13,9 @@ class JPoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "run a task on a separate thread" in {
     val waiter = new Waiter
 
-    val tp = new JProcessPool(2)
+    val tp = new JReactionPool(2)
 
-    tp.runProcess {
+    tp.runClosure {
       waiter.dismiss()
 
       try {
@@ -34,9 +34,9 @@ class JPoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "interrupt a thread when shutting down" in {
     val waiter = new Waiter
 
-    val tp = new JProcessPool(2)
+    val tp = new JReactionPool(2)
 
-    tp.runProcess {
+    tp.runClosure {
       try {
         Thread.sleep(10000000)  // this should not time out
 

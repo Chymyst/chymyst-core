@@ -1,6 +1,6 @@
 package code.winitzki.benchmark
 
-import code.winitzki.jc.JProcessPool
+import code.winitzki.jc.JReactionPool
 import code.winitzki.jc.JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
@@ -10,7 +10,7 @@ class VariousExamples3Spec extends FlatSpec with Matchers with TimeLimitedTests 
 
   val timeLimit = Span(10000, Millis)
 
-  def rw(m: JChan): Unit = {
+  def rw(m: AbsMol): Unit = {
     println(m.toString)
     Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
   }
@@ -21,7 +21,7 @@ class VariousExamples3Spec extends FlatSpec with Matchers with TimeLimitedTests 
 
   def diningPhilosophers(cycles: Int) = {
 
-    val tp = new JProcessPool(8)
+    val tp = new JReactionPool(8)
 
     val h1 = ja[Int]("Aristotle is hungry")
     val h2 = ja[Int]("Kant is hungry")
