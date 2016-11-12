@@ -37,6 +37,8 @@ TODO and roadmap:
  2 * 1 - make AbsMolValue into parameterized class and get rid of Any in MolValue and its derived classes?
 
  2 * 1 - make JA, JS into case classes and eliminate MoleculeType altogether?
+ 
+ 2 * 2 - try to avoid case class matching in favor of overloading methods on case classes (possible performance benefit)
 
  4 * 3 - add javadoc for the library
 
@@ -45,13 +47,27 @@ TODO and roadmap:
  5 * 5 - try to inspect the reaction body using a macro. Can we match on q"{ case a(_) + ... => ... }"?
  Can we return the list of input molecules and other info - e.g. whether the pattern-match
  is nontrivial in this molecule, whether sync. molecultes have a reply matcher specified,
-  whether the reply molecule is being used in the body, whether all other output molecules are already defined
+ whether the reply molecule is being used in the body, whether all other output molecules are already defined.
+ If this is possible, define an alternative "join" or "run" helper functions in the Macros package. 
 
  2 * 3 - understand the "reader-writer" example
 
  3 * 2 - add per-molecule logging; log to file or to logger function
 
  3 * 3 - go through examples in Jiansen's project (done) and in my JoCaml tutorial
+ 
+ 5 * 5 - implement special handling for molecules with Future-wrapped values (inject in the future).
+ Transform JA[Future[T]] => Future[JA[T]] and inject JA[T] when the future resolves.
+ More generally, consider a good way of reconciling asynchronous programming and JC. The use case for this is
+ a legacy API that forces async constructs on us (Future, stream, etc.), and we would like to avoid blocking
+ any threads but instead to combine JC and asynchronous thread multiplexing implicit in the given async construct.
+ 
+ 4 * 5 - implement multiple injection construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start.
+ 
+ 4 * 5 - allow several reactions to be scheduled simultaneously out of the same join definition, when this is possible. Avoid locking the entire bag - perhaps, partition it, based on join definition information gleaned using a macro.
+ 
+ 5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
+ and be able to better reason about our declarative reactions.
   * */
 
 import DefaultValue.defaultValue
