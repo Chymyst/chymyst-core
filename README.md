@@ -107,7 +107,7 @@ There is an integer counter value, to which we have non-blocking access
 via `incr` and `decr` molecules.
 We can also fetch the current counter value via the `get` molecule, which is blocking.
 The counter is initialized to the number we specify.
-
+```scala
     import code.winitzki.jc.JoinRun._
      
     // Define the logic of the "non-blocking counter".
@@ -143,7 +143,8 @@ The counter is initialized to the number we specify.
           // more code
      
     val x = get() // blocking call, returns the current value of the counter
-    
+```
+
 # Debugging and macros
 
 It is sometimes not easy to make sure that the reactions are correctly designed.
@@ -154,7 +155,8 @@ The library offers some debugging facilities:
 - the user can set a log level on each join definition
  
  Here are the typical results:
- 
+
+```scala
     import code.winitzki.jc.JoinRun._
     import code.winitzki.jc.Macros._
     
@@ -221,3 +223,4 @@ The library offers some debugging facilities:
     Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + get/S => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 549
     Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(0) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(0), decr()
     */
+```
