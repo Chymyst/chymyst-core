@@ -137,7 +137,7 @@ We would like to maintain a counter with an integer value, which can be incremen
 or decremented by non-blocking, concurrently running operations.
 (For example, we would like to be able to increment and decrement the counter from different processes running at the same time.)
 
-To implement this using Join Calculus, we first think about the molecules we will use.
+To implement this using Join Calculus, we begin by deciding which molecules we will need to define.
 It is clear that we will need a molecule that carries the integer value of the counter.
 
 ```scala
@@ -172,7 +172,7 @@ The `incr` and `decr` molecules will be likewise consumed.
 Remarks:
 - The two reactions need to be defined together because both reactions use the same input molecule `counter`.
 This is called a **`join` definition**.
- - In Join Calculus, all reactions that share input molecule must be defined in the same join definition.
+- In Join Calculus, all reactions that share input molecule must be defined in the same join definition.
 Reactions that share no input molecules can (and should) be defined in separate join definitions.
 
 After defining the molecules and their reactions, we can start injecting new molecules into the soup:
@@ -195,7 +195,7 @@ Thus, we cannot have any race conditions with the counter (due to updating the c
 
 ## Tracing the output
 
-The code shown above will not print any output, so it is perhaps instructive to put some print statements into the code and run them.
+The code shown above will not print any output, so it is perhaps instructive to put some print statements into the reactions.
 
 ```scala
 import code.winitzki.jc.JoinRun._
@@ -206,6 +206,7 @@ val counter = jA[Int]
 val incr = jA[Unit]
 val decr = jA[Unit]
 
+// helper function to be used in reactions
 def printAndInject(x: Int) = {
   println(s"new value is $x")
   counter(x)
@@ -223,9 +224,15 @@ decr() // prints "new value is 100"
 decr()+decr() // prints "new value is 99" and then "new value is 98"
 ```
 
-There is also a debugging facility in `JoinRun`:
-- the user can inspect the join definition to which a molecule belongs;
-- the user can inspect the molecules currently present in the soup.
+There is also a debugging facility in `JoinRun`.
+For a given molecule, there will be a single join definition to which this molecule "belongs"
+(i.e. where this molecule is used as an input molecule for some reactions).
+This join definition is accessed as `.joinDef` method on the molecule injector.
+Additionally:
+- the user can inspect that join definition's reactions;
+- the user can see which molecules are currently present in the part of the soup
+that pertains to that join definition (i.e. all molecules that are inputs in it)
+using the `.printBag` method on the join definition.
 
 After executing the code from the example above, here is how we could use the debugging facility:
 
@@ -237,6 +244,8 @@ counter.joinDef.get.printBag // returns "Join{counter + incr => ...; counter + d
 ```
 
 ## Common errors
+
+### Injecting undefined molecules
 
 It is an error to inject a molecule that is not yet defined as input molecule in any reactions.
 
@@ -251,6 +260,9 @@ The same error will occur if such injection is attempted inside a reaction body.
 The correct way of using `JoinRun` is first to define molecules,
 then to describe reactions in a join definition,
 and only then start injecting these molecules.
+
+
+### Redefining input molecules
 
 It is also an error to define a reaction whose input molecule is already used as input in another join definition.
 
@@ -282,6 +294,8 @@ More generally, all reactions that share any input molecules must be defined tog
 However, reactions that use a molecule only as output can be in another join definition.
 Here is an example:
 
+TODO finish this example
+
 ```scala
 val x = jA[Int]
 val a = jA[Unit]
@@ -293,8 +307,11 @@ join(
 ) // OK
 ``` 
 
+### Nonlinear patterns
+
 Join Calculus also requires that all input molecules for a reaction should be of different sorts.
 It is not allowed to have a reaction with repeated input molecules, e.g. of the form `a + a => ...` where the molecule `a` is repeated.
+The input molecule list that has a repeated molecule is called a "nonlinear pattern".
 
 ```scala
 val x = jA[Int]
