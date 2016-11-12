@@ -68,6 +68,10 @@ TODO and roadmap:
  
  5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
  and be able to better reason about our declarative reactions.
+
+ 2 * 4 - allow molecule values to be parameterized types or even higher-kinded types?
+
+ 1 * 1 - make blocking injectors inherit Function1[T,R]
   * */
 
 import DefaultValue.defaultValue
