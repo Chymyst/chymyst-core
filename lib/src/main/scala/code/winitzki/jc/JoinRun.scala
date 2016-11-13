@@ -72,6 +72,8 @@ TODO and roadmap:
  2 * 4 - allow molecule values to be parameterized types or even higher-kinded types?
 
  1 * 1 - make blocking injectors inherit Function1[T,R]
+
+ 2 * 2 - make memory profiling / benchmarking; how many molecules can we have per 1 GB of RAM?
   * */
 
 import DefaultValue.defaultValue
@@ -232,9 +234,9 @@ object JoinRun {
   }
 
   // Synchronous molecule injector. This is an immutable value.
-  private[JoinRun] class SynMol[T: ClassTag,R](name: Option[String] = None) extends AbsMol(name) {
+  private[JoinRun] class SynMol[T: ClassTag,R](name: Option[String] = None) extends AbsMol(name) with Function1[T,R] {
 
-    def apply(v: => T): R = {
+    def apply(v: T): R = {
       // Inject a synchronous molecule.
       joinDef.map(_.injectSyncAndReply[T,R](this, SyncReplyValue[T,R](v)))
         .getOrElse(throw new Exception(s"Molecule $this does not belong to any join definition"))
