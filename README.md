@@ -6,6 +6,10 @@ and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 
 # Overview of join calculus
 
+If you are new to Join Calculus, begin with this [tutorial introduction to `JoinRun`](doc/join_calculus_joinrun_tutorial.md).
+
+See also my presentation at _Scala by the Bay 2016_ ([talk slides are available](https://github.com/winitzki/talks/tree/master/join_calculus)).
+
 Join calculus (JC) is somewhat similar to the well-known “actors” framework (e.g. Akka).
 
 JC has these features that are similar to actors:
@@ -25,15 +29,6 @@ Main differences between actors and JC processes:
 | messages are held in an unordered bag | messages are held in an ordered queue and processed in the order received |
 | messages are typed | messages are untyped |
 
-
-If you are new to Join Calculus, begin with this [tutorial introduction to `JoinRun`](doc/join_calculus_joinrun_tutorial.md).
-
-See also my presentation at _Scala by the Bay 2016_ ([talk slides are available](https://github.com/winitzki/talks/tree/master/join_calculus)).
-
-There is now some [technical documetation of `JoinRun` library](doc/joinrun.md).
-
-More documentation is forthcoming.
-
 In talking about `JoinRun`, I follow the "chemical machine" metaphor and terminology, which differs from the terminology usually employed in academic papers on JC. Here is the dictionary:
 
 | “Chemistry”  | JC terminology | JoinRun |
@@ -44,6 +39,10 @@ In talking about `JoinRun`, I follow the "chemical machine" metaphor and termino
 | reaction | process | `run { case a(x)+...=> }` |
 | injecting a molecule | sending a message | `a(123)` _// side effect_ |
 | join definition | join definition | `join(r1, r2, ...)` |
+
+There is now some [technical documetation of `JoinRun` library](doc/joinrun.md).
+
+More documentation is forthcoming.
 
 # Main improvements
 
