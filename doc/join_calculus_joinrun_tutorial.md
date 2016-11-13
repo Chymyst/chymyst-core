@@ -34,7 +34,7 @@ For example, the soup can contain five hundred copies of `a` and three hundred c
 We also assume that we can inject any molecule into the soup at any time.
 
 It is not difficult to implement a simulator for the “chemical soup” behavior as just described.
-Having specified the list of "chemical laws", we start the simulation waiting for some molecules to be injected into the soup.
+Having specified the list of “chemical laws", we start the simulation waiting for some molecules to be injected into the soup.
 Once molecules are injected, we check whether some reactions can start.
 
 In a reaction such as `a + b + c ⇒ d + e` the **input molecules** are  `a`, `b`, and `c`, and the **output molecules** are `d` and `e`.
@@ -73,14 +73,14 @@ If many copies of input molecules are available, the runtime engine will start s
 
 Note that each reaction depends only on the values of its _input_ molecules.
 So it is completely safe to execute concurrently several instances of the same reaction, starting from different sets of input molecules.
-This is the way Join Calculus uses the "chemical simulator" to execute concurrent computations.
+This is the way Join Calculus uses the “chemical simulator” to execute concurrent computations.
 
 The reaction body can be a pure function since it will receive its arguments on the input molecules.
 In this way, Join Calculus enables pure functional concurrent programming.
 
 ## The syntax of `JoinRun`
 
-So far, we have been using some chemistry-resembling pseudocode to illustrate the structure of "chemical reactions”.
+So far, we have been using some chemistry-resembling pseudocode to illustrate the structure of “chemical reactions”.
 The actual syntax of `JoinRun` is only a little more verbose than that:
 
 ```scala
@@ -188,16 +188,16 @@ join(
 )
 
 counter(100)
-incr() // prints "new value is 101"
-decr() // prints "new value is 100"
-decr()+decr() // prints "new value is 99" and then "new value is 98"
+incr() // prints “new value is 101"
+decr() // prints “new value is 100"
+decr()+decr() // prints “new value is 99” and then “new value is 98"
 ```
 
 ## Debugging
 
 `JoinRun` has a simple debugging facility.
 
-For a given molecule, there is always a single join definition (JD) to which this molecule "belongs" - that is, the JD where this molecule is consumed as input molecule by some reactions.
+For a given molecule, there is always a single join definition (JD) to which this molecule “belongs” - that is, the JD where this molecule is consumed as input molecule by some reactions.
 This JD is accessed as `.joinDef` method on the molecule injector.
 Additionally:
 - the user can see the input molecules used by reactions in that JD;
@@ -208,7 +208,7 @@ After executing the code from the example above, here is how we could use the de
 ```scala
 counter.joinDef.get // returns Join{counter + incr => ...; counter + decr => ...}
 
-counter.joinDef.get.printBag // returns "Join{counter + incr => ...; counter + decr => ...}
+counter.joinDef.get.printBag // returns “Join{counter + incr => ...; counter + decr => ...}
                              // Molecules: counter(98)"
 ```
 
@@ -265,12 +265,12 @@ Here is an example where we define one JD that computes a result and sends it on
 ```scala
 val show = jA[Int]
 
-// JD where "show" is an input molecule
+// JD where “show” is an input molecule
 join( run { case show(x) => println(s"") })
 
 val start = jA[Unit]
 
-// JD where "show" is an output molecule
+// JD where “show” is an output molecule
 join(
   run { case start(_) => val res = compute(...); show(res) }
 )
@@ -280,7 +280,7 @@ join(
 
 Join Calculus also requires that all input molecules for a reaction should be of different sorts.
 It is not allowed to have a reaction with repeated input molecules, e.g. of the form `a + a => ...` where the molecule of sort `a` is repeated.
-An input molecule list with a repeated molecule is called a "nonlinear pattern”.
+An input molecule list with a repeated molecule is called a “nonlinear pattern”.
 
 ```scala
 val x = jA[Int]
@@ -290,7 +290,7 @@ join(run { case x(n1) + x(n2) =>  })
 ``` 
 
 Sometimes it appears that repeating input molecules is the most natural way of expressing the desired behavior of some concurrent programs.
-However, I believe it is always possible to introduce some new auxiliary molecules and to rewrite the "chemistry laws" so that input molecules are not repeated while the resulting computations give the same results.
+However, I believe it is always possible to introduce some new auxiliary molecules and to rewrite the “chemistry laws” so that input molecules are not repeated while the resulting computations give the same results.
 This limitation could be lifted in a later version of `JoinRun` if it proves useful to do so.
 
 ## Order of reactions
@@ -308,7 +308,7 @@ The debugging facility will print the molecule names in alphabetical order, and 
 
 The result of this is that the order in which reactions will start is non-deterministic and unknown.
 This is the original semantics of Join Calculus.
-If the priority of certain reactions is important for a particular application, it is the programmer's task to design the "chemical laws" in such a way that those reactions start in the desired order.
+If the priority of certain reactions is important for a particular application, it is the programmer's task to design the “chemical laws” in such a way that those reactions start in the desired order.
 
 ## Summary so far
 
@@ -323,15 +323,15 @@ After defining the molecules and specifying the reactions, the user can start in
 
 In this way, a complicated system of interacting concurrent processes can be specified through a particular set of “chemical laws” and reaction bodies.
 
-# Example 0: declarative solution of "dining philosophers"
+# Example 0: declarative solution of “dining philosophers"
 
 The ["dining philosophers problem"](https://en.wikipedia.org/wiki/Dining_philosophers_problem) is to run a simulation of five philosophers who take turns eating and thinking.
 Each philosopher needs two forks to start eating, and every pair of neighbor philosophers shares a fork.
 
-The simplest solution of the "dining philosophers" problem is achieved using a molecule for each fork and two molecules per philosopher: one representing a thinking philosopher and the other representing a hungry philosopher.
+The simplest solution of the “dining philosophers” problem is achieved using a molecule for each fork and two molecules per philosopher: one representing a thinking philosopher and the other representing a hungry philosopher.
 
-A "thinking philosopher" molecule causes a reaction in which the process is paused for a random time and then the "hungry philosopher" molecule is injected.
-A "hungry philosopher" molecule reacts with two neighbor "fork" molecules: the process is paused for a random time and then the "thinking philosopher" molecule is injected, together with the two "fork" molecules.
+A “thinking philosopher” molecule causes a reaction in which the process is paused for a random time and then the “hungry philosopher” molecule is injected.
+A “hungry philosopher” molecule reacts with two neighbor “fork” molecules: the process is paused for a random time and then the “thinking philosopher” molecule is injected, together with the two “fork” molecules.
 
 The complete code is shown here:
 
@@ -399,16 +399,16 @@ Russell is thinking
 Spinoza is eating
 ```
 
-It is interesting to note that this example code is fully declarative: it describes what the "dining philosophers" simulation must do, and the code is quite close to the English-language description of the problem.
+It is interesting to note that this example code is fully declarative: it describes what the “dining philosophers” simulation must do, and the code is quite close to the English-language description of the problem.
 
 # Blocking molecules
 
 So far, we have used molecules whose injection was a non-blocking call.
-an important feature of Join Calculus is "blocking" molecules.
+An important feature of Join Calculus is “blocking” (or “synchronous”) molecules.
 
 Ihe runtime engine simulates the injecting of a blocking molecule in a special way.
 The injection call will be blocked until some reaction can start with the newly injected molecule.
-This reaction's body will be able to send a "reply value" back to the injecting process.
+This reaction's body will be able to send a “reply value” back to the injecting process.
 Once the reply value has been sent, the injecting process is unblocked.
 
 Here is an example of declaring a blocking molecule:
@@ -420,7 +420,7 @@ val f = jS[Int, String]
 The molecule `f` carries a value of type `Int`; the reply value is of type `String`.
 
 Sending a reply value is a special action available only with blocking molecules.
-The "replying" action is non-blocking within the reaction body.
+The “replying” action is non-blocking within the reaction body.
 Example syntax for the reply action within a reaction body:
 
 ```scala
@@ -434,7 +434,7 @@ This reaction will proceed when a molecule `c(...)` is present and an `f()` is i
 The reaction body replies to `f` with the value `s` carried by the molecule `c(s)`.
 
 The syntax for replying suggests that `f` carries a special `reply` pseudo-molecule, and that the reaction body injects this `reply` molecule  with an integer value.
-However, the `reply` does not actually stand for a molecule injector - this is merely syntax for the "replying" action that is part of the semantics of the blocking molecule.
+However, the `reply` does not actually stand for a molecule injector - this is merely syntax for the “replying” action that is part of the semantics of the blocking molecule.
 
 ## Example 1: benchmarking the concurrent counter
 
@@ -514,7 +514,7 @@ java.lang.Exception: Error: In Join{f/S => ...}: Reaction {f/S => ...} finished 
 
 ## Further details: Molecules and molecule injectors
 
-Molecules are injected into the "chemical soup" using the syntax such as `c(123)`. Here, `c` is a value we define using a construction such as
+Molecules are injected into the “chemical soup” using the syntax such as `c(123)`. Here, `c` is a value we define using a construction such as
 
 ```scala
 val c = jA[Int]
@@ -609,7 +609,7 @@ Since molecules and reactions are local values, they are lexically scoped within
 So, we can define new local molecules and reactions within an auxiliary function, or even within another reaction body.
 Because of local scoping, these newly defined molecules and reactions can be effectively encapsulated and protected from outside access.
 
-To illustrate this feature of Join Calculus, let us implement a function that will define a "concurrent counter" and initialize it with a given value.
+To illustrate this feature of Join Calculus, let us implement a function that will define a “concurrent counter” and initialize it with a given value.
 By design, the user will not have access to the `counter` injector.
 Thus we can guarantee the correct functionality of the counter.
 
@@ -678,7 +678,7 @@ See also [my recent presentation at _Scala by the Bay 2016_](https://scalaebythe
 
 # Limitations of Join Calculus 
 
-While designing the “abstract chemistry" for our application, we need to keep in mind certain limitations of Join Calculus system:
+While designing the “abstract chemistry” for our application, we need to keep in mind certain limitations of Join Calculus system:
 
 - We cannot detect the _absence_ of a given non-blocking molecule, say `a(1)`, in the soup.
 This seems to be a genuine limitation of join calculus.
