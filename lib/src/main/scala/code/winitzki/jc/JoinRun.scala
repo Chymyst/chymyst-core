@@ -35,14 +35,10 @@ TODO and roadmap:
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic.
 
  2 * 1 - make AbsMolValue into parameterized class and get rid of Any in MolValue and its derived classes?
-
- 2 * 1 - make JA, JS into case classes and eliminate MoleculeType altogether?
  
  2 * 2 - try to avoid case class matching in favor of overloading methods on case classes (possible performance benefit)
 
  4 * 3 - add javadoc for the library
-
- 4 * 2 - repackage as library + library unit tests + benchmark app
 
  5 * 5 - try to inspect the reaction body using a macro. Can we match on q"{ case a(_) + ... => ... }"?
  Can we return the list of input molecules and other info - e.g. whether the pattern-match
@@ -70,8 +66,6 @@ TODO and roadmap:
  and be able to better reason about our declarative reactions.
 
  2 * 4 - allow molecule values to be parameterized types or even higher-kinded types?
-
- 1 * 1 - make blocking injectors inherit Function1[T,R]
 
  2 * 2 - make memory profiling / benchmarking; how many molecules can we have per 1 GB of RAM?
   * */
@@ -145,25 +139,20 @@ object JoinRun {
     override def getValue[T]: T = jsv.v.asInstanceOf[T]
   }
 
-  private[JoinRun] sealed trait MoleculeType
-  private case object AsyncMoleculeType extends MoleculeType
-  private case object SyncMoleculeType extends MoleculeType
-
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
   abstract class AbsMol(name: Option[String]) {
     var joinDef: Option[JoinDefinition] = None
 
     def setLogLevel(logLevel: Int): Unit = { joinDef.foreach(o => o.logLevel = logLevel) }
 
-    def moleculeType: MoleculeType
+    def getName: String = name.getOrElse(super.toString)
 
     override def toString: String = {
-      val moleculeTypeSuffix = moleculeType match {
-        case AsyncMoleculeType => ""
-        case SyncMoleculeType => "/S"
+      val moleculeTypeSuffix = this match {
+        case _ : AsynMol[_] => ""
+        case _ : SynMol[_,_] => "/S"
       }
-
-      s"${name.getOrElse(super.toString)}$moleculeTypeSuffix"
+      s"${getName}$moleculeTypeSuffix"
     }
   }
 
@@ -177,7 +166,7 @@ object JoinRun {
       }
     }
 
-    override def moleculeType = AsyncMoleculeType
+    override def toString: String = getName
 
     def unapply(arg: UnapplyArg): Option[T] = arg match {
       // When we are gathering information about the input molecules, `unapply` will always return Some(...),
@@ -242,7 +231,7 @@ object JoinRun {
         .getOrElse(throw new Exception(s"Molecule $this does not belong to any join definition"))
     }
 
-    override def moleculeType = SyncMoleculeType
+    override def toString: String = getName + "/S"
 
     def unapply(arg: UnapplyArg): Option[(T, SyncReplyValue[T,R])] = arg match {
       // When we are gathering information about the input molecules, `unapply` will always return Some(...),

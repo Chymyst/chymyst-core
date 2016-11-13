@@ -11,7 +11,7 @@ object Benchmarks7 {
 
   /// create `n` asynchronous counters, initialize each to `count`, then decrement `count*n` times, until all counters are zero.
   /// collect the zero-counter events, make sure there are `n` of them, then fire an `all_done` event that yields the benchmark time.
-  val counters = 20
+  val counters = 4
 
   def benchmark7(count: Int, threads: Int = 2): Long = {
 

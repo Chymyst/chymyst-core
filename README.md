@@ -88,18 +88,19 @@ Some tests are timed and will fail on a slow machine.
 
 # Build the benchmark application
 
-`sbt run` will run the benchmark application.
+`sbt benchmark/run` will run the benchmark application.
 
-To build a JAR:
+
+# Build the library
+
+To build all JARs:
 
 ```
 sbt assembly
 ```
 will prepare a "root", "core", and "macros" assemblies.
 
-Run the benchmark application from JAR:
-
-`java -jar core/target/scala-2.11/core-assembly-1.0.0.jar`
+The main library is in the "core" and "macros" artifacts.
 
 # Basic usage of `JoinRun`
 

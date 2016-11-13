@@ -23,7 +23,7 @@ object MainApp extends App {
     (result + prime2 + 1) / 2
   }
 
-  val n = 100000
+  val n = 50000
 
   val threads = 8
 
