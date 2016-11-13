@@ -102,7 +102,7 @@ join(
 
 The helper functions `jA`, `join`, and `run` are defined in the `JoinRun` library.
 
-## First example: concurrent counter
+## Example 0: concurrent counter
 
 We would like to maintain a counter with an integer value, which can be incremented or decremented by non-blocking, concurrently running operations.
 (For example, we would like to be able to increment and decrement the counter from different processes running at the same time.)
@@ -323,7 +323,7 @@ After defining the molecules and specifying the reactions, the user can start in
 
 In this way, a complicated system of interacting concurrent processes can be specified through a particular set of “chemical laws” and reaction bodies.
 
-# Example 0: declarative solution of “dining philosophers"
+# Example 1: declarative solution of “dining philosophers"
 
 The ["dining philosophers problem"](https://en.wikipedia.org/wiki/Dining_philosophers_problem) is to run a simulation of five philosophers who take turns eating and thinking.
 Each philosopher needs two forks to start eating, and every pair of neighbor philosophers shares a fork.
@@ -406,7 +406,7 @@ It is interesting to note that this example code is fully declarative: it descri
 So far, we have used molecules whose injection was a non-blocking call.
 An important feature of Join Calculus is “blocking” (or “synchronous”) molecules.
 
-Ihe runtime engine simulates the injecting of a blocking molecule in a special way.
+The runtime engine simulates the injecting of a blocking molecule in a special way.
 The injection call will be blocked until some reaction can start with the newly injected molecule.
 This reaction's body will be able to send a “reply value” back to the injecting process.
 Once the reply value has been sent, the injecting process is unblocked.
@@ -427,20 +427,20 @@ Example syntax for the reply action within a reaction body:
 val f = jS[Unit, Int]
 val c = jA[Int]
 
-join( run { case c(s) + f(_, reply) => reply(s) } )
+join( run { case c(n) + f(_, reply) => reply(n) } )
 ```
 
 This reaction will proceed when a molecule `c(...)` is present and an `f()` is injected.
-The reaction body replies to `f` with the value `s` carried by the molecule `c(s)`.
+The reaction body replies to `f` with the value `n` carried by the molecule `c(n)`.
 
 The syntax for replying suggests that `f` carries a special `reply` pseudo-molecule, and that the reaction body injects this `reply` molecule  with an integer value.
 However, the `reply` does not actually stand for a molecule injector - this is merely syntax for the “replying” action that is part of the semantics of the blocking molecule.
 
-## Example 1: benchmarking the concurrent counter
+## Example 2: benchmarking the concurrent counter
 
 To illustrate the usage of non-blocking and blocking molecules, let us consider the task of benchmarking the concurrent counter we have previously defined.
 The plan is to initialize the counter to a large value _N_, then to inject _N_ decrement molecules, and finally wait until the counter reaches the value 0.
-We will use a blocking molecule to obtain the time elapsed during the countdown. 
+We will use a blocking molecule to block until this happens, and thus to determine the time elapsed during the countdown. 
 
 Let us now extend the previous join definition to implement this new functionality.
 The simplest solution is to define a blocking molecule `fetch`, which will react with the counter molecule only when the counter reaches zero.
@@ -450,13 +450,19 @@ This reaction can be written in pseudocode like this:
 fetch() + counter(n) if n==0 => reply () to fetch 
 ```
 
-We can use the pattern-matching facility of `JoinRun` to implement this reaction like this:
+We can implement this reaction by using a guard in the `case` clause:
+
+```scala
+run { case fetch(_, reply) + counter(n) if n == 0  => reply() }
+```
+
+For more clarity, we can also use the pattern-matching facility of `JoinRun` to implement the same reaction like this:
 
 ```scala
 run { case fetch(_, reply) + counter(0) => reply() }
 ```
 
-The complete code looks like this:
+Here is the complete code:
 
 ```scala
 import code.winitzki.jc.JoinRun._
@@ -465,30 +471,34 @@ import code.winitzki.jc.Macros._
 import java.time.LocalDateTime.now  
 import java.time.temporal.ChronoUnit.MILLIS  
 
-// declare molecule types
-val fetch = jS[Unit, Unit]
-val counter = jA[Int]
-val decr = jA[Unit]
+object C extends App {
 
-// declare reactions
-join(
-  run { case fetch(_, reply) + counter(0) => reply() },
-  run { case counter(n) + decr(_) => counter(n-1) }
-)
-
-// inject molecules
-
-val n = 10000
-val initTime = now
-counter(n)
-(1 to n).foreach( _ => decr() )
-fetch()
-println(s"Elapsed: ${initTime.until(now, MILLIS)} ms")
+  // declare molecule types
+  val fetch = jS[Unit, Unit]
+  val counter = jA[Int]
+  val decr = jA[Unit]
+  
+  // declare reactions
+  join(
+    run { case fetch(_, reply) + counter(0) => reply() },
+    run { case counter(n) + decr(_) => counter(n-1) }
+  )
+  
+  // inject molecules
+  
+  val n = 10000
+  val initTime = now
+  counter(n)
+  (1 to n).foreach( _ => decr() )
+  fetch()
+  println(s"Elapsed: ${initTime.until(now, MILLIS)} ms")
+}
 ```
 
 Some remarks:
-- Molecules with unit values nevertheless require a pattern variable when used in the `case` construction, so we write `decr(_)` and `fetch(_, reply)`.
-However, these molecules can be injected simply as `decr()` and `fetch()`.
+- Molecules with unit values do require a pattern variable when used in the `case` construction.
+For this reason, we write `decr(_)` and `fetch(_, reply)` in the match patterns.
+However, these molecules can be injected simply as `decr()` and `fetch()`, since Scala inserts a `Unit` value automatically when calling functions.
 - We declared both reactions in one join definition, because these two reactions share the input molecule `counter`.
 - Pattern-matching on the molecule value (such as `counter(0)`) is limited in the current version of `JoinRun`, due to the quirks in Scala's `unapply` method:
 Reactions work correctly if the molecule with the pattern-matched value is used only the _last_ input molecule.
@@ -524,6 +534,7 @@ In Join Calculus, an injected molecule must carry a value.
 So the value `c` itself is not a molecule in the soup.
 The value `c` is a **molecule injector**, - that is, a value that can be used to inject molecules of sort `c` into the soup.
 The result of calling the injector when evaluating `c(123)` is a _side-effect_ which injects the molecule of sort `c` with value `123` into the soup.
+
 If `c` is a non-blocking molecule, the call `c(123)` is non-blocking and immediately returns `Unit`.
 The injector `c` has type `JA[Int]` and can be also created directly using the class constructor:
 
@@ -548,8 +559,8 @@ Once `f` is defined like this, an injection call such as
 val x = f(123)
 ```
 will inject a molecule of sort `f` with value `123` into the soup.
-The calling process will wait until some reaction consuming this molecule  starts and replies to `f` with a `String` value.
-Only after that, the value `x` will be assigned, and the calling process will become unblocked and will continue its execution.
+The calling process will wait until some reaction consumes this molecule and "replies" with a `String` value.
+Only after the reaction body executes the "reply action", the value `x` will be assigned, and the calling process will become unblocked and will continue its execution.
 
 ## Molecule names
 
@@ -579,6 +590,18 @@ val fetch = jS[Unit, Int]
 These macros can read the names `"counter"` and `"fetch"` from the surrounding code context.
 This functionality is intended as a syntactic convenience.
 
+Each molecule injector as a `toString` method.
+This method will return the molecule's name if it was assigned.
+For blocking molecules, the molecule's name is followed by `"/S"`.
+
+```scala
+val x = new JA[Int]("counter")
+val y = new JS[Unit, Int]("fetch")
+
+x.toString // returns "counter"
+y.toString // returns "fetch/S"
+```
+
 ## More about the semantics of `JoinRun`
 
 - Injectors are local values of class `JA` or `JS`, which both extend the abstract class `AbsMol`.
@@ -593,7 +616,7 @@ But molecule injectors (as well as reactions) _are_ ordinary scala values.
 - Join definitions are immutable once given.
 - Molecule injectors are immutable after a join definition has been given where these molecules are used as inputs.
 
-# Example 2: concurrent map/reduce
+# Example 3: concurrent map/reduce
 
 It remains to see how we can use the “chemical machine” for performing various concurrent computations.
 For instance, it is perhaps not evident what kind of molecules and reactions must be defined, say, to implement a concurrent buffered queue or a concurent merge-sort algorithm.
@@ -640,7 +663,7 @@ Now the molecule “c” is safely hidden. It is guaranteed that only one copy o
 This example shows how we can “hide” some molecules and yet use their reactions. A closure can define local reaction with several input molecules, inject some of these molecules initially, and return some (but not all) molecule constructors to the global scope outside of the closure.
 
 
-# Example 3: concurrent merge-sort
+# Example 4: concurrent merge-sort
 
 TODO
 
