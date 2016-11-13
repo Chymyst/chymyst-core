@@ -26,11 +26,13 @@ Main differences between actors and JC processes:
 | messages are typed | messages are untyped |
 
 
-More documentation is forthcoming.
-
-For a general introduction to Join Calculus, see [this JoCaml tutorial](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml).
+If you are new to Join Calculus, begin with this [tutorial introduction to `JoinRun`](doc/join_calculus_joinrun_tutorial.md).
 
 See also my presentation at _Scala by the Bay 2016_ ([talk slides are available](https://github.com/winitzki/talks/tree/master/join_calculus)).
+
+There is now some [technical documetation of `JoinRun` library](doc/joinrun.md).
+
+More documentation is forthcoming.
 
 In talking about `JoinRun`, I follow the "chemical machine" metaphor and terminology, which differs from the terminology usually employed in academic papers on JC. Here is the dictionary:
 

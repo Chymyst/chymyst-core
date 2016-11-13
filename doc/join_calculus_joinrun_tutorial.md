@@ -630,38 +630,54 @@ TODO
 
 Since molecules and reactions are local values, they are lexically scoped within the block where they are defined.
 So, we can define new local molecules and reactions within an auxiliary function, or even within another reaction body.
-Because of local scoping, these newly defined molecules and reactions can be effectively encapsulated and protected from outside access.
+Because of local scoping, these newly defined molecules and reactions will be encapsulated and protected from outside access.
 
 To illustrate this feature of Join Calculus, let us implement a function that will define a “concurrent counter” and initialize it with a given value.
-By design, the user will not have access to the `counter` injector.
-Thus we can guarantee the correct functionality of the counter.
 
-TODO
+Our previous implementation of the concurrent counter works but has a drawback: The molecule `counter(n)` must be injected by hand and remains globally visible.
+If the user injects two copies of `c` with different values, the `counter + decr` and `counter + fetch` reactions will work unreliably, choosing between the two copies of `counter` at random.
+We would like to inject exactly one copy of `counter` and then prevent the user from injecting any further copies of that molecule.
 
-This works but has a drawback: the counter molecule “c(0)” must be injected by hand and remains globally visible. If the user injects two copies of “c” with different values, the “inc” and “getcounter” reactions will work unreliably, choosing between the two copies of “c” at random. We would like to hide this molecule, so that the user will be unable to inject more copies of this molecule.
+A solution is to define `counter` and its reactions within a function that returns the `decr` and `fetch` molecules to the outside scope.
+The `counter` injector will not be returned to the outside scope, and so the user will not be able to inject extra copies of that molecule.
 
-A clean solution requires us to create the molecule “c” locally but to make the molecules “inc” and “getcounter” globally visible. This can be accomplished if we return the molecule constructors “inc” and “getcounter” as a result value of a closure that defines and injects the molecule “c” internally.
+```scala
+def makeCounter(initCount: Int): (JA[Unit], JS[Unit,Int]) = {
+  val counter = jA[Int]
+  val decr = jA[Unit]
+  val fetch = jA[Unit, Int]
+  
+  join(
+    run { counter(n) + fetch(_, r) => counter(n) + r(n)},
+    run { counter(n) + decr(_) => counter(n-1) }
+  )
+  // inject exactly one copy of `counter`
+  counter(initCount)
+  
+  // return these two injectors to the outside scope
+  (decr, fetch)
+}
+```
 
-# let make_async_counter init_value = 
-   def inc() & c(n) = c(n+1) 
-    or
-   getcounter() & c(n) = c(n) & reply n to getcounter
-   in
-   spawn c(init_value);
-   (inc, getcounter);;
-val make_async_counter : int -> unit Join.chan * (unit -> int) = <fun>
-# let (inc, getcounter) = make_async_counter 0;;
-val inc : unit Join.chan = <abstr>
-val getcounter : unit -> int = <fun>
-# spawn inc() & inc() & inc();;
-- : unit = ()
-# getcounter();;
-- : int = 3
+In this way, we can guarantee the correct functionality of the counter, because the injector for `counter` is safely hidden in the closure's scope.
 
-Now the molecule “c” is safely hidden. It is guaranteed that only one copy of “c” will ever be present in the soup: Since this molecule is locally defined and not visible outside the closure, the user of make_async_counter is unable to inject any more copies of “c”. However, the user receives the molecule constructors “getcounter” and “inc", thus the user can inject these molecules and start their reactions (despite the fact that these molecules are locally defined, like “c"). Each invocation of make_async_counter will create new, fresh molecules “inc", “getcounter", and “c", so the user may create as many independent counters as desired.
+It is guaranteed that only one copy of “c” will ever be present in the soup:
+Since this molecule is locally defined and not visible outside the closure, the user of `makeCounter` is unable to inject any more copies of “c”.
+However, the user receives the injectors `decr` and `fetch`, and so the user can inject these molecules and start their reactions (despite the fact that these molecules are also locally defined, like `counter`).
 
-This example shows how we can “hide” some molecules and yet use their reactions. A closure can define local reaction with several input molecules, inject some of these molecules initially, and return some (but not all) molecule constructors to the global scope outside of the closure.
+The function `makeCounter` can be used within another scope like this:
 
+```scala
+val (d, f) = makeCounter(10000)
+d() + d() + d() // inject 3 decrement molecules
+val x = f() // fetch the current value
+```
+
+Also note that each invocation of `makeCounter` will create new, fresh molecules `counter`, `decr`, and `fetch` inside the closure.
+In this way, the user can create as many independent counters as desired.
+
+This example shows how we can “hide” some molecules and yet use their reactions. 
+A closure can define local reaction with several input molecules, inject some of these molecules initially, and return some (but not all) molecule constructors to the global scope outside of the closure.
 
 # Example 4: concurrent merge-sort
 
@@ -672,7 +688,6 @@ TODO
 TODO
 
 ## Stopping a thread pool
-
 
 TODO
 
@@ -701,9 +716,9 @@ See also [my recent presentation at _Scala by the Bay 2016_](https://scalaebythe
 
 # Limitations of Join Calculus 
 
-While designing the “abstract chemistry” for our application, we need to keep in mind certain limitations of Join Calculus system:
+While designing the “abstract chemistry” for our application, we need to keep in mind certain limitations of Join Calculus system.
 
-- We cannot detect the _absence_ of a given non-blocking molecule, say `a(1)`, in the soup.
+First, we cannot detect the _absence_ of a given non-blocking molecule, say `a(1)`, in the soup.
 This seems to be a genuine limitation of join calculus.
 
 It seems that this limitation cannot be lifted by any clever combinations of blocking and non-blocking molecules; perhaps this can be even proved formally, but I haven't tried learning the formal tools for that.
@@ -726,14 +741,19 @@ Another solution would be to introduce “inhibiting” conditions on reactions:
 However, it is not clear that this extension of the join calculus would be useful.
 The solution based on a “timeout” appears to be sufficient in practice.
 
-- Chemical soups running as different processes (either on the same computer or on different computers) are completely separate and cannot be “pooled”.
+The second limitation is that "chemical soups" running as different processes (either on the same computer or on different computers) are completely separate and cannot be “pooled”.
 
 What we would like to do is to connect many chemical machines together, running perhaps on different computers, and to pool their individual “soups” into one large “common soup”.
-Our program will then be able to inject lots of molecules into the common pool and thus organize a massively parallel, distributed computation, without worrying about which CPU computes what reaction.
+Our program should then be able to inject lots of molecules into the common pool and thus organize a massively parallel, distributed computation, without worrying about which CPU computes what reaction.
 However, in order to organize a distributed computation, we would need to split the tasks explicitly between the participating soups.
-The organization and supervision of distributed computations, the maintenance of connections between machines, the handling of disconnections - all this remains the responsibility of the programmer and is not handled automatically.
+The organization and supervision of distributed computations, the maintenance of connections between machines, the handling of disconnections - all this remains the responsibility of the programmer and is not handled automatically by Join Calculus.
 
-# Example: Background jobs
+In principle, a sufficiently sophisticated runtime engine could organize a distributed Join Calculus computation completely transparently to the programmer.
+It remains to be seen how feasible it is to implement such a runtime engine.
+
+# Some useful concurrency patterns
+ 
+## Background jobs
 
 A basic asynchronous task is to start a long background job and get notified when it is done.
 
@@ -753,7 +773,7 @@ all done
 
 We can see that the work was indeed done in the background because the return value, “()", was obtained before the message was printed.
 
-Waiting forever
+## Waiting forever
 
 Suppose we want to implement a function wait_forever() that blocks indefinitely, never returning. The chemical model: an instant molecule reacts with another, slow molecule; but the slow molecule never appears in the soup.
 
@@ -765,7 +785,7 @@ let wait_forever() =
 def godot() & wait_for_godot() = reply() to wait_for_godot in
 spawn 0; wait_for_godot() ;; 
 
-Parallel processing of lists
+## Processing a certain number of reactions
 
 We would like to call a function f : 'a -> unit on each element of a list s : 'a list. All function calls should be run concurrently in arbitrary order.
 
