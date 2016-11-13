@@ -67,7 +67,7 @@ this is more faithful to the semantics of JC
 Current version is `0.0.6`.
 The semantics of Join Calculus (restricted to single machine) is fully implemented and tested.
 Unit tests include examples such as concurrent counters, parallel "or", concurrent merge-sort, and "dining philosophers".
-Performance tests indicate that the runtime can schedule about 200,000 - 500,000 reactions per second per CPU core,
+Performance tests indicate that the runtime can schedule about 300,000 reactions per second per CPU core,
 and the performance bottleneck is the thread switching and pattern-matching.
 
 Known limitations:
@@ -76,7 +76,7 @@ Known limitations:
 - Pattern-matching in join definitions is limited due to Scala's pattern matcher being too greedy (but this does not restrict the expressiveness of the language)
 - No fairness with respect to the choice of molecules: if the same reaction could proceed with many input molecules, the input molecules are not chosen at random
 - No distributed execution (Jiansen's `Disjoin.scala` is still not ported to `JoinRun`)
-- No javadocs and no packaging as a library - so far the project is a monolithic prototype
+- No javadocs
 
 # Run unit tests
 
