@@ -18,6 +18,29 @@ Here are previous implementations of Join Calculus that I was able to find.
 
 The implementation in `JoinRun` is based on ideas from Jiansen He's `ScalaJoin` as well as on CocoaJoin / AndroJoin.
 
+# Molecule injectors
+
+# Reactions
+
+# Join definitions
+
+# Injecting molecules
+
+# Debugging
+
+# User-defined thread pools
+
+TODO
+
+## Stopping a thread pool
+
+TODO
+
+# Fault tolerance
+
+TODO
+
+
 # Limitations in the current version of `JoinRun`
 
 TODO
