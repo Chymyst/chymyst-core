@@ -40,16 +40,16 @@ Once molecules are injected, we check whether some reactions can start.
 In a reaction such as `a + b + c ⇒ d + e` the **input molecules** are  `a`, `b`, and `c`, and the **output molecules** are `d` and `e`.
 A reaction can have one or more input molecules, and zero or more output molecules.
 
-Once a reaction starts, the input molecules instantaneously disappear from the soup, and then the output molecules are injected into the soup.
+Once a reaction starts, the input molecules instantaneously disappear from the soup (they are "consumed" by the reaction), and then the output molecules are injected into the soup.
 
 The simulator can start many reactions concurrently whenever their input molecules are available.
 
 ## Using chemistry for concurrent computation
 
 The runtime engine of `JoinRun` implements such a “chemical machine simulator”.
-Now, rather than merely watch as reactions happen, we are going to use this machine for practical computations.
+Now, rather than merely watch as reactions happen, we are going to use this engine for practical computations.
 
-The basic idea is that we are going to give the machine some values and expressions to be computed whenever reactions occur:
+The basic idea is that we are going to specify some values and expressions to be computed whenever reactions occur:
 
 - Each molecule will carry a value. Molecule values are strongly typed: a molecule of a given sort (such as `b`) can only carry values of some fixed specified type.
 - Each reaction will carry a function (the **reaction body**) that computes some new values and puts these values on the output molecules.
@@ -683,35 +683,6 @@ A closure can define local reaction with several input molecules, inject some of
 
 TODO
 
-# User-defined thread pools
-
-TODO
-
-## Stopping a thread pool
-
-TODO
-
-# Fault tolerance
-
-TODO
-
-# Other tutorials on Join Calculus
-
-There are a few academic papers on Join Calculus and a few expository descriptions, such as the Wikipedia article or the JoCaml documentation.
-
-I learned about the “Reflexive Chemical Abstract Machine” from the introduction in one of the [early papers on Join Calculus](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.32.3078&rep=rep1&type=pdf).
-This was the clearest of the expositions, but even then, initially I was only able to understand the “introduction” in that paper.
-
-Do not start by reading these papers if you are a beginner in Join Calculus - you will only be unnecessarily confused, because those texts are intended for advanced computer scientists.
-This tutorial is intended as an introduction to Join Calculus for beginners.
-
-This tutorial is based on my [earlier tutorial for JoCaml](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml). (However, be warned that tutorial was left unfinished and probably contains some mistakes in some of the more advanced code examples.)
-
-See also [my recent presentation at _Scala by the Bay 2016_](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala).
-([Talk slides are available](https://github.com/winitzki/talks/tree/master/join_calculus)).
-
-
-# < Perhaps delete most of the rest of the text since it's about OCaml >
 
 
 # Limitations of Join Calculus 
@@ -751,203 +722,49 @@ The organization and supervision of distributed computations, the maintenance of
 In principle, a sufficiently sophisticated runtime engine could organize a distributed Join Calculus computation completely transparently to the programmer.
 It remains to be seen how feasible it is to implement such a runtime engine.
 
+
 # Some useful concurrency patterns
- 
+
 ## Background jobs
 
 A basic asynchronous task is to start a long background job and get notified when it is done.
 
-A chemical model is easy to invent: we define a reaction with a single slow molecule and a payload. The reaction will consume the molecule and stop.
+A chemical model is easy to invent: we define a reaction with a single non-blocking input molecule.
+The reaction will consume the molecule, do the long calculation, and then inject a `finished()` molecule.
 
-def a() = do_some_work(); 0
+For convenience, we can put the `finished` injector into the molecule value.
 
-The reaction starts whenever the molecule “a()” is injected into the soup. The function do_some_work can perform arbitrary side-effects, including notifying somebody about the progress and the completion of the computations.
-
-For convenience, we can define an OCaml function that will perform an arbitrary task in the background in this way:
-
-# let do_in_background work = def a() = work(); 0 in spawn a();;
-val do_in_background : (unit -> unit) -> unit = <fun>
-# do_in_background (fun () -> print_string “all done\n");;
-- : unit = ()
-all done
-
-We can see that the work was indeed done in the background because the return value, “()", was obtained before the message was printed.
+TODO
 
 ## Waiting forever
 
-Suppose we want to implement a function wait_forever() that blocks indefinitely, never returning. The chemical model: an instant molecule reacts with another, slow molecule; but the slow molecule never appears in the soup.
+Suppose we want to implement a function `wait_forever()` that blocks indefinitely, never returning.
 
-def godot() & wait_for_godot() = reply () to wait_for_godot;
+The chemical model is that a blocking molecule `wait` reacts with another, non-blocking molecule `godot`; but `godot` never appears in the soup.
 
-We also need to make sure that the molecule godot() is never injected into the soup. So we declare godot locally within the wait_forever function, and we will inject nothing into the soup ("spawn 0").
+TODO
 
-let wait_forever() = 
-def godot() & wait_for_godot() = reply() to wait_for_godot in
-spawn 0; wait_for_godot() ;; 
+We also need to make sure that the molecule godot() is never injected into the soup. So we declare godot locally within the wait_forever function, and we will inject nothing into the soup.
+
+TODO
 
 ## Processing a certain number of reactions
 
-We would like to call a function f : 'a -> unit on each element of a list s : 'a list. All function calls should be run concurrently in arbitrary order.
+## Working with an external asynchronous API
 
-The chemical model: for each element x of the list, we use a separate reaction. All these reactions have the same payload: the application of f to x. Thus, we need a single molecule that carries x as the decoration value. For more flexibility, we can include the function f in the decoration value. The reaction is defined like this:
+# Reaction constructors
 
-def a(f,x) = f x; 0
+# Other tutorials on Join Calculus
 
-To start the reactions, we need to inject the “a” molecules into the soup, and we need to inject as many instances of the molecule as elements in the list. So we would need to write spawn a(f,x1) & a(f,x2) & ... & a(f,xN). How can we perform this operation, given a list of values and a function? We could evaluate each spawn separately, using the standard list iterator:
+There are a few academic papers on Join Calculus and a few expository descriptions, such as the Wikipedia article or the JoCaml documentation.
 
-List.iter (fun x -> spawn a(f,x)) [0,1,2];;
+I learned about the “Reflexive Chemical Abstract Machine” from the introduction in one of the [early papers on Join Calculus](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.32.3078&rep=rep1&type=pdf).
+This was the clearest of the expositions, but even then, initially I was only able to understand the “introduction” in that paper.
 
-This will inject three copies of the slow molecule “a” into the soup. Three reactions will eventually start (in unknown order).
+Do not start by reading these papers if you are a beginner in Join Calculus - you will only be unnecessarily confused, because those texts are intended for advanced computer scientists.
+This tutorial is intended as an introduction to Join Calculus for beginners.
 
-Another possibility is to use the special loop syntax for “spawn":
+This tutorial is based on my [earlier tutorial for JoCaml](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml). (However, be warned that tutorial was left unfinished and probably contains some mistakes in some of the more advanced code examples.)
 
-spawn for i = 0 to 2 do a(f, i) done;;
-Waiting for completion of many jobs
-
-Suppose we want to start a number of background jobs, all of the same kind, and we need to wait (synchronously) until all of those jobs are finished. It is clear that each job is running as a payload on some reaction. Thus, we need to wait until all reactions of a given kind are finished. Let us denote by “job()” the molecule that starts each of these reactions.
-
-The only way to wait for something is by arranging a reaction that does not start until a certain molecule is present. Thus, we need a molecule that is absent from the soup until all our jobs are finished. Let us call this molecule “all_done()”. We could define a reaction that notifies somebody of the completion of all jobs:
-
-def all_done() = print_string “all done\n"; 0
-
-Now, who will inject “all_done()” into the soup? 
-
-When one job is finished, the job reaction cannot know whether other jobs are still running. Also, the chemical machine cannot perform a direct test for the absence of a molecule, or a direct test for the presence of a certain number of identical molecules. Thus, we cannot have a reaction that generates “all_done()” when all “job” molecules are consumed.
-
-The only solution is to count the finished jobs by hand, knowing in advance how many jobs were started. So we need a reaction that knows how many jobs were started and generates “all_done()” when no jobs remain unfinished, but not before. Since we cannot have reactions that involve several instances of the same molecule, we need to hold the number of unfinished jobs as a decoration value on some molecule. Let us call this molecule “remains(n)”. Each job can consume “remains(n)” when done and inject a new remains(n-1) molecule. If nothing remains, we can inject all_done() into the soup. 
-
-Our first try for the “job” reaction is this:
-
-def job(do_work) & remains(n) = do_work(); if n>1 then remains(n-1) else all_done()
-
-Initially we inject one instance of remains(n) and n instances of the job(...) molecule into the soup. Each job(...) molecule could carry its own workload function. When all_done() appears, we are sure that all jobs have finished. Let us test this: each job will simply print a digit from 0 to 9.
-
-# spawn remains(4);; (* we consider things done when 4 jobs are finished *)
-- : unit = ()
-# spawn for i=0 to 9 do job(fun () -> print_int i) done;; (* but we inject 10 jobs into the soup *)
-- : unit = ()
-# 
-0987all done
-spawn remains(3);; (* now we consider things done when 3 jobs are finished *)
-- : unit = ()
-654all done
-
-This solution is flawed in several ways. At the end of the calculation shown above, the soup still contains four job(...) molecules. However, there are no remains(n) molecules, so no further reactions are actually running. If we want to keep the jobs running even after the all_done() molecule was generated, we can modify the definition of the reaction so that the remains(n) molecule is always kept in the soup. Nothing prevents us from injecting several remains(n) molecules into the soup at the same time, with different values of “n”. We could prohibit this by encapsulating the remains(n) molecules, so that the user cannot make a mistake when injecting the molecules.
-
-There is another, more serious flaw in the present code; can you see it?
-
-The flaw is that the remains(n) molecule is consumed by the job reaction (and injected only when a job is finished). While one job is computing its do_work() function, the remains(n) molecule is not in the soup. So only one job can run at any one time. We lost the concurrency!
-
-In order to restore the concurrency, we need to make sure that  remains(n) molecule is always present in the soup. The updating of the value of “n” must be synchronous, but we would like this to be done while other jobs are running. Therefore, we need another reaction for updating of the value of “n” in  remains(n). This reaction must be triggered asynchronously at the end of each job; let us define a triggering molecule for this, called done(). The updating reaction could look like this:
-
-def remains(n) & done() = if n>1 then remains(n-1) else all_done()
-
-The job reaction is then simplified: 
-
-def job(do_work) = do_work(); done()
-
-The process looks like this: we inject several “job” molecules and one “remains” molecule. All jobs molecules can start at once, producing eventually a bunch of “done” molecules. These “done” molecules react one by one with the single “remains” molecule. All the “job” reactions can run in parallel, but only one “remains” reaction runs at any one time.
-
-An alternative implementation is to make the “done” molecule an instant molecule. Then the reactions look like this:
-
-def
- job(do_work) = do_work(); done(); 0
-and
- remains(n) & done() = reply () to done & if n>1 then remains(n-1) else all_done();;
-
-Now each “job” reaction starts concurrently but blocks at the instant “done” call.
-
-It seems that the chemical model is quite flexible and allows us to configure the concurrent computations in pretty much any manner.
-
-Further examples
-
- I would like to consider three examples now:
-
-Given an array of functions, produce an array of their result values. The functions should be evaluated asynchronously in parallel.
-Given an array of integers, compute their sum. All pairwise summations should be evaluated in parallel in arbitrary order, and the partial sums should be also added in parallel in arbitrary order.
-Sort an array of integers using the merge-sort algorithm, again doing as much as possible in parallel.
-
-
-Now let us figure out the implementation of these examples in join calculus. We will be using the purely “chemical” approach to concurrent computation. We will never say the words “semaphore", “thread", “deadlock", “mutex", or “synchronize”. Instead, we will talk about molecules and reactions. Our goal is to see what kind of tricks and patterns emerge from this paradigm.
-Other limitations of join calculus
-
-In order to implement a concurrent computation of many functions, one might want to define a separate molecule for each array element. However, this is not possible in the join calculus. The join calculus has these limitations, beyond those I described before:
-
-We cannot define a computed set of input molecules. For instance, if we wanted to define a reaction with 1000 input molecules, we cannot write the input molecules as “a_n for n = 0, ..., 999”. We would have to define the molecules named a000, a001, ..., a999 explicitly and statically (i.e. at compile time) in the JoCaml program. 
-We cannot define a reaction with a variable number of input molecules, say a reaction that starts when a(x) is present or when a(x) and b(y) are present. This is impossible since the reaction body will have to check whether the value “y” is defined, which is not allowed in OCaml: all values must be defined, or else you get a compile-time error.
-It is also impossible to define a reaction with duplicated molecules. We cannot have a reaction that starts when, say, exactly three molecules a(x), a(y), a(z) are present.
-
-We cannot specify reactions that start under a computed condition depending on the set of input molecules. In join calculus, a reaction starts when all its input molecules, statically specified, are present; the chemical engine can only check that these input molecules are present. We cannot specify any additional computations to determine the set of input molecules for a reaction.
-
-For example, if we wanted to have 1000 molecules named a000, a001, ..., a999, and a reaction that starts when any subset of a 100 of them are present, the chemical engine would have to perform a computation on the set of input molecules before deciding whether to start a reaction. By design, the join calculus prohibits any nontrivial computations before deciding to start a reaction.
-
-For the same reason, we cannot specify that a reaction should start when some computed condition holds on the decoration values of the input molecules. 
-
-So we cannot have a reaction a(x) & b(y) “when p(x,y)” = ... that starts only when some computed condition p(x,y) holds on the values x, y and otherwise does not start. We can only perform a static pattern-matching on the values x,y; so we can specify that the reaction starts only when x has a specific value out of a fixed, statically specified set of values. Also, the pattern variables on the left-hand side of a reaction must be all different;  in particular, we cannot specify a reaction such as “a(x) & b(x) = ...", starting only when the molecules “a” and “b” carry equal values. The chemical machine will not accept any additional computations or conditions for starting a reaction.
-
-Nevertheless, it seems that the join calculus can express essentially all concurrent computations. We will implement the examples now.
-
-Evaluate many functions in parallel and store results
-
-
-Each evaluation of a function must be a separate reaction. The payload of that reaction can assign the element of the array with the result value. So we only need one molecule for this reaction. Let this molecule be called “a” and carry, as decoration values, the function, the array, and the array index.
-
-let n = 10;;
-let tasks = (* array of functions, each returns 1 *)
-  Array.make n (fun () -> 1);;
-let results = Array.make n 0;;
-def a(f,arr,i) = arr.(i) <- f(); 0;;
-for i = 0 to n-1 do 
-  spawn a(tasks.(i),results,i) 
-done;;
-
-This works; however, the “results” array is updated asynchronously, and the final array will be ready at an unknown time when all 100 reactions are finished. Certainly, we would like to be notified when this happens! As we have seen before, we need a counter that will show how many computations remain. This counter will start a new reaction when all computations are finished. This counter also needs a separate reaction for updating itself. How will we write the reaction for the counter?
-
-It is impossible in join calculus to wait until no more “a” molecules are present. Therefore, the counter should explicitly know how many reactions were started.
-
-To maintain the counter, we need to check how many “a” reactions have been completed. Let us produce an additional molecule, “ready", at the end of each “a” reaction, so that the counter could react with the “ready” molecules.
-
-So we modify the reaction for “a” like this:
-
-def a(f,arr,i) = arr.(i) <- f(); ready()
-and ready() & remains(k) = if k>1 then remains(k-1) else all_done()
-and all_done() = print_string “all done\n"; 0;;
-spawn remains(n);;
-
-
-The advantage of this approach is that the counting is performed asynchronously, independently of the “a” reaction. Thus, all “a” reactions can run in parallel, producing many “ready” molecules, while the “remains” molecule counts and consumes each of the “ready” molecules one by one.
-
-This code works; here is the full test code for JoCaml. I added some printing so that we can watch the progress.
-
-# let test n = 
- let tasks = Array.make n (fun () -> 1) in 
- let results = Array.make n 0 in
- def
-   a(f,arr,i) = arr.(i) <- f(); print_int i; print_newline(); ready() 
-and
-   ready() & remains(k) = if k>1 then remains(k-1) else all_done() 
-and 
-   all_done() = print_string “all done\n"; 0 
-in
-
-spawn remains(n); 
-for i = 0 to n-1 do 
- spawn a(tasks.(i),results,i) 
-done 
-in 
-test 10;;
-0
-2
-1
-3
-5
-6
-4
-7
-9
-8
-all done
-- : unit = ()
-
-
-As we can see, the tasks were processed concurrently in somewhat arbitrary order.
+See also [my recent presentation at _Scala by the Bay 2016_](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala).
+([Talk slides are available](https://github.com/winitzki/talks/tree/master/join_calculus)).
