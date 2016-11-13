@@ -68,7 +68,7 @@ In this example, the reaction's input molecules are `a(x)` and `b(y)`; that is, 
 The reaction body is a function that receives `x` and `y` as input arguments.
 It computes a value `z` out of `x` and `y`, and puts that `z` onto the output molecule `a`.
 
-Whenever input molecules are available in the soup, the "chemical simulator" runtime engine will start a reaction.
+Whenever input molecules are available in the soup, the runtime engine will start a reaction that consumes these input molecules.
 If many copies of input molecules are available, the runtime engine will start several reactions concurrently.
 
 Note that each reaction depends only on the values of its _input_ molecules.
@@ -197,7 +197,7 @@ decr()+decr() // prints "new value is 99" and then "new value is 98"
 
 `JoinRun` has a simple debugging facility.
 
-For a given molecule, there is always a single join definition (JD) to which this molecule "belongs" - that is, the JD where this molecule is used as an input molecule for some reactions.
+For a given molecule, there is always a single join definition (JD) to which this molecule "belongs" - that is, the JD where this molecule is consumed as input molecule by some reactions.
 This JD is accessed as `.joinDef` method on the molecule injector.
 Additionally:
 - the user can see the input molecules used by reactions in that JD;
@@ -216,7 +216,7 @@ counter.joinDef.get.printBag // returns "Join{counter + incr => ...; counter + d
 
 ### Injecting molecules without defined reactions
 
-It is an error to inject a molecule that is not yet defined as input molecule in any join definition.
+It is an error to inject a molecule that is not yet defined as input molecule in any JD.
 
 ```scala
 val x = jA[Int]
@@ -226,9 +226,9 @@ x(100) // java.lang.Exception: Molecule x does not belong to any join definition
 
 The same error will occur if such injection is attempted inside a reaction body.
 
-If a molecule does not yet belong to any join definition, its `.joinDef` method will return `None`. 
+If a molecule does not yet belong to any JD, its `.joinDef` method will return `None`. 
 
-The correct way of using `JoinRun` is first to define molecules, then to create a join definition where these molecules are used as inputs for reactions, and only then start injecting these molecules.
+The correct way of using `JoinRun` is first to define molecules, then to create a JD where these molecules are used as inputs for reactions, and only then to start injecting these molecules.
 
 ### Redefining input molecules
 
@@ -291,24 +291,24 @@ join(run { case x(n1) + x(n2) =>  })
 
 Sometimes it appears that repeating input molecules is the most natural way of expressing the desired behavior of some concurrent programs.
 However, I believe it is always possible to introduce some new auxiliary molecules and to rewrite the "chemistry laws" so that input molecules are not repeated while the resulting computations give the same results.
+This limitation could be lifted in a later version of `JoinRun` if it proves useful to do so.
 
 ## Order of reactions
 
-When there are several different reactions that can be started from the available molecules, the runtime engine will choose the reaction at random.
+When there are several different reactions that can be consume the available molecules, the runtime engine will choose the reaction at random.
 In the current implementation of `JoinRun`, the runtime will reshuffle and randomize reactions, so that every reaction has an equal chance of starting.
 
-Similarly, when there are several instances of the same molecule that can be used as input for a reaction, the runtime engine will make a choice at random.
+Similarly, when there are several instances of the same molecule that can be consumed as input by a reaction, the runtime engine will make a choice of the molecule to be consumed.
 Currently, `JoinRun` will _not_ randomize the input molecules but make an implementation-dependent choice.
-A perfectly random selection of input molecules may be implemented in the future.
+A truly random selection of input molecules may be implemented in the future.
 
 It is not possible to assign priorities to reactions or to molecules.
 The order of reactions in a join definition is ignored, and the order of molecules in the input list is also ignored.
 The debugging facility will print the molecule names in alphabetical order, and reactions will be printed in an unspecified order.
 
 The result of this is that the order in which reactions will start is non-deterministic and unknown.
-This is the semantics of Join Calculus.
-If the order of certain reactions is important for a particular application, it is the programmer's task to design the "chemical laws" in such a way that those reactions start in the desired order.
-Join Calculus is flexible enough to allow programmers to implement arbitrary concurrent applications.
+This is the original semantics of Join Calculus.
+If the priority of certain reactions is important for a particular application, it is the programmer's task to design the "chemical laws" in such a way that those reactions start in the desired order.
 
 ## Summary so far
 
@@ -581,18 +581,17 @@ This functionality is intended as a syntactic convenience.
 
 ## More about the semantics of `JoinRun`
 
-- Injectors are local values of class `JA` or `JS`, which both extend the abstract class `AbsMol`
+- Injectors are local values of class `JA` or `JS`, which both extend the abstract class `AbsMol`.
 - Reactions are local values of class `Reaction`. Reactions are created using the method `run { case ... => ... }`.
 - Only one `case` clause can be used in each reaction.
-- Join definitions are values of class `JoinDefinition`
+- Join definitions are values of class `JoinDefinition`. These values are not visible to the user: they are created in a closed scope by the `join` method.
 - Injected molecules are _not_ Scala values!
 The programmer has no direct access to the molecules in the soup, apart from being able to inject them.
 Injected molecules cannot be, say, stored in a data structure or passed as arguments to functions.
 But molecule injectors (as well as reactions) _are_ ordinary scala values.
-- Blocking molecule injectors are local values of class `JS` that extends `Function1`
-- Join definitions are immutable once given
-- Molecule injectors are immutable after join definition has been given
-
+- Blocking molecule injectors are local values of class `JS` that extends `Function1`.
+- Join definitions are immutable once given.
+- Molecule injectors are immutable after a join definition has been given where these molecules are used as inputs.
 
 # Example 2: concurrent map/reduce
 
