@@ -37,6 +37,7 @@ class DefaultValueSpec extends FlatSpec with Matchers {
     c shouldEqual Set()
 
   }
+
   it should "have default value for mutable set type" in {
     val c = defaultValue[mutable.Set[Int]]
     c shouldEqual Set()
@@ -50,6 +51,11 @@ class DefaultValueSpec extends FlatSpec with Matchers {
   it should "have default value for mutable map type" in {
     val c = defaultValue[mutable.Map[Int,Int]]
     c shouldEqual Map()
+  }
+
+  it should "have null default value for tuple type" in {
+    val c = defaultValue[(Int, String)]
+    c shouldEqual null
   }
 
   it should "perform pattern-matching on default argument" in {
