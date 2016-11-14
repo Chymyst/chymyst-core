@@ -491,7 +491,8 @@ object C extends App {
   counter(n)
   (1 to n).foreach( _ => decr() )
   fetch()
-  println(s"Elapsed: ${initTime.until(now, MILLIS)} ms")
+  val elapsed = initTime.until(now, MILLIS)
+  println(s"Elapsed: $elapsed ms")
 }
 ```
 
