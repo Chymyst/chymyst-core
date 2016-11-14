@@ -20,6 +20,8 @@ TODO and roadmap:
 
  5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
 
+ 2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking?
+
  5 * 5 - implement fairness with respect to molecules
  * - go through possible values when matching (can do?) Important: can get stuck when molecules are in different order. Or need to shuffle.
 
@@ -29,7 +31,9 @@ TODO and roadmap:
 
  3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter
 
- 4 * 5 - implement disjoin by sharing the join pool with another machine (but running the join definitions only on the master node)
+ 4 * 5 - implement distributed execution by sharing the join pool with another machine (but running the join definitions only on the master node)
+
+ 2 * 2 - benchmark and profile the performance of blocking molecules (make many reactions that block and unblock)
 
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic.
  
@@ -39,15 +43,13 @@ TODO and roadmap:
 
  5 * 5 - try to inspect the reaction body using a macro. Can we match on q"{ case a(_) + ... => ... }"?
  Can we return the list of input molecules and other info - e.g. whether the pattern-match
- is nontrivial in this molecule, whether sync. molecultes have a reply matcher specified,
- whether the reply molecule is being used in the body, whether all other output molecules are already defined.
+ is nontrivial in this molecule, whether blocking molecules have a reply matcher specified,
+ whether the reply pseudo-molecule is being used in the body, whether all other output molecules are already defined.
  If this is possible, define an alternative "join" or "run" helper functions in the Macros package. 
 
  2 * 3 - understand the "reader-writer" example
 
  3 * 2 - add per-molecule logging; log to file or to logger function
-
- 3 * 3 - go through examples in Jiansen's project (done) and in my JoCaml tutorial
  
  5 * 5 - implement special handling for molecules with Future-wrapped values (inject in the future).
  Transform JA[Future[T]] => Future[JA[T]] and inject JA[T] when the future resolves.
@@ -66,13 +68,13 @@ TODO and roadmap:
 
  2 * 2 - make memory profiling / benchmarking; how many molecules can we have per 1 GB of RAM?
 
- 3 * 3 - use "blocking" from Scala's ExecutionContext, and use Scala futures (or Java Futures? or Promises?) with
+ 3 * 3 - use "blocking(closure: => Unit)" from Scala's ExecutionContext, and use Scala futures (or Java Futures? or Promises?) with
  timeouts (or simply timeout on a semaphore's acquire?).
  Introduce a feature that times out on a blocking molecule.
  val f = new JS[T,R]
  f(timeoutNanos = 10000000L)(t)
 
- 3 * 4 - implement nonlinear patterns
+ 3 * 4 - implement nonlinear input patterns
 
   * */
 
