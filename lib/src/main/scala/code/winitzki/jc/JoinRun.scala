@@ -33,8 +33,6 @@ TODO and roadmap:
  4 * 5 - implement disjoin by sharing the join pool with another machine (but running the join definitions only on the master node)
 
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic.
-
- 2 * 1 - make AbsMolValue into parameterized class and get rid of Any in MolValue and its derived classes?
  
  2 * 2 - try to avoid case class matching in favor of overloading methods on case classes (possible performance benefit)
 
@@ -133,16 +131,18 @@ object JoinRun {
 
   // Container for molecule values
   // TODO: this is ugly - refactor!
-  private sealed trait AbsMolValue {
-    def getValue[T]: T
+  private sealed trait AbsMolValue[T] {
+    def getValue: T
 
-    override def toString: String = getValue[Any] match { case () => ""; case v@_ => v.toString }
+    override def toString: String = getValue match { case () => ""; case v@_ => v.toString }
   }
-  private case class AsyncMolValue(v: Any) extends AbsMolValue {
-    override def getValue[T]: T = v.asInstanceOf[T]
+
+  private case class AsyncMolValue[T](v: T) extends AbsMolValue[T] {
+    override def getValue: T = v
   }
-  private case class SyncMolValue(jsv: SyncReplyValue[_,_]) extends AbsMolValue {
-    override def getValue[T]: T = jsv.v.asInstanceOf[T]
+
+  private case class SyncMolValue[T,R](jsv: SyncReplyValue[T,R]) extends AbsMolValue[T] {
+    override def getValue: T = jsv.v
   }
 
   private class ExceptionInJoinRun(message: String) extends Exception(message)
@@ -192,11 +192,11 @@ object JoinRun {
           v <- moleculeValues.getOne(this)
         } yield {
           usedInputs += (this -> v)
-          v.getValue[T]
+          v.asInstanceOf[AbsMolValue[T]].getValue
         }
 
       // This is used when running the chosen reaction.
-      case UnapplyRun(moleculeValues) => moleculeValues.get(this).map(_.getValue[T])
+      case UnapplyRun(moleculeValues) => moleculeValues.get(this).map(_.asInstanceOf[AsyncMolValue[T]].getValue)
     }
   }
 
@@ -232,7 +232,7 @@ object JoinRun {
   }
 
   // Synchronous molecule injector. This is an immutable value.
-  private[JoinRun] class SynMol[T: ClassTag,R](name: Option[String] = None) extends AbsMol(name) with Function1[T,R] {
+  private[JoinRun] class SynMol[T: ClassTag, R](name: Option[String] = None) extends AbsMol(name) with Function1[T, R] {
 
     def apply(v: T): R = {
       // Inject a synchronous molecule.
@@ -242,7 +242,7 @@ object JoinRun {
 
     override def toString: String = getName + "/S"
 
-    def unapply(arg: UnapplyArg): Option[(T, SyncReplyValue[T,R])] = arg match {
+    def unapply(arg: UnapplyArg): Option[(T, SyncReplyValue[T, R])] = arg match {
       // When we are gathering information about the input molecules, `unapply` will always return Some(...),
       // so that any pattern-matching on arguments will continue with null (since, at this point, we have no values).
       // Any pattern-matching will work unless null fails.
@@ -262,7 +262,7 @@ object JoinRun {
           v <- moleculeValues.getOne(this)
         } yield {
           usedInputs += (this -> v)
-          (v.getValue[T], null).asInstanceOf[(T, SyncReplyValue[T,R])]
+          (v.getValue, null).asInstanceOf[(T, SyncReplyValue[T,R])]
         }
 
       // This is used when running the chosen reaction.
@@ -322,10 +322,11 @@ object JoinRun {
     def shuffle: Seq[T] = scala.util.Random.shuffle(a)
   }
 
-  // for JA[T] molecules, the value inside AbsMolValue is of type T; for JS[T,R] molecules, the value is of type SyncReplyValue[T,R]
-  private type MoleculeBag = MutableBag[AbsMol, AbsMolValue]
-  private type MutableLinearMoleculeBag = mutable.Map[AbsMol, AbsMolValue]
-  private type LinearMoleculeBag = Map[AbsMol, AbsMolValue]
+  // for JA[T] molecules, the value inside AbsMolValue[T] is of type T; for JS[T,R] molecules, the value is of type
+  // SyncReplyValue[T,R]
+  private type MoleculeBag = MutableBag[AbsMol, AbsMolValue[_]]
+  private type MutableLinearMoleculeBag = mutable.Map[AbsMol, AbsMolValue[_]]
+  private type LinearMoleculeBag = Map[AbsMol, AbsMolValue[_]]
 
   // The user will never see any instances of this class.
   private[JoinRun] class JoinDefinition(val inputMolecules: Map[Reaction, Set[AbsMol]])
@@ -353,7 +354,7 @@ object JoinRun {
       .map { case (m, rs) => (m, rs.map(_._2)) }
 
     // Initially, there are no molecules present.
-    private val moleculesPresent: MoleculeBag = new MutableBag[AbsMol, AbsMolValue]
+    private val moleculesPresent: MoleculeBag = new MutableBag[AbsMol, AbsMolValue[_]]
 
     private def moleculeBagToString(mb: MoleculeBag): String =
       mb.getMap.toSeq
@@ -377,7 +378,8 @@ object JoinRun {
       }.mkString(", ")
 
     // Adding an asynchronous molecule may trigger at most one reaction.
-    def injectAsync[T](m: AbsMol, jmv: AbsMolValue): Unit = if (!Thread.currentThread().isInterrupted) jJoinPool.runClosure {
+    def injectAsync[T](m: AbsMol, jmv: AbsMolValue[T]): Unit = if (!Thread.currentThread().isInterrupted) jJoinPool
+      .runClosure {
       val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
         moleculesPresent.addToBag(m, jmv)
         if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $jJoinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
