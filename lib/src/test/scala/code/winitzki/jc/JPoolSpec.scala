@@ -1,6 +1,5 @@
 package code.winitzki.jc
 
-import JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.Waiter
 import org.scalatest.time.{Millis, Span}
@@ -13,7 +12,7 @@ class JPoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "run a task on a separate thread" in {
     val waiter = new Waiter
 
-    val tp = new JReactionPool(2)
+    val tp = new ReactionPool(2)
 
     tp.runClosure {
       waiter.dismiss()
@@ -34,7 +33,7 @@ class JPoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "interrupt a thread when shutting down" in {
     val waiter = new Waiter
 
-    val tp = new JReactionPool(2)
+    val tp = new ReactionPool(2)
 
     tp.runClosure {
       try {

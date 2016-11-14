@@ -1,6 +1,6 @@
 package code.winitzki.benchmark
 
-import code.winitzki.jc.JReactionPool
+import code.winitzki.jc.ReactionPool
 import code.winitzki.jc.JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
@@ -21,7 +21,7 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
 
   def diningPhilosophers(cycles: Int) = {
 
-    val tp = new JReactionPool(8)
+    val tp = new ReactionPool(8)
 
     val h1 = ja[Int]("Aristotle is hungry")
     val h2 = ja[Int]("Kant is hungry")

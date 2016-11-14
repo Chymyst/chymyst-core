@@ -3,7 +3,7 @@ package code.winitzki.benchmark
 import java.time.LocalDateTime
 
 import Common._
-import code.winitzki.jc.JReactionPool
+import code.winitzki.jc.ReactionPool
 import code.winitzki.jc.JoinRun._
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -64,7 +64,7 @@ class MergesortSpec extends FlatSpec with Matchers {
 
     val mergesort = new JA[(Array[T], JA[Array[T]])]
 
-    val tp = new JReactionPool(threads)
+    val tp = new ReactionPool(threads)
     join(
       tp{
         case mergesort((arr, resultToYield)) =>
