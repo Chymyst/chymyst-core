@@ -5,11 +5,12 @@ import java.util.concurrent.{Executors, TimeUnit}
 import akka.actor.{Actor, ActorSystem, PoisonPill, Props}
 import akka.dispatch.Dispatchers
 import akka.routing.{BalancingPool, Broadcast, RoundRobinPool, SmallestMailboxPool}
+import code.winitzki.jc.JoinRun.{Reaction, ReactionBody}
 
 import scala.concurrent.ExecutionContext
 
-class JJoinPool extends JPoolExecutor(2)
-class JReactionPool(threads: Int) extends JPoolExecutor(threads)
+class JoinPool extends PoolExecutor(2)
+class ReactionPool(threads: Int) extends PoolExecutor(threads)
 
 /*
 class JThreadPoolExecutor(threads: Int = 1) extends JThreadPool {
@@ -24,6 +25,13 @@ class JThreadPoolExecutor(threads: Int = 1) extends JThreadPool {
 */
 /* */
 
+trait Pool {
+  def shutdownNow(): Unit
+
+  def runClosure(closure: => Unit): Unit
+
+  def apply(r: ReactionBody): Reaction = Reaction(r, this)
+}
 
 private[jc] class JActor extends Actor {
 
@@ -40,7 +48,7 @@ private[jc] class JActor extends Actor {
   }
 }
 
-private[jc] class JActorExecutor(threads: Int = 8) extends JPool {
+private[jc] class ActorExecutor(threads: Int = 8) extends Pool {
 
   val actorSystem = ActorSystem("JActorExecutor")
   val router = actorSystem.actorOf(SmallestMailboxPool(threads).props(Props[JActor]), name = "workerRouter")
@@ -52,14 +60,14 @@ private[jc] class JActorExecutor(threads: Int = 8) extends JPool {
     actorSystem.terminate()
   }
 
-  override def runClosure(task: => Unit): Unit =
+  override def runClosure(closure: => Unit): Unit =
     router ! new Runnable {
-      override def run(): Unit = task
+      override def run(): Unit = closure
     }
 
 }
 
-private[jc] class JPoolExecutor(threads: Int = 8) extends JPool {
+private[jc] class PoolExecutor(threads: Int = 8) extends Pool {
   val execService = Executors.newFixedThreadPool(threads)
 
   val sleepTime = 100
@@ -72,8 +80,8 @@ private[jc] class JPoolExecutor(threads: Int = 8) extends JPool {
     execService.shutdownNow()
   }
 
-  def runClosure(task: => Unit): Unit = execService.execute(new Runnable {
-    override def run(): Unit = task
+  def runClosure(closure: => Unit): Unit = execService.execute(new Runnable {
+    override def run(): Unit = closure
   })
 }
 

@@ -5,7 +5,7 @@ import org.scalatest.concurrent.Waiters.Waiter
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
-class JPoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(500, Millis)
 
