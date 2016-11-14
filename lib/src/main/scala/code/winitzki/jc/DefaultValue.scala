@@ -4,6 +4,8 @@ import scala.collection.immutable
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
+// This is a stopgap measure. This entire code should be removed once a macro is implemented to introspect the case expressions in reactions.
+
 // based on the discussion in http://stackoverflow.com/questions/5260298/how-can-i-obtain-the-default-value-for-a-type-in-scala
 /*
 
