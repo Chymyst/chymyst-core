@@ -1,8 +1,8 @@
 package code.winitzki.jc
 
 import org.scalatest.{FlatSpec, Matchers}
-import JoinRun.{ja, js}
-import Macros.{jA, jS}
+import JoinRun._
+import Macros._
 
 class MacrosSpec extends FlatSpec with Matchers {
 
@@ -16,4 +16,15 @@ class MacrosSpec extends FlatSpec with Matchers {
     s.toString shouldEqual "s/S"
   }
 
+  it should "inspect reaction body" in {
+    val a = jA[Int]
+    val b = jA[(Int,Int)]
+    val s = jS[Unit,Int]
+
+    val result = findInputs({ case a(x) + a(y) + b((1,z)) + s(_, r) => a(x+1) + r(x) })
+
+    println(s"debug: got $result")
+
+//    result shouldEqual "blah"
+  }
 }
