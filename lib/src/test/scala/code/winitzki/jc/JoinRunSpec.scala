@@ -266,6 +266,14 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   it should "throw exception when trying to inject a blocking molecule that has no join" in {
     val thrown = intercept[Exception] {
+      val a = js[Unit,Unit]("x")
+      a()
+    }
+    thrown.getMessage shouldEqual "Molecule x/S does not belong to any join definition"
+  }
+
+  it should "throw exception when trying to inject a non-blocking molecule that has no join" in {
+    val thrown = intercept[Exception] {
       val a = ja[Unit]("x")
       a()
     }
