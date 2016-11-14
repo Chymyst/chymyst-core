@@ -4,7 +4,7 @@ import scala.language.experimental.macros
 import scala.reflect.macros._
 import scala.reflect.NameTransformer.LOCAL_SUFFIX_STRING
 
-import JoinRun.{ja,js,JA,JS}
+import JoinRun._
 
 object Macros {
 
@@ -26,13 +26,13 @@ object Macros {
 
   def jA[T]: JA[T] = macro jAImpl[T]
 
-  def jAImpl[T: c.WeakTypeTag](c: theContext): c.universe.Tree = {
+  def jAImpl[T: c.WeakTypeTag](c: theContext): c.Expr[JA[T]] = {
     import c.universe._
     val s = getEnclosingName(c)
 
     val t = c.weakTypeOf[T]
 
-    q"ja[$t]($s)"
+    c.Expr[JA[T]](q"new JA[$t](Some($s))")
   }
 
   def jS[T, R]: JS[T, R] = macro jSImpl[T, R]
@@ -44,7 +44,14 @@ object Macros {
     val t = c.weakTypeOf[T]
     val r = c.weakTypeOf[R]
 
-    c.Expr[JS[T, R]](q"js[$t,$r]($s)")
+    c.Expr[JS[T, R]](q"new JS[$t,$r](Some($s))")
+  }
+
+  def findInputs(arg: UnapplyArg => Unit): String = macro findInputsImpl
+
+  def findInputsImpl(c: theContext)(arg: c.Expr[UnapplyArg => Unit]) = {
+    import c.universe._
+    q"${show(arg)}"
   }
 
 }
