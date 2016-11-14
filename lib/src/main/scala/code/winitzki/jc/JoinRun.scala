@@ -68,10 +68,16 @@ TODO and roadmap:
  2 * 4 - allow molecule values to be parameterized types or even higher-kinded types?
 
  2 * 2 - make memory profiling / benchmarking; how many molecules can we have per 1 GB of RAM?
+
+ 3 * 3 - use "blocking" from Scala's ExecutionContext, and use Scala futures (or Java Futures? or Promises?) with
+ timeouts (or simply timeout on a semaphore's acquire?).
+ Introduce a feature that times out on a blocking molecule.
+ val f = new JS[T,R]
+ f(timeoutNanos = 10000000L)(t)
   * */
 
 import DefaultValue.defaultValue
-import java.util.concurrent.Semaphore
+import java.util.concurrent.{Semaphore, TimeUnit}
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -155,8 +161,8 @@ object JoinRun {
   }
 
   // Asynchronous molecule. This is an immutable class.
-  private[JoinRun] class AsynMol[T: ClassTag](name: Option[String] = None) extends AbsMol(name) {
-    def apply(v: => T): Unit = {
+  private[JoinRun] class AsynMol[T: ClassTag](name: Option[String] = None) extends AbsMol(name) with Function1[T, Unit] {
+    def apply(v: T): Unit = {
       // Inject an asynchronous molecule.
       joinDef match {
         case Some(o) => o.injectAsync[T](this, AsyncMolValue(v))
@@ -204,7 +210,12 @@ object JoinRun {
   ) {
     def releaseSemaphore() = if (semaphore != null) semaphore.release()
 
-    def acquireSemaphore(): Unit = if (semaphore != null) semaphore.acquire()
+    def acquireSemaphore(timeoutNanos: Option[Long] = None): Unit =
+      if (semaphore != null)
+        timeoutNanos match {
+          case Some(nanos) => semaphore.tryAcquire(nanos, TimeUnit.NANOSECONDS)
+          case None => semaphore.acquire()
+        }
 
     def deleteSemaphore(): Unit = {
       releaseSemaphore()
@@ -266,7 +277,7 @@ object JoinRun {
   implicit val defaultJoinPool = new JJoinPool
   implicit val defaultReactionPool = new JReactionPool(4)
 
-  private[JoinRun] sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
+  private[jc] sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
   private case class UnapplyCheck(inputMolecules: mutable.Set[AbsMol]) extends UnapplyArg
   private case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg
   private case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg
@@ -471,7 +482,7 @@ object JoinRun {
 
 
     // Adding a synchronous molecule may trigger at most one reaction and must return a value of type R.
-    // This must be a blocking call.
+    // We must make this a blocking call, so we acquire a semaphore (with timeout).
     def injectSyncAndReply[T,R](m: SynMol[T,R], valueWithResult: SyncReplyValue[T,R]): R = {
       injectAsync(m, SyncMolValue(valueWithResult))
 //      try  // not sure we need this.
