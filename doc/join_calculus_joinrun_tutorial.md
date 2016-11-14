@@ -40,7 +40,7 @@ Once molecules are injected, we check whether some reactions can start.
 In a reaction such as `a + b + c ⇒ d + e` the **input molecules** are  `a`, `b`, and `c`, and the **output molecules** are `d` and `e`.
 A reaction can have one or more input molecules, and zero or more output molecules.
 
-Once a reaction starts, the input molecules instantaneously disappear from the soup (they are "consumed" by the reaction), and then the output molecules are injected into the soup.
+Once a reaction starts, the input molecules instantaneously disappear from the soup (they are “consumed” by the reaction), and then the output molecules are injected into the soup.
 
 The simulator can start many reactions concurrently whenever their input molecules are available.
 
@@ -559,8 +559,9 @@ Once `f` is defined like this, an injection call such as
 val x = f(123)
 ```
 will inject a molecule of sort `f` with value `123` into the soup.
-The calling process will wait until some reaction consumes this molecule and "replies" with a `String` value.
-Only after the reaction body executes the "reply action", the value `x` will be assigned, and the calling process will become unblocked and will continue its execution.
+
+The calling process in `f(123)` will wait until some reaction consumes this molecule and “replies” with a `String` value.
+Only after the reaction body executes the “reply action", the value `x` will be assigned, and the calling process will become unblocked and will continue its execution.
 
 ## Molecule names
 
@@ -598,8 +599,8 @@ For blocking molecules, the molecule's name is followed by `"/S"`.
 val x = new JA[Int]("counter")
 val y = new JS[Unit, Int]("fetch")
 
-x.toString // returns "counter"
-y.toString // returns "fetch/S"
+x.toString // returns “counter"
+y.toString // returns “fetch/S"
 ```
 
 ## More about the semantics of `JoinRun`
@@ -622,20 +623,109 @@ It remains to see how we can use the “chemical machine” for performing vario
 For instance, it is perhaps not evident what kind of molecules and reactions must be defined, say, to implement a concurrent buffered queue or a concurent merge-sort algorithm.
 Another interesting application would be a concurrent GUI interaction together with some jobs in the background.
 Solving these problems in Join Calculus requires a certain paradigm shift.
-In order to build our intuition, let us go through some simple examples.
+In order to build up our “chemical” intuition, let us go through some more examples.
 
-TODO
+A map/reduce operation first takes an array `Array[A]` and applies a function `f : A => B` to each of the elements.
+This yields an `Array[B]` of intermediate results.
+After that, a “reduce”-like operation `reduceB : (B, B) => B`  is applied to that array, and the final result of type `B` is computed.
+
+This can be implemented in sequential code like this:
+
+```scala
+val arr : Array[A] = ???
+
+arr.map(f).reduce(reduceB)
+```
+
+Our task is to implement this as a concurrent computation.
+We would like to perform all computations concurrently - both applying `f` to each element of the array, and also accumulating the final result.
+
+For simplicity, we will assume that the `reduceB` operation is associative and commutative (that is, the type `B` is a commutative monoid).
+In that case, we are apply the `reduceB` operation to array elements in arbitrary order, which makes our task easier.
+
+Implementing the map/reduce operation does not actually require the full power of concurrency: a “bulk synchronous processing” framework such as Hadoop or Spark will do the job.
+Our goal is to come up with a “chemical” approach to concurrent map/reduce.
+
+Since we would like to apply the function `f` concurrently to values of type `A`, we need to put all these values on separate copies of some “carrier” molecule.
+
+```scala
+val carrier = jA[A]
+```
+
+We will inject a copy of the “carrier” molecule for each element of the initial array:
+
+```scala
+val arr : Array[A] = ???
+arr.foreach(i => carrier(i))
+```
+
+As we apply `f` to each element, we will carry the intermediate results on molecules of another sort:
+
+```scala
+val interm = jA[B]
+```
+ 
+Therefore, we need a reaction of this shape:
+
+```scala
+run { case carrier(a) => val res = f(a); interm(res) }
+```
+
+Finally, we need to gather the intermediate results carried by `interm` molecules.
+For this, we define the “accumulator” molecule `accum` that will carry the final result as we accumulate it by going over all the `interm` molecules.
+We can also define a blocking molecule `fetch` that can be used to read the accumulated result from another process.
+
+```scala
+val accum = jA[B]
+val fetch = jS[Unit, B]
+```
+
+At first we might write reactions for `accum` such as this one:
+
+```scala
+run { case accum(b) + interm(res) => accum( reduceB(b, res) ) },
+run { case accum(b) + fetch(_, reply) => reply(b) }
+```
+
+Our plan is to inject an `accum(...)` molecule, so that this reaction will repeatedly consume every `interm(...)` molecule until all the intermediate results are processed.
+Then we will inject a blocking `fetch()` molecule and obtain the final accumulated result.
+
+However, there is a serious problem with this implementation: We will not actually find out when the work is finished.
+Our idea was that the processing will stop when there are no `interm` molecules left.
+However, the `interm` molecules are produced by previous reactions, which may take time.
+We do not know when each `interm` molecule will be injected: there may be prolonged periods of absence of any `interm` molecules in the soup (while some reactions are still busy evaluating `f`).
+The runtime engine cannot know which reactions will eventually inject some more `interm` molecules, and so there is no way to detect that the entire map/reduce job is done.
+
+It is the programmer's responsibility to organize the reactions such that the “end-of-job” situation can be detected.
+The simplest way of doing this is to count how many `accum` reactions have been run.
+We change the type of `accum` to carry a tuple `(Int, B)`.
+The first element of the tuple will be a counter, which indicates how many intermediate results we have already processed.
+Reactions with `accum` will increment the counter; the reaction with `fetch` will proceed only if the counter is equal to the length of the array.
+We will also include a condition on the counter that will start the accumulation when the counter is equal to 0.
+
+```scala
+val accum = jA[(Int, B)]
+
+run { case accum((n, b))) + interm(res) if n > 0 => 
+    accum((n+1, reduceB(b, res) )) 
+  },
+run { case accum((0, _)) + interm(res) => accum((1, res)) },
+run { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }    
+```
+
+We can now inject all `carrier` molecules, a single `accum((0, null))` molecule, and a `fetch()` molecule.
+Because of the guard condition, the reaction with `fetch()` will not run until all intermediate results have been accumulated.
 
 # Molecules and reactions in local scopes
 
 Since molecules and reactions are local values, they are lexically scoped within the block where they are defined.
-So, we can define new local molecules and reactions within an auxiliary function, or even within another reaction body.
+In this way, Join Calculus allows us to create molecules and reactions confined to the scope of an auxiliary function, or to the scope of a reaction body.
 Because of local scoping, these newly defined molecules and reactions will be encapsulated and protected from outside access.
 
-To illustrate this feature of Join Calculus, let us implement a function that will define a “concurrent counter” and initialize it with a given value.
+To illustrate this feature of Join Calculus, let us implement a function that defines a “concurrent counter” and initializes it with a given value.
 
-Our previous implementation of the concurrent counter works but has a drawback: The molecule `counter(n)` must be injected by hand and remains globally visible.
-If the user injects two copies of `c` with different values, the `counter + decr` and `counter + fetch` reactions will work unreliably, choosing between the two copies of `counter` at random.
+Our previous implementation of the concurrent counter has a drawback: The molecule `counter(n)` must be injected by the user and remains globally visible.
+If the user injects two copies of `counter` with different values, the `counter + decr` and `counter + fetch` reactions will work unreliably, choosing between the two copies of `counter` at random.
 We would like to inject exactly one copy of `counter` and then prevent the user from injecting any further copies of that molecule.
 
 A solution is to define `counter` and its reactions within a function that returns the `decr` and `fetch` molecules to the outside scope.
@@ -659,13 +749,14 @@ def makeCounter(initCount: Int): (JA[Unit], JS[Unit,Int]) = {
 }
 ```
 
-In this way, we can guarantee the correct functionality of the counter, because the injector for `counter` is safely hidden in the closure's scope.
+The closure captures the injector for the `counter` molecule and injects a single copy of that molecule.
+Users from other scopes cannot inject another copy of `counter` since the injector is not visible outside the closure.
+In this way, it is guaranteed that one and only one copy of `counter` will be present in the soup.
 
-It is guaranteed that only one copy of “c” will ever be present in the soup:
-Since this molecule is locally defined and not visible outside the closure, the user of `makeCounter` is unable to inject any more copies of “c”.
-However, the user receives the injectors `decr` and `fetch`, and so the user can inject these molecules and start their reactions (despite the fact that these molecules are also locally defined, like `counter`).
+Nevertheless, the users receive the injectors `decr` and `fetch` from the closure.
+So the users can inject these molecules and start their reactions (despite the fact that these molecules are also locally defined, like `counter`).
 
-The function `makeCounter` can be used within another scope like this:
+The function `makeCounter` can be called like this:
 
 ```scala
 val (d, f) = makeCounter(10000)
@@ -673,7 +764,7 @@ d() + d() + d() // inject 3 decrement molecules
 val x = f() // fetch the current value
 ```
 
-Also note that each invocation of `makeCounter` will create new, fresh molecules `counter`, `decr`, and `fetch` inside the closure.
+Also note that each invocation of `makeCounter` will create new, fresh molecules `counter`, `decr`, and `fetch` inside the closure, because each invocation will create a fresh local scope.
 In this way, the user can create as many independent counters as desired.
 
 This example shows how we can “hide” some molecules and yet use their reactions. 
@@ -682,7 +773,6 @@ A closure can define local reaction with several input molecules, inject some of
 # Example 4: concurrent merge-sort
 
 TODO
-
 
 
 # Limitations of Join Calculus 
@@ -712,7 +802,7 @@ Another solution would be to introduce “inhibiting” conditions on reactions:
 However, it is not clear that this extension of the join calculus would be useful.
 The solution based on a “timeout” appears to be sufficient in practice.
 
-The second limitation is that "chemical soups" running as different processes (either on the same computer or on different computers) are completely separate and cannot be “pooled”.
+The second limitation is that “chemical soups” running as different processes (either on the same computer or on different computers) are completely separate and cannot be “pooled”.
 
 What we would like to do is to connect many chemical machines together, running perhaps on different computers, and to pool their individual “soups” into one large “common soup”.
 Our program should then be able to inject lots of molecules into the common pool and thus organize a massively parallel, distributed computation, without worrying about which CPU computes what reaction.
