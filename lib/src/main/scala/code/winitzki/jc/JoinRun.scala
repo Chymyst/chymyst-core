@@ -83,14 +83,6 @@ import java.util.concurrent.{Semaphore, TimeUnit}
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-// A pool of execution threads, or another way of running tasks (could use actors or whatever else).
-
-trait JPool {
-  def runClosure(task: => Unit): Unit
-  def shutdownNow(): Unit
-  def apply(body: JoinRun.ReactionBody) = JoinRun.Reaction(body, this)
-}
-
 object JoinRun {
 
   // These type aliases are intended for users.
@@ -112,7 +104,7 @@ object JoinRun {
     }
   }
 
-  implicit class JoinableUnit(x: Unit) {
+  implicit final class JoinableUnit(x: Unit) {
     def +(n: Unit): Unit = () // just make sure they are both evaluated
   }
 
@@ -140,22 +132,22 @@ object JoinRun {
     override def toString: String = getValue match { case () => ""; case v@_ => v.toString }
   }
 
-  private case class AsyncMolValue[T](v: T) extends AbsMolValue[T] {
+  private final case class AsyncMolValue[T](v: T) extends AbsMolValue[T] {
     override def getValue: T = v
   }
 
-  private case class SyncMolValue[T,R](jsv: SyncReplyValue[T,R]) extends AbsMolValue[T] {
+  private final case class SyncMolValue[T,R](jsv: SyncReplyValue[T,R]) extends AbsMolValue[T] {
     override def getValue: T = jsv.v
   }
 
-  private class ExceptionInJoinRun(message: String) extends Exception(message)
-  private class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
-  private class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
-  private class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
-  private class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
+  private sealed class ExceptionInJoinRun(message: String) extends Exception(message)
+  private final class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
+  private final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
+  private final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
+  private final class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
 
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
-  abstract class AbsMol(name: Option[String]) {
+  abstract sealed class AbsMol(name: Option[String]) {
     var joinDef: Option[JoinDefinition] = None
 
     def setLogLevel(logLevel: Int): Unit = { joinDef.foreach(o => o.logLevel = logLevel) }
@@ -164,7 +156,7 @@ object JoinRun {
   }
 
   // Asynchronous molecule. This is an immutable class.
-  private[JoinRun] class AsynMol[T: ClassTag](name: Option[String] = None) extends AbsMol(name) with Function1[T, Unit] {
+  private[JoinRun] final class AsynMol[T: ClassTag](name: Option[String] = None) extends AbsMol(name) with Function1[T, Unit] {
     def apply(v: T): Unit =
       // Inject an asynchronous molecule.
       joinDef.map(_.injectAsync[T](this, AsyncMolValue(v)))
@@ -202,7 +194,7 @@ object JoinRun {
   }
 
   // Reply-value wrapper for synchronous molecules. This is a mutable class.
-  private[JoinRun] case class SyncReplyValue[T, R](
+  private[JoinRun] final case class SyncReplyValue[T, R](
     v: T,
     var result: Option[R] = None,
     var semaphore: Semaphore = { val s = new Semaphore(0, true); s.drainPermits(); s },
@@ -233,7 +225,7 @@ object JoinRun {
   }
 
   // Synchronous molecule injector. This is an immutable value.
-  private[JoinRun] class SynMol[T: ClassTag, R](name: Option[String] = None) extends AbsMol(name) with Function1[T, R] {
+  private[JoinRun] final class SynMol[T: ClassTag, R](name: Option[String] = None) extends AbsMol(name) with Function1[T, R] {
 
     def apply(v: T): R = {
       // Inject a synchronous molecule.
@@ -275,18 +267,18 @@ object JoinRun {
     }
   }
 
-  implicit val defaultJoinPool = new JJoinPool
-  implicit val defaultReactionPool = new JReactionPool(4)
+  implicit val defaultJoinPool = new JoinPool
+  implicit val defaultReactionPool = new ReactionPool(4)
 
   private[jc] sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
-  private case class UnapplyCheck(inputMolecules: mutable.Set[AbsMol]) extends UnapplyArg
-  private case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg
-  private case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg
+  private final case class UnapplyCheck(inputMolecules: mutable.Set[AbsMol]) extends UnapplyArg
+  private final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg
+  private final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg
 
   private[jc] type ReactionBody = PartialFunction[UnapplyArg, Unit]
 
   // immutable class
-  private[jc] case class Reaction(body: ReactionBody, threadPool: JPool) {
+  private[jc] final case class Reaction(body: ReactionBody, threadPool: Pool) {
     lazy val inputMoleculesUsed: Set[AbsMol] = {
       val moleculesInThisReaction = UnapplyCheck(mutable.Set.empty)
       body.isDefinedAt(moleculesInThisReaction)
@@ -294,7 +286,7 @@ object JoinRun {
     }
 
     // Users will call this method to specify thread pools per reaction.
-    def onThreads(newThreadPool: JPool): Reaction = Reaction(body, newThreadPool)
+    def onThreads(newThreadPool: Pool): Reaction = Reaction(body, newThreadPool)
 
     override def toString = s"${inputMoleculesUsed.toSeq.map(_.toString).sorted.mkString(" + ")} => ..."
   }
@@ -302,8 +294,8 @@ object JoinRun {
   // Users will call join(...) in order to introduce a new Join Definition (JD).
   // All input and output molecules for this JD should have been already defined, and inputs should not yet have been used in any other JD.
   def join(rs: Reaction*)
-          (implicit jReactionPool: JReactionPool,
-           jJoinPool: JJoinPool): Unit = {
+          (implicit jReactionPool: ReactionPool,
+           jJoinPool: JoinPool): Unit = {
 
     val knownMolecules : Map[Reaction, Set[AbsMol]] = rs.map { r => (r, r.inputMoleculesUsed) }.toMap
 
@@ -320,7 +312,7 @@ object JoinRun {
 
   }
 
-  private implicit class ShufflableSeq[T](a: Seq[T]) {
+  private implicit final class ShufflableSeq[T](a: Seq[T]) {
     def shuffle: Seq[T] = scala.util.Random.shuffle(a)
   }
 
@@ -331,8 +323,8 @@ object JoinRun {
   private type LinearMoleculeBag = Map[AbsMol, AbsMolValue[_]]
 
   // The user will never see any instances of this class.
-  private[JoinRun] class JoinDefinition(val inputMolecules: Map[Reaction, Set[AbsMol]])
-                                       (var jReactionPool: JReactionPool, var jJoinPool: JJoinPool) {
+  private[JoinRun] final class JoinDefinition(val inputMolecules: Map[Reaction, Set[AbsMol]])
+                                       (var jReactionPool: ReactionPool, var jJoinPool: JoinPool) {
 
     private val quiescenceCallbacks: mutable.Set[AsynMol[Unit]] = mutable.Set.empty
 

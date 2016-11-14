@@ -1,7 +1,7 @@
 package code.winitzki.benchmark
 
 import code.winitzki.benchmark.Common._
-import code.winitzki.jc.JReactionPool
+import code.winitzki.jc.ReactionPool
 import code.winitzki.jc.JoinRun._
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -19,7 +19,7 @@ class MultithreadSpec extends FlatSpec with Matchers {
 
       val a = ja[Int]
       val never = js[Unit, Unit]
-      val tp = new JReactionPool(threads)
+      val tp = new ReactionPool(threads)
       join(
         tp { case a(c) if c > 0 => performWork(); a(c - 1) },
         tp { case never(_, r) + a(0) => r() }
