@@ -24,7 +24,6 @@ TODO and roadmap:
  * - go through possible values when matching (can do?) Important: can get stuck when molecules are in different order. Or need to shuffle.
 
  5 * 5 - allow unrestricted pattern-matching in reactions
-
  - completely fix the problem with pattern-matching not at the end of input molecule list.
   Probably will need a macro. At the moment, we can have some pattern-matching but it's not correct.
 
@@ -58,7 +57,7 @@ TODO and roadmap:
  
  4 * 5 - implement multiple injection construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start.
  
- 4 * 5 - allow several reactions to be scheduled simultaneously out of the same join definition, when this is possible. Avoid locking the entire bag - perhaps, partition it, based on join definition information gleaned using a macro.
+ 4 * 5 - allow several reactions to be scheduled simultaneously out of the same join definition, when this is possible. Avoid locking the entire bag? - perhaps, partition it, based on join definition information gleaned using a macro.
  
  5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
  and be able to better reason about our declarative reactions.
@@ -72,6 +71,9 @@ TODO and roadmap:
  Introduce a feature that times out on a blocking molecule.
  val f = new JS[T,R]
  f(timeoutNanos = 10000000L)(t)
+
+ 3 * 4 - implement nonlinear patterns
+
   * */
 
 import DefaultValue.defaultValue
@@ -162,13 +164,10 @@ object JoinRun {
 
   // Asynchronous molecule. This is an immutable class.
   private[JoinRun] class AsynMol[T: ClassTag](name: Option[String] = None) extends AbsMol(name) with Function1[T, Unit] {
-    def apply(v: T): Unit = {
+    def apply(v: T): Unit =
       // Inject an asynchronous molecule.
-      joinDef match {
-        case Some(o) => o.injectAsync[T](this, AsyncMolValue(v))
-        case None => throw new ExceptionNoJoinDef(s"Molecule ${this} does not belong to any join definition")
-      }
-    }
+      joinDef.map(_.injectAsync[T](this, AsyncMolValue(v)))
+        .getOrElse(throw new ExceptionNoJoinDef(s"Molecule ${this} does not belong to any join definition"))
 
     override def toString: String = getName
 
@@ -196,7 +195,8 @@ object JoinRun {
         }
 
       // This is used when running the chosen reaction.
-      case UnapplyRun(moleculeValues) => moleculeValues.get(this).map(_.asInstanceOf[AsyncMolValue[T]].getValue)
+      case UnapplyRun(moleculeValues) => moleculeValues.get(this)
+        .map(_.asInstanceOf[AsyncMolValue[T]].getValue)
     }
   }
 
@@ -250,9 +250,9 @@ object JoinRun {
         if (inputMoleculesProbe contains this) {
           throw new Exception(s"Nonlinear pattern: ${this} used twice")
         }
-        else {
+        else
           inputMoleculesProbe.add(this)
-        }
+
         Some((defaultValue[T], null).asInstanceOf[(T, SyncReplyValue[T,R])]) // hack. This value will not be used.
 
       // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
@@ -268,8 +268,8 @@ object JoinRun {
       // This is used when running the chosen reaction.
       case UnapplyRun(moleculeValues) => moleculeValues.get(this).map {
         case SyncMolValue(jsv) => (jsv.v, jsv).asInstanceOf[(T, SyncReplyValue[T, R])]
-        case m@_ => throw new ExceptionNoWrapper(s"Internal error: molecule $this with no synchronous value " +
-          s"wrapper around value $m")
+        case m@_ =>
+          throw new ExceptionNoWrapper(s"Internal error: molecule $this with no synchronous value wrapper around value $m")
       }
     }
   }
@@ -284,7 +284,7 @@ object JoinRun {
 
   private[jc] type ReactionBody = PartialFunction[UnapplyArg, Unit]
 
-  // immutable
+  // immutable class
   private[jc] case class Reaction(body: ReactionBody, threadPool: JPool) {
     lazy val inputMoleculesUsed: Set[AbsMol] = {
       val moleculesInThisReaction = UnapplyCheck(mutable.Set.empty)
@@ -292,6 +292,7 @@ object JoinRun {
       moleculesInThisReaction.inputMolecules.toSet
     }
 
+    // Users will call this method to specify thread pools per reaction.
     def onThreads(newThreadPool: JPool): Reaction = Reaction(body, newThreadPool)
 
     override def toString = s"${inputMoleculesUsed.toSeq.map(_.toString).sorted.mkString(" + ")} => ..."
@@ -389,15 +390,10 @@ object JoinRun {
             usedInputs.clear()
             r.body.isDefinedAt(UnapplyRunCheck(moleculesPresent, usedInputs))
           }))
-        reaction match {
-          case Some(r) =>
-            // If we are here, we have found a reaction that can be started.
-            // We need to remove the input molecules from the bag, as per JC execution semantics.
-            moleculesPresent.removeFromBag(usedInputs)
-          case None => ()
-        }
+        reaction.foreach(_ => moleculesPresent.removeFromBag(usedInputs))
         (reaction, usedInputs.toMap)
       } // End of synchronized block.
+
       // We are just starting a reaction, so we don't need to hold the thread any more.
       reaction match {
         case Some(r) =>
@@ -408,7 +404,7 @@ object JoinRun {
             else
               s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
           )
-          // A basic check that we are using our mutable structures safely. We should never see this message.
+          // A basic check that we are using our mutable structures safely. We should never see this error.
           if (! r.inputMoleculesUsed.equals(usedInputs.keys.toSet)) {
             val message = s"Internal error: In $this: attempt to start reaction {$r} with incorrect inputs ${moleculeBagToString(usedInputs)}"
             println(message)
@@ -497,12 +493,10 @@ object JoinRun {
       // check if we had any errors, and that we have a result value
       valueWithResult.errorMessage match {
         case Some(message) => throw new Exception(message)
-        case None => valueWithResult.result match {
-          case Some(result) => result
-          case None => throw new ExceptionEmptyReply(s"Internal error: In $this: $m received an empty reply without " +
-            s"an error message")
-        }
-
+        case None => valueWithResult.result.getOrElse(
+          throw new ExceptionEmptyReply(s"Internal error: In $this: $m received an empty reply without an error message"
+          )
+        )
       }
     }
   }
