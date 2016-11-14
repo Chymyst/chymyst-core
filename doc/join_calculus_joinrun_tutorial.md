@@ -820,13 +820,13 @@ A closure can define local reaction with several input molecules, inject some of
 
 Molecules can be “recursive”: a reaction body can define further reactions that involve the same molecule and inject it.
 This will create a recursive configuration of new molecules, such as a linked list or a tree.
-   
+
 TODO
 
 
 # Limitations of Join Calculus 
 
-While designing the “abstract chemistry” for our application, we need to keep in mind certain limitations of Join Calculus system.
+While designing the “abstract chemistry” for our application, we need to keep in mind certain limitations of Join Calculus.
 
 First, we cannot detect the _absence_ of a given non-blocking molecule, say `a(1)`, in the soup.
 This seems to be a genuine limitation of join calculus.
@@ -843,12 +843,8 @@ Suppose we define a reaction using the molecule `a`, say `a() => ...`.
 Even if we somehow establish that this reaction did not start within a certain time period, we cannot conclude that `a` is absent in the soup at that time!
 It could happen that `a()` was present but got involved in some other reactions and was consumed by them, or that `a()` was present but the computer's CPU was simply so busy that our reaction could not yet start and is still waiting in the queue.
 
-The runtime engine could be modified so that it injects a special non-blocking molecule, say, `stalled()`, whenever no further reactions are currently possible.
-One could perhaps easily implement this extension to the chemical machine, which might be sometimes useful.
-But this is a crude mechanism, and we will still be unable to detect the absence of a particular molecule at a given time.
-
-Another solution would be to introduce “inhibiting” conditions on reactions: a certain reaction can start when molecules `a` and `b` are present but no molecule `d` is present.
-However, it is not clear that this extension of the join calculus would be useful.
+Another feature would be to introduce “inhibiting” conditions on reactions: a certain reaction can start when molecules `a` and `b` are present but no molecule `c` is present.
+However, it is not clear that this extension of the Join Calculus would be useful.
 The solution based on a “timeout” appears to be sufficient in practice.
 
 The second limitation is that “chemical soups” running as different processes (either on the same computer or on different computers) are completely separate and cannot be “pooled”.
@@ -859,7 +855,7 @@ However, in order to organize a distributed computation, we would need to split 
 The organization and supervision of distributed computations, the maintenance of connections between machines, the handling of disconnections - all this remains the responsibility of the programmer and is not handled automatically by Join Calculus.
 
 In principle, a sufficiently sophisticated runtime engine could organize a distributed Join Calculus computation completely transparently to the programmer.
-It remains to be seen how feasible it is to implement such a runtime engine.
+It remains to be seen whether it is feasible to implement such a runtime engine.
 
 
 # Some useful concurrency patterns
@@ -881,13 +877,21 @@ Suppose we want to implement a function `wait_forever()` that blocks indefinitel
 
 The chemical model is that a blocking molecule `wait` reacts with another, non-blocking molecule `godot`; but `godot` never appears in the soup.
 
-TODO
+We also need to make sure that the molecule `godot()` is never injected into the soup.
+So we declare `godot` locally within the scope of `wait_forever`, where will inject nothing into the soup.
 
-We also need to make sure that the molecule godot() is never injected into the soup. So we declare godot locally within the wait_forever function, and we will inject nothing into the soup.
+```scala
+def wait_forever: jS[Unit, Unit] = {
+  val godot = jA[Unit]
+  val wait = jS[Unit, Unit]
+  
+  join( run { case godot(_,r) + wait(_) => r() } )
+  
+  wait 
+}
+```
 
-TODO
-
-## Processing a certain number of reactions
+The function `wait_forever` will return a blocking molecule injector that will block forever, never returning any value. 
 
 ## Working with an external asynchronous API
 
@@ -903,7 +907,7 @@ This was the clearest of the expositions, but even then, initially I was only ab
 Do not start by reading these papers if you are a beginner in Join Calculus - you will only be unnecessarily confused, because those texts are intended for advanced computer scientists.
 This tutorial is intended as an introduction to Join Calculus for beginners.
 
-This tutorial is based on my [earlier tutorial for JoCaml](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml). (However, be warned that tutorial was left unfinished and probably contains some mistakes in some of the more advanced code examples.)
+This tutorial is based on my [earlier tutorial for JoCaml](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml). (However, be warned that the JoCaml tutorial is unfinished and probably contains some mistakes in some of the more advanced code examples.)
 
 See also [my recent presentation at _Scala by the Bay 2016_](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala).
 ([Talk slides are available](https://github.com/winitzki/talks/tree/master/join_calculus)).
