@@ -139,6 +139,12 @@ object JoinRun {
     override def getValue[T]: T = jsv.v.asInstanceOf[T]
   }
 
+  private class ExceptionInJoinRun(message: String) extends Exception(message)
+  private class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
+  private class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
+  private class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
+  private class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
+
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
   abstract class AbsMol(name: Option[String]) {
     var joinDef: Option[JoinDefinition] = None
@@ -146,14 +152,6 @@ object JoinRun {
     def setLogLevel(logLevel: Int): Unit = { joinDef.foreach(o => o.logLevel = logLevel) }
 
     def getName: String = name.getOrElse(super.toString)
-
-    override def toString: String = {
-      val moleculeTypeSuffix = this match {
-        case _ : AsynMol[_] => ""
-        case _ : SynMol[_,_] => "/S"
-      }
-      s"${getName}$moleculeTypeSuffix"
-    }
   }
 
   // Asynchronous molecule. This is an immutable class.
@@ -162,7 +160,7 @@ object JoinRun {
       // Inject an asynchronous molecule.
       joinDef match {
         case Some(o) => o.injectAsync[T](this, AsyncMolValue(v))
-        case None => throw new Exception(s"Molecule ${this} does not belong to any join definition")
+        case None => throw new ExceptionNoJoinDef(s"Molecule ${this} does not belong to any join definition")
       }
     }
 
@@ -228,7 +226,7 @@ object JoinRun {
     def apply(v: T): R = {
       // Inject a synchronous molecule.
       joinDef.map(_.injectSyncAndReply[T,R](this, SyncReplyValue[T,R](v)))
-        .getOrElse(throw new Exception(s"Molecule $this does not belong to any join definition"))
+        .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this does not belong to any join definition"))
     }
 
     override def toString: String = getName + "/S"
@@ -259,7 +257,8 @@ object JoinRun {
       // This is used when running the chosen reaction.
       case UnapplyRun(moleculeValues) => moleculeValues.get(this).map {
         case SyncMolValue(jsv) => (jsv.v, jsv).asInstanceOf[(T, SyncReplyValue[T, R])]
-        case m@_ => throw new Exception(s"Internal error: molecule $this with no synchronous value wrapper around value $m")
+        case m@_ => throw new ExceptionNoWrapper(s"Internal error: molecule $this with no synchronous value " +
+          s"wrapper around value $m")
       }
     }
   }
@@ -400,7 +399,7 @@ object JoinRun {
           if (! r.inputMoleculesUsed.equals(usedInputs.keys.toSet)) {
             val message = s"Internal error: In $this: attempt to start reaction {$r} with incorrect inputs ${moleculeBagToString(usedInputs)}"
             println(message)
-            throw new Exception(message)
+            throw new ExceptionWrongInputs(message)
           }
           // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
           if (!Thread.currentThread().isInterrupted) r.threadPool.runClosure {
@@ -409,11 +408,19 @@ object JoinRun {
               // Here we actually apply the reaction body to its input molecules.
               r.body.apply(UnapplyRun(usedInputs))
             } catch {
-              case e: Throwable =>
+              case e: ExceptionInJoinRun =>
+                // Running the reaction body produced an exception that is internal to JoinRun.
+                // We should not try to recover from this; it is most either an error on user's part
+                // or a bug in JoinRun.
+                println(s"In $this: Reaction {$r} produced an exception that is internal to JoinRun. Input molecules ${moleculeBagToString(usedInputs)} were not injected again. Exception trace will be printed now.")
+                e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
+                throw e
+
+              case e: Exception =>
                 // Running the reaction body produced an exception. Note that the exception has killed a thread.
                 // We will now re-insert the input molecules. Hopefully, no side-effects or output molecules were produced so far.
                 usedInputs.foreach { case (mol, v) => injectAsync(mol, v) }
-                println(s"In $this: Reaction {$r} produced an exception. Input molecules ${moleculeBagToString(usedInputs)} were injected again. Exception trace will be printed.")
+                println(s"In $this: Reaction {$r} produced an exception. Input molecules ${moleculeBagToString(usedInputs)} were injected again. Exception trace will be printed now.")
                 e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
             }
             // For any synchronous input molecules that have no reply, put an error message into them and reply with empty value to unblock the threads.
@@ -479,7 +486,8 @@ object JoinRun {
         case Some(message) => throw new Exception(message)
         case None => valueWithResult.result match {
           case Some(result) => result
-          case None => throw new Exception(s"Internal error: In $this: $m received an empty reply without an error message")
+          case None => throw new ExceptionEmptyReply(s"Internal error: In $this: $m received an empty reply without " +
+            s"an error message")
         }
 
       }
