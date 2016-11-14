@@ -36,8 +36,6 @@ TODO and roadmap:
  2 * 2 - benchmark and profile the performance of blocking molecules (make many reactions that block and unblock)
 
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic.
- 
- 2 * 2 - try to avoid case class matching in favor of overloading methods on case classes (possible performance benefit)
 
  4 * 3 - add javadoc for the library
 
@@ -45,7 +43,8 @@ TODO and roadmap:
  Can we return the list of input molecules and other info - e.g. whether the pattern-match
  is nontrivial in this molecule, whether blocking molecules have a reply matcher specified,
  whether the reply pseudo-molecule is being used in the body, whether all other output molecules are already defined.
- If this is possible, define an alternative "join" or "run" helper functions in the Macros package. 
+ If this is possible, define an alternative "join" or "run" helper functions in the Macros package.
+  Can we do some reasoning about reactions at compile time or at runtime but before starting any reactions?
 
  2 * 3 - understand the "reader-writer" example
 

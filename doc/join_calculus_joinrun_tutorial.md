@@ -867,9 +867,41 @@ A basic asynchronous task is to start a long background job and get notified whe
 A chemical model is easy to invent: we define a reaction with a single non-blocking input molecule.
 The reaction will consume the molecule, do the long calculation, and then inject a `finished()` molecule.
 
-For convenience, we can put the `finished` injector into the molecule value.
+One implementation is a function that will return an injector that will start the job. 
 
-TODO
+```scala
+def submitJob[R](closure: Unit => R, finished: JA[R]): JA[R] = {
+  val begin = new JA[Unit]
+  
+  join( run { case begin(_) => 
+    val result = closure()
+    finished(result) }
+   )
+   
+   begin
+}
+```
+
+The `finished` molecule should belong to another join definition.
+
+Another implementation is a molecule that will start the job when injected.
+
+We can put the `finished` injector into the molecule value, together with the closure that needs to be run.
+
+We lose some polymorphism since Scala values cannot be parameterized by types.
+
+```scala
+val begin = new JA[(Unit => Any, JA[Any])]
+
+join(
+  run {
+    case begin(closure, finished) => 
+      val result = closure() 
+      finished(result)
+  }
+)
+```
+
 
 ## Waiting forever
 
@@ -893,9 +925,13 @@ def wait_forever: jS[Unit, Unit] = {
 
 The function `wait_forever` will return a blocking molecule injector that will block forever, never returning any value. 
 
-## Working with an external asynchronous API
+## Working with an external asynchronous APIs
+
+TODO
 
 # Reaction constructors
+
+TODO
 
 # Other tutorials on Join Calculus
 
