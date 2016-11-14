@@ -698,29 +698,75 @@ The runtime engine cannot know which reactions will eventually inject some more 
 
 It is the programmer's responsibility to organize the reactions such that the “end-of-job” situation can be detected.
 The simplest way of doing this is to count how many `accum` reactions have been run.
-We change the type of `accum` to carry a tuple `(Int, B)`.
-The first element of the tuple will be a counter, which indicates how many intermediate results we have already processed.
+
+Let us change the type of `accum` to carry a tuple `(Int, B)`.
+The first element of the tuple will now represent a counter, which indicates how many intermediate results we have already processed.
 Reactions with `accum` will increment the counter; the reaction with `fetch` will proceed only if the counter is equal to the length of the array.
+
 We will also include a condition on the counter that will start the accumulation when the counter is equal to 0.
 
 ```scala
 val accum = jA[(Int, B)]
 
-run { case accum((n, b))) + interm(res) if n > 0 => 
+run { case interm(res) + accum((n, b)) if n > 0 => 
     accum((n+1, reduceB(b, res) )) 
   },
-run { case accum((0, _)) + interm(res) => accum((1, res)) },
-run { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }    
+run { case interm(res) + accum((0, _))  => accum((1, res)) },
+run { case fetch(_, reply) + accum((n, b)) if n == arr.size => reply(b) }    
 ```
+
+Side note: due to the current limitations of `JoinRun`, the `accum` pattern matches must be written at the last place in the reactions.
 
 We can now inject all `carrier` molecules, a single `accum((0, null))` molecule, and a `fetch()` molecule.
 Because of the guard condition, the reaction with `fetch()` will not run until all intermediate results have been accumulated.
 
+Here is the complete code for this example.
+We will apply the function `f(x) = x*x` to elements of an integer array, and then compute the sum of the resulting array of squares.
+
+```scala
+import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros._
+
+object C extends App {
+
+  // declare the "map" and the "reduce" functions  
+  def f(x: Int): Int = x*x
+  def reduceB(acc: Int, x: Int): Int = acc + x
+  
+  val arr = 1 to 100
+
+  // declare molecule types
+  val carrier = jA[Int]
+  val interm = jA[Int]
+  val accum = jA[(Int,Int)]
+  val fetch = jS[Unit,Int]
+
+  // declare the reaction for "map"
+  join(
+    run { case carrier(a) => val res = f(a); interm(res) }
+  )
+
+  // reactions for "reduce" must be together since they share "accum"
+  join(
+      run { case interm(res) + accum((n, b)) if n > 0 => 
+        accum((n+1, reduceB(b, res) )) 
+      },
+      run { case interm(res) + accum((0, _))  => accum((1, res)) },
+      run { case fetch(_, reply) + accum((n, b)) if n == arr.size => reply(b) } 
+  )
+
+  // inject molecules
+  accum((0, 0))
+  arr.foreach(i => carrier(i))
+  val result = fetch()
+  println(result) // prints 338350
+}
+```
+
 # Molecules and reactions in local scopes
 
 Since molecules and reactions are local values, they are lexically scoped within the block where they are defined.
-In this way, Join Calculus allows us to create molecules and reactions confined to the scope of an auxiliary function, or to the scope of a reaction body.
-Because of local scoping, these newly defined molecules and reactions will be encapsulated and protected from outside access.
+If we define molecules and reactions in the scope of an auxiliary function, or even in the scope of a reaction body, these newly defined molecules and reactions will be encapsulated and protected from outside access.
 
 To illustrate this feature of Join Calculus, let us implement a function that defines a “concurrent counter” and initializes it with a given value.
 
@@ -772,6 +818,9 @@ A closure can define local reaction with several input molecules, inject some of
 
 # Example 4: concurrent merge-sort
 
+Molecules can be “recursive”: a reaction body can define further reactions that involve the same molecule and inject it.
+This will create a recursive configuration of new molecules, such as a linked list or a tree.
+   
 TODO
 
 
