@@ -18,25 +18,29 @@ Here are previous implementations of Join Calculus that I was able to find.
 
 The implementation in `JoinRun` is based on ideas from Jiansen He's `ScalaJoin` as well as on CocoaJoin / AndroJoin.
 
-# Molecule injectors
+# Main structures
 
-# Reactions
+## Molecule injectors
 
-# Join definitions
+## Reactions
 
-# Injecting molecules
+## Join definitions
 
-# Debugging
+# Usage
 
-# User-defined thread pools
+## Injecting molecules
+
+## Debugging reactions by tracing
+
+## User-defined thread pools
 
 TODO
 
-## Stopping a thread pool
+### Stopping a thread pool
 
 TODO
 
-# Fault tolerance
+## Fault tolerance
 
 TODO
 
@@ -47,8 +51,18 @@ TODO
 
 # Roadmap for the future
 
-TODO
+Features that appear to be necessary:
 
+- fairness with respect to molecules (random choice of input molecules for reactions)
+- full pattern-matching for input molecule values
+
+Features that appear to be useful:
+
+- nonlinear patterns
+- injecting many molecules at once
+- distributed execution of thread pools
+- timeouts on blocking molecules
+- interoperability with futures, promises, streams, or other async frameworks
 
 
 # TODO: write the rest of the library documentation
