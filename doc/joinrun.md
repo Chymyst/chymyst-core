@@ -209,17 +209,53 @@ join(
 
 # Thread pools
 
-## Creating a custom thread pools
+There are two kinds of tasks that `JoinRun` can perform concurrently:
+- running some reactions
+- injecting some new molecules and deciding which reactions will run next
+
+Each join definition is a local value and is separate from all other join definitions.
+So, in principle all join definitions can perform their tasks fully concurrently and independently from each other.
+
+In practice, there are situations where we need to force certain reactions to run on certain threads.
+For example, user interface (UI) programming will allocate one thread for all UI-related operations such as updating the screen and interacting with the user.
+In these environments, it is a non-negotiable requirement to be able to control which threads are used by which tasks.
+All long-running tasks must run on non-UI threads, while screen updates must run on the UI thread.
+
+To facilitate this control, `JoinRun` implements the thread pool feature.
+
+Each join definition runs on two thread pools: a thread pool for running reactions (`ReactionPool`) and a thread pool for injecting molecules and deciding new reactions (`JoinPool`).
+
+By default, these two thread pools are statically allocated and shared by all join definitions.
+
+Users can create custom thread pools and specify, for any given join definition,
+
+- on which thread pool the decisions will run
+- on which thread pool each reaction will run
+
+## Creating a custom thread pool
 
 TODO
 
-### Stopping a thread pool
+## Specifying thread pools for reactions
+
+## Specifying thread pools for decisions
+
+## Stopping a thread pool
 
 TODO
 
 ## Fault tolerance and exceptions
 
-TODO
+A reaction body could throw an exception of two kinds:
+- `ExceptionInJoinRun` due to incorrect usage of `JoinRun` - such as, failing to perform a reply action with a blocking molecule
+- any other `Exception` in user's reaction code 
+
+The first kind of exception leads to stopping the reaction and printing an error message.
+
+The second kind of exception is handled specially:
+`JoinRun` assumes that the reaction has died due to some malfunction and should be retried.
+Then the input molecules for the reaction are injected again.
+This will make it possible for the reaction to restart.
 
 # Limitations in the current version of `JoinRun`
 
