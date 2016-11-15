@@ -9,10 +9,10 @@ import code.winitzki.jc.JoinRun.{Reaction, ReactionBody}
 
 import scala.concurrent.ExecutionContext
 
-class JoinPool extends ActorExecutor(2)
-class ReactionPool(threads: Int) extends ActorExecutor(threads)
-//class JoinPool extends PoolExecutor(2)
-//class ReactionPool(threads: Int) extends PoolExecutor(threads)
+//class JoinPool extends ActorExecutor(2)
+//class ReactionPool(threads: Int) extends ActorExecutor(threads)
+class JoinPool extends PoolExecutor(2)
+class ReactionPool(threads: Int) extends PoolExecutor(threads)
 
 /*
 class JThreadPoolExecutor(threads: Int = 1) extends JThreadPool {
@@ -86,5 +86,3 @@ private[jc] class PoolExecutor(threads: Int = 8) extends Pool {
     override def run(): Unit = closure
   })
 }
-
-/* */

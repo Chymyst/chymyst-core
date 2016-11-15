@@ -819,10 +819,88 @@ A closure can define local reaction with several input molecules, inject some of
 
 # Example 4: concurrent merge-sort
 
-Molecules can be “recursive”: a reaction body can define further reactions that involve the same molecule and inject it.
-This will create a recursive configuration of new molecules, such as a linked list or a tree.
+Chemical laws can be “recursive”: a molecule can start a reaction whose reaction body defines further reactions and injects the same molecule.
+Since each reaction body will have a fresh scope, new molecules and new reactions will be defined every time.
+This will create a recursive configuration of new reactions, such as a linked list or a tree of reactions.
 
-TODO
+We will now figure out how to use “recursive chemistry” for implementing the merge-sort algorithm in Join Calculus.
+
+The initial data will be an array, and we will therefore need a molecule to carry that array.
+We will also need another molecule to carry the sorted result.
+
+```scala
+val mergesort = jA[Array[Int]]
+val sorted = jA[Array[Int]]
+```
+
+The main idea of the merge-sort algorithm is to split the array in half, sort each half recursively, and then merge the two sorted halves into the resulting array.
+
+```scala
+join ( run { case mergesort(arr) =>
+    if (arr.length == 1) sorted(arr) else {
+      val (part1, part2) = arr.splitAt(arr.length / 2)
+      // inject recursively
+      mergesort(part1) + mergesort(part2)
+    }
+  }
+)
+```
+
+We still need to take two sorted arrays and merge them.
+Let us assume that an array-merging function `arrayMerge(arr1, arr2)` is already implemented.
+We could then envision a reaction like this:
+
+```scala
+... run { case sorted1(arr1) + sorted2(arr2) => sorted( arrayMerge(arr1, arr2) ) }
+```
+
+Actually, we need to return the upper-level `sorted` molecule from merging the results carried by the lower-level `sorted1` and `sorted2` molecule.
+In order to achieve this, we need to define the merging reaction _within the scope_ of the `mergesort` reaction:
+
+```scala
+join ( run { case mergesort(arr) =>
+    if (arr.length == 1) sorted(arr) else {
+      val (part1, part2) = arr.splitAt(arr.length / 2)
+      // define lower-level "sorted" molecules
+      val sorted1 = jA[Array[Int]]
+      val sorted2 = jA[Array[Int]]
+      join( run { case sorted1(arr1) + sorted2(arr2) => sorted( arrayMerge(arr1, arr2) ) } )
+      // inject recursively
+      mergesort(part1) + mergesort(part2)
+    }
+  }
+)
+```
+
+This is still not right; we need to arrange the reactions such that the `sorted1`, `sorted2` molecules are injected by the lower-level recursive injections of `mergesort`.
+The way to achieve this is to pass the injectors for the `sorted` molecules as values carried by the `mergesort` molecule.
+We will then pass the lower-level `sorted` molecule injectors to the recursive calls of `mergesort`.
+
+```scala
+val mergesort = new JA[(Array[T], JA[Array[T]])]
+
+join(
+  run {
+    case mergesort((arr, sorted)) =>
+      if (arr.length <= 1) sorted(arr)
+      else {
+        val (part1, part2) = arr.splitAt(arr.length/2)
+        // "sorted1" and "sorted2" will be the sorted results from lower level
+        val sorted1 = new JA[Array[T]]
+        val sorted2 = new JA[Array[T]]
+        join(
+          run { case sorted1(arr1) + sorted2(arr2) => sorted(arrayMerge(arr1, arr2)) }
+        )
+        // inject lower-level mergesort
+        mergesort(part1, sorted1) + mergesort(part2, sorted2)
+      }
+  }
+)
+// sort our array at top level, assuming `finalResult: JA[Array[Int]]`
+mergesort((array, finalResult))
+```
+
+The complete working example of concurrent merge-sort is in the file [MergesortSpec.scala](https://github.com/winitzki/joinrun-scala/blob/master/benchmark/src/test/scala/code/winitzki/benchmark/MergesortSpec.scala).
 
 
 # Limitations of Join Calculus 
@@ -930,7 +1008,7 @@ The function `wait_forever` will return a blocking molecule injector that will b
 
 TODO
 
-# Reaction constructors
+## Reaction constructors
 
 TODO
 
