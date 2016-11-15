@@ -147,19 +147,24 @@ object JoinRun {
 
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
   abstract sealed class AbsMol(name: Option[String]) {
-    var joinDef: Option[JoinDefinition] = None
-
-    def setLogLevel(logLevel: Int): Unit = { joinDef.foreach(o => o.logLevel = logLevel) }
+    protected var joinDef: Option[JoinDefinition] = None
 
     def getName: String = name.getOrElse(super.toString)
+
+    protected def errorNoJoinDef =
+      new ExceptionNoJoinDef(s"Molecule ${this} does not belong to any join definition")
+
+    def setLogLevel(logLevel: Int): Unit =
+      joinDef.map(o => o.logLevel = logLevel).getOrElse(throw errorNoJoinDef)
+
+    def logSoup: String = joinDef.map(o => o.printBag).getOrElse(throw errorNoJoinDef)
   }
 
   // Asynchronous molecule. This is an immutable class.
   private[JoinRun] final class AsynMol[T: ClassTag](name: Option[String] = None) extends AbsMol(name) with Function1[T, Unit] {
     def apply(v: T): Unit =
       // Inject an asynchronous molecule.
-      joinDef.map(_.injectAsync[T](this, AsyncMolValue(v)))
-        .getOrElse(throw new ExceptionNoJoinDef(s"Molecule ${this} does not belong to any join definition"))
+      joinDef.map(_.injectAsync[T](this, AsyncMolValue(v))).getOrElse(throw errorNoJoinDef)
 
     override def toString: String = getName
 
@@ -223,7 +228,7 @@ object JoinRun {
     }
   }
 
-  // Synchronous molecule injector. This is an immutable value.
+  // Synchronous molecule injector. This is an immutable class.
   private[JoinRun] final class SynMol[T: ClassTag, R](name: Option[String] = None) extends AbsMol(name) with Function1[T, R] {
 
     def apply(v: T): R = {
