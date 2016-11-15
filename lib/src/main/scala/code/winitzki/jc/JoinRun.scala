@@ -140,14 +140,14 @@ object JoinRun {
   }
 
   private sealed class ExceptionInJoinRun(message: String) extends Exception(message)
-  private final class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
+  private[JoinRun] final class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
   private final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
   private final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
   private final class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
 
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
   abstract sealed class AbsMol(name: Option[String]) {
-    protected var joinDef: Option[JoinDefinition] = None
+    private[JoinRun] var joinDef: Option[JoinDefinition] = None
 
     def getName: String = name.getOrElse(super.toString)
 
