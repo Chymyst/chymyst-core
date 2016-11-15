@@ -125,7 +125,6 @@ object JoinRun {
   }
 
   // Container for molecule values
-  // TODO: this is ugly - refactor!
   private sealed trait AbsMolValue[T] {
     def getValue: T
 
