@@ -197,20 +197,29 @@ decr()+decr() // prints “new value is 99” and then “new value is 98"
 
 `JoinRun` has a simple debugging facility.
 
-For a given molecule, there is always a single join definition (JD) to which this molecule “belongs” - that is, the JD where this molecule is consumed as input molecule by some reactions.
-This JD is accessed as `.joinDef` method on the molecule injector.
-Additionally:
-- the user can see the input molecules used by reactions in that JD;
-- using the `.printBag` method, the user can see which molecules are currently present in the soup owned by that JD (i.e. all molecules that are inputs in it).
+For a given molecule, there must exist a single join definition (JD) to which this molecule “belongs” - that is, the JD where this molecule is consumed as input molecule by some reactions.
 
-After executing the code from the example above, here is how we could use the debugging facility:
+Sometimes, reactions are specified incorrectly.
+For debugging purposes, we can use the `logSoup` method on the molecule injector.
+This method will return a string showing which molecules are currently present in the soup owned by that JD (i.e. all molecules that are inputs in it) as well as see the input molecules used by reactions in that JD.
+
+After executing the code from the example above, here is how we could use this debugging facility:
 
 ```scala
-counter.joinDef.get // returns Join{counter + incr => ...; counter + decr => ...}
-
-counter.joinDef.get.printBag // returns “Join{counter + incr => ...; counter + decr => ...}
-                             // Molecules: counter(98)"
+counter.logSoup // returns “Join{counter + incr => ...; counter + decr => ...}
+// Molecules: counter(98)"
 ```
+
+Additionally, the user can set logging level on the JD.
+To do this, call `setLogLevel` on any molecule injector that belongs to that JD.
+
+```scala
+counter.setLogLevel(2)
+```
+
+After this, verbosity level 2 is set on all reactions involving the JD to which `counter` belongs.
+This might result in a large printout.
+So this facility should be used only for debugging.
 
 ## Common errors
 
@@ -224,9 +233,7 @@ val x = jA[Int]
 x(100) // java.lang.Exception: Molecule x does not belong to any join definition
 ```
 
-The same error will occur if such injection is attempted inside a reaction body.
-
-If a molecule does not yet belong to any JD, its `.joinDef` method will return `None`. 
+The same error will occur if such injection is attempted inside a reaction body, or if we try to debug the JD using `logSoup`.
 
 The correct way of using `JoinRun` is first to define molecules, then to create a JD where these molecules are used as inputs for reactions, and only then to start injecting these molecules.
 

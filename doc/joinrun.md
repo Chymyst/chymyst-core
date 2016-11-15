@@ -20,19 +20,196 @@ The implementation in `JoinRun` is based on ideas from Jiansen He's `ScalaJoin` 
 
 # Main structures
 
+Join Calculus is implemented using molecule injectors, reactions, and join definitions.
+
+There are only two primitive operations:
+
+- define reactions using a join definition
+- inject molecules using molecule injectors
+
 ## Molecule injectors
 
-## Reactions
+Molecule injectors are instances of one of the two classes:
+- `JA[T]` for non-blocking molecules carrying a value of type `T`
+- `JS[T, R]` for blocking molecules carrying a value of type `T` and returning a value of type `R`
 
-## Join definitions
+Due to limitations of Scala macros, the users of `JoinRun` need to define molecule injectors separately as local values.
 
-# Usage
+```scala
+val x = new JA[Int]
+val y = new JS[Unit, String]
+```
+
+Optionally, molecule injectors can carry a name.
+This name will be used when printing the molecule for debugging purposes.
+Otherwise, names have no effect on runtime behavior.
+
+Helper functions are available for assigning names to injectors:
+
+```scala
+val x = ja[Int]("x")
+val y = js[Unit, String]("y")
+```
+
+Alternatively, a macro can be used to further reduce the boilerplate:
+
+```scala
+val x = jA[Int] // same as ja[Int]("x")
+val y = jS[Unit, String] // same as js[Unit, String]("y")
+```
 
 ## Injecting molecules
 
-## Debugging reactions by tracing
+Molecule injectors inherit from `Function1` and can be used as functions with one argument.
+Calling these functions will perform the side-effect of injecting the molecule into the soup that pertains to the join definition to which the molecule belongs.
 
-## User-defined thread pools
+```scala
+... JA[T] extends Function1[T, Unit]
+... JS[T, R] extends Function1[T, R]
+
+val x = new JA[Int] // define injector
+
+x(123) // inject molecule with value 123
+
+val y = new JA[Unit] // define injector
+
+y() // inject molecule with unit value
+
+val f = new JS[Int, String]
+
+val result = f(10) // result is of type String
+```
+
+It is a runtime error to inject molecules that do not yet belong to any join definition.
+
+## Debugging
+
+Molecule injectors have the method `setLogLevel`, which is by default set to 0.
+Positive values will lead to more debugging output.
+
+The log level will affect the entire join definition to which the molecule belongs.
+
+```scala
+val x = jA[Int]
+x.setLogLevel(2)
+```
+
+The method `logSoup` returns a string that represents the molecules currently present in the join definition to which the molecule belongs.
+
+```scala
+val x = ja[Int]("x")
+join(...)
+println(x.logSoup)
+```
+
+It is a runtime error to use `setLogLevel` or `logSoup` on molecules that do not yet belong to any join definition.
+
+## Reactions
+
+A reaction is an instance of class `Reaction`.
+It is created using the `run` method with a partial function syntax that resembles pattern-matching on molecule values:
+
+```scala
+val reaction1 = run { case a(x) + b(y) => a(x+y) }
+```
+
+Molecule injectors appearing within the pattern match (between `case` and  `=>`) are the **input molecules** of that reaction.
+Molecule injectors used in the reaction body (which is the Scala expression after `=>`) are the **output molecules** of that reaction.
+
+All input and output molecule injectors involved in the reaction must be already defined and visible in the local scope.
+(Otherwise, there will be a compile error.)
+
+Note: Although molecules with `Unit` type can be injected as `a()`, the pattern-matching syntax for those molecules must be `case a(_) + ... => ...` 
+
+### Blocking molecules in reactions
+
+Blocking molecules use a syntax that suggests the existence of a special pseudo-molecule that performs the reply action:
+
+```scala
+val a = new JA[Int] // non-blocking molecule
+val f = new JS[Int, String] // blocking molecule
+
+val reaction2 = run { case a(x) + f(y, r) => r(x.toString) + a(y) }
+
+val result = f(123) // result is of type String
+```
+
+In this reaction, the pattern-match on `f(y, r)` involves two pattern variables:
+- The pattern variable `y` is of type `Int` and matches the value carried by the injected molecule `f(123)`
+- The pattern variable `r` is of private type `SyncReplyValue[Int, String]` and matches and object that performs the reply action aimed at the caller of `f(123)`.
+Calling it as `r(x.toString)` will perform the reply action, - that is, will send the string back to the calling process, unblocking the call to `f(123)` in that process.
+
+This reply action must be performed as `r(...)` in the reaction body exactly once, and cannot be performed afterwards.
+
+It is a runtime error to write a reaction that either does not inject the reply action or uses it more than once.
+
+Also, the reply action object should not be used outside the reaction body.
+(This will have no effect.)
+
+## Join definitions
+
+Join definitions activate molecules and reactions:
+Until a join definition is made, molecules cannot be injected, and no reactions will start.
+
+Join definitions are made with the `join` method:
+
+```scala
+join(reaction1, reaction2, reaction3, ...)
+```
+
+A join definition can take any number of reactions.
+With Scala's `:_*` syntax, a join definition can take a sequence of reactions computed at runtime.
+
+All reactions listed in the join definition will be activated at once.
+The join definition will then "own" the molecules used as inputs to any of these reactions.
+Conversely, we will say that those molecules are consumed in this join definition, or that they belong to it.
+
+Here is an example of a join definition:
+
+```scala
+val c = ja[Int]("counter")
+val d = ja[Unit]("decrement")
+val i = ja[Unit]("increment")
+val f = ja[Unit]("finished")
+
+join(
+  run { case c(x) + d(_) => c(x-1); if (x==1) f() },
+  run { case c(x) + i(_) => c(x+1) }
+)
+```
+
+In this join definition, the input molecules are `c`, `d`, and `i`, while the output molecules are `c` and `f`.
+We say that the molecules `c`, `d`, and `i` are consumed in this join definition, or that they belong to it.
+
+Note that `f` is not an input molecule here; presumably, there will be another join definition made elsewhere that binds `f`.
+
+It is perfectly acceptable for a reaction to inject a molecule such as `f` that is not consumed by any reaction in this join definition.
+If we forget to write any join definition that consumes `f`, it will be a runtime error to inject `f`.
+However, in the present case `f` will be injected only if `x==1`.
+So, it will be not necessarily easy to detect this error at runtime.
+
+An important requirement for join definitions is that any given molecule must belong to one and only one join definition.
+It is a runtime error to use separate join definitions for reactions that consume the same molecule.
+An example of this error would be writing the previous join definition as two separate ones:
+
+```scala
+val c = ja[Int]("counter")
+val d = ja[Unit]("decrement")
+val i = ja[Unit]("increment")
+val f = ja[Unit]("finished")
+
+join(
+  run { case c(x) + d(_) => c(x-1); if (x==1) f() }
+)
+
+join(
+  run { case c(x) + i(_) => c(x+1) }
+) // runtime error: "c" already belongs to another join definition
+```
+
+# Thread pools
+
+## Creating a custom thread pools
 
 TODO
 
@@ -40,10 +217,9 @@ TODO
 
 TODO
 
-## Fault tolerance
+## Fault tolerance and exceptions
 
 TODO
-
 
 # Limitations in the current version of `JoinRun`
 
@@ -63,6 +239,3 @@ Features that appear to be useful:
 - distributed execution of thread pools
 - timeouts on blocking molecules
 - interoperability with futures, promises, streams, or other async frameworks
-
-
-# TODO: write the rest of the library documentation
