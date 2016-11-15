@@ -26,7 +26,7 @@ class JThreadPoolExecutor(threads: Int = 1) extends JThreadPool {
 }
 */
 /* */
-
+// A pool of execution threads, or another way of running tasks (could use actors or whatever else).
 trait Pool {
   def shutdownNow(): Unit
 
@@ -35,7 +35,7 @@ trait Pool {
   def apply(r: ReactionBody): Reaction = Reaction(r, this)
 }
 
-private[jc] class JActor extends Actor {
+private[jc] class WorkerActor extends Actor {
 
 
   def receive = {
@@ -52,8 +52,8 @@ private[jc] class JActor extends Actor {
 
 private[jc] class ActorExecutor(threads: Int = 8) extends Pool {
 
-  val actorSystem = ActorSystem("JActorExecutor")
-  val router = actorSystem.actorOf(SmallestMailboxPool(threads).props(Props[JActor]), name = "workerRouter")
+  val actorSystem = ActorSystem("ActorSystemForPoolExecutor")
+  val router = actorSystem.actorOf(SmallestMailboxPool(threads).props(Props[WorkerActor]), name = "workerRouter")
 //  val router = actorSystem.actorOf(Props[JActor].withRouter(SmallestMailboxPool(threads)), name = "workerRouter")
 
   override def shutdownNow(): Unit = {

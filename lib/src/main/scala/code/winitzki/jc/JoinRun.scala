@@ -89,7 +89,7 @@ object JoinRun {
   type JA[T] = AsynMol[T]
   type JS[T,R] = SynMol[T,R]
 
-  // Users will call these functions to create new molecules (a.k.a. "molecule injectors").
+  // Users will call these functions to create new molecule injectors.
   def ja[T: ClassTag] = new AsynMol[T](None)
   def js[T: ClassTag,R] = new SynMol[T,R](None)
   def ja[T: ClassTag](name: String) = new AsynMol[T](Some(name))
