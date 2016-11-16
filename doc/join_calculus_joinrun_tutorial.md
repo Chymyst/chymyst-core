@@ -1017,6 +1017,16 @@ TODO
 
 ## Reaction constructors
 
+Reactions in Join Calculus are static - they must be specified at compile time and cannot be modified at runtime.
+`JoinRun` goes beyond this limitation, since reactions in `JoinRun` are values created at run time.
+For instance, we could create an array of molecules and reactions, where the size of the array is determined at run time.
+
+However, reactions will not be activated until a join definition is made, which can be done only once.
+(We cannot write a second join definition using an input molecule that already belongs to a previous join definition.)
+For this reason, join definitions in `JoinRun` are still static in an important sense.
+
+Nevertheless, a trick can help us define new reactions at runtime. 
+
 TODO
 
 # Other tutorials on Join Calculus

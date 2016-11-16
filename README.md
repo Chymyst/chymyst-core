@@ -115,10 +115,10 @@ The counter is initialized to the number we specify.
     // Define the logic of the "non-blocking counter".
     def makeCounter(initCount: Int)
                   : (JA[Unit], JA[Unit], JS[Unit, Int]) = {
-      val counter = ja[Int] // non-blocking channel with integer value
-      val incr = ja[Unit] // non-blocking channel with empty value
-      val decr = ja[Unit] // non-blocking channel with empty value
-      val get = js[Unit, Int] // blocking channel returning integer value
+      val counter = ja[Int] // non-blocking molecule with integer value
+      val incr = ja[Unit] // non-blocking molecule with empty value
+      val decr = ja[Unit] // non-blocking molecule with empty value
+      val get = js[Unit, Int] // blocking molecule returning integer value
     
       join {
         run { counter(n) + incr(_) => counter(n+1) },
@@ -126,12 +126,12 @@ The counter is initialized to the number we specify.
         run { counter(n) + get(_,res) => counter(n) + res(n) }
       }
     
-      counter(initCount) // inject a single "counter(initCount)" message
+      counter(initCount) // inject a single "counter(initCount)" molecule
       
-      (incr, decr, get) // return the channels
+      (incr, decr, get) // return the molecule injectors
     }
 
-    // make a new counter: get the channels
+    // make a new counter: get the injectors
     val (inc, dec, get) = makeCounter(100)
     
     // use the counter: we can be on any thread,
@@ -195,7 +195,7 @@ The library offers some debugging facilities:
     Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(2) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(2)
 
     */
-    println(counter.joinDef.get.printBag)
+    println(counter.logSoup)
     /* This prints:
      Join{counter + decr => ...; counter + get/S => ...}
      Molecules: counter(2)
@@ -212,7 +212,7 @@ The library offers some debugging facilities:
     Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 548
     Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(0) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(0), decr()
     */
-    println(counter.joinDef.get.printBag)
+    println(counter.logSoup)
     /* This prints:
      Join{counter + decr => ...; counter + get/S => ...}
      Molecules: counter(0), decr()
