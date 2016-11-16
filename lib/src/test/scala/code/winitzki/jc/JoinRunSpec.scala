@@ -20,19 +20,16 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val b = ja[Unit]("b")
     val c = ja[Unit]("c")
 
-    a.joinDef.isEmpty shouldEqual true
     a.toString shouldEqual "a"
 
     join(&{ case a(_) + b(_) + c(_) => })
-
-    a.joinDef.isEmpty shouldEqual false
-    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
 
     a()
     a()
     b()
     waitSome()
-    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nMolecules: a() * 2, b()"
+    a.logSoup shouldEqual "Join{a + b + c => ...}\nMolecules: a() * 2, b()"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at end of reaction" in {
@@ -42,8 +39,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     join(&{ case b(_) + c(_) + a(Some(x)) => })
 
-    a.joinDef.isEmpty shouldEqual false
-    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
@@ -53,8 +49,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     join(&{ case b(_) + a(Some(x)) + c(_) => })
 
-    a.joinDef.isEmpty shouldEqual false
-    a.joinDef.get.printBag shouldEqual "Join{a + b => ...}\nNo molecules"  // this is the wrong result
+    a.logSoup shouldEqual "Join{a + b => ...}\nNo molecules"  // this is the wrong result
     // when the problem is fixed, this test will have to be rewritten
   }
 
@@ -65,8 +60,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     join(&{ case b(_) + a(None) + c(_) => })
 
-    a.joinDef.isEmpty shouldEqual false
-    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with non-simple default pattern-matching in the middle of reaction" in {
@@ -76,10 +70,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     join(&{ case b(_) + a(List()) + c(_) => })
 
-    a.joinDef.isEmpty shouldEqual false
-    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
-
 
   it should "define a reaction with correct inputs with empty option pattern-matching at start of reaction" in {
     val a = ja[Option[Int]]("a")
@@ -88,8 +80,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     join(&{ case a(None) + b(_) + c(_) => })
 
-    a.joinDef.isEmpty shouldEqual false
-    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant default pattern-matching at start of reaction" in {
@@ -99,8 +90,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     join(&{ case a(0) + b(_) + c(_) => })
 
-    a.joinDef.isEmpty shouldEqual false
-    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant non-default pattern-matching at start of reaction" in {
@@ -110,8 +100,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     join(&{ case a(1) + b(_) + c(_) => })
 
-    a.joinDef.isEmpty shouldEqual false
-    a.joinDef.get.printBag shouldEqual "Join{a => ...}\nNo molecules" // this is the wrong result
+    a.logSoup shouldEqual "Join{a => ...}\nNo molecules" // this is the wrong result
     // when the problem is fixed, this test will have to be rewritten
   }
 
@@ -122,8 +111,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     join(&{ case a(None) + b(_) + c(_) => })
 
-    a.joinDef.isEmpty shouldEqual false
-    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant non-default pattern-matching at end of reaction" in {
@@ -133,8 +121,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     join(&{ case b(_) + c(_) + a(1) => })
 
-    a.joinDef.isEmpty shouldEqual false
-    a.joinDef.get.printBag shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at start of reaction" in {
@@ -144,8 +131,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     join(&{ case a(Some(x)) + b(_) + c(_) => })
 
-    a.joinDef.isEmpty shouldEqual false
-    a.joinDef.get.printBag shouldEqual "Join{a => ...}\nNo molecules" // this is the wrong result
+    a.logSoup shouldEqual "Join{a => ...}\nNo molecules" // this is the wrong result
     // when the problem is fixed, this test will have to be rewritten
   }
 
@@ -276,6 +262,22 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val thrown = intercept[Exception] {
       val a = ja[Unit]("x")
       a()
+    }
+    thrown.getMessage shouldEqual "Molecule x does not belong to any join definition"
+  }
+
+  it should "throw exception when trying to log soup of a blocking molecule that has no join" in {
+    val thrown = intercept[Exception] {
+      val a = js[Unit,Unit]("x")
+      a.logSoup
+    }
+    thrown.getMessage shouldEqual "Molecule x/S does not belong to any join definition"
+  }
+
+  it should "throw exception when trying to log soup a non-blocking molecule that has no join" in {
+    val thrown = intercept[Exception] {
+      val a = ja[Unit]("x")
+      a.logSoup
     }
     thrown.getMessage shouldEqual "Molecule x does not belong to any join definition"
   }
