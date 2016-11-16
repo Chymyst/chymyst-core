@@ -9,6 +9,7 @@ $ sbt
 */
 
 object BuildSettings {
+
   val buildSettings = Defaults.coreDefaultSettings ++ Seq(
     organization := "code.winitzki",
     version := "0.0.6",
@@ -27,7 +28,9 @@ object MyBuild extends Build {
     "joinrun",
     file("."),
     settings = buildSettings ++ Seq(
-      libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.0" % "test",
+      libraryDependencies ++= Seq(
+        "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+      ),
       run <<= run in Compile in lib)
   ) aggregate(macros, lib)
 
@@ -51,7 +54,11 @@ object MyBuild extends Build {
         }
       },
       libraryDependencies ++= Seq(
-        "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+        "org.scalatest" %% "scalatest" % "3.0.0" % "test",
+
+  // this is necessary only if we want to debug macros;
+  // the project does not actually depend on scala-compiler.
+        "org.scala-lang" % "scala-compiler" % scalaVersion.value
       )
     )
   ) dependsOn lib
