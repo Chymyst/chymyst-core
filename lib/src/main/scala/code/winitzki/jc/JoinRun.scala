@@ -85,14 +85,52 @@ import scala.reflect.ClassTag
 
 object JoinRun {
 
-  // These type aliases are intended for users.
+  /**
+    * Type alias, for the type of a non-blocking molecule injector.
+    *
+    * @tparam T the type of value carried by the corresponding molecule
+    */
   type JA[T] = AsynMol[T]
+
+  /**
+    * Type alias, for the type of a blocking molecule injector.
+    *
+    * @tparam T the type of value carried by the corresponding molecule
+    * @tparam R the type of value received back from blocking call
+    */
   type JS[T,R] = SynMol[T,R]
 
-  // Users will call these functions to create new molecule injectors.
+  /**
+    * Convenience function: declares a new non-blocking molecule injector.
+    *
+    * @tparam T the type of elements of the collection
+    * @return a new non-blocking molecule injector with no name
+    */
   def ja[T: ClassTag] = new AsynMol[T](None)
+  /**
+    * Convenience function: declares a new blocking molecule injector.
+    *
+    * @tparam T the type of elements of the collection
+    * @tparam R the type of value received back from blocking call
+    * @return a new blocking molecule injector with no name
+    */
   def js[T: ClassTag,R] = new SynMol[T,R](None)
+  /**
+    * Convenience function: declares a new non-blocking molecule injector.
+    *
+    * @param name the name of the molecule (used for debugging only)
+    * @tparam T the type of elements of the collection
+    * @return a new non-blocking molecule injector with specified name
+    */
   def ja[T: ClassTag](name: String) = new AsynMol[T](Some(name))
+  /**
+    * Convenience function: declares a new non-blocking molecule injector.
+    *
+    * @param name the name of the molecule (used for debugging only)
+    * @tparam T the type of elements of the collection
+    * @tparam R the type of value received back from blocking call
+    * @return a new blocking molecule injector with specified name
+    */
   def js[T: ClassTag,R](name: String) = new SynMol[T,R](Some(name))
 
   // Wait until the join definition to which `molecule` belongs becomes quiescent, then inject `callback`.
