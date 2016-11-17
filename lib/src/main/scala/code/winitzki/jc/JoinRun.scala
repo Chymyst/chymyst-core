@@ -142,21 +142,45 @@ object JoinRun {
     }
   }
 
+  /**
+    * Convenience syntax: users can write a(x)+b(y) to inject several molecules at once.
+    * (However, the molecules are injected one by one in the present implementation.)
+    *
+    * @param x the first injected molecule
+    * @return a class with a + operator
+    */
   implicit final class JoinableUnit(x: Unit) {
-    def +(n: Unit): Unit = () // just make sure they are both evaluated
+    def +(n: Unit): Unit = ()
   }
 
+  /**
+    * Convenience syntax: users can write a(x)+b(y) in reaction patterns.
+    * Pattern-matching can be extended to molecule values as well, for example
+    * { case a(MyCaseClass(x,y)) + b(Some(z)) => ... }
+    *
+    * @return an unapply operation
+    */
   object + {
     def unapply(attr:Any) = Some(attr,attr)
   }
 
-  // Users will create reactions using these functions.
-  // Examples: run { a(_) => ... }
-  // run { a (_) => ...} onThreads jPool
-
+  /**
+    * Users will define reactions using this function.
+    * Examples: run { a(_) => ... }
+    * run { a (_) => ...} onThreads jPool
+    *
+    * @param body The body of the reaction. This must be a partial function with pattern-matching on molecules.
+    * @return A reaction value, to be used later in [[JoinRun#join]].
+    */
   def run(body: ReactionBody): Reaction = Reaction(body, defaultReactionPool)
 
-  // This is an alias for JoinRun.run, to be used in case `run` clashes with another name imported into the local scope (e.g. in  scalatest).
+  //
+  /**
+    * This is an alias for [[JoinRun#run]], to be used in case [[JoinRun#run]] clashes
+    * with another name imported into the local scope (e.g. in  scalatest).
+    * Examples: & { a(_) => ... }
+    * & { a (_) => ...} onThreads jPool
+    */
   object & {
     // Users will create reactions using these functions.
     def apply(body: ReactionBody): Reaction = Reaction(body, defaultReactionPool)
@@ -333,8 +357,14 @@ object JoinRun {
     override def toString = s"${inputMoleculesUsed.toSeq.map(_.toString).sorted.mkString(" + ")} => ..."
   }
 
-  // Users will call join(...) in order to introduce a new Join Definition (JD).
-  // All input and output molecules for this JD should have been already defined, and inputs should not yet have been used in any other JD.
+  /** Create a join definition with one or more reactions.
+    * All input and output molecules in reactions used in this JD should have been
+    * already defined, and input molecules should not already belong to another JD.
+    *
+    * @param rs One or more reactions of type [[JoinRun#Reaction]]
+    * @param jReactionPool Thread pool for running new reactions.
+    * @param jJoinPool Thread pool for use when making decisions to schedule reactions.
+    */
   def join(rs: Reaction*)
           (implicit jReactionPool: ReactionPool,
            jJoinPool: JoinPool): Unit = {
