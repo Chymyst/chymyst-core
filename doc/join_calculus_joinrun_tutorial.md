@@ -1011,23 +1011,57 @@ def wait_forever: jS[Unit, Unit] = {
 
 The function `wait_forever` will return a blocking molecule injector that will block forever, never returning any value. 
 
-## Working with an external asynchronous APIs
-
-TODO
-
 ## Reaction constructors
 
 Reactions in Join Calculus are static - they must be specified at compile time and cannot be modified at runtime.
 `JoinRun` goes beyond this limitation, since reactions in `JoinRun` are values created at run time.
 For instance, we could create an array of molecules and reactions, where the size of the array is determined at run time.
 
-However, reactions will not be activated until a join definition is made, which can be done only once.
+However, reactions will not be activated until a join definition is made, which we can only do once.
 (We cannot write a second join definition using an input molecule that already belongs to a previous join definition.)
-For this reason, join definitions in `JoinRun` are still static in an important sense.
 
-Nevertheless, a trick can help us define new reactions at runtime. 
+For this reason, join definitions in `JoinRun` are still static in an important sense.
+For instance, when we receive a molecule injector `c` as a result of some computation, the reactions that can start by consuming `c` are already fixed.
+We cannot disable these reactions or add another reaction that will also consume `c`.
+
+Nevertheless, we can achieve more flexibility in definition reactions at runtime.
+There are several tricks we can use:
+- define new reactions by a closure that takes arguments and returns new molecule injectors;
+- pass molecule injectors as values on other molecules;
+- define molecules that carry functions as values, and make these functions manipulate other molecule injectors.
 
 TODO
+
+## Working with an external asynchronous APIs
+
+Suppose we are working with an external library (such as HTTP or database access) that gives us asynchronous functionality via Scala's `Future` values.
+In order to use such libraries together with Join Calculus, we need to be able to convert between `Future`s and molecules.
+The `JoinRun` library provides a basic implementation for this functionality.
+
+The first situation is when the external library produces a value `fut : Future[T]`, and we would like to automatically inject a certain molecule `m` when this `Future` is successfully resolved.
+This is as easy as doing a `fut.map( m(123) )` on the future.
+The library has helper functions that add implicit methods to `Future` in order to reduce boilerplate in the typical cases:
+
+- the molecule needs to carry the same value as the result value of the future:
+`fut & m`
+- the molecule needs to carry a different value: `fut + m(123)`
+
+The second situation is when we have already defined some reactions that will eventually inject a molecule with a result value, and we would like to create a `Future` value that we can pass to the external library.
+
+This is implemented by the `Library.moleculeFuture` method.
+This method will create a new molecule and a new future value.
+We can then use this molecule as output in some reaction.
+
+```scala
+val a = jA[Int]
+
+val (c: JA[String], fut: Future[String]) = moleculeFuture[String]
+// injecting the molecule c(...) resolves "fut"
+
+join( run { case a(x) => c("finished") } ) // our reactions that eventually inject "c"
+
+ExternalLibrary.consumeUserFuture(fut) // external library takes our value "fut" and does something with it
+```
 
 # Other tutorials on Join Calculus
 
