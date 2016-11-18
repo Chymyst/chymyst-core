@@ -128,6 +128,13 @@ object Macros {
 
 */
 
+    /** Check whether the reaction code is of the form that we can recognize and parse.
+      *
+      * @param term Reaction expression, which must a partial function of the form { case a(x) + b(y) + c(z) => ... }
+      * @return Some("error message") if the expression is invalid. Otherwise, if reaction is valid, return None
+      */
+    def isInvalidReaction(term: Tree): Option[String] = None
+
     object GatherInfo extends Traverser {
       var info: mutable.ArrayBuffer[(Any, PatternFlag)] = mutable.ArrayBuffer()
 
@@ -139,6 +146,7 @@ object Macros {
       }
       // TODO: gather info about all "apply" operations originating from molecules or reply actions
       // TODO: filter by type signature of t, check consistency of the type of t vs. one or two binders used
+      // TODO: support multiple "case" expressions, check consistency (all case expressions involve the same set of molecules)
       override def traverse(tree: c.universe.Tree): Unit = {
         tree match {
           case UnApply(Apply(Select(t@Ident(TermName(name)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) =>
@@ -157,8 +165,12 @@ object Macros {
 //    c.abort(c.enclosingPosition, "")
     // determine which variables are captured by closure?
     // determine types of symbols that use .apply
+    val error = isInvalidReaction(arg.tree)
+
     GatherInfo.traverse(arg.tree)
+
     println(s"Gathered info: ${GatherInfo.info}")
+
     val s = showRaw(arg)
     q"$s"
   }

@@ -16,7 +16,7 @@ TODO and roadmap:
 
  3 * 1 - make helper functions to create new single-thread pools using a given thread or a given executor/handler
 
- 4 * 2 - make helper functions to create an actor-based pool
+ 4 * 2 - make helper functions to create an actor-based pool, or a pool with autoresizing - then can use "blocking(_)", otherwise the fixed thread pool will do nothing about "blocking(_)".
 
  5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
 
@@ -37,8 +37,6 @@ TODO and roadmap:
 
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic.
 
- 4 * 3 - add javadoc for the library
-
  5 * 5 - try to inspect the reaction body using a macro. Can we match on q"{ case a(_) + ... => ... }"?
  Can we return the list of input molecules and other info - e.g. whether the pattern-match
  is nontrivial in this molecule, whether blocking molecules have a reply matcher specified,
@@ -49,13 +47,7 @@ TODO and roadmap:
  2 * 3 - understand the "reader-writer" example
 
  3 * 2 - add per-molecule logging; log to file or to logger function
- 
- 5 * 5 - implement special handling for molecules with Future-wrapped values (inject in the future).
- Transform JA[Future[T]] => Future[JA[T]] and inject JA[T] when the future resolves.
- More generally, consider a good way of reconciling asynchronous programming and JC. The use case for this is
- a legacy API that forces async constructs on us (Future, stream, etc.), and we would like to avoid blocking
- any threads but instead to combine JC and asynchronous thread multiplexing implicit in the given async construct.
- 
+
  4 * 5 - implement multiple injection construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start.
  
  4 * 5 - allow several reactions to be scheduled simultaneously out of the same join definition, when this is possible. Avoid locking the entire bag? - perhaps, partition it, based on join definition information gleaned using a macro.

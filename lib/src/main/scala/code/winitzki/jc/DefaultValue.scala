@@ -50,6 +50,16 @@ object DefaultValue extends LowerPriorityImplicits {
 */
 
 object DefaultValue {
+
+  /** A stopgap measure to improve the functionality of pattern-matching with Unapply.
+    * This will be supplemented or replaced by more advanced macro functionality.
+    *
+    * @tparam T
+    * @return A "reasonable" default value of type T.
+    *         Returns 0 for numbers, empty string for strings, None for option,
+    *         and empty collections for sets, sequences, and maps.
+    *         Will return null for other types.
+    */
   def defaultValue[T: ClassTag]: T = {
     val cTag = implicitly[ClassTag[T]].runtimeClass.toString
     cTag match {
