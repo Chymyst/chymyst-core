@@ -204,7 +204,7 @@ We say that the molecules `c`, `d`, and `i` are consumed in this join definition
 
 Note that `f` is not an input molecule here; presumably, there will be another join definition made elsewhere that binds `f`.
 
-It is perfectly acceptable for a reaction to inject a molecule such as `f` that is not consumed by any reaction in this join definition.
+It is perfectly acceptable for a reaction to inject an output molecule such as `f` that is not consumed by any reaction in this join definition.
 If we forget to write any join definition that consumes `f`, it will be a runtime error to inject `f`.
 However, in the present case `f` will be injected only if `x==1`.
 So, it will be not necessarily easy to detect this error at runtime.
@@ -238,9 +238,9 @@ Each join definition is a local value and is separate from all other join defini
 So, in principle all join definitions can perform their tasks fully concurrently and independently from each other.
 
 In practice, there are situations where we need to force certain reactions to run on certain threads.
-For example, user interface (UI) programming will allocate one thread for all UI-related operations such as updating the screen and interacting with the user.
+For example, user interface (UI) programming frameworks typically allocate one thread for all UI-related operations, such as updating the screen and callbacks for interacting with the user.
 In these environments, it is a non-negotiable requirement to be able to control which threads are used by which tasks.
-All long-running tasks must run on non-UI threads, while screen updates must run on the UI thread.
+All long-running tasks must run on non-UI threads, while all screen updates must run on the UI thread.
 
 To facilitate this control, `JoinRun` implements the thread pool feature.
 
@@ -286,9 +286,12 @@ The following syntax is used to specify fault tolerance in reactions:
 ```scala
 join(
   run { case a(x) + b(y) => ... }.withRetry, // will be retried
-  run { case b(y) => ...} // will not be retried
+  run { case b(y) => ...} // will not be retried - this is the default
 )
 ```
+
+As a rule, the user cannot catch an exception thrown in a different thread.
+Therefore, it may be advisable not to use exceptions within reactions.
 
 # Limitations in the current version of `JoinRun`
 
@@ -306,5 +309,4 @@ Features that appear to be useful:
 - nonlinear patterns
 - injecting many molecules at once
 - distributed execution of thread pools
-- timeouts on blocking molecules
-- interoperability with futures, promises, streams, or other async frameworks
+- interoperability with streams or other async frameworks (futures already done)
