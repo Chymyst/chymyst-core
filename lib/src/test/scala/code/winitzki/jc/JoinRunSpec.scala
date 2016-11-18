@@ -29,6 +29,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     a()
     b()
     waitSome()
+    waitSome()
     a.logSoup shouldEqual "Join{a + b + c => ...}\nMolecules: a() * 2, b()"
   }
 
@@ -410,7 +411,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
-  it should "complete the task even if processes will crash with fixed probability" in {
+  it should "resume fault-tolerant reactions by retrying even if processes crash with fixed probability" in {
     val n = 20
 
     val probabilityOfCrash = 0.5
@@ -422,8 +423,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     join(
       & { case c(x) + d(_) =>
-        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's ok, ignore this)")
-      } onThreads tp,
+        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
+      }.withRetry onThreads tp,
       & { case c(x) + g(_, r) => c(x) + r(x) }
     )
     c(n)

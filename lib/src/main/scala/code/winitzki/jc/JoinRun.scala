@@ -185,8 +185,8 @@ object JoinRun {
     override def getValue: T = v
   }
 
-  private final case class SyncMolValue[T,R](jsv: SyncReplyValue[T,R]) extends AbsMolValue[T] {
-    override def getValue: T = jsv.v
+  private final case class SyncMolValue[T,R](v: T, syncReplyValue: SyncReplyValue[R]) extends AbsMolValue[T] {
+    override def getValue: T = v
   }
 
   private sealed class ExceptionInJoinRun(message: String) extends Exception(message)
@@ -210,7 +210,11 @@ object JoinRun {
     def logSoup: String = joinDef.map(o => o.printBag).getOrElse(throw errorNoJoinDef)
   }
 
-  // Asynchronous molecule. This is an immutable class.
+  /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a join definition.
+    *
+    * @param name Optional name of the molecule, used for debugging only.
+    * @tparam T Type of the value carried by the molecule.
+    */
   private[JoinRun] final class AsynMol[T: ClassTag](name: Option[String] = None) extends AbsMol(name) with Function1[T, Unit] {
     /** Inject a non-blocking molecule.
       *
@@ -249,11 +253,21 @@ object JoinRun {
     }
   }
 
-  // Reply-value wrapper for synchronous molecules. This is a mutable class.
-  private[JoinRun] final case class SyncReplyValue[T, R](
-    v: T,
+  /** Reply-value wrapper for synchronous molecules. This is a mutable class.
+    *
+    * @param result Reply value as Option[R]. Initially this is None, and it may be assigned at most once by the
+    *               "reply" action.
+    * @param semaphore Mutable semaphore reference. This is initialized only once when creating an instance of this
+    *                  class. The semaphore will be acquired when injecting the molecule and released by the "reply"
+    *                  action.
+    * @param errorMessage Optional error message, to notify the caller or to raise an exception when the user made a
+    *                     mistake in using the molecule.
+    * @param repliedTwice Will be set to "true" if the molecule received a reply more than once.
+    * @tparam R Type of the value replied to the caller via the "reply" action.
+    */
+  private[JoinRun] final case class SyncReplyValue[R](
     var result: Option[R] = None,
-    var semaphore: Semaphore = { val s = new Semaphore(0, true); s.drainPermits(); s },
+    private var semaphore: Semaphore = { val s = new Semaphore(0, true); s.drainPermits(); s },
     var errorMessage: Option[String] = None,
     var repliedTwice: Boolean = false
   ) {
@@ -281,14 +295,21 @@ object JoinRun {
     }
   }
 
-  // Synchronous molecule injector. This is an immutable class.
+  /** Blocking molecule class. Instance is mutable until the molecule is bound to a join definition.
+    *
+    * @param name Optional name of the molecule, used for debugging only.
+    * @tparam T Type of the value carried by the molecule.
+    * @tparam R Type of the value replied to the caller via the "reply" action.
+    */
   private[JoinRun] final class SynMol[T: ClassTag, R](name: Option[String] = None) extends AbsMol(name) with Function1[T, R] {
+
     /** Inject a blocking molecule and receive a value when the reply action is performed.
       *
       * @param v Value to be put onto the injected molecule.
       * @return The "reply" value.
       */
-    def apply(v: T): R = joinDef.map(_.injectSyncAndReply[T,R](this, SyncReplyValue[T,R](v)))
+    def apply(v: T): R =
+      joinDef.map(_.injectSyncAndReply[T,R](this, v, SyncReplyValue[R]()))
         .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this does not belong to any join definition"))
 
     /** Inject a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
@@ -297,12 +318,13 @@ object JoinRun {
       * @param v Value to be put onto the injected molecule.
       * @return Non-empty option if the reply was received; None on timeout.
       */
-    def apply(timeout: Long)(v: T): Option[R] = joinDef.map(_.injectSyncAndReplyWithTimeout[T,R](timeout, this, SyncReplyValue[T,R](v)))
-      .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this does not belong to any join definition"))
+    def apply(timeout: Long)(v: T): Option[R] =
+      joinDef.map(_.injectSyncAndReplyWithTimeout[T,R](timeout, this, v, SyncReplyValue[R]()))
+        .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this does not belong to any join definition"))
 
     override def toString: String = getName + "/S"
 
-    def unapply(arg: UnapplyArg): Option[(T, SyncReplyValue[T, R])] = arg match {
+    def unapply(arg: UnapplyArg): Option[(T, SyncReplyValue[R])] = arg match {
       // When we are gathering information about the input molecules, `unapply` will always return Some(...),
       // so that any pattern-matching on arguments will continue with null (since, at this point, we have no values).
       // Any pattern-matching will work unless null fails.
@@ -313,7 +335,7 @@ object JoinRun {
         else
           inputMoleculesProbe.add(this)
 
-        Some((defaultValue[T], null).asInstanceOf[(T, SyncReplyValue[T,R])]) // hack. This value will not be used.
+        Some((defaultValue[T], null).asInstanceOf[(T, SyncReplyValue[R])]) // hack. This value will not be used.
 
       // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
       // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
@@ -322,12 +344,12 @@ object JoinRun {
           v <- moleculeValues.getOne(this)
         } yield {
           usedInputs += (this -> v)
-          (v.getValue, null).asInstanceOf[(T, SyncReplyValue[T,R])]
+          (v.getValue, null).asInstanceOf[(T, SyncReplyValue[R])]
         }
 
       // This is used when running the chosen reaction.
       case UnapplyRun(moleculeValues) => moleculeValues.get(this).map {
-        case SyncMolValue(jsv) => (jsv.v, jsv).asInstanceOf[(T, SyncReplyValue[T, R])]
+        case SyncMolValue(v, srv) => (v, srv).asInstanceOf[(T, SyncReplyValue[R])]
         case m@_ =>
           throw new ExceptionNoWrapper(s"Internal error: molecule $this with no synchronous value wrapper around value $m")
       }
@@ -342,20 +364,51 @@ object JoinRun {
   private final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg
   private final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg
 
+  /** Type alias for reaction body.
+    *
+    */
   private[jc] type ReactionBody = PartialFunction[UnapplyArg, Unit]
 
-  // immutable class
-  private[jc] final case class Reaction(body: ReactionBody, threadPool: Pool) {
+  /** This class represents a reaction.
+    *
+    * @param body Partial function of type UnapplyArg => Unit
+    * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
+    */
+  private[jc] final case class Reaction(body: ReactionBody, threadPool: Pool, retry: Boolean = false) {
     lazy val inputMoleculesUsed: Set[AbsMol] = {
       val moleculesInThisReaction = UnapplyCheck(mutable.Set.empty)
       body.isDefinedAt(moleculesInThisReaction)
       moleculesInThisReaction.inputMolecules.toSet
     }
 
-    // Users will call this method to specify thread pools per reaction.
-    def onThreads(newThreadPool: Pool): Reaction = Reaction(body, newThreadPool)
+    /** Convenience method to specify thread pools per reaction.
+      *
+      * Example: run { case a(x) => ... } onThreads threadPool24
+      *
+      * @param newThreadPool A custom thread pool on which this reaction will be scheduled.
+      * @return New reaction value with the thread pool set.
+      */
+    def onThreads(newThreadPool: Pool): Reaction = Reaction(body, newThreadPool, retry)
 
-    override def toString = s"${inputMoleculesUsed.toSeq.map(_.toString).sorted.mkString(" + ")} => ..."
+    /** Convenience method to specify the "retry" option for a reaction.
+      *
+      * @return New reaction value with the "retry" flag set.
+      */
+    def withRetry: Reaction = Reaction(body, threadPool, retry = true)
+
+    /** Convenience method to specify the "no retry" option for a reaction.
+      * (This option is the default.)
+      *
+      * @return New reaction value with the "retry" flag unset.
+      */
+    def noRetry: Reaction = Reaction(body, threadPool, retry = false)
+
+    /** Convenience method for debugging.
+      *
+      * @return String representation of input molecules of the reaction.
+      */
+    override def toString = s"${inputMoleculesUsed.toSeq.map(_.toString).sorted.mkString(" + ")} => ...${if (retry)
+      "/R" else ""}"
   }
 
   /** Create a join definition with one or more reactions.
@@ -494,38 +547,44 @@ object JoinRun {
               case e: Exception =>
                 // Running the reaction body produced an exception. Note that the exception has killed a thread.
                 // We will now re-insert the input molecules. Hopefully, no side-effects or output molecules were produced so far.
-                usedInputs.foreach { case (mol, v) => injectAsync(mol, v) }
-                println(s"In $this: Reaction {$r} produced an exception. Input molecules ${moleculeBagToString(usedInputs)} were injected again. Exception trace will be printed now.")
+                val aboutMolecules = if (r.retry) {
+                  usedInputs.foreach { case (mol, v) => injectAsync(mol, v) }
+                  "were injected again"
+                }
+                else "were consumed and not injected again"
+
+                println(s"In $this: Reaction {$r} produced an exception. Input molecules ${moleculeBagToString(usedInputs)} $aboutMolecules. Exception trace will be printed now.")
                 e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
             }
-            // For any synchronous input molecules that have no reply, put an error message into them and reply with empty value to unblock the threads.
+            // For any blocking input molecules that have no reply, put an error message into them and reply with empty
+            // value to unblock the threads.
 
             def nonemptyOpt[S](s: Seq[S]): Option[Seq[S]] = if (s.isEmpty) None else Some(s)
 
             // Compute error messages here in case we will need them later.
-            val syncMoleculesWithNoReply = nonemptyOpt(usedInputs
-              .filter { case (_, SyncMolValue(jsv)) => jsv.result.isEmpty; case _ => false }
+            val blockingMoleculesWithNoReply = nonemptyOpt(usedInputs
+              .filter { case (_, SyncMolValue(_, syncReplyValue)) => syncReplyValue.result.isEmpty; case _ => false }
               .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
 
-            val messageNoReply = syncMoleculesWithNoReply map { s => s"Error: In $this: Reaction {$r} finished without replying to $s" }
+            val messageNoReply = blockingMoleculesWithNoReply map { s => s"Error: In $this: Reaction {$r} finished without replying to $s" }
 
-            val syncMoleculesWithMultipleReply = nonemptyOpt(usedInputs
-              .filter { case (_, SyncMolValue(jsv)) => jsv.repliedTwice; case _ => false }
+            val blockingMoleculesWithMultipleReply = nonemptyOpt(usedInputs
+              .filter { case (_, SyncMolValue(_, syncReplyValue)) => syncReplyValue.repliedTwice; case _ => false }
               .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
 
-            val messageMultipleReply = syncMoleculesWithMultipleReply map { s => s"Error: In $this: Reaction {$r} replied to $s more than once" }
+            val messageMultipleReply = blockingMoleculesWithMultipleReply map { s => s"Error: In $this: Reaction {$r} replied to $s more than once" }
 
             // We will report all errors to each synchronous molecule.
             val errorMessage = Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
-            val haveError = syncMoleculesWithNoReply.nonEmpty || syncMoleculesWithMultipleReply.nonEmpty
+            val haveError = blockingMoleculesWithNoReply.nonEmpty || blockingMoleculesWithMultipleReply.nonEmpty
 
             // Insert error messages into synchronous reply wrappers and release all semaphores.
             usedInputs.foreach {
-              case (_, SyncMolValue(jsv)) =>
+              case (_, SyncMolValue(_, syncReplyValue)) =>
                 if (haveError) {
-                  jsv.errorMessage = Some(errorMessage)
+                  syncReplyValue.errorMessage = Some(errorMessage)
                 }
-                jsv.releaseSemaphore()
+                syncReplyValue.releaseSemaphore()
 
               case _ => ()
             }
@@ -547,8 +606,8 @@ object JoinRun {
 
     // Adding a synchronous molecule may trigger at most one reaction and must return a value of type R.
     // We must make this a blocking call, so we acquire a semaphore (with timeout).
-    def injectSyncAndReply[T,R](m: SynMol[T,R], valueWithResult: SyncReplyValue[T,R]): R = {
-      injectAsync(m, SyncMolValue(valueWithResult))
+    def injectSyncAndReply[T,R](m: SynMol[T,R], v: T, valueWithResult: SyncReplyValue[R]): R = {
+      injectAsync(m, SyncMolValue(v, valueWithResult))
 //      try  // not sure we need this.
         valueWithResult.acquireSemaphore()
 //      catch {
@@ -566,8 +625,9 @@ object JoinRun {
       }
     }
 
-    def injectSyncAndReplyWithTimeout[T,R](timeout: Long, m: SynMol[T,R], valueWithResult: SyncReplyValue[T,R]): Option[R] = {
-      injectAsync(m, SyncMolValue(valueWithResult))
+    def injectSyncAndReplyWithTimeout[T,R](timeout: Long, m: SynMol[T,R], v: T, valueWithResult: SyncReplyValue[R]):
+    Option[R] = {
+      injectAsync(m, SyncMolValue(v, valueWithResult))
       //      try  // not sure we need this.
       val success = valueWithResult.acquireSemaphore(Some(timeout))
       //      catch {
