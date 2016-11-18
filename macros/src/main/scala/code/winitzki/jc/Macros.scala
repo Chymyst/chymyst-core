@@ -157,7 +157,7 @@ object Macros {
 
           //          case Apply(Select(t@Ident(TermName(name)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))) =>
 //            info.append((t.symbol.typeSignature, OtherPattern))
-
+// type.typeSymbol can be NoSymbol or a Symbol that can be cast using asType. Similarly for term.termSymbol
           case _ => super.traverse(tree)
         }
       }
