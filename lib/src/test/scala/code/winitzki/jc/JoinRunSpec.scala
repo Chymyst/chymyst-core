@@ -212,6 +212,43 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     f() shouldEqual 3
   }
 
+  it should "not timeout when a synchronous molecule is responding" in {
+
+    val a = ja[Unit]
+    val f = js[Unit,Int]
+    join( &{ case a(_) + f(_, r) => r(3) })
+    a()
+    f(timeout = 100000000)() shouldEqual Some(3)
+  }
+
+  it should "timeout when a synchronous molecule is not responding at all" in {
+
+    val a = ja[Unit]
+    val f = js[Unit,Int]
+    join( &{ case a(_) + f(_, r) => r(3) })
+    a()
+    f() shouldEqual 3
+    f(timeout = 100000000)() shouldEqual None
+  }
+
+  it should "not timeout when a synchronous molecule is responding quickly enough" in {
+
+    val a = ja[Unit]
+    val f = js[Unit,Int]
+    join( &{ case a(_) + f(_, r) => Thread.sleep(50); r(3) })
+    a()
+    f(timeout = 100000000)() shouldEqual Some(3)
+  }
+
+  it should "timeout when a synchronous molecule is not responding quickly enough" in {
+
+    val a = ja[Unit]
+    val f = js[Unit,Int]
+    join( &{ case a(_) + f(_, r) => Thread.sleep(150); r(3) })
+    a()
+    f(timeout = 100000000)() shouldEqual None
+  }
+
   it should "throw exception when join pattern is nonlinear" in {
     val thrown = intercept[Exception] {
       val a = ja[Unit]("a")

@@ -69,6 +69,8 @@ Calling these functions will perform the side-effect of injecting the molecule i
 
 val x = new JA[Int] // define injector
 
+// Need to define reactions - this is omitted here.
+
 x(123) // inject molecule with value 123
 
 val y = new JA[Unit] // define injector
@@ -77,10 +79,29 @@ y() // inject molecule with unit value
 
 val f = new JS[Int, String]
 
-val result = f(10) // result is of type String
+val result = f(10) // injecting a blocking molecule: "result" is of type String
 ```
 
 It is a runtime error to inject molecules that do not yet belong to any join definition.
+
+### Timeout for a blocking molecule
+
+The call to inject a blocking molecule will block until some reaction consumes that molecule and the molecule receives a "reply action" with a value.
+
+A timeout can be imposed on that call by using this syntax:
+
+
+```scala
+val f = new JS[Int, String]
+
+val result: Option[String] = f(timeout = 1000000000L)(10) 
+```
+
+Injection with timeout results in an `Option` value.
+The value will be `None` if timeout is reached.
+
+Exceptions may be thrown as a result of injecting of a blocking molecule when it is unblocked:
+For instance, this happens when the reaction code attempts to execute the reply action more than once.
 
 ## Debugging
 

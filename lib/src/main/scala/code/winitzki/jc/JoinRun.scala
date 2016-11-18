@@ -59,11 +59,7 @@ TODO and roadmap:
 
  2 * 2 - make memory profiling / benchmarking; how many molecules can we have per 1 GB of RAM?
 
- 3 * 3 - use "blocking(closure: => Unit)" from Scala's ExecutionContext, and use Scala futures (or Java Futures? or Promises?) with
- timeouts (or simply timeout on a semaphore's acquire?).
- Introduce a feature that times out on a blocking molecule.
- val f = new JS[T,R]
- f(timeoutNanos = 10000000L)(t)
+ 3 * 3 - figure out whether we are replying to the blocking molecules only at the end of reaction, or also during the reaction (this is preferable)
 
  3 * 4 - implement nonlinear input patterns
 
@@ -216,9 +212,11 @@ object JoinRun {
 
   // Asynchronous molecule. This is an immutable class.
   private[JoinRun] final class AsynMol[T: ClassTag](name: Option[String] = None) extends AbsMol(name) with Function1[T, Unit] {
-    def apply(v: T): Unit =
-      // Inject an asynchronous molecule.
-      joinDef.map(_.injectAsync[T](this, AsyncMolValue(v))).getOrElse(throw errorNoJoinDef)
+    /** Inject a non-blocking molecule.
+      *
+      * @param v Value to be put onto the injected molecule.
+      */
+    def apply(v: T): Unit = joinDef.map(_.injectAsync[T](this, AsyncMolValue(v))).getOrElse(throw errorNoJoinDef)
 
     override def toString: String = getName
 
@@ -261,12 +259,13 @@ object JoinRun {
   ) {
     def releaseSemaphore() = if (semaphore != null) semaphore.release()
 
-    def acquireSemaphore(timeoutNanos: Option[Long] = None): Unit =
+    def acquireSemaphore(timeoutNanos: Option[Long] = None): Boolean =
       if (semaphore != null)
         timeoutNanos match {
           case Some(nanos) => semaphore.tryAcquire(nanos, TimeUnit.NANOSECONDS)
-          case None => semaphore.acquire()
+          case None => semaphore.acquire(); true
         }
+      else false
 
     def deleteSemaphore(): Unit = {
       releaseSemaphore()
@@ -284,12 +283,22 @@ object JoinRun {
 
   // Synchronous molecule injector. This is an immutable class.
   private[JoinRun] final class SynMol[T: ClassTag, R](name: Option[String] = None) extends AbsMol(name) with Function1[T, R] {
-
-    def apply(v: T): R = {
-      // Inject a synchronous molecule.
-      joinDef.map(_.injectSyncAndReply[T,R](this, SyncReplyValue[T,R](v)))
+    /** Inject a blocking molecule and receive a value when the reply action is performed.
+      *
+      * @param v Value to be put onto the injected molecule.
+      * @return The "reply" value.
+      */
+    def apply(v: T): R = joinDef.map(_.injectSyncAndReply[T,R](this, SyncReplyValue[T,R](v)))
         .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this does not belong to any join definition"))
-    }
+
+    /** Inject a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
+      *
+      * @param timeout Timeout in nanoseconds.
+      * @param v Value to be put onto the injected molecule.
+      * @return Non-empty option if the reply was received; None on timeout.
+      */
+    def apply(timeout: Long)(v: T): Option[R] = joinDef.map(_.injectSyncAndReplyWithTimeout[T,R](timeout, this, SyncReplyValue[T,R](v)))
+      .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this does not belong to any join definition"))
 
     override def toString: String = getName + "/S"
 
@@ -556,6 +565,26 @@ object JoinRun {
         )
       }
     }
+
+    def injectSyncAndReplyWithTimeout[T,R](timeout: Long, m: SynMol[T,R], valueWithResult: SyncReplyValue[T,R]): Option[R] = {
+      injectAsync(m, SyncMolValue(valueWithResult))
+      //      try  // not sure we need this.
+      val success = valueWithResult.acquireSemaphore(Some(timeout))
+      //      catch {
+      //        case e: InterruptedException => e.printStackTrace()
+      //      }
+      valueWithResult.deleteSemaphore() // make sure it's gone
+
+      // check if we had any errors, and that we have a result value
+      valueWithResult.errorMessage match {
+        case Some(message) => throw new Exception(message)
+        case None => if (success) Some(valueWithResult.result.getOrElse(
+            throw new ExceptionEmptyReply(s"Internal error: In $this: $m received an empty reply without an error message"))
+        ) else None
+
+      }
+    }
+
   }
 
 }

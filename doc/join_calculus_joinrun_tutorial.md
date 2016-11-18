@@ -614,16 +614,19 @@ y.toString // returns “fetch/S"
 ## More about the semantics of `JoinRun`
 
 - Injectors are local values of class `JA` or `JS`, which both extend the abstract class `AbsMol`.
+Blocking molecule injectors are of class `JS`, non-blocking of class `JA`.
 - Reactions are local values of class `Reaction`. Reactions are created using the method `run { case ... => ... }`.
 - Only one `case` clause can be used in each reaction.
 - Join definitions are values of class `JoinDefinition`. These values are not visible to the user: they are created in a closed scope by the `join` method.
-- Injected molecules are _not_ Scala values!
-The programmer has no direct access to the molecules in the soup, apart from being able to inject them.
+- Injected molecules are _not_ Scala values.
 Injected molecules cannot be, say, stored in a data structure or passed as arguments to functions.
-But molecule injectors (as well as reactions) _are_ ordinary scala values.
-- Blocking molecule injectors are local values of class `JS` that extends `Function1`.
+The programmer has no direct access to the molecules in the soup, apart from being able to inject them.
+But molecule injectors (as well as reactions) _are_ ordinary, locally defined Scala values and can be manipulated normally.
 - Join definitions are immutable once given.
 - Molecule injectors are immutable after a join definition has been given where these molecules are used as inputs.
+- Reactions proceed by first, deciding which molecules can be used as inputs to some reaction; these molecules are then atomically removed from the soup, and the reaction body is executed.
+A reaction can then inject new molecules into the soup.
+ - We can inject new molecules into the soup at any time and from any code (not only inside a reaction).
 
 # Example 3: concurrent map/reduce
 
