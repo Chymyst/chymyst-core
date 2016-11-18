@@ -28,15 +28,23 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
       & { case c(_) => waiter.dismiss() }
     )
 
-    val givenFuture = Future {
-      Thread.sleep(100)
-    }
-
-    // insert a molecule from the end of the future
-    givenFuture.map(_ => c())
+    Future { Thread.sleep(100) } & c    // insert a molecule from the end of the future
 
     waiter.await()
+  }
 
+  it should "inject a molecule from a future with a lazy injection" in {
+    val waiter = new Waiter
+
+    val c = ja[String]("c")
+
+    join(
+      & { case c(x) => waiter {x shouldEqual "send it off"}; waiter.dismiss() }
+    )
+
+    Future { Thread.sleep(100) } + c("send it off")    // insert a molecule from the end of the future
+
+    waiter.await()
   }
 
   it should "not inject a molecule from a future prematurely" in {
@@ -45,10 +53,12 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = ja[Unit]("c")
     val rmC = ja[Unit]("remove c")
     val d = ja[Unit]("d")
+    val e = ja[Unit]("e")
     val f = js[Unit, String]("f")
 
     join(
       & { case c(_) + rmC(_) => },
+      & { case e(_) => d() + rmC() },
       & { case c(_) + f(_, r) => r("from c") },
       & { case d(_) + f(_, r) => r("from d") }
     )
@@ -59,8 +69,8 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
       Thread.sleep(100)
     } // waiter has 150 ms timeout
 
-    givenFuture.map { _ => rmC() + d(); waiter.dismiss() }
-    // The test would fail if rmC() + d() were injected right away at this point.
+    (givenFuture + e()).map { _ => waiter.dismiss() }
+    // The test would fail if e() were injected right away at this point.
 
     waitSome()
     f() shouldEqual "from c"
@@ -73,7 +83,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val b = ja[Unit]("b")
     // "fut" will succeed when "c" is injected
-    val (c, fut) = makeFuture[String]
+    val (c, fut) = moleculeFuture[String]
 
     join(
       & { case b(_) => c("send it off") }
