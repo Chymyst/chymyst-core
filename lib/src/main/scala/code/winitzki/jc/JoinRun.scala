@@ -51,7 +51,9 @@ TODO and roadmap:
  4 * 5 - implement multiple injection construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start.
  
  4 * 5 - allow several reactions to be scheduled simultaneously out of the same join definition, when this is possible. Avoid locking the entire bag? - perhaps, partition it, based on join definition information gleaned using a macro.
- 
+
+ 3 * 3 - make "reply actions" before the reaction finishes, not after. Revise error reporting (on double use) accordingly.
+
  5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
  and be able to better reason about our declarative reactions.
 
