@@ -1,6 +1,7 @@
 package code.winitzki.jc
 
-import java.util.concurrent.{Executors, TimeUnit}
+
+import java.util.concurrent.{Executors, ExecutorService, SynchronousQueue, ThreadPoolExecutor, TimeUnit}
 
 import akka.actor.{Actor, ActorSystem, PoisonPill, Props}
 import akka.dispatch.Dispatchers
@@ -11,8 +12,14 @@ import scala.concurrent.ExecutionContext
 
 //class JoinPool extends ActorExecutor(2)
 //class ReactionPool(threads: Int) extends ActorExecutor(threads)
-class JoinPool extends PoolExecutor(2)
-class ReactionPool(threads: Int) extends PoolExecutor(threads)
+class JoinPool extends FixedPoolExecutor(2)
+class ReactionPool(threads: Int) extends FixedPoolExecutor(threads)
+
+class CachedReactionPool(threads: Int) extends PoolExecutor(threads,
+  t => new ThreadPoolExecutor(t, t, 1L, TimeUnit.SECONDS, new SynchronousQueue[Runnable])
+)
+
+private[jc] class FixedPoolExecutor(threads: Int) extends PoolExecutor(threads, Executors.newFixedThreadPool)
 
 /*
 class JThreadPoolExecutor(threads: Int = 1) extends JThreadPool {
@@ -69,10 +76,10 @@ private[jc] class ActorExecutor(threads: Int = 8) extends Pool {
 
 }
 
-private[jc] class PoolExecutor(threads: Int = 8) extends Pool {
-  val execService = Executors.newFixedThreadPool(threads)
+private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorService) extends Pool {
+  private val execService = execFactory(threads)
 
-  val sleepTime = 100
+  val sleepTime = 200
 
   def shutdownNow() = new Thread {
     execService.shutdown()
