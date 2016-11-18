@@ -273,10 +273,22 @@ A reaction body could throw an exception of two kinds:
 
 The first kind of exception leads to stopping the reaction and printing an error message.
 
-The second kind of exception is handled specially:
-`JoinRun` assumes that the reaction has died due to some malfunction and should be retried.
+The second kind of exception is handled specially for reactions marked as `withRetry`:
+For these reactions, `JoinRun` assumes that the reaction has died due to some transient malfunction and should be retried.
 Then the input molecules for the reaction are injected again.
 This will make it possible for the reaction to restart.
+
+By default, reactions are not marked as `withRetry`, and any exception thrown by the reaction body will lead to the 
+input molecules being consumed and lost.
+
+The following syntax is used to specify fault tolerance in reactions:
+
+```scala
+join(
+  run { case a(x) + b(y) => ... }.withRetry, // will be retried
+  run { case b(y) => ...} // will not be retried
+)
+```
 
 # Limitations in the current version of `JoinRun`
 
