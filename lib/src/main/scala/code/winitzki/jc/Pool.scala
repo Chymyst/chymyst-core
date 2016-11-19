@@ -40,6 +40,9 @@ trait Pool {
   def runClosure(closure: => Unit): Unit
 
   def apply(r: ReactionBody): Reaction = Reaction(r, this)
+
+  def isActive: Boolean = !isInactive
+  def isInactive: Boolean
 }
 
 private[jc] class WorkerActor extends Actor {
@@ -74,6 +77,8 @@ private[jc] class ActorExecutor(threads: Int = 8) extends Pool {
       override def run(): Unit = closure
     }
 
+  override def isInactive: Boolean = actorSystem.whenTerminated.isCompleted
+
 }
 
 private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorService) extends Pool {
@@ -92,4 +97,6 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorSer
   def runClosure(closure: => Unit): Unit = execService.execute(new Runnable {
     override def run(): Unit = closure
   })
+
+  override def isInactive: Boolean = execService.isShutdown || execService.isTerminated
 }
