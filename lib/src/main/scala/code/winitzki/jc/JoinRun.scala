@@ -193,6 +193,8 @@ object JoinRun {
 
   private sealed class ExceptionInJoinRun(message: String) extends Exception(message)
   private[JoinRun] final class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
+  private final class ExceptionNoJoinPool(message: String) extends ExceptionInJoinRun(message)
+  private final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
   private final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
   private final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
   private final class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
@@ -500,109 +502,112 @@ object JoinRun {
       }.mkString(", ")
 
     // Adding an asynchronous molecule may trigger at most one reaction.
-    def injectAsync[T](m: AbsMol, jmv: AbsMolValue[T]): Unit = if (!Thread.currentThread().isInterrupted) jJoinPool
-      .runClosure {
-      val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
-        moleculesPresent.addToBag(m, jmv)
-        if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $jJoinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
-        val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
-        val reaction = possibleReactions.get(m)
-          .flatMap(_.shuffle.find(r => {
-            usedInputs.clear()
-            r.body.isDefinedAt(UnapplyRunCheck(moleculesPresent, usedInputs))
-          }))
-        reaction.foreach(_ => moleculesPresent.removeFromBag(usedInputs))
-        (reaction, usedInputs.toMap)
-      } // End of synchronized block.
+    def injectAsync[T](m: AbsMol, jmv: AbsMolValue[T]): Unit = {
+      if (jJoinPool.isInactive) throw new ExceptionNoJoinPool(s"In $this: Cannot inject molecule $m since join pool is not active")
+      else if (!Thread.currentThread().isInterrupted) jJoinPool.runClosure {
+        val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
+          moleculesPresent.addToBag(m, jmv)
+          if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $jJoinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+          val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
+          val reaction = possibleReactions.get(m)
+            .flatMap(_.shuffle.find(r => {
+              usedInputs.clear()
+              r.body.isDefinedAt(UnapplyRunCheck(moleculesPresent, usedInputs))
+            }))
+          reaction.foreach(_ => moleculesPresent.removeFromBag(usedInputs))
+          (reaction, usedInputs.toMap)
+        } // End of synchronized block.
 
-      // We are just starting a reaction, so we don't need to hold the thread any more.
-      reaction match {
-        case Some(r) =>
-          if (logLevel > 1) println(s"Debug: In $this: starting reaction {$r} on thread pool ${r.threadPool} while on thread pool $jJoinPool with inputs ${moleculeBagToString(usedInputs)}")
-          if (logLevel > 2) println(
-            if (moleculesPresent.size == 0)
-              s"Debug: In $this: no molecules remaining"
-            else
-              s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
-          )
-          // A basic check that we are using our mutable structures safely. We should never see this error.
-          if (! r.inputMoleculesUsed.equals(usedInputs.keys.toSet)) {
-            val message = s"Internal error: In $this: attempt to start reaction {$r} with incorrect inputs ${moleculeBagToString(usedInputs)}"
-            println(message)
-            throw new ExceptionWrongInputs(message)
-          }
-          // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
-          if (!Thread.currentThread().isInterrupted) r.threadPool.runClosure {
-            if (logLevel > 1) println(s"Debug: In $this: reaction {$r} started on thread pool $jJoinPool with thread id ${Thread.currentThread().getId}")
-            try {
-              // Here we actually apply the reaction body to its input molecules.
-              r.body.apply(UnapplyRun(usedInputs))
-            } catch {
-              case e: ExceptionInJoinRun =>
-                // Running the reaction body produced an exception that is internal to JoinRun.
-                // We should not try to recover from this; it is most either an error on user's part
-                // or a bug in JoinRun.
-                println(s"In $this: Reaction {$r} produced an exception that is internal to JoinRun. Input molecules ${moleculeBagToString(usedInputs)} were not injected again. Exception trace will be printed now.")
-                e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
-                throw e
-
-              case e: Exception =>
-                // Running the reaction body produced an exception. Note that the exception has killed a thread.
-                // We will now re-insert the input molecules. Hopefully, no side-effects or output molecules were produced so far.
-                val aboutMolecules = if (r.retry) {
-                  usedInputs.foreach { case (mol, v) => injectAsync(mol, v) }
-                  "were injected again"
-                }
-                else "were consumed and not injected again"
-
-                println(s"In $this: Reaction {$r} produced an exception. Input molecules ${moleculeBagToString(usedInputs)} $aboutMolecules. Exception trace will be printed now.")
-                e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
+        // We are just starting a reaction, so we don't need to hold the thread any more.
+        reaction match {
+          case Some(r) =>
+            if (logLevel > 1) println(s"Debug: In $this: starting reaction {$r} on thread pool ${r.threadPool} while on thread pool $jJoinPool with inputs ${moleculeBagToString(usedInputs)}")
+            if (logLevel > 2) println(
+              if (moleculesPresent.size == 0)
+                s"Debug: In $this: no molecules remaining"
+              else
+                s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
+            )
+            // A basic check that we are using our mutable structures safely. We should never see this error.
+            if (!r.inputMoleculesUsed.equals(usedInputs.keys.toSet)) {
+              val message = s"Internal error: In $this: attempt to start reaction {$r} with incorrect inputs ${moleculeBagToString(usedInputs)}"
+              println(message)
+              throw new ExceptionWrongInputs(message)
             }
-            // For any blocking input molecules that have no reply, put an error message into them and reply with empty
-            // value to unblock the threads.
+            // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
+            if (r.threadPool.isInactive) throw new ExceptionNoReactionPool(s"In $this: cannot run reaction $r since reaction pool is not active")
+            else if (!Thread.currentThread().isInterrupted) r.threadPool.runClosure {
+              if (logLevel > 1) println(s"Debug: In $this: reaction {$r} started on thread pool $jJoinPool with thread id ${Thread.currentThread().getId}")
+              try {
+                // Here we actually apply the reaction body to its input molecules.
+                r.body.apply(UnapplyRun(usedInputs))
+              } catch {
+                case e: ExceptionInJoinRun =>
+                  // Running the reaction body produced an exception that is internal to JoinRun.
+                  // We should not try to recover from this; it is most either an error on user's part
+                  // or a bug in JoinRun.
+                  println(s"In $this: Reaction {$r} produced an exception that is internal to JoinRun. Input molecules ${moleculeBagToString(usedInputs)} were not injected again. Exception trace will be printed now.")
+                  e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
+                  throw e
 
-            def nonemptyOpt[S](s: Seq[S]): Option[Seq[S]] = if (s.isEmpty) None else Some(s)
+                case e: Exception =>
+                  // Running the reaction body produced an exception. Note that the exception has killed a thread.
+                  // We will now re-insert the input molecules. Hopefully, no side-effects or output molecules were produced so far.
+                  val aboutMolecules = if (r.retry) {
+                    usedInputs.foreach { case (mol, v) => injectAsync(mol, v) }
+                    "were injected again"
+                  }
+                  else "were consumed and not injected again"
 
-            // Compute error messages here in case we will need them later.
-            val blockingMoleculesWithNoReply = nonemptyOpt(usedInputs
-              .filter { case (_, SyncMolValue(_, syncReplyValue)) => syncReplyValue.result.isEmpty; case _ => false }
-              .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
+                  println(s"In $this: Reaction {$r} produced an exception. Input molecules ${moleculeBagToString(usedInputs)} $aboutMolecules. Exception trace will be printed now.")
+                  e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
+              }
+              // For any blocking input molecules that have no reply, put an error message into them and reply with empty
+              // value to unblock the threads.
 
-            val messageNoReply = blockingMoleculesWithNoReply map { s => s"Error: In $this: Reaction {$r} finished without replying to $s" }
+              def nonemptyOpt[S](s: Seq[S]): Option[Seq[S]] = if (s.isEmpty) None else Some(s)
 
-            val blockingMoleculesWithMultipleReply = nonemptyOpt(usedInputs
-              .filter { case (_, SyncMolValue(_, syncReplyValue)) => syncReplyValue.repliedTwice; case _ => false }
-              .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
+              // Compute error messages here in case we will need them later.
+              val blockingMoleculesWithNoReply = nonemptyOpt(usedInputs
+                .filter { case (_, SyncMolValue(_, syncReplyValue)) => syncReplyValue.result.isEmpty; case _ => false }
+                .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
 
-            val messageMultipleReply = blockingMoleculesWithMultipleReply map { s => s"Error: In $this: Reaction {$r} replied to $s more than once" }
+              val messageNoReply = blockingMoleculesWithNoReply map { s => s"Error: In $this: Reaction {$r} finished without replying to $s" }
 
-            // We will report all errors to each synchronous molecule.
-            val errorMessage = Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
-            val haveError = blockingMoleculesWithNoReply.nonEmpty || blockingMoleculesWithMultipleReply.nonEmpty
+              val blockingMoleculesWithMultipleReply = nonemptyOpt(usedInputs
+                .filter { case (_, SyncMolValue(_, syncReplyValue)) => syncReplyValue.repliedTwice; case _ => false }
+                .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
 
-            // Insert error messages into synchronous reply wrappers and release all semaphores.
-            usedInputs.foreach {
-              case (_, SyncMolValue(_, syncReplyValue)) =>
-                if (haveError) {
-                  syncReplyValue.errorMessage = Some(errorMessage)
-                }
-                syncReplyValue.releaseSemaphore()
+              val messageMultipleReply = blockingMoleculesWithMultipleReply map { s => s"Error: In $this: Reaction {$r} replied to $s more than once" }
 
-              case _ => ()
+              // We will report all errors to each synchronous molecule.
+              val errorMessage = Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
+              val haveError = blockingMoleculesWithNoReply.nonEmpty || blockingMoleculesWithMultipleReply.nonEmpty
+
+              // Insert error messages into synchronous reply wrappers and release all semaphores.
+              usedInputs.foreach {
+                case (_, SyncMolValue(_, syncReplyValue)) =>
+                  if (haveError) {
+                    syncReplyValue.errorMessage = Some(errorMessage)
+                  }
+                  syncReplyValue.releaseSemaphore()
+
+                case _ => ()
+              }
+
+              if (haveError) {
+                println(errorMessage)
+                throw new Exception(errorMessage)
+              }
             }
 
-            if (haveError) {
-              println(errorMessage)
-              throw new Exception(errorMessage)
-            }
-          }
+          case None =>
+            if (logLevel > 2) println(s"Debug: In $this: no reactions started")
+            ()
 
-        case None =>
-          if (logLevel > 2) println(s"Debug: In $this: no reactions started")
-          ()
+        }
 
       }
-
     }
 
 
