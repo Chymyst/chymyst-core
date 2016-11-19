@@ -18,6 +18,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
+  behavior of "future + molecule"
 
   it should "inject a molecule from a future computed out of a given future" in {
     val waiter = new Waiter
@@ -77,6 +78,8 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     waiter.await()
     f() shouldEqual "from d"
   }
+
+  behavior of "#moleculeFuture"
 
   it should "create a future that succeeds when molecule is injected" in {
     val waiter = new Waiter
