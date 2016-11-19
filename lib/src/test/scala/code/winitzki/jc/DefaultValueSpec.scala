@@ -8,6 +8,8 @@ import scala.collection.mutable
 
 class DefaultValueSpec extends FlatSpec with Matchers {
 
+  behavior of "#defaultValue"
+
   it should "have default value for some types" in {
     val b = defaultValue[Int]
     b shouldEqual 0

@@ -8,6 +8,8 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(300, Millis)
 
+  behavior of "mutable bag"
+
   it should "create empty bag" in {
     val b = new MutableBag[Int, String]
     b.size shouldEqual 0

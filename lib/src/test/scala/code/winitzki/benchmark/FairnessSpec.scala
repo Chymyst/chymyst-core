@@ -5,11 +5,11 @@ import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
-import scala.annotation.tailrec
-
 class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(500, Millis)
+
+  behavior of "join definition"
 
   // fairness over reactions:
   // We have n molecules A:JA[Unit], which can all interact with a single molecule C:JA[(Int,Array[Int])].
@@ -85,5 +85,37 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     result.min should be < (cycles/counters/2)
     result.max should be > (cycles/counters*3)
   }
+
+  behavior of "multiple injection"
+
+  it should "schedule reactions fairly after multiple injection" in {
+    val a = ja[Unit]("a")
+    val b = ja[Unit]("b")
+    val c = ja[Unit]("c")
+    val d = ja[Unit]("d")
+    val e = ja[Unit]("e")
+    val f = ja[(Int,Int,Int)]("f")
+    val g = js[Unit, (Int,Int)]("g")
+
+    join(
+      &{ case a(_) + b(_) => d() },
+      &{ case b(_) + c(_) => e() },
+      &{ case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
+      &{ case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
+      &{ case g(_,r) + f((x,y,0)) => r((x,y)) }
+    )
+
+    val n = 1000
+
+    f((0,0, n))
+
+    (1 to n).foreach{ _ => a()+b()+c() }
+
+    val (ab, bc) = g()
+    val discrepancy = math.abs(ab-bc + 0.0)/(ab+bc)
+    discrepancy should be < 0.05
+
+  }
+
 
 }
