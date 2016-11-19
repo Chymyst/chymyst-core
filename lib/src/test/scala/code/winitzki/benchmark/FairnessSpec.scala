@@ -88,6 +88,9 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   behavior of "multiple injection"
 
+  /** Inject an equal number of a,b,c molecules. One reaction consumes a+b and the other consumes b+c.
+    * Verify that both reactions proceed with probability roughly 1/2.
+    */
   it should "schedule reactions fairly after multiple injection" in {
     val a = ja[Unit]("a")
     val b = ja[Unit]("b")
@@ -112,10 +115,49 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     (1 to n).foreach{ _ => a()+b()+c() }
 
     val (ab, bc) = g()
-    val discrepancy = math.abs(ab-bc + 0.0)/(ab+bc)
+    ab + bc shouldEqual n
+    val discrepancy = math.abs(ab - bc + 0.0) / n
     discrepancy should be < 0.05
-
   }
 
+  it should "fail to schedule reactions fairly after multiple injection into separate JDs" in {
+
+    def makeJD(d1: JA[Unit], d2: JA[Unit]): (JA[Unit],JA[Unit],JA[Unit]) = {
+      val a = ja[Unit]("a")
+      val b = ja[Unit]("b")
+      val c = ja[Unit]("c")
+      join(
+        &{ case a(_) + b(_) => d1() },
+        &{ case b(_) + c(_) => d2() }
+      )
+      (a,b,c)
+    }
+
+    val d = ja[Unit]("d")
+    val e = ja[Unit]("e")
+    val f = ja[(Int,Int,Int)]("f")
+    val g = js[Unit, (Int,Int)]("g")
+
+    join(
+      &{ case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
+      &{ case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
+      &{ case g(_,r) + f((x,y,0)) => r((x,y)) }
+    )
+
+    val n = 200
+
+    f((0,0, n))
+
+    (1 to n).foreach{ _ =>
+      val (a,b,c) = makeJD(d,e)
+      a()+b()+c() // at the moment, this is equivalent to a(); b(); c.
+      // this test will need to be changed when true multiple injection is implemented.
+    }
+
+    val (ab, bc) = g()
+    ab + bc shouldEqual n
+    val discrepancy = math.abs(ab - bc + 0.0) / n
+    discrepancy should be > 0.5
+  }
 
 }
