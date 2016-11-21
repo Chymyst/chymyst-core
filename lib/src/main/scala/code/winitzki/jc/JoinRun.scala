@@ -65,6 +65,9 @@ TODO and roadmap:
 
  3 * 4 - implement nonlinear input patterns
 
+ 2 * 2 - annotate reaction runnables as well as join pools / threads with names. runClosure(name: String){ ... } etc., for debugging purposes.
+
+ 2 * 2 - add test for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
   * */
 
 import DefaultValue.defaultValue
