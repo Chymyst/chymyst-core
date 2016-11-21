@@ -65,7 +65,7 @@ TODO and roadmap:
 
  3 * 4 - implement nonlinear input patterns
 
- 2 * 2 - annotate reaction runnables as well as join pools / threads with names. runClosure(name: String){ ... } etc., for debugging purposes.
+ 2 * 2 - annotate join pools / threads with names. Make a macro for auto-naming join pools of various kinds.
 
  2 * 2 - add test for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
   * */
@@ -507,7 +507,7 @@ object JoinRun {
     // Adding an asynchronous molecule may trigger at most one reaction.
     def injectAsync[T](m: AbsMol, jmv: AbsMolValue[T]): Unit = {
       if (jJoinPool.isInactive) throw new ExceptionNoJoinPool(s"In $this: Cannot inject molecule $m since join pool is not active")
-      else if (!Thread.currentThread().isInterrupted) jJoinPool.runClosure {
+      else if (!Thread.currentThread().isInterrupted) jJoinPool.runClosure ({
         val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
           moleculesPresent.addToBag(m, jmv)
           if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $jJoinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
@@ -539,7 +539,7 @@ object JoinRun {
             }
             // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
             if (r.threadPool.isInactive) throw new ExceptionNoReactionPool(s"In $this: cannot run reaction $r since reaction pool is not active")
-            else if (!Thread.currentThread().isInterrupted) r.threadPool.runClosure {
+            else if (!Thread.currentThread().isInterrupted) r.threadPool.runClosure( {
               if (logLevel > 1) println(s"Debug: In $this: reaction {$r} started on thread pool $jJoinPool with thread id ${Thread.currentThread().getId}")
               try {
                 // Here we actually apply the reaction body to its input molecules.
@@ -602,7 +602,7 @@ object JoinRun {
                 println(errorMessage)
                 throw new Exception(errorMessage)
               }
-            }
+            }, name = Some(s"[Reaction $r in $this]"))
 
           case None =>
             if (logLevel > 2) println(s"Debug: In $this: no reactions started")
@@ -610,7 +610,7 @@ object JoinRun {
 
         }
 
-      }
+      }, name = Some(s"[Injecting $m($jmv) in $this]"))
     }
 
 
