@@ -37,7 +37,7 @@ class JThreadPoolExecutor(threads: Int = 1) extends JThreadPool {
 trait Pool {
   def shutdownNow(): Unit
 
-  def runClosure(closure: => Unit): Unit
+  def runClosure(closure: => Unit, name: Option[String] = None): Unit
 
   def apply(r: ReactionBody): Reaction = Reaction(r, this)
 
@@ -72,8 +72,9 @@ private[jc] class ActorExecutor(threads: Int = 8) extends Pool {
     actorSystem.terminate()
   }
 
-  override def runClosure(closure: => Unit): Unit =
+  override def runClosure(closure: => Unit, name: Option[String]): Unit =
     router ! new Runnable {
+      override def toString: String = name.getOrElse(super.toString)
       override def run(): Unit = closure
     }
 
@@ -94,7 +95,8 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorSer
     execService.shutdownNow()
   }
 
-  def runClosure(closure: => Unit): Unit = execService.execute(new Runnable {
+  def runClosure(closure: => Unit, name: Option[String] = None): Unit = execService.execute(new Runnable {
+    override def toString: String = name.getOrElse(super.toString)
     override def run(): Unit = closure
   })
 
