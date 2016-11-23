@@ -28,7 +28,7 @@ private[jc] class ActorPool(threads: Int = 8) extends Pool {
   override def shutdownNow(): Unit = {
     router ! Broadcast(())
     router ! PoisonPill
-    actorSystem.terminate()
+    actorSystem.shutdown() //terminate()
   }
 
   override def runClosure(closure: => Unit, name: Option[String]): Unit =
@@ -37,6 +37,6 @@ private[jc] class ActorPool(threads: Int = 8) extends Pool {
       override def run(): Unit = closure
     }
 
-  override def isInactive: Boolean = actorSystem.whenTerminated.isCompleted
+  override def isInactive: Boolean = actorSystem.isTerminated // whenTerminated.isCompleted
 
 }
