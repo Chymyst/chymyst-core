@@ -6,6 +6,8 @@ import Macros._
 
 class MacrosSpec extends FlatSpec with Matchers {
 
+  behavior of "JoinRun macro utilities"
+
   it should "compute invocation names for molecule injectors" in {
     val a = jA[Int]
 
@@ -33,4 +35,6 @@ class MacrosSpec extends FlatSpec with Matchers {
 
     //    result shouldEqual "blah"
   }
+
+
 }

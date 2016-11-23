@@ -218,7 +218,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
-  it should "not block the entire threadpool when one thread is blocked" in {
+  it should "not block the 2-thread threadpool when one thread is blocked" in {
     val c = ja[Unit]("c")
     val d = ja[Unit]("d")
     val g = js[Unit,Int]("g")
@@ -235,7 +235,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
-  it should "block the entire threadpool when one thread is blocked" in {
+  it should "block the 1-thread threadpool when one thread is blocked" in {
     val c = ja[Unit]("c")
     val d = ja[Unit]("d")
     val g = js[Unit,Int]("g")
@@ -248,7 +248,8 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     )
     g2() shouldEqual 1 // this should initially work
     d() // do not inject c(). Now the first reaction is blocked because second reaction cannot start.
-    g2(timeout = 100000000)() shouldEqual None // this should be blocked now
+    waitSome()
+    g2(timeout = 1000000L*100)() shouldEqual None // this should be blocked now
     tp.shutdownNow()
   }
 
@@ -257,11 +258,12 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g2 = js[Unit,Int]("g2")
     val tp = new ReactionPool(1)
     join(
-      &{ case d(_) => Thread.sleep(500) } onThreads tp, // this thread is blocked by sleeping
+      &{ case d(_) => Thread.sleep(300) } onThreads tp, // this thread is blocked by sleeping
       &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping.
+    waitSome()
     g2(timeout = 1000000L*150)() shouldEqual None // this should be blocked now
     tp.shutdownNow()
   }
@@ -271,11 +273,12 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g2 = js[Unit,Int]("g2")
     val tp = new ReactionPool(1)
     join(
-      &{ case d(_) => blocking {Thread.sleep(500)} } onThreads tp, // this thread is blocked by sleeping
+      &{ case d(_) => blocking {Thread.sleep(300)} } onThreads tp, // this thread is blocked by sleeping
       &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping.
+    waitSome()
     g2(timeout = 1000000L*150)() shouldEqual None // this should be blocked now
     tp.shutdownNow()
   }
@@ -285,62 +288,28 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g2 = js[Unit,Int]("g2")
     val tp = new CachedReactionPool(1)
     join(
-      &{ case d(_) => Thread.sleep(500) } onThreads tp, // this thread is blocked by sleeping
+      &{ case d(_) => Thread.sleep(300) } onThreads tp, // this thread is blocked by sleeping
       &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping.
+    waitSome()
     g2(timeout = 1000000L*150)() shouldEqual None // this should be blocked now
     tp.shutdownNow()
   }
 
-  it should "not block the cached threadpool when one thread is sleeping with blocking(Thread.sleep)" in {
+  it should "not block the cached threadpool with blocking(Thread.sleep)" in {
     val d = ja[Unit]("d")
     val g2 = js[Unit,Int]("g2")
     val tp = new CachedReactionPool(1)
     join(
-      &{ case d(_) => blocking {Thread.sleep(500)} } onThreads tp, // this thread is blocked by sleeping
+      &{ case d(_) => blocking {Thread.sleep(300)} } onThreads tp, // this thread is blocked by sleeping
       &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping, but this should not block the thread pool since we use "blocking".
-    g2(timeout = 1000000L*50)() shouldEqual Some(1) // this should not be blocked now
-    tp.shutdownNow()
-  }
-
-  it should "not block the cached threadpool and finish reactions inside blocking()" in {
-    val d = ja[Unit]("d")
-    val c1 = ja[Long]
-    val c2 = ja[Long]
-    val g = js[Unit,Int]("g")
-    val g1 = js[Unit,Long]("g1")
-    val g2 = js[Unit,Long]("g2")
-    val tp = new CachedReactionPool(1)
-    join(
-      &{ case d(_) => blocking {Thread.sleep(200); c1(Thread.currentThread().getId) }; c2(Thread.currentThread().getId) } onThreads tp, // this thread is blocked by sleeping
-      &{ case g(_, r) => r(1) } onThreads tp, // we will use this to test whether the entire thread pool is blocked
-      &{ case g1(_, r) + c1(x) => r(x) },
-      &{ case g2(_, r) + c2(x) => r(x) }
-    )
-    g() shouldEqual 1 // this should initially work
-    d() // Now the first reaction is sleeping, but this should not block the thread pool since we use "blocking".
-    g(timeout = 1000000L*50)() shouldEqual Some(1) // this should not be blocked now
-    g1() shouldEqual 1
-    g2() shouldEqual 2
-    tp.shutdownNow()
-  }
-
-  it should "multiplex reactions on one and the same thread" in {
-    val d = ja[Unit]("d")
-    val g2 = js[Unit,Int]("g2")
-    val tp = new CachedReactionPool(1)
-    join(
-      &{ case d(_) => blocking {Thread.sleep(500)} } onThreads tp, // this thread is blocked by sleeping
-      &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
-    )
-    g2() shouldEqual 1 // this should initially work
-    d() // Now the first reaction is sleeping, but this should not block the thread pool since we use "blocking".
-    g2(timeout = 1000000L*50)() shouldEqual Some(1) // this should not be blocked now
+    waitSome()
+    g2(timeout = 1000000L*150)() shouldEqual None // this should be blocked
     tp.shutdownNow()
   }
 
