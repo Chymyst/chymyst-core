@@ -45,10 +45,10 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
         case e: InterruptedException => waiter.dismiss()
         case other: Exception =>
           other.printStackTrace()
-          waiter.dismiss()
+          waiter { false shouldEqual true }
       }
     }
-    Thread.sleep(200)
+    Thread.sleep(100)
 
     tp.shutdownNow()
 
