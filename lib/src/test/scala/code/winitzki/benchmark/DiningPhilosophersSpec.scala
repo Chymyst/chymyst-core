@@ -1,6 +1,6 @@
 package code.winitzki.benchmark
 
-import code.winitzki.jc.ReactionPool
+import code.winitzki.jc.FixedPool
 import code.winitzki.jc.JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
@@ -21,7 +21,7 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
 
   def diningPhilosophers(cycles: Int) = {
 
-    val tp = new ReactionPool(8)
+    val tp = new FixedPool(8)
 
     val h1 = ja[Int]("Aristotle is hungry")
     val h2 = ja[Int]("Kant is hungry")
@@ -42,21 +42,21 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
     val done = ja[Unit]("done")
     val check = js[Unit, Unit]("check")
 
-    join (
-      tp { case t1(n) => rw(h1); h1(n - 1) },
-      tp { case t2(n) => rw(h2); h2(n - 1) },
-      tp { case t3(n) => rw(h3); h3(n - 1) },
-      tp { case t4(n) => rw(h4); h4(n - 1) },
-      tp { case t5(n) => rw(h5); h5(n - 1) },
+    join(tp, tp) (
+      & { case t1(n) => rw(h1); h1(n - 1) },
+      & { case t2(n) => rw(h2); h2(n - 1) },
+      & { case t3(n) => rw(h3); h3(n - 1) },
+      & { case t4(n) => rw(h4); h4(n - 1) },
+      & { case t5(n) => rw(h5); h5(n - 1) },
 
-      tp { case done(_) + check(_, r) => r() },
+      & { case done(_) + check(_, r) => r() },
 
-      tp { case h1(n) + f12(_) + f51(_) => rw(t1); t1(n) + f12() + f51(); if (n == 0) done() },
-      tp { case h2(n) + f23(_) + f12(_) => rw(t2); t2(n) + f23() + f12() },
-      tp { case h3(n) + f34(_) + f23(_) => rw(t3); t3(n) + f34() + f23() },
-      tp { case h4(n) + f45(_) + f34(_) => rw(t4); t4(n) + f45() + f34() },
-      tp { case h5(n) + f51(_) + f45(_) => rw(t5); t5(n) + f51() + f45() }
-    )(tp, defaultJoinPool)
+      & { case h1(n) + f12(_) + f51(_) => rw(t1); t1(n) + f12() + f51(); if (n == 0) done() },
+      & { case h2(n) + f23(_) + f12(_) => rw(t2); t2(n) + f23() + f12() },
+      & { case h3(n) + f34(_) + f23(_) => rw(t3); t3(n) + f34() + f23() },
+      & { case h4(n) + f45(_) + f34(_) => rw(t4); t4(n) + f45() + f34() },
+      & { case h5(n) + f51(_) + f45(_) => rw(t5); t5(n) + f51() + f45() }
+    )
 
     t1(cycles) + t2(cycles) + t3(cycles) + t4(cycles) + t5(cycles)
     f12() + f23() + f34() + f45() + f51()

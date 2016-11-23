@@ -124,7 +124,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val d = ja[Unit]("d")
     val g = js[Unit,Int]("g")
     val g2 = js[Unit,Int]("g2")
-    val tp = new ReactionPool(2)
+    val tp = new FixedPool(2)
     join(
       &{ case d(_) => g2() } onThreads tp,
       &{ case c(_) + g(_,_) + g2(_,_) => c() }
@@ -145,7 +145,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val d = ja[Unit]("d")
     val g = js[Unit,Int]("g")
     val g2 = js[Unit,Int]("g2")
-    val tp = new ReactionPool(2)
+    val tp = new FixedPool(2)
     join(
       &{ case d(_) => g2() } onThreads tp,
       &{ case c(_) + g(_,r) + g2(_,_) => c() + r(0) }
@@ -171,7 +171,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g = js[Unit,Int]("g")
     val g2 = js[Unit,Int]("g2")
     val h = js[Unit,Int]("h")
-    val tp = new ReactionPool(2)
+    val tp = new FixedPool(2)
     join(
       &{ case c(_) => e(g2()) } onThreads tp, // e(0) should be injected now
       &{ case d(_) + g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
@@ -195,7 +195,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g = js[Unit,Int]("g")
     val g2 = js[Unit,Int]("g2")
     val h = js[Unit,Int]("h")
-    val tp = new ReactionPool(2)
+    val tp = new FixedPool(2)
     join(
       &{ case c(_) => val x = g() + g2(); e(x) } onThreads tp, // e(0) should never be injected because this thread is deadlocked
       &{ case d(_) + g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
@@ -223,7 +223,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val d = ja[Unit]("d")
     val g = js[Unit,Int]("g")
     val g2 = js[Unit,Int]("g2")
-    val tp = new ReactionPool(2)
+    val tp = new FixedPool(2)
     join(
       &{ case d(_) => g() } onThreads tp, // this will be used to inject g() and blocked
       &{ case c(_) + g(_,r) => r(0) } onThreads tp, // this will not start because we have no c()
@@ -240,7 +240,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val d = ja[Unit]("d")
     val g = js[Unit,Int]("g")
     val g2 = js[Unit,Int]("g2")
-    val tp = new ReactionPool(1)
+    val tp = new FixedPool(1)
     join(
       &{ case d(_) => g() } onThreads tp, // this will be used to inject g() and block one thread
       &{ case c(_) + g(_,r) => r(0) } onThreads tp, // this will not start because we have no c()
@@ -256,7 +256,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "block the fixed threadpool when one thread is sleeping with Thread.sleep" in {
     val d = ja[Unit]("d")
     val g2 = js[Unit,Int]("g2")
-    val tp = new ReactionPool(1)
+    val tp = new FixedPool(1)
     join(
       &{ case d(_) => Thread.sleep(300) } onThreads tp, // this thread is blocked by sleeping
       &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
@@ -271,7 +271,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "block the fixed threadpool when one thread is sleeping with blocking(Thread.sleep)" in {
     val d = ja[Unit]("d")
     val g2 = js[Unit,Int]("g2")
-    val tp = new ReactionPool(1)
+    val tp = new FixedPool(1)
     join(
       &{ case d(_) => blocking {Thread.sleep(300)} } onThreads tp, // this thread is blocked by sleeping
       &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
@@ -286,7 +286,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "block the cached threadpool when one thread is sleeping with Thread.sleep" in {
     val d = ja[Unit]("d")
     val g2 = js[Unit,Int]("g2")
-    val tp = new CachedReactionPool(1)
+    val tp = new CachedPool(1)
     join(
       &{ case d(_) => Thread.sleep(300) } onThreads tp, // this thread is blocked by sleeping
       &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
@@ -301,7 +301,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "not block the cached threadpool with blocking(Thread.sleep)" in {
     val d = ja[Unit]("d")
     val g2 = js[Unit,Int]("g2")
-    val tp = new CachedReactionPool(1)
+    val tp = new CachedPool(1)
     join(
       &{ case d(_) => blocking {Thread.sleep(300)} } onThreads tp, // this thread is blocked by sleeping
       &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked

@@ -14,7 +14,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "run a task on a separate thread" in {
     val waiter = new Waiter
 
-    val tp = new ReactionPool(2)
+    val tp = new FixedPool(2)
 
     tp.runClosure {
       waiter.dismiss()
@@ -35,7 +35,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "interrupt a thread when shutting down" in {
     val waiter = new Waiter
 
-    val tp = new ReactionPool(2)
+    val tp = new FixedPool(2)
 
     tp.runClosure {
       try {
@@ -60,7 +60,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "run a task on a separate thread" in {
     val waiter = new Waiter
 
-    val tp = new CachedReactionPool(2)
+    val tp = new CachedPool(2)
 
     tp.runClosure {
       waiter.dismiss()
@@ -81,7 +81,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "interrupt a thread when shutting down" in {
     val waiter = new Waiter
 
-    val tp = new CachedReactionPool(2)
+    val tp = new CachedPool(2)
 
     tp.runClosure {
       try {
