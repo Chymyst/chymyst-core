@@ -57,9 +57,9 @@ TODO and roadmap:
 
  3 * 2 - add per-molecule logging; log to file or to logger function
 
- 4 * 5 - implement multiple injection construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start.
+ 4 * 5 - implement multiple injection construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. Implement starting many reactions at once.
  
- 4 * 5 - allow several reactions to be scheduled simultaneously out of the same join definition, when this is possible. Avoid locking the entire bag? - perhaps, partition it, based on join definition information gleaned using a macro.
+ 4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same join definition, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on join definition information gleaned using a macro.
 
  3 * 3 - make "reply actions" before the reaction finishes, not after. Revise error reporting (on double use) accordingly.
 
