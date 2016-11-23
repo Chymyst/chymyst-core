@@ -244,7 +244,7 @@ All long-running tasks must run on non-UI threads, while all screen updates must
 
 To facilitate this control, `JoinRun` implements the thread pool feature.
 
-Each join definition runs on two thread pools: a thread pool for running reactions (`ReactionPool`) and a thread pool for injecting molecules and deciding new reactions (`JoinPool`).
+Each join definition runs on two thread pools: a thread pool for running reactions (`reactionPool`) and a thread pool for injecting molecules and deciding new reactions (`joinPool`).
 
 By default, these two thread pools are statically allocated and shared by all join definitions.
 
@@ -296,6 +296,10 @@ Therefore, it may be advisable not to use exceptions within reactions.
 # Limitations in the current version of `JoinRun`
 
 TODO
+
+# Version history
+
+- 0.0.6
 
 # Roadmap for the future
 

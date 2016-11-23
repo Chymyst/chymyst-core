@@ -35,7 +35,8 @@ TODO and roadmap:
 
  4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
 
- 3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter
+ 3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
+ Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.
 
  4 * 5 - implement distributed execution by sharing the join pool with another machine (but running the join definitions only on the master node)
 
@@ -73,7 +74,7 @@ TODO and roadmap:
 
  3 * 4 - implement nonlinear input patterns
 
- 2 * 2 - annotate join pools / threads with names. Make a macro for auto-naming join pools of various kinds.
+ 2 * 2 - annotate join pools with names. Make a macro for auto-naming join pools of various kinds.
 
  2 * 2 - add test for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
   * */
@@ -173,7 +174,7 @@ object JoinRun {
     * @param body The body of the reaction. This must be a partial function with pattern-matching on molecules.
     * @return A reaction value, to be used later in [[JoinRun#join]].
     */
-  def run(body: ReactionBody): Reaction = Reaction(body, defaultReactionPool)
+  def run(body: ReactionBody): Reaction = Reaction(body)
 
   //
   /**
@@ -184,7 +185,7 @@ object JoinRun {
     */
   object & {
     // Users will create reactions using these functions.
-    def apply(body: ReactionBody): Reaction = Reaction(body, defaultReactionPool)
+    def apply(body: ReactionBody): Reaction = Reaction(body)
   }
 
   // Container for molecule values
@@ -371,8 +372,8 @@ object JoinRun {
     }
   }
 
-  implicit val defaultJoinPool = new JoinPool
-  implicit val defaultReactionPool = new ReactionPool(4)
+  val defaultJoinPool = new FixedPool(2)
+  val defaultReactionPool = new FixedPool(4)
 
   private[jc] sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
   private final case class UnapplyCheck(inputMolecules: mutable.Set[AbsMol]) extends UnapplyArg
@@ -390,7 +391,7 @@ object JoinRun {
     * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
     * @param retry Whether the reaction should be run again when an exception occurs in its body. Default is false.
     */
-  private[jc] final case class Reaction(body: ReactionBody, threadPool: Pool, retry: Boolean = false) {
+  private[jc] final case class Reaction(body: ReactionBody, threadPool: Option[Pool] = None, retry: Boolean = false) {
     lazy val inputMoleculesUsed: Set[AbsMol] = {
       val moleculesInThisReaction = UnapplyCheck(mutable.Set.empty)
       body.isDefinedAt(moleculesInThisReaction)
@@ -404,7 +405,7 @@ object JoinRun {
       * @param newThreadPool A custom thread pool on which this reaction will be scheduled.
       * @return New reaction value with the thread pool set.
       */
-    def onThreads(newThreadPool: Pool): Reaction = Reaction(body, newThreadPool, retry)
+    def onThreads(newThreadPool: Pool): Reaction = Reaction(body, Some(newThreadPool), retry)
 
     /** Convenience method to specify the "retry" option for a reaction.
       *
@@ -427,22 +428,23 @@ object JoinRun {
       "/R" else ""}"
   }
 
+  def join(rs: Reaction*): Unit = join(defaultJoinPool, defaultReactionPool)(rs: _*)
+  def join(joinPool: Pool)(rs: Reaction*): Unit = join(joinPool, defaultReactionPool)(rs: _*)
+
   /** Create a join definition with one or more reactions.
     * All input and output molecules in reactions used in this JD should have been
     * already defined, and input molecules should not already belong to another JD.
     *
     * @param rs One or more reactions of type [[JoinRun#Reaction]]
-    * @param jReactionPool Thread pool for running new reactions.
-    * @param jJoinPool Thread pool for use when making decisions to schedule reactions.
+    * @param reactionPool Thread pool for running new reactions.
+    * @param joinPool Thread pool for use when making decisions to schedule reactions.
     */
-  def join(rs: Reaction*)
-          (implicit jReactionPool: ReactionPool,
-           jJoinPool: JoinPool): Unit = {
+  def join(joinPool: Pool, reactionPool: Pool)(rs: Reaction*): Unit = {
 
     val knownMolecules : Map[Reaction, Set[AbsMol]] = rs.map { r => (r, r.inputMoleculesUsed) }.toMap
 
     // create a join definition object holding the given reactions and inputs
-    val join = new JoinDefinition(knownMolecules)(jReactionPool, jJoinPool)
+    val join = new JoinDefinition(knownMolecules, reactionPool, joinPool)
 
     // set the owner on all input molecules in this join definition
     knownMolecules.values.toSet.flatten.foreach { m =>
@@ -464,9 +466,17 @@ object JoinRun {
   private type MutableLinearMoleculeBag = mutable.Map[AbsMol, AbsMolValue[_]]
   private type LinearMoleculeBag = Map[AbsMol, AbsMolValue[_]]
 
-  // The user will never see any instances of this class.
-  private[JoinRun] final class JoinDefinition(val inputMolecules: Map[Reaction, Set[AbsMol]])
-                                       (var jReactionPool: ReactionPool, var jJoinPool: JoinPool) {
+  /** Represents the join definition, which holds one or more reaction definitions.
+    * At run time, the join definition maintains a bag of currently available molecules
+    * and runs reactions.
+    * The user will never see any instances of this class.
+    *
+    * @param inputMolecules The molecules known to be inputs of the given reactions.
+    * @param reactionPool The thread pool on which reactions will be scheduled.
+    * @param joinPool The thread pool on which the join definition will decide reactions and manage the molecule bag.
+    */
+  private[JoinRun] final class JoinDefinition(val inputMolecules: Map[Reaction, Set[AbsMol]],
+    var reactionPool: Pool, var joinPool: Pool) {
 
     private val quiescenceCallbacks: mutable.Set[AsynMol[Unit]] = mutable.Set.empty
 
@@ -515,11 +525,11 @@ object JoinRun {
 
     // Adding an asynchronous molecule may trigger at most one reaction.
     def injectAsync[T](m: AbsMol, jmv: AbsMolValue[T]): Unit = {
-      if (jJoinPool.isInactive) throw new ExceptionNoJoinPool(s"In $this: Cannot inject molecule $m since join pool is not active")
-      else if (!Thread.currentThread().isInterrupted) jJoinPool.runClosure ({
+      if (joinPool.isInactive) throw new ExceptionNoJoinPool(s"In $this: Cannot inject molecule $m since join pool is not active")
+      else if (!Thread.currentThread().isInterrupted) joinPool.runClosure ({
         val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
           moleculesPresent.addToBag(m, jmv)
-          if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $jJoinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+          if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
           val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
           val reaction = possibleReactions.get(m)
             .flatMap(_.shuffle.find(r => {
@@ -533,7 +543,7 @@ object JoinRun {
         // We are just starting a reaction, so we don't need to hold the thread any more.
         reaction match {
           case Some(r) =>
-            if (logLevel > 1) println(s"Debug: In $this: starting reaction {$r} on thread pool ${r.threadPool} while on thread pool $jJoinPool with inputs ${moleculeBagToString(usedInputs)}")
+            if (logLevel > 1) println(s"Debug: In $this: starting reaction {$r} on thread pool ${r.threadPool} while on thread pool $joinPool with inputs ${moleculeBagToString(usedInputs)}")
             if (logLevel > 2) println(
               if (moleculesPresent.size == 0)
                 s"Debug: In $this: no molecules remaining"
@@ -547,9 +557,10 @@ object JoinRun {
               throw new ExceptionWrongInputs(message)
             }
             // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
-            if (r.threadPool.isInactive) throw new ExceptionNoReactionPool(s"In $this: cannot run reaction $r since reaction pool is not active")
-            else if (!Thread.currentThread().isInterrupted) r.threadPool.runClosure( {
-              if (logLevel > 1) println(s"Debug: In $this: reaction {$r} started on thread pool $jJoinPool with thread id ${Thread.currentThread().getId}")
+            val poolForReaction = r.threadPool.getOrElse(reactionPool)
+            if (poolForReaction.isInactive) throw new ExceptionNoReactionPool(s"In $this: cannot run reaction $r since reaction pool is not active")
+            else if (!Thread.currentThread().isInterrupted) poolForReaction.runClosure( {
+              if (logLevel > 1) println(s"Debug: In $this: reaction {$r} started on thread pool $joinPool with thread id ${Thread.currentThread().getId}")
               try {
                 // Here we actually apply the reaction body to its input molecules.
                 r.body.apply(UnapplyRun(usedInputs))

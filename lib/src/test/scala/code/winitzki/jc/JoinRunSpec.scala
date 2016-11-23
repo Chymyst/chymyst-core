@@ -295,7 +295,6 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     c(2) + d() + d()
     waitSome()
     g() shouldEqual 0
-
   }
 
   it should "use one thread for concurrent computations" in {
@@ -305,7 +304,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val a = ja[Int]("all_finished")
     val g = js[Unit,Int]("getValue")
 
-    val tp = new ReactionPool(1)
+    val tp = new FixedPool(1)
 
     join(
       &{ case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
@@ -328,7 +327,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val a = ja[Int]("all_finished")
     val g = js[Unit,Int]("getValue")
 
-    val tp = new ReactionPool(2)
+    val tp = new FixedPool(2)
 
     join(
       &{ case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
@@ -348,7 +347,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = ja[Int]("counter")
     val d = ja[Unit]("decrement")
     val g = js[Unit, Int]("getValue")
-    val tp = new ReactionPool(2)
+    val tp = new FixedPool(2)
     join(
       & { case c(x) + d(_) => c(x - 1) } onThreads tp,
       & { case c(x) + g(_, r) => c(x) + r(x) }
@@ -370,7 +369,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = ja[Int]("counter")
     val d = ja[Unit]("decrement")
     val g = js[Unit, Int]("getValue")
-    val tp = new ReactionPool(2)
+    val tp = new FixedPool(2)
 
     join(
       & { case c(x) + d(_) =>
