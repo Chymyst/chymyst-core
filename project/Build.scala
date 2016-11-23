@@ -24,6 +24,13 @@ object BuildSettings {
 object MyBuild extends Build {
   import BuildSettings._
 
+  lazy val scalaVersionTuple = CrossVersion.partialVersion(scalaVersion.value)
+
+  lazy val akkaVersion = scalaVersionTuple match {
+    case Some((2, scalaMajor)) if scalaMajor >= 11 => "2.4.12"
+    case Some((2, 10)) => "2.3.16"
+  }
+
   lazy val joinrun: Project = Project(
     "joinrun",
     file("."),
@@ -41,7 +48,7 @@ object MyBuild extends Build {
     settings = buildSettings ++ Seq(
       libraryDependencies <+= scalaVersion("org.scala-lang" % "scala-reflect" % _),
       libraryDependencies := {
-        CrossVersion.partialVersion(scalaVersion.value) match {
+        scalaVersionTuple match {
           // if Scala 2.11+ is used, quasiquotes are available in the standard distribution
           case Some((2, scalaMajor)) if scalaMajor >= 11 =>
             libraryDependencies.value
@@ -58,7 +65,7 @@ object MyBuild extends Build {
 
   // this is necessary only if we want to debug macros;
   // the project does not actually depend on scala-compiler.
-        "org.scala-lang" % "scala-compiler" % scalaVersion.value
+        "org.scala-lang" % "scala-compiler" % scalaVersion.value % "test"
       )
     )
   ) dependsOn lib
@@ -70,7 +77,7 @@ object MyBuild extends Build {
     settings = buildSettings ++ Seq(
       parallelExecution in Test := false,
       libraryDependencies ++= Seq(
-        "com.typesafe.akka" %% "akka-actor" % "2.4.12",
+        "com.typesafe.akka" %% "akka-actor" % akkaVersion,
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"
       )
     )
