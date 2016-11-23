@@ -342,7 +342,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "process simple reactions quickly enough" in {
-    val n = 2000
+    val n = 1000
 
     val c = ja[Int]("counter")
     val d = ja[Unit]("decrement")
