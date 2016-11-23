@@ -14,6 +14,10 @@ TODO and roadmap:
 
  4 * 2 - make helper functions to create a new joinpool
 
+ 2 * 2 - unify join pools and reaction pools into one type; replace implicits by default argument values.
+
+ 2 * 2 - should `run` take ReactionBody or simply UnapplyArg => Unit?
+
  3 * 1 - make helper functions to create new single-thread pools using a given thread or a given executor/handler
 
  4 * 2 - make helper functions to create an actor-based pool, or a pool with autoresizing - then can use "blocking(_)", otherwise the fixed thread pool will do nothing about "blocking(_)".
@@ -29,6 +33,8 @@ TODO and roadmap:
  - completely fix the problem with pattern-matching not at the end of input molecule list.
   Probably will need a macro. At the moment, we can have some pattern-matching but it's not correct.
 
+ 4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
+
  3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter
 
  4 * 5 - implement distributed execution by sharing the join pool with another machine (but running the join definitions only on the master node)
@@ -36,6 +42,8 @@ TODO and roadmap:
  2 * 2 - benchmark and profile the performance of blocking molecules (make many reactions that block and unblock)
 
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic.
+
+ 3 * 5 - Can we implement JoinRun using Future / Promise and remove all blocking and all semaphores?
 
  5 * 5 - try to inspect the reaction body using a macro. Can we match on q"{ case a(_) + ... => ... }"?
  Can we return the list of input molecules and other info - e.g. whether the pattern-match
@@ -149,7 +157,7 @@ object JoinRun {
   /**
     * Convenience syntax: users can write a(x)+b(y) in reaction patterns.
     * Pattern-matching can be extended to molecule values as well, for example
-    * { case a(MyCaseClass(x,y)) + b(Some(z)) => ... }
+    * {{{ { case a(MyCaseClass(x,y)) + b(Some(z)) => ... } }}}
     *
     * @return an unapply operation
     */
@@ -159,8 +167,8 @@ object JoinRun {
 
   /**
     * Users will define reactions using this function.
-    * Examples: run { a(_) => ... }
-    * run { a (_) => ...} onThreads jPool
+    * Examples: {{{ run { a(_) => ... } }}}
+    * {{{ run { a (_) => ...} onThreads jPool }}}
     *
     * @param body The body of the reaction. This must be a partial function with pattern-matching on molecules.
     * @return A reaction value, to be used later in [[JoinRun#join]].
@@ -262,7 +270,7 @@ object JoinRun {
 
   /** Reply-value wrapper for synchronous molecules. This is a mutable class.
     *
-    * @param result Reply value as Option[R]. Initially this is None, and it may be assigned at most once by the
+    * @param result Reply value as {{{Option[R]}}}. Initially this is None, and it may be assigned at most once by the
     *               "reply" action.
     * @param semaphore Mutable semaphore reference. This is initialized only once when creating an instance of this
     *                  class. The semaphore will be acquired when injecting the molecule and released by the "reply"
@@ -376,10 +384,11 @@ object JoinRun {
     */
   private[jc] type ReactionBody = PartialFunction[UnapplyArg, Unit]
 
-  /** This class represents a reaction.
+  /** Represents a reaction body.
     *
-    * @param body Partial function of type UnapplyArg => Unit
+    * @param body Partial function of type {{{ UnapplyArg => Unit }}}
     * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
+    * @param retry Whether the reaction should be run again when an exception occurs in its body. Default is false.
     */
   private[jc] final case class Reaction(body: ReactionBody, threadPool: Pool, retry: Boolean = false) {
     lazy val inputMoleculesUsed: Set[AbsMol] = {

@@ -54,9 +54,9 @@ object Macros {
     case object SimpleConst extends PatternFlag
     case object OtherPattern extends PatternFlag
 
-  def findInputs(arg: UnapplyArg => Unit): String = macro findInputsImpl
+  def findInputs(arg: ReactionBody): String = macro findInputsImpl
 
-  def findInputsImpl(c: theContext)(arg: c.Expr[UnapplyArg => Unit]) = {
+  def findInputsImpl(c: theContext)(arg: c.Expr[ReactionBody]) = {
     import c.universe._
 
     // example tree, somewhat trimmed. More precisely, we have a List() of CaseDef's.
@@ -128,15 +128,8 @@ object Macros {
 
 */
 
-    /** Check whether the reaction code is of the form that we can recognize and parse.
-      *
-      * @param term Reaction expression, which must a partial function of the form { case a(x) + b(y) + c(z) => ... }
-      * @return Some("error message") if the expression is invalid. Otherwise, if reaction is valid, return None
-      */
-    def isInvalidReaction(term: Tree): Option[String] = None
-
     object GatherInfo extends Traverser {
-      var info: mutable.ArrayBuffer[(Any, PatternFlag)] = mutable.ArrayBuffer()
+      var info: mutable.ArrayBuffer[(c.Type, PatternFlag, Option[PatternFlag])] = mutable.ArrayBuffer()
 
       def getFlag(binderTerm: Tree): PatternFlag = binderTerm match {
         case Ident(termNames.WILDCARD) => Wildcard
@@ -150,10 +143,10 @@ object Macros {
       override def traverse(tree: c.universe.Tree): Unit = {
         tree match {
           case UnApply(Apply(Select(t@Ident(TermName(name)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) =>
-            info.append((t.symbol.typeSignature, getFlag(binder)))
+            info.append((t.symbol.typeSignature, getFlag(binder), None))
 
           case UnApply(Apply(Select(t@Ident(TermName(name)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) =>
-            info.append((t.symbol.typeSignature, getFlag(binder1)))
+            info.append((t.symbol.typeSignature, getFlag(binder1), Some(getFlag(binder2))))
 
           //          case Apply(Select(t@Ident(TermName(name)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))) =>
 //            info.append((t.symbol.typeSignature, OtherPattern))
@@ -164,13 +157,13 @@ object Macros {
     }
 //    c.abort(c.enclosingPosition, "")
     // determine which variables are captured by closure?
-    // determine types of symbols that use .apply
-    val error = isInvalidReaction(arg.tree)
+    // determine types of symbols that use .apply and .unapply, check correctness of JA / JS / SMV types
+    // gather (molecule injector, flag, optionally the partial function that matches the pattern, possible output injectors including SMV's)
 
     GatherInfo.traverse(arg.tree)
 
     println(s"Gathered info: ${GatherInfo.info}")
-
+    val t1 = GatherInfo.info(0)._1.dealias.typeSymbol
     val s = showRaw(arg)
     q"$s"
   }

@@ -6,7 +6,7 @@ import org.scalatest.time.{Millis, Span}
 
 class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(300, Millis)
+  val timeLimit = Span(500, Millis)
 
   behavior of "mutable bag"
 
