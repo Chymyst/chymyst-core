@@ -120,6 +120,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     discrepancy should be < 0.1
   }
 
+  // interestingly, this test fails to complete in 500ms on Travis CI with Scala 2.10, but succeeds with 2.11
   it should "fail to schedule reactions fairly after multiple injection into separate JDs" in {
 
     def makeJD(d1: JA[Unit], d2: JA[Unit]): (JA[Unit],JA[Unit],JA[Unit]) = {

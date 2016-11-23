@@ -14,7 +14,7 @@ object BuildSettings {
     organization := "code.winitzki",
     version := "0.0.8",
     scalaVersion := "2.11.8",
-    crossScalaVersions := Seq("2.10.2", "2.10.3", "2.10.4", "2.10.5", "2.10.6", "2.11.0", "2.11.1", "2.11.2", "2.11.3", "2.11.4", "2.11.5", "2.11.6", "2.11.7", "2.11.8", "2.12.0"),
+    crossScalaVersions := Seq("2.11.0", "2.11.1", "2.11.2", "2.11.3", "2.11.4", "2.11.5", "2.11.6", "2.11.7", "2.11.8", "2.12.0"),
     resolvers += Resolver.sonatypeRepo("snapshots"),
     resolvers += Resolver.sonatypeRepo("releases"),
     scalacOptions ++= Seq()
@@ -40,19 +40,6 @@ object MyBuild extends Build {
     file("macros"),
     settings = buildSettings ++ Seq(
       libraryDependencies <+= scalaVersion("org.scala-lang" % "scala-reflect" % _),
-      libraryDependencies := {
-        CrossVersion.partialVersion(scalaVersion.value) match {
-          // if Scala 2.11+ is used, quasiquotes are available in the standard distribution
-          case Some((2, scalaMajor)) if scalaMajor >= 11 =>
-            libraryDependencies.value
-          // in Scala 2.10, quasiquotes are provided by macro paradise
-          case Some((2, 10)) =>
-            libraryDependencies.value ++ Seq(
-              compilerPlugin("org.scalamacros" % "paradise" % "2.1.0-M5" cross CrossVersion.full),
-              "org.scalamacros" %% "quasiquotes" % "2.1.0-M5" cross CrossVersion.binary
-            )
-        }
-      },
       libraryDependencies ++= Seq(
         "org.scalatest" %% "scalatest" % "3.0.0" % "test",
 
@@ -70,11 +57,7 @@ object MyBuild extends Build {
     settings = buildSettings ++ Seq(
       parallelExecution in Test := false,
       libraryDependencies ++= Seq(
-        // Akka's versions are different for Scala 2.10 and for Scala 2.11
-        "com.typesafe.akka" %% "akka-actor" % (CrossVersion.partialVersion(scalaVersion.value)  match {
-          case Some((2, scalaMajor)) if scalaMajor >= 11 => "2.4.12"
-          case Some((2, 10)) => "2.3.16"
-        }),
+        "com.typesafe.akka" %% "akka-actor" % "2.4.12",
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"
       )
     )
