@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/winitzki/joinrun-scala.svg?branch=master)](https://travis-ci.org/winitzki/joinrun-scala)
+
 # joinrun - A new implementation of Join Calculus in Scala
 Join Calculus (JC) is a micro-framework for purely functional concurrency.
 
