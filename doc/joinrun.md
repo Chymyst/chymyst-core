@@ -299,7 +299,11 @@ TODO
 
 # Version history
 
-- 0.0.6
+- 0.0.8 Add a timeout option for blocking molecules. Add `CachedPool` option. Tutorial text and ScalaDocs are almost finished. Minor cleanups and simplifications in the API.
+
+- 0.0.7 Refactor into proper library structure. Add tutorial text and start adding documentation. Minor cleanups. Add `Future`/molecule interface.
+
+- 0.0.6 Initial release on Github. Basic functionality, unit tests.
 
 # Roadmap for the future
 
@@ -311,6 +315,6 @@ Features that appear to be necessary:
 Features that appear to be useful:
 
 - nonlinear patterns
-- injecting many molecules at once
+- injecting many molecules at once; starting many reactions at once
 - distributed execution of thread pools
 - interoperability with streams or other async frameworks (futures already done)
