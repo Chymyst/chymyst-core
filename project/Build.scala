@@ -14,7 +14,7 @@ object BuildSettings {
     organization := "code.winitzki",
     version := "0.0.8",
     scalaVersion := "2.11.8",
-    crossScalaVersions := Seq("2.10.2", "2.10.3", "2.10.4", "2.10.5", "2.10.6", "2.11.0", "2.11.1", "2.11.2", "2.11.3", "2.11.4", "2.11.5", "2.11.6", "2.11.7", "2.11.8"),
+    crossScalaVersions := Seq("2.10.2", "2.10.3", "2.10.4", "2.10.5", "2.10.6", "2.11.0", "2.11.1", "2.11.2", "2.11.3", "2.11.4", "2.11.5", "2.11.6", "2.11.7", "2.11.8", "2.12.0"),
     resolvers += Resolver.sonatypeRepo("snapshots"),
     resolvers += Resolver.sonatypeRepo("releases"),
     scalacOptions ++= Seq()
@@ -23,13 +23,6 @@ object BuildSettings {
 
 object MyBuild extends Build {
   import BuildSettings._
-
-  lazy val scalaVersionTuple = CrossVersion.partialVersion(scalaVersion.value)
-
-  lazy val akkaVersion = scalaVersionTuple match {
-    case Some((2, scalaMajor)) if scalaMajor >= 11 => "2.4.12"
-    case Some((2, 10)) => "2.3.16"
-  }
 
   lazy val joinrun: Project = Project(
     "joinrun",
@@ -48,7 +41,7 @@ object MyBuild extends Build {
     settings = buildSettings ++ Seq(
       libraryDependencies <+= scalaVersion("org.scala-lang" % "scala-reflect" % _),
       libraryDependencies := {
-        scalaVersionTuple match {
+        CrossVersion.partialVersion(scalaVersion.value) match {
           // if Scala 2.11+ is used, quasiquotes are available in the standard distribution
           case Some((2, scalaMajor)) if scalaMajor >= 11 =>
             libraryDependencies.value
@@ -77,7 +70,11 @@ object MyBuild extends Build {
     settings = buildSettings ++ Seq(
       parallelExecution in Test := false,
       libraryDependencies ++= Seq(
-        "com.typesafe.akka" %% "akka-actor" % akkaVersion,
+        // Akka's versions are different for Scala 2.10 and for Scala 2.11
+        "com.typesafe.akka" %% "akka-actor" % (CrossVersion.partialVersion(scalaVersion.value)  match {
+          case Some((2, scalaMajor)) if scalaMajor >= 11 => "2.4.12"
+          case Some((2, 10)) => "2.3.16"
+        }),
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"
       )
     )
