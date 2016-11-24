@@ -3,11 +3,12 @@
 `JoinRun` is a library for functional concurrent programming.
 It follows the paradigm of [Join Calculus](https://en.wikipedia.org/wiki/Join-calculus) and is implemented as an embedded DSL (domain-specific language) in Scala.
 
-Source code and documentation for `JoinRun` is available at [https://github.com/winitzki/joinrun-scala](https://github.com/winitzki/joinrun-scala).
+The source code repository for `JoinRun` is at [https://github.com/winitzki/joinrun-scala](https://github.com/winitzki/joinrun-scala).
 
+The goal of this tutorial is to explain the Join Calculus paradigm and to show examples of implementing concurrent programs in `JoinRun`.  
 To understand this tutorial, the reader should have some familiarity with the `Scala` programming language.
 
-Although this tutorial focuses on using `JoinRun` in Scala, one can easily implement the core Join Calculus as a library on top of any programming language.
+Although this tutorial focuses on using `JoinRun` in Scala, one can easily embed the core Join Calculus as a library on top of any programming language.
 The main concepts and techniques of Join Calculus programming paradigm are independent of the base programming language.
 
 # The chemical machine
@@ -15,8 +16,8 @@ The main concepts and techniques of Join Calculus programming paradigm are indep
 It is easiest to understand Join Calculus by using the metaphor of the “chemical machine”.
 
 Imagine that we have a large tank of water where many different chemical substances are dissolved.
-Different chemical reactions are possible in this “chemical soup”.
-Reactions could start at the same time (i.e. concurrently) in different regions of the soup, as various molecules come together.
+Different chemical reactions are possible in this “chemical soup”, as various molecules come together and react, producing other molecules.
+Reactions could start at the same time (i.e. concurrently) in different regions of the soup.
 
 Since we are going to simulate this in a computer, the “chemistry” here is completely imaginary and has nothing to do with real-life chemistry.
 We can define molecules of any sort, and we can postulate arbitrary reactions between them.
@@ -24,17 +25,17 @@ For instance, we can postulate that there exist three sorts of molecules called 
 
 `a + b ⇒ a`
 
-`a + c ⇒` <_nothing_>
+`a + c ⇒` [_nothing_]
 
 Of course, real-life chemistry would not allow two molecules to disappear without producing any other molecules.
 But our chemistry is imaginary, and so the programmer is free to postulate arbitrary “chemical laws.”
 
 To develop the chemical analogy further, we allow the “chemical soup” to contain many copies of each molecule.
-For example, the soup can contain five hundred copies of `a` and three hundred copies of `b`, etc.
+For example, the soup can contain five hundred copies of `a` and three hundred copies of `b`, and so on.
 We also assume that we can inject any molecule into the soup at any time.
 
-It is not difficult to implement a simulator for the “chemical soup” behavior as just described.
-Having specified the list of “chemical laws", we start the simulation waiting for some molecules to be injected into the soup.
+It is not difficult to implement a simulator for the “chemical soup” behavior we just described.
+Having specified the list of “chemical laws”, we start the simulation waiting for some molecules to be injected into the soup.
 Once molecules are injected, we check whether some reactions can start.
 
 In a reaction such as `a + b + c ⇒ d + e` the **input molecules** are  `a`, `b`, and `c`, and the **output molecules** are `d` and `e`.
@@ -197,7 +198,7 @@ decr()+decr() // prints “new value is 99” and then “new value is 98"
 
 `JoinRun` has a simple debugging facility.
 
-For a given molecule, there must exist a single join definition (JD) to which this molecule “belongs” - that is, the JD where this molecule is consumed as input molecule by some reactions.
+For a given molecule, there must exist a single join definition (JD) to which this molecule is “bound” - that is, the JD where this molecule is consumed as input molecule by some reactions.
 
 Sometimes, reactions are specified incorrectly.
 For debugging purposes, we can use the `logSoup` method on the molecule injector.
@@ -211,13 +212,13 @@ counter.logSoup // returns “Join{counter + incr => ...; counter + decr => ...}
 ```
 
 Additionally, the user can set logging level on the JD.
-To do this, call `setLogLevel` on any molecule injector that belongs to that JD.
+To do this, call `setLogLevel` on any molecule injector that is bound to that JD.
 
 ```scala
 counter.setLogLevel(2)
 ```
 
-After this, verbosity level 2 is set on all reactions involving the JD to which `counter` belongs.
+After this, verbosity level 2 is set on all reactions involving the JD to which `counter` is bound.
 This might result in a large printout.
 So this facility should be used only for debugging.
 
@@ -230,7 +231,7 @@ It is an error to inject a molecule that is not yet defined as input molecule in
 ```scala
 val x = jA[Int]
 
-x(100) // java.lang.Exception: Molecule x does not belong to any join definition
+x(100) // java.lang.Exception: Molecule x is not bound to any join definition
 ```
 
 The same error will occur if such injection is attempted inside a reaction body, or if we try to debug the JD using `logSoup`.
@@ -568,8 +569,8 @@ val x = f(123)
 ```
 will inject a molecule of sort `f` with value `123` into the soup.
 
-The calling process in `f(123)` will wait until some reaction consumes this molecule and “replies” with a `String` value.
-Only after the reaction body executes the “reply action", the value `x` will be assigned, and the calling process will become unblocked and will continue its execution.
+The calling process in `f(123)` will wait until some reaction consumes this molecule and executes a “reply action” with a `String` value.
+Only after the reaction body executes the “reply action”, the `x` will be assigned to that string value, and the calling process will become unblocked and will continue its computations.
 
 ## Molecule names
 
@@ -953,38 +954,45 @@ It remains to be seen whether it is feasible to implement such a runtime engine.
 
 A basic asynchronous task is to start a long background job and get notified when it is done.
 
-A chemical model is easy to invent: we define a reaction with a single non-blocking input molecule.
-The reaction will consume the molecule, do the long calculation, and then inject a `finished()` molecule.
+A chemical model is easy to invent: The reaction needs no data to start (the calculation can be inserted directly in the reaction body).
+So we define a reaction with a single non-blocking input molecule that carries a `Unit` value.
+The reaction will consume the molecule, do the long calculation, and then inject a `finished(...)` molecule that carries the result value on it.
 
-One implementation is a function that will return an injector that will start the job. 
+A convenient implementation is to define a function that will return an injector that starts the job. 
 
 ```scala
+/**
+* Prepare reactions that will run a closure and inject a result upon its completion.
+* 
+* @tparam R The type of result value
+* @param closure The closure to be run
+* @param finished A previously bound non-blocking molecule to be injected when the calculation is done
+* @return A new non-blocking molecule that will start the job
+*/
 def submitJob[R](closure: Unit => R, finished: JA[R]): JA[R] = {
-  val begin = new JA[Unit]
+  val startJobMolecule = new JA[Unit]
   
-  join( run { case begin(_) => 
+  join( run { case startJobMolecule(_) => 
     val result = closure()
     finished(result) }
    )
    
-   begin
+   startJobMolecule
 }
 ```
 
-The `finished` molecule should belong to another join definition.
+The `finished` molecule should be bound to another join definition.
 
-Another implementation is a molecule that will start the job when injected.
+Another implementation of the same idea will put the `finished` injector into the molecule value, together with the closure that needs to be run.
 
-We can put the `finished` injector into the molecule value, together with the closure that needs to be run.
-
-We lose some polymorphism since Scala values cannot be parameterized by types.
+However, we lose some polymorphism since Scala values cannot be parameterized by types.
 
 ```scala
-val begin = new JA[(Unit => Any, JA[Any])]
+val startJobMolecule = new JA[(Unit => Any, JA[Any])]
 
 join(
   run {
-    case begin(closure, finished) => 
+    case startJobMolecule(closure, finished) => 
       val result = closure() 
       finished(result)
   }
@@ -1021,7 +1029,7 @@ Reactions in Join Calculus are static - they must be specified at compile time a
 For instance, we could create an array of molecules and reactions, where the size of the array is determined at run time.
 
 However, reactions will not be activated until a join definition is made, which we can only do once.
-(We cannot write a second join definition using an input molecule that already belongs to a previous join definition.)
+(We cannot write a second join definition using an input molecule that is already bound to a previous join definition.)
 
 For this reason, join definitions in `JoinRun` are still static in an important sense.
 For instance, when we receive a molecule injector `c` as a result of some computation, the reactions that can start by consuming `c` are already fixed.

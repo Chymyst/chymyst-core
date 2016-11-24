@@ -61,7 +61,7 @@ val y = jS[Unit, String] // same as js[Unit, String]("y")
 ## Injecting molecules
 
 Molecule injectors inherit from `Function1` and can be used as functions with one argument.
-Calling these functions will perform the side-effect of injecting the molecule into the soup that pertains to the join definition to which the molecule belongs.
+Calling these functions will perform the side-effect of injecting the molecule into the soup that pertains to the join definition to which the molecule is bound.
 
 ```scala
 ... JA[T] extends Function1[T, Unit]
@@ -82,7 +82,7 @@ val f = new JS[Int, String]
 val result = f(10) // injecting a blocking molecule: "result" is of type String
 ```
 
-It is a runtime error to inject molecules that do not yet belong to any join definition.
+It is a runtime error to inject molecules that is not yet bound to any join definition.
 
 ### Timeout for a blocking molecule
 
@@ -108,14 +108,14 @@ For instance, this happens when the reaction code attempts to execute the reply 
 Molecule injectors have the method `setLogLevel`, which is by default set to 0.
 Positive values will lead to more debugging output.
 
-The log level will affect the entire join definition to which the molecule belongs.
+The log level will affect the entire join definition to which the molecule is bound.
 
 ```scala
 val x = jA[Int]
 x.setLogLevel(2)
 ```
 
-The method `logSoup` returns a string that represents the molecules currently present in the join definition to which the molecule belongs.
+The method `logSoup` returns a string that represents the molecules currently present in the join definition to which the molecule is bound.
 
 ```scala
 val x = ja[Int]("x")
@@ -123,7 +123,7 @@ join(...)
 println(x.logSoup)
 ```
 
-It is a runtime error to use `setLogLevel` or `logSoup` on molecules that do not yet belong to any join definition.
+It is a runtime error to use `setLogLevel` or `logSoup` on molecules that are not yet bound to any join definition.
 
 ## Reactions
 
@@ -182,8 +182,8 @@ A join definition can take any number of reactions.
 With Scala's `:_*` syntax, a join definition can take a sequence of reactions computed at runtime.
 
 All reactions listed in the join definition will be activated at once.
-The join definition will then "own" the molecules used as inputs to any of these reactions.
-Conversely, we will say that those molecules are consumed in this join definition, or that they belong to it.
+Whenever we inject any molecule that is used as input to one of these reactions, it is _this_ join definition (and no other) that will decide which reactions to run.
+For this reason, we say that those molecules are "bound" to this join definition, or that they are "consumed" in it, or that they are "input molecules" in this join definition.
 
 Here is an example of a join definition:
 
@@ -200,16 +200,16 @@ join(
 ```
 
 In this join definition, the input molecules are `c`, `d`, and `i`, while the output molecules are `c` and `f`.
-We say that the molecules `c`, `d`, and `i` are consumed in this join definition, or that they belong to it.
+We say that the molecules `c`, `d`, and `i` are consumed in this join definition, or that they are bound to it.
 
-Note that `f` is not an input molecule here; presumably, there will be another join definition made elsewhere that binds `f`.
+Note that `f` is not an input molecule here; we will need to write another join definition to which `f` will be bound.
 
-It is perfectly acceptable for a reaction to inject an output molecule such as `f` that is not consumed by any reaction in this join definition.
-If we forget to write any join definition that consumes `f`, it will be a runtime error to inject `f`.
-However, in the present case `f` will be injected only if `x==1`.
-So, it will be not necessarily easy to detect this error at runtime.
+It is perfectly acceptable for a reaction to output a molecule such as `f` that is not consumed by any reaction in this join definition.
+But if we forget to write any other join definition that consumes `f`, it will be a runtime error to inject `f`.
+As a warning, note that in the present example, `f` will be injected only if `x==1` (and it is impossible to determine at compile time whether `x==1` will be true at runtime).
+So, if we forget to write a join definition to which `f` is bound, it will be not necessarily easy to detect the error at runtime!
 
-An important requirement for join definitions is that any given molecule must belong to one and only one join definition.
+An important requirement for join definitions is that any given molecule must be bound to one and only one join definition.
 It is a runtime error to use separate join definitions for reactions that consume the same molecule.
 An example of this error would be writing the previous join definition as two separate ones:
 
@@ -225,7 +225,7 @@ join(
 
 join(
   run { case c(x) + i(_) => c(x+1) }
-) // runtime error: "c" already belongs to another join definition
+) // runtime error: "c" is already bound to another join definition
 ```
 
 # Thread pools

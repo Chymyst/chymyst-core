@@ -15,63 +15,61 @@ If you are new to Join Calculus, begin with this [tutorial introduction to `Join
 
 See also my presentation at _Scala by the Bay 2016_ ([talk slides are available](https://github.com/winitzki/talks/tree/master/join_calculus)).
 
-Join calculus (JC) is somewhat similar to the well-known “actors” framework (e.g. Akka).
+There is some more [technical documentation of `JoinRun` library](doc/joinrun.md).
+
+Join calculus (JC) is similar in some aspects to the well-known “actors” framework (e.g. Akka).
 
 JC has these features that are similar to actors:
 
-- the user's code does not explicitly work with mutexes / semaphores / locks
-- concurrent processes interact by message-passing; messages carry immutable data
-- JC processes start when messages of certain type become available, just as actors start processing when a message is received
+- the user's code does not explicitly work with threads / mutexes / semaphores / locks
+- concurrent processes interact by message-passing
+- messages carry immutable data
+- JC processes start automatically when messages of certain type become available, just as actors run automatically when a message is received
 
 Main differences between actors and JC processes:
 
 | JC processes | Actors |
 |---|---|
 | concurrent processes start automatically whenever several sets of input messages are available | a desired number of actors must be created manually|
-| processes are implicit, the user's code only manipulates "concurrent data" | the user's code must manipulate explicit references to actors |
-| processes typically wait for (and process) several input messages at once | actors wait for (and process) only one input message at a time |
-| processes are immutable and stateless, all data lives on messages | actors can mutate ("become another actor"); actors can hold mutable state |
+| processes are implicit, the user's code only manipulates “concurrent data” | the user's code must manipulate explicit references to actors |
+| processes typically wait for (and consume) several input messages at once | actors wait for (and consume) only one input message at a time |
+| processes are immutable and stateless, all data is stored on messages (which are also immutable) | actors can mutate (“become another actor”); actors can hold mutable state |
 | messages are held in an unordered bag | messages are held in an ordered queue and processed in the order received |
-| messages are typed | messages are untyped |
+| message data is statically typed | message data is untyped |
 
-In talking about `JoinRun`, I follow the "chemical machine" metaphor and terminology, which differs from the terminology usually employed in academic papers on JC. Here is the dictionary:
+In talking about `JoinRun`, I follow the “chemical machine” metaphor and terminology, which differs from the terminology usually employed in academic papers on JC. Here is a dictionary:
 
 | “Chemistry”  | JC terminology | JoinRun |
 |---|---|---|
 | molecule | message on channel | `a(123)` _// side effect_ |
 | molecule injector | channel (port) name | `val a :  JA[Int]` |
 | blocking injector | blocking channel | `val q :  JS[Int]` |
-| reaction | process | `run { case a(x)+...=> }` |
+| reaction | process | `run { case a(x) + ... => ... }` |
 | injecting a molecule | sending a message | `a(123)` _// side effect_ |
 | join definition | join definition | `join(r1, r2, ...)` |
-
-There is now some [technical documetation of `JoinRun` library](doc/joinrun.md).
-
-More documentation is forthcoming.
 
 # Main improvements
 
 Compared to `ScalaJoin` (Jiansen He's 2011 implementation of JC), `JoinRun` offers the following improvements:
 
-- Molecule injectors ("channels") are _locally scoped values_ (instances of abstract class `AbsMol` having types `JA[T]` or `JS[T,R]`) rather than singleton objects, as in `ScalaJoin`; 
+- Molecule injectors (“channels”) are _locally scoped values_ (instances of abstract class `AbsMol` having types `JA[T]` or `JS[T,R]`) rather than singleton objects, as in `ScalaJoin`; 
 this is more faithful to the semantics of JC
 - Reactions are also locally scoped values (instances of `JReaction`)
 - Reactions and molecules are composable: e.g. we can construct a join definition
- with `n` reactions and `n` molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of molecules (no stack overflows and no runtime penalty)
-- "Join definitions" are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC)
-- Some common cases of invalid join definitions are flagged (as run-time errors) even before starting any processes; others are flagged when reactions are run (e.g. if a synchronous molecule gets no reply)
+ with `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules
+- “Join definitions” are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC)
+- Some common cases of invalid join definitions are flagged (as run-time errors) even before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply)
 - Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use actor-based or thread executor-based pools
-- "Fair" nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random
-- Fault tolerance: failed reactions are restarted
-- Somewhat lighter syntax for join definitions
+- “Fair” nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random
+- Fault tolerance: failed reactions are automatically restarted (as an option)
+- Lighter syntax for join definitions, compared with previous implementations
 - The user can trace the execution via logging levels; automatic naming of molecules for debugging is available (via macro)
-- Unit tests and benchmarks
 
 # Status
 
-Current version is `0.0.6`.
+Current version is `0.0.8`.
 The semantics of Join Calculus (restricted to single machine) is fully implemented and tested.
-Unit tests include examples such as concurrent counters, parallel "or", concurrent merge-sort, and "dining philosophers".
+Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
 Performance tests indicate that the runtime can schedule about 300,000 reactions per second per CPU core,
 and the performance bottleneck is the thread switching and pattern-matching.
 
@@ -79,9 +77,8 @@ Known limitations:
 
 - `JoinRun` is currently at most 20% slower than `ScalaJoin` on certain benchmarks that exercise a very large number of very short reactions.
 - Pattern-matching in join definitions is limited due to Scala's pattern matcher being too greedy (but this does not restrict the expressiveness of the language)
-- No fairness with respect to the choice of molecules: if the same reaction could proceed with many input molecules, the input molecules are not chosen at random
-- No distributed execution (Jiansen's `Disjoin.scala` is still not ported to `JoinRun`)
-- No javadocs
+- No fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random
+- No distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`)
 
 # Run unit tests
 
@@ -103,13 +100,13 @@ To build all JARs:
 ```
 sbt assembly
 ```
-will prepare a "root", "core", and "macros" assemblies.
+will prepare a “root”, “core”, and “macros” assemblies.
 
-The main library is in the "core" and "macros" artifacts.
+The main library is in the “core” and “macros” artifacts.
 
 # Basic usage of `JoinRun`
 
-Here is an example of "single-access non-blocking counter".
+Here is an example of “single-access non-blocking counter”.
 There is an integer counter value, to which we have non-blocking access
 via `incr` and `decr` molecules.
 We can also fetch the current counter value via the `get` molecule, which is blocking.
@@ -117,7 +114,7 @@ The counter is initialized to the number we specify.
 ```scala
     import code.winitzki.jc.JoinRun._
      
-    // Define the logic of the "non-blocking counter".
+    // Define the logic of the “non-blocking counter”.
     def makeCounter(initCount: Int)
                   : (JA[Unit], JA[Unit], JS[Unit, Int]) = {
       val counter = ja[Int] // non-blocking molecule with integer value
@@ -131,7 +128,7 @@ The counter is initialized to the number we specify.
         run { counter(n) + get(_,res) => counter(n) + res(n) }
       }
     
-      counter(initCount) // inject a single "counter(initCount)" molecule
+      counter(initCount) // inject a single “counter(initCount)” molecule
       
       (incr, decr, get) // return the molecule injectors
     }
@@ -182,7 +179,7 @@ The library offers some debugging facilities:
     counter.setLogLevel(2)
     
     /* Each molecule is automatically named: */
-    counter.toString // returns "counter"
+    counter.toString // returns the string "counter"
     
     decr()+decr()+decr()
     /* This prints: 
