@@ -82,7 +82,7 @@ If many copies of input molecules are available, the runtime engine could start 
 
 Every reaction receives the values carried by its _input_ molecules as input arguments.
 The reaction body can be a pure function that computes output values purely from input values and outputs some new molecules that carry the newly computed output values.
-Then it is completely safe to execute concurrently several instances of the same reaction, consuming each time a different set of input molecules.
+Then it is completely safe (free of race conditions) to execute concurrently several instances of the same reaction, consuming each time a different set of input molecules.
 This is the way Join Calculus uses the “chemical simulator” to achieve safe and automatic concurrency in a purely functional way.
 
 ## The syntax of `JoinRun`
@@ -160,14 +160,15 @@ decr() // now the soup again has counter(100)
 decr()+decr() // now the soup has counter(98)
 ```
 
-The alternative syntax `decr()+decr()` means injecting two molecules at once.
-In the current version of `JoinRun`, this is equivalent to injecting the molecules one by one.
+The syntax `decr()+decr()` means injecting two molecules at once.
+(In the current version of `JoinRun`, this is equivalent to injecting the molecules one by one.)
 
 It could happen that we are injecting `incr()` and `decr()` molecules too quickly for reactions to start.
 This will result in many instances of `incr()` or `decr()` molecules being present in the soup, waiting to be consumed.
 This is not a problem if only one instance of the `counter` molecule is present in the soup.
-In that case, the single `counter` molecule will react with either an `incr` or a `decr` molecule, starting one reaction at a time.
-Thus, we cannot have any race conditions with the counter (In ordinary, non-Join Calculus code, a race condition could occur due to updating the counter value simultaneously from different processes).
+When a reaction starts, all input molecules are consumed first. 
+For this reason, the single `counter` molecule will react with either an `incr` or a `decr` molecule, starting only one reaction at a time.
+Thus, we will not have any race conditions with the counter (In ordinary, non-Join Calculus code, a race condition could occur due to updating the counter value simultaneously from different processes).
 
 ## Tracing the output
 
