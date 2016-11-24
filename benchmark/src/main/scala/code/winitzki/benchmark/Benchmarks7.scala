@@ -16,9 +16,9 @@ object Benchmarks7 {
   def benchmark7(count: Int, threads: Int = 2): Long = {
 
     println(s"Creating $counters concurrent counters, each going from $count to 0")
-    val done = ja[Unit]("done")
-    val all_done = ja[Int]("all_done")
-    val f = js[LocalDateTime,Long]("f")
+    val done = m[Unit]("done")
+    val all_done = m[Int]("all_done")
+    val f = b[LocalDateTime,Long]("f")
 
     val tp = new ReactionPool(threads)
 
@@ -68,8 +68,8 @@ object Benchmarks7 {
   }
 
   def make_counters(done: JA[Unit], counters: Int, init: Int, tp: ReactionPool) = {
-    val c = ja[Int]("c")
-    val d = ja[Unit]("d")
+    val c = m[Int]("c")
+    val d = m[Unit]("d")
 
     join(
       tp{ case c(0) => done() },

@@ -53,8 +53,8 @@ class MergesortSpec extends FlatSpec with Matchers {
 
   def performMergeSort[T : Ordering : ClassTag](array: Array[T], threads: Int = 8): Array[T] = {
 
-    val finalResult = ja[Array[T]]
-    val getFinalResult = js[Unit, Array[T]]
+    val finalResult = m[Array[T]]
+    val getFinalResult = b[Unit, Array[T]]
 
     join(
       &{ case finalResult(arr) + getFinalResult(_, r) => r(arr) }

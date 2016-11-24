@@ -16,12 +16,12 @@ class ParallelOrSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   lazy val never = neverReturn[Boolean]
 
-  def or(b1: => Boolean, b2: => Boolean): JS[Unit, Boolean] = {
-    val res = js[Unit, Boolean]
-    val res1 = ja[Boolean]
-    val res2 = ja[Boolean]
-    val res1_false = js[Unit, Boolean]
-    val res2_false = js[Unit, Boolean]
+  def or(b1: => Boolean, b2: => Boolean): B[Unit, Boolean] = {
+    val res = new B[Unit, Boolean]("res")
+    val res1 = new M[Boolean]("res1")
+    val res2 = new M[Boolean]("res2")
+    val res1_false = new B[Unit, Boolean]("res1_false")
+    val res2_false = new B[Unit, Boolean]("res2_false")
 
     join (
       &{ case res(_, res_reply) + res1(b) => if (b) res_reply(b) else res_reply(res1_false()) },

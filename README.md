@@ -42,8 +42,8 @@ In talking about `JoinRun`, I follow the “chemical machine” metaphor and ter
 | “Chemistry”  | JC terminology | JoinRun |
 |---|---|---|
 | molecule | message on channel | `a(123)` _// side effect_ |
-| molecule injector | channel (port) name | `val a :  JA[Int]` |
-| blocking injector | blocking channel | `val q :  JS[Int]` |
+| molecule injector | channel (port) name | `val a :  M[Int]` |
+| blocking injector | blocking channel | `val q :  B[Int]` |
 | reaction | process | `run { case a(x) + ... => ... }` |
 | injecting a molecule | sending a message | `a(123)` _// side effect_ |
 | join definition | join definition | `join(r1, r2, ...)` |
@@ -52,7 +52,7 @@ In talking about `JoinRun`, I follow the “chemical machine” metaphor and ter
 
 Compared to `ScalaJoin` (Jiansen He's 2011 implementation of JC), `JoinRun` offers the following improvements:
 
-- Molecule injectors (“channels”) are _locally scoped values_ (instances of abstract class `AbsMol` having types `JA[T]` or `JS[T,R]`) rather than singleton objects, as in `ScalaJoin`; 
+- Molecule injectors (“channels”) are _locally scoped values_ (instances of abstract class `AbsMol` having types `M[T]` or `B[T,R]`) rather than singleton objects, as in `ScalaJoin`; 
 this is more faithful to the semantics of JC
 - Reactions are also locally scoped values (instances of `JReaction`)
 - Reactions and molecules are composable: e.g. we can construct a join definition
@@ -95,7 +95,7 @@ Some tests are timed and will fail on a slow machine.
 
 # Build the library
 
-To build all JARs:
+To build all MRs:
 
 ```
 sbt assembly
@@ -113,14 +113,15 @@ We can also fetch the current counter value via the `get` molecule, which is blo
 The counter is initialized to the number we specify.
 ```scala
     import code.winitzki.jc.JoinRun._
+    import code.winitzki.jc.Macros._
      
     // Define the logic of the “non-blocking counter”.
     def makeCounter(initCount: Int)
-                  : (JA[Unit], JA[Unit], JS[Unit, Int]) = {
-      val counter = ja[Int] // non-blocking molecule with integer value
-      val incr = ja[Unit] // non-blocking molecule with empty value
-      val decr = ja[Unit] // non-blocking molecule with empty value
-      val get = js[Unit, Int] // blocking molecule returning integer value
+                  : (M[Unit], M[Unit], B[Unit, Int]) = {
+      val counter = m[Int] // non-blocking molecule with integer value
+      val incr = m[Unit] // non-blocking molecule with empty value
+      val decr = m[Unit] // empty non-blocking molecule
+      val get = b[Unit, Int] // empty blocking molecule returning integer value
     
       join {
         run { counter(n) + incr(_) => counter(n+1) },
@@ -154,7 +155,7 @@ The counter is initialized to the number we specify.
 It is sometimes not easy to make sure that the reactions are correctly designed.
 The library offers some debugging facilities:
 
-- each molecule can be named
+- each molecule is named
 - a macro is available to assign names automatically
 - the user can set a log level on each join definition
  
@@ -164,9 +165,9 @@ The library offers some debugging facilities:
     import code.winitzki.jc.JoinRun._
     import code.winitzki.jc.Macros._
     
-    val counter = jA[Int]
-    val decr = jA[Unit]
-    val get = jS[Unit,Int]
+    val counter = b[Int] // the name of this molecule is "counter"
+    val decr = b[Unit] // the name is "decr"
+    val get = b[Unit,Int] // the name is "get"
     
     join (
         run { case counter(n) + decr(_) if n > 0 => counter(n-1) },
