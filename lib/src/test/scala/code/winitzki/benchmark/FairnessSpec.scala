@@ -12,7 +12,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
   behavior of "join definition"
 
   // fairness over reactions:
-  // We have n molecules A:JA[Unit], which can all interact with a single molecule C:JA[(Int,Array[Int])].
+  // We have n molecules A:M[Unit], which can all interact with a single molecule C:M[(Int,Array[Int])].
   // We first inject all A's and then a single C.
   // Each molecule A_i will increment C's counter at index i upon reaction.
   // We repeat this for N iterations, then we read the array and check that its values are distributed more or less randomly.
@@ -22,13 +22,13 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val reactions = 4
     val N = 1000
 
-    val c = ja[(Int, Array[Int])]("c")
-    val done = ja[Array[Int]]("done")
-    val getC = js[Unit, Array[Int]]("getC")
-    val a0 = ja[Unit]("a0")
-    val a1 = ja[Unit]("a1")
-    val a2 = ja[Unit]("a2")
-    val a3 = ja[Unit]("a3")
+    val c = new M[(Int, Array[Int])]("c")
+    val done = new M[Array[Int]]("done")
+    val getC = new B[Unit, Array[Int]]("getC")
+    val a0 = new M[Unit]("a0")
+    val a1 = new M[Unit]("a1")
+    val a2 = new M[Unit]("a2")
+    val a3 = new M[Unit]("a3")
     //n = 4
 
     join(
@@ -61,11 +61,11 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val cycles = 1000
 
-    val c = ja[Int]("c")
-    val done = ja[List[Int]]("done")
-    val getC = js[Unit, List[Int]]("getC")
-    val gather = ja[List[Int]]("gather")
-    val a = ja[Int]("a")
+    val c = new M[Int]("c")
+    val done = new M[List[Int]]("done")
+    val getC = new B[Unit, List[Int]]("getC")
+    val gather = new M[List[Int]]("gather")
+    val a = new M[Int]("a")
 
     join(
       &{ case done(arr) + getC(_, r) => r(arr) },
@@ -92,13 +92,13 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     * Verify that both reactions proceed with probability roughly 1/2.
     */
   it should "schedule reactions fairly after multiple injection" in {
-    val a = ja[Unit]("a")
-    val b = ja[Unit]("b")
-    val c = ja[Unit]("c")
-    val d = ja[Unit]("d")
-    val e = ja[Unit]("e")
-    val f = ja[(Int,Int,Int)]("f")
-    val g = js[Unit, (Int,Int)]("g")
+    val a = new M[Unit]("a")
+    val b = new M[Unit]("b")
+    val c = new M[Unit]("c")
+    val d = new M[Unit]("d")
+    val e = new M[Unit]("e")
+    val f = new M[(Int,Int,Int)]("f")
+    val g = new B[Unit, (Int,Int)]("g")
 
     join(
       &{ case a(_) + b(_) => d() },
@@ -123,10 +123,10 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
   // interestingly, this test fails to complete in 500ms on Travis CI with Scala 2.10, but succeeds with 2.11
   it should "fail to schedule reactions fairly after multiple injection into separate JDs" in {
 
-    def makeJD(d1: JA[Unit], d2: JA[Unit]): (JA[Unit],JA[Unit],JA[Unit]) = {
-      val a = ja[Unit]("a")
-      val b = ja[Unit]("b")
-      val c = ja[Unit]("c")
+    def makeJD(d1: M[Unit], d2: M[Unit]): (M[Unit],M[Unit],M[Unit]) = {
+      val a = new M[Unit]("a")
+      val b = new M[Unit]("b")
+      val c = new M[Unit]("c")
       join(
         &{ case a(_) + b(_) => d1() },
         &{ case b(_) + c(_) => d2() }
@@ -134,10 +134,10 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
       (a,b,c)
     }
 
-    val d = ja[Unit]("d")
-    val e = ja[Unit]("e")
-    val f = ja[(Int,Int,Int)]("f")
-    val g = js[Unit, (Int,Int)]("g")
+    val d = new M[Unit]("d")
+    val e = new M[Unit]("e")
+    val f = new M[(Int,Int,Int)]("f")
+    val g = new B[Unit, (Int,Int)]("g")
 
     join(
       &{ case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },

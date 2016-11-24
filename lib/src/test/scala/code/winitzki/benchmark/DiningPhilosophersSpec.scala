@@ -10,7 +10,7 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
 
   val timeLimit = Span(10000, Millis)
 
-  def rw(m: AbsMol): Unit = {
+  def rw(m: Molecule): Unit = {
     println(m.toString)
     Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
   }
@@ -23,24 +23,24 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
 
     val tp = new FixedPool(8)
 
-    val h1 = ja[Int]("Aristotle is hungry")
-    val h2 = ja[Int]("Kant is hungry")
-    val h3 = ja[Int]("Marx is hungry")
-    val h4 = ja[Int]("Russell is hungry")
-    val h5 = ja[Int]("Spinoza is hungry")
-    val t1 = ja[Int]("Aristotle is thinking")
-    val t2 = ja[Int]("Kant is thinking")
-    val t3 = ja[Int]("Marx is thinking")
-    val t4 = ja[Int]("Russell is thinking")
-    val t5 = ja[Int]("Spinoza is thinking")
-    val f12 = ja[Unit]("f12")
-    val f23 = ja[Unit]("f23")
-    val f34 = ja[Unit]("f34")
-    val f45 = ja[Unit]("f45")
-    val f51 = ja[Unit]("f51")
+    val h1 = new M[Int]("Aristotle is hungry")
+    val h2 = new M[Int]("Kant is hungry")
+    val h3 = new M[Int]("Marx is hungry")
+    val h4 = new M[Int]("Russell is hungry")
+    val h5 = new M[Int]("Spinoza is hungry")
+    val t1 = new M[Int]("Aristotle is thinking")
+    val t2 = new M[Int]("Kant is thinking")
+    val t3 = new M[Int]("Marx is thinking")
+    val t4 = new M[Int]("Russell is thinking")
+    val t5 = new M[Int]("Spinoza is thinking")
+    val f12 = new M[Unit]("f12")
+    val f23 = new M[Unit]("f23")
+    val f34 = new M[Unit]("f34")
+    val f45 = new M[Unit]("f45")
+    val f51 = new M[Unit]("f51")
 
-    val done = ja[Unit]("done")
-    val check = js[Unit, Unit]("check")
+    val done = new M[Unit]("done")
+    val check = new B[Unit, Unit]("check")
 
     join(tp, tp) (
       & { case t1(n) => rw(h1); h1(n - 1) },

@@ -9,11 +9,11 @@ object Benchmarks1 {
 
   def benchmark1(count: Int, threads: Int = 2): Long = {
 
-    val c = ja[Int]("c")
-    val g = js[Unit,Int]("g")
-    val i = ja[Unit]("i")
-    val d = ja[Unit]("d")
-    val f = js[LocalDateTime,Long]("f")
+    val c = m[Int]("c")
+    val g = b[Unit,Int]("g")
+    val i = m[Unit]("i")
+    val d = m[Unit]("d")
+    val f = b[LocalDateTime,Long]("f")
 
     val tp = new ReactionPool(threads)
 
@@ -58,11 +58,11 @@ object Benchmarks1 {
   }
 
   def make_counter(init: Int, threads: Int, tp: ReactionPool) = {
-    val c = ja[Int]("c")
-    val g = js[Unit,Int]("g")
-    val i = ja[Unit]("i")
-    val d = ja[Unit]("d")
-    val f = js[LocalDateTime,Long]("f")
+    val c = m[Int]("c")
+    val g = b[Unit,Int]("g")
+    val i = m[Unit]("i")
+    val d = m[Unit]("d")
+    val f = b[LocalDateTime,Long]("f")
 
     join(
       tp { case c(0) + f(tInit, r) =>

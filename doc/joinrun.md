@@ -30,33 +30,28 @@ There are only two primitive operations:
 ## Molecule injectors
 
 Molecule injectors are instances of one of the two classes:
-- `JA[T]` for non-blocking molecules carrying a value of type `T`
-- `JS[T, R]` for blocking molecules carrying a value of type `T` and returning a value of type `R`
+- `M[T]` for non-blocking molecules carrying a value of type `T`
+- `B[T, R]` for blocking molecules carrying a value of type `T` and returning a value of type `R`
 
-Due to limitations of Scala macros, the users of `JoinRun` need to define molecule injectors separately as local values.
+Molecule injectors should be defined as local values, before these molecules can be used in reactions.
 
 ```scala
-val x = new JA[Int]
-val y = new JS[Unit, String]
+val x = new M[Int]("x")
+val y = new B[Unit, String]("y")
 ```
 
-Optionally, molecule injectors can carry a name.
-This name will be used when printing the molecule for debugging purposes.
+Each molecule carries a name.
+The name will be used when printing the molecule for debugging purposes.
 Otherwise, names have no effect on runtime behavior.
 
-Helper functions are available for assigning names to injectors:
+The convenience macros `m` and `b` can be used to further reduce the boilerplate:
 
 ```scala
-val x = ja[Int]("x")
-val y = js[Unit, String]("y")
+val counter = m[Int] // same as new M[Int]("counter")
+val fetch = b[Unit, String] // same as new B[Unit, String]("fetch")
 ```
 
-Alternatively, a macro can be used to further reduce the boilerplate:
-
-```scala
-val x = jA[Int] // same as ja[Int]("x")
-val y = jS[Unit, String] // same as js[Unit, String]("y")
-```
+These macros will read the enclosing `val` definition at compile time and substitute the name of the variable into the class constructor.
 
 ## Injecting molecules
 
@@ -64,20 +59,20 @@ Molecule injectors inherit from `Function1` and can be used as functions with on
 Calling these functions will perform the side-effect of injecting the molecule into the soup that pertains to the join definition to which the molecule is bound.
 
 ```scala
-... JA[T] extends Function1[T, Unit]
-... JS[T, R] extends Function1[T, R]
+... M[T] extends Function1[T, Unit]
+... B[T, R] extends Function1[T, R]
 
-val x = new JA[Int] // define injector
+val x = new M[Int]("x") // define injector using class constructor
 
 // Need to define reactions - this is omitted here.
 
 x(123) // inject molecule with value 123
 
-val y = new JA[Unit] // define injector
+val y = m[Unit] // define injector using macro
 
 y() // inject molecule with unit value
 
-val f = new JS[Int, String]
+val f = b[Int, String] // define injector using macro
 
 val result = f(10) // injecting a blocking molecule: "result" is of type String
 ```
@@ -90,9 +85,8 @@ The call to inject a blocking molecule will block until some reaction consumes t
 
 A timeout can be imposed on that call by using this syntax:
 
-
 ```scala
-val f = new JS[Int, String]
+val f = b[Int, String]
 
 val result: Option[String] = f(timeout = 1000000000L)(10) 
 ```
@@ -111,14 +105,14 @@ Positive values will lead to more debugging output.
 The log level will affect the entire join definition to which the molecule is bound.
 
 ```scala
-val x = jA[Int]
+val x = m[Int]
 x.setLogLevel(2)
 ```
 
 The method `logSoup` returns a string that represents the molecules currently present in the join definition to which the molecule is bound.
 
 ```scala
-val x = ja[Int]("x")
+val x = m[Int]
 join(...)
 println(x.logSoup)
 ```
@@ -147,8 +141,8 @@ Note: Although molecules with `Unit` type can be injected as `a()`, the pattern-
 Blocking molecules use a syntax that suggests the existence of a special pseudo-molecule that performs the reply action:
 
 ```scala
-val a = new JA[Int] // non-blocking molecule
-val f = new JS[Int, String] // blocking molecule
+val a = new M[Int]("a") // non-blocking molecule
+val f = new B[Int, String]("f") // blocking molecule
 
 val reaction2 = run { case a(x) + f(y, r) => r(x.toString) + a(y) }
 
@@ -188,10 +182,10 @@ For this reason, we say that those molecules are "bound" to this join definition
 Here is an example of a join definition:
 
 ```scala
-val c = ja[Int]("counter")
-val d = ja[Unit]("decrement")
-val i = ja[Unit]("increment")
-val f = ja[Unit]("finished")
+val c = new M[Int]("counter")
+val d = new M[Unit]("decrement")
+val i = new M[Unit]("increment")
+val f = new M[Unit]("finished")
 
 join(
   run { case c(x) + d(_) => c(x-1); if (x==1) f() },
@@ -214,10 +208,10 @@ It is a runtime error to use separate join definitions for reactions that consum
 An example of this error would be writing the previous join definition as two separate ones:
 
 ```scala
-val c = ja[Int]("counter")
-val d = ja[Unit]("decrement")
-val i = ja[Unit]("increment")
-val f = ja[Unit]("finished")
+val c = new M[Int]("counter")
+val d = new M[Unit]("decrement")
+val i = new M[Unit]("increment")
+val f = new M[Unit]("finished")
 
 join(
   run { case c(x) + d(_) => c(x-1); if (x==1) f() }
