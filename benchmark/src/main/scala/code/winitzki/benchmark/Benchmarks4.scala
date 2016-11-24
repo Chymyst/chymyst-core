@@ -10,9 +10,9 @@ object Benchmarks4 {
     val n = 20
     val g = {
       val is: IndexedSeq[Int] = 0 until n
-      val f = ja[Unit]("f")
-      val g = js[LocalDateTime, Long]("g")
-      val as = is.map(i => ja[Int](s"a$i"))
+      val f = m[Unit]("f")
+      val g = b[LocalDateTime, Long]("g")
+      val as = is.map(i => m[Int](s"a$i"))
       val jrs = IndexedSeq(
         run { case f(_) + g(initTime, r) => r(elapsed(initTime)) }
       ) ++ is.map(

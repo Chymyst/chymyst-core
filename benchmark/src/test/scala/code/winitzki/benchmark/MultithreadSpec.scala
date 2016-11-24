@@ -17,8 +17,8 @@ class MultithreadSpec extends FlatSpec with Matchers {
         (1 to n).foreach(i => (1 to i).foreach(j => (1 to j).foreach(k => math.cos(10000.0))))
       }
 
-      val a = ja[Int]
-      val never = js[Unit, Unit]
+      val a = m[Int]
+      val never = b[Unit, Unit]
       val tp = new ReactionPool(threads)
       join(
         tp { case a(c) if c > 0 => performWork(); a(c - 1) },

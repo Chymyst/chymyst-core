@@ -9,21 +9,21 @@ class MacrosSpec extends FlatSpec with Matchers {
   behavior of "JoinRun macro utilities"
 
   it should "compute invocation names for molecule injectors" in {
-    val a = jA[Int]
+    val a = m[Int]
 
     a.toString shouldEqual "a"
 
-    val s = jS[Map[(Boolean,Unit),Seq[Int]], Option[List[(Int,Option[Map[Int,String]])]]] // complicated type
+    val s = b[Map[(Boolean,Unit),Seq[Int]], Option[List[(Int,Option[Map[Int,String]])]]] // complicated type
 
-    s.toString shouldEqual "s/S"
+    s.toString shouldEqual "s/B"
   }
 
   it should "inspect reaction body" in {
-    val a = jA[Int]
-    val b = jA[(Int, Option[Int])]
-    val s = jS[Unit,Int]
+    val a = m[Int]
+    val s = b[Unit,Int]
+    val bb = m[(Int, Option[Int])]
 
-    val result = findInputs({ case a(p) + a(y) + a(1) + b(_) + b((1,z)) + b((_, None)) + b((t, Some(q))) + s(_, r) => a(p+1) + r(p) })
+    val result = findInputs({ case a(p) + a(y) + a(1) + bb(_) + bb((1,z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) => a(p+1) + r(p) })
 
     println(s"debug: got $result")
     // desugared expression tree:

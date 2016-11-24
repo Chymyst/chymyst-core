@@ -95,8 +95,8 @@ import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
 
 // declare the molecule types
-val a = jA[Int] // a(...) will be a molecule with an integer value
-val b = jA[Int] // ditto for b(...)
+val a = m[Int] // a(...) will be a molecule with an integer value
+val b = m[Int] // ditto for b(...)
 
 // declare the available reaction(s)
 join(
@@ -107,7 +107,7 @@ join(
 )
 ```
 
-The helper functions `jA`, `join`, and `run` are defined in the `JoinRun` library.
+The helper functions `m`, `join`, and `run` are defined in the `JoinRun` library.
 
 ## Example 0: concurrent counter
 
@@ -118,7 +118,7 @@ To implement this using Join Calculus, we begin by deciding which molecules we w
 It is clear that we will need a molecule that carries the integer value of the counter:
 
 ```scala
-val counter = jA[Int]
+val counter = m[Int]
 ```
 
 The increment and decrement operations must be represented by other molecules.
@@ -126,8 +126,8 @@ Let us call them `incr` and `decr`.
 These molecules do not need to carry values, so we will use `Unit` as their value type. 
 
 ```scala
-val incr = jA[Unit]
-val decr = jA[Unit]
+val incr = m[Unit]
+val decr = m[Unit]
 ```
 
 The reactions must be such that the counter is incremented when we inject the `incr` molecule, and decremented when we inject the `decr` molecule.
@@ -178,9 +178,9 @@ import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
 
 // declare the molecule types
-val counter = jA[Int]
-val incr = jA[Unit]
-val decr = jA[Unit]
+val counter = m[Int]
+val incr = m[Unit]
+val decr = m[Unit]
 
 // helper function to be used in reactions
 def printAndInject(x: Int) = {
@@ -235,7 +235,7 @@ So this facility should be used only for debugging.
 It is an error to inject a molecule that is not yet defined as input molecule in any JD.
 
 ```scala
-val x = jA[Int]
+val x = m[Int]
 
 x(100) // java.lang.Exception: Molecule x is not bound to any join definition
 ```
@@ -249,9 +249,9 @@ The correct way of using `JoinRun` is first to define molecules, then to create 
 It is also an error to write a reaction whose input molecule is already used as input in another join definition.
 
 ```scala
-val x = jA[Int]
-val a = jA[Unit]
-val b = jA[Unit]
+val x = m[Int]
+val a = m[Unit]
+val b = m[Unit]
 
 join( run { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK
 
@@ -262,9 +262,9 @@ join( run { case x(n) + b(_) => println(s"have x($n) + b") } )
 Correct use of Join Calculus requires that we put these two reactions into a single join definition:
  
 ```scala
-val x = jA[Int]
-val a = jA[Unit]
-val b = jA[Unit]
+val x = m[Int]
+val a = m[Unit]
+val b = m[Unit]
 
 join(
   run { case x(n) + a(_) => println(s"have x($n) + a") },
@@ -277,12 +277,12 @@ However, reactions that use a certain molecule only as an output molecule can be
 Here is an example where we define one JD that computes a result and sends it on a molecule to another JD that prints that result:
 
 ```scala
-val show = jA[Int]
+val show = m[Int]
 
 // JD where “show” is an input molecule
 join( run { case show(x) => println(s"") })
 
-val start = jA[Unit]
+val start = m[Unit]
 
 // JD where “show” is an output molecule
 join(
@@ -297,7 +297,7 @@ It is not allowed to have a reaction with repeated input molecules, e.g. of the 
 An input molecule list with a repeated molecule is called a “nonlinear pattern”.
 
 ```scala
-val x = jA[Int]
+val x = m[Int]
 
 join(run { case x(n1) + x(n2) =>  })
 // java.lang.Exception: Nonlinear pattern: x used twice
@@ -350,26 +350,26 @@ A “hungry philosopher” molecule reacts with two neighbor “fork” molecule
 The complete code is shown here:
 
 ```scala
-    def rw(m: AbsMol): Unit = {
+    def rw(m: Molecule): Unit = {
       println(m.toString)
       Thread.sleep(scala.util.Random.nextInt(20))
     }
 
-    val h1 = new JA[Int]("Aristotle is thinking")
-    val h2 = new JA[Int]("Kant is thinking")
-    val h3 = new JA[Int]("Marx is thinking")
-    val h4 = new JA[Int]("Russell is thinking")
-    val h5 = new JA[Int]("Spinoza is thinking")
-    val t1 = new JA[Int]("Aristotle is eating")
-    val t2 = new JA[Int]("Kant is eating")
-    val t3 = new JA[Int]("Marx is eating")
-    val t4 = new JA[Int]("Russell is eating")
-    val t5 = new JA[Int]("Spinoza is eating")
-    val f12 = new JA[Unit]("f12")
-    val f23 = new JA[Unit]("f23")
-    val f34 = new JA[Unit]("f34")
-    val f45 = new JA[Unit]("f45")
-    val f51 = new JA[Unit]("f51")
+    val h1 = new M[Int]("Aristotle is thinking")
+    val h2 = new M[Int]("Kant is thinking")
+    val h3 = new M[Int]("Marx is thinking")
+    val h4 = new M[Int]("Russell is thinking")
+    val h5 = new M[Int]("Spinoza is thinking")
+    val t1 = new M[Int]("Aristotle is eating")
+    val t2 = new M[Int]("Kant is eating")
+    val t3 = new M[Int]("Marx is eating")
+    val t4 = new M[Int]("Russell is eating")
+    val t5 = new M[Int]("Spinoza is eating")
+    val f12 = new M[Unit]("f12")
+    val f23 = new M[Unit]("f23")
+    val f34 = new M[Unit]("f34")
+    val f45 = new M[Unit]("f45")
+    val f51 = new M[Unit]("f51")
 
     join (
       run { case t1(_) => rw(h1); h1() },
@@ -428,7 +428,7 @@ Once the reply value has been sent, the injecting process is unblocked.
 Here is an example of declaring a blocking molecule:
 
 ```scala
-val f = jS[Int, String]
+val f = b[Int, String]
 ```
 
 The molecule `f` carries a value of type `Int`; the reply value is of type `String`.
@@ -438,8 +438,8 @@ The “replying” action is non-blocking within the reaction body.
 Example syntax for the reply action within a reaction body:
 
 ```scala
-val f = jS[Unit, Int]
-val c = jA[Int]
+val f = b[Unit, Int]
+val c = m[Int]
 
 join( run { case c(n) + f(_, reply) => reply(n) } )
 ```
@@ -488,9 +488,9 @@ import java.time.temporal.ChronoUnit.MILLIS
 object C extends App {
 
   // declare molecule types
-  val fetch = jS[Unit, Unit]
-  val counter = jA[Int]
-  val decr = jA[Unit]
+  val fetch = b[Unit, Unit]
+  val counter = m[Int]
+  val decr = m[Unit]
   
   // declare reactions
   join(
@@ -528,21 +528,21 @@ The runtime engine cannot detect this situation because it cannot determine whet
 - If several reactions are available for the blocking molecule, one of these reactions will be selected at random.
 - It is an error if a reaction does not reply to the calling process:
 ```scala
-val f = jS[Unit, Unit]
-val c = jA[Int]
+val f = b[Unit, Unit]
+val c = m[Int]
 join( run { case f(_,reply) + c(n) => c(n+1) } ) // forgot to reply!
 
 f()
-java.lang.Exception: Error: In Join{f/S => ...}: Reaction {f/S => ...} finished without replying to f/S
+java.lang.Exception: Error: In Join{f/B => ...}: Reaction {f/B => ...} finished without replying to f/B
 ```
-- Blocking molecules are printed with the suffix `"/S"`, to indicate that they involve synchronous behavior.
+- Blocking molecules are printed with the suffix `"/B"`.
 
 ## Further details: Molecules and molecule injectors
 
 Molecules are injected into the “chemical soup” using the syntax such as `c(123)`. Here, `c` is a value we define using a construction such as
 
 ```scala
-val c = jA[Int]
+val c = m[Int]
 ```
 
 In Join Calculus, an injected molecule must carry a value.
@@ -551,22 +551,22 @@ The value `c` is a **molecule injector**, - that is, a value that can be used to
 The result of calling the injector when evaluating `c(123)` is a _side-effect_ which injects the molecule of sort `c` with value `123` into the soup.
 
 If `c` is a non-blocking molecule, the call `c(123)` is non-blocking and immediately returns `Unit`.
-The injector `c` has type `JA[Int]` and can be also created directly using the class constructor:
+The injector `c` has type `M[Int]` and can be also created directly using the class constructor:
 
 ```scala
-val c = new JA[Int]
+val c = new M[Int]("c")
 ```
 
 For a blocking molecule, such as
 ```scala
-val f = jS[Int, String]
+val f = b[Int, String]
 ```
 the `f` is an injector that takes an `Int` value and returns a `String`.
 
-Injectors for blocking molecules are essentially functions: their type is `JS[T, R]`, which extends `Function1[T, R]`.
+Injectors for blocking molecules are essentially functions: their type is `B[T, R]`, which extends `Function1[T, R]`.
 The injector `f` could be equivalently defined by
 ```scala
-val f = new JS[Int, String]
+val f = new B[Int, String]("f")
 ```
 
 Once `f` is defined like this, an injection call such as
@@ -587,20 +587,23 @@ Molecule names are used only for debugging: they are printed when logging reacti
 
 There are two ways of assigning a name to a molecule:
 - specify the name explicitly, by using a class constructor;
-- use the macros `jA` and `jS`.
+- use the macros `m` and `b`.
 
 Here is an example of defining injectors using explicit class constructors and molecule names:
 
 ```scala
-val counter = new JA[Int]("counter")
-val fetch = new JS[Unit, Int]("fetch")
+val counter = new M[Int]("counter")
+val fetch = new B[Unit, Int]("fetch")
 ```
 
 This code is completely equivalent to the shorter code written using macros:
 
 ```scala
-val counter = jA[Int]
-val fetch = jS[Unit, Int]
+import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros._
+
+val counter = m[Int]
+val fetch = b[Unit, Int]
 ```
 
 These macros can read the names `"counter"` and `"fetch"` from the surrounding code context.
@@ -608,20 +611,20 @@ This functionality is intended as a syntactic convenience.
 
 Each molecule injector as a `toString` method.
 This method will return the molecule's name if it was assigned.
-For blocking molecules, the molecule's name is followed by `"/S"`.
+For blocking molecules, the molecule's name is followed by `"/B"`.
 
 ```scala
-val x = new JA[Int]("counter")
-val y = new JS[Unit, Int]("fetch")
+val x = new M[Int]("counter")
+val y = new B[Unit, Int]("fetch")
 
 x.toString // returns “counter"
-y.toString // returns “fetch/S"
+y.toString // returns “fetch/B"
 ```
 
 ## More about the semantics of `JoinRun`
 
-- Injectors are local values of class `JA` or `JS`, which both extend the abstract class `AbsMol`.
-Blocking molecule injectors are of class `JS`, non-blocking of class `JA`.
+- Injectors are local values of class `B` or `M`, which both extend the abstract class `Molecule`.
+Blocking molecule injectors are of class `B`, non-blocking of class `M`.
 - Reactions are local values of class `Reaction`. Reactions are created using the method `run { case ... => ... }`.
 - Only one `case` clause can be used in each reaction.
 - Join definitions are values of class `JoinDefinition`. These values are not visible to the user: they are created in a closed scope by the `join` method.
@@ -667,7 +670,7 @@ Our goal is to come up with a “chemical” approach to concurrent map/reduce.
 Since we would like to apply the function `f` concurrently to values of type `A`, we need to put all these values on separate copies of some “carrier” molecule.
 
 ```scala
-val carrier = jA[A]
+val carrier = m[A]
 ```
 
 We will inject a copy of the “carrier” molecule for each element of the initial array:
@@ -680,7 +683,7 @@ arr.foreach(i => carrier(i))
 As we apply `f` to each element, we will carry the intermediate results on molecules of another sort:
 
 ```scala
-val interm = jA[B]
+val interm = m[B]
 ```
  
 Therefore, we need a reaction of this shape:
@@ -694,8 +697,8 @@ For this, we define the “accumulator” molecule `accum` that will carry the f
 We can also define a blocking molecule `fetch` that can be used to read the accumulated result from another process.
 
 ```scala
-val accum = jA[B]
-val fetch = jS[Unit, B]
+val accum = m[B]
+val fetch = b[Unit, B]
 ```
 
 At first we might write reactions for `accum` such as this one:
@@ -724,7 +727,7 @@ Reactions with `accum` will increment the counter; the reaction with `fetch` wil
 We will also include a condition on the counter that will start the accumulation when the counter is equal to 0.
 
 ```scala
-val accum = jA[(Int, B)]
+val accum = m[(Int, B)]
 
 run { case interm(res) + accum((n, b)) if n > 0 => 
     accum((n+1, reduceB(b, res) )) 
@@ -754,10 +757,10 @@ object C extends App {
   val arr = 1 to 100
 
   // declare molecule types
-  val carrier = jA[Int]
-  val interm = jA[Int]
-  val accum = jA[(Int,Int)]
-  val fetch = jS[Unit,Int]
+  val carrier = m[Int]
+  val interm = m[Int]
+  val accum = m[(Int,Int)]
+  val fetch = b[Unit,Int]
 
   // declare the reaction for "map"
   join(
@@ -796,10 +799,10 @@ A solution is to define `counter` and its reactions within a function that retur
 The `counter` injector will not be returned to the outside scope, and so the user will not be able to inject extra copies of that molecule.
 
 ```scala
-def makeCounter(initCount: Int): (JA[Unit], JS[Unit,Int]) = {
-  val counter = jA[Int]
-  val decr = jA[Unit]
-  val fetch = jA[Unit, Int]
+def makeCounter(initCount: Int): (M[Unit], B[Unit,Int]) = {
+  val counter = m[Int]
+  val decr = m[Unit]
+  val fetch = m[Unit, Int]
   
   join(
     run { counter(n) + fetch(_, r) => counter(n) + r(n)},
@@ -846,8 +849,8 @@ The initial data will be an array, and we will therefore need a molecule to carr
 We will also need another molecule to carry the sorted result.
 
 ```scala
-val mergesort = jA[Array[Int]]
-val sorted = jA[Array[Int]]
+val mergesort = m[Array[Int]]
+val sorted = m[Array[Int]]
 ```
 
 The main idea of the merge-sort algorithm is to split the array in half, sort each half recursively, and then merge the two sorted halves into the resulting array.
@@ -879,8 +882,8 @@ join ( run { case mergesort(arr) =>
     if (arr.length == 1) sorted(arr) else {
       val (part1, part2) = arr.splitAt(arr.length / 2)
       // define lower-level "sorted" molecules
-      val sorted1 = jA[Array[Int]]
-      val sorted2 = jA[Array[Int]]
+      val sorted1 = m[Array[Int]]
+      val sorted2 = m[Array[Int]]
       join( run { case sorted1(arr1) + sorted2(arr2) => sorted( arrayMerge(arr1, arr2) ) } )
       // inject recursively
       mergesort(part1) + mergesort(part2)
@@ -894,7 +897,7 @@ The way to achieve this is to pass the injectors for the `sorted` molecules as v
 We will then pass the lower-level `sorted` molecule injectors to the recursive calls of `mergesort`.
 
 ```scala
-val mergesort = new JA[(Array[T], JA[Array[T]])]
+val mergesort = new M[(Array[T], M[Array[T]])]
 
 join(
   run {
@@ -903,8 +906,8 @@ join(
       else {
         val (part1, part2) = arr.splitAt(arr.length/2)
         // "sorted1" and "sorted2" will be the sorted results from lower level
-        val sorted1 = new JA[Array[T]]
-        val sorted2 = new JA[Array[T]]
+        val sorted1 = new M[Array[T]]
+        val sorted2 = new M[Array[T]]
         join(
           run { case sorted1(arr1) + sorted2(arr2) => sorted(arrayMerge(arr1, arr2)) }
         )
@@ -913,7 +916,7 @@ join(
       }
   }
 )
-// sort our array at top level, assuming `finalResult: JA[Array[Int]]`
+// sort our array at top level, assuming `finalResult: M[Array[Int]]`
 mergesort((array, finalResult))
 ```
 
@@ -975,8 +978,8 @@ A convenient implementation is to define a function that will return an injector
 * @param finished A previously bound non-blocking molecule to be injected when the calculation is done
 * @return A new non-blocking molecule that will start the job
 */
-def submitJob[R](closure: Unit => R, finished: JA[R]): JA[R] = {
-  val startJobMolecule = new JA[Unit]
+def submitJob[R](closure: Unit => R, finished: M[R]): M[R] = {
+  val startJobMolecule = new M[Unit]
   
   join( run { case startJobMolecule(_) => 
     val result = closure()
@@ -994,7 +997,7 @@ Another implementation of the same idea will put the `finished` injector into th
 However, we lose some polymorphism since Scala values cannot be parameterized by types.
 
 ```scala
-val startJobMolecule = new JA[(Unit => Any, JA[Any])]
+val startJobMolecule = new M[(Unit => Any, M[Any])]
 
 join(
   run {
@@ -1016,9 +1019,9 @@ We also need to make sure that the molecule `godot()` is never injected into the
 So we declare `godot` locally within the scope of `wait_forever`, where will inject nothing into the soup.
 
 ```scala
-def wait_forever: jS[Unit, Unit] = {
-  val godot = jA[Unit]
-  val wait = jS[Unit, Unit]
+def wait_forever: b[Unit, Unit] = {
+  val godot = m[Unit]
+  val wait = b[Unit, Unit]
   
   join( run { case godot(_,r) + wait(_) => r() } )
   
@@ -1070,9 +1073,9 @@ This method will create a new molecule and a new future value.
 We can then use this molecule as output in some reaction.
 
 ```scala
-val a = jA[Int]
+val a = m[Int]
 
-val (c: JA[String], fut: Future[String]) = moleculeFuture[String]
+val (c: M[String], fut: Future[String]) = moleculeFuture[String]
 // injecting the molecule c(...) resolves "fut"
 
 join( run { case a(x) => c("finished") } ) // our reactions that eventually inject "c"

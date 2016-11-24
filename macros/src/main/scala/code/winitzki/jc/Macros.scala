@@ -25,27 +25,27 @@ object Macros {
     c.Expr[String](q"$s")
   }
 
-  def jA[T]: JA[T] = macro jAImpl[T]
+  def m[T]: M[T] = macro mImpl[T]
 
-  def jAImpl[T: c.WeakTypeTag](c: theContext): c.Expr[JA[T]] = {
+  def mImpl[T: c.WeakTypeTag](c: theContext): c.Expr[M[T]] = {
     import c.universe._
     val s = getEnclosingName(c)
 
     val t = c.weakTypeOf[T]
 
-    c.Expr[JA[T]](q"new JA[$t](Some($s))")
+    c.Expr[M[T]](q"new M[$t]($s)")
   }
 
-  def jS[T, R]: JS[T, R] = macro jSImpl[T, R]
+  def b[T, R]: B[T, R] = macro bImpl[T, R]
 
-  def jSImpl[T: c.WeakTypeTag, R: c.WeakTypeTag](c: blackbox.Context): c.Expr[JS[T, R]] = {
+  def bImpl[T: c.WeakTypeTag, R: c.WeakTypeTag](c: blackbox.Context): c.Expr[B[T, R]] = {
     import c.universe._
     val s = c.internal.enclosingOwner.name.decodedName.toString.stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
 
     val t = c.weakTypeOf[T]
     val r = c.weakTypeOf[R]
 
-    c.Expr[JS[T, R]](q"new JS[$t,$r](Some($s))")
+    c.Expr[B[T, R]](q"new B[$t,$r]($s)")
   }
 
   sealed trait PatternFlag
