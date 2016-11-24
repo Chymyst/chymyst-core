@@ -150,7 +150,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val thrown = intercept[Exception] {
       b()
     }
-    thrown.getMessage shouldEqual "Molecule b does not belong to any join definition"
+    thrown.getMessage shouldEqual "Molecule b is not bound to any join definition"
 
   }
 
@@ -244,7 +244,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       val a = js[Unit,Unit]("x")
       a()
     }
-    thrown.getMessage shouldEqual "Molecule x/S does not belong to any join definition"
+    thrown.getMessage shouldEqual "Molecule x/S is not bound to any join definition"
   }
 
   it should "throw exception when trying to inject a non-blocking molecule that has no join" in {
@@ -252,7 +252,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       val a = ja[Unit]("x")
       a()
     }
-    thrown.getMessage shouldEqual "Molecule x does not belong to any join definition"
+    thrown.getMessage shouldEqual "Molecule x is not bound to any join definition"
   }
 
   it should "throw exception when trying to log soup of a blocking molecule that has no join" in {
@@ -260,7 +260,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       val a = js[Unit,Unit]("x")
       a.logSoup
     }
-    thrown.getMessage shouldEqual "Molecule x/S does not belong to any join definition"
+    thrown.getMessage shouldEqual "Molecule x/S is not bound to any join definition"
   }
 
   it should "throw exception when trying to log soup a non-blocking molecule that has no join" in {
@@ -268,7 +268,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
       val a = ja[Unit]("x")
       a.logSoup
     }
-    thrown.getMessage shouldEqual "Molecule x does not belong to any join definition"
+    thrown.getMessage shouldEqual "Molecule x is not bound to any join definition"
   }
 
   it should "fail to start reactions when pattern is not matched" in {

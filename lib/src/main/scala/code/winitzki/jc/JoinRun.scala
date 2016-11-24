@@ -132,12 +132,12 @@ object JoinRun {
     */
   def js[T: ClassTag,R](name: String) = new SynMol[T,R](Some(name))
 
-  // Wait until the join definition to which `molecule` belongs becomes quiescent, then inject `callback`.
+  // Wait until the join definition to which `molecule` is bound becomes quiescent, then inject `callback`.
   // TODO: implement
   def wait_until_quiet[T](molecule: AsynMol[T], callback: AsynMol[Unit]): Unit = {
     molecule.joinDef match {
       case Some(owner) => owner.setQuiescenceCallback(callback)
-      case None => throw new Exception(s"Molecule $molecule belongs to no join definition")
+      case None => throw new Exception(s"Molecule $molecule is not bound to a join definition")
     }
   }
 
@@ -215,7 +215,7 @@ object JoinRun {
     def getName: String = name.getOrElse(super.toString)
 
     protected def errorNoJoinDef =
-      new ExceptionNoJoinDef(s"Molecule ${this} does not belong to any join definition")
+      new ExceptionNoJoinDef(s"Molecule ${this} is not bound to any join definition")
 
     def setLogLevel(logLevel: Int): Unit =
       joinDef.map(o => o.logLevel = logLevel).getOrElse(throw errorNoJoinDef)
@@ -323,7 +323,7 @@ object JoinRun {
       */
     def apply(v: T): R =
       joinDef.map(_.injectSyncAndReply[T,R](this, v, SyncReplyValue[R]()))
-        .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this does not belong to any join definition"))
+        .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this is not bound to any join definition"))
 
     /** Inject a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
       *
@@ -333,7 +333,7 @@ object JoinRun {
       */
     def apply(timeout: Long)(v: T): Option[R] =
       joinDef.map(_.injectSyncAndReplyWithTimeout[T,R](timeout, this, v, SyncReplyValue[R]()))
-        .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this does not belong to any join definition"))
+        .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this is not bound to any join definition"))
 
     override def toString: String = getName + "/S"
 
@@ -430,7 +430,7 @@ object JoinRun {
 
   /** Create a join definition with one or more reactions.
     * All input and output molecules in reactions used in this JD should have been
-    * already defined, and input molecules should not already belong to another JD.
+    * already defined, and input molecules should not be already bound to another JD.
     *
     * @param rs One or more reactions of type [[JoinRun#Reaction]]
     * @param reactionPool Thread pool for running new reactions.
