@@ -10,11 +10,8 @@ and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 
 TODO and roadmap:
   value * difficulty - description
- 4 * 2 - make thread pools an Option, so that default thread pool can be used for all reactions except some. Do not use implicit arguments - use default arguments.
 
  4 * 2 - make helper functions to create a new joinpool
-
- 2 * 2 - unify join pools and reaction pools into one type; replace implicits by default argument values.
 
  2 * 2 - should `run` take ReactionBody or simply UnapplyArg => Unit?
 
