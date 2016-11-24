@@ -23,7 +23,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "inject a molecule from a future computed out of a given future" in {
     val waiter = new Waiter
 
-    val c = ja[Unit]("c")
+    val c = new M[Unit]("c")
 
     join(
       & { case c(_) => waiter.dismiss() }
@@ -37,7 +37,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "inject a molecule from a future with a lazy injection" in {
     val waiter = new Waiter
 
-    val c = ja[String]("c")
+    val c = new M[String]("c")
 
     join(
       & { case c(x) => waiter {x shouldEqual "send it off"}; waiter.dismiss() }
@@ -51,11 +51,11 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "not inject a molecule from a future prematurely" in {
     val waiter = new Waiter
 
-    val c = ja[Unit]("c")
-    val rmC = ja[Unit]("remove c")
-    val d = ja[Unit]("d")
-    val e = ja[Unit]("e")
-    val f = js[Unit, String]("f")
+    val c = new M[Unit]("c")
+    val rmC = new M[Unit]("remove c")
+    val d = new M[Unit]("d")
+    val e = new M[Unit]("e")
+    val f = new B[Unit, String]("f")
 
     join(
       & { case c(_) + rmC(_) => },
@@ -84,7 +84,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "create a future that succeeds when molecule is injected" in {
     val waiter = new Waiter
 
-    val b = ja[Unit]("b")
+    val b = new M[Unit]("b")
     // "fut" will succeed when "c" is injected
     val (c, fut) = moleculeFuture[String]
 

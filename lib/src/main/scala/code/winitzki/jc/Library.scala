@@ -12,8 +12,8 @@ object Library {
     * @tparam T Type of value carried by the molecule and by the future.
     * @return Tuple consisting of new molecule injector and the new future
     */
-  def moleculeFuture[T : ClassTag]: (JA[T], Future[T]) = {
-    val f = ja[T]
+  def moleculeFuture[T : ClassTag]: (M[T], Future[T]) = {
+    val f = new M[T]("future")
     val p = Promise[T]()
 
     join(
@@ -32,7 +32,7 @@ object Library {
       * @param m Molecule injector, must have the same type as the future.
       * @return The modified future.
       */
-    def &(m: JA[T]): Future[T] = f map { x =>
+    def &(m: M[T]): Future[T] = f map { x =>
       m(x)
       x
     }

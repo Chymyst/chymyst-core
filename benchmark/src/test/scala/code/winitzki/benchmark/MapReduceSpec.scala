@@ -13,10 +13,10 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     val initTime = LocalDateTime.now
 
-    val res = ja[List[Int]]
-    val r = ja[Int]
-    val d = ja[Int]
-    val get = js[Unit, List[Int]]
+    val res = m[List[Int]]
+    val r = m[Int]
+    val d = m[Int]
+    val get = b[Unit, List[Int]]
 
     join(
       &{ case d(n) => r(n*2) },
