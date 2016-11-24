@@ -24,8 +24,8 @@ Join Calculus is implemented using molecule injectors, reactions, and join defin
 
 There are only two primitive operations:
 
-- define reactions using a join definition
-- inject molecules using molecule injectors
+- define reactions by writing a join definition
+- inject molecules by calling molecule injectors with argument values
 
 ## Molecule injectors
 
