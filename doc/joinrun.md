@@ -243,7 +243,6 @@ Each join definition runs on two thread pools: a thread pool for running reactio
 By default, these two thread pools are statically allocated and shared by all join definitions.
 
 Users can create custom thread pools and specify, for any given join definition,
-
 - on which thread pool the decisions will run
 - on which thread pool each reaction will run
 
@@ -258,6 +257,41 @@ TODO
 ## Stopping a thread pool
 
 TODO
+
+## Blocking calls and thread pools
+
+The `SmartPool` class is used to create thread pools for reactions that may generate a lot of blocking molecules.
+This thread pool will automatically increment the pool size when a blocking molecule is injected, and decrement it when the blocking molecule receives a reply and unblocks the calling process.
+
+This functionality is available with the `BlockingIdle` function.
+Whenever a reaction contains an idle blocking call, the corresponding thread will be blocked while doing no computations.
+If the thread pool does not increase the number of available threads in this case, it is possible that the blocking call is waiting for a molecule that is never going to be injected since no free threads are available to run reactions.
+To prevent this kind of starvation, the user can surround the idle blocking calls with `BlockingIdle(...)`.
+
+Injectors of blocking molecules already use `BlockingIdle` in their implementation.
+The user needs to employ `BlockingIdle` explicitly only when a reaction contains blocking idle calls, such as `Thread.sleep`, synchronous HTTP calls, database queries, and so on.
+
+Example:
+
+```scala
+... run { case a(url) + b(_) =>
+      val result = BlockingIdle{ callSyncHttpApi(url) }
+      c(result)
+    }
+```
+
+Another case when `BlockingIdle` might be useful is when a reaction contains a complicated condition that will block the join decision thread.
+In that case, `BlockingIdle` should be used, together with a `SmartPool` for join decisions.
+ 
+Example:
+
+```scala
+val pool = new SmartPool(8)
+  ...
+join(pool, defaultReactionPool)(
+  run { case a(url) if BlockingIdle{ callSyncHttpApi(url).isSuccessful } => ...}
+)
+```
 
 ## Fault tolerance and exceptions
 

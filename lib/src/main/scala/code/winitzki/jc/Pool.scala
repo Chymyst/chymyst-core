@@ -13,8 +13,6 @@ class CachedPool(threads: Int) extends PoolExecutor(threads,
 
 class FixedPool(threads: Int) extends PoolExecutor(threads, Executors.newFixedThreadPool)
 
-class WorkStealingPool(threads: Int) extends PoolExecutor(threads, Executors.newWorkStealingPool)
-
 /** A pool of execution threads, or another way of running tasks (could use actors or whatever else).
   *  Tasks submitted for execution can have an optional name (useful for debugging).
   */
