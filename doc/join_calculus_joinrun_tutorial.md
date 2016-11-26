@@ -168,7 +168,7 @@ This will result in many instances of `incr()` or `decr()` molecules being prese
 This is not a problem if only one instance of the `counter` molecule is present in the soup.
 When a reaction starts, all input molecules are consumed first. 
 For this reason, the single `counter` molecule will react with either an `incr` or a `decr` molecule, starting only one reaction at a time.
-Thus, we will not have any race conditions with the counter (In ordinary, non-Join Calculus code, a race condition could occur due to updating the counter value simultaneously from different processes).
+Thus, we will not have any race conditions with the counter - there is no possibility of updating the counter value simultaneously from different processes.
 
 ## Tracing the output
 

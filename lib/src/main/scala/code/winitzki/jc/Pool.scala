@@ -13,6 +13,8 @@ class CachedPool(threads: Int) extends PoolExecutor(threads,
 
 class FixedPool(threads: Int) extends PoolExecutor(threads, Executors.newFixedThreadPool)
 
+class WorkStealingPool(threads: Int) extends PoolExecutor(threads, Executors.newWorkStealingPool)
+
 /** A pool of execution threads, or another way of running tasks (could use actors or whatever else).
   *  Tasks submitted for execution can have an optional name (useful for debugging).
   */
@@ -22,18 +24,19 @@ trait Pool {
   def runClosure(closure: => Unit, name: Option[String] = None): Unit
 
   /** Convenience syntax for assigning reactions to thread pools.
-    * Example: {{{ threadPool123 { case a(x) + b(y) => ...} }}
+    * Example: {{{ threadPool123 { case a(x) + b(y) => ...} }}}
+    * This produces a new reaction value, which will run the given reaction body on the thread pool {{{this}}}.
     *
-    * @param r Reaction body
+    * @param r Reaction body for a new reaction
     * @return Reaction value with default parameters and thread pool set to {{{this}}}.
     */
   def apply(r: ReactionBody): Reaction = Reaction(r, Some(this))
 
   def isActive: Boolean = !isInactive
   def isInactive: Boolean
-
 }
 
+// not used now
 abstract class NamedPool(val name: String) extends Pool {
   override def toString: String = s"Pool[$name]"
 }
