@@ -586,7 +586,9 @@ object JoinRun {
     def injectAndReply[T,R](m: B[T,R], v: T, valueWithResult: ReplyValue[R]): R = {
       inject(m, BlockingMolValue(v, valueWithResult))
 //      try  // not sure we need this.
+      BlockingIdle {
         valueWithResult.acquireSemaphore()
+      }
 //      catch {
 //        case e: InterruptedException => e.printStackTrace()
 //      }
@@ -606,7 +608,9 @@ object JoinRun {
     Option[R] = {
       inject(m, BlockingMolValue(v, valueWithResult))
       //      try  // not sure we need this.
-      val success = valueWithResult.acquireSemaphore(Some(timeout))
+      val success = BlockingIdle {
+        valueWithResult.acquireSemaphore(Some(timeout))
+      }
       //      catch {
       //        case e: InterruptedException => e.printStackTrace()
       //      }

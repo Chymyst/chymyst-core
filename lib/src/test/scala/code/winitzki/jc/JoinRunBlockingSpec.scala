@@ -2,7 +2,6 @@ package code.winitzki.jc
 
 import JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
-import scala.concurrent.blocking
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -268,12 +267,12 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
-  it should "block the fixed threadpool when one thread is sleeping with blocking(Thread.sleep)" in {
+  it should "block the fixed threadpool when one thread is sleeping with BlockingIdle(Thread.sleep)" in {
     val d = new M[Unit]("d")
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(1)
     join(
-      &{ case d(_) => blocking {Thread.sleep(300)} } onThreads tp, // this thread is blocked by sleeping
+      &{ case d(_) => BlockingIdle {Thread.sleep(300)} } onThreads tp, // this thread is blocked by sleeping
       &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
@@ -298,18 +297,124 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
-  it should "not block the cached threadpool with blocking(Thread.sleep)" in {
+  it should "block the cached threadpool with BlockingIdle(Thread.sleep)" in {
     val d = new M[Unit]("d")
     val g2 = new B[Unit,Int]("g2")
     val tp = new CachedPool(1)
     join(
-      &{ case d(_) => blocking {Thread.sleep(300)} } onThreads tp, // this thread is blocked by sleeping
+      &{ case d(_) => BlockingIdle {Thread.sleep(300)} } onThreads tp, // this thread is blocked by sleeping
       &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
-    d() // Now the first reaction is sleeping, but this should not block the thread pool since we use "blocking".
+    d() // Now the first reaction is sleeping, and "Blocking" has no effect since it works only in a `SmartPool`.
     waitSome()
     g2(timeout = 1000000L*150)() shouldEqual None // this should be blocked
+    tp.shutdownNow()
+  }
+
+  it should "not block the smart threadpool with BlockingIdle(Thread.sleep)" in {
+    val d = new M[Unit]("d")
+    val g2 = new B[Unit,Int]("g2")
+    val tp = new SmartPool(1)
+    tp.currentPoolSize shouldEqual 1
+    join(
+      &{ case d(_) => BlockingIdle {Thread.sleep(100)} } onThreads tp, // this thread is blocked by sleeping
+      &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+    )
+    g2() shouldEqual 1 // this should initially work
+    d() // Now the first reaction is sleeping, but this should not block the thread pool since we use "Blocking".
+    waitSome()
+    g2(timeout = 1000000L*50)() shouldEqual Some(1) // this should not be blocked
+    tp.currentPoolSize shouldEqual 2
+    Thread.sleep(100)
+    tp.currentPoolSize shouldEqual 1
+    tp.shutdownNow()
+  }
+
+  it should "implement BlockingIdle(BlockingIdle()) as BlockingIdle()" in {
+    val d = new M[Unit]("d")
+    val g2 = new B[Unit,Int]("g2")
+    val tp = new SmartPool(1)
+    tp.currentPoolSize shouldEqual 1
+    join(
+      &{ case d(_) => BlockingIdle{BlockingIdle {Thread.sleep(100)}} } onThreads tp, // this thread is blocked by sleeping
+      &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+    )
+    g2() shouldEqual 1 // this should initially work
+    d() // Now the first reaction is sleeping, but this should not block the thread pool since we use "Blocking".
+    waitSome()
+    g2(timeout = 1000000L*50)() shouldEqual Some(1) // this should not be blocked
+    tp.currentPoolSize shouldEqual 2
+    Thread.sleep(100)
+    tp.currentPoolSize shouldEqual 1
+    tp.shutdownNow()
+  }
+
+  behavior of "thread starvation with different threadpools"
+
+  def blockThreadsDueToBlockingMolecule(tp: Pool): B[Unit, Unit] = {
+    val c = new M[Unit]("c")
+    val d = new M[Unit]("d")
+    val e = new M[Unit]("e")
+    val f = new B[Unit,Int]("g")
+    val f2 = new B[Unit,Int]("f2")
+    val g = new B[Unit,Unit]("g")
+
+    join(defaultJoinPool, tp)(
+      & { case c(_) => f() }, // this reaction will wait
+      & { case d(_) => e(); f2() }, // together with this reaction
+      & { case e(_) + f(_, r) => r(0) }, // for this reaction to reply, but there won't be any threads left
+      & { case g(_, r) => r() }, // and so this reaction will be blocked forever
+      & { case f2(_, r) + c(_) => r(0)} // while this will never happen since "c" will be gone when "f2" is injected
+    )
+
+    c()
+    waitSome()
+    d()
+    waitSome()
+
+    g
+  }
+
+  it should "block the fixed threadpool when all threads are waiting for new reactions" in {
+    val tp = new FixedPool(2)
+    val g = blockThreadsDueToBlockingMolecule(tp)
+    g(timeout = 1000000L*100)() shouldEqual None
+    tp.shutdownNow()
+  }
+
+  it should "not block the fixed threadpool when more threads are available" in {
+    val tp = new FixedPool(3)
+    val g = blockThreadsDueToBlockingMolecule(tp)
+    g(timeout = 1000000L*100)() shouldEqual Some(())
+    tp.shutdownNow()
+  }
+
+  it should "block the cached threadpool when all threads are waiting for new reactions" in {
+    val tp = new CachedPool(2)
+    val g = blockThreadsDueToBlockingMolecule(tp)
+    g(timeout = 1000000L*100)() shouldEqual None
+    tp.shutdownNow()
+  }
+
+  it should "not block the cached threadpool when more threads are available" in {
+    val tp = new CachedPool(3)
+    val g = blockThreadsDueToBlockingMolecule(tp)
+    g(timeout = 1000000L*100)() shouldEqual Some(())
+    tp.shutdownNow()
+  }
+
+  it should "not block the smart threadpool when all threads are waiting for new reactions" in {
+    val tp = new SmartPool(2)
+    val g = blockThreadsDueToBlockingMolecule(tp)
+    g(timeout = 1000000L*100)() shouldEqual Some(())
+    tp.shutdownNow()
+  }
+
+  it should "not block the smart threadpool when more threads are available" in {
+    val tp = new SmartPool(3)
+    val g = blockThreadsDueToBlockingMolecule(tp)
+    g(timeout = 1000000L*100)() shouldEqual Some(())
     tp.shutdownNow()
   }
 
