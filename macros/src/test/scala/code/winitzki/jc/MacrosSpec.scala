@@ -13,7 +13,7 @@ class MacrosSpec extends FlatSpec with Matchers {
 
     a.toString shouldEqual "a"
 
-    val s = b[Map[(Boolean,Unit),Seq[Int]], Option[List[(Int,Option[Map[Int,String]])]]] // complicated type
+    val s = b[Map[(Boolean, Unit), Seq[Int]], Option[List[(Int, Option[Map[Int, String]])]]] // complicated type
 
     s.toString shouldEqual "s/B"
   }
@@ -29,8 +29,8 @@ class MacrosSpec extends FlatSpec with Matchers {
     result shouldEqual ReactionInfo(List(InputMoleculeInfo(a, SimpleVar)), List(a), "4CD3BBD8E3B9DA58E46705320AE974479A7784E4")
   }
 
-  object testwithApply {
-    def apply(x: Int): Int = x+1
+  object testWithApply {
+    def apply(x: Int): Int = x + 1
   }
 
   it should "inspect a reaction body with another molecule and extra code" in {
@@ -42,7 +42,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     val result = findMolecules {
       case qq(s) + a(x) => {
         a(x + 1)
-        a(testwithApply(123))
+        a(testWithApply(123))
         println(s)
         qq("")
       }
@@ -58,7 +58,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     val s = b[Unit, Int]
     val bb = m[(Int, Option[Int])]
 
-    val result = findMolecules { case a(x) => findMolecules{ case qq(_) => a(0) }; a(x + 1) }
+    val result = findMolecules { case a(x) => findMolecules { case qq(_) => a(0) }; a(x + 1) }
 
     result.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar))
     result.outputs shouldEqual List(a)
@@ -72,7 +72,7 @@ class MacrosSpec extends FlatSpec with Matchers {
 
     // reaction contains all kinds of pattern-matching constructions, blocking molecule in a guard, and unit values in molecules
     val result = findMolecules {
-      case a(p) + a(y) + a(1) + bb(_) + bb((1,z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) if y > 0 && s() > 0 => a(p+1) ; qq() ; r(p)
+      case a(p) + a(y) + a(1) + bb(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) if y > 0 && s() > 0 => a(p + 1); qq(); r(p)
     }
 
     result.inputs shouldEqual List(
@@ -88,19 +88,17 @@ class MacrosSpec extends FlatSpec with Matchers {
     result.outputs shouldEqual List(s, a, qq)
   }
 
-  it should "inspect reaction body" in {
+  it should "inspect reaction body with two cases" in {
     val a = m[Int]
     val qq = m[Unit]
-    val s = b[Unit,Int]
-    val bb = m[(Int, Option[Int])]
 
     // reaction contains all kinds of pattern-matching constructions, blocking molecule in a guard, and unit values in molecules
-    val result = findMolecules{
-      case a(x) => a(x+1)
-      case a(p) + a(y) + a(1) + bb(_) + bb((1,z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) if y > 0 && s() > 0 => a(p+1) + qq() + r(p)
+    val result = findMolecules {
+      case a(x) => a(x + 1)
+      case qq(_) + a(y) => qq()
     }
-
-    println(s"debug: got $result")
+  }
+}
     // desugared expression tree:
     //  Expr[Nothing](((x0$1: code.winitzki.jc.JoinRun.UnapplyArg) => x0$1 match {
     // case JoinRun.+.unapply(<unapply-selector>) <unapply> (JoinRun.+.unapply(<unapply-selector>) <unapply> (JoinRun.+.unapply(<unapply-selector>) <unapply> (JoinRun.+.unapply(<unapply-selector>) <unapply> (JoinRun.+.unapply(<unapply-selector>) <unapply> (JoinRun.+.unapply(<unapply-selector>) <unapply> (JoinRun.+.unapply(<unapply-selector>) <unapply> (a.unapply(<unapply-selector>) <unapply> ((p @ _)), a.unapply(<unapply-selector>) <unapply> ((y @ _))), a.unapply(<unapply-selector>) <unapply> (1)), b.unapply(<unapply-selector>) <unapply> (_)), b.unapply(<unapply-selector>) <unapply> ((_1: Int, _2: Option[Int])(Int, Option[Int])(1, (z @ _)))), b.unapply(<unapply-selector>) <unapply> ((_1: Int, _2: Option[Int])(Int, Option[Int])(_, scala.None))), b.unapply(<unapply-selector>) <unapply> ((_1: Int, _2: Option[Int])(Int, Option[Int])((t @ _), (x: Int)Some[Int]((q @ _))))), s.unapply(<unapply-selector>) <unapply> (_, (r @ _))) => JoinRun.JoinableUnit(a.apply(p.+(1))).+(r.apply(p))
@@ -262,10 +260,4 @@ which is equivalent to this:
   case a.unapply(<unapply-selector>) <unapply> ((x @ _)) => a.apply(x.+(1))
   case JoinRun.+.unapply(<unapply-selector>) <unapply> (JoinRun.+.unapply(<unapply-selector>) <unapply> (JoinRun.+.unapply(<unapply-selector>) <unapply> (JoinRun.+.unapply(<unapply-selector>) <unapply> (JoinRun.+.unapply(<unapply-selector>) <unapply> (JoinRun.+.unapply(<unapply-selector>) <unapply> (JoinRun.+.unapply(<unapply-selector>) <unapply> (a.unapply(<unapply-selector>) <unapply> ((p @ _)), a.unapply(<unapply-selector>) <unapply> ((y @ _))), a.unapply(<unapply-selector>) <unapply> (1)), bb.unapply(<unapply-selector>) <unapply> (_)), bb.unapply(<unapply-selector>) <unapply> ((_1: Int, _2: Option[Int])(Int, Option[Int])(1, (z @ _)))), bb.unapply(<unapply-selector>) <unapply> ((_1: Int, _2: Option[Int])(Int, Option[Int])(_, scala.None))), bb.unapply(<unapply-selector>) <unapply> ((_1: Int, _2: Option[Int])(Int, Option[Int])((t @ _), (x: Int)Some[Int]((q @ _))))), s.unapply(<unapply-selector>) <unapply> (_, (r @ _))) if y.>(0).&&(s.apply(()).>(0)) => JoinRun.InjectMultiple(JoinRun.InjectMultiple(a.apply(p.+(1))).+(qq.apply(()))).+(r.apply(p))
 })
-
-    *
     * */
-  }
-
-
-}

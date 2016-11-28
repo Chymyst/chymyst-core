@@ -335,14 +335,18 @@ TODO
 
 # Roadmap for the future
 
-Features that appear to be necessary:
+These features are considered for implementation in the next versions:
 
-- fairness with respect to molecules (random choice of input molecules for reactions)
-- full pattern-matching for input molecule values
+1. Define reactions using macros that check molecule inputs and outputs of each reaction statically (at compile time).
+1. Remove the "check" phase from `UnapplyArg`, since this will now be done using macros at compile time.
+Verify that unrestricted pattern-matching works for input molecule values.
+1. Rework the decisions to start reactions so that the new information is used. In particular, do not lock the entire molecule bag - only lock some clusters that have contention on certain molecule inputs.
+1. Implement fairness with respect to molecules (random choice of input molecules for reactions). 
+1. Rework the decisions to start reactions so that many reactions can start at once.
+1. Implement injecting several molecules at once (and arbitrarily many at once).
+1. Implement nonlinear patterns for input molecules.
 
-Features that appear to be useful:
+These features are further away from implementation:
 
-- nonlinear patterns
-- injecting many molecules at once; starting many reactions at once
-- distributed execution of thread pools
-- interoperability with streams or other async frameworks (futures already done)
+1. Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka streams.
+1. Investigate an implicit distributed execution of thread pools.
