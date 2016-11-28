@@ -67,9 +67,11 @@ object Macros {
     * @param reactionBody Reaction body such as {case a(x) + ... => ...} of type UnapplyArg => Unit
     * @return Information obtained about input and output molecules.
     */
-  def findMolecules(reactionBody: ReactionBody): ReactionInfo = macro findMoleculesImpl
 
-  def findMoleculesImpl(c: theContext)(reactionBody: c.Expr[ReactionBody]) = {
+  type fmArg = UnapplyArg => Unit // ReactionBody
+  def findMolecules(reactionBody: fmArg): ReactionInfo = macro findMoleculesImpl
+
+  def findMoleculesImpl(c: theContext)(reactionBody: c.Expr[fmArg]) = {
     import c.universe._
 
     object ReactionCases extends Traverser {
@@ -78,14 +80,17 @@ object Macros {
       override def traverse(tree: Tree): Unit =
         tree match {
           case DefDef(_, TermName("applyOrElse"), _, _, _, Match(_, list)) => info = list
-          case Function(List(ValDef(Modifiers(_), TermName("x0$1"), TypeTree(), EmptyTree)), Match(Ident(TermName("x0$1")), list)) => info = list
+          case Function(List(ValDef(Modifiers(_), TermName(_), TypeTree(), EmptyTree)), Match(Ident(TermName(_)), list)) => info = list
           case _ => super.traverse(tree)
         }
 
       def from(tree: Tree): List[(Tree, Tree, Tree, String)] = {
         info = List()
         this.traverse(tree)
-        info.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody, shaSum(c)) }
+        info.filter { // PartialFunction automatically adds a default case; we don't want to analyze that CaseDef.
+            case CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, _) => false
+            case _ => true
+          }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody, shaSum(c)) }
       }
     }
 
@@ -118,7 +123,7 @@ object Macros {
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) =>
             inputMolecules.append((t.symbol, getFlag(binder1), Some(getFlag(binder2))))
 // type.typeSymbol can be NoSymbol or a Symbol that can be cast using asType. Similarly for term.termSymbol
-          case List(Apply(Select(t@Ident(TermName(_)), TermName("apply")), _))
+          case Apply(Select(t@Ident(TermName(_)), TermName("apply")), _)
             if t.tpe <:< typeOf[Molecule] || t.tpe =:= weakTypeOf[ReplyValue[_]]
           => outputMolecules.append(t.symbol)
           case _ => super.traverse(tree)
@@ -131,20 +136,22 @@ object Macros {
     // determine types of symbols that use .apply and .unapply, check correctness of M / B / RV types
     // gather (molecule injector, flag, optionally the partial function that matches the pattern, possible output injectors including RV's)
 
-    val patternFlagSymbol = symbolOf[PatternFlag].companion
-    implicit val lift = Liftable[PatternFlag] { p =>
-      q"$patternFlagSymbol"
+    implicit val lift = Liftable[PatternFlag] {
+      // Select(This(TypeName("Macros")), TermName("Wildcard"))
+      case Wildcard => q"_root_.code.winitzki.jc.Macros.Wildcard"
+      case SimpleConst => q"_root_.code.winitzki.jc.Macros.SimpleConst"
+      case SimpleVar => q"_root_.code.winitzki.jc.Macros.SimpleVar"
+      case OtherPattern => q"_root_.code.winitzki.jc.Macros.OtherPattern"
     }
 
-    println(s"debug: reactionbody tree is ${show(reactionBody.tree)}")
     val caseDefs = ReactionCases.from(reactionBody.tree)
     // for now, only look at the first case
     // TODO: check other caseDef's if any
     val Some((pattern, guard, body, sha1)) = caseDefs.headOption
 
+    val (bodyIn, bodyOut) = MoleculeInfo.from(body) // bodyIn should be empty
     val (patternIn, patternOut) = MoleculeInfo.from(pattern) // patternOut should be empty
     val (guardIn, guardOut) = MoleculeInfo.from(guard) // guardIn should be empty
-    val (bodyIn, bodyOut) = MoleculeInfo.from(body) // bodyIn should be empty
 
     val outputMolecules = (guardOut ++ bodyOut)
       .map {
@@ -155,18 +162,12 @@ object Macros {
       }
 
     val inputMolecules = patternIn.map { case (s, p, op) => q"InputMoleculeInfo(${s.asTerm}, $p)" }
-
-//    reify {
-//      ReactionInfo(???, outputMolecules, sha1)
-//    }
-
-    q"ReactionInfo($inputMolecules, List(...$outputMolecules), $sha1)"
-
-//    println(s"Gathered info: ${MoleculeInfo.inputMolecules}")
 //
-//    val t1 = MoleculeInfo.inputMolecules(0)._1.dealias.typeSymbol
-//    val s = showRaw(arg)
-//    q"$s"
+//    println(s"debug: inputMolecules=$inputMolecules, outputMolecules=$outputMolecules")
+
+    val result = q"ReactionInfo($inputMolecules, List(..$outputMolecules), $sha1)"
+//    println(s"debug: ${show(result)}")
+    result
   }
 
 }
