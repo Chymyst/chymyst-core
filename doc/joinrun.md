@@ -337,9 +337,6 @@ TODO
 
 These features are considered for implementation in the next versions:
 
-1. Define reactions using macros that check molecule inputs and outputs of each reaction statically (at compile time).
-1. Remove the "check" phase from `UnapplyArg`, since this will now be done using macros at compile time.
-Verify that unrestricted pattern-matching works for input molecule values.
 1. Rework the decisions to start reactions so that the new information is used. In particular, do not lock the entire molecule bag - only lock some clusters that have contention on certain molecule inputs.
 1. Implement fairness with respect to molecules (random choice of input molecules for reactions). 
 1. Rework the decisions to start reactions so that many reactions can start at once.

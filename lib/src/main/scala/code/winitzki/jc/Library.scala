@@ -17,7 +17,7 @@ object Library {
     val p = Promise[T]()
 
     join(
-      & { case f(x) => p.success(x) }
+      runSimple { case f(x) => p.success(x) }
     )
     (f, p.future)
   }

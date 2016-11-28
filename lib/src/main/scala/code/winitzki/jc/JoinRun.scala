@@ -78,7 +78,7 @@ TODO and roadmap:
  2 * 2 - add tests that time out on a blocking molecule and then reply to it. Should not cause errors. Also, sending out a blocking molecule and then timing out should remove the blocking molecule - implement and test that too.
   * */
 
-import DefaultValue.defaultValue
+import java.util.UUID
 import java.util.concurrent.{Semaphore, TimeUnit}
 
 import scala.collection.mutable
@@ -117,27 +117,26 @@ object JoinRun {
     def unapply(attr:Any) = Some(attr,attr)
   }
 
-  /**
-    * Users will define reactions using this function.
-    * Examples: {{{ run { a(_) => ... } }}}
-    * {{{ run { a (_) => ...} onThreads jPool }}}
+  /** Compute a minimum amount of information about the reaction, without using macros.
     *
-    * @param body The body of the reaction. This must be a partial function with pattern-matching on molecules.
-    * @return A reaction value, to be used later in [[JoinRun#join]].
+    * @param body Body of the reaction. Should not contain any pattern-matching on molecule values, except possibly for the last molecule in the list of input molecules.
+    * @return A [[ReactionInfo]] structure that only has information about input molecules.
     */
-  def run(body: ReactionBody): Reaction = Reaction(body)
-
-  //
-  /**
-    * This is an alias for [[JoinRun#run]], to be used in case [[JoinRun#run]] clashes
-    * with another name imported into the local scope (e.g. in  scalatest).
-    * Examples: & { a(_) => ... }
-    * & { a (_) => ...} onThreads jPool
-    */
-  object & {
-    // Users will create reactions using these functions.
-    def apply(body: ReactionBody): Reaction = Reaction(body)
+  private def makeSimpleInfo(body: ReactionBody): ReactionInfo = {
+    val inputMoleculesUsed = {
+      val moleculesInThisReaction = UnapplyCheckSimple(mutable.MutableList.empty)
+      body.isDefinedAt(moleculesInThisReaction)
+      moleculesInThisReaction.inputMolecules.toList
+    }
+    ReactionInfo(inputMoleculesUsed.map(m => InputMoleculeInfo(m, SimpleVar)), Nil, UUID.randomUUID().toString)
   }
+
+  /** Create a reaction value out of a simple reaction body - no pattern-matching with molecule values except the last one.
+    *
+    * @param body Body of the reaction. Should not contain any pattern-matching on molecule values, except possibly for the last molecule in the list of input molecules.
+    * @return Reaction value. The [[ReactionInfo]] structure will be filled out in a minimal fashion.
+    */
+  private[jc] def runSimple(body: ReactionBody): Reaction = Reaction(makeSimpleInfo(body), body)
 
   // Container for molecule values
   private sealed trait AbsMolValue[T] {
@@ -190,18 +189,14 @@ object JoinRun {
     override def toString: String = name
 
     def unapply(arg: UnapplyArg): Option[T] = arg match {
+
+    case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by runSimple
+      inputMoleculesProbe += this
+      Some(null.asInstanceOf[T]) // hack for testing only. This value will not be used.
+
       // When we are gathering information about the input molecules, `unapply` will always return Some(...),
       // so that any pattern-matching on arguments will continue with null (since, at this point, we have no values).
       // Any pattern-matching will work unless null fails.
-      case UnapplyCheck(inputMoleculesProbe) =>
-        if (inputMoleculesProbe contains this) {
-          throw new Exception(s"Nonlinear pattern: ${this} used twice")
-        }
-        else {
-          inputMoleculesProbe.add(this)
-        }
-        Some(defaultValue[T]) // hack. This value will not be used.
-
       // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
       // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
       case UnapplyRunCheck(moleculeValues, usedInputs) =>
@@ -290,17 +285,10 @@ object JoinRun {
     override def toString: String = name + "/B"
 
     def unapply(arg: UnapplyArg): Option[(T, ReplyValue[R])] = arg match {
-      // When we are gathering information about the input molecules, `unapply` will always return Some(...),
-      // so that any pattern-matching on arguments will continue with null (since, at this point, we have no values).
-      // Any pattern-matching will work unless null fails.
-      case UnapplyCheck(inputMoleculesProbe) =>
-        if (inputMoleculesProbe contains this) {
-          throw new Exception(s"Nonlinear pattern: ${this} used twice")
-        }
-        else
-          inputMoleculesProbe.add(this)
 
-        Some((defaultValue[T], null).asInstanceOf[(T, ReplyValue[R])]) // hack. This value will not be used.
+      case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by runSimple
+        inputMoleculesProbe += this
+        Some((null, null).asInstanceOf[(T, ReplyValue[R])]) // hack for testing only. This value will not be used.
 
       // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
       // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
@@ -325,57 +313,14 @@ object JoinRun {
   val defaultReactionPool = new FixedPool(4)
 
   private[jc] sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
-  private final case class UnapplyCheck(inputMolecules: mutable.Set[Molecule]) extends UnapplyArg
-  private final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg
-  private final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg
+  private final case class UnapplyCheckSimple(inputMolecules: mutable.MutableList[Molecule]) extends UnapplyArg // used only for `runSimple` and in tests
+  private final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg // used for checking that reaction values pass the pattern-matching, before running the reaction
+  private final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg // used for running the reaction
 
   /** Type alias for reaction body.
     *
     */
   private[jc] type ReactionBody = PartialFunction[UnapplyArg, Unit]
-
-  /** Represents a reaction body.
-    *
-    * @param body Partial function of type {{{ UnapplyArg => Unit }}}
-    * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
-    * @param retry Whether the reaction should be run again when an exception occurs in its body. Default is false.
-    */
-  private[jc] final case class Reaction(body: ReactionBody, threadPool: Option[Pool] = None, retry: Boolean = false) {
-    lazy val inputMoleculesUsed: Set[Molecule] = {
-      val moleculesInThisReaction = UnapplyCheck(mutable.Set.empty)
-      body.isDefinedAt(moleculesInThisReaction)
-      moleculesInThisReaction.inputMolecules.toSet
-    }
-
-    /** Convenience method to specify thread pools per reaction.
-      *
-      * Example: run { case a(x) => ... } onThreads threadPool24
-      *
-      * @param newThreadPool A custom thread pool on which this reaction will be scheduled.
-      * @return New reaction value with the thread pool set.
-      */
-    def onThreads(newThreadPool: Pool): Reaction = Reaction(body, Some(newThreadPool), retry)
-
-    /** Convenience method to specify the "retry" option for a reaction.
-      *
-      * @return New reaction value with the "retry" flag set.
-      */
-    def withRetry: Reaction = Reaction(body, threadPool, retry = true)
-
-    /** Convenience method to specify the "no retry" option for a reaction.
-      * (This option is the default.)
-      *
-      * @return New reaction value with the "retry" flag unset.
-      */
-    def noRetry: Reaction = Reaction(body, threadPool, retry = false)
-
-    /** Convenience method for debugging.
-      *
-      * @return String representation of input molecules of the reaction.
-      */
-    override def toString = s"${inputMoleculesUsed.toSeq.map(_.toString).sorted.mkString(" + ")} => ...${if (retry)
-      "/R" else ""}"
-  }
 
   def join(rs: Reaction*): Unit = join(defaultJoinPool, defaultReactionPool)(rs: _*)
   def join(joinPool: Pool)(rs: Reaction*): Unit = join(joinPool, defaultReactionPool)(rs: _*)

@@ -32,11 +32,11 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     //n = 4
 
     join(
-      &{ case getC(_, r) + done(arr) => r(arr) },
-      &{ case a0(_) + c((n,arr)) => if (n > 0) { arr(0) += 1; c((n-1,arr)) + a0() } else done(arr) },
-      &{ case a1(_) + c((n,arr)) => if (n > 0) { arr(1) += 1; c((n-1,arr)) + a1() } else done(arr) },
-      &{ case a2(_) + c((n,arr)) => if (n > 0) { arr(2) += 1; c((n-1,arr)) + a2() } else done(arr) },
-      &{ case a3(_) + c((n,arr)) => if (n > 0) { arr(3) += 1; c((n-1,arr)) + a3() } else done(arr) }
+      runSimple { case getC(_, r) + done(arr) => r(arr) },
+      runSimple { case a0(_) + c((n,arr)) => if (n > 0) { arr(0) += 1; c((n-1,arr)) + a0() } else done(arr) },
+      runSimple { case a1(_) + c((n,arr)) => if (n > 0) { arr(1) += 1; c((n-1,arr)) + a1() } else done(arr) },
+      runSimple { case a2(_) + c((n,arr)) => if (n > 0) { arr(2) += 1; c((n-1,arr)) + a2() } else done(arr) },
+      runSimple { case a3(_) + c((n,arr)) => if (n > 0) { arr(3) += 1; c((n-1,arr)) + a3() } else done(arr) }
     )
 
     a0() + a1() + a2() + a3()
@@ -68,9 +68,9 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val a = new M[Int]("a")
 
     join(
-      &{ case done(arr) + getC(_, r) => r(arr) },
-      &{ case c(n) + a(i) => if (n>0) { a(i+1) + c(n-1) } else a(i) + gather(List()) },
-      &{ case gather(arr) + a(i) =>
+      runSimple { case done(arr) + getC(_, r) => r(arr) },
+      runSimple { case c(n) + a(i) => if (n>0) { a(i+1) + c(n-1) } else a(i) + gather(List()) },
+      runSimple { case gather(arr) + a(i) =>
         val newArr = i :: arr
         if (newArr.size < counters) gather(newArr) else done(newArr) }
     )
@@ -101,11 +101,11 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g = new B[Unit, (Int,Int)]("g")
 
     join(
-      &{ case a(_) + b(_) => d() },
-      &{ case b(_) + c(_) => e() },
-      &{ case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
-      &{ case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
-      &{ case g(_,r) + f((x,y,0)) => r((x,y)) }
+      runSimple { case a(_) + b(_) => d() },
+      runSimple { case b(_) + c(_) => e() },
+      runSimple { case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
+      runSimple { case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
+      runSimple { case g(_,r) + f((x,y,0)) => r((x,y)) }
     )
 
     val n = 1000
@@ -128,8 +128,8 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
       val b = new M[Unit]("b")
       val c = new M[Unit]("c")
       join(
-        &{ case a(_) + b(_) => d1() },
-        &{ case b(_) + c(_) => d2() }
+        runSimple { case a(_) + b(_) => d1() },
+        runSimple { case b(_) + c(_) => d2() }
       )
       (a,b,c)
     }
@@ -140,9 +140,9 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g = new B[Unit, (Int,Int)]("g")
 
     join(
-      &{ case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
-      &{ case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
-      &{ case g(_,r) + f((x,y,0)) => r((x,y)) }
+      runSimple { case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
+      runSimple { case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
+      runSimple { case g(_,r) + f((x,y,0)) => r((x,y)) }
     )
 
     val n = 200

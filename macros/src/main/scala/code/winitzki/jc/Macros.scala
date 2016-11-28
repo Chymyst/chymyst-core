@@ -52,26 +52,32 @@ object Macros {
     c.Expr[B[T, R]](q"new B[$t,$r]($s)")
   }
 
-  sealed trait PatternType
-  case object Wildcard extends PatternType
-  case object SimpleVar extends PatternType
-  case object SimpleConst extends PatternType
-  case object OtherPattern extends PatternType
-
-  final case class InputMoleculeInfo(molecule: Molecule, flag: PatternType)
-
-  final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: List[Molecule], sha1: String)
-
-  /** Obtains statically checkable information about input and output molecules in a reaction.
-    *
-    * @param reactionBody Reaction body such as {case a(x) + ... => ...} of type UnapplyArg => Unit
-    * @return Information obtained about input and output molecules.
+  /**
+    * This is an alias for [[Macros#run]], to be used in case [[Macros#run]] clashes
+    * with another name imported into the local scope (e.g. in scalatest).
+    * Examples: & { a(_) => ... }
+    * & { a (_) => ...} onThreads jPool
     */
+  object & {
+    // Users will create reactions using these functions.
+    def apply(reactionBody: fmArg): Reaction = macro buildReactionImpl
+  }
 
-  type fmArg = UnapplyArg => Unit // ReactionBody
-  def findMolecules(reactionBody: fmArg): ReactionInfo = macro findMoleculesImpl
+  type fmArg = ReactionBody // UnapplyArg => Unit // ReactionBody
 
-  def findMoleculesImpl(c: theContext)(reactionBody: c.Expr[fmArg]) = {
+  /**
+    * Users will define reactions using this function.
+    * Examples: {{{ run { a(_) => ... } }}}
+    * {{{ run { a (_) => ...} onThreads jPool }}}
+    *
+    * The macro also obtains statically checkable information about input and output molecules in the reaction.
+    *
+    * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
+    * @return A reaction value, to be used later in [[JoinRun#join]].
+    */
+  def run(reactionBody: fmArg): Reaction = macro buildReactionImpl
+
+  def buildReactionImpl(c: theContext)(reactionBody: c.Expr[fmArg]) = {
     import c.universe._
 
     sealed trait PatternFlag {
@@ -89,11 +95,11 @@ object Macros {
     case object OtherPatternF extends PatternFlag
 
     def toPatternType(flag: PatternFlag): PatternType = flag match {
-      case ReplyVar(_) => Macros.OtherPattern
-      case WildcardF => Macros.Wildcard
-      case SimpleVarF => Macros.SimpleVar
-      case SimpleConstF => Macros.SimpleConst
-      case OtherPatternF => Macros.OtherPattern
+      case ReplyVar(_) => OtherPattern
+      case WildcardF => Wildcard
+      case SimpleVarF => SimpleVar
+      case SimpleConstF => SimpleConst
+      case OtherPatternF => OtherPattern
     }
 
     object ReactionCases extends Traverser {
@@ -164,21 +170,20 @@ object Macros {
         }
       }
     }
-//    c.abort(c.enclosingPosition, "")
+
+    implicit val lift = Liftable[PatternType] {
+      case Wildcard => q"_root_.code.winitzki.jc.Wildcard"
+      case SimpleConst => q"_root_.code.winitzki.jc.SimpleConst"
+      case SimpleVar => q"_root_.code.winitzki.jc.SimpleVar"
+      case OtherPattern => q"_root_.code.winitzki.jc.OtherPattern"
+    }
+
     // TODO:
     // gather (molecule injector, flag, optionally the partial function that matches the pattern, possible output injectors including RV's, whether guards inject any molecules / any blocking molecules)
 
-    implicit val lift = Liftable[PatternType] {
-      // Select(This(TypeName("Macros")), TermName("Wildcard"))
-      case Macros.Wildcard => q"_root_.code.winitzki.jc.Macros.Wildcard"
-      case Macros.SimpleConst => q"_root_.code.winitzki.jc.Macros.SimpleConst"
-      case Macros.SimpleVar => q"_root_.code.winitzki.jc.Macros.SimpleVar"
-      case Macros.OtherPattern => q"_root_.code.winitzki.jc.Macros.OtherPattern"
-    }
-
     val caseDefs = ReactionCases.from(reactionBody.tree)
-    // for now, only look at the first case
-    // TODO: check other caseDef's if any
+    // TODO: check other CaseDef's if any; check that all CaseDef's have the same input molecules.
+    // - for now, we only look at the first case
     val Some((pattern, guard, body, sha1)) = caseDefs.headOption
 
     val (patternIn, patternOut, patternReply) = MoleculeInfo.from(pattern) // patternOut and patternReply should be empty
@@ -190,11 +195,13 @@ object Macros {
     if (guardIn.nonEmpty) c.abort(c.enclosingPosition, s"Error in reaction: input guard should not contain a pattern that matches on additional input molecules")
     if (bodyIn.nonEmpty) c.abort(c.enclosingPosition, s"Error in reaction: reaction body should not contain a pattern that matches on additional input molecules")
 
+    // TODO: check that the reply molecules have been used once and only once
+
     val outputMolecules = (guardOut ++ bodyOut).map { m => q"${m.asTerm}" }
 
     val inputMolecules = patternIn.map { case (s, p, op) => q"InputMoleculeInfo(${s.asTerm}, ${toPatternType(p)})" }
 
-    val result = q"ReactionInfo($inputMolecules, List(..$outputMolecules), $sha1)"
+    val result = q"Reaction(ReactionInfo($inputMolecules, List(..$outputMolecules), $sha1), $reactionBody)"
 //    println(s"debug: ${show(result)}")
     result
   }

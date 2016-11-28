@@ -3,7 +3,8 @@ package code.winitzki.benchmark
 import java.time.LocalDateTime
 
 import Common._
-import code.winitzki.jc.ReactionPool
+import code.winitzki.jc.FixedPool
+import code.winitzki.jc.Macros._
 import code.winitzki.jc.JoinRun._
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -62,28 +63,28 @@ class MergesortSpec extends FlatSpec with Matchers {
 
     // recursive molecule that will define the reactions at one level
 
-    val mergesort = new JA[(Array[T], JA[Array[T]])]
+    val mergesort = m[(Array[T], M[Array[T]])]
 
-    val tp = new ReactionPool(threads)
-    join(
-      tp{
+    val tp = new FixedPool(threads)
+    join(tp)(
+      &{
         case mergesort((arr, resultToYield)) =>
           if (arr.length <= 1) resultToYield(arr)
           else {
             val (part1, part2) = arr.splitAt(arr.length/2)
             // "sorted1" and "sorted2" will be the sorted results from lower level
-            val sorted1 = new JA[Array[T]]
-            val sorted2 = new JA[Array[T]]
-            join(
-              tp{ case sorted1(x) + sorted2(y) =>
+            val sorted1 = m[Array[T]]
+            val sorted2 = m[Array[T]]
+            join(tp)(
+              &{ case sorted1(x) + sorted2(y) =>
                 resultToYield(arrayMerge(x,y)) }
-            )(tp, defaultJoinPool)
+            )
 
             // inject lower-level mergesort
             mergesort(part1, sorted1) + mergesort(part2, sorted2)
           }
       }
-    )(tp, defaultJoinPool)
+    )
     // sort our array at top level
     mergesort((array, finalResult))
 
