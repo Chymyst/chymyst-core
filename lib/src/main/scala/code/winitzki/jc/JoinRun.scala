@@ -73,7 +73,9 @@ TODO and roadmap:
 
  2 * 2 - annotate join pools with names. Make a macro for auto-naming join pools of various kinds.
 
- 2 * 2 - add test for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
+ 2 * 2 - add tests for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
+
+ 2 * 2 - add tests that time out on a blocking molecule and then reply to it. Should not cause errors. Also, sending out a blocking molecule and then timing out should remove the blocking molecule - implement and test that too.
   * */
 
 import DefaultValue.defaultValue
