@@ -18,6 +18,76 @@ class MacrosSpec extends FlatSpec with Matchers {
     s.toString shouldEqual "s/B"
   }
 
+  it should "inspect a simple reaction body" in {
+    val a = m[Int]
+    val qq = m[Unit]
+    val s = b[Unit, Int]
+    val bb = m[(Int, Option[Int])]
+
+    val result = findMolecules { case a(x) => a(x + 1) }
+
+    result shouldEqual ReactionInfo(List(InputMoleculeInfo(a, SimpleVar)), List(a), "4CD3BBD8E3B9DA58E46705320AE974479A7784E4")
+  }
+
+  object testwithApply {
+    def apply(x: Int): Int = x+1
+  }
+
+  it should "inspect a reaction body with another molecule and extra code" in {
+    val a = m[Int]
+    val qq = m[String]
+    val s = b[Unit, Int]
+    val bb = m[(Int, Option[Int])]
+
+    val result = findMolecules {
+      case qq(s) + a(x) => {
+        a(x + 1)
+        a(testwithApply(123))
+        println(s)
+        qq("")
+      }
+    }
+
+    result.inputs shouldEqual List(InputMoleculeInfo(qq, SimpleVar), InputMoleculeInfo(a, SimpleVar))
+    result.outputs shouldEqual List(a, a, qq)
+  }
+
+  it should "inspect a reaction body with embedded reaction" in {
+    val a = m[Int]
+    val qq = m[Unit]
+    val s = b[Unit, Int]
+    val bb = m[(Int, Option[Int])]
+
+    val result = findMolecules { case a(x) => findMolecules{ case qq(_) => a(0) }; a(x + 1) }
+
+    result.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar))
+    result.outputs shouldEqual List(a)
+  }
+
+  it should "inspect a very complicated reaction body" in {
+    val a = m[Int]
+    val qq = m[Unit]
+    val s = b[Unit, Int]
+    val bb = m[(Int, Option[Int])]
+
+    // reaction contains all kinds of pattern-matching constructions, blocking molecule in a guard, and unit values in molecules
+    val result = findMolecules {
+      case a(p) + a(y) + a(1) + bb(_) + bb((1,z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) if y > 0 && s() > 0 => a(p+1) ; qq() ; r(p)
+    }
+
+    result.inputs shouldEqual List(
+      InputMoleculeInfo(a, SimpleVar),
+      InputMoleculeInfo(a, SimpleVar),
+      InputMoleculeInfo(a, SimpleConst),
+      InputMoleculeInfo(bb, Wildcard),
+      InputMoleculeInfo(bb, OtherPattern),
+      InputMoleculeInfo(bb, OtherPattern),
+      InputMoleculeInfo(bb, OtherPattern),
+      InputMoleculeInfo(s, Wildcard)
+    )
+    result.outputs shouldEqual List(s, a, qq)
+  }
+
   it should "inspect reaction body" in {
     val a = m[Int]
     val qq = m[Unit]
