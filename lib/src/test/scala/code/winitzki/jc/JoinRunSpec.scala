@@ -23,7 +23,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     a.toString shouldEqual "a"
 
-    join(&{ case a(_) + b(_) + c(_) => })
+    join(runSimple { case a(_) + b(_) + c(_) => })
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
 
     a()
@@ -39,79 +39,17 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(&{ case b(_) + c(_) + a(Some(x)) => })
+    join(runSimple { case b(_) + c(_) + a(Some(x)) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
 
-  it should "define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
-
-    join(&{ case b(_) + a(Some(x)) + c(_) => })
-
-    a.logSoup shouldEqual "Join{a + b => ...}\nNo molecules"  // this is the wrong result
-    // when the problem is fixed, this test will have to be rewritten
-  }
-
-  it should "define a reaction with correct inputs with default pattern-matching in the middle of reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
-
-    join(&{ case b(_) + a(None) + c(_) => })
-
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
-  }
-
-  it should "define a reaction with correct inputs with non-simple default pattern-matching in the middle of reaction" in {
-    val a = new M[Seq[Int]]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
-
-    join(&{ case b(_) + a(List()) + c(_) => })
-
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
-  }
-
-  it should "define a reaction with correct inputs with empty option pattern-matching at start of reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
-
-    join(&{ case a(None) + b(_) + c(_) => })
-
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
-  }
-
-  it should "define a reaction with correct inputs with constant default pattern-matching at start of reaction" in {
+  it should "define a reaction with correct inputs with zero default pattern-matching at start of reaction" in {
     val a = new M[Int]("a")
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(&{ case a(0) + b(_) + c(_) => })
-
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
-  }
-
-  it should "define a reaction with correct inputs with constant non-default pattern-matching at start of reaction" in {
-    val a = new M[Int]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
-
-    join(&{ case a(1) + b(_) + c(_) => })
-
-    a.logSoup shouldEqual "Join{a => ...}\nNo molecules" // this is the wrong result
-    // when the problem is fixed, this test will have to be rewritten
-  }
-
-  it should "define a reaction with correct inputs with constant default option pattern-matching at start of reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
-
-    join(&{ case a(None) + b(_) + c(_) => })
+    join(runSimple { case a(0) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -121,37 +59,9 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(&{ case b(_) + c(_) + a(1) => })
+    join(runSimple { case b(_) + c(_) + a(1) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
-  }
-
-  it should "define a reaction with correct inputs with non-default pattern-matching at start of reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
-
-    join(&{ case a(Some(x)) + b(_) + c(_) => })
-
-    a.logSoup shouldEqual "Join{a => ...}\nNo molecules" // this is the wrong result
-    // when the problem is fixed, this test will have to be rewritten
-  }
-
-  it should "generate an error message when the inputs are incorrectly inferred from reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new M[Unit]("b")
-
-    join(&{ case a(Some(x)) + b(_) => }) // currently, the limitations in the pattern-macher will cause this
-    // to fail to recognize that "b" is an input molecule in this reaction.
-
-    // when the problem is fixed, this test will have to be rewritten
-
-    a(Some(1))
-    val thrown = intercept[Exception] {
-      b()
-    }
-    thrown.getMessage shouldEqual "Molecule b is not bound to any join definition"
-
   }
 
   it should "start a simple reaction with one input, defining the injector explicitly" in {
@@ -160,7 +70,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val a = new M[Unit]("a")
 
-    join( &{ case a(_) => waiter.dismiss() })
+    join( runSimple { case a(_) => waiter.dismiss() })
 
     a()
     waiter.await()
@@ -171,7 +81,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val waiter = new Waiter
 
     val a = new M[Unit]("a")
-    join( &{ case a(_) => waiter.dismiss() })
+    join( runSimple { case a(_) => waiter.dismiss() })
     a()
     waiter.await()
   }
@@ -182,7 +92,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val a = new M[Unit]("a")
     val b = new M[Unit]("b")
-    join( &{ case a(_) => b() }, &{ case b(_) => waiter.dismiss() })
+    join( runSimple { case a(_) => b() }, runSimple { case b(_) => waiter.dismiss() })
 
     a()
     waiter.await()
@@ -195,7 +105,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val a = new M[Int]("a")
     val b = new M[Int]("b")
     val c = new M[Int]("c")
-    join( &{ case a(x) + b(y) => c(x+y) }, &{ case c(z) => waiter { z shouldEqual 3 }; waiter.dismiss() })
+    join( runSimple { case a(x) + b(y) => c(x+y) }, runSimple { case c(z) => waiter { z shouldEqual 3 }; waiter.dismiss() })
     a(1)
     b(2)
     waiter.await()
@@ -204,7 +114,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "throw exception when join pattern is nonlinear" in {
     val thrown = intercept[Exception] {
       val a = new M[Unit]("a")
-      join( &{ case a(_) + a(_) => () })
+      join( runSimple { case a(_) + a(_) => () })
       a()
     }
     thrown.getMessage shouldEqual "Nonlinear pattern: a used twice"
@@ -214,7 +124,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "throw exception when join pattern is nonlinear, with blocking molecule" in {
     val thrown = intercept[Exception] {
       val a = new B[Unit,Unit]("a")
-      join( &{ case a(_,r) + a(_,s) => () })
+      join( runSimple { case a(_,r) + a(_,s) => () })
       a()
     }
     thrown.getMessage shouldEqual "Nonlinear pattern: a/B used twice"
@@ -223,8 +133,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "throw exception when join pattern attempts to redefine a blocking molecule" in {
     val thrown = intercept[Exception] {
       val a = new B[Unit,Unit]("a")
-      join( &{ case a(_,_) => () })
-      join( &{ case a(_,_) => () })
+      join( runSimple { case a(_,_) => () })
+      join( runSimple { case a(_,_) => () })
     }
     thrown.getMessage shouldEqual "Molecule a/B cannot be used as input since it was already used in Join{a/B => ...}"
   }
@@ -233,8 +143,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val thrown = intercept[Exception] {
       val a = new M[Unit]("x")
       val b = new M[Unit]("y")
-      join( &{ case a(_) + b(_) => () })
-      join( &{ case a(_) => () })
+      join( runSimple { case a(_) + b(_) => () })
+      join( runSimple { case a(_) => () })
     }
     thrown.getMessage shouldEqual "Molecule x cannot be used as input since it was already used in Join{x + y => ...}"
   }
@@ -277,7 +187,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val b = new M[Int]("b")
     val f = new B[Unit,Int]("f")
 
-    join( &{ case a(x) + b(0) => a(x+1) }, &{ case a(z) + f(_, r) => r(z) })
+    join( runSimple { case a(x) + b(0) => a(x+1) }, runSimple { case a(z) + f(_, r) => r(z) })
     a(1)
     b(2)
     waitSome()
@@ -289,8 +199,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val d = new M[Unit]("decrement")
     val g = new B[Unit,Int]("getValue")
     join(
-      &{ case c(n) + d(_) => c(n-1) },
-      &{ case c(n) + g(_,r) => c(n) + r(n) }
+      runSimple { case c(n) + d(_) => c(n-1) },
+      runSimple { case c(n) + g(_,r) => c(n) + r(n) }
     )
     c(2) + d() + d()
     waitSome()
@@ -307,9 +217,9 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(1)
 
     join(
-      &{ case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
-      &{ case a(x) + g(_, r) => a(x) + r(x) },
-      &{ case f(_) + a(x) => a(x+1) }
+      runSimple { case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
+      runSimple { case a(x) + g(_, r) => a(x) + r(x) },
+      runSimple { case f(_) + a(x) => a(x+1) }
     )
     a(0) + c(1) + c(1) + d() + d()
     Thread.sleep(150) // This is less than 200ms, so we have not yet finished the second computation.
@@ -330,9 +240,9 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(2)
 
     join(
-      &{ case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
-      &{ case a(x) + g(_, r) => r(x) },
-      &{ case f(_) + a(x) => a(x+1) }
+      runSimple { case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
+      runSimple { case a(x) + g(_, r) => r(x) },
+      runSimple { case f(_) + a(x) => a(x+1) }
     )
     a(0) + c(1) + c(1) + d() + d()
     Thread.sleep(150) // This is less than 200ms, and the test fails unless we use 2 threads concurrently.
@@ -349,8 +259,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g = new B[Unit, Int]("getValue")
     val tp = new FixedPool(2)
     join(
-      & { case c(x) + d(_) => c(x - 1) } onThreads tp,
-      & { case c(x) + g(_, r) => c(x) + r(x) }
+      runSimple  { case c(x) + d(_) => c(x - 1) } onThreads tp,
+      runSimple  { case c(x) + g(_, r) => c(x) + r(x) }
     )
     c(n)
     (1 to n).foreach { _ => d() }
@@ -372,10 +282,10 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(2)
 
     join(
-      & { case c(x) + d(_) =>
+      runSimple  { case c(x) + d(_) =>
         if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
       }.withRetry onThreads tp,
-      & { case c(x) + g(_, r) => c(x) + r(x) }
+      runSimple  { case c(x) + g(_, r) => c(x) + r(x) }
     )
     c(n)
     (1 to n).foreach { _ => d() }

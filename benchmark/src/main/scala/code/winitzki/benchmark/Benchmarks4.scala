@@ -3,6 +3,8 @@ package code.winitzki.benchmark
 import java.time.LocalDateTime
 import code.winitzki.benchmark.Common._
 import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros._
+import code.winitzki.jc._
 
 object Benchmarks4 {
   def benchmark4_100(count: Int, threads: Int = 2): Long = {
@@ -10,11 +12,11 @@ object Benchmarks4 {
     val n = 20
     val g = {
       val is: IndexedSeq[Int] = 0 until n
-      val f = m[Unit]("f")
-      val g = b[LocalDateTime, Long]("g")
-      val as = is.map(i => m[Int](s"a$i"))
+      val f = m[Unit]
+      val g = b[LocalDateTime, Long]
+      val as = is.map(i => new M[Int](s"a$i"))
       val jrs = IndexedSeq(
-        run { case f(_) + g(initTime, r) => r(elapsed(initTime)) }
+        & { case f(_) + g(initTime, r) => r(elapsed(initTime)) }
       ) ++ is.map(
         i => {
           val a = as(i)

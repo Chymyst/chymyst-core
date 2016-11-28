@@ -22,7 +22,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val a = new M[Unit]("a")
     val f = new B[Unit,Int]("f")
-    join( &{ case a(_) + f(_, r) => r(3) })
+    join( runSimple { case a(_) + f(_, r) => r(3) })
     a()
     a()
     a()
@@ -35,7 +35,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val a = new M[Unit]("a")
     val f = new B[Unit,Int]("f")
-    join( &{ case a(_) + f(_, r) => r(3) })
+    join( runSimple { case a(_) + f(_, r) => r(3) })
     a()
     f(timeout = 100000000)() shouldEqual Some(3)
   }
@@ -44,7 +44,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val a = new M[Unit]("a")
     val f = new B[Unit,Int]("f")
-    join( &{ case a(_) + f(_, r) => r(3) })
+    join( runSimple { case a(_) + f(_, r) => r(3) })
     a()
     f() shouldEqual 3 // now the a() molecule is gone
     f(timeout = 100000000)() shouldEqual None
@@ -54,7 +54,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val a = new M[Unit]("a")
     val f = new B[Unit,Int]("f")
-    join( &{ case a(_) + f(_, r) => Thread.sleep(50); r(3) })
+    join( runSimple { case a(_) + f(_, r) => Thread.sleep(50); r(3) })
     a()
     f(timeout = 100000000)() shouldEqual Some(3)
   }
@@ -63,7 +63,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val a = new M[Unit]("a")
     val f = new B[Unit,Int]("f")
-    join( &{ case a(_) + f(_, r) => Thread.sleep(150); r(3) })
+    join( runSimple { case a(_) + f(_, r) => Thread.sleep(150); r(3) })
     a()
     f(timeout = 100000000)() shouldEqual None
   }
@@ -74,7 +74,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = new M[Int]("c")
     val g = new B[Unit,Int]("g")
     join(
-      &{ case c(n) + g(_,r) => c(n) + r(n) + r(n+1) }
+      runSimple { case c(n) + g(_,r) => c(n) + r(n) + r(n+1) }
     )
     c(2)
     waitSome()
@@ -91,8 +91,8 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g = new B[Unit,Int]("g")
     val g2 = new B[Unit,Int]("g2")
     join(
-      &{ case d(_) => g2() },
-      &{ case c(n) + g(_,r) + g2(_, r2) => c(n) + r(n) + r(n+1) + r2(n) + r2(n+1) }
+      runSimple { case d(_) => g2() },
+      runSimple { case c(n) + g(_,r) + g2(_, r2) => c(n) + r(n) + r(n+1) + r2(n) + r2(n+1) }
     )
     c(2) + d()
     waitSome()
@@ -107,7 +107,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = new M[Unit]("c")
     val g = new B[Unit,Int]("g")
     join(
-      &{ case c(_) + g(_,r) => c() }
+      runSimple { case c(_) + g(_,r) => c() }
     )
     c()
     waitSome()
@@ -125,8 +125,8 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(2)
     join(
-      &{ case d(_) => g2() } onThreads tp,
-      &{ case c(_) + g(_,_) + g2(_,_) => c() }
+      runSimple { case d(_) => g2() } onThreads tp,
+      runSimple { case c(_) + g(_,_) + g2(_,_) => c() }
     )
     c() + d()
     waitSome()
@@ -146,8 +146,8 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(2)
     join(
-      &{ case d(_) => g2() } onThreads tp,
-      &{ case c(_) + g(_,r) + g2(_,_) => c() + r(0) }
+      runSimple { case d(_) => g2() } onThreads tp,
+      runSimple { case c(_) + g(_,r) + g2(_,_) => c() + r(0) }
     )
     c() + d()
     waitSome()
@@ -172,9 +172,9 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val h = new B[Unit,Int]("h")
     val tp = new FixedPool(2)
     join(
-      &{ case c(_) => e(g2()) } onThreads tp, // e(0) should be injected now
-      &{ case d(_) + g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
-      &{ case e(x) + h(_,r) =>  r(x) }
+      runSimple { case c(_) => e(g2()) } onThreads tp, // e(0) should be injected now
+      runSimple { case d(_) + g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
+      runSimple { case e(x) + h(_,r) =>  r(x) }
     )
     c()+d()
     waitSome()
@@ -196,11 +196,11 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val h = new B[Unit,Int]("h")
     val tp = new FixedPool(2)
     join(
-      &{ case c(_) => val x = g() + g2(); e(x) } onThreads tp, // e(0) should never be injected because this thread is deadlocked
-      &{ case d(_) + g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
-      &{ case e(x) + h(_,r) =>  r(x) },
-      &{ case d(_) + f(_) => e(2) },
-      &{ case f(_) + e(_) => e(1) }
+      runSimple { case c(_) => val x = g() + g2(); e(x) } onThreads tp, // e(0) should never be injected because this thread is deadlocked
+      runSimple { case d(_) + g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
+      runSimple { case e(x) + h(_,r) =>  r(x) },
+      runSimple { case d(_) + f(_) => e(2) },
+      runSimple { case f(_) + e(_) => e(1) }
     )
     d()
     waitSome()
@@ -224,9 +224,9 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(2)
     join(
-      &{ case d(_) => g() } onThreads tp, // this will be used to inject g() and blocked
-      &{ case c(_) + g(_,r) => r(0) } onThreads tp, // this will not start because we have no c()
-      &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+      runSimple { case d(_) => g() } onThreads tp, // this will be used to inject g() and blocked
+      runSimple { case c(_) + g(_,r) => r(0) } onThreads tp, // this will not start because we have no c()
+      runSimple { case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // do not inject c(). Now the first reaction is blocked because second reaction cannot start.
@@ -241,9 +241,9 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(1)
     join(
-      &{ case d(_) => g() } onThreads tp, // this will be used to inject g() and block one thread
-      &{ case c(_) + g(_,r) => r(0) } onThreads tp, // this will not start because we have no c()
-      &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+      runSimple { case d(_) => g() } onThreads tp, // this will be used to inject g() and block one thread
+      runSimple { case c(_) + g(_,r) => r(0) } onThreads tp, // this will not start because we have no c()
+      runSimple { case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // do not inject c(). Now the first reaction is blocked because second reaction cannot start.
@@ -257,8 +257,8 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(1)
     join(
-      &{ case d(_) => Thread.sleep(300) } onThreads tp, // this thread is blocked by sleeping
-      &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+      runSimple { case d(_) => Thread.sleep(300) } onThreads tp, // this thread is blocked by sleeping
+      runSimple { case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping.
@@ -272,8 +272,8 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(1)
     join(
-      &{ case d(_) => BlockingIdle {Thread.sleep(300)} } onThreads tp, // this thread is blocked by sleeping
-      &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+      runSimple { case d(_) => BlockingIdle {Thread.sleep(300)} } onThreads tp, // this thread is blocked by sleeping
+      runSimple { case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping.
@@ -287,8 +287,8 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g2 = new B[Unit,Int]("g2")
     val tp = new CachedPool(1)
     join(
-      &{ case d(_) => Thread.sleep(300) } onThreads tp, // this thread is blocked by sleeping
-      &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+      runSimple { case d(_) => Thread.sleep(300) } onThreads tp, // this thread is blocked by sleeping
+      runSimple { case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping.
@@ -302,8 +302,8 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g2 = new B[Unit,Int]("g2")
     val tp = new CachedPool(1)
     join(
-      &{ case d(_) => BlockingIdle {Thread.sleep(300)} } onThreads tp, // this thread is blocked by sleeping
-      &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+      runSimple { case d(_) => BlockingIdle {Thread.sleep(300)} } onThreads tp, // this thread is blocked by sleeping
+      runSimple { case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping, and "Blocking" has no effect since it works only in a `SmartPool`.
@@ -318,8 +318,8 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new SmartPool(1)
     tp.currentPoolSize shouldEqual 1
     join(
-      &{ case d(_) => BlockingIdle {Thread.sleep(100)} } onThreads tp, // this thread is blocked by sleeping
-      &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+      runSimple { case d(_) => BlockingIdle {Thread.sleep(100)} } onThreads tp, // this thread is blocked by sleeping
+      runSimple { case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping, but this should not block the thread pool since we use "Blocking".
@@ -337,8 +337,8 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new SmartPool(1)
     tp.currentPoolSize shouldEqual 1
     join(
-      &{ case d(_) => BlockingIdle{BlockingIdle {Thread.sleep(100)}} } onThreads tp, // this thread is blocked by sleeping
-      &{ case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+      runSimple { case d(_) => BlockingIdle{BlockingIdle {Thread.sleep(100)}} } onThreads tp, // this thread is blocked by sleeping
+      runSimple { case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping, but this should not block the thread pool since we use "Blocking".
@@ -361,11 +361,11 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val g = new B[Unit,Unit]("g")
 
     join(defaultJoinPool, tp)(
-      & { case c(_) => f() }, // this reaction will wait
-      & { case d(_) => e(); f2() }, // together with this reaction
-      & { case e(_) + f(_, r) => r(0) }, // for this reaction to reply, but there won't be any threads left
-      & { case g(_, r) => r() }, // and so this reaction will be blocked forever
-      & { case f2(_, r) + c(_) => r(0)} // while this will never happen since "c" will be gone when "f2" is injected
+      runSimple { case c(_) => f() }, // this reaction will wait
+      runSimple { case d(_) => e(); f2() }, // together with this reaction
+      runSimple { case e(_) + f(_, r) => r(0) }, // for this reaction to reply, but there won't be any threads left
+      runSimple { case g(_, r) => r() }, // and so this reaction will be blocked forever
+      runSimple { case f2(_, r) + c(_) => r(0)} // while this will never happen since "c" will be gone when "f2" is injected
     )
 
     c()

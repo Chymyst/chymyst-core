@@ -24,10 +24,10 @@ class ParallelOrSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val res2_false = new B[Unit, Boolean]("res2_false")
 
     join (
-      &{ case res(_, res_reply) + res1(b) => if (b) res_reply(b) else res_reply(res1_false()) },
-      &{ case res1_false(_, res1f_reply) + res2(b) => res1f_reply(b) },
-      &{ case res(_, res_reply) + res2(b) => if (b) res_reply(b) else res_reply(res2_false()) },
-      &{ case res2_false(_, res2f_reply) + res1(b) => res2f_reply(b) }
+      runSimple { case res(_, res_reply) + res1(b) => if (b) res_reply(b) else res_reply(res1_false()) },
+      runSimple { case res1_false(_, res1f_reply) + res2(b) => res1f_reply(b) },
+      runSimple { case res(_, res_reply) + res2(b) => if (b) res_reply(b) else res_reply(res2_false()) },
+      runSimple { case res2_false(_, res2f_reply) + res1(b) => res2f_reply(b) }
     )
 
     res1(b1) + res2(b2)

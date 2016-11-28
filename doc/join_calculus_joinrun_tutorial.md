@@ -474,7 +474,7 @@ run { case fetch(_, reply) + counter(n) if n == 0  => reply() }
 For more clarity, we can also use the pattern-matching facility of `JoinRun` to implement the same reaction like this:
 
 ```scala
-run { case fetch(_, reply) + counter(0) => reply() }
+run { case counter(0) + fetch(_, reply)  => reply() }
 ```
 
 Here is the complete code:
@@ -495,7 +495,7 @@ object C extends App {
   
   // declare reactions
   join(
-    run { case fetch(_, reply) + counter(0) => reply() },
+    run { case counter(0) + fetch(_, reply)  => reply() },
     run { case counter(n) + decr(_) => counter(n-1) }
   )
   
@@ -516,10 +516,6 @@ Some remarks:
 For this reason, we write `decr(_)` and `fetch(_, reply)` in the match patterns.
 However, these molecules can be injected simply as `decr()` and `fetch()`, since Scala inserts a `Unit` value automatically when calling functions.
 - We declared both reactions in one join definition, because these two reactions share the input molecule `counter`.
-- Pattern-matching on the molecule value (such as `counter(0)`) is limited in the current version of `JoinRun`, due to the quirks in Scala's `unapply` method:
-Reactions work correctly if the molecule with the pattern-matched value is used only the _last_ input molecule.
-This limitation may be lifted in a later version of `JoinRun`.
-With this limitation, the usual pattern-matching facilities of Scala can be used in reaction definitions.
 - The injected blocking molecule `fetch()` will not remain in the soup after the reaction is finished.
 Actually, it would not make sense for `fetch()` to remain in the soup:
 If a molecule remains in the soup after a reaction, it means that the molecule is going to be available for some later reaction without blocking its injecting call; but this is the behavior of a non-blocking molecule.
