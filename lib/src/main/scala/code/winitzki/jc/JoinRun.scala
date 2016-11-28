@@ -228,7 +228,7 @@ object JoinRun {
     * @param repliedTwice Will be set to "true" if the molecule received a reply more than once.
     * @tparam R Type of the value replied to the caller via the "reply" action.
     */
-  private[JoinRun] final case class ReplyValue[R](
+  private[jc] final case class ReplyValue[R](
     var result: Option[R] = None,
     private var semaphore: Semaphore = { val s = new Semaphore(0, true); s.drainPermits(); s },
     var errorMessage: Option[String] = None,
