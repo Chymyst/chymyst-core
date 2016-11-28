@@ -151,7 +151,7 @@ val result = f(123) // result is of type String
 
 In this reaction, the pattern-match on `f(y, r)` involves two pattern variables:
 - The pattern variable `y` is of type `Int` and matches the value carried by the injected molecule `f(123)`
-- The pattern variable `r` is of private type `SyncReplyValue[Int, String]` and matches and object that performs the reply action aimed at the caller of `f(123)`.
+- The pattern variable `r` is of private type `ReplyValue[Int, String]` and matches and object that performs the reply action aimed at the caller of `f(123)`.
 Calling it as `r(x.toString)` will perform the reply action, - that is, will send the string back to the calling process, unblocking the call to `f(123)` in that process.
 
 This reply action must be performed as `r(...)` in the reaction body exactly once, and cannot be performed afterwards.
