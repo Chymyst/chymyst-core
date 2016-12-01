@@ -2,6 +2,7 @@
 
 `JoinRun` is an implementation of Join Calculus as an embedded DSL in Scala.
 
+Currently, it compiles with Scala 2.11 and Scala 2.12 on Oracle JDK 8.
 
 # Previous work
 

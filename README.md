@@ -3,10 +3,9 @@
 # joinrun - A new implementation of Join Calculus in Scala
 Join Calculus (JC) is a micro-framework for purely functional concurrency.
 
-The code is inspired by previous implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011)
-and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
+The code is inspired by previous implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 
-The implementation currently requires Scala 2.11 due to Akka support and openjdk7 performance issues.
+The implementation currently requires Scala 2.11 and Oracle JDK 8 due to Akka support and openjdk7 performance issues.
 However, the code works also with Scala 2.10 (except for Akka functions) and Scala 2.12 (but only with oraclejdk).
 
 # Overview of join calculus
@@ -15,7 +14,9 @@ If you are new to Join Calculus, begin with this [tutorial introduction to `Join
 
 See also my presentation at _Scala by the Bay 2016_ ([talk slides are available](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_talk_2016.pdf)).
 
-There is some more [technical documentation of `JoinRun` library](doc/joinrun.md).
+There is some [technical documentation for `JoinRun` library](doc/joinrun.md).
+
+## Join Calculus vs. "Actors"
 
 Join calculus (JC) is similar in some aspects to the well-known “actors” framework (e.g. Akka).
 
@@ -48,15 +49,13 @@ In talking about `JoinRun`, I follow the “chemical machine” metaphor and ter
 | injecting a molecule | sending a message | `a(123)` _// side effect_ |
 | join definition | join definition | `join(r1, r2, ...)` |
 
-# Main improvements
+# Main features of `JoinRun`
 
 Compared to `ScalaJoin` (Jiansen He's 2011 implementation of JC), `JoinRun` offers the following improvements:
 
-- Molecule injectors (“channels”) are _locally scoped values_ (instances of abstract class `AbsMol` having types `M[T]` or `B[T,R]`) rather than singleton objects, as in `ScalaJoin`; 
-this is more faithful to the semantics of JC
+- Molecule injectors (“channels”) are _locally scoped values_ (instances of abstract class `AbsMol` having types `M[T]` or `B[T,R]`) rather than singleton objects, as in `ScalaJoin`; this is more faithful to the semantics of JC
 - Reactions are also locally scoped values (instances of `JReaction`)
-- Reactions and molecules are composable: e.g. we can construct a join definition
- with `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules
+- Reactions and molecules are composable: e.g. we can construct a join definition with `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules
 - “Join definitions” are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC)
 - Some common cases of invalid join definitions are flagged (as run-time errors) even before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply)
 - Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use actor-based or thread executor-based pools
@@ -70,13 +69,11 @@ this is more faithful to the semantics of JC
 Current version is `0.0.8`.
 The semantics of Join Calculus (restricted to single machine) is fully implemented and tested.
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
-Performance tests indicate that the runtime can schedule about 300,000 reactions per second per CPU core,
-and the performance bottleneck is the thread switching and pattern-matching.
+Performance tests indicate that the runtime can schedule about 300,000 reactions per second per CPU core, and the performance bottleneck is the thread switching and pattern-matching.
 
 Known limitations:
 
 - `JoinRun` is currently at most 20% slower than `ScalaJoin` on certain benchmarks that exercise a very large number of very short reactions.
-- Pattern-matching in join definitions is limited due to Scala's pattern matcher being too greedy (but this does not restrict the expressiveness of the language)
 - No fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random
 - No distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`)
 
@@ -107,8 +104,7 @@ The main library is in the “core” and “macros” artifacts.
 # Basic usage of `JoinRun`
 
 Here is an example of “single-access non-blocking counter”.
-There is an integer counter value, to which we have non-blocking access
-via `incr` and `decr` molecules.
+There is an integer counter value, to which we have non-blocking access via `incr` and `decr` molecules.
 We can also fetch the current counter value via the `get` molecule, which is blocking.
 The counter is initialized to the number we specify.
 ```scala

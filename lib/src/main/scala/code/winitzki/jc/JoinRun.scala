@@ -11,13 +11,11 @@ and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 TODO and roadmap:
   value * difficulty - description
 
- 4 * 2 - make helper functions to create a new joinpool
+ 2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
 
  2 * 2 - should `run` take ReactionBody or simply UnapplyArg => Unit?
 
  3 * 1 - make helper functions to create new single-thread pools using a given thread or a given executor/handler
-
- 4 * 2 - make helper functions to create an actor-based pool, or a pool with autoresizing - then can use "blocking(_)", otherwise the fixed thread pool will do nothing about "blocking(_)".
 
  5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
 
@@ -25,10 +23,6 @@ TODO and roadmap:
 
  5 * 5 - implement fairness with respect to molecules
  * - go through possible values when matching (can do?) Important: can get stuck when molecules are in different order. Or need to shuffle.
-
- 5 * 5 - allow unrestricted pattern-matching in reactions
- - completely fix the problem with pattern-matching not at the end of input molecule list.
-  Probably will need a macro. At the moment, we can have some pattern-matching but it's not correct.
 
  4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
 
@@ -43,12 +37,7 @@ TODO and roadmap:
 
  3 * 5 - Can we implement JoinRun using Future / Promise and remove all blocking and all semaphores?
 
- 5 * 5 - try to inspect the reaction body using a macro. Can we match on q"{ case a(_) + ... => ... }"?
- Can we return the list of input molecules and other info - e.g. whether the pattern-match
- is nontrivial in this molecule, whether blocking molecules have a reply matcher specified,
- whether the reply pseudo-molecule is being used in the body, whether all other output molecules are already defined.
- If this is possible, define an alternative "join" or "run" helper functions in the Macros package.
-  Can we do some reasoning about reactions at compile time or at runtime but before starting any reactions?
+ 5 * 5 - Can we do some reasoning about reactions at compile time or at runtime but before starting any reactions? E.g. to detect likely deadlocks.
 
  2 * 3 - understand the "reader-writer" example
 
@@ -63,11 +52,9 @@ TODO and roadmap:
  5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
  and be able to better reason about our declarative reactions.
 
- 2 * 4 - allow molecule values to be parameterized types or even higher-kinded types?
+ 2 * 4 - allow molecule values to be parameterized types or even higher-kinded types? Need to test this.
 
  2 * 2 - make memory profiling / benchmarking; how many molecules can we have per 1 GB of RAM?
-
- 3 * 3 - figure out whether we are replying to the blocking molecules only at the end of reaction, or also during the reaction (this is preferable)
 
  3 * 4 - implement nonlinear input patterns
 
