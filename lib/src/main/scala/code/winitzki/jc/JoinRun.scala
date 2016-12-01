@@ -175,6 +175,8 @@ object JoinRun {
     val inputMoleculesUsed = {
       val moleculesInThisReaction = UnapplyCheckSimple(mutable.MutableList.empty)
       body.isDefinedAt(moleculesInThisReaction)
+      val duplicateMolecules = moleculesInThisReaction.inputMolecules diff moleculesInThisReaction.inputMolecules.distinct
+      if (duplicateMolecules.nonEmpty) throw new ExceptionInJoinRun(s"Nonlinear pattern: ${duplicateMolecules.mkString(", ")} used twice")
       moleculesInThisReaction.inputMolecules.toList
     }
     ReactionInfo(inputMoleculesUsed.map(m => InputMoleculeInfo(m, SimpleVar)), Nil, UUID.randomUUID().toString)

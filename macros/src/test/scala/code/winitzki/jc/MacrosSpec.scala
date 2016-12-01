@@ -54,6 +54,23 @@ class MacrosSpec extends FlatSpec with Matchers {
     f(timeout = 1000000L * 100)() shouldEqual Some(2)
   }
 
+  it should "inspect reaction body with embedded join and runSimple" in {
+    val a = m[Int]
+    val bb = m[Int]
+    val f = b[Unit, Int]
+    join(
+      runSimple { case f(_, r) + bb(x) => r(x) },
+      runSimple { case a(x) =>
+        val p = m[Int]
+        join(& { case p(y) => bb(y) })
+        p(x + 1)
+      }
+    )
+    waitSome()
+    a(1)
+    f(timeout = 1000000L * 100)() shouldEqual Some(2)
+  }
+
   it should "inspect a simple reaction body" in {
     val a = m[Int]
     val qq = m[Unit]
