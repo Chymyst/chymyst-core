@@ -6,6 +6,10 @@ import Macros._
 
 class MacrosSpec extends FlatSpec with Matchers {
 
+  val warmupTimeMs = 50
+
+  def waitSome(): Unit = Thread.sleep(warmupTimeMs)
+
   behavior of "macros for defining new molecule injectors"
 
   it should "compute invocation names for molecule injectors" in {
@@ -18,7 +22,37 @@ class MacrosSpec extends FlatSpec with Matchers {
     s.toString shouldEqual "s/B"
   }
 
-  behavior of "macros for inspecing a reaction body"
+  behavior of "macros for inspecting a reaction body"
+
+  it should "inspect reaction body containing a local molecule injector" in {
+    val a = m[Int]
+
+    val reaction =
+      & { case a(x) =>
+        val q = new M[Int]("q")
+        val reaction1 = & { case q(_) => }
+        q(0)
+      }
+    reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar))
+    reaction.info.outputs shouldEqual List()
+  }
+
+  it should "inspect reaction body with embedded join" in {
+    val a = m[Int]
+    val bb = m[Int]
+    val f = b[Unit, Int]
+    join(
+      & { case f(_, r) + bb(x) => r(x) },
+      & { case a(x) =>
+        val p = m[Int]
+        join(& { case p(y) => bb(y) })
+        p(x + 1)
+      }
+    )
+    waitSome()
+    a(1)
+    f(timeout = 1000000L * 100)() shouldEqual Some(2)
+  }
 
   it should "inspect a simple reaction body" in {
     val a = m[Int]
@@ -42,19 +76,18 @@ class MacrosSpec extends FlatSpec with Matchers {
     val bb = m[(Int, Option[Int])]
 
     val result = & {
-      case a(_) + a(x) => {
+      case a(_) + a(x) =>
         a(x + 1)
         if (x > 0) a(testWithApply(123))
         println(x)
         qq("")
-      }
     }
 
     result.info.inputs shouldEqual List(InputMoleculeInfo(a, Wildcard), InputMoleculeInfo(a, SimpleVar))
     result.info.outputs shouldEqual List(a, a, qq)
   }
 
-  it should "inspect a reaction body with embedded reaction" in {
+  it should "inspect reaction body with embedded reaction" in {
     val a = m[Int]
     val qq = m[Unit]
     val s = b[Unit, Int]
@@ -117,7 +150,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join( & { case b(_) + a(None) + c(_) => })
+    join(& { case b(_) + a(None) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -169,10 +202,10 @@ class MacrosSpec extends FlatSpec with Matchers {
     join(& { case a(Some(x)) + b(_) => })
 
     a(Some(1))
-    Thread.sleep(50)
+    waitSome()
     a.logSoup shouldEqual "Join{a + b => ...}\nMolecules: a(Some(1))"
     b()
-    Thread.sleep(50)
+    waitSome()
     a.logSoup shouldEqual "Join{a + b => ...}\nNo molecules"
   }
 
@@ -195,7 +228,6 @@ class MacrosSpec extends FlatSpec with Matchers {
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
-
 
 }
 

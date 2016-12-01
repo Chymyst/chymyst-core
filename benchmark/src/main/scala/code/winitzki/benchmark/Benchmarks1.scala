@@ -6,7 +6,6 @@ import code.winitzki.benchmark.Common._
 import code.winitzki.jc.{Pool, FixedPool}
 import code.winitzki.jc.Macros._
 import code.winitzki.jc.JoinRun._
-import code.winitzki.jc._
 
 object Benchmarks1 {
 
