@@ -1,7 +1,5 @@
 package code.winitzki.benchmark
 
-import java.time.LocalDateTime
-
 import Common._
 import code.winitzki.jc.FixedPool
 import code.winitzki.jc.Macros._
