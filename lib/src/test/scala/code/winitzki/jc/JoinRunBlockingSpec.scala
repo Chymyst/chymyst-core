@@ -362,7 +362,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f2 = new B[Unit,Int]("f2")
     val g = new B[Unit,Unit]("g")
 
-    join(defaultJoinPool, tp)(
+    join(tp)(
       runSimple { case c(_) => f() }, // this reaction will wait
       runSimple { case d(_) => e(); f2() }, // together with this reaction
       runSimple { case e(_) + f(_, r) => r(0) }, // for this reaction to reply, but there won't be any threads left

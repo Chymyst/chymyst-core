@@ -68,6 +68,7 @@ object MyBuild extends Build {
     "benchmark",
     file("benchmark"),
     settings = buildSettings ++ Seq(
+      parallelExecution in Test := false,
       libraryDependencies ++= Seq(
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"
       )
