@@ -13,21 +13,27 @@ class MultithreadSpec extends FlatSpec with Matchers {
     def runWork(threads: Int) = {
 
       def performWork(): Unit = {
-        val n = 100
-
+        val n = 200
+        // load the CPU with some work:
         (1 to n).foreach(i => (1 to i).foreach(j => (1 to j).foreach(k => math.cos(10000.0))))
       }
 
-      val a = m[Int]
-      val never = b[Unit, Unit]
+
+      val work = m[Unit]
+      val finished = m[Unit]
+      val counter = m[Int]
+      val allFinished = b[Unit, Unit]
       val tp = new FixedPool(threads)
-      join(tp)(
-        & { case a(c) if c > 0 => performWork(); a(c - 1) },
-        & { case never(_, r) + a(0) => r() }
+      join(
+        & { case work(_) => performWork(); finished() } onThreads tp,
+        & { case counter(n) + finished(_) => counter(n-1) },
+        & { case allFinished(_, r) + counter(0) => r() }
       )
 
-      (1 to 10).foreach(_ => a(10))
-      never()
+      (1 to threads).foreach(_ => work())
+      counter(threads)
+      allFinished()
+      tp.shutdownNow()
     }
 
     val result8 = timeWithPriming{runWork(8)}
@@ -35,6 +41,6 @@ class MultithreadSpec extends FlatSpec with Matchers {
 
     println(s"with 1 thread $result1 ms, with 8 threads $result8 ms")
 
-    (3 * result8 < result1) shouldEqual true
+    (1.5 * result8 < result1) shouldEqual true
   }
 }
