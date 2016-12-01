@@ -13,7 +13,7 @@ However, the code works also with Scala 2.10 (except for Akka functions) and Sca
 
 If you are new to Join Calculus, begin with this [tutorial introduction to `JoinRun`](doc/join_calculus_joinrun_tutorial.md).
 
-See also my presentation at _Scala by the Bay 2016_ ([talk slides are available](https://github.com/winitzki/talks/tree/master/join_calculus)).
+See also my presentation at _Scala by the Bay 2016_ ([talk slides are available](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_talk_2016.pdf)).
 
 There is some more [technical documentation of `JoinRun` library](doc/joinrun.md).
 

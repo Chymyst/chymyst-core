@@ -64,7 +64,7 @@ object Macros {
     def apply(reactionBody: fmArg): Reaction = macro buildReactionImpl
   }
 
-  sealed trait PatternFlag {
+  private sealed trait PatternFlag {
     def notReplyValue: Boolean = this match {
       case ReplyVarF(_) => false
       case _ => true
@@ -72,13 +72,13 @@ object Macros {
 
   }
 
-  case object WildcardF extends PatternFlag
-  case class  ReplyVarF(replyVar: Any) extends PatternFlag
-  case object SimpleVarF extends PatternFlag
-  case object SimpleConstF extends PatternFlag
-  case object OtherPatternF extends PatternFlag
+  private case object WildcardF extends PatternFlag
+  private case class  ReplyVarF(replyVar: Any) extends PatternFlag
+  private case object SimpleVarF extends PatternFlag
+  private case object SimpleConstF extends PatternFlag
+  private case object OtherPatternF extends PatternFlag
 
-  def toPatternType(flag: PatternFlag): PatternType = flag match {
+  private def toPatternType(flag: PatternFlag): PatternType = flag match {
     case ReplyVarF(_) => OtherPattern
     case WildcardF => Wildcard
     case SimpleVarF => SimpleVar
@@ -86,7 +86,7 @@ object Macros {
     case OtherPatternF => OtherPattern
   }
 
-  type fmArg = ReactionBody // UnapplyArg => Unit // ReactionBody
+  private type fmArg = ReactionBody // UnapplyArg => Unit // ReactionBody
 
   /**
     * Users will define reactions using this function.
@@ -170,7 +170,7 @@ object Macros {
         */
       @tailrec
       private def isOwnedBy(s: c.Symbol, owner: c.Symbol): Boolean = s.owner match {
-        case `owner` => owner == NoSymbol
+        case `owner` => owner != NoSymbol
         case `NoSymbol` => false
         case o@_ => isOwnedBy(o, owner)
       }
@@ -201,7 +201,7 @@ object Macros {
             inputMolecules.append((t.symbol, getFlag(binder1), Some(flag2)))
 
           case Apply(Select(t@Ident(TermName(_)), TermName("apply")), _) =>
-            if (!isOwnedBy(t.symbol.owner, reactionBodyOwner)) {
+            if (!isOwnedBy(t.symbol, reactionBodyOwner)) {
               // skip any symbols defined in the inner scope
 
               if (t.tpe <:< typeOf[Molecule])
@@ -234,7 +234,14 @@ object Macros {
     // - for now, we only look at the first case
     val Some((pattern, guard, body, sha1)) = caseDefs.headOption
 
-    val moleculeInfoMaker = new MoleculeInfo(getCurrentOwner)
+//    val currentOwner = {
+      val freshName = c.freshName(TypeName("Probe$"))
+      val probe = c.typecheck(q""" {class $freshName; ()} """)
+    val currentOwner = probe match {
+        case Block(List(t), r) => t.symbol.owner
+      }
+//    }// getCurrentOwner
+    val moleculeInfoMaker = new MoleculeInfo(currentOwner)
     val (bodyIn, bodyOut, bodyReply) = moleculeInfoMaker.from(body) // bodyIn should be empty
 
     val (patternIn, patternOut, patternReply) = moleculeInfoMaker.from(pattern) // patternOut and patternReply should be empty
