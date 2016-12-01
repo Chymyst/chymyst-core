@@ -288,9 +288,9 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val d = new M[Unit]("d")
     val g2 = new B[Unit,Int]("g2")
     val tp = new CachedPool(1)
-    join(
-      runSimple { case d(_) => Thread.sleep(300) } onThreads tp, // this thread is blocked by sleeping
-      runSimple { case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+    join(tp)(
+      runSimple { case d(_) => Thread.sleep(300) }, // this thread is blocked by sleeping
+      runSimple { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping.
@@ -303,9 +303,9 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val d = new M[Unit]("d")
     val g2 = new B[Unit,Int]("g2")
     val tp = new CachedPool(1)
-    join(
-      runSimple { case d(_) => BlockingIdle {Thread.sleep(300)} } onThreads tp, // this thread is blocked by sleeping
-      runSimple { case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+    join(tp)(
+      runSimple { case d(_) => BlockingIdle {Thread.sleep(300)} }, // this thread is blocked by sleeping
+      runSimple { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping, and "Blocking" has no effect since it works only in a `SmartPool`.
@@ -315,39 +315,49 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "not block the smart threadpool with BlockingIdle(Thread.sleep)" in {
+    val c = new M[Unit]("c")
     val d = new M[Unit]("d")
+    val g = new B[Unit,Unit]("g")
     val g2 = new B[Unit,Int]("g2")
+
+    join( runSimple { case c(_) + g(_, r) => r() } )
+
     val tp = new SmartPool(1)
     tp.currentPoolSize shouldEqual 1
-    join(
-      runSimple { case d(_) => BlockingIdle {Thread.sleep(100)} } onThreads tp, // this thread is blocked by sleeping
-      runSimple { case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+    join(tp)(
+      runSimple { case d(_) => c(); BlockingIdle {Thread.sleep(100)}; c() }, // this thread is blocked by sleeping
+      runSimple { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping, but this should not block the thread pool since we use "Blocking".
-    waitSome()
+    g() // now we know that the first reaction has started
     g2(timeout = 50, TimeUnit.MILLISECONDS)() shouldEqual Some(1) // this should not be blocked
     tp.currentPoolSize shouldEqual 2
-    Thread.sleep(100)
+    g() // now we know that the first reaction has finished
     tp.currentPoolSize shouldEqual 1
     tp.shutdownNow()
   }
 
   it should "implement BlockingIdle(BlockingIdle()) as BlockingIdle()" in {
+    val c = new M[Unit]("c")
     val d = new M[Unit]("d")
+    val g = new B[Unit,Unit]("g")
     val g2 = new B[Unit,Int]("g2")
+
+    join( runSimple { case c(_) + g(_, r) => r() } )
+
     val tp = new SmartPool(1)
     tp.currentPoolSize shouldEqual 1
-    join(
-      runSimple { case d(_) => BlockingIdle{BlockingIdle {Thread.sleep(100)}} } onThreads tp, // this thread is blocked by sleeping
-      runSimple { case g2(_, r) => r(1) } onThreads tp // we will use this to test whether the entire thread pool is blocked
+    join(tp)(
+      runSimple { case d(_) => c(); BlockingIdle{BlockingIdle {Thread.sleep(100)}}; c() }, // this thread is blocked by sleeping
+      runSimple { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping, but this should not block the thread pool since we use "Blocking".
-    waitSome()
+    g() // now we know that the first reaction has started
     g2(timeout = 50, TimeUnit.MILLISECONDS)() shouldEqual Some(1) // this should not be blocked
     tp.currentPoolSize shouldEqual 2
-    Thread.sleep(100)
+    g() // now we know that the first reaction has finished
     tp.currentPoolSize shouldEqual 1
     tp.shutdownNow()
   }

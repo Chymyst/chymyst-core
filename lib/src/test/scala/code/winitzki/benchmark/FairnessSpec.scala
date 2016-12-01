@@ -7,7 +7,7 @@ import org.scalatest.{FlatSpec, Matchers}
 
 class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(500, Millis)
+  val timeLimit = Span(1000, Millis)
 
   behavior of "join definition"
 
@@ -76,7 +76,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     )
 
     (1 to counters).foreach(_ => a(0))
-    Thread.sleep(200)
+    Thread.sleep(100)
     c(cycles)
 
     val result = getC()

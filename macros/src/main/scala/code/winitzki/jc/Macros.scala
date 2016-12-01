@@ -127,7 +127,7 @@ object Macros {
             info = list
 
           // this is matched by a closure which is not a partial function
-          case Function(List(ValDef(Modifiers(_), TermName(_), TypeTree(), EmptyTree)), Match(Ident(TermName(_)), list)) =>
+          case Function(List(ValDef(_, TermName(_), TypeTree(), EmptyTree)), Match(Ident(TermName(_)), list)) =>
            info = list
 
           case _ => super.traverse(tree)

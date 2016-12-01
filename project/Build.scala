@@ -43,7 +43,7 @@ object MyBuild extends Build {
       libraryDependencies ++= Seq(
         "org.scalatest" %% "scalatest" % "3.0.0" % "test",
 
-  // this is necessary only if we want to debug macros;
+  // this is a necessary dependency only if we want to debug macros;
   // the project does not actually depend on scala-compiler.
         "org.scala-lang" % "scala-compiler" % scalaVersion.value % "test"
       )
