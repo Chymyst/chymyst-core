@@ -166,7 +166,7 @@ object JoinRun {
       if (duplicateMolecules.nonEmpty) throw new ExceptionInJoinRun(s"Nonlinear pattern: ${duplicateMolecules.mkString(", ")} used twice")
       moleculesInThisReaction.inputMolecules.toList
     }
-    ReactionInfo(inputMoleculesUsed.map(m => InputMoleculeInfo(m, SimpleVar)), Nil, UUID.randomUUID().toString)
+    ReactionInfo(inputMoleculesUsed.map(m => InputMoleculeInfo(m, OtherPattern)), Nil, UUID.randomUUID().toString)
   }
 
   /** Create a reaction value out of a simple reaction body - no pattern-matching with molecule values except the last one.
