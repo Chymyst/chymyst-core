@@ -51,8 +51,8 @@ class MacrosSpec extends FlatSpec with Matchers {
         p(x + 1)
       }
     )
-    waitSome()
     a(1)
+    waitSome()
     f(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual Some(2)
   }
 
@@ -68,8 +68,8 @@ class MacrosSpec extends FlatSpec with Matchers {
         p(x + 1)
       }
     )
-    waitSome()
     a(1)
+    waitSome()
     f(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual Some(2)
   }
 
