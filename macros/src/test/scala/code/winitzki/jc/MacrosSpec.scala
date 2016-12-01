@@ -53,7 +53,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     )
     waitSome()
     a(1)
-    f(timeout = (100, TimeUnit.MILLISECONDS))() shouldEqual Some(2)
+    f(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual Some(2)
   }
 
   it should "inspect reaction body with embedded join and runSimple" in {
@@ -70,7 +70,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     )
     waitSome()
     a(1)
-    f(timeout = (100, TimeUnit.MILLISECONDS))() shouldEqual Some(2)
+    f(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual Some(2)
   }
 
   it should "inspect a simple reaction body" in {

@@ -12,7 +12,7 @@ import org.scalatest.{FlatSpec, Matchers}
   */
 class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(500, Millis)
+  val timeLimit = Span(1000, Millis)
 
   val warmupTimeMs = 50
 
@@ -39,7 +39,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f = new B[Unit,Int]("f")
     join( runSimple { case a(_) + f(_, r) => r(3) })
     a()
-    f(timeout = (100, TimeUnit.MILLISECONDS))() shouldEqual Some(3)
+    f(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual Some(3)
   }
 
   it should "timeout when a blocking molecule is not responding at all" in {
@@ -49,7 +49,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     join( runSimple { case a(_) + f(_, r) => r(3) })
     a()
     f() shouldEqual 3 // now the a() molecule is gone
-    f(timeout = (100, TimeUnit.MILLISECONDS))() shouldEqual None
+    f(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual None
   }
 
   it should "not timeout when a blocking molecule is responding quickly enough" in {
@@ -58,7 +58,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f = new B[Unit,Int]("f")
     join( runSimple { case a(_) + f(_, r) => Thread.sleep(50); r(3) })
     a()
-    f(timeout = (100, TimeUnit.MILLISECONDS))() shouldEqual Some(3)
+    f(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual Some(3)
   }
 
   it should "timeout when a blocking molecule is not responding quickly enough" in {
@@ -67,7 +67,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f = new B[Unit,Int]("f")
     join( runSimple { case a(_) + f(_, r) => Thread.sleep(150); r(3) })
     a()
-    f(timeout = (100, TimeUnit.MILLISECONDS))() shouldEqual None
+    f(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual None
   }
 
   behavior of "join definitions with invalid replies"
@@ -250,7 +250,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     g2() shouldEqual 1 // this should initially work
     d() // do not inject c(). Now the first reaction is blocked because second reaction cannot start.
     waitSome()
-    g2(timeout = (100, TimeUnit.MILLISECONDS))() shouldEqual None // this should be blocked now
+    g2(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual None // this should be blocked now
     tp.shutdownNow()
   }
 
@@ -265,7 +265,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping.
     waitSome()
-    g2(timeout = (150, TimeUnit.MILLISECONDS))() shouldEqual None // this should be blocked now
+    g2(timeout = 150, TimeUnit.MILLISECONDS)() shouldEqual None // this should be blocked now
     tp.shutdownNow()
   }
 
@@ -280,7 +280,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping.
     waitSome()
-    g2(timeout = (150, TimeUnit.MILLISECONDS))() shouldEqual None // this should be blocked now
+    g2(timeout = 150, TimeUnit.MILLISECONDS)() shouldEqual None // this should be blocked now
     tp.shutdownNow()
   }
 
@@ -295,7 +295,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping.
     waitSome()
-    g2(timeout = (150, TimeUnit.MILLISECONDS))() shouldEqual None // this should be blocked now
+    g2(timeout = 150, TimeUnit.MILLISECONDS)() shouldEqual None // this should be blocked now
     tp.shutdownNow()
   }
 
@@ -310,7 +310,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping, and "Blocking" has no effect since it works only in a `SmartPool`.
     waitSome()
-    g2(timeout = (150, TimeUnit.MILLISECONDS))() shouldEqual None // this should be blocked
+    g2(timeout = 150, TimeUnit.MILLISECONDS)() shouldEqual None // this should be blocked
     tp.shutdownNow()
   }
 
@@ -326,7 +326,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping, but this should not block the thread pool since we use "Blocking".
     waitSome()
-    g2(timeout = (50, TimeUnit.MILLISECONDS))() shouldEqual Some(1) // this should not be blocked
+    g2(timeout = 50, TimeUnit.MILLISECONDS)() shouldEqual Some(1) // this should not be blocked
     tp.currentPoolSize shouldEqual 2
     Thread.sleep(100)
     tp.currentPoolSize shouldEqual 1
@@ -345,7 +345,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     g2() shouldEqual 1 // this should initially work
     d() // Now the first reaction is sleeping, but this should not block the thread pool since we use "Blocking".
     waitSome()
-    g2(timeout = (50, TimeUnit.MILLISECONDS))() shouldEqual Some(1) // this should not be blocked
+    g2(timeout = 50, TimeUnit.MILLISECONDS)() shouldEqual Some(1) // this should not be blocked
     tp.currentPoolSize shouldEqual 2
     Thread.sleep(100)
     tp.currentPoolSize shouldEqual 1
@@ -381,42 +381,42 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "block the fixed threadpool when all threads are waiting for new reactions" in {
     val tp = new FixedPool(2)
     val g = blockThreadsDueToBlockingMolecule(tp)
-    g(timeout = (100, TimeUnit.MILLISECONDS))() shouldEqual None
+    g(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual None
     tp.shutdownNow()
   }
 
   it should "not block the fixed threadpool when more threads are available" in {
     val tp = new FixedPool(3)
     val g = blockThreadsDueToBlockingMolecule(tp)
-    g(timeout = (100, TimeUnit.MILLISECONDS))() shouldEqual Some(())
+    g(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual Some(())
     tp.shutdownNow()
   }
 
   it should "block the cached threadpool when all threads are waiting for new reactions" in {
     val tp = new CachedPool(2)
     val g = blockThreadsDueToBlockingMolecule(tp)
-    g(timeout = (100, TimeUnit.MILLISECONDS))() shouldEqual None
+    g(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual None
     tp.shutdownNow()
   }
 
   it should "not block the cached threadpool when more threads are available" in {
     val tp = new CachedPool(3)
     val g = blockThreadsDueToBlockingMolecule(tp)
-    g(timeout = (100, TimeUnit.MILLISECONDS))() shouldEqual Some(())
+    g(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual Some(())
     tp.shutdownNow()
   }
 
   it should "not block the smart threadpool when all threads are waiting for new reactions" in {
     val tp = new SmartPool(2)
     val g = blockThreadsDueToBlockingMolecule(tp)
-    g(timeout = (100, TimeUnit.MILLISECONDS))() shouldEqual Some(())
+    g(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual Some(())
     tp.shutdownNow()
   }
 
   it should "not block the smart threadpool when more threads are available" in {
     val tp = new SmartPool(3)
     val g = blockThreadsDueToBlockingMolecule(tp)
-    g(timeout = (100, TimeUnit.MILLISECONDS))() shouldEqual Some(())
+    g(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual Some(())
     tp.shutdownNow()
   }
 
