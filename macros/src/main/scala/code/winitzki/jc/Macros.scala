@@ -91,7 +91,7 @@ object Macros {
   /**
     * Users will define reactions using this function.
     * Examples: {{{ run { a(_) => ... } }}}
-    * {{{ run { a (_) => ...} onThreads jPool }}}
+    * {{{ run { a (_) => ...} onThreads threadPool }}}
     *
     * The macro also obtains statically checkable information about input and output molecules in the reaction.
     *
@@ -109,7 +109,7 @@ object Macros {
       *
       * @return The owner symbol of the current macro call site.
       */
-    def getCurrentOwner: c.Symbol = {
+    def getCurrentSymbolOwner: c.Symbol = {
       val freshName = c.freshName(TypeName("Probe$"))
       val probe = c.typecheck(q""" {class $freshName; ()} """)
       probe match {
@@ -234,14 +234,7 @@ object Macros {
     // - for now, we only look at the first case
     val Some((pattern, guard, body, sha1)) = caseDefs.headOption
 
-//    val currentOwner = {
-      val freshName = c.freshName(TypeName("Probe$"))
-      val probe = c.typecheck(q""" {class $freshName; ()} """)
-    val currentOwner = probe match {
-        case Block(List(t), r) => t.symbol.owner
-      }
-//    }// getCurrentOwner
-    val moleculeInfoMaker = new MoleculeInfo(currentOwner)
+    val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
     val (bodyIn, bodyOut, bodyReply) = moleculeInfoMaker.from(body) // bodyIn should be empty
 
     val (patternIn, patternOut, patternReply) = moleculeInfoMaker.from(pattern) // patternOut and patternReply should be empty
