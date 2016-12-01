@@ -329,8 +329,8 @@ object JoinRun {
       * @param v Value to be put onto the injected molecule.
       * @return Non-empty option if the reply was received; None on timeout.
       */
-    def apply(timeout: Long)(v: T): Option[R] =
-      joinDef.map(_.injectAndReplyWithTimeout[T,R](timeout, this, v, ReplyValue[R]()))
+    def apply(timeout: (Long, TimeUnit))(v: T): Option[R] =
+      joinDef.map(_.injectAndReplyWithTimeout[T,R](timeout._2.toNanos(timeout._1), this, v, ReplyValue[R]()))
         .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this is not bound to any join definition"))
 
     override def toString: String = name + "/B"
