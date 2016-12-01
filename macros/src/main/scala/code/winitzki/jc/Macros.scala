@@ -64,6 +64,28 @@ object Macros {
     def apply(reactionBody: fmArg): Reaction = macro buildReactionImpl
   }
 
+  sealed trait PatternFlag {
+    def notReplyValue: Boolean = this match {
+      case ReplyVarF(_) => false
+      case _ => true
+    }
+
+  }
+
+  case object WildcardF extends PatternFlag
+  case class  ReplyVarF(replyVar: Any) extends PatternFlag
+  case object SimpleVarF extends PatternFlag
+  case object SimpleConstF extends PatternFlag
+  case object OtherPatternF extends PatternFlag
+
+  def toPatternType(flag: PatternFlag): PatternType = flag match {
+    case ReplyVarF(_) => OtherPattern
+    case WildcardF => Wildcard
+    case SimpleVarF => SimpleVar
+    case SimpleConstF => SimpleConst
+    case OtherPatternF => OtherPattern
+  }
+
   type fmArg = ReactionBody // UnapplyArg => Unit // ReactionBody
 
   /**
@@ -82,28 +104,6 @@ object Macros {
     import c.universe._
 
     val reactionBodyReset = c.untypecheck(reactionBody.tree)
-
-    sealed trait PatternFlag {
-      def notReplyValue: Boolean = this match {
-        case ReplyVarF(_) => false
-        case _ => true
-      }
-
-    }
-
-    case object WildcardF extends PatternFlag
-    case class  ReplyVarF(replyVar: c.Symbol) extends PatternFlag
-    case object SimpleVarF extends PatternFlag
-    case object SimpleConstF extends PatternFlag
-    case object OtherPatternF extends PatternFlag
-
-    def toPatternType(flag: PatternFlag): PatternType = flag match {
-      case ReplyVarF(_) => OtherPattern
-      case WildcardF => Wildcard
-      case SimpleVarF => SimpleVar
-      case SimpleConstF => SimpleConst
-      case OtherPatternF => OtherPattern
-    }
 
     /** Obtain the owner of the current macro call site.
       *
