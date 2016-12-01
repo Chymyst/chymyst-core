@@ -85,20 +85,20 @@ object Macros {
 
     sealed trait PatternFlag {
       def notReplyValue: Boolean = this match {
-        case ReplyVar(_) => false
+        case ReplyVarF(_) => false
         case _ => true
       }
 
     }
 
     case object WildcardF extends PatternFlag
-    case class  ReplyVar(replyVar: c.Symbol) extends PatternFlag
+    case class  ReplyVarF(replyVar: c.Symbol) extends PatternFlag
     case object SimpleVarF extends PatternFlag
     case object SimpleConstF extends PatternFlag
     case object OtherPatternF extends PatternFlag
 
     def toPatternType(flag: PatternFlag): PatternType = flag match {
-      case ReplyVar(_) => OtherPattern
+      case ReplyVarF(_) => OtherPattern
       case WildcardF => Wildcard
       case SimpleVarF => SimpleVar
       case SimpleConstF => SimpleConst
@@ -195,7 +195,7 @@ object Macros {
 
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
             val flag2 = getFlag(binder2) match {
-              case SimpleVarF => ReplyVar(getSimpleVar(binder2))
+              case SimpleVarF => ReplyVarF(getSimpleVar(binder2))
               case f@_ => f
             }
             inputMolecules.append((t.symbol, getFlag(binder1), Some(flag2)))
