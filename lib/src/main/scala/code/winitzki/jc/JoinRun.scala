@@ -373,8 +373,8 @@ object JoinRun {
     */
   private[jc] type ReactionBody = PartialFunction[UnapplyArg, Unit]
 
-  def join(rs: Reaction*): Unit = join(defaultJoinPool, defaultReactionPool)(rs: _*)
-  def join(joinPool: Pool)(rs: Reaction*): Unit = join(joinPool, defaultReactionPool)(rs: _*)
+  def join(rs: Reaction*): Unit = join(defaultReactionPool, defaultJoinPool)(rs: _*)
+  def join(reactionPool: Pool)(rs: Reaction*): Unit = join(reactionPool, defaultJoinPool)(rs: _*)
 
   /** Create a join definition with one or more reactions.
     * All input and output molecules in reactions used in this JD should have been
@@ -384,7 +384,7 @@ object JoinRun {
     * @param reactionPool Thread pool for running new reactions.
     * @param joinPool Thread pool for use when making decisions to schedule reactions.
     */
-  def join(joinPool: Pool, reactionPool: Pool)(rs: Reaction*): Unit = {
+  def join(reactionPool: Pool, joinPool: Pool)(rs: Reaction*): Unit = {
 
     val knownMolecules : Map[Reaction, Set[Molecule]] = rs.map { r => (r, r.inputMoleculesUsed) }.toMap
 
