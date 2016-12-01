@@ -88,7 +88,7 @@ A timeout can be imposed on that call by using this syntax:
 ```scala
 val f = b[Int, String]
 
-val result: Option[String] = f(timeout = 1000000000L)(10) 
+val result: Option[String] = f(timeout = (100, TimeUnit.MILLISECONDS))(10)
 ```
 
 Injection with timeout results in an `Option` value.
