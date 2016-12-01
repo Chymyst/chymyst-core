@@ -29,9 +29,9 @@ class MultithreadSpec extends FlatSpec with Matchers {
         & { case counter(n) + finished(_) => counter(n-1) },
         & { case allFinished(_, r) + counter(0) => r() }
       )
-
-      (1 to threads).foreach(_ => work())
-      counter(threads)
+      val total = 8
+      (1 to total).foreach(_ => work())
+      counter(total)
       allFinished()
       tp.shutdownNow()
     }
@@ -41,6 +41,6 @@ class MultithreadSpec extends FlatSpec with Matchers {
 
     println(s"with 1 thread $result1 ms, with 8 threads $result8 ms")
 
-    (1.5 * result8 < result1) shouldEqual true
+    (3 * result8 / 2) should be < result1
   }
 }
