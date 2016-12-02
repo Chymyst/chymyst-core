@@ -1085,8 +1085,8 @@ We can then use this molecule as output in some reaction.
 
 ```scala
 val a = m[Int]
-
-val (result: M[String], fut: Future[String]) = moleculeFuture[String]
+val tp = new FixedPool(2)
+val (result: M[String], fut: Future[String]) = moleculeFuture[String](tp)
 // injecting the molecule result(...) will resolve "fut"
 
 join( run { case a(x) => result(s"finished: $x") } ) // we define our reaction that will eventually inject "result(...)"
