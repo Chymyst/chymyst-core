@@ -69,6 +69,7 @@ import java.util.UUID
 import java.util.concurrent.{Semaphore, TimeUnit}
 
 import scala.collection.mutable
+import scala.concurrent.duration.Duration
 import scala.reflect.ClassTag
 
 object JoinRun {
@@ -316,8 +317,8 @@ object JoinRun {
       * @param v Value to be put onto the injected molecule.
       * @return Non-empty option if the reply was received; None on timeout.
       */
-    def apply(timeout: Long, timeUnit: TimeUnit)(v: T): Option[R] =
-      joinDef.map(_.injectAndReplyWithTimeout[T,R](timeUnit.toNanos(timeout), this, v, ReplyValue[R]()))
+    def apply(timeout: Duration)(v: T): Option[R] =
+      joinDef.map(_.injectAndReplyWithTimeout[T,R](timeout.toNanos, this, v, ReplyValue[R]()))
         .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this is not bound to any join definition"))
 
     override def toString: String = name + "/B"
