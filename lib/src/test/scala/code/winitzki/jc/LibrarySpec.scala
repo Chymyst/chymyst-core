@@ -29,9 +29,9 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
       runSimple { case c(_) => waiter.dismiss() }
     )
 
-    Future { Thread.sleep(100) } & c    // insert a molecule from the end of the future
+    Future { Thread.sleep(50) } & c    // insert a molecule from the end of the future
 
-    waiter.await()
+    waiter.await() // Waiter default is 150ms
   }
 
   it should "inject a molecule from a future with a lazy injection" in {

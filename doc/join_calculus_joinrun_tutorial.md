@@ -233,7 +233,7 @@ So this facility should be used only for debugging.
 
 ### Injecting molecules without defined reactions
 
-It is an error to inject a molecule that is not yet defined as input molecule in any JD.
+It is an error to inject a molecule that is not yet defined as input molecule in any JD (i.e. not yet bound to any JD).
 
 ```scala
 val x = m[Int]
@@ -241,26 +241,26 @@ val x = m[Int]
 x(100) // java.lang.Exception: Molecule x is not bound to any join definition
 ```
 
-The same error will occur if such injection is attempted inside a reaction body, or if we try to debug the JD using `logSoup`.
+The same error will occur if such injection is attempted inside a reaction body, or if we call `logSoup` on the molecule injector.
 
 The correct way of using `JoinRun` is first to define molecules, then to create a JD where these molecules are used as inputs for reactions, and only then to start injecting these molecules.
 
 ### Redefining input molecules
 
-It is also an error to write a reaction whose input molecule is already used as input in another join definition.
+It is also an error to write a reaction whose input molecule was already used as input in another join definition.
 
 ```scala
 val x = m[Int]
 val a = m[Unit]
 val b = m[Unit]
 
-join( run { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK
+join( run { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this JD.
 
 join( run { case x(n) + b(_) => println(s"have x($n) + b") } )
 // java.lang.Exception: Molecule x cannot be used as input since it was already used in Join{a + x => ...}
 ```
 
-Correct use of Join Calculus requires that we put these two reactions into a single join definition:
+Correct use of Join Calculus requires that we put these two reactions together into _one_ join definition:
  
 ```scala
 val x = m[Int]
@@ -274,18 +274,18 @@ join(
 ``` 
 
 More generally, all reactions that share any input molecules must be defined together in a single JD.
-However, reactions that use a certain molecule only as an output molecule can be written in another JD.
-Here is an example where we define one JD that computes a result and sends it on a molecule to another JD that prints that result:
+However, reactions that use a certain molecule only as an output molecule can be (and should be) written in another JD.
+Here is an example where we define one JD that computes a result and sends it on a molecule called `show` to another JD that prints that result:
 
 ```scala
 val show = m[Int]
 
-// JD where “show” is an input molecule
+// JD where the “show” molecule is an input molecule
 join( run { case show(x) => println(s"") })
 
 val start = m[Unit]
 
-// JD where “show” is an output molecule
+// JD where the “show” molecule is an output molecule (but not an input molecule)
 join(
   run { case start(_) => val res = compute(...); show(res) }
 )
@@ -304,14 +304,14 @@ join(run { case x(n1) + x(n2) =>  })
 // java.lang.Exception: Nonlinear pattern: x used twice
 ``` 
 
-Sometimes it appears that repeating input molecules is the most natural way of expressing the desired behavior of some concurrent programs.
+Sometimes it appears that repeating input molecules is the most natural way of expressing the desired behavior of certain concurrent programs.
 However, I believe it is always possible to introduce some new auxiliary molecules and to rewrite the “chemistry laws” so that input molecules are not repeated while the resulting computations give the same results.
 This limitation could be lifted in a later version of `JoinRun` if it proves useful to do so.
 
 ## Order of reactions
 
 When there are several different reactions that can be consume the available molecules, the runtime engine will choose the reaction at random.
-In the current implementation of `JoinRun`, the runtime will reshuffle and randomize reactions, so that every reaction has an equal chance of starting.
+In the current implementation of `JoinRun`, the runtime will choose reactions at random, so that every reaction has an equal chance of starting.
 
 Similarly, when there are several instances of the same molecule that can be consumed as input by a reaction, the runtime engine will make a choice of the molecule to be consumed.
 Currently, `JoinRun` will _not_ randomize the input molecules but make an implementation-dependent choice.
@@ -323,7 +323,9 @@ The debugging facility will print the molecule names in alphabetical order, and 
 
 The result of this is that the order in which reactions will start is non-deterministic and unknown.
 This is the original semantics of Join Calculus.
+
 If the priority of certain reactions is important for a particular application, it is the programmer's task to design the “chemical laws” in such a way that those reactions start in the desired order.
+This is always possible by using auxiliary molecules and/or guard conditions.
 
 ## Summary so far
 
@@ -345,12 +347,15 @@ Each philosopher needs two forks to start eating, and every pair of neighbor phi
 
 The simplest solution of the “dining philosophers” problem is achieved using a molecule for each fork and two molecules per philosopher: one representing a thinking philosopher and the other representing a hungry philosopher.
 
-A “thinking philosopher” molecule causes a reaction in which the process is paused for a random time and then the “hungry philosopher” molecule is injected.
-A “hungry philosopher” molecule reacts with two neighbor “fork” molecules: the process is paused for a random time and then the “thinking philosopher” molecule is injected, together with the two “fork” molecules.
+A “thinking philosopher” molecule (`t1`, `t2`, etc.) causes a reaction in which the process is paused for a random time and then the “hungry philosopher” molecule is injected.
+A “hungry philosopher” molecule (`h1`, `h2`, etc.) reacts with two neighbor “fork” molecules: the process is paused for a random time and then the “thinking philosopher” molecule is injected, together with the two “fork” molecules.
 
 The complete code is shown here:
 
 ```scala
+     /**
+     * Random wait. Also, print the name of the molecule.
+     */
     def rw(m: Molecule): Unit = {
       println(m.toString)
       Thread.sleep(scala.util.Random.nextInt(20))
@@ -366,11 +371,11 @@ The complete code is shown here:
     val t3 = new M[Int]("Marx is eating")
     val t4 = new M[Int]("Russell is eating")
     val t5 = new M[Int]("Spinoza is eating")
-    val f12 = new M[Unit]("f12")
-    val f23 = new M[Unit]("f23")
-    val f34 = new M[Unit]("f34")
-    val f45 = new M[Unit]("f45")
-    val f51 = new M[Unit]("f51")
+    val f12 = new M[Unit]("Fork between 1 and 2")
+    val f23 = new M[Unit]("Fork between 2 and 3")
+    val f34 = new M[Unit]("Fork between 3 and 4")
+    val f45 = new M[Unit]("Fork between 4 and 5")
+    val f51 = new M[Unit]("Fork between 5 and 1")
 
     join (
       run { case t1(_) => rw(h1); h1() },
@@ -385,10 +390,13 @@ The complete code is shown here:
       run { case h4(_) + f45(_) + f34(_) => rw(t4); t4(n) + f45() + f34() },
       run { case h5(_) + f51(_) + f45(_) => rw(t5); t5(n) + f51() + f45() }
     )
-// inject molecules representing the initial state
+// inject molecules representing the initial state:
     t1() + t2() + t3() + t4() + t5()
     f12() + f23() + f34() + f45() + f51()
 ```
+
+Note that an `h + f + f` reaction will consume a “hungry philosopher” molecule and two “fork” molecules, so these molecules will not be present in the soup during the time interval taken by the `h + f + f` reaction.
+Thus, neighbor philosophers will not be able to start eating until the two “fork” molecules are returned to the soup by that reaction.
 
 The result of running this program is the output such as
 ```

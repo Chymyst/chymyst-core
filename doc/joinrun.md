@@ -330,6 +330,8 @@ TODO
 
 # Version history
 
+- 0.0.9 Macros for static analysis of reactions; unrestricted pattern-matching now available for molecule values.
+
 - 0.0.8 Add a timeout option for blocking molecules. Add `CachedPool` option. Tutorial text and ScalaDocs are almost finished. Minor cleanups and simplifications in the API.
 
 - 0.0.7 Refactor into proper library structure. Add tutorial text and start adding documentation. Minor cleanups. Add `Future`/molecule interface.
@@ -340,7 +342,7 @@ TODO
 
 These features are considered for implementation in the next versions:
 
-1. Rework the decisions to start reactions so that the new information is used. In particular, do not lock the entire molecule bag - only lock some clusters that have contention on certain molecule inputs.
+1. Rework the decisions to start reactions so that the static analysis is used (inputs and outputs of reactions). In particular, do not lock the entire molecule bag - only lock some clusters that have contention on certain molecule inputs.
 1. Implement fairness with respect to molecules (random choice of input molecules for reactions). 
 1. Rework the decisions to start reactions so that many reactions can start at once.
 1. Implement injecting several molecules at once (and arbitrarily many at once).
