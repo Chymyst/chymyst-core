@@ -26,12 +26,12 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = new M[Unit]("c")
 
     join(
-      & { case c(_) => waiter.dismiss() }
+      runSimple { case c(_) => waiter.dismiss() }
     )
 
-    Future { Thread.sleep(100) } & c    // insert a molecule from the end of the future
+    Future { Thread.sleep(50) } & c    // insert a molecule from the end of the future
 
-    waiter.await()
+    waiter.await() // Waiter default is 150ms
   }
 
   it should "inject a molecule from a future with a lazy injection" in {
@@ -40,10 +40,10 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = new M[String]("c")
 
     join(
-      & { case c(x) => waiter {x shouldEqual "send it off"}; waiter.dismiss() }
+      runSimple { case c(x) => waiter {x shouldEqual "send it off"}; waiter.dismiss() }
     )
 
-    Future { Thread.sleep(100) } + c("send it off")    // insert a molecule from the end of the future
+    Future { Thread.sleep(50) } + c("send it off")    // insert a molecule from the end of the future
 
     waiter.await()
   }
@@ -58,10 +58,10 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f = new B[Unit, String]("f")
 
     join(
-      & { case c(_) + rmC(_) => },
-      & { case e(_) => d() + rmC() },
-      & { case c(_) + f(_, r) => r("from c") },
-      & { case d(_) + f(_, r) => r("from d") }
+      runSimple { case c(_) + rmC(_) => },
+      runSimple { case e(_) => d() + rmC() },
+      runSimple { case c(_) + f(_, r) => r("from c") },
+      runSimple { case d(_) + f(_, r) => r("from d") }
     )
 
     c()
@@ -89,12 +89,12 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val (c, fut) = moleculeFuture[String]
 
     join(
-      & { case b(_) => c("send it off") }
+      runSimple { case b(_) => c("send it off") }
     )
 
     val givenFuture = for {
       _ <- Future {
-        Thread.sleep(100)
+        Thread.sleep(50)
       } // waiter has 150 ms timeout
       s <- fut
     } yield {

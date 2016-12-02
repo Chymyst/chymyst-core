@@ -3,7 +3,9 @@ package code.winitzki.benchmark
 import java.time.LocalDateTime
 
 import code.winitzki.benchmark.Common._
+import code.winitzki.jc.FixedPool
 import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
 
 class MapReduceSpec extends FlatSpec with Matchers {
@@ -18,19 +20,20 @@ class MapReduceSpec extends FlatSpec with Matchers {
     val d = m[Int]
     val get = b[Unit, List[Int]]
 
-    join(
+    val tp = new FixedPool(4)
+    join(tp)(
       &{ case d(n) => r(n*2) },
       &{ case res(list) + r(s) => res(s::list) },
-      &{ case get(_, reply) + res(list) => reply(list) }
+      &{ case get(_, reply) + res(list) if list.size == count => reply(list) }
     )
 
-    (1 to count).foreach(x => d(x))
+    (1 to count).foreach(d(_))
     val expectedResult = (1 to count).map(_ * 2)
     res(Nil)
 
-    waitSome()
     get().toSet shouldEqual expectedResult.toSet
 
+    tp.shutdownNow()
     println(s"map/reduce test with n=$count took ${elapsed(initTime)} ms")
   }
 

@@ -1,30 +1,32 @@
 package code.winitzki.benchmark
 
 import java.time.LocalDateTime
+
 import code.winitzki.benchmark.Common._
-import code.winitzki.jc._
+import code.winitzki.jc.{Pool, FixedPool}
+import code.winitzki.jc.Macros._
 import code.winitzki.jc.JoinRun._
 
 object Benchmarks1 {
 
   def benchmark1(count: Int, threads: Int = 2): Long = {
 
-    val c = m[Int]("c")
-    val g = b[Unit,Int]("g")
-    val i = m[Unit]("i")
-    val d = m[Unit]("d")
-    val f = b[LocalDateTime,Long]("f")
+    val c = m[Int]
+    val g = b[Unit,Int]
+    val i = m[Unit]
+    val d = m[Unit]
+    val f = b[LocalDateTime,Long]
 
-    val tp = new ReactionPool(threads)
+    val tp = new FixedPool(threads)
 
-    join(
+    join(tp)(
       run { case c(0) + f(tInit, r) =>
         val t = LocalDateTime.now
         r(elapsed(tInit))
-      } onThreads tp,
-      tp{ case g(_,reply) + c(n) => c(n); reply(n) },
-      tp{ case c(n) + i(_) => c(n+1)  },
-      tp{ case c(n) + d(_) if n > 0 => c(n-1) }
+      },
+      run { case g(_,reply) + c(n) => c(n); reply(n) },
+      run { case c(n) + i(_) => c(n+1)  },
+      run { case c(n) + d(_) if n > 0 => c(n-1) }
     )
 
     val initialTime = LocalDateTime.now
@@ -53,26 +55,25 @@ object Benchmarks1 {
       }
 
     }
+
     j2.c(init)
     (j2.d,j2.i,j2.f,j2.g)
   }
 
-  def make_counter(init: Int, threads: Int, tp: ReactionPool) = {
-    val c = m[Int]("c")
-    val g = b[Unit,Int]("g")
-    val i = m[Unit]("i")
-    val d = m[Unit]("d")
-    val f = b[LocalDateTime,Long]("f")
+  def make_counter(init: Int, threads: Int, tp: Pool) = {
+    val c = m[Int]
+    val g = b[Unit,Int]
+    val i = m[Unit]
+    val d = m[Unit]
+    val f = b[LocalDateTime,Long]
 
-    join(
-      tp { case c(0) + f(tInit, r) =>
-        val t = LocalDateTime.now
-        r(elapsed(tInit))
-      },
-      tp{ case g(_,reply) + c(n) => c(n); reply(n) },
-      tp{ case c(n) + i(_) => c(n+1) },
-      tp{ case c(n) + d(_) if n > 0 => c(n-1) }
+    join(tp)(
+      & { case c(0) + f(tInit, r) => r(elapsed(tInit)) },
+      & { case g(_,reply) + c(n) => c(n); reply(n) },
+      & { case c(n) + i(_) => c(n+1) },
+      & { case c(n) + d(_) if n > 0 => c(n-1) }
     )
+
     c(init)
     (d,i,f,g)
   }
@@ -115,7 +116,7 @@ object Benchmarks1 {
 
     val initialTime = LocalDateTime.now
 
-    val tp = new ReactionPool(threads)
+    val tp = new FixedPool(threads)
 
     val (d,_,f,_) = make_counter(count, threads, tp)
     (1 to count).foreach{ _ => d() }
