@@ -87,9 +87,11 @@ The call to inject a blocking molecule will block until some reaction consumes t
 A timeout can be imposed on that call by using this syntax:
 
 ```scala
+import scala.concurrent.duration.DurationInt
+
 val f = b[Int, String]
 
-val result: Option[String] = f(timeout = (100, TimeUnit.MILLISECONDS))(10)
+val result: Option[String] = f(timeout = 100 millis)(10)
 ```
 
 Injection with timeout results in an `Option` value.

@@ -1,10 +1,10 @@
 package code.winitzki.jc
 
-import java.util.concurrent.TimeUnit
-
-import org.scalatest.{FlatSpec, Matchers}
 import JoinRun._
 import Macros._
+
+import org.scalatest.{FlatSpec, Matchers}
+import scala.concurrent.duration.DurationInt
 
 class MacrosSpec extends FlatSpec with Matchers {
 
@@ -53,7 +53,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     )
     a(1)
     waitSome()
-    f(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual Some(2)
+    f(timeout = 100 millis)() shouldEqual Some(2)
   }
 
   it should "inspect reaction body with embedded join and runSimple" in {
@@ -70,7 +70,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     )
     a(1)
     waitSome()
-    f(timeout = 100, TimeUnit.MILLISECONDS)() shouldEqual Some(2)
+    f(timeout = 100 millis)() shouldEqual Some(2)
   }
 
   it should "inspect a simple reaction body" in {
