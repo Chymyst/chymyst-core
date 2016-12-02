@@ -13,7 +13,7 @@ object Library {
     * @tparam T Type of value carried by the molecule and by the future.
     * @return Tuple consisting of new molecule injector and the new future.
     */
-  def moleculeFuture[T : ClassTag](pool: Pool): (M[T], Future[T]) = {
+  def moleculeFuture[T : ClassTag](pool: Pool = defaultReactionPool): (M[T], Future[T]) = {
     val f = new M[T]("future")
     val p = Promise[T]()
 

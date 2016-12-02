@@ -1,6 +1,5 @@
 package code.winitzki.benchmark
 
-import code.winitzki.benchmark.Common._
 import code.winitzki.jc.FixedPool
 import code.winitzki.jc.Macros._
 import code.winitzki.jc.JoinRun._
@@ -14,15 +13,15 @@ class ZZZShutdownSpec extends FlatSpec with Matchers {
 
   it should "fail to schedule reactions after shutdown of default thread pools" in {
 
-    defaultJoinPool.shutdownNow()
-    defaultReactionPool.shutdownNow()
+    val pool = new FixedPool(2)
+    pool.shutdownNow()
 
     val x = m[Unit]
-    join(runSimple{ case x(()) => })
+    join(pool,pool)(runSimple{ case x(()) => })
 
     val thrown = intercept[Exception] {
       x()
     }
-    thrown.getMessage shouldEqual "In Join{a => ...}: Cannot inject molecule x since join pool is not active"
+    thrown.getMessage shouldEqual "In Join{x => ...}: Cannot inject molecule x since join pool is not active"
   }
 }
