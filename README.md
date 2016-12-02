@@ -1,11 +1,11 @@
 [![Build Status](https://travis-ci.org/winitzki/joinrun-scala.svg?branch=master)](https://travis-ci.org/winitzki/joinrun-scala)
 
-# joinrun - A new implementation of Join Calculus in Scala
+# `JoinRun` - a new implementation of Join Calculus in Scala
 Join Calculus (JC) is a micro-framework for purely functional concurrency.
 
-The code is inspired by previous implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
+The code of `JoinRun` is inspired by previous implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 
-The current implementation is tested with Scala 2.11.8 and 2.12.0 and Oracle JDK 8.
+The current implementation of `JoinRun` is tested under Oracle JDK 8 with Scala 2.11.8 and 2.12.0.
 It also works with Scala 2.10 (except Akka support) and with OpenJDK 7 (except for the new `LocalDateTime` functions and some performance issues).
 
 # Overview of join calculus
@@ -53,20 +53,20 @@ In talking about `JoinRun`, I follow the “chemical machine” metaphor and ter
 
 Compared to `ScalaJoin` (Jiansen He's 2011 implementation of JC), `JoinRun` offers the following improvements:
 
-- Molecule injectors (“channels”) are _locally scoped values_ (instances of abstract class `AbsMol` having types `M[T]` or `B[T,R]`) rather than singleton objects, as in `ScalaJoin`; this is more faithful to the semantics of JC
-- Reactions are also locally scoped values (instances of `JReaction`)
+- Molecule injectors (“channels”) are locally scoped values (instances of abstract class `Molecule`) rather than singleton objects, as in `ScalaJoin`; this is more faithful to the semantics of JC
+- Reactions are also locally scoped values (instances of class `Reaction`)
 - Reactions and molecules are composable: e.g. we can construct a join definition with `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules
 - “Join definitions” are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC)
 - Some common cases of invalid join definitions are flagged (as run-time errors) even before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply)
-- Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use actor-based or thread executor-based pools
+- Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use actor-based or thread-based pools
 - “Fair” nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random
-- Fault tolerance: failed reactions are automatically restarted (as an option)
+- Fault tolerance: failed reactions are automatically restarted (when desired)
 - Lighter syntax for join definitions, compared with previous implementations
 - The user can trace the execution via logging levels; automatic naming of molecules for debugging is available (via macro)
 
 # Status
 
-Current version is `0.0.8`.
+Current version is `0.0.9`.
 The semantics of Join Calculus (restricted to single machine) is fully implemented and tested.
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
 Performance tests indicate that the runtime can schedule about 300,000 reactions per second per CPU core, and the performance bottleneck is the thread switching and pattern-matching.
