@@ -8,7 +8,7 @@ import org.scalatest.{FlatSpec, Matchers}
 
 class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(500, Millis)
+  val timeLimit = Span(1000, Millis)
 
   val warmupTimeMs = 50
 
@@ -260,12 +260,11 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(2)
     join(
       runSimple  { case c(x) + d(_) => c(x - 1) } onThreads tp,
-      runSimple  { case c(x) + g(_, r) => c(x) + r(x) }
+      runSimple  { case c(0) + g(_, r) => c(0) + r(0) }
     )
     c(n)
     (1 to n).foreach { _ => d() }
 
-    Thread.sleep(400)
     g() shouldEqual 0
 
     tp.shutdownNow()
