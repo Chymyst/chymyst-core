@@ -2,6 +2,7 @@
 
 `JoinRun` is an implementation of Join Calculus as an embedded DSL in Scala.
 
+Currently, it compiles with Scala 2.11 and Scala 2.12 on Oracle JDK 8.
 
 # Previous work
 
@@ -86,9 +87,11 @@ The call to inject a blocking molecule will block until some reaction consumes t
 A timeout can be imposed on that call by using this syntax:
 
 ```scala
+import scala.concurrent.duration.DurationInt
+
 val f = b[Int, String]
 
-val result: Option[String] = f(timeout = 1000000000L)(10) 
+val result: Option[String] = f(timeout = 100 millis)(10)
 ```
 
 Injection with timeout results in an `Option` value.
@@ -151,7 +154,7 @@ val result = f(123) // result is of type String
 
 In this reaction, the pattern-match on `f(y, r)` involves two pattern variables:
 - The pattern variable `y` is of type `Int` and matches the value carried by the injected molecule `f(123)`
-- The pattern variable `r` is of private type `SyncReplyValue[Int, String]` and matches and object that performs the reply action aimed at the caller of `f(123)`.
+- The pattern variable `r` is of private type `ReplyValue[Int, String]` and matches and object that performs the reply action aimed at the caller of `f(123)`.
 Calling it as `r(x.toString)` will perform the reply action, - that is, will send the string back to the calling process, unblocking the call to `f(123)` in that process.
 
 This reply action must be performed as `r(...)` in the reaction body exactly once, and cannot be performed afterwards.
@@ -327,6 +330,8 @@ TODO
 
 # Version history
 
+- 0.0.9 Macros for static analysis of reactions; unrestricted pattern-matching now available for molecule values.
+
 - 0.0.8 Add a timeout option for blocking molecules. Add `CachedPool` option. Tutorial text and ScalaDocs are almost finished. Minor cleanups and simplifications in the API.
 
 - 0.0.7 Refactor into proper library structure. Add tutorial text and start adding documentation. Minor cleanups. Add `Future`/molecule interface.
@@ -335,14 +340,15 @@ TODO
 
 # Roadmap for the future
 
-Features that appear to be necessary:
+These features are considered for implementation in the next versions:
 
-- fairness with respect to molecules (random choice of input molecules for reactions)
-- full pattern-matching for input molecule values
+1. Rework the decisions to start reactions so that the static analysis is used (inputs and outputs of reactions). In particular, do not lock the entire molecule bag - only lock some clusters that have contention on certain molecule inputs.
+1. Implement fairness with respect to molecules (random choice of input molecules for reactions). 
+1. Rework the decisions to start reactions so that many reactions can start at once.
+1. Implement injecting several molecules at once (and arbitrarily many at once).
+1. Implement nonlinear patterns for input molecules.
 
-Features that appear to be useful:
+These features are further away from implementation:
 
-- nonlinear patterns
-- injecting many molecules at once; starting many reactions at once
-- distributed execution of thread pools
-- interoperability with streams or other async frameworks (futures already done)
+1. Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka streams.
+1. Investigate an implicit distributed execution of thread pools.

@@ -4,6 +4,7 @@ import java.time.LocalDateTime
 import code.winitzki.benchmark.Common._
 import code.winitzki.jc._
 import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros._
 
 object Benchmarks7 {
 
@@ -16,16 +17,14 @@ object Benchmarks7 {
   def benchmark7(count: Int, threads: Int = 2): Long = {
 
     println(s"Creating $counters concurrent counters, each going from $count to 0")
-    val done = m[Unit]("done")
-    val all_done = m[Int]("all_done")
-    val f = b[LocalDateTime,Long]("f")
+    val done = m[Unit]
+    val all_done = m[Int]
+    val f = b[LocalDateTime,Long]
 
-    val tp = new ReactionPool(threads)
+    val tp = new FixedPool(threads)
 
     join(
-      run { case all_done(0) + f(tInit, r) =>
-        r(elapsed(tInit))
-      },
+      run { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
 
       run { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
     )
@@ -67,13 +66,13 @@ object Benchmarks7 {
     j8.f(initialTime)
   }
 
-  def make_counters(done: JA[Unit], counters: Int, init: Int, tp: ReactionPool) = {
-    val c = m[Int]("c")
-    val d = m[Unit]("d")
+  def make_counters(done: M[Unit], counters: Int, init: Int, tp: Pool) = {
+    val c = m[Int]
+    val d = m[Unit]
 
-    join(
-      tp{ case c(0) => done() },
-      tp{ case c(n) + d(_) if n > 0 => c(n - 1) }
+    join(tp)(
+      & { case c(0) => done() },
+      & { case c(n) + d(_) if n > 0 => c(n - 1) }
     )
     (1 to counters).foreach(_ => c(init))
     // We return just one molecule.

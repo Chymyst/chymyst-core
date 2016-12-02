@@ -4,10 +4,15 @@ import scala.collection.mutable
 import scala.language.experimental.macros
 import scala.reflect.macros._
 import scala.reflect.NameTransformer.LOCAL_SUFFIX_STRING
-
 import JoinRun._
 
+import scala.annotation.tailrec
+
 object Macros {
+
+  val sha1 = java.security.MessageDigest.getInstance("SHA-1")
+
+  def shaSum(c: Any): String = sha1.digest(c.toString.getBytes("UTF-8")).map("%02X".format(_)).mkString
 
   type theContext = blackbox.Context
 
@@ -48,124 +53,209 @@ object Macros {
     c.Expr[B[T, R]](q"new B[$t,$r]($s)")
   }
 
-  sealed trait PatternFlag
-    case object Wildcard extends PatternFlag
-    case object SimpleVar extends PatternFlag
-    case object SimpleConst extends PatternFlag
-    case object OtherPattern extends PatternFlag
+  /**
+    * This is an alias for [[Macros#run]], to be used in case [[Macros#run]] clashes
+    * with another name imported into the local scope (e.g. in scalatest).
+    * Examples: & { a(_) => ... }
+    * & { a (_) => ...} onThreads jPool
+    */
+  object & {
+    // Users will create reactions using these functions.
+    def apply(reactionBody: fmArg): Reaction = macro buildReactionImpl
+  }
 
-  def findInputs(arg: ReactionBody): String = macro findInputsImpl
+  private sealed trait PatternFlag {
+    def notReplyValue: Boolean = this match {
+      case ReplyVarF(_) => false
+      case _ => true
+    }
 
-  def findInputsImpl(c: theContext)(arg: c.Expr[ReactionBody]) = {
+  }
+
+  private case object WildcardF extends PatternFlag
+  private case class  ReplyVarF(replyVar: Any) extends PatternFlag
+  private case object SimpleVarF extends PatternFlag
+  private case object SimpleConstF extends PatternFlag
+  private case object OtherPatternF extends PatternFlag
+
+  private def toPatternType(flag: PatternFlag): PatternType = flag match {
+    case ReplyVarF(_) => OtherPattern
+    case WildcardF => Wildcard
+    case SimpleVarF => SimpleVar
+    case SimpleConstF => SimpleConst
+    case OtherPatternF => OtherPattern
+  }
+
+  private type fmArg = ReactionBody // UnapplyArg => Unit // ReactionBody
+
+  /**
+    * Users will define reactions using this function.
+    * Examples: {{{ run { a(_) => ... } }}}
+    * {{{ run { a (_) => ...} onThreads threadPool }}}
+    *
+    * The macro also obtains statically checkable information about input and output molecules in the reaction.
+    *
+    * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
+    * @return A reaction value, to be used later in [[JoinRun#join]].
+    */
+  def run(reactionBody: fmArg): Reaction = macro buildReactionImpl
+
+  def buildReactionImpl(c: theContext)(reactionBody: c.Expr[fmArg]) = {
     import c.universe._
 
-    // example tree, somewhat trimmed. More precisely, we have a List() of CaseDef's.
-    /*
-    val _ = CaseDef(
-          UnApply(
-            Apply(Select(Select(Ident("code.winitzki.jc.JoinRun"), "code.winitzki.jc.JoinRun.$plus"), TermName("unapply")),
-              List(Ident(TermName("<unapply-selector>")))
-            ),
-            List(UnApply(
-              Apply(Select(Select(Ident("code.winitzki.jc.JoinRun"), "code.winitzki.jc.JoinRun.$plus"), TermName("unapply")),
-                List(Ident(TermName("<unapply-selector>")))
-              ),
-              List(UnApply(Apply(Select(Select(Ident("code.winitzki.jc.JoinRun"), "code.winitzki.jc.JoinRun.$plus"), TermName("unapply")),
-                List(Ident(TermName("<unapply-selector>")))
-              ),
-                List(UnApply(Apply(Select(Select(Ident("code.winitzki.jc.JoinRun"), "code.winitzki.jc.JoinRun.$plus"), TermName("unapply")),
-                  List(Ident(TermName("<unapply-selector>")))
-                ),
-                  List(UnApply(Apply(Select(Select(Ident("code.winitzki.jc.JoinRun"), "code.winitzki.jc.JoinRun.$plus"), TermName("unapply")),
-                    List(Ident(TermName("<unapply-selector>")))
-                  ),
-                    List(UnApply(Apply(Select(Select(Ident("code.winitzki.jc.JoinRun"), "code.winitzki.jc.JoinRun.$plus"), TermName("unapply")),
-                      List(Ident(TermName("<unapply-selector>")))
-                    ),
-                      List(UnApply(Apply(Select(Select(Ident("code.winitzki.jc.JoinRun"), "code.winitzki.jc.JoinRun.$plus"), TermName("unapply")),
-                        List(Ident(TermName("<unapply-selector>")))
-                      ),
-                        List(UnApply(Apply(
-                          Select(Ident(TermName("a")), TermName("unapply")),
-                          List(Ident(TermName("<unapply-selector>")))
-                        ),
-                          List(Bind(TermName("p"), Ident(termNames.WILDCARD)))
-                        ),
-                          UnApply(Apply(
-                            Select(Ident(TermName("a")), TermName("unapply")),
-                            List(Ident(TermName("<unapply-selector>")))
-                          ),
-                            List(Bind(TermName("y"), Ident(termNames.WILDCARD)))
-                          )
-                        )
-                      ),
-                        UnApply(Apply(
-                          Select(Ident(TermName("a")), TermName("unapply")),
-                          List(Ident(TermName("<unapply-selector>")))
-                        ),
-                          List(Literal(Constant(1)))
-                        )
-                      )
-                    ),
-                      UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")),
-                        List(Ident(TermName("<unapply-selector>")))
-                      ),
-                        List(Ident(termNames.WILDCARD))
-                      )
-                    )
-                  ),
-                    UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")),
-                      List(Ident(TermName("<unapply-selector>")))
-                    ),
-                      List(Apply(TypeTree().setOriginal(Select(Ident("scala"), "scala.Tuple2")),
-                          List(Literal(Constant(1)), Bind(TermName("z"), Ident(termNames.WILDCARD)))
-                        )
-                      )
-                    )
-                  )
-                ),
-                  UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident("scala"), "scala.Tuple2")), List(Ident(termNames.WILDCARD), Select(Ident("scala"), "scala.None"))))))), UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident("scala"), "scala.Tuple2")), List(Bind(TermName("t"), Ident(termNames.WILDCARD)), Apply(TypeTree().setOriginal(Select(Ident("scala"), "scala.Some")), List(Bind(TermName("q"), Ident(termNames.WILDCARD)))))))))), UnApply(Apply(Select(Ident(TermName("s")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Ident(termNames.WILDCARD), Bind(TermName("r"), Ident(termNames.WILDCARD)))))), EmptyTree, Apply(Select(Apply(Select(Ident("code.winitzki.jc.JoinRun"), TermName("JoinableUnit")), List(Apply(Select(Ident(TermName("a")), TermName("apply")), List(Apply(Select(Ident(TermName("p")), TermName("$plus")), List(Literal(Constant(1)))))))), TermName("$plus")), List(Apply(Select(Ident(TermName("r")), TermName("apply")), List(Ident(TermName("p")))))))
+    val reactionBodyReset = c.untypecheck(reactionBody.tree)
 
-*/
+    /** Obtain the owner of the current macro call site.
+      *
+      * @return The owner symbol of the current macro call site.
+      */
+    def getCurrentSymbolOwner: c.Symbol = {
+      val freshName = c.freshName(TypeName("Probe$"))
+      val probe = c.typecheck(q""" {class $freshName; ()} """)
+      probe match {
+        case Block(List(t), r) => t.symbol.owner
+      }
+    }
 
-    object GatherInfo extends Traverser {
-      var info: mutable.ArrayBuffer[(c.Type, PatternFlag, Option[PatternFlag])] = mutable.ArrayBuffer()
+    object ReactionCases extends Traverser {
+      private var info: List[CaseDef] = List()
 
-      def getFlag(binderTerm: Tree): PatternFlag = binderTerm match {
-        case Ident(termNames.WILDCARD) => Wildcard
-        case Bind(TermName(_), Ident(termNames.WILDCARD)) => SimpleVar
-        case Literal(_) => SimpleConst
-        case _ => OtherPattern
+      override def traverse(tree: Tree): Unit =
+        tree match {
+          // this is matched by the partial function of type ReactionBody
+          case DefDef(_, TermName("applyOrElse"), _, _, _, Match(_, list)) =>
+            info = list
+
+          // this is matched by a closure which is not a partial function
+          case Function(List(ValDef(_, TermName(_), TypeTree(), EmptyTree)), Match(Ident(TermName(_)), list)) =>
+           info = list
+
+          case _ => super.traverse(tree)
+        }
+
+      def from(tree: Tree): List[(Tree, Tree, Tree, String)] = {
+        info = List()
+        this.traverse(tree)
+        info.filter { // PartialFunction automatically adds a default case; we don't want to analyze that CaseDef.
+            case CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, _) => false
+            case _ => true
+          }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody, shaSum(c)) }
+      }
+    }
+
+    class MoleculeInfo(reactionBodyOwner: c.Symbol) extends Traverser {
+
+      def from(reactionPart: Tree): (List[(c.Symbol, PatternFlag, Option[PatternFlag])], List[c.Symbol], List[c.Symbol]) = {
+        inputMolecules = mutable.ArrayBuffer()
+        outputMolecules = mutable.ArrayBuffer()
+        replyMolecules = mutable.ArrayBuffer()
+        traverse(reactionPart)
+        (inputMolecules.toList, outputMolecules.toList, replyMolecules.toList)
+      }
+
+      private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, PatternFlag, Option[PatternFlag])] = mutable.ArrayBuffer()
+      private var outputMolecules: mutable.ArrayBuffer[c.Symbol] = mutable.ArrayBuffer()
+      private var replyMolecules: mutable.ArrayBuffer[c.Symbol] = mutable.ArrayBuffer()
+
+      private def getSimpleVar(binderTerm: Tree): c.Symbol = binderTerm match {
+        case Bind(t@TermName(_), Ident(termNames.WILDCARD)) => Ident(t).symbol
+      }
+
+      /** Detect whether the symbol {{{s}}} is defined inside the scope of the symbol {{{owner}}}.
+        * Will return true if
+        *
+        * @param s Symbol to be examined.
+        * @param owner Owner symbol of the scope to be examined.
+        * @return True if {{{s}}} is defined inside the scope of {{{owner}}}.
+        */
+      @tailrec
+      private def isOwnedBy(s: c.Symbol, owner: c.Symbol): Boolean = s.owner match {
+        case `owner` => owner != NoSymbol
+        case `NoSymbol` => false
+        case o@_ => isOwnedBy(o, owner)
+      }
+
+      private def getFlag(binderTerm: Tree): PatternFlag = binderTerm match {
+        case Ident(termNames.WILDCARD) => WildcardF
+        case Bind(TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF
+        case Literal(_) => SimpleConstF
+        case _ => OtherPatternF
       }
       // TODO: gather info about all "apply" operations originating from molecules or reply actions
       // TODO: filter by type signature of t, check consistency of the type of t vs. one or two binders used
-      // TODO: support multiple "case" expressions, check consistency (all case expressions involve the same set of molecules)
-      override def traverse(tree: c.universe.Tree): Unit = {
+      // TODO: support multiple "case" expressions, check consistency (all case expressions should involve the same set of molecules)
+      override def traverse(tree: Tree): Unit = {
         tree match {
-          case UnApply(Apply(Select(t@Ident(TermName(name)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) =>
-            info.append((t.symbol.typeSignature, getFlag(binder), None))
+          // stop traversing here, to avoid traversing nested reactions
+          case q"code.winitzki.jc.JoinRun.Reaction.apply($a,$b,$_,$_)" => ()
+          case q"JoinRun.Reaction.apply($a,$b,$_,$_)" => ()
 
-          case UnApply(Apply(Select(t@Ident(TermName(name)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) =>
-            info.append((t.symbol.typeSignature, getFlag(binder1), Some(getFlag(binder2))))
+          case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
+            inputMolecules.append((t.symbol, getFlag(binder), None))
 
-          //          case Apply(Select(t@Ident(TermName(name)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))) =>
-//            info.append((t.symbol.typeSignature, OtherPattern))
-// type.typeSymbol can be NoSymbol or a Symbol that can be cast using asType. Similarly for term.termSymbol
+          case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
+            val flag2 = getFlag(binder2) match {
+              case SimpleVarF => ReplyVarF(getSimpleVar(binder2))
+              case f@_ => f
+            }
+            inputMolecules.append((t.symbol, getFlag(binder1), Some(flag2)))
+
+          case Apply(Select(t@Ident(TermName(_)), TermName("apply")), _) =>
+            if (!isOwnedBy(t.symbol, reactionBodyOwner)) {
+              // skip any symbols defined in the inner scope
+
+              if (t.tpe <:< typeOf[Molecule])
+                outputMolecules.append(t.symbol)
+              else ()
+
+              if (t.tpe <:< weakTypeOf[ReplyValue[_]])
+                replyMolecules.append(t.symbol)
+              else ()
+            }
+
           case _ => super.traverse(tree)
+
         }
       }
     }
-//    c.abort(c.enclosingPosition, "")
-    // determine which variables are captured by closure?
-    // determine types of symbols that use .apply and .unapply, check correctness of JA / JS / SMV types
-    // gather (molecule injector, flag, optionally the partial function that matches the pattern, possible output injectors including SMV's)
 
-    GatherInfo.traverse(arg.tree)
+    // this boilerplate is necessary for being able to use PatternType values in macro quasiquotes
+    implicit val _ = Liftable[PatternType] {
+      case Wildcard => q"_root_.code.winitzki.jc.JoinRun.Wildcard"
+      case SimpleConst => q"_root_.code.winitzki.jc.JoinRun.SimpleConst"
+      case SimpleVar => q"_root_.code.winitzki.jc.JoinRun.SimpleVar"
+      case OtherPattern => q"_root_.code.winitzki.jc.JoinRun.OtherPattern"
+    }
 
-    println(s"Gathered info: ${GatherInfo.info}")
-    val t1 = GatherInfo.info(0)._1.dealias.typeSymbol
-    val s = showRaw(arg)
-    q"$s"
+    // TODO: maybe gather separately the partial functions that match the pattern for each input molecule injector
+
+    val caseDefs = ReactionCases.from(reactionBody.tree)
+    // TODO: check other CaseDef's if any; check that all CaseDef's have the same input molecules.
+    // - for now, we only look at the first case
+    val Some((pattern, guard, body, sha1)) = caseDefs.headOption
+
+    val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
+    val (bodyIn, bodyOut, bodyReply) = moleculeInfoMaker.from(body) // bodyIn should be empty
+
+    val (patternIn, patternOut, patternReply) = moleculeInfoMaker.from(pattern) // patternOut and patternReply should be empty
+    val (guardIn, guardOut, guardReply) = moleculeInfoMaker.from(guard) // guardIn should be empty
+
+    if (patternOut.nonEmpty) c.abort(c.enclosingPosition, s"Error in reaction: input molecules should not contain a pattern that injects output molecules")
+    if (patternReply.nonEmpty) c.abort(c.enclosingPosition, s"Error in reaction: input molecules should not contain a pattern that injects reply molecules")
+    if (guardIn.nonEmpty) c.abort(c.enclosingPosition, s"Error in reaction: input guard should not contain a pattern that matches on additional input molecules")
+    if (bodyIn.nonEmpty) c.warning(c.enclosingPosition, s"Warning: reaction body contains a pattern that matches on additional input molecules")
+
+    // TODO: check that all reply molecules have been used once and only once
+
+    val outputMolecules = (guardOut ++ bodyOut).map { m => q"${m.asTerm}" }
+
+    val inputMolecules = patternIn.map { case (s, p, op) => q"InputMoleculeInfo(${s.asTerm}, ${toPatternType(p)})" }
+
+    val reactionBodyExpr = c.Expr[fmArg](c.untypecheck(reactionBody.tree))
+
+    val result = q"Reaction(ReactionInfo($inputMolecules, List(..$outputMolecules), $sha1), $reactionBody)"
+//    println(s"debug: ${show(result)}")
+    result
   }
 
 }

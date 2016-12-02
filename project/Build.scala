@@ -3,7 +3,7 @@ import Keys._
 
 /* To compile with unchecked and deprecation warnings:
 $ sbt
-> set scalacOptions in ThisBuild ++= Seq("-unchecked", "-deprecation")
+> set scalacOptions in ThisBuild ++= Seq("-unchecked", "-deprecation", "-Xprint:namer", "-Xprint:typer")
 > compile
 > exit
 */
@@ -32,7 +32,7 @@ object MyBuild extends Build {
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"
       ),
       run <<= run in Compile in lib)
-  ) aggregate(macros, lib)
+  ) aggregate(macros, lib, benchmark)
 
   // Macros for the JoinRun library - the users will need this too.
   lazy val macros: Project = Project(
@@ -43,7 +43,7 @@ object MyBuild extends Build {
       libraryDependencies ++= Seq(
         "org.scalatest" %% "scalatest" % "3.0.0" % "test",
 
-  // this is necessary only if we want to debug macros;
+  // this is a necessary dependency only if we want to debug macros;
   // the project does not actually depend on scala-compiler.
         "org.scala-lang" % "scala-compiler" % scalaVersion.value % "test"
       )
@@ -68,10 +68,11 @@ object MyBuild extends Build {
     "benchmark",
     file("benchmark"),
     settings = buildSettings ++ Seq(
+      parallelExecution in Test := false,
       libraryDependencies ++= Seq(
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"
       )
     )
-  ) dependsOn lib
+  ) dependsOn (lib, macros)
 
 }

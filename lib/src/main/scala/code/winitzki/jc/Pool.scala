@@ -3,7 +3,7 @@ package code.winitzki.jc
 
 import java.util.concurrent.{ExecutorService, Executors, SynchronousQueue, ThreadPoolExecutor, TimeUnit}
 
-import code.winitzki.jc.JoinRun.{Reaction, ReactionBody}
+import code.winitzki.jc.JoinRun.ReactionBody
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -15,20 +15,12 @@ class FixedPool(threads: Int) extends PoolExecutor(threads, Executors.newFixedTh
 
 /** A pool of execution threads, or another way of running tasks (could use actors or whatever else).
   *  Tasks submitted for execution can have an optional name (useful for debugging).
+  *  The pool can be shut down, in which case all further tasks will be refused.
   */
 trait Pool {
   def shutdownNow(): Unit
 
   def runClosure(closure: => Unit, name: Option[String] = None): Unit
-
-  /** Convenience syntax for assigning reactions to thread pools.
-    * Example: {{{ threadPool123 { case a(x) + b(y) => ...} }}}
-    * This produces a new reaction value, which will run the given reaction body on the thread pool {{{this}}}.
-    *
-    * @param r Reaction body for a new reaction
-    * @return Reaction value with default parameters and thread pool set to {{{this}}}.
-    */
-  def apply(r: ReactionBody): Reaction = Reaction(r, Some(this))
 
   def isActive: Boolean = !isInactive
   def isInactive: Boolean
