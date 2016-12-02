@@ -3,26 +3,20 @@ package code.winitzki.jc
 import JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt
 
 /** More unit tests for blocking molecule functionality.
   *
   */
-class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterAll {
+class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(1000, Millis)
 
   val warmupTimeMs = 50
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
-
-
-  override def afterAll(): Unit = {
-    defaultJoinPool.shutdownNow()
-    defaultReactionPool.shutdownNow()
-  }
 
   behavior of "blocking molecule"
   

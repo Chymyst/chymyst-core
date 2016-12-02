@@ -24,6 +24,7 @@ object BuildSettings {
 object MyBuild extends Build {
   import BuildSettings._
 
+  // main project
   lazy val joinrun: Project = Project(
     "joinrun",
     file("."),
@@ -32,7 +33,7 @@ object MyBuild extends Build {
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"
       ),
       run <<= run in Compile in lib)
-  ) aggregate(macros, lib, benchmark)
+  ) aggregate(lib, macros, benchmark)
 
   // Macros for the JoinRun library - the users will need this too.
   lazy val macros: Project = Project(
@@ -50,7 +51,7 @@ object MyBuild extends Build {
     )
   ) dependsOn lib
 
-  // The JoinRun library itself - this is what users depend on.
+  // The core JoinRun library.
   lazy val lib: Project = Project(
     "lib",
     file("lib"),
