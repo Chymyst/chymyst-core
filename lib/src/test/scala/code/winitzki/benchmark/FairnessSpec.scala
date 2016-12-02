@@ -1,5 +1,6 @@
 package code.winitzki.benchmark
 
+import code.winitzki.jc.FixedPool
 import code.winitzki.jc.JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
@@ -31,7 +32,9 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val a3 = new M[Unit]("a3")
     //n = 4
 
-    join(
+    val tp = new FixedPool(8)
+
+    join(tp, tp)(
       runSimple { case getC(_, r) + done(arr) => r(arr) },
       runSimple { case a0(_) + c((n,arr)) => if (n > 0) { arr(0) += 1; c((n-1,arr)) + a0() } else done(arr) },
       runSimple { case a1(_) + c((n,arr)) => if (n > 0) { arr(1) += 1; c((n-1,arr)) + a1() } else done(arr) },
@@ -44,6 +47,8 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val result = getC()
 //    println(result.mkString(", "))
+
+    tp.shutdownNow()
 
     result.min should be > (0.75*N/reactions).toInt
     result.max should be < (1.25*N/reactions).toInt
@@ -67,7 +72,9 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val gather = new M[List[Int]]("gather")
     val a = new M[Int]("a")
 
-    join(
+    val tp = new FixedPool(8)
+
+    join(tp, tp)(
       runSimple { case done(arr) + getC(_, r) => r(arr) },
       runSimple { case c(n) + a(i) => if (n>0) { a(i+1) + c(n-1) } else a(i) + gather(List()) },
       runSimple { case gather(arr) + a(i) =>
@@ -81,6 +88,8 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val result = getC()
     println(result.mkString(", "))
+
+    tp.shutdownNow()
 
     result.min should be < (cycles/counters/2)
     result.max should be > (cycles/counters*3)
@@ -100,7 +109,9 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f = new M[(Int,Int,Int)]("f")
     val g = new B[Unit, (Int,Int)]("g")
 
-    join(
+    val tp = new FixedPool(8)
+
+    join(tp, tp)(
       runSimple { case a(_) + b(_) => d() },
       runSimple { case b(_) + c(_) => e() },
       runSimple { case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
@@ -118,16 +129,21 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     ab + bc shouldEqual n
     val discrepancy = math.abs(ab - bc + 0.0) / n
     discrepancy should be < 0.1
+
+    tp.shutdownNow()
   }
 
   // interestingly, this test fails to complete in 500ms on Travis CI with Scala 2.10, but succeeds with 2.11
   it should "fail to schedule reactions fairly after multiple injection into separate JDs" in {
 
+    val tp = new FixedPool(8)
+
     def makeJD(d1: M[Unit], d2: M[Unit]): (M[Unit],M[Unit],M[Unit]) = {
       val a = new M[Unit]("a")
       val b = new M[Unit]("b")
       val c = new M[Unit]("c")
-      join(
+
+      join(tp, tp)(
         runSimple { case a(_) + b(_) => d1() },
         runSimple { case b(_) + c(_) => d2() }
       )
@@ -139,7 +155,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f = new M[(Int,Int,Int)]("f")
     val g = new B[Unit, (Int,Int)]("g")
 
-    join(
+    join(tp, tp)(
       runSimple { case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
       runSimple { case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
       runSimple { case g(_,r) + f((x,y,0)) => r((x,y)) }
@@ -159,6 +175,8 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     ab + bc shouldEqual n
     val discrepancy = math.abs(ab - bc + 0.0) / n
     discrepancy should be > 0.5
+
+    tp.shutdownNow()
   }
 
 }

@@ -21,7 +21,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     val get = b[Unit, List[Int]]
 
     val tp = new FixedPool(4)
-    join(tp)(
+    join(tp,tp)(
       &{ case d(n) => r(n*2) },
       &{ case res(list) + r(s) => res(s::list) },
       &{ case get(_, reply) + res(list) if list.size == count => reply(list) }

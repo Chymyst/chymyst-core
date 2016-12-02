@@ -25,27 +25,32 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val c = new M[Unit]("c")
 
-    join(
+    val tp = new FixedPool(2)
+    join(tp,tp)(
       runSimple { case c(_) => waiter.dismiss() }
     )
 
     Future { Thread.sleep(50) } & c    // insert a molecule from the end of the future
 
     waiter.await() // Waiter default is 150ms
+    tp.shutdownNow()
   }
 
   it should "inject a molecule from a future with a lazy injection" in {
     val waiter = new Waiter
 
     val c = new M[String]("c")
+    val tp = new FixedPool(2)
 
-    join(
+    join(tp, tp)(
       runSimple { case c(x) => waiter {x shouldEqual "send it off"}; waiter.dismiss() }
     )
 
     Future { Thread.sleep(50) } + c("send it off")    // insert a molecule from the end of the future
 
     waiter.await()
+
+    tp.shutdownNow()
   }
 
   it should "not inject a molecule from a future prematurely" in {
@@ -57,7 +62,8 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val e = new M[Unit]("e")
     val f = new B[Unit, String]("f")
 
-    join(
+    val tp = new FixedPool(4)
+    join(tp,tp)(
       runSimple { case c(_) + rmC(_) => },
       runSimple { case e(_) => d() + rmC() },
       runSimple { case c(_) + f(_, r) => r("from c") },
@@ -77,6 +83,8 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     f() shouldEqual "from c"
     waiter.await()
     f() shouldEqual "from d"
+
+    tp.shutdownNow()
   }
 
   behavior of "#moleculeFuture"
@@ -88,7 +96,8 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     // "fut" will succeed when "c" is injected
     val (c, fut) = moleculeFuture[String]
 
-    join(
+    val tp = new FixedPool(2)
+    join(tp,tp)(
       runSimple { case b(_) => c("send it off") }
     )
 
@@ -106,6 +115,8 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     b()
     waiter.await()
+
+    tp.shutdownNow()
   }
 
 }
