@@ -54,8 +54,9 @@ class MergesortSpec extends FlatSpec with Matchers {
 
     val finalResult = m[Array[T]]
     val getFinalResult = b[Unit, Array[T]]
+    val tp = new FixedPool(threads+1)
 
-    join(
+    join(tp,tp)(
       &{ case finalResult(arr) + getFinalResult(_, r) => r(arr) }
     )
 
@@ -63,8 +64,7 @@ class MergesortSpec extends FlatSpec with Matchers {
 
     val mergesort = m[(Array[T], M[Array[T]])]
 
-    val tp = new FixedPool(threads)
-    join(tp)(
+    join(tp,tp)(
       &{
         case mergesort((arr, resultToYield)) =>
           if (arr.length <= 1) resultToYield(arr)

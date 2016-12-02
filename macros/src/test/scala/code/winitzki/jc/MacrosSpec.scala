@@ -2,15 +2,20 @@ package code.winitzki.jc
 
 import JoinRun._
 import Macros._
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
-import org.scalatest.{FlatSpec, Matchers}
 import scala.concurrent.duration.DurationInt
 
-class MacrosSpec extends FlatSpec with Matchers {
+class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
   val warmupTimeMs = 50
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
+
+  override def afterAll(): Unit = {
+    defaultJoinPool.shutdownNow()
+    defaultReactionPool.shutdownNow()
+  }
 
   behavior of "macros for defining new molecule injectors"
 

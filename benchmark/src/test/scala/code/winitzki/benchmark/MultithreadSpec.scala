@@ -23,8 +23,8 @@ class MultithreadSpec extends FlatSpec with Matchers {
       val finished = m[Unit]
       val counter = m[Int]
       val allFinished = b[Unit, Unit]
-      val tp = new FixedPool(threads)
-      join(tp)(
+      val tp = new FixedPool(threads+1)
+      join(tp,tp)(
         & { case work(_) => performWork(); finished() },
         & { case counter(n) + finished(_) => counter(n-1) },
         & { case allFinished(_, r) + counter(0) => r() }
