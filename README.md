@@ -53,8 +53,8 @@ In talking about `JoinRun`, I follow the “chemical machine” metaphor and ter
 
 Compared to `ScalaJoin` (Jiansen He's 2011 implementation of JC), `JoinRun` offers the following improvements:
 
-- Molecule injectors (“channels”) are locally scoped values (instances of abstract class `Molecule`) rather than singleton objects, as in `ScalaJoin`; this is more faithful to the semantics of JC
-- Reactions are also locally scoped values (instances of class `Reaction`)
+- Molecule injectors (“channels”) are locally scoped values (instances of abstract class `Molecule`) rather than singleton objects, as in `ScalaJoin`; this is more faithful to the semantics of JC, and allows much more flexibility when defining reactions
+- Reactions are also locally scoped values (instances of class `Reaction`). `JoinRun` performs some static analysis of reactions at compile time, using macros.
 - Reactions and molecules are composable: e.g. we can construct a join definition with `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules
 - “Join definitions” are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC)
 - Some common cases of invalid join definitions are flagged (as run-time errors) even before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply)
@@ -92,7 +92,7 @@ Some tests are timed and will fail on a slow machine.
 
 # Build the library
 
-To build all MRs:
+To build all JARs:
 
 ```
 sbt assembly
@@ -108,42 +108,42 @@ There is an integer counter value, to which we have non-blocking access via `inc
 We can also fetch the current counter value via the `get` molecule, which is blocking.
 The counter is initialized to the number we specify.
 ```scala
-    import code.winitzki.jc.JoinRun._
-    import code.winitzki.jc.Macros._
-     
-    // Define the logic of the “non-blocking counter”.
-    def makeCounter(initCount: Int)
-                  : (M[Unit], M[Unit], B[Unit, Int]) = {
-      val counter = m[Int] // non-blocking molecule with integer value
-      val incr = m[Unit] // non-blocking molecule with empty value
-      val decr = m[Unit] // empty non-blocking molecule
-      val get = b[Unit, Int] // empty blocking molecule returning integer value
-    
-      join {
-        run { counter(n) + incr(_) => counter(n+1) },
-        run { counter(n) + decr(_) => counter(n-1) },
-        run { counter(n) + get(_,res) => counter(n) + res(n) }
-      }
-    
-      counter(initCount) // inject a single “counter(initCount)” molecule
-      
-      (incr, decr, get) // return the molecule injectors
-    }
+import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros._
 
-    // make a new counter: get the injectors
-    val (inc, dec, get) = makeCounter(100)
-    
-    // use the counter: we can be on any thread,
-    // we can increment and decrement multiple times,
-    // and there will be no race conditions
-    
-    inc() // non-blocking increment
-          // more code
-    
-    dec() // non-blocking decrement
-          // more code
-     
-    val x = get() // blocking call, returns the current value of the counter
+// Define the logic of the “non-blocking counter”.
+def makeCounter(initCount: Int)
+              : (M[Unit], M[Unit], B[Unit, Int]) = {
+  val counter = m[Int] // non-blocking molecule with integer value
+  val incr = m[Unit] // non-blocking molecule with empty value
+  val decr = m[Unit] // empty non-blocking molecule
+  val get = b[Unit, Int] // empty blocking molecule returning integer value
+
+  join {
+    run { counter(n) + incr(_) => counter(n+1) },
+    run { counter(n) + decr(_) => counter(n-1) },
+    run { counter(n) + get(_,res) => counter(n) + res(n) }
+  }
+
+  counter(initCount) // inject a single “counter(initCount)” molecule
+
+  (incr, decr, get) // return the molecule injectors
+}
+
+// make a new counter: get the injectors
+val (inc, dec, get) = makeCounter(100)
+
+// use the counter: we can be on any thread,
+// we can increment and decrement multiple times,
+// and there will be no race conditions
+
+inc() // non-blocking increment
+      // more code
+
+dec() // non-blocking decrement
+      // more code
+
+val x = get() // blocking call, returns the current value of the counter
 ```
 
 # Debugging and macros
@@ -158,70 +158,70 @@ The library offers some debugging facilities:
  Here are the typical results:
 
 ```scala
-    import code.winitzki.jc.JoinRun._
-    import code.winitzki.jc.Macros._
-    
-    val counter = b[Int] // the name of this molecule is "counter"
-    val decr = b[Unit] // the name is "decr"
-    val get = b[Unit,Int] // the name is "get"
-    
-    join (
-        run { case counter(n) + decr(_) if n > 0 => counter(n-1) },
-        run { case counter(n) + get(_, res) => res(n) + counter(n) }
-    )
-    
-    counter(5)
-    
-    /* Let's start debugging... */
-    counter.setLogLevel(2)
-    
-    /* Each molecule is automatically named: */
-    counter.toString // returns the string "counter"
-    
-    decr()+decr()+decr()
-    /* This prints: 
-    Debug: Join{counter + decr => ...; counter + get/S => ...} injecting decr() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(5), decr()
-    Debug: Join{counter + decr => ...; counter + get/S => ...} injecting decr() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules decr()
-    Debug: In Join{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.JReactionPool@57efee08 while on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with inputs decr(), counter(5)
-    Debug: Join{counter + decr => ...; counter + get/S => ...} injecting decr() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules decr() * 2
-    Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 547
-    Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(4) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(4), decr() * 2
-    Debug: In Join{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.JReactionPool@57efee08 while on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with inputs decr(), counter(4)
-    Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 548
-    Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(3) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(3), decr()
-    Debug: In Join{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.JReactionPool@57efee08 while on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with inputs decr(), counter(3)
-    Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 549
-    Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(2) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(2)
+import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros._
 
-    */
-    println(counter.logSoup)
-    /* This prints:
-     Join{counter + decr => ...; counter + get/S => ...}
-     Molecules: counter(2)
-     */
-    decr()+decr()+decr()
-    /* This prints:
-    Debug: Join{counter + decr => ...; counter + get/S => ...} injecting decr() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(2), decr()
-    Debug: In Join{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.JReactionPool@57efee08 while on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with inputs decr(), counter(2)
-    Debug: Join{counter + decr => ...; counter + get/S => ...} injecting decr() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules decr()
-    Debug: Join{counter + decr => ...; counter + get/S => ...} injecting decr() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules decr() * 2
-    Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 613
-    Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(1) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(1), decr() * 2
-    Debug: In Join{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.JReactionPool@57efee08 while on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with inputs decr(), counter(1)
-    Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 548
-    Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(0) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(0), decr()
-    */
-    println(counter.logSoup)
-    /* This prints:
-     Join{counter + decr => ...; counter + get/S => ...}
-     Molecules: counter(0), decr()
-     */
-    
-    val x = get()    
-    /* This results in x = 0 and prints:
-    Debug: Join{counter + decr => ...; counter + get/S => ...} injecting get/S() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(0), decr(), get/S()
-    Debug: In Join{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + get/S => ...} on thread pool code.winitzki.jc.JReactionPool@57efee08 while on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with inputs counter(0), get/S()
-    Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + get/S => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 549
-    Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(0) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(0), decr()
-    */
+val counter = b[Int] // the name of this molecule is "counter"
+val decr = b[Unit] // the name is "decr"
+val get = b[Unit,Int] // the name is "get"
+
+join (
+    run { case counter(n) + decr(_) if n > 0 => counter(n-1) },
+    run { case counter(n) + get(_, res) => res(n) + counter(n) }
+)
+
+counter(5)
+
+/* Let's start debugging... */
+counter.setLogLevel(2)
+
+/* Each molecule is automatically named: */
+counter.toString // returns the string "counter"
+
+decr() + decr() + decr()
+/* This prints:
+Debug: Join{counter + decr => ...; counter + get/S => ...} injecting decr() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(5), decr()
+Debug: Join{counter + decr => ...; counter + get/S => ...} injecting decr() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules decr()
+Debug: In Join{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.JReactionPool@57efee08 while on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with inputs decr(), counter(5)
+Debug: Join{counter + decr => ...; counter + get/S => ...} injecting decr() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules decr() * 2
+Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 547
+Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(4) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(4), decr() * 2
+Debug: In Join{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.JReactionPool@57efee08 while on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with inputs decr(), counter(4)
+Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 548
+Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(3) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(3), decr()
+Debug: In Join{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.JReactionPool@57efee08 while on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with inputs decr(), counter(3)
+Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 549
+Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(2) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(2)
+
+*/
+println(counter.logSoup)
+/* This prints:
+ Join{counter + decr => ...; counter + get/S => ...}
+ Molecules: counter(2)
+ */
+decr() + decr() + decr()
+/* This prints:
+Debug: Join{counter + decr => ...; counter + get/S => ...} injecting decr() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(2), decr()
+Debug: In Join{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.JReactionPool@57efee08 while on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with inputs decr(), counter(2)
+Debug: Join{counter + decr => ...; counter + get/S => ...} injecting decr() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules decr()
+Debug: Join{counter + decr => ...; counter + get/S => ...} injecting decr() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules decr() * 2
+Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 613
+Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(1) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(1), decr() * 2
+Debug: In Join{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.JReactionPool@57efee08 while on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with inputs decr(), counter(1)
+Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 548
+Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(0) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(0), decr()
+*/
+println(counter.logSoup)
+/* This prints:
+ Join{counter + decr => ...; counter + get/S => ...}
+ Molecules: counter(0), decr()
+ */
+
+val x = get()
+/* This results in x = 0 and prints:
+Debug: Join{counter + decr => ...; counter + get/S => ...} injecting get/S() on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(0), decr(), get/S()
+Debug: In Join{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + get/S => ...} on thread pool code.winitzki.jc.JReactionPool@57efee08 while on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with inputs counter(0), get/S()
+Debug: In Join{counter + decr => ...; counter + get/S => ...}: reaction {counter + get/S => ...} started on thread pool code.winitzki.jc.JJoinPool@36ce2e5d with thread id 549
+Debug: Join{counter + decr => ...; counter + get/S => ...} injecting counter(0) on thread pool code.winitzki.jc.JJoinPool@36ce2e5d, now have molecules counter(0), decr()
+*/
 ```
