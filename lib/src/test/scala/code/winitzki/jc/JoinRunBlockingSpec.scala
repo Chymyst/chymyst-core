@@ -1,6 +1,7 @@
 package code.winitzki.jc
 
 import JoinRun._
+import Library.withPool
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
@@ -15,6 +16,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
   val tp0 = new FixedPool(4)
 
   override def afterAll() = {
+    println("debug: shutting down tp0 in JoinRunBlockingSpec")
     tp0.shutdownNow()
   }
 
@@ -293,17 +295,17 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
   }
 
   it should "block the cached threadpool when one thread is sleeping with Thread.sleep" in {
-    val tp = new CachedPool(1)
-    val (g, g2) = makeBlockingCheck(Thread.sleep(300), tp)
-    g2(timeout = 150 millis)() shouldEqual None // this should be blocked now
-    tp.shutdownNow()
+    withPool(new CachedPool(1)){ tp =>
+      val (g, g2) = makeBlockingCheck(Thread.sleep(300), tp)
+      g2(timeout = 150 millis)() shouldEqual None // this should be blocked now
+    }
   }
 
   it should "block the cached threadpool with BlockingIdle(Thread.sleep)" in {
-    val tp = new CachedPool(1)
-    val (g, g2) = makeBlockingCheck(BlockingIdle{Thread.sleep(300)}, tp)
-    g2(timeout = 150 millis)() shouldEqual None // this should be blocked
-    tp.shutdownNow()
+    withPool(new CachedPool(1)) { tp =>
+      val (g, g2) = makeBlockingCheck(BlockingIdle {Thread.sleep(300)}, tp)
+      g2(timeout = 150 millis)() shouldEqual None // this should be blocked
+    }
   }
 
   it should "not block the smart threadpool with BlockingIdle(Thread.sleep)" in {
@@ -353,17 +355,17 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
   }
 
   it should "block the fixed threadpool when all threads are waiting for new reactions" in {
-    val tp = new FixedPool(2)
-    val g = blockThreadsDueToBlockingMolecule(tp)
-    g(timeout = 100 millis)() shouldEqual None
-    tp.shutdownNow()
+    withPool(new FixedPool(2)) { tp =>
+      val g = blockThreadsDueToBlockingMolecule(tp)
+      g(timeout = 100 millis)() shouldEqual None
+    }
   }
 
   it should "not block the fixed threadpool when more threads are available" in {
-    val tp = new FixedPool(3)
-    val g = blockThreadsDueToBlockingMolecule(tp)
-    g(timeout = 100 millis)() shouldEqual Some(())
-    tp.shutdownNow()
+    withPool(new FixedPool(3)) { tp =>
+      val g = blockThreadsDueToBlockingMolecule(tp)
+      g(timeout = 100 millis)() shouldEqual Some(())
+    }
   }
 
   it should "block the cached threadpool when all threads are waiting for new reactions" in {
