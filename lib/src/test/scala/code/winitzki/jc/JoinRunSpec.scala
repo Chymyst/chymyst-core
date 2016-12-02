@@ -4,20 +4,15 @@ import JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.Waiter
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.{FlatSpec, Matchers}
 
-class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterAll {
+class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(1000, Millis)
 
   val warmupTimeMs = 50
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
-
-  override def afterAll(): Unit = {
-    defaultJoinPool.shutdownNow()
-    defaultReactionPool.shutdownNow()
-  }
 
   behavior of "join definition"
 

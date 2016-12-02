@@ -389,12 +389,21 @@ object JoinRun {
 
   }
 
+  /** Add a random shuffle method to sequences.
+    *
+    * @param a Sequence to be shuffled.
+    * @tparam T Type of sequence elements.
+    */
   private implicit final class ShufflableSeq[T](a: Seq[T]) {
+    /** Shuffle sequence elements randomly.
+      *
+      * @return A new sequence with randomly permuted elements.
+      */
     def shuffle: Seq[T] = scala.util.Random.shuffle(a)
   }
 
-  // for JA[T] molecules, the value inside AbsMolValue[T] is of type T; for JS[T,R] molecules, the value is of type
-  // ReplyValue[T,R]
+  // for M[T] molecules, the value inside AbsMolValue[T] is of type T; for B[T,R] molecules, the value is of type
+  // ReplyValue[T,R]. For now, we don't use shapeless to enforce this typing relation.
   private type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
   private type MutableLinearMoleculeBag = mutable.Map[Molecule, AbsMolValue[_]]
   private type LinearMoleculeBag = Map[Molecule, AbsMolValue[_]]
