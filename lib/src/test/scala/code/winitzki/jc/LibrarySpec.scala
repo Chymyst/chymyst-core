@@ -9,6 +9,7 @@ import org.scalatest.time.{Millis, Span}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.reflect.ClassTag
 
 class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
@@ -91,12 +92,13 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   it should "create a future that succeeds when molecule is injected" in {
     val waiter = new Waiter
+    val tp = new FixedPool(2)
 
     val b = new M[Unit]("b")
-    // "fut" will succeed when "c" is injected
-    val (c, fut) = moleculeFuture[String]
 
-    val tp = new FixedPool(2)
+    // "fut" will succeed when "c" is injected
+    val (c, fut) = moleculeFuture[String](tp)
+
     join(tp,tp)(
       runSimple { case b(_) => c("send it off") }
     )
