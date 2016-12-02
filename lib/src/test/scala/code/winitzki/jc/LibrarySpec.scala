@@ -105,7 +105,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val givenFuture = for {
       _ <- Future {
-        Thread.sleep(20)
+        Thread.sleep(50)
       } // waiter has 150 ms timeout
       s <- fut
     } yield {
