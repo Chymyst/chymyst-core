@@ -5,8 +5,8 @@ Join Calculus (JC) is a micro-framework for purely functional concurrency.
 
 The code is inspired by previous implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 
-The implementation currently requires Scala 2.11 and Oracle JDK 8 due to Akka support and openjdk7 performance issues.
-However, the code works also with Scala 2.10 (except for Akka functions) and Scala 2.12 (but only with oraclejdk).
+The current implementation is tested with Scala 2.11.8 and 2.12.0 and Oracle JDK 8.
+It also works with Scala 2.10 (except Akka support) and with OpenJDK 7 (except for the new `LocalDateTime` functions and some performance issues).
 
 # Overview of join calculus
 
