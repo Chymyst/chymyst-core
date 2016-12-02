@@ -4,6 +4,7 @@ import code.winitzki.jc.JoinRun._
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.reflect.ClassTag
+import scala.util.{Try, Success, Failure}
 
 object Library {
   /** Create a non-blocking molecule that, when injected, will resolve the future.
@@ -49,6 +50,25 @@ object Library {
     def +(u: => Unit): Future[T] = f map { x =>
       u
       x
+    }
+  }
+
+  def withPool[B](pool: => Pool)(doWork: Pool => B): Try[B] = cleanup(pool)(_.shutdownNow())(doWork)
+
+  def cleanup[A,B](resource: => A)(cleanup: A => Unit)(doWork: A => B): Try[B] = {
+    try {
+      Success(doWork(resource))
+    } catch {
+      case e: Exception => Failure(e)
+    }
+    finally {
+      try {
+        if (resource != null) {
+          cleanup(resource)
+        }
+      } catch {
+        case e: Exception => e.printStackTrace()
+      }
     }
   }
 
