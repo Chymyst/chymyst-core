@@ -959,7 +959,7 @@ However, in order to organize a distributed computation, we would need to split 
 The organization and supervision of distributed computations, the maintenance of connections between machines, the handling of disconnections - all this remains the responsibility of the programmer and is not handled automatically by Join Calculus.
 
 In principle, a sufficiently sophisticated runtime engine could organize a distributed Join Calculus computation completely transparently to the programmer.
-It remains to be seen whether it is feasible to implement such a runtime engine.
+It remains to be seen whether it is feasible and/or useful to implement such a runtime engine.
 
 
 # Some useful concurrency patterns
@@ -1056,6 +1056,12 @@ There are several tricks we can use:
 - define molecules whose values are functions that manipulate other molecule injectors
 - incrementally define new molecules and new reactions, store them in data structures, and assemble a final join definition later
 
+### Packaging a reaction in a closure
+
+TODO
+
+### Packaging a reaction in a molecule
+
 TODO
 
 ## Working with an external asynchronous APIs
@@ -1085,8 +1091,8 @@ We can then use this molecule as output in some reaction.
 
 ```scala
 val a = m[Int]
-val tp = new FixedPool(2)
-val (result: M[String], fut: Future[String]) = moleculeFuture[String](tp)
+
+val (result: M[String], fut: Future[String]) = moleculeFuture[String]
 // injecting the molecule result(...) will resolve "fut"
 
 join( run { case a(x) => result(s"finished: $x") } ) // we define our reaction that will eventually inject "result(...)"
