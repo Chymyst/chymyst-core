@@ -249,7 +249,8 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val g = new B[Unit,Int]("g")
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(1)
-    join(tp)(
+    val tp1 = new FixedPool(1)
+    join(tp,tp1)(
       runSimple { case d(_) => g() }, // this will be used to inject g() and block one thread
       runSimple { case c(_) + g(_,r) => r(0) }, // this will not start because we have no c()
       runSimple { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
@@ -259,6 +260,8 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     waitSome()
     g2(timeout = 100 millis)() shouldEqual None // this should be blocked now
     tp.shutdownNow()
+    tp1.shutdownNow()
+
   }
 
   def makeBlockingCheck(sleeping: => Unit, tp1: Pool): (B[Unit,Unit], B[Unit,Int]) = {
