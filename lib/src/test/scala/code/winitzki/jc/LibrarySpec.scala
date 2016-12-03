@@ -58,29 +58,27 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val waiter = new Waiter
 
     val c = new M[Unit]("c")
-    val rmC = new M[Unit]("remove c")
     val d = new M[Unit]("d")
     val e = new M[Unit]("e")
     val f = new B[Unit, String]("f")
 
     val tp = new FixedPool(4)
     join(tp,tp)(
-      runSimple { case c(_) + rmC(_) => },
-      runSimple { case e(_) => d() + rmC() },
-      runSimple { case c(_) + f(_, r) => r("from c") },
-      runSimple { case d(_) + f(_, r) => r("from d") }
+      runSimple { case e(_) + c(_) => d() },
+      runSimple { case c(_) + f(_, r) => r("from c") + c() },
+      runSimple { case d(_) + f(_, r) => r("from d") + c() }
     )
 
     c()
 
     val givenFuture = Future {
-      Thread.sleep(20)
+      Thread.sleep(50)
     } // waiter has 150 ms timeout
 
     (givenFuture + e()).map { _ => waiter.dismiss() }
     // The test would fail if e() were injected right away at this point.
 
-    Thread.sleep(50)
+    Thread.sleep(20)
     f() shouldEqual "from c"
     waiter.await()
     f() shouldEqual "from d"
