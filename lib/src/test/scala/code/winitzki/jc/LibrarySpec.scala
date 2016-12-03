@@ -72,13 +72,12 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     c()
 
     val givenFuture = Future {
-      Thread.sleep(50)
+      Thread.sleep(20)
     } // waiter has 150 ms timeout
 
     (givenFuture + e()).map { _ => waiter.dismiss() }
     // The test would fail if e() were injected right away at this point.
 
-    Thread.sleep(20)
     f() shouldEqual "from c"
     waiter.await()
     f2() shouldEqual "from d"
