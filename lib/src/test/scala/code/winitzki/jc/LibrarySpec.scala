@@ -9,7 +9,6 @@ import org.scalatest.time.{Millis, Span}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.reflect.ClassTag
 
 class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
@@ -91,7 +90,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   it should "create a future that succeeds when molecule is injected" in {
     val waiter = new Waiter
-    val tp = new FixedPool(2)
+    val tp = new FixedPool(4)
 
     val b = new M[Unit]("b")
 
@@ -104,7 +103,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val givenFuture = for {
       _ <- Future {
-        Thread.sleep(50)
+        Thread.sleep(20)
       } // waiter has 150 ms timeout
       s <- fut
     } yield {
