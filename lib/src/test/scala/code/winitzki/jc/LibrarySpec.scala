@@ -61,12 +61,13 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val d = new M[Unit]("d")
     val e = new M[Unit]("e")
     val f = new B[Unit, String]("f")
+    val f2 = new B[Unit, String]("f2")
 
     val tp = new FixedPool(4)
     join(tp,tp)(
       runSimple { case e(_) + c(_) => d() },
       runSimple { case c(_) + f(_, r) => r("from c") + c() },
-      runSimple { case d(_) + f(_, r) => r("from d") + c() }
+      runSimple { case d(_) + f2(_, r) => r("from d") }
     )
 
     c()
@@ -81,7 +82,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     Thread.sleep(20)
     f() shouldEqual "from c"
     waiter.await()
-    f() shouldEqual "from d"
+    f2() shouldEqual "from d"
 
     tp.shutdownNow()
   }
