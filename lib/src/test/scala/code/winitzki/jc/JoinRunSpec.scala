@@ -223,14 +223,15 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     val tp = new FixedPool(1)
 
     join(tp0,tp0)(
-      runSimple { case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
+      runSimple { case c(x) + d(_) => Thread.sleep(300); c(x-1) + f() } onThreads tp,
       runSimple { case a(x) + g(_, r) => a(x) + r(x) },
       runSimple { case f(_) + a(x) => a(x+1) }
     )
     a(0) + c(1) + c(1) + d() + d()
-    Thread.sleep(150) // This is less than 200ms, so we have not yet finished the second computation.
+    g() shouldEqual 0
+    Thread.sleep(150) // This is less than 300ms, so we have not yet finished the second computation.
     g() shouldEqual 1
-    Thread.sleep(150) // Now we should have finished the second computation.
+    Thread.sleep(300) // Now we should have finished the second computation.
     g() shouldEqual 2
 
     tp.shutdownNow()
