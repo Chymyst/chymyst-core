@@ -32,9 +32,10 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val a3 = new M[Unit]("a3")
     //n = 4
 
-    val tp = new FixedPool(8)
+    val tp = new FixedPool(4)
+    val tp1 = new FixedPool(1)
 
-    join(tp, tp)(
+    join(tp, tp1)(
       runSimple { case getC(_, r) + done(arr) => r(arr) },
       runSimple { case a0(_) + c((n,arr)) => if (n > 0) { arr(0) += 1; c((n-1,arr)) + a0() } else done(arr) },
       runSimple { case a1(_) + c((n,arr)) => if (n > 0) { arr(1) += 1; c((n-1,arr)) + a1() } else done(arr) },
@@ -49,6 +50,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 //    println(result.mkString(", "))
 
     tp.shutdownNow()
+    tp1.shutdownNow()
 
     result.min should be > (0.75*N/reactions).toInt
     result.max should be < (1.25*N/reactions).toInt
