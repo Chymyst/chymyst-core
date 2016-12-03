@@ -213,7 +213,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     g() shouldEqual 0
   }
 
-  it should "use one thread for concurrent computations" in {
+  it should "use only one thread for concurrent computations" in {
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
     val f = new M[Unit]("finished")
@@ -230,6 +230,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     a(0) + c(1) + c(1) + d() + d()
     g() shouldEqual 0
     Thread.sleep(150) // This is less than 300ms, so we have not yet finished the second computation.
+    g() shouldEqual 0
+    Thread.sleep(300) // Now we should have finished the second computation.
     g() shouldEqual 1
     Thread.sleep(300) // Now we should have finished the second computation.
     g() shouldEqual 2
