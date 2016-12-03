@@ -31,13 +31,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
   behavior of "macros for inspecting a reaction body"
 
-  it should "inspect reaction body containing a local molecule injector" in {
+  it should "inspect reaction body containing local molecule injectors" in {
     val a = m[Int]
 
     val reaction =
       & { case a(x) =>
         val q = new M[Int]("q")
-        val reaction1 = & { case q(_) => }
+        val s = new M[Unit]("s")
+        val reaction1 = & { case q(_) + s(()) => }
         q(0)
       }
     reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar))
@@ -125,19 +126,22 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
   it should "inspect a very complicated reaction body" in {
     val a = m[Int]
+    val c = m[Unit]
     val qq = m[Unit]
     val s = b[Unit, Int]
     val bb = m[(Int, Option[Int])]
 
     // reaction contains all kinds of pattern-matching constructions, blocking molecule in a guard, and unit values in molecules
     val result = & {
-      case a(p) + a(y) + a(1) + bb(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) if y > 0 && s() > 0 => a(p + 1); qq(); r(p)
+      case a(p) + a(y) + a(1) + c(()) + c(_) + bb(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) if y > 0 && s() > 0 => a(p + 1); qq(); r(p)
     }
 
     result.info.inputs shouldEqual List(
       InputMoleculeInfo(a, SimpleVar),
       InputMoleculeInfo(a, SimpleVar),
-      InputMoleculeInfo(a, SimpleConst),
+      InputMoleculeInfo(a, SimpleConst(1)),
+      InputMoleculeInfo(c, SimpleConst(())),
+      InputMoleculeInfo(c, Wildcard),
       InputMoleculeInfo(bb, Wildcard),
       InputMoleculeInfo(bb, OtherPattern),
       InputMoleculeInfo(bb, OtherPattern),
@@ -251,6 +255,32 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     join(& { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+  }
+
+  it should "determine input patterns correctly" in {
+    val a = new M[Option[Int]]("a")
+    val b = new M[String]("b")
+    val c = new M[(Int,Int)]("c")
+    val d = new M[Unit]("d")
+
+    val r = & { case a(Some(1)) + b("xyz") + d(()) + c((2,3)) => }
+
+    r.info shouldEqual ReactionInfo(List(
+      InputMoleculeInfo(a,OtherPattern),
+      InputMoleculeInfo(b,SimpleConst("xyz")),
+      InputMoleculeInfo(d,SimpleConst(())),
+      InputMoleculeInfo(c,OtherPattern)
+    ), List(), "A6507CFF4A5B450250480BD61C20467FF632A21F")
+  }
+
+  it should "fail to compile reaction with invalid reply molecules" in {
+    val a = b[Unit,Unit]
+    val c = b[Unit, Unit]
+
+    "& { case a(_, r) => a() }" shouldNot compile   // no reply r
+    "& { case a(_, r) + a(_) + c(_) => r()  }" shouldNot compile // invalid patterns for a and c
+    "& { case a(_, r) + a(_) + c(_) => r() + r() }" shouldNot compile // two replies r
+
   }
 
 }
