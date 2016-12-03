@@ -164,6 +164,9 @@ It is a runtime error to write a reaction that either does not inject the reply 
 Also, the reply action object should not be used outside the reaction body.
 (This will have no effect.)
 
+When a reaction is defined using the `run` macro, the compiler will detect some errors at compile time.
+For instance, it is a compile-time error to omit the 
+
 ## Join definitions
 
 Join definitions activate molecules and reactions:
@@ -179,6 +182,7 @@ A join definition can take any number of reactions.
 With Scala's `:_*` syntax, a join definition can take a sequence of reactions computed at runtime.
 
 All reactions listed in the join definition will be activated at once.
+
 Whenever we inject any molecule that is used as input to one of these reactions, it is _this_ join definition (and no other) that will decide which reactions to run.
 For this reason, we say that those molecules are "bound" to this join definition, or that they are "consumed" in it, or that they are "input molecules" in this join definition.
 
@@ -348,7 +352,7 @@ These features are considered for implementation in the next versions:
 1. Implement injecting several molecules at once (and arbitrarily many at once).
 1. Implement nonlinear patterns for input molecules.
 
-These features are further away from implementation:
+These features are further away from implementation because they require some research:
 
 1. Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka streams.
 1. Investigate an implicit distributed execution of thread pools.
