@@ -5,7 +5,7 @@ import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
 
-class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class JiansenFairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(500, Millis)
 

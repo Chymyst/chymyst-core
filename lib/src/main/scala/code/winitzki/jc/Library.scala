@@ -4,19 +4,21 @@ import code.winitzki.jc.JoinRun._
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.reflect.ClassTag
+import scala.util.{Try, Success, Failure}
 
 object Library {
   /** Create a non-blocking molecule that, when injected, will resolve the future.
-    * Example usage: val (m, fut) = moleculeFuture[String]
+    * Example usage: val (m, fut) = moleculeFuture[String](pool)
     *
+    * @param pool Thread pool on which to run the new join definition.
     * @tparam T Type of value carried by the molecule and by the future.
-    * @return Tuple consisting of new molecule injector and the new future
+    * @return Tuple consisting of new molecule injector and the new future.
     */
-  def moleculeFuture[T : ClassTag]: (M[T], Future[T]) = {
+  def moleculeFuture[T : ClassTag](pool: Pool = defaultReactionPool): (M[T], Future[T]) = {
     val f = new M[T]("future")
     val p = Promise[T]()
 
-    join(
+    join(pool,pool)(
       runSimple { case f(x) => p.success(x) }
     )
     (f, p.future)
@@ -48,6 +50,25 @@ object Library {
     def +(u: => Unit): Future[T] = f map { x =>
       u
       x
+    }
+  }
+
+  def withPool[B](pool: => Pool)(doWork: Pool => B): Try[B] = cleanup(pool)(_.shutdownNow())(doWork)
+
+  def cleanup[A,B](resource: => A)(cleanup: A => Unit)(doWork: A => B): Try[B] = {
+    try {
+      Success(doWork(resource))
+    } catch {
+      case e: Exception => Failure(e)
+    }
+    finally {
+      try {
+        if (resource != null) {
+          cleanup(resource)
+        }
+      } catch {
+        case e: Exception => e.printStackTrace()
+      }
     }
   }
 

@@ -36,7 +36,7 @@ class SmartThread(r: Runnable, pool: SmartPool) extends Thread(r) {
 /** A cached pool that increases its thread count whenever a blocking molecule is injected, and decreases afterwards.
   * The {{{BlockingIdle}}} function, similar to {{{scala.concurrent.blocking}}}, is used to annotate expressions that should lead to an increase of thread count, and to a decrease of thread count once the idle blocking call returns.
   */
-class SmartPool(parallellism: Int) extends Pool {
+class SmartPool(parallelism: Int) extends Pool {
 
   def currentPoolSize = executor.getCorePoolSize
 
@@ -47,20 +47,20 @@ class SmartPool(parallellism: Int) extends Pool {
   }
 
   private[jc] def finishedBlockingCall() = synchronized {
-    val newPoolSize = math.max(parallellism, currentPoolSize - 1)
+    val newPoolSize = math.max(parallelism, currentPoolSize - 1)
     executor.setCorePoolSize(newPoolSize) // Must set them in this order, so that the core pool size is never larger than the maximum pool size.
     executor.setMaximumPoolSize(newPoolSize)
   }
 
-  val maxQueueCapacity = parallellism*1000 + 100
+  val maxQueueCapacity = parallelism*1000 + 100
 
   private val queue = new LinkedBlockingQueue[Runnable](maxQueueCapacity)
 
-  val initialThreads = parallellism
+  val initialThreads = parallelism
   val secondsToRecycleThread = 1
   val shutdownWaitTimeMs = 200
 
-  private val executor = new ThreadPoolExecutor(initialThreads, parallellism, secondsToRecycleThread, TimeUnit.SECONDS,
+  private val executor = new ThreadPoolExecutor(initialThreads, parallelism, secondsToRecycleThread, TimeUnit.SECONDS,
     queue, new ThreadFactory {
       override def newThread(r: Runnable): Thread = new SmartThread(r, SmartPool.this)
     })

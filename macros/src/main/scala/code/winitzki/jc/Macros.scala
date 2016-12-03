@@ -57,7 +57,7 @@ object Macros {
     * This is an alias for [[Macros#run]], to be used in case [[Macros#run]] clashes
     * with another name imported into the local scope (e.g. in scalatest).
     * Examples: & { a(_) => ... }
-    * & { a (_) => ...} onThreads jPool
+    * & { a (_) => ...} onThreads threadPool
     */
   object & {
     // Users will create reactions using these functions.
@@ -73,18 +73,11 @@ object Macros {
   }
 
   private case object WildcardF extends PatternFlag
-  private case class  ReplyVarF(replyVar: Any) extends PatternFlag
+  private final case class ReplyVarF(replyVar: Any) extends PatternFlag
   private case object SimpleVarF extends PatternFlag
-  private case object SimpleConstF extends PatternFlag
+  private case object WrongReplyVarF extends PatternFlag // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
+  private final case class SimpleConstF(v: Any) extends PatternFlag
   private case object OtherPatternF extends PatternFlag
-
-  private def toPatternType(flag: PatternFlag): PatternType = flag match {
-    case ReplyVarF(_) => OtherPattern
-    case WildcardF => Wildcard
-    case SimpleVarF => SimpleVar
-    case SimpleConstF => SimpleConst
-    case OtherPatternF => OtherPattern
-  }
 
   private type fmArg = ReactionBody // UnapplyArg => Unit // ReactionBody
 
@@ -157,8 +150,8 @@ object Macros {
       private var outputMolecules: mutable.ArrayBuffer[c.Symbol] = mutable.ArrayBuffer()
       private var replyMolecules: mutable.ArrayBuffer[c.Symbol] = mutable.ArrayBuffer()
 
-      private def getSimpleVar(binderTerm: Tree): c.Symbol = binderTerm match {
-        case Bind(t@TermName(_), Ident(termNames.WILDCARD)) => Ident(t).symbol
+      private def getSimpleVar(binderTerm: Tree): c.universe.Ident = binderTerm match {
+        case Bind(TermName(n), Ident(termNames.WILDCARD)) => Ident(TermName(n))
       }
 
       /** Detect whether the symbol {{{s}}} is defined inside the scope of the symbol {{{owner}}}.
@@ -178,12 +171,10 @@ object Macros {
       private def getFlag(binderTerm: Tree): PatternFlag = binderTerm match {
         case Ident(termNames.WILDCARD) => WildcardF
         case Bind(TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF
-        case Literal(_) => SimpleConstF
+        case Literal(_) => SimpleConstF(binderTerm)
         case _ => OtherPatternF
       }
-      // TODO: gather info about all "apply" operations originating from molecules or reply actions
-      // TODO: filter by type signature of t, check consistency of the type of t vs. one or two binders used
-      // TODO: support multiple "case" expressions, check consistency (all case expressions should involve the same set of molecules)
+
       override def traverse(tree: Tree): Unit = {
         tree match {
           // stop traversing here, to avoid traversing nested reactions
@@ -191,27 +182,28 @@ object Macros {
           case q"JoinRun.Reaction.apply($a,$b,$_,$_)" => ()
 
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
-            inputMolecules.append((t.symbol, getFlag(binder), None))
+            val flag2 = if (t.tpe <:< weakTypeOf[B[_,_]]) Some(WrongReplyVarF) else None
+            inputMolecules.append((t.symbol, getFlag(binder), flag2))
 
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
             val flag2 = getFlag(binder2) match {
               case SimpleVarF => ReplyVarF(getSimpleVar(binder2))
-              case f@_ => f
+              case f@_ => WrongReplyVarF // this is an error that we should report later
             }
             inputMolecules.append((t.symbol, getFlag(binder1), Some(flag2)))
 
           case Apply(Select(t@Ident(TermName(_)), TermName("apply")), _) =>
-            if (!isOwnedBy(t.symbol, reactionBodyOwner)) {
+            if (!isOwnedBy(t.symbol, reactionBodyOwner) && t.tpe <:< typeOf[Molecule])
               // skip any symbols defined in the inner scope
-
-              if (t.tpe <:< typeOf[Molecule])
-                outputMolecules.append(t.symbol)
-              else ()
-
-              if (t.tpe <:< weakTypeOf[ReplyValue[_]])
-                replyMolecules.append(t.symbol)
-              else ()
+            {
+              outputMolecules.append(t.symbol)
             }
+            else ()
+
+
+            if (t.tpe <:< weakTypeOf[ReplyValue[_]])
+              replyMolecules.append(t.symbol)
+            else ()
 
           case _ => super.traverse(tree)
 
@@ -220,38 +212,55 @@ object Macros {
     }
 
     // this boilerplate is necessary for being able to use PatternType values in macro quasiquotes
-    implicit val _ = Liftable[PatternType] {
-      case Wildcard => q"_root_.code.winitzki.jc.JoinRun.Wildcard"
-      case SimpleConst => q"_root_.code.winitzki.jc.JoinRun.SimpleConst"
-      case SimpleVar => q"_root_.code.winitzki.jc.JoinRun.SimpleVar"
-      case OtherPattern => q"_root_.code.winitzki.jc.JoinRun.OtherPattern"
+    implicit val _ = Liftable[PatternFlag] {
+      case WildcardF => q"_root_.code.winitzki.jc.JoinRun.Wildcard"
+      case SimpleConstF(x) => q"_root_.code.winitzki.jc.JoinRun.SimpleConst(${x.asInstanceOf[c.Tree]})"
+      case SimpleVarF => q"_root_.code.winitzki.jc.JoinRun.SimpleVar"
+      case _ => q"_root_.code.winitzki.jc.JoinRun.OtherPattern"
+    }
+
+    def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error) = {
+      if (molecules.nonEmpty)
+        method(c.enclosingPosition, s"$what should $connector $patternWhat (${molecules.mkString(", ")})")
     }
 
     // TODO: maybe gather separately the partial functions that match the pattern for each input molecule injector
 
     val caseDefs = ReactionCases.from(reactionBody.tree)
     // TODO: check other CaseDef's if any; check that all CaseDef's have the same input molecules.
-    // - for now, we only look at the first case
+    // - for now, we only look at the first case.
     val Some((pattern, guard, body, sha1)) = caseDefs.headOption
 
     val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
-    val (bodyIn, bodyOut, bodyReply) = moleculeInfoMaker.from(body) // bodyIn should be empty
 
     val (patternIn, patternOut, patternReply) = moleculeInfoMaker.from(pattern) // patternOut and patternReply should be empty
+    maybeError("input molecules", "injects output molecules", patternOut)
+    maybeError("input molecules", "injects reply molecules", patternReply)
+
     val (guardIn, guardOut, guardReply) = moleculeInfoMaker.from(guard) // guardIn should be empty
+    maybeError("input guard", "matches on additional input molecules", guardIn.map(_._1))
 
-    if (patternOut.nonEmpty) c.abort(c.enclosingPosition, s"Error in reaction: input molecules should not contain a pattern that injects output molecules")
-    if (patternReply.nonEmpty) c.abort(c.enclosingPosition, s"Error in reaction: input molecules should not contain a pattern that injects reply molecules")
-    if (guardIn.nonEmpty) c.abort(c.enclosingPosition, s"Error in reaction: input guard should not contain a pattern that matches on additional input molecules")
-    if (bodyIn.nonEmpty) c.warning(c.enclosingPosition, s"Warning: reaction body contains a pattern that matches on additional input molecules")
+    val (bodyIn, bodyOut, bodyReply) = moleculeInfoMaker.from(body) // bodyIn should be empty
+    maybeError("reaction body", "matches on additional input molecules", bodyIn.map(_._1))
 
-    // TODO: check that all reply molecules have been used once and only once
+    val blockingMolecules = patternIn.filter(_._3.nonEmpty)
+    // It is an error to have reply molecules that do not match on a simple variable.
+    val wrongBlockingMolecules = blockingMolecules.filter(_._3.get.notReplyValue).map(_._1)
+    maybeError("blocking input molecules", "matches on anything else than a simple variable", wrongBlockingMolecules)
+
+    // If we are here, all input reply molecules are correctly matched. Now we check that each of them has one and only one reply.
+    val repliedMolecules = (guardReply ++ bodyReply).map(_.asTerm.name.decodedName)
+    val blockingReplies = blockingMolecules.flatMap(_._3.flatMap{
+      case ReplyVarF(x) => Some(x.asInstanceOf[c.universe.Ident].name)
+      case _ => None
+    })
+    val blockingMoleculesWithoutReply = blockingReplies diff repliedMolecules
+    val blockingMoleculesWithMultipleReply = repliedMolecules diff blockingReplies
+    maybeError("blocking input molecules", "but no reply found for", blockingMoleculesWithoutReply, "receive a reply")
+    maybeError("blocking input molecules", "but multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
 
     val outputMolecules = (guardOut ++ bodyOut).map { m => q"${m.asTerm}" }
-
-    val inputMolecules = patternIn.map { case (s, p, op) => q"InputMoleculeInfo(${s.asTerm}, ${toPatternType(p)})" }
-
-    val reactionBodyExpr = c.Expr[fmArg](c.untypecheck(reactionBody.tree))
+    val inputMolecules = patternIn.map { case (s, p, op) => q"InputMoleculeInfo(${s.asTerm}, $p)" }
 
     val result = q"Reaction(ReactionInfo($inputMolecules, List(..$outputMolecules), $sha1), $reactionBody)"
 //    println(s"debug: ${show(result)}")

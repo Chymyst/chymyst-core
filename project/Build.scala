@@ -24,15 +24,17 @@ object BuildSettings {
 object MyBuild extends Build {
   import BuildSettings._
 
+  // main project
+  /* can we do without this?
   lazy val joinrun: Project = Project(
     "joinrun",
     file("."),
     settings = buildSettings ++ Seq(
-      libraryDependencies ++= Seq(
-        "org.scalatest" %% "scalatest" % "3.0.0" % "test"
-      ),
-      run <<= run in Compile in lib)
-  ) aggregate(macros, lib, benchmark)
+      parallelExecution in Test := false,
+      concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
+      run <<= run in Compile in benchmark)
+  ) aggregate(lib, macros, benchmark)
+  */
 
   // Macros for the JoinRun library - the users will need this too.
   lazy val macros: Project = Project(
@@ -43,19 +45,20 @@ object MyBuild extends Build {
       libraryDependencies ++= Seq(
         "org.scalatest" %% "scalatest" % "3.0.0" % "test",
 
-  // this is a necessary dependency only if we want to debug macros;
+  // the "scala-compiler" is a necessary dependency only if we want to debug macros;
   // the project does not actually depend on scala-compiler.
         "org.scala-lang" % "scala-compiler" % scalaVersion.value % "test"
       )
     )
   ) dependsOn lib
 
-  // The JoinRun library itself - this is what users depend on.
+  // The core JoinRun library.
   lazy val lib: Project = Project(
     "lib",
     file("lib"),
     settings = buildSettings ++ Seq(
       parallelExecution in Test := false,
+      concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
       libraryDependencies ++= Seq(
         "com.typesafe.akka" %% "akka-actor" % "2.4.12",
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"
@@ -68,6 +71,7 @@ object MyBuild extends Build {
     "benchmark",
     file("benchmark"),
     settings = buildSettings ++ Seq(
+      concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
       parallelExecution in Test := false,
       libraryDependencies ++= Seq(
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"

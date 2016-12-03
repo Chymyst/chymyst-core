@@ -959,7 +959,7 @@ However, in order to organize a distributed computation, we would need to split 
 The organization and supervision of distributed computations, the maintenance of connections between machines, the handling of disconnections - all this remains the responsibility of the programmer and is not handled automatically by Join Calculus.
 
 In principle, a sufficiently sophisticated runtime engine could organize a distributed Join Calculus computation completely transparently to the programmer.
-It remains to be seen whether it is feasible to implement such a runtime engine.
+It remains to be seen whether it is feasible and/or useful to implement such a runtime engine.
 
 
 # Some useful concurrency patterns
@@ -1049,11 +1049,18 @@ For this reason, join definitions in `JoinRun` are still static in an important 
 For instance, when we receive a molecule injector `c` as a result of some computation, the reactions that can start by consuming `c` are already fixed.
 We cannot disable these reactions or add another reaction that will also consume `c`.
 
-Nevertheless, we can achieve more flexibility in definition reactions at runtime.
+Nevertheless, we can achieve more flexibility in defining reactions.
 There are several tricks we can use:
-- define new reactions by a closure that takes arguments and returns new molecule injectors;
-- pass molecule injectors as values on other molecules;
-- define molecules that carry functions as values, and make these functions manipulate other molecule injectors.
+- define new reactions by a closure that takes arguments and returns new molecule injectors
+- define molecules whose values contain other molecule injectors, and use them in reactions
+- define molecules whose values are functions that manipulate other molecule injectors
+- incrementally define new molecules and new reactions, store them in data structures, and assemble a final join definition later
+
+### Packaging a reaction in a closure
+
+TODO
+
+### Packaging a reaction in a molecule
 
 TODO
 
@@ -1063,15 +1070,20 @@ Suppose we are working with an external library (such as HTTP or database access
 In order to use such libraries together with Join Calculus, we need to be able to convert between `Future`s and molecules.
 The `JoinRun` library provides a basic implementation for this functionality.
 
-The first situation is when the external library produces a value `fut : Future[T]`, and we would like to automatically inject a certain molecule `m` when this `Future` is successfully resolved.
-This is as easy as doing a `fut.map( m(123) )` on the future.
-The library has helper functions that add implicit methods to `Future` in order to reduce boilerplate in the typical cases:
+### Attaching molecules to futures
 
-- the molecule needs to carry the same value as the result value of the future:
-`fut & m`
+The first situation is when the external library produces a future value `fut : Future[T]`, and we would like to automatically inject a certain molecule `m` when this `Future` is successfully resolved.
+This is as easy as doing a `fut.map( m(123) )` on the future.
+The library has helper functions that add implicit methods to `Future` in order to reduce boilerplate in the two typical cases:
+
+- the molecule needs to carry the same value as the result value of the future: `fut & m`
 - the molecule needs to carry a different value: `fut + m(123)`
 
-The second situation is when we have already defined some reactions that will eventually inject a molecule with a result value, and we would like to create a `Future` value that we can pass to the external library.
+### Attaching futures to molecules
+
+The second situation is when an external library requires us to pass a future value that we produce.
+Suppose we have a reaction that will eventually inject a molecule with a result value.
+We now need to convert the injection event into a `Future` value, resolving to that result value when the molecule is injected.
 
 This is implemented by the `Library.moleculeFuture` method.
 This method will create a new molecule and a new future value.
@@ -1080,12 +1092,12 @@ We can then use this molecule as output in some reaction.
 ```scala
 val a = m[Int]
 
-val (c: M[String], fut: Future[String]) = moleculeFuture[String]
-// injecting the molecule c(...) resolves "fut"
+val (result: M[String], fut: Future[String]) = moleculeFuture[String]
+// injecting the molecule result(...) will resolve "fut"
 
-join( run { case a(x) => c("finished") } ) // our reactions that eventually inject "c"
+join( run { case a(x) => result(s"finished: $x") } ) // we define our reaction that will eventually inject "result(...)"
 
-ExternalLibrary.consumeUserFuture(fut) // external library takes our value "fut" and does something with it
+ExternalLibrary.consumeUserFuture(fut) // the external library takes our value "fut" and does something with it
 ```
 
 # Other tutorials on Join Calculus
