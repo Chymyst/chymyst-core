@@ -176,7 +176,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val (ab, bc) = g()
     ab + bc shouldEqual n
     val discrepancy = math.abs(ab - bc + 0.0) / n
-    discrepancy should be > 0.5
+    discrepancy should be > 0.4
 
     tp.shutdownNow()
   }
