@@ -13,13 +13,17 @@ TODO and roadmap:
 
  2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
 
+ 2 * 2 - maybe remove default pools altogether?
+
  2 * 2 - should `run` take ReactionBody or simply UnapplyArg => Unit?
 
  3 * 1 - make helper functions to create new single-thread pools using a given thread or a given executor/handler
 
  5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
 
- 2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking?
+ 3 * 3 - "singleton" molecules that are always present at most once: detect them with macro, optimize their update, provide read-only volatile value
+
+ 2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
 
  5 * 5 - implement fairness with respect to molecules
  * - go through possible values when matching (can do?) Important: can get stuck when molecules are in different order. Or need to shuffle.
@@ -29,7 +33,7 @@ TODO and roadmap:
  3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
  Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.
 
- 4 * 5 - implement distributed execution by sharing the join pool with another machine (but running the join definitions only on the master node)
+ 5 * 5 - implement distributed execution by sharing the join pool with another machine (but running the join definitions only on the master node)
 
  2 * 2 - benchmark and profile the performance of blocking molecules (make many reactions that block and unblock)
 
@@ -50,7 +54,7 @@ TODO and roadmap:
  3 * 3 - make "reply actions" before the reaction finishes, not after. Revise error reporting (on double use) accordingly.
 
  5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
- and be able to better reason about our declarative reactions.
+ and be able to better reason about our declarative reactions. First, need to understand what is to be asserted.
 
  2 * 4 - allow molecule values to be parameterized types or even higher-kinded types? Need to test this.
 
@@ -77,7 +81,7 @@ object JoinRun {
   sealed trait PatternType
   case object Wildcard extends PatternType
   case object SimpleVar extends PatternType
-  case object SimpleConst extends PatternType
+  final case class SimpleConst(v: Any) extends PatternType
   case object OtherPattern extends PatternType
 
   final case class InputMoleculeInfo(molecule: Molecule, flag: PatternType)
@@ -203,6 +207,13 @@ object JoinRun {
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
   abstract sealed class Molecule {
     private[JoinRun] var joinDef: Option[JoinDefinition] = None
+
+    /** Check whether the molecule is already bound to a join definition.
+      * Note that molecules can be injected only if they are bound.
+      *
+      * @return True if already bound, false otherwise.
+      */
+    def isDefined: Boolean = joinDef.nonEmpty
 
     protected def errorNoJoinDef =
       new ExceptionNoJoinDef(s"Molecule ${this} is not bound to any join definition")
