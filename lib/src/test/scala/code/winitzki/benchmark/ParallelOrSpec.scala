@@ -1,6 +1,7 @@
 package code.winitzki.benchmark
 
 import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Pool
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
@@ -16,14 +17,14 @@ class ParallelOrSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   lazy val never = neverReturn[Boolean]
 
-  def or(b1: => Boolean, b2: => Boolean): B[Unit, Boolean] = {
+  def or(b1: => Boolean, b2: => Boolean, tp: Pool): B[Unit, Boolean] = {
     val res = new B[Unit, Boolean]("res")
     val res1 = new M[Boolean]("res1")
     val res2 = new M[Boolean]("res2")
     val res1_false = new B[Unit, Boolean]("res1_false")
     val res2_false = new B[Unit, Boolean]("res2_false")
 
-    join (
+    join(tp, tp) (
       runSimple { case res(_, res_reply) + res1(b) => if (b) res_reply(b) else res_reply(res1_false()) },
       runSimple { case res1_false(_, res1f_reply) + res2(b) => res1f_reply(b) },
       runSimple { case res(_, res_reply) + res2(b) => if (b) res_reply(b) else res_reply(res2_false()) },

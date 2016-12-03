@@ -3,14 +3,21 @@ package code.winitzki.jc
 import JoinRun._
 import Macros._
 
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+
 import scala.concurrent.duration.DurationInt
 
-class MacrosSpec extends FlatSpec with Matchers {
+class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
   val warmupTimeMs = 50
 
+  val tp0 = new FixedPool(4)
+
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
+
+  override def afterAll(): Unit = {
+    tp0.shutdownNow()
+  }
 
   behavior of "macros for defining new molecule injectors"
 
@@ -26,13 +33,14 @@ class MacrosSpec extends FlatSpec with Matchers {
 
   behavior of "macros for inspecting a reaction body"
 
-  it should "inspect reaction body containing a local molecule injector" in {
+  it should "inspect reaction body containing local molecule injectors" in {
     val a = m[Int]
 
     val reaction =
       & { case a(x) =>
         val q = new M[Int]("q")
-        val reaction1 = & { case q(_) => }
+        val s = new M[Unit]("s")
+        val reaction1 = & { case q(_) + s(()) => }
         q(0)
       }
     reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar))
@@ -43,11 +51,11 @@ class MacrosSpec extends FlatSpec with Matchers {
     val a = m[Int]
     val bb = m[Int]
     val f = b[Unit, Int]
-    join(
+    join(tp0,tp0)(
       & { case f(_, r) + bb(x) => r(x) },
       & { case a(x) =>
         val p = m[Int]
-        join(& { case p(y) => bb(y) })
+        join(tp0,tp0)(& { case p(y) => bb(y) })
         p(x + 1)
       }
     )
@@ -60,11 +68,11 @@ class MacrosSpec extends FlatSpec with Matchers {
     val a = m[Int]
     val bb = m[Int]
     val f = b[Unit, Int]
-    join(
+    join(tp0,tp0)(
       runSimple { case f(_, r) + bb(x) => r(x) },
       runSimple { case a(x) =>
         val p = m[Int]
-        join(& { case p(y) => bb(y) })
+        join(tp0,tp0)(& { case p(y) => bb(y) })
         p(x + 1)
       }
     )
@@ -120,19 +128,22 @@ class MacrosSpec extends FlatSpec with Matchers {
 
   it should "inspect a very complicated reaction body" in {
     val a = m[Int]
+    val c = m[Unit]
     val qq = m[Unit]
     val s = b[Unit, Int]
     val bb = m[(Int, Option[Int])]
 
     // reaction contains all kinds of pattern-matching constructions, blocking molecule in a guard, and unit values in molecules
     val result = & {
-      case a(p) + a(y) + a(1) + bb(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) if y > 0 && s() > 0 => a(p + 1); qq(); r(p)
+      case a(p) + a(y) + a(1) + c(()) + c(_) + bb(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) if y > 0 && s() > 0 => a(p + 1); qq(); r(p)
     }
 
     result.info.inputs shouldEqual List(
       InputMoleculeInfo(a, SimpleVar),
       InputMoleculeInfo(a, SimpleVar),
-      InputMoleculeInfo(a, SimpleConst),
+      InputMoleculeInfo(a, SimpleConst(1)),
+      InputMoleculeInfo(c, SimpleConst(())),
+      InputMoleculeInfo(c, Wildcard),
       InputMoleculeInfo(bb, Wildcard),
       InputMoleculeInfo(bb, OtherPattern),
       InputMoleculeInfo(bb, OtherPattern),
@@ -158,7 +169,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(runSimple { case b(_) + a(Some(x)) + c(_) => })
+    join(tp0,tp0)(runSimple { case b(_) + a(Some(x)) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b => ...}\nNo molecules" // this is the wrong result
     // when the problem is fixed, this test will have to be rewritten
@@ -169,7 +180,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(& { case b(_) + a(None) + c(_) => })
+    join(tp0,tp0)(& { case b(_) + a(None) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -189,7 +200,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(runSimple { case a(None) + b(_) + c(_) => })
+    join(tp0,tp0)(runSimple { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a => ...}\nNo molecules"
   }
@@ -199,7 +210,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(& { case a(None) + b(_) + c(_) => })
+    join(tp0,tp0)(& { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -209,7 +220,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(& { case a(Some(x)) + b(_) + c(_) => })
+    join(tp0,tp0)(& { case a(Some(x)) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -218,7 +229,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     val a = new M[Option[Int]]("a")
     val b = new M[Unit]("b")
 
-    join(& { case a(Some(x)) + b(_) => })
+    join(tp0,tp0)(& { case a(Some(x)) + b(_) => })
 
     a(Some(1))
     waitSome()
@@ -233,7 +244,7 @@ class MacrosSpec extends FlatSpec with Matchers {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(& { case a(1) + b(_) + c(_) => })
+    join(tp0,tp0)(& { case a(1) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -243,9 +254,39 @@ class MacrosSpec extends FlatSpec with Matchers {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(& { case a(None) + b(_) + c(_) => })
+    join(tp0,tp0)(& { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+  }
+
+  it should "determine input patterns correctly" in {
+    val a = new M[Option[Int]]("a")
+    val b = new M[String]("b")
+    val c = new M[(Int,Int)]("c")
+    val d = new M[Unit]("d")
+
+    val r = & { case a(Some(1)) + b("xyz") + d(()) + c((2,3)) => }
+
+    r.info.inputs shouldEqual List(
+      InputMoleculeInfo(a,OtherPattern),
+      InputMoleculeInfo(b,SimpleConst("xyz")),
+      InputMoleculeInfo(d,SimpleConst(())),
+      InputMoleculeInfo(c,OtherPattern)
+    )
+    r.info.outputs shouldEqual List()
+
+    Set("919ADEAE0AEC9B7E68560B278A363FE4FA4BA0F6", "A6507CFF4A5B450250480BD61C20467FF632A21F") should contain oneElementOf List(r.info.sha1)
+  }
+
+  it should "fail to compile reaction with invalid reply molecules" in {
+    val a = b[Unit,Unit]
+    val c = b[Unit, Unit]
+
+    "& { case a(_, r) => a() }" shouldNot compile   // no reply is performed with r
+    "& { case a(_, _) => a() }" shouldNot compile   // no pattern match for reply in "a"
+    "& { case a(_, r) + a(_) + c(_) => r()  }" shouldNot compile // invalid patterns for "a" and "c"
+    "& { case a(_, r) + a(_) + c(_) => r() + r() }" shouldNot compile // two replies are performed with r
+
   }
 
 }
