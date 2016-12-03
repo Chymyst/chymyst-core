@@ -13,7 +13,7 @@ import scala.concurrent.duration.DurationInt
   */
 class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterAll {
 
-  val tp0 = new FixedPool(4)
+  val tp0 = new FixedPool(40)
 
   override def afterAll() = {
     tp0.shutdownNow()
