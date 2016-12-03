@@ -11,13 +11,43 @@ import org.scalatest.{FlatSpec, Matchers}
   */
 class ZZZShutdownSpec extends FlatSpec with Matchers {
 
-  it should "fail to schedule reactions after shutdown of default thread pools" in {
+  it should "fail to schedule reactions after shutdown of custom join pool" in {
 
     val pool = new FixedPool(2)
+    val pool2 = new FixedPool(2)
+    pool2.shutdownNow()
+
+    val x = m[Unit]
+    join(pool,pool2)(runSimple{ case x(()) => })
+
+    val thrown = intercept[Exception] {
+      x()
+    }
+    thrown.getMessage shouldEqual "In Join{x => ...}: Cannot inject molecule x since join pool is not active"
+    pool.shutdownNow()
+  }
+
+  it should "not fail to schedule reactions after shutdown of custom reaction pool" in {
+
+    val pool = new FixedPool(2)
+    val pool2 = new FixedPool(2)
     pool.shutdownNow()
 
     val x = m[Unit]
-    join(pool,pool)(runSimple{ case x(()) => })
+    join(pool,pool2)(runSimple{ case x(()) => })
+
+    x()
+
+    pool2.shutdownNow() shouldEqual ()
+  }
+
+  it should "fail to schedule reactions after shutdown of default thread pools" in {
+
+    defaultJoinPool.shutdownNow()
+    defaultReactionPool.shutdownNow()
+
+    val x = m[Unit]
+    join(runSimple{ case x(()) => })
 
     val thrown = intercept[Exception] {
       x()
