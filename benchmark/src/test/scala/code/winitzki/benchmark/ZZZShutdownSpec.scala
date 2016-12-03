@@ -40,7 +40,7 @@ class ZZZShutdownSpec extends FlatSpec with Matchers {
 
     pool2.shutdownNow() shouldEqual ()
   }
-
+/*
   it should "fail to schedule reactions after shutdown of default thread pools" in {
 
     defaultJoinPool.shutdownNow()
@@ -54,4 +54,5 @@ class ZZZShutdownSpec extends FlatSpec with Matchers {
     }
     thrown.getMessage shouldEqual "In Join{x => ...}: Cannot inject molecule x since join pool is not active"
   }
+  */
 }
