@@ -16,7 +16,6 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
   val tp0 = new FixedPool(4)
 
   override def afterAll() = {
-    println("debug: shutting down tp0 in JoinRunBlockingSpec")
     tp0.shutdownNow()
   }
 

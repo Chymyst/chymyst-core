@@ -2,6 +2,7 @@ package code.winitzki.jc
 
 import JoinRun._
 import Macros._
+
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt
@@ -10,11 +11,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
   val warmupTimeMs = 50
 
+  val tp0 = new FixedPool(4)
+
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
   override def afterAll(): Unit = {
-    defaultJoinPool.shutdownNow()
-    defaultReactionPool.shutdownNow()
+    tp0.shutdownNow()
   }
 
   behavior of "macros for defining new molecule injectors"
@@ -49,11 +51,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val a = m[Int]
     val bb = m[Int]
     val f = b[Unit, Int]
-    join(
+    join(tp0,tp0)(
       & { case f(_, r) + bb(x) => r(x) },
       & { case a(x) =>
         val p = m[Int]
-        join(& { case p(y) => bb(y) })
+        join(tp0,tp0)(& { case p(y) => bb(y) })
         p(x + 1)
       }
     )
@@ -66,11 +68,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val a = m[Int]
     val bb = m[Int]
     val f = b[Unit, Int]
-    join(
+    join(tp0,tp0)(
       runSimple { case f(_, r) + bb(x) => r(x) },
       runSimple { case a(x) =>
         val p = m[Int]
-        join(& { case p(y) => bb(y) })
+        join(tp0,tp0)(& { case p(y) => bb(y) })
         p(x + 1)
       }
     )
@@ -167,7 +169,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(runSimple { case b(_) + a(Some(x)) + c(_) => })
+    join(tp0,tp0)(runSimple { case b(_) + a(Some(x)) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b => ...}\nNo molecules" // this is the wrong result
     // when the problem is fixed, this test will have to be rewritten
@@ -178,7 +180,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(& { case b(_) + a(None) + c(_) => })
+    join(tp0,tp0)(& { case b(_) + a(None) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -198,7 +200,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(runSimple { case a(None) + b(_) + c(_) => })
+    join(tp0,tp0)(runSimple { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a => ...}\nNo molecules"
   }
@@ -208,7 +210,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(& { case a(None) + b(_) + c(_) => })
+    join(tp0,tp0)(& { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -218,7 +220,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(& { case a(Some(x)) + b(_) + c(_) => })
+    join(tp0,tp0)(& { case a(Some(x)) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -227,7 +229,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val a = new M[Option[Int]]("a")
     val b = new M[Unit]("b")
 
-    join(& { case a(Some(x)) + b(_) => })
+    join(tp0,tp0)(& { case a(Some(x)) + b(_) => })
 
     a(Some(1))
     waitSome()
@@ -242,7 +244,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(& { case a(1) + b(_) + c(_) => })
+    join(tp0,tp0)(& { case a(1) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -252,7 +254,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(& { case a(None) + b(_) + c(_) => })
+    join(tp0,tp0)(& { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -265,12 +267,15 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
     val r = & { case a(Some(1)) + b("xyz") + d(()) + c((2,3)) => }
 
-    r.info shouldEqual ReactionInfo(List(
+    r.info.inputs shouldEqual List(
       InputMoleculeInfo(a,OtherPattern),
       InputMoleculeInfo(b,SimpleConst("xyz")),
       InputMoleculeInfo(d,SimpleConst(())),
       InputMoleculeInfo(c,OtherPattern)
-    ), List(), "A6507CFF4A5B450250480BD61C20467FF632A21F")
+    )
+    r.info.outputs shouldEqual List()
+
+    Set("919ADEAE0AEC9B7E68560B278A363FE4FA4BA0F6", "A6507CFF4A5B450250480BD61C20467FF632A21F") should contain oneElementOf List(r.info.sha1)
   }
 
   it should "fail to compile reaction with invalid reply molecules" in {
