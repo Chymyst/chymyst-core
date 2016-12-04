@@ -109,7 +109,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val thrown = intercept[Exception] {
       println(s"got result: ${g()} but should not have printed this!")
     }
-    thrown.getMessage shouldEqual "Error: In Join{d => ...; c + g/B + g2/B => ...}: Reaction {c + g/B + g2/B => ...} replied to g/B, g2/B more than once"
+    thrown.getMessage shouldEqual "Error: In Join{c + g/B + g2/B => ...; d => ...}: Reaction {c + g/B + g2/B => ...} replied to g/B, g2/B more than once"
   }
 
   it should "throw exception when a reaction does not reply to one blocking molecule" in {
@@ -143,7 +143,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val thrown = intercept[Exception] {
       println(s"got result2: ${g()} but should not have printed this!")
     }
-    thrown.getMessage shouldEqual "Error: In Join{d => ...; c + g/B + g2/B => ...}: Reaction {c + g/B + g2/B => ...} finished without replying to g/B, g2/B"
+    thrown.getMessage shouldEqual "Error: In Join{c + g/B + g2/B => ...; d => ...}: Reaction {c + g/B + g2/B => ...} finished without replying to g/B, g2/B"
 
     tp.shutdownNow()
   }
@@ -164,7 +164,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val thrown = intercept[Exception] {
       println(s"got result: ${g()} but should not have printed this!")
     }
-    thrown.getMessage shouldEqual "Error: In Join{d => ...; c + g/B + g2/B => ...}: Reaction {c + g/B + g2/B => ...} finished without replying to g2/B"
+    thrown.getMessage shouldEqual "Error: In Join{c + g/B + g2/B => ...; d => ...}: Reaction {c + g/B + g2/B => ...} finished without replying to g2/B"
 
     tp.shutdownNow()
   }
