@@ -284,7 +284,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     }) shouldEqual true
     r.info.outputs shouldEqual List(a)
 
-    Set("3A03F935B238FBC427CCEC83D25D69820AB5CDBE") should contain oneElementOf List(r.info.sha1)
+    // Note: Scala 2.11 and Scala 2.12 have different syntax trees for the same reaction in this case!
+    val shaScala211 = "3A03F935B238FBC427CCEC83D25D69820AB5CDBE"
+    val shaScala212 = "C4A42A1C5082B4C5023CC3B0497BB7BCA6642C17"
+    Set(shaScala211, shaScala212) should contain oneElementOf List(r.info.sha1)
   }
 
   it should "fail to compile reactions with detectable compile-time errors" in {
