@@ -41,7 +41,16 @@ TODO and roadmap:
 
  3 * 5 - Can we implement JoinRun using Future / Promise and remove all blocking and all semaphores?
 
- 5 * 5 - Can we do some reasoning about reactions at compile time or at runtime but before starting any reactions? E.g. to detect likely deadlocks. - This has to be done at runtime when join() is called, because macros have access only at one reaction at a time.
+ 5 * 5 - Can we do some reasoning about reactions at runtime but before starting any reactions
+
+ This has to be done at runtime when join() is called, because macros have access only at one reaction at a time.
+
+ Kinds of situations to detect at runtime:
+ - Input molecules with nontrivial matchers are a subset of output molecules. This is a warning. (Input molecules with trivial matchers can't be a subset of output molecules - this is a compile-time error.)
+ - Input molecules of one reaction are a subset of input molecules of another reaction, with the same matchers. This is an error (uncontrollable lack of deterministic execution).
+ - A cycle of input molecules being subset of output molecules, possibly spanning several join definitions (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
+ - Output molecules in a reaction include a blocking molecule that might deadlock because other reactions with it require molecules that are injected later. Example: if m is non-blocking and b is blocking, and we have reaction m + b =>... and another reaction that outputs ... => b; m. This is potentially a problem because the first reaction will block waiting for "m", while the second reaction will not inject "m" until "b" returns.
+  This is a warning since we can't be sure that the output molecules are always injected, and in what exact order.
 
  2 * 3 - understand the "reader-writer" example; implement it as a unit test
 
