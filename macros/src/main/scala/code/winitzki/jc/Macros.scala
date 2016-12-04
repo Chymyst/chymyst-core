@@ -261,9 +261,28 @@ object Macros {
     maybeError("blocking input molecules", "but no reply found for", blockingMoleculesWithoutReply, "receive a reply")
     maybeError("blocking input molecules", "but multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
 
-    val outputMolecules = (guardOut ++ bodyOut).map { m => q"${m.asTerm}" }
-    val inputMolecules = patternIn.map { case (s, p, op) => q"InputMoleculeInfo(${s.asTerm}, $p)" }
+    if (patternIn.isEmpty) c.error(c.enclosingPosition, "Reaction should not have an empty list of input molecules")
 
+    // Note: the output molecules could be sometimes not injected according to a runtime condition.
+    // We do not try to examine the reaction body to determine which output molecules are always injected.
+    // However, the order of output molecules corresponds to the order in which they might be injected.
+    val allOutputInfo = guardOut ++ bodyOut
+    val outputMolecules = allOutputInfo.map { m => q"${m.asTerm}" }
+    val inputMolecules = patternIn.map { case (s, p, _) => q"InputMoleculeInfo(${s.asTerm}, $p)" }
+
+    // Detect whether this reaction has a simple livelock:
+    // All input molecules have trivial matchers and are a subset of output molecules.
+    val allInputMatchersAreTrivial = patternIn.forall{
+      case (_, SimpleVarF, _) | (_, WildcardF, _) => true
+      case _ => false
+    }
+    val inputMoleculesAreSubsetOfOutputMolecules = (patternIn.map(_._1) diff allOutputInfo).isEmpty
+
+    if(allInputMatchersAreTrivial && inputMoleculesAreSubsetOfOutputMolecules) {
+      maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
+    }
+
+    // Prepare the ReactionInfo structure.
     val result = q"Reaction(ReactionInfo($inputMolecules, List(..$outputMolecules), $sha1), $reactionBody)"
 //    println(s"debug: ${show(result)}")
     result
