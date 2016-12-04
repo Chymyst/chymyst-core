@@ -10,10 +10,6 @@ import scala.annotation.tailrec
 
 object Macros {
 
-  val sha1 = java.security.MessageDigest.getInstance("SHA-1")
-
-  def shaSum(c: Any): String = sha1.digest(c.toString.getBytes("UTF-8")).map("%02X".format(_)).mkString
-
   type theContext = blackbox.Context
 
   def getName: String = macro getNameImpl
@@ -73,11 +69,11 @@ object Macros {
   }
 
   private case object WildcardF extends PatternFlag
-  private final case class ReplyVarF(replyVar: Any) extends PatternFlag
+  private final case class ReplyVarF(replyVar: Any) extends PatternFlag // "Any" is actually a replyVar name
   private case object SimpleVarF extends PatternFlag
   private case object WrongReplyVarF extends PatternFlag // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
-  private final case class SimpleConstF(v: Any) extends PatternFlag
-  private case object OtherPatternF extends PatternFlag
+  private final case class SimpleConstF(v: Any) extends PatternFlag // this is the [T] type of M[T] or B[T,R]
+  private final case class OtherPatternF(matcher: Any) extends PatternFlag // "Any" is actually an expression tree for a partial function
 
   private type fmArg = ReactionBody // UnapplyArg => Unit // ReactionBody
 
@@ -132,7 +128,7 @@ object Macros {
         info.filter { // PartialFunction automatically adds a default case; we don't want to analyze that CaseDef.
             case CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, _) => false
             case _ => true
-          }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody, shaSum(c)) }
+          }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody, getSha1(c)) }
       }
     }
 
@@ -172,7 +168,9 @@ object Macros {
         case Ident(termNames.WILDCARD) => WildcardF
         case Bind(TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF
         case Literal(_) => SimpleConstF(binderTerm)
-        case _ => OtherPatternF
+        case _ =>
+          val partialFunctionTree: c.Tree = q"{ case $binderTerm => }"
+          OtherPatternF(partialFunctionTree)
       }
 
       override def traverse(tree: Tree): Unit = {
@@ -191,6 +189,10 @@ object Macros {
               case f@_ => WrongReplyVarF // this is an error that we should report later
             }
             inputMolecules.append((t.symbol, getFlag(binder1), Some(flag2)))
+
+            // wrong number of arguments - neither 1 nor 2
+          case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), _) if t.tpe <:< typeOf[Molecule] =>
+            inputMolecules.append((t.symbol, WrongReplyVarF, None))
 
           case Apply(Select(t@Ident(TermName(_)), TermName("apply")), _) =>
             if (!isOwnedBy(t.symbol, reactionBodyOwner) && t.tpe <:< typeOf[Molecule])
@@ -216,15 +218,14 @@ object Macros {
       case WildcardF => q"_root_.code.winitzki.jc.JoinRun.Wildcard"
       case SimpleConstF(x) => q"_root_.code.winitzki.jc.JoinRun.SimpleConst(${x.asInstanceOf[c.Tree]})"
       case SimpleVarF => q"_root_.code.winitzki.jc.JoinRun.SimpleVar"
-      case _ => q"_root_.code.winitzki.jc.JoinRun.OtherPattern"
+      case OtherPatternF(matcherTree) => q"_root_.code.winitzki.jc.JoinRun.OtherPattern(${matcherTree.asInstanceOf[c.Tree]})"
+      case _ => q"_root_.code.winitzki.jc.JoinRun.UnknownPattern"
     }
 
     def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error) = {
       if (molecules.nonEmpty)
         method(c.enclosingPosition, s"$what should $connector $patternWhat (${molecules.mkString(", ")})")
     }
-
-    // TODO: maybe gather separately the partial functions that match the pattern for each input molecule injector
 
     val caseDefs = ReactionCases.from(reactionBody.tree)
     // TODO: check other CaseDef's if any; check that all CaseDef's have the same input molecules.
@@ -254,6 +255,7 @@ object Macros {
       case ReplyVarF(x) => Some(x.asInstanceOf[c.universe.Ident].name)
       case _ => None
     })
+
     val blockingMoleculesWithoutReply = blockingReplies diff repliedMolecules
     val blockingMoleculesWithMultipleReply = repliedMolecules diff blockingReplies
     maybeError("blocking input molecules", "but no reply found for", blockingMoleculesWithoutReply, "receive a reply")
