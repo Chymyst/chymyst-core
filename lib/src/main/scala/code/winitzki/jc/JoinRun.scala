@@ -82,7 +82,8 @@ object JoinRun {
   case object Wildcard extends PatternType
   case object SimpleVar extends PatternType
   final case class SimpleConst(v: Any) extends PatternType
-  case object OtherPattern extends PatternType
+  case object UnknownPattern extends PatternType
+  final case class OtherPattern(matcher: PartialFunction[Any,Unit]) extends PatternType
 
   final case class InputMoleculeInfo(molecule: Molecule, flag: PatternType)
 
@@ -171,7 +172,7 @@ object JoinRun {
       if (duplicateMolecules.nonEmpty) throw new ExceptionInJoinRun(s"Nonlinear pattern: ${duplicateMolecules.mkString(", ")} used twice")
       moleculesInThisReaction.inputMolecules.toList
     }
-    ReactionInfo(inputMoleculesUsed.map(m => InputMoleculeInfo(m, OtherPattern)), Nil, UUID.randomUUID().toString)
+    ReactionInfo(inputMoleculesUsed.map(m => InputMoleculeInfo(m, UnknownPattern)), Nil, UUID.randomUUID().toString)
   }
 
   /** Create a reaction value out of a simple reaction body - no pattern-matching with molecule values except the last one.
@@ -429,11 +430,22 @@ object JoinRun {
     * @param joinPool The thread pool on which the join definition will decide reactions and manage the molecule bag.
     */
   private[JoinRun] final class JoinDefinition(val inputMolecules: Map[Reaction, Set[Molecule]],
-                                              var reactionPool: Pool, var joinPool: Pool) {
+                                              val reactionPool: Pool, val joinPool: Pool) {
 
+    // TODO: implement
     private val quiescenceCallbacks: mutable.Set[M[Unit]] = mutable.Set.empty
 
-    override def toString = s"Join{${inputMolecules.keys.mkString("; ")}}"
+    lazy val knownReactions: List[Reaction] = inputMolecules.keys.toList
+
+    private lazy val stringForm = s"Join{${knownReactions.map(_.toString).sorted.mkString("; ")}}"
+
+    override def toString = stringForm
+
+    /** The sha1 hash sum of the entire join definition, computed from sha1 of each reaction.
+      * The sha1 hash of each reaction is computed from the Scala syntax tree of the reaction's source code.
+      * The result is implementation-dependent and is guaranteed to be the same for join definitions compiled from exactly the same source code with the same version of Scala compiler.
+      */
+    private lazy val sha1 = getSha1(knownReactions.map(_.info.sha1).sorted.mkString(","))
 
     var logLevel = 0
 
@@ -633,5 +645,9 @@ object JoinRun {
     }
 
   }
+
+  private lazy val sha1Digest = java.security.MessageDigest.getInstance("SHA-1")
+
+  def getSha1(c: Any): String = sha1Digest.digest(c.toString.getBytes("UTF-8")).map("%02X".format(_)).mkString
 
 }

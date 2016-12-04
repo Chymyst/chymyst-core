@@ -165,7 +165,16 @@ Also, the reply action object should not be used outside the reaction body.
 (This will have no effect.)
 
 When a reaction is defined using the `run` macro, the compiler will detect some errors at compile time.
-For instance, it is a compile-time error to omit the 
+For instance, it is a compile-time error to omit the reply pseudo-molecule from the pattern:
+
+```scala
+val f = b[Int, Unit]
+
+// correct usage is case f(x, r) => ... r()
+
+// this is incorrect usage because "r" is not being matched:
+run { case f(x, _) => ... } // Error: blocking input molecules should not contain a pattern that matches on anything other than a simple variable
+```
 
 ## Join definitions
 
