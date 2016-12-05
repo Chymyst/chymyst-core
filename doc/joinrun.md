@@ -356,6 +356,7 @@ TODO
 
 These features are considered for implementation in the next versions:
 
+1. Perform static analysis of reactions, and warn the user about certain livelock and deadlock situations.
 1. Rework the decisions to start reactions so that the static analysis is used (inputs and outputs of reactions). In particular, do not lock the entire molecule bag - only lock some clusters that have contention on certain molecule inputs.
 1. Implement fairness with respect to molecules (random choice of input molecules for reactions). 
 1. Rework the decisions to start reactions so that many reactions can start at once.
