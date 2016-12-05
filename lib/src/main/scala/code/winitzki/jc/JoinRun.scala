@@ -17,8 +17,6 @@ TODO and roadmap:
 
  2 * 2 - should `run` take ReactionBody or simply UnapplyArg => Unit?
 
- 3 * 1 - make helper functions to create new single-thread pools using a given thread or a given executor/handler
-
  5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
 
  3 * 3 - "singleton" molecules that are always present at most once: detect them with macro, optimize their update, provide read-only volatile value
