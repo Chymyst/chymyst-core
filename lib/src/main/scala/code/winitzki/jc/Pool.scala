@@ -37,11 +37,14 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorSer
   val sleepTime = 200
 
   def shutdownNow() = new Thread {
-    execService.shutdown()
-    execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
-    execService.shutdownNow()
-    execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
-    execService.shutdownNow()
+    try{
+      execService.shutdown()
+      execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
+    } finally  {
+      execService.shutdownNow()
+      execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
+      execService.shutdownNow()
+    }
   }
 
   def runClosure(closure: => Unit, name: Option[String] = None): Unit =
@@ -60,4 +63,17 @@ private[jc] class PoolFutureExecutor(threads: Int = 8, execFactory: Int => Execu
 class NamedRunnable(closure: => Unit, name: Option[String] = None) extends Runnable {
   override def toString: String = name.getOrElse(super.toString)
   override def run(): Unit = closure
+}
+
+/** Create a pool from a Handler interface. The pool will submit tasks using a Handler.post() method.
+  *
+  * This is useful for Android and JavaFX environments.
+  */
+class HandlerPool(handler: { def post(r: Runnable): Unit }) extends Pool {
+  override def shutdownNow(): Unit = ()
+
+  override def runClosure(closure: => Unit, name: Option[String]): Unit =
+    handler.post(new NamedRunnable(closure, name))
+
+  override def isInactive: Boolean = false
 }

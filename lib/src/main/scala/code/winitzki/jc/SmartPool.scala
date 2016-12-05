@@ -66,11 +66,15 @@ class SmartPool(parallelism: Int) extends Pool {
     })
 
   override def shutdownNow(): Unit = new Thread {
-    executor.shutdown()
-    executor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
-    executor.shutdownNow()
-    executor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
-    executor.shutdownNow()
+    try {
+      executor.shutdown()
+      executor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
+    } finally {
+      executor.shutdownNow()
+      executor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
+      executor.shutdownNow()
+
+    }
   }
 
   override def runClosure(closure: => Unit, name: Option[String]): Unit =
