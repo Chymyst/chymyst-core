@@ -249,12 +249,13 @@ So, in principle all join definitions can perform their tasks fully concurrently
 
 In practice, there are situations where we need to force certain reactions to run on certain threads.
 For example, user interface (UI) programming frameworks typically allocate one thread for all UI-related operations, such as updating the screen and callbacks for interacting with the user.
+The Android SDK as well as JavaFX both adopt this approach to thread management.
 In these environments, it is a non-negotiable requirement to be able to control which threads are used by which tasks.
-All long-running tasks must run on non-UI threads, while all screen updates must run on the UI thread.
+All screen updates as well as all user events must be scheduled on the single UI thread, while all long-running tasks must be delegated to specially created non-UI or "background" threads.
 
 To facilitate this control, `JoinRun` implements the thread pool feature.
 
-Each join definition runs on two thread pools: a thread pool for running reactions (`reactionPool`) and a thread pool for injecting molecules and deciding new reactions (`joinPool`).
+Each join definition uses two thread pools: a thread pool for running reactions (`reactionPool`) and a thread pool for injecting molecules and deciding new reactions (`joinPool`).
 
 By default, these two thread pools are statically allocated and shared by all join definitions.
 
