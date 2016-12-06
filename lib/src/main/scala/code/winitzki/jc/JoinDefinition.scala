@@ -11,12 +11,12 @@ import scala.collection.mutable
   * and runs reactions.
   * The user will never see any instances of this class.
   *
-  * @param inputMolecules The molecules known to be inputs of the given reactions.
+  * @param reactionInfos Complete information about reactions declared in this join definition.
   * @param reactionPool The thread pool on which reactions will be scheduled.
   * @param joinPool The thread pool on which the join definition will decide reactions and manage the molecule bag.
   */
 private final case class JoinDefinition(
-  inputMolecules: Map[Reaction, Set[Molecule]],
+  reactionInfos: Map[Reaction, Map[Molecule, InputMoleculeInfo]],
   reactionPool: Pool,
   joinPool: Pool
 ) {
@@ -37,7 +37,7 @@ private final case class JoinDefinition(
   // TODO: implement
   private val quiescenceCallbacks: mutable.Set[M[Unit]] = mutable.Set.empty
 
-  lazy val knownReactions: List[Reaction] = inputMolecules.keys.toList
+  lazy val knownReactions: Seq[Reaction] = reactionInfos.keys.toSeq
 
   private lazy val stringForm = s"Join{${knownReactions.map(_.toString).sorted.mkString("; ")}}"
 
@@ -61,8 +61,8 @@ private final case class JoinDefinition(
     quiescenceCallbacks.add(callback)
   }
 
-  private lazy val possibleReactions: Map[Molecule, Seq[Reaction]] = inputMolecules.toSeq
-    .flatMap { case (r, ms) => ms.toSeq.map { m => (m, r) } }
+  private lazy val possibleReactions: Map[Molecule, Seq[Reaction]] = reactionInfos.toSeq
+    .flatMap { case (r, ms) => ms.keys.toSeq.map { m => (m, r) } }
     .groupBy { case (m, r) => m }
     .map { case (m, rs) => (m, rs.map(_._2)) }
 
@@ -85,6 +85,7 @@ private final case class JoinDefinition(
       case (m, jmv) => s"$m($jmv)"
     }.mkString(", ")
 
+  // TODO this is not used now - remove
   private def moleculeBagToString(mb: MutableLinearMoleculeBag): String =
     mb.map {
       case (m, jmv) => s"$m($jmv)"
@@ -118,7 +119,7 @@ private final case class JoinDefinition(
               s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
           )
           // A basic check that we are using our mutable structures safely. We should never see this error.
-          if (!r.inputMoleculesUsed.equals(usedInputs.keys.toSet)) {
+          if (!r.inputMoleculesMap.keySet.equals(usedInputs.keySet)) {
             val message = s"Internal error: In $this: attempt to start reaction {$r} with incorrect inputs ${moleculeBagToString(usedInputs)}"
             println(message)
             throw new ExceptionWrongInputs(message)

@@ -11,6 +11,8 @@ and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 TODO and roadmap:
   value * difficulty - description
 
+ 2 * 2 - cleanup packaging so that the user only imports one package object. Make sure the user needs to depend only on one JAR, too.
+
  2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
 
  2 * 2 - maybe remove default pools altogether?
@@ -113,7 +115,7 @@ object JoinRun {
     * @param retry Whether the reaction should be run again when an exception occurs in its body. Default is false.
     */
   final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Option[Pool] = None, retry: Boolean = false) {
-    lazy val inputMoleculesUsed: Set[Molecule] = info.inputs.map { case InputMoleculeInfo(m, f) => m }.toSet
+    lazy val inputMoleculesMap: Map[Molecule, InputMoleculeInfo] = info.inputs.map { case info@InputMoleculeInfo(m, _) => (m,info) }.toMap
 
     /** Convenience method to specify thread pools per reaction.
       *
@@ -141,7 +143,7 @@ object JoinRun {
       *
       * @return String representation of input molecules of the reaction.
       */
-    override def toString = s"${inputMoleculesUsed.toSeq.map(_.toString).sorted.mkString(" + ")} => ...${if (retry)
+    override def toString = s"${inputMoleculesMap.keys.toSeq.map(_.toString).sorted.mkString(" + ")} => ...${if (retry)
       "/R" else ""}"
   }
 
@@ -395,13 +397,14 @@ object JoinRun {
     */
   def join(reactionPool: Pool, joinPool: Pool)(rs: Reaction*): Unit = {
 
-    val knownMolecules : Map[Reaction, Set[Molecule]] = rs.map { r => (r, r.inputMoleculesUsed) }.toMap
+    val reactionInfos: Map[Reaction, Map[Molecule, InputMoleculeInfo]] = rs.map { r => (r, r.inputMoleculesMap) }.toMap
+    val inputMolecules: Set[Molecule] = rs.flatMap { r => r.inputMoleculesMap.keySet }.toSet
 
     // create a join definition object holding the given reactions and inputs
-    val join = new JoinDefinition(knownMolecules, reactionPool, joinPool)
+    val join = new JoinDefinition(reactionInfos, reactionPool, joinPool)
 
     // set the owner on all input molecules in this join definition
-    knownMolecules.values.toSet.flatten.foreach { m =>
+    inputMolecules.foreach { m =>
       m.joinDef match {
         case Some(owner) => throw new Exception(s"Molecule $m cannot be used as input since it was already used in $owner")
         case None => m.joinDef = Some(join)
