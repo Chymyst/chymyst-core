@@ -340,7 +340,8 @@ Therefore, it may be advisable not to use exceptions within reactions.
 
 # Limitations in the current version of `JoinRun`
 
-TODO
+- only linear input patterns are supported (no `a(x) + a(y) + a(z) => ...`)
+- when a thread pool's queue is full, new reactions cannot be run, - this situation is not processed well
 
 # Version history
 

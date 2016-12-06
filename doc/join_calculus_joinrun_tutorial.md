@@ -1,4 +1,4 @@
-# Using `JoinRun` for concurrent programming
+# Concurrency in Reactions: Using Join Calculus in Scala
 
 `JoinRun` is a library for functional concurrent programming.
 It follows the paradigm of [Join Calculus](https://en.wikipedia.org/wiki/Join-calculus) and is implemented as an embedded DSL (domain-specific language) in Scala.
@@ -8,8 +8,8 @@ The source code repository for `JoinRun` is at [https://github.com/winitzki/join
 The goal of this tutorial is to explain the Join Calculus paradigm and to show examples of implementing concurrent programs in `JoinRun`.  
 To understand this tutorial, the reader should have some familiarity with the `Scala` programming language.
 
-Although this tutorial focuses on using `JoinRun` in Scala, one can easily embed the core Join Calculus as a library on top of any programming language.
-The main concepts and techniques of Join Calculus programming paradigm are independent of the base programming language.
+Although this tutorial focuses on using `JoinRun` in Scala, one can easily embed Join Calculus as a library on top of any programming language.
+The main concepts and techniques of the Join Calculus paradigm are independent of the base programming language.
 
 # The chemical machine
 
@@ -932,7 +932,7 @@ The complete working example of concurrent merge-sort is in the file [MergesortS
 
 While designing the “abstract chemistry” for our application, we need to keep in mind certain limitations of Join Calculus.
 
-First, we cannot detect the _absence_ of a given non-blocking molecule, say `a(1)`, in the soup.
+1. We cannot detect the _absence_ of a given non-blocking molecule, say `a(1)`, in the soup.
 This seems to be a genuine limitation of join calculus.
 
 It seems that this limitation cannot be lifted by any clever combinations of blocking and non-blocking molecules; perhaps this can be even proved formally, but I haven't tried learning the formal tools for that.
@@ -945,13 +945,13 @@ All we can do is to detect whether the function call has returned within a given
 
 Suppose we define a reaction using the molecule `a`, say `a() => ...`.
 Even if we somehow establish that this reaction did not start within a certain time period, we cannot conclude that `a` is absent in the soup at that time!
-It could happen that `a()` was present but got involved in some other reactions and was consumed by them, or that `a()` was present but the computer's CPU was simply so busy that our reaction could not yet start and is still waiting in the queue.
+It could happen that `a()` was present but got involved in some other reactions and was consumed by them, or that `a()` was present but the computer's CPU was simply so busy that our reaction could not yet start and is still waiting in a queue.
 
 Another feature would be to introduce “inhibiting” conditions on reactions: a certain reaction can start when molecules `a` and `b` are present but no molecule `c` is present.
 However, it is not clear that this extension of the Join Calculus would be useful.
 The solution based on a “timeout” appears to be sufficient in practice.
 
-The second limitation is that “chemical soups” running as different processes (either on the same computer or on different computers) are completely separate and cannot be “pooled”.
+2. “Chemical soups” running as different processes (either on the same computer or on different computers) are completely separate and cannot be “pooled”.
 
 What we would like to do is to connect many chemical machines together, running perhaps on different computers, and to pool their individual “soups” into one large “common soup”.
 Our program should then be able to inject lots of molecules into the common pool and thus organize a massively parallel, distributed computation, without worrying about which CPU computes what reaction.
