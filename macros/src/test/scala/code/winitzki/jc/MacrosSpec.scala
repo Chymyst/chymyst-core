@@ -327,13 +327,16 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     "val r = & { case a((_,x)) => a((x,x)) }" should compile // cannot detect unconditional livelock here
     "val r = & { case a((1,_)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
 
+    "val r = & { case bb(x) => bb(1) }" shouldNot compile // unconditional livelock
+    "val r = & { case bb(x) if x > 0 => bb(1) }" should compile // no unconditional livelock due to guard
+
     "val r = & { case a(_) => a((1,1)) }" shouldNot compile // unconditional livelock
 
     "val r = & { case bbb(1) => bbb(2) }" should compile // no unconditional livelock
+
     "val r = & { case bbb(_) => bbb(0) }" shouldNot compile // unconditional livelock
     "val r = & { case bbb(x) => bbb(x) + bb(x) }" shouldNot compile
     "val r = & { case bbb(x) + bb(y) => bbb(x) + bb(x) + bb(y) }" shouldNot compile
-
   }
 
   it should "detect output molecules with constant values" in {

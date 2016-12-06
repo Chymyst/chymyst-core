@@ -8,7 +8,7 @@ The source code repository for `JoinRun` is at [https://github.com/winitzki/join
 The goal of this tutorial is to explain the Join Calculus paradigm and to show examples of implementing concurrent programs in `JoinRun`.  
 To understand this tutorial, the reader should have some familiarity with the `Scala` programming language.
 
-Although this tutorial focuses on using `JoinRun` in Scala, one can easily embed Join Calculus as a library on top of any programming language.
+Although this tutorial focuses on using `JoinRun` in Scala, one can similarly embed Join Calculus as a library on top of any programming language.
 The main concepts and techniques of the Join Calculus paradigm are independent of the base programming language.
 
 # The chemical machine
