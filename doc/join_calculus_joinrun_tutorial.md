@@ -928,7 +928,7 @@ mergesort((array, finalResult))
 The complete working example of concurrent merge-sort is in the file [MergesortSpec.scala](https://github.com/winitzki/joinrun-scala/blob/master/benchmark/src/test/scala/code/winitzki/benchmark/MergesortSpec.scala).
 
 
-# Limitations of Join Calculus 
+# Limitations of Join Calculus (and how to overcome them)
 
 While designing the “abstract chemistry” for our application, we need to keep in mind certain limitations of Join Calculus.
 
@@ -960,6 +960,73 @@ The organization and supervision of distributed computations, the maintenance of
 
 In principle, a sufficiently sophisticated runtime engine could organize a distributed Join Calculus computation completely transparently to the programmer.
 It remains to be seen whether it is feasible and/or useful to implement such a runtime engine.
+
+3. Reactions are immutable: it is impossible to add more reactions at run time to an existing join definition.
+(This limitation is enforced in `JoinRun` by making join definitions immutable and invisible to the user.)
+
+Once a join definition declares a certain molecule as an input molecule for some reactions, it is impossible to add further reactions that consume this molecule.
+
+However, `JoinRun` gives users a different mechanism for writing a join definition with reactions computed at run time.
+Since reactions are local values (as are molecule injectors), users can first create any number of reactions and store these reactions in an array, before writing a join definition with these reactions.
+Once all desired reactions have been assembled, users can write a join definition that uses all the reactions from the array.
+
+As an (artificial) example, consider the following pattern of reactions:
+
+```scala
+val finished = m[Unit]
+val a = m[Int]
+val b = m[Int]
+val c = m[Int]
+val d = m[Int]
+
+join(
+run { case a(x) => b(x+1) },
+run { case b(x) => c(x+1) },
+run { case c(x) => d(x+1) },
+run { case d(x) => if (x>100) finished() else a(x+1) }
+)
+
+a(10)
+```
+
+When this is run, the reactions will cycle through the four molecules `a`, `b`, `c`, `d` while incrementing the value each time, until the value 100 is reached.
+
+Now, suppose we need to write a join definition where we have `n` molecules and `n` reactions, instead of just four.
+Suppose that `n` is a runtime parameter.
+Since reactions and molecule injectors are local values, we can simply create them and store in a data structure:
+
+
+```scala
+val finished = m[Unit]
+val n = 100 // `n` is computed at run time
+
+// array of molecule injectors:
+val injectors = (0 until n).map( i => new M[Int](s"a_$i"))
+// this is equivalent to declaring:
+// val injectors = Seq(
+//    new M[Int]("a_0"),
+//    new M[Int]("a_1"),
+//    new M[Int]("a_2"),
+//    ...
+// )
+
+// array of reactions:
+val reactions = (0 until n).map{ i =>
+  // create the i-th reaction with index
+  val iNext = if (i == n-1) 0 else i+1
+  val a = injectors(i) // We must define molecule injectors `a`
+  val aNext = injectors(iNext) // and `aNext` as explicit local values,
+  run { case a(x) => // because `case injectors(i)(x)` won't compile.
+    if (i == n-1 && x > 100) finished() else aNext(x+1)
+  }
+}
+
+// write the join definition
+join(reactions:_*)
+
+// inject the first molecule
+injectors(0)(10)
+```
 
 
 # Some useful concurrency patterns
@@ -1054,15 +1121,59 @@ There are several tricks we can use:
 - define new reactions by a closure that takes arguments and returns new molecule injectors
 - define molecules whose values contain other molecule injectors, and use them in reactions
 - define molecules whose values are functions that manipulate other molecule injectors
-- incrementally define new molecules and new reactions, store them in data structures, and assemble a final join definition later
+- incrementally define new molecules and new reactions, store them in data structures, and assemble a final join definition later (see the example above in the section about limitations of Join Calculus)
 
-### Packaging a reaction in a closure
+### Packaging a reaction in a function with parameters
 
-TODO
+Since molecule injectors are local values that close over their join definitions, we can easily define a general “1-molecule reaction constructor” that creates an arbitrary reaction with a single input molecule.
+
+```scala
+def makeReaction[T](reaction: (M[T],T) => Unit): M[T] = {
+  val a = new M[T]("auto molecule 1") // the name is just for debugging
+  join( run { case a(x) => reaction(a, x) } )
+  a
+}
+```
+
+Since `reaction` is an arbitrary function, it can inject further molecules if needed.
+In this way, we implemented a “reaction constructor” that can create an arbitrary reaction involving one input molecule.
+
+Similarly, we could create reaction constructors for more input molecules:
+
+```scala
+def makeReaction2[T1,T2](reaction: (M[T1],T1,M[T2],T2) => Unit): (M[T1],M[T2]) = {
+  val a1 = new M[T1]("auto molecule 1")
+  val a2 = new M[T1]("auto molecule 2")
+  join( run { case a1(x1) + a2(x2) => reaction(a1, x1, a2, x2) } )
+  (a1,a2)
+}
+```
 
 ### Packaging a reaction in a molecule
 
-TODO
+In the previous example, we have encapsulated the information about a reaction into a closure.
+Since molecules can carry values of arbitrary types, we could put that closure onto a molecule.
+In effect, the result is a “universal molecule” that can define its own reaction.
+(However, the reaction can have only one molecule as input.)
+
+```scala
+val u = new M[Unit => Unit)]("universal molecule")
+join( run { case u(reaction) => reaction() } )
+```
+
+To use this “universal molecule”, we need to supply a reaction body and put it into the molecule while injecting.
+In this way, we can inject the molecule with different reactions.
+
+```scala
+val p = m[Int]
+val q = m[Int]
+// make a reaction u(x) => p(123)+q(234) and inject u
+u({ _ => p(123) + q(234) })
+// make a reaction u(x) => p(0) and inject u
+u({ _ => p(0) })
+```
+
+This example is artificial and not very useful; it just illustrates some of the possibilities that Join Calculus offers.
 
 ## Working with an external asynchronous APIs
 

@@ -9,7 +9,7 @@ import org.scalatest.{FlatSpec, Matchers}
   *
   * This test suite is run last, after all other tests, and hopefully will be able to shutdown the test suites in CI.
   */
-class ZZZShutdownSpec extends FlatSpec with Matchers {
+class ShutdownSpec extends FlatSpec with Matchers {
 
   it should "fail to schedule reactions after shutdown of custom join pool" in {
 
@@ -54,5 +54,4 @@ class ZZZShutdownSpec extends FlatSpec with Matchers {
     }
     thrown.getMessage shouldEqual "In Join{x => ...}: Cannot inject molecule x since join pool is not active"
   }
-
 }
