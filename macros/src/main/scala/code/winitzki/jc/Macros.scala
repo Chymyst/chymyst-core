@@ -5,6 +5,7 @@ import scala.language.experimental.macros
 import scala.reflect.macros._
 import scala.reflect.NameTransformer.LOCAL_SUFFIX_STRING
 import JoinRun._
+import JoinRunUtils._
 
 import scala.annotation.tailrec
 
