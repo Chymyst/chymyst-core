@@ -115,7 +115,6 @@ object JoinRun {
     * @param retry Whether the reaction should be run again when an exception occurs in its body. Default is false.
     */
   final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Option[Pool] = None, retry: Boolean = false) {
-    lazy val inputMoleculesMap: Map[Molecule, InputMoleculeInfo] = info.inputs.map { case info@InputMoleculeInfo(m, _) => (m,info) }.toMap
 
     /** Convenience method to specify thread pools per reaction.
       *
@@ -143,7 +142,7 @@ object JoinRun {
       *
       * @return String representation of input molecules of the reaction.
       */
-    override def toString = s"${inputMoleculesMap.keys.toSeq.map(_.toString).sorted.mkString(" + ")} => ...${if (retry)
+    override def toString = s"${info.inputs.map(_.molecule).map(_.toString).sorted.mkString(" + ")} => ...${if (retry)
       "/R" else ""}"
   }
 
@@ -397,8 +396,8 @@ object JoinRun {
     */
   def join(reactionPool: Pool, joinPool: Pool)(rs: Reaction*): Unit = {
 
-    val reactionInfos: Map[Reaction, Map[Molecule, InputMoleculeInfo]] = rs.map { r => (r, r.inputMoleculesMap) }.toMap
-    val inputMolecules: Set[Molecule] = rs.flatMap { r => r.inputMoleculesMap.keySet }.toSet
+    val reactionInfos: Map[Reaction, Seq[InputMoleculeInfo]] = rs.map { r => (r, r.info.inputs) }.toMap
+    val inputMolecules: Set[Molecule] = rs.flatMap { r => r.info.inputs.map(_.molecule).toSet }.toSet
 
     // create a join definition object holding the given reactions and inputs
     val join = new JoinDefinition(reactionInfos, reactionPool, joinPool)

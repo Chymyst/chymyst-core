@@ -16,7 +16,7 @@ import scala.collection.mutable
   * @param joinPool The thread pool on which the join definition will decide reactions and manage the molecule bag.
   */
 private final case class JoinDefinition(
-  reactionInfos: Map[Reaction, Map[Molecule, InputMoleculeInfo]],
+  reactionInfos: Map[Reaction, Seq[InputMoleculeInfo]],
   reactionPool: Pool,
   joinPool: Pool
 ) {
@@ -62,7 +62,7 @@ private final case class JoinDefinition(
   }
 
   private lazy val possibleReactions: Map[Molecule, Seq[Reaction]] = reactionInfos.toSeq
-    .flatMap { case (r, ms) => ms.keys.toSeq.map { m => (m, r) } }
+    .flatMap { case (r, ms) => ms.map { info => (info.molecule, r) } }
     .groupBy { case (m, r) => m }
     .map { case (m, rs) => (m, rs.map(_._2)) }
 
@@ -119,7 +119,7 @@ private final case class JoinDefinition(
               s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
           )
           // A basic check that we are using our mutable structures safely. We should never see this error.
-          if (!r.inputMoleculesMap.keySet.equals(usedInputs.keySet)) {
+          if (!r.info.inputs.map(_.molecule).toSet.equals(usedInputs.keySet)) {
             val message = s"Internal error: In $this: attempt to start reaction {$r} with incorrect inputs ${moleculeBagToString(usedInputs)}"
             println(message)
             throw new ExceptionWrongInputs(message)
