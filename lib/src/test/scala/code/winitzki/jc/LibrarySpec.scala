@@ -25,12 +25,12 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val c = new M[Unit]("c")
 
-    val tp = new FixedPool(2)
+    val tp = new FixedPool(4)
     join(tp,tp)(
       runSimple { case c(_) => waiter.dismiss() }
     )
 
-    Future { Thread.sleep(50) } & c    // insert a molecule from the end of the future
+    Future { Thread.sleep(20) } & c    // insert a molecule from the end of the future
 
     waiter.await() // Waiter default is 150ms
     tp.shutdownNow()
