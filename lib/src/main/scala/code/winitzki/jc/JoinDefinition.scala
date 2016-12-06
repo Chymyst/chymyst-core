@@ -261,7 +261,7 @@ private final case class JoinDefinition(
       }.mkString("; ")
       throw new Exception(s"In $this: unavoidable indeterminism: $errorList")
     }
-    
+
 
   }
 

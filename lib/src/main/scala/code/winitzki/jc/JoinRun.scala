@@ -414,7 +414,7 @@ object JoinRun {
     // set the owner on all input molecules in this join definition
     rs.flatMap { r => r.inputMolecules }
       .toSet // We only need to set the owner once on each distinct input molecule.
-      .foreach { m =>
+      .foreach { m: Molecule =>
         m.joinDef match {
           case Some(owner) => throw new Exception(s"Molecule $m cannot be used as input since it was already used in $owner")
           case None => m.joinDef = Some(join)
