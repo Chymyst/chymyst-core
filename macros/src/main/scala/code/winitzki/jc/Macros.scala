@@ -73,7 +73,7 @@ object Macros {
   private case object SimpleVarF extends PatternFlag
   private case object WrongReplyVarF extends PatternFlag // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
   private final case class SimpleConstF(v: Any) extends PatternFlag // this is the [T] type of M[T] or B[T,R]
-  private final case class OtherPatternF(matcher: Any) extends PatternFlag // "Any" is actually an expression tree for a partial function
+  private final case class OtherPatternF(matcher: Any, patternSha: String) extends PatternFlag // "Any" is actually an expression tree for a partial function
 
   private sealed trait OutputPatternFlag
   private case object OtherOutputPatternF extends OutputPatternFlag
@@ -174,7 +174,7 @@ object Macros {
         case Literal(_) => SimpleConstF(binderTerm)
         case _ =>
           val partialFunctionTree: c.Tree = q"{ case $binderTerm => }"
-          OtherPatternF(partialFunctionTree)
+          OtherPatternF(partialFunctionTree, getSha1(binderTerm))
       }
 
       private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag = binderTerms match {
@@ -228,7 +228,7 @@ object Macros {
       case WildcardF => q"_root_.code.winitzki.jc.JoinRun.Wildcard"
       case SimpleConstF(x) => q"_root_.code.winitzki.jc.JoinRun.SimpleConst(${x.asInstanceOf[c.Tree]})"
       case SimpleVarF => q"_root_.code.winitzki.jc.JoinRun.SimpleVar"
-      case OtherPatternF(matcherTree) => q"_root_.code.winitzki.jc.JoinRun.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]})"
+      case OtherPatternF(matcherTree, patternSha) => q"_root_.code.winitzki.jc.JoinRun.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]}, $patternSha)"
       case _ => q"_root_.code.winitzki.jc.JoinRun.UnknownInputPattern"
     }
 
