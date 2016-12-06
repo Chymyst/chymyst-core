@@ -43,10 +43,11 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
   it should "detect no shadowing of reactions with nontrivial matchers" in {
     val a = m[Int]
     val b = m[Unit]
-    join(
+    val result = join(
       & { case a(1) => },
       & { case a(_) + b(_) => }
-    ) shouldEqual ()
+    )
+    result shouldEqual ()
   }
 
 }
