@@ -37,7 +37,7 @@ private final case class JoinDefinition(
   // TODO: implement
   private val quiescenceCallbacks: mutable.Set[M[Unit]] = mutable.Set.empty
 
-  lazy val knownReactions: Seq[Reaction] = reactionInfos.keys.toSeq
+  private lazy val knownReactions: Seq[Reaction] = reactionInfos.keys.toSeq
 
   private lazy val stringForm = s"Join{${knownReactions.map(_.toString).sorted.mkString("; ")}}"
 
@@ -49,15 +49,15 @@ private final case class JoinDefinition(
     */
   private lazy val sha1 = getSha1(knownReactions.map(_.info.sha1).sorted.mkString(","))
 
-  var logLevel = 0
+  private[jc] var logLevel = 0
 
-  def printBag: String = {
+  private[jc] def printBag: String = {
     val moleculesPrettyPrinted = if (moleculesPresent.size > 0) s"Molecules: ${moleculeBagToString(moleculesPresent)}" else "No molecules"
 
     s"${this.toString}\n$moleculesPrettyPrinted"
   }
 
-  def setQuiescenceCallback(callback: M[Unit]): Unit = {
+  private[jc] def setQuiescenceCallback(callback: M[Unit]): Unit = {
     quiescenceCallbacks.add(callback)
   }
 
@@ -86,7 +86,7 @@ private final case class JoinDefinition(
     }.mkString(", ")
 
   // Adding a molecule may trigger at most one reaction.
-  def inject[T](m: Molecule, jmv: AbsMolValue[T]): Unit = {
+  private[jc] def inject[T](m: Molecule, jmv: AbsMolValue[T]): Unit = {
     if (joinPool.isInactive) throw new ExceptionNoJoinPool(s"In $this: Cannot inject molecule $m since join pool is not active")
     else if (!Thread.currentThread().isInterrupted) joinPool.runClosure ({
       val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
@@ -198,7 +198,7 @@ private final case class JoinDefinition(
 
   // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
   // We must make this a blocking call, so we acquire a semaphore (with timeout).
-  def injectAndReply[T,R](m: B[T,R], v: T, valueWithResult: ReplyValue[R]): R = {
+  private[jc] def injectAndReply[T,R](m: B[T,R], v: T, valueWithResult: ReplyValue[R]): R = {
     inject(m, BlockingMolValue(v, valueWithResult))
     //      try  // not sure we need this.
     BlockingIdle {
@@ -219,7 +219,7 @@ private final case class JoinDefinition(
     }
   }
 
-  def injectAndReplyWithTimeout[T,R](timeout: Long, m: B[T,R], v: T, valueWithResult: ReplyValue[R]):
+  private[jc] def injectAndReplyWithTimeout[T,R](timeout: Long, m: B[T,R], v: T, valueWithResult: ReplyValue[R]):
   Option[R] = {
     inject(m, BlockingMolValue(v, valueWithResult))
     //      try  // not sure we need this.
@@ -241,10 +241,8 @@ private final case class JoinDefinition(
     }
   }
 
-  def performStaticChecking(): Unit = {
-    // TODO Livelock warnings
-
-    // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
+  // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
+  private def checkReactionShadowing: Option[String] = {
     val suspiciousReactions = for {
       r1 <- reactionInfos.keys
       r2 <- reactionInfos.keys
@@ -258,10 +256,17 @@ private final case class JoinDefinition(
     if (suspiciousReactions.nonEmpty) {
       val errorList = suspiciousReactions.map{ case (r1, r2) =>
         s"reaction $r2 is shadowed by $r1"
-      }.mkString("; ")
-      throw new Exception(s"In $this: unavoidable indeterminism: $errorList")
-    }
+      }.mkString(", ")
+      Some(s"Unavoidable indeterminism: $errorList")
+    } else None
+  }
 
+  private[jc] def performStaticChecking(): Unit = {
+    // TODO Livelock warnings
+
+    val foundErrors = Seq(checkReactionShadowing).flatten
+
+    if (foundErrors.nonEmpty) throw new Exception(s"In $this: ${foundErrors.mkString("; ")}")
 
   }
 
