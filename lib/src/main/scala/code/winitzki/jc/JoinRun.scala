@@ -142,8 +142,11 @@ object JoinRun {
       *
       * @return String representation of input molecules of the reaction.
       */
-    override def toString = s"${info.inputs.map(_.molecule).map(_.toString).sorted.mkString(" + ")} => ...${if (retry)
+    override def toString = s"${inputMolecules.map(_.toString).sorted.mkString(" + ")} => ...${if (retry)
       "/R" else ""}"
+
+    // Optimization: this is used often.
+    val inputMolecules: Seq[Molecule] = info.inputs.map(_.molecule)
   }
 
   // Wait until the join definition to which `molecule` is bound becomes quiescent, then inject `callback`.
@@ -397,7 +400,7 @@ object JoinRun {
   def join(reactionPool: Pool, joinPool: Pool)(rs: Reaction*): Unit = {
 
     val reactionInfos: Map[Reaction, Seq[InputMoleculeInfo]] = rs.map { r => (r, r.info.inputs) }.toMap
-    val inputMolecules: Set[Molecule] = rs.flatMap { r => r.info.inputs.map(_.molecule).toSet }.toSet
+    val inputMolecules: Set[Molecule] = rs.flatMap { r => r.inputMolecules.toSet }.toSet
 
     // create a join definition object holding the given reactions and inputs
     val join = new JoinDefinition(reactionInfos, reactionPool, joinPool)
