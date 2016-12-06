@@ -85,12 +85,6 @@ private final case class JoinDefinition(
       case (m, jmv) => s"$m($jmv)"
     }.mkString(", ")
 
-  // TODO this is not used now - remove
-  private def moleculeBagToString(mb: MutableLinearMoleculeBag): String =
-    mb.map {
-      case (m, jmv) => s"$m($jmv)"
-    }.mkString(", ")
-
   // Adding a molecule may trigger at most one reaction.
   def inject[T](m: Molecule, jmv: AbsMolValue[T]): Unit = {
     if (joinPool.isInactive) throw new ExceptionNoJoinPool(s"In $this: Cannot inject molecule $m since join pool is not active")
@@ -119,7 +113,7 @@ private final case class JoinDefinition(
               s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
           )
           // A basic check that we are using our mutable structures safely. We should never see this error.
-          if (!r.info.inputs.map(_.molecule).toSet.equals(usedInputs.keySet)) {
+          if (!r.inputMolecules.toSet.equals(usedInputs.keySet)) {
             val message = s"Internal error: In $this: attempt to start reaction {$r} with incorrect inputs ${moleculeBagToString(usedInputs)}"
             println(message)
             throw new ExceptionWrongInputs(message)
