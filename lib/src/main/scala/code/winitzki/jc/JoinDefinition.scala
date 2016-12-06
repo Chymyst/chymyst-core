@@ -241,5 +241,9 @@ private final case class JoinDefinition(
     }
   }
 
+  def performStaticChecking(): Unit = {
+    // TODO Livelock warnings
+  }
+
 }
 
