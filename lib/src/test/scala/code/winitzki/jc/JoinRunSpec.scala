@@ -240,7 +240,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
   }
 
   it should "use two threads for concurrent computations" in {
-    val c = new M[Int]("counter")
+    val c = new M[Unit]("counter")
     val d = new M[Unit]("decrement")
     val f = new M[Unit]("finished")
     val a = new M[Int]("all_finished")
@@ -249,12 +249,12 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     val tp = new FixedPool(2)
 
     join(tp0,tp0)(
-      runSimple { case c(x) + d(_) => Thread.sleep(100); c(x-1) + f() } onThreads tp,
+      runSimple { case c(_) + d(_) => Thread.sleep(200); f() } onThreads tp,
       runSimple { case a(x) + g(_, r) => r(x) },
       runSimple { case f(_) + a(x) => a(x+1) }
     )
-    a(0) + c(1) + c(1) + d() + d()
-    Thread.sleep(150) // This is less than 200ms, and the test fails unless we use 2 threads concurrently.
+    a(0) + c() + c() + d() + d()
+    Thread.sleep(300) // This is less than 2*200ms, and the test fails unless we use 2 threads concurrently.
     g() shouldEqual 2
 
     tp.shutdownNow()
