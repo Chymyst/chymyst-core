@@ -243,6 +243,26 @@ private final case class JoinDefinition(
 
   def performStaticChecking(): Unit = {
     // TODO Livelock warnings
+
+    // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
+    val suspiciousReactions = for {
+      r1 <- reactionInfos.keys
+      r2 <- reactionInfos.keys
+      if r1 != r2
+      if (r1.inputMolecules diff r2.inputMolecules).isEmpty
+      if r1.info.inputs.forall{ case InputMoleculeInfo(m, f) => f.isUnconditional }
+    } yield {
+      (r1, r2)
+    }
+
+    if (suspiciousReactions.nonEmpty) {
+      val errorList = suspiciousReactions.map{ case (r1, r2) =>
+        s"reaction $r2 is shadowed by $r1"
+      }.mkString("; ")
+      throw new Exception(s"In $this: unavoidable indeterminism: $errorList")
+    }
+    
+
   }
 
 }
