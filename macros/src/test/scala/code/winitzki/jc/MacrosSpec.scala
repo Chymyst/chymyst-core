@@ -44,7 +44,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
         q(0)
       }
     reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar))
-    reaction.info.outputs shouldEqual List()
+    reaction.info.outputs shouldEqual Some(List())
   }
 
   it should "inspect reaction body with embedded join" in {
@@ -90,7 +90,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val result = & { case a(x) => qq() }
 
     result.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar))
-    result.info.outputs shouldEqual List(qq)
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, ConstOutputValue(()))))
+    result.info.hasGuard == GuardAbsent
     result.info.sha1 shouldEqual "D28AED0C1674FFB41F65B825902D334B2DC9E11E"
   }
 
@@ -113,7 +114,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     }
 
     result.info.inputs shouldEqual List(InputMoleculeInfo(a, Wildcard), InputMoleculeInfo(a, SimpleVar), InputMoleculeInfo(a, SimpleConst(1)))
-    result.info.outputs shouldEqual List(a, a, qqq)
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a,OtherOutputPattern), OutputMoleculeInfo(a,OtherOutputPattern), OutputMoleculeInfo(qqq,ConstOutputValue(""))))
+    result.info.hasGuard == GuardAbsent
   }
 
   it should "inspect reaction body with embedded reaction" in {
@@ -125,7 +127,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val result = & { case a(x) => & { case qq(_) => a(0) }; qq() }
 
     result.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar))
-    result.info.outputs shouldEqual List(qq)
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq,ConstOutputValue(()))))
+    result.info.hasGuard == GuardAbsent
   }
 
   it should "inspect a very complicated reaction body" in {
@@ -148,15 +151,16 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       InputMoleculeInfo(`c`, SimpleConst(())),
       InputMoleculeInfo(`c`, Wildcard),
       InputMoleculeInfo(`bb`, Wildcard),
-      InputMoleculeInfo(`bb`, OtherPattern(_)),
-      InputMoleculeInfo(`bb`, OtherPattern(_)),
-      InputMoleculeInfo(`bb`, OtherPattern(_)),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_)),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_)),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_)),
       InputMoleculeInfo(`s`, Wildcard)
       ) => true
       case _ => false
     }) shouldEqual true
 
-    result.info.outputs shouldEqual List(s, a, qq)
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(s,ConstOutputValue(())), OutputMoleculeInfo(a,OtherOutputPattern), OutputMoleculeInfo(qq,ConstOutputValue(()))))
+    result.info.hasGuard shouldEqual GuardPresent
   }
 
   it should "inspect reaction body with two cases" in {
@@ -275,14 +279,15 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
     (r.info.inputs match {
       case List(
-      InputMoleculeInfo(`a`, OtherPattern(_)),
+      InputMoleculeInfo(`a`, OtherInputPattern(_)),
       InputMoleculeInfo(`b`, SimpleConst("xyz")),
       InputMoleculeInfo(`d`, SimpleConst(())),
-      InputMoleculeInfo(`c`, OtherPattern(_))
+      InputMoleculeInfo(`c`, OtherInputPattern(_))
       ) => true
       case _ => false
     }) shouldEqual true
-    r.info.outputs shouldEqual List(a)
+    r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a,OtherOutputPattern)))
+    r.info.hasGuard shouldEqual GuardAbsent
 
     // Note: Scala 2.11 and Scala 2.12 have different syntax trees for the same reaction in this case!
     val shaScala211 = "3A03F935B238FBC427CCEC83D25D69820AB5CDBE"
@@ -294,13 +299,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val a = b[Unit, Unit]
     val c = b[Unit, Unit]
 
-    "& { case a() => }" shouldNot compile // no pattern variable for reply in "a"
-    "& { case a(_) => }" shouldNot compile // no pattern variable for reply in "a"
-    "& { case a(_, _) => }" shouldNot compile // no pattern variable for reply in "a"
-    "& { case a(_, _, _) => }" shouldNot compile // no pattern variable for reply in "a"
-    "& { case a(_, r) => }" shouldNot compile // no reply is performed with r
-    "& { case a(_, r) + a(_) + c(_) => r()  }" shouldNot compile // invalid patterns for "a" and "c"
-    "& { case a(_, r) + a(_) + c(_) => r() + r() }" shouldNot compile // two replies are performed with r, and invalid patterns for "a" and "c"
+    "val r = & { case a() => }" shouldNot compile // no pattern variable for reply in "a"
+    "val r = & { case a(_) => }" shouldNot compile // no pattern variable for reply in "a"
+    "val r = & { case a(_, _) => }" shouldNot compile // no pattern variable for reply in "a"
+    "val r = & { case a(_, _, _) => }" shouldNot compile // no pattern variable for reply in "a"
+    "val r = & { case a(_, r) => }" shouldNot compile // no reply is performed with r
+    "val r = & { case a(_, r) + a(_) + c(_) => r()  }" shouldNot compile // invalid patterns for "a" and "c"
+    "val r = & { case a(_, r) + a(_) + c(_) => r() + r() }" shouldNot compile // two replies are performed with r, and invalid patterns for "a" and "c"
 
   }
 
@@ -308,9 +313,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val bb = m[Int]
     val bbb = m[Int]
 
-    "& { case _ => bb(0) }" shouldNot compile // empty list of input molecules
-    "& { case x => bb(x.asInstanceOf[Int]) }" shouldNot compile
-    "& { case x => x }" shouldNot compile
+    "val r = & { case _ => bb(0) }" shouldNot compile // empty list of input molecules
+    "val r = & { case x => bb(x.asInstanceOf[Int]) }" shouldNot compile
+    "val r = & { case x => x }" shouldNot compile
   }
 
   it should "fail to compile reactions with unconditional livelock" in {
@@ -318,16 +323,16 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val bbb = m[Int]
     val a = m[(Int, Int)]
 
-    "& { case a((x,y)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
-    "& { case a((_,x)) => a((x,x)) }" should compile // cannot detect unconditional livelock here
-    "& { case a((1,_)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
+    "val r = & { case a((x,y)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
+    "val r = & { case a((_,x)) => a((x,x)) }" should compile // cannot detect unconditional livelock here
+    "val r = & { case a((1,_)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
 
     "val r = & { case a(_) => a((1,1)) }" shouldNot compile // unconditional livelock
 
-    "& { case bbb(1) => bbb(2) }" should compile // no unconditional livelock
+    "val r = & { case bbb(1) => bbb(2) }" should compile // no unconditional livelock
     "val r = & { case bbb(_) => bbb(0) }" shouldNot compile // unconditional livelock
-    "& { case bbb(x) => bbb(x) + bb(x) }" shouldNot compile
-    "& { case bbb(x) + bb(y) => bbb(x) + bb(x) + bb(y) }" shouldNot compile
+    "val r = & { case bbb(x) => bbb(x) + bb(x) }" shouldNot compile
+    "val r = & { case bbb(x) + bb(y) => bbb(x) + bb(x) + bb(y) }" shouldNot compile
 
   }
 
@@ -339,9 +344,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val r2 = & { case bbb(_) + bb(_) => bbb(0) }
     val r3 = & { case bbb(x) + bb(_) + bb(_) => bbb(1) + bb(x) + bbb(2) }
 
-    r1.info.outputs shouldEqual List(bb)
-    r2.info.outputs shouldEqual List(bbb)
-    r3.info.outputs shouldEqual List(bbb, bb, bbb)
+    r1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb,OtherOutputPattern)))
+    r2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bbb,ConstOutputValue(0))))
+    r3.info.outputs shouldEqual Some(List(
+      OutputMoleculeInfo(bbb,ConstOutputValue(1)),
+      OutputMoleculeInfo(bb,OtherOutputPattern),
+      OutputMoleculeInfo(bbb,ConstOutputValue(2))
+    ))
   }
 
   it should "create partial functions for matching from reaction body" in {
@@ -350,7 +359,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
     val result = & { case aa(Some(x)) + bb((0, None)) => aa(Some(x + 1)) }
 
-    result.info.outputs shouldEqual List(aa)
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(aa,OtherOutputPattern)))
 
     val pat_aa = result.info.inputs(0)
     pat_aa.molecule shouldEqual aa
@@ -358,7 +367,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     pat_bb.molecule shouldEqual bb
 
     (pat_aa.flag match {
-      case OtherPattern(matcher) =>
+      case OtherInputPattern(matcher) =>
         matcher.isDefinedAt(Some(1)) shouldEqual true
         matcher.isDefinedAt(None) shouldEqual false
         true
@@ -366,7 +375,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     }) shouldEqual true
 
     (pat_bb.flag match {
-      case OtherPattern(matcher) =>
+      case OtherInputPattern(matcher) =>
         matcher.isDefinedAt((0, None)) shouldEqual true
         matcher.isDefinedAt((1, None)) shouldEqual false
         matcher.isDefinedAt((0, Some(1))) shouldEqual false
@@ -376,7 +385,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     }) shouldEqual true
 
   }
-
 
 }
 

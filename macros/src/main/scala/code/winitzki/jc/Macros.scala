@@ -75,6 +75,10 @@ object Macros {
   private final case class SimpleConstF(v: Any) extends PatternFlag // this is the [T] type of M[T] or B[T,R]
   private final case class OtherPatternF(matcher: Any) extends PatternFlag // "Any" is actually an expression tree for a partial function
 
+  private sealed trait OutputPatternFlag
+  private case object OtherOutputPatternF extends OutputPatternFlag
+  private final case class ConstOutputPattern(v: Any) extends OutputPatternFlag
+
   private type fmArg = ReactionBody // UnapplyArg => Unit // ReactionBody
 
   /**
@@ -134,7 +138,7 @@ object Macros {
 
     class MoleculeInfo(reactionBodyOwner: c.Symbol) extends Traverser {
 
-      def from(reactionPart: Tree): (List[(c.Symbol, PatternFlag, Option[PatternFlag])], List[c.Symbol], List[c.Symbol]) = {
+      def from(reactionPart: Tree): (List[(c.Symbol, PatternFlag, Option[PatternFlag])], List[(c.Symbol, OutputPatternFlag)], List[(c.Symbol, OutputPatternFlag)]) = {
         inputMolecules = mutable.ArrayBuffer()
         outputMolecules = mutable.ArrayBuffer()
         replyMolecules = mutable.ArrayBuffer()
@@ -143,8 +147,8 @@ object Macros {
       }
 
       private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, PatternFlag, Option[PatternFlag])] = mutable.ArrayBuffer()
-      private var outputMolecules: mutable.ArrayBuffer[c.Symbol] = mutable.ArrayBuffer()
-      private var replyMolecules: mutable.ArrayBuffer[c.Symbol] = mutable.ArrayBuffer()
+      private var outputMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
+      private var replyMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
 
       private def getSimpleVar(binderTerm: Tree): c.universe.Ident = binderTerm match {
         case Bind(TermName(n), Ident(termNames.WILDCARD)) => Ident(TermName(n))
@@ -173,16 +177,23 @@ object Macros {
           OtherPatternF(partialFunctionTree)
       }
 
+      private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag = binderTerms match {
+        case List(t@Literal(_)) => ConstOutputPattern(t)
+        case _ => OtherOutputPatternF
+      }
+
       override def traverse(tree: Tree): Unit = {
         tree match {
-          // stop traversing here, to avoid traversing nested reactions
+          // avoid traversing nested reactions: check whether this subtree is a Reaction() value
           case q"code.winitzki.jc.JoinRun.Reaction.apply($a,$b,$_,$_)" => ()
           case q"JoinRun.Reaction.apply($a,$b,$_,$_)" => ()
 
+          // matcher with a single argument: a(x)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
             val flag2 = if (t.tpe <:< weakTypeOf[B[_,_]]) Some(WrongReplyVarF) else None
             inputMolecules.append((t.symbol, getFlag(binder), flag2))
 
+          // matcher with two arguments: a(x, y)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
             val flag2 = getFlag(binder2) match {
               case SimpleVarF => ReplyVarF(getSimpleVar(binder2))
@@ -190,21 +201,20 @@ object Macros {
             }
             inputMolecules.append((t.symbol, getFlag(binder1), Some(flag2)))
 
-            // wrong number of arguments - neither 1 nor 2
-          case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), _) if t.tpe <:< typeOf[Molecule] =>
-            inputMolecules.append((t.symbol, WrongReplyVarF, None))
+          // matcher with wrong number of arguments - neither 1 nor 2
+          case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), _)
+            if t.tpe <:< typeOf[Molecule] =>
+              inputMolecules.append((t.symbol, WrongReplyVarF, None))
 
-          case Apply(Select(t@Ident(TermName(_)), TermName("apply")), _) =>
+          // possibly a molecule injection
+          case Apply(Select(t@Ident(TermName(_)), TermName("apply")), binder) =>
             if (!isOwnedBy(t.symbol, reactionBodyOwner) && t.tpe <:< typeOf[Molecule])
-              // skip any symbols defined in the inner scope
-            {
-              outputMolecules.append(t.symbol)
-            }
+              // skip any molecule injectors defined in the inner scope
+              outputMolecules.append((t.symbol, getOutputFlag(binder)))
             else ()
 
-
             if (t.tpe <:< weakTypeOf[ReplyValue[_]])
-              replyMolecules.append(t.symbol)
+              replyMolecules.append((t.symbol, getOutputFlag(binder)))
             else ()
 
           case _ => super.traverse(tree)
@@ -214,12 +224,23 @@ object Macros {
     }
 
     // this boilerplate is necessary for being able to use PatternType values in macro quasiquotes
-    implicit val _ = Liftable[PatternFlag] {
+    implicit val liftablePatternFlag = Liftable[PatternFlag] {
       case WildcardF => q"_root_.code.winitzki.jc.JoinRun.Wildcard"
       case SimpleConstF(x) => q"_root_.code.winitzki.jc.JoinRun.SimpleConst(${x.asInstanceOf[c.Tree]})"
       case SimpleVarF => q"_root_.code.winitzki.jc.JoinRun.SimpleVar"
-      case OtherPatternF(matcherTree) => q"_root_.code.winitzki.jc.JoinRun.OtherPattern(${matcherTree.asInstanceOf[c.Tree]})"
-      case _ => q"_root_.code.winitzki.jc.JoinRun.UnknownPattern"
+      case OtherPatternF(matcherTree) => q"_root_.code.winitzki.jc.JoinRun.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]})"
+      case _ => q"_root_.code.winitzki.jc.JoinRun.UnknownInputPattern"
+    }
+
+    implicit val liftableOutputPatternFlag = Liftable[OutputPatternFlag] {
+      case ConstOutputPattern(x) => q"_root_.code.winitzki.jc.JoinRun.ConstOutputValue(${x.asInstanceOf[c.Tree]})"
+      case _ => q"_root_.code.winitzki.jc.JoinRun.OtherOutputPattern"
+    }
+
+    implicit val liftableGuardFlag = Liftable[GuardPresenceType] {
+      case GuardPresent => q"_root_.code.winitzki.jc.JoinRun.GuardPresent"
+      case GuardAbsent => q"_root_.code.winitzki.jc.JoinRun.GuardAbsent"
+      case GuardPresenceUnknown => q"_root_.code.winitzki.jc.JoinRun.GuardPresenceUnknown"
     }
 
     def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error) = {
@@ -250,7 +271,7 @@ object Macros {
     maybeError("blocking input molecules", "matches on anything else than a simple variable", wrongBlockingMolecules)
 
     // If we are here, all input reply molecules are correctly matched. Now we check that each of them has one and only one reply.
-    val repliedMolecules = (guardReply ++ bodyReply).map(_.asTerm.name.decodedName)
+    val repliedMolecules = (guardReply ++ bodyReply).map(_._1.asTerm.name.decodedName)
     val blockingReplies = blockingMolecules.flatMap(_._3.flatMap{
       case ReplyVarF(x) => Some(x.asInstanceOf[c.universe.Ident].name)
       case _ => None
@@ -263,12 +284,13 @@ object Macros {
 
     if (patternIn.isEmpty) c.error(c.enclosingPosition, "Reaction should not have an empty list of input molecules")
 
+    val inputMolecules = patternIn.map { case (s, p, _) => q"InputMoleculeInfo(${s.asTerm}, $p)" }
+
     // Note: the output molecules could be sometimes not injected according to a runtime condition.
     // We do not try to examine the reaction body to determine which output molecules are always injected.
     // However, the order of output molecules corresponds to the order in which they might be injected.
     val allOutputInfo = guardOut ++ bodyOut
-    val outputMolecules = allOutputInfo.map { m => q"${m.asTerm}" }
-    val inputMolecules = patternIn.map { case (s, p, _) => q"InputMoleculeInfo(${s.asTerm}, $p)" }
+    val outputMolecules = allOutputInfo.map { case (m, p) => q"OutputMoleculeInfo(${m.asTerm}, $p)" }
 
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of output molecules.
@@ -276,14 +298,16 @@ object Macros {
       case (_, SimpleVarF, _) | (_, WildcardF, _) => true
       case _ => false
     }
-    val inputMoleculesAreSubsetOfOutputMolecules = (patternIn.map(_._1) diff allOutputInfo).isEmpty
+    val inputMoleculesAreSubsetOfOutputMolecules = (patternIn.map(_._1) diff allOutputInfo.map(_._1)).isEmpty
 
     if(allInputMatchersAreTrivial && inputMoleculesAreSubsetOfOutputMolecules) {
       maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
     }
 
+    val hasGuard = if (guard == EmptyTree) q"GuardAbsent" else q"GuardPresent"
+
     // Prepare the ReactionInfo structure.
-    val result = q"Reaction(ReactionInfo($inputMolecules, List(..$outputMolecules), $sha1), $reactionBody)"
+    val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $hasGuard, $sha1), $reactionBody)"
 //    println(s"debug: ${show(result)}")
     result
   }
