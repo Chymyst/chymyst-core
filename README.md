@@ -12,7 +12,7 @@ It also works with Scala 2.10 (except Akka support) and with OpenJDK 7 (except f
 
 If you are new to Join Calculus, begin with this [tutorial introduction to `JoinRun`](doc/join_calculus_joinrun_tutorial.md).
 
-See also my presentation at _Scala by the Bay 2016_ ([talk slides are available](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_talk_2016.pdf)).
+I gave a presentation on `JoinRun` at [Scala by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
 There is some [technical documentation for `JoinRun` library](doc/joinrun.md).
 
