@@ -85,16 +85,26 @@ import scala.reflect.ClassTag
 
 object JoinRun {
 
-  sealed trait PatternType
-  case object Wildcard extends PatternType
-  case object SimpleVar extends PatternType
-  final case class SimpleConst(v: Any) extends PatternType
-  case object UnknownPattern extends PatternType
-  final case class OtherPattern(matcher: PartialFunction[Any,Unit]) extends PatternType
+  sealed trait InputPatternType
+  case object Wildcard extends InputPatternType
+  case object SimpleVar extends InputPatternType
+  final case class SimpleConst(v: Any) extends InputPatternType
+  case object UnknownInputPattern extends InputPatternType
+  final case class OtherInputPattern(matcher: PartialFunction[Any,Unit]) extends InputPatternType
 
-  final case class InputMoleculeInfo(molecule: Molecule, flag: PatternType)
+  sealed trait OutputPatternType
+  final case class ConstOutputValue(v: Any) extends OutputPatternType
+  case object OtherOutputPattern extends OutputPatternType
 
-  final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: List[Molecule], sha1: String)
+  sealed trait GuardPresenceType
+  case object GuardPresent extends GuardPresenceType
+  case object GuardAbsent extends GuardPresenceType
+  case object GuardPresenceUnknown extends GuardPresenceType
+
+  final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType)
+  final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
+
+  final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String)
 
   /** Represents a reaction body.
     *
@@ -179,7 +189,7 @@ object JoinRun {
       if (duplicateMolecules.nonEmpty) throw new ExceptionInJoinRun(s"Nonlinear pattern: ${duplicateMolecules.mkString(", ")} used twice")
       moleculesInThisReaction.inputMolecules.toList
     }
-    ReactionInfo(inputMoleculesUsed.map(m => InputMoleculeInfo(m, UnknownPattern)), Nil, UUID.randomUUID().toString)
+    ReactionInfo(inputMoleculesUsed.map(m => InputMoleculeInfo(m, UnknownInputPattern)), None, GuardPresenceUnknown, UUID.randomUUID().toString)
   }
 
   /** Create a reaction value out of a simple reaction body - no pattern-matching with molecule values except the last one.
