@@ -399,19 +399,22 @@ object JoinRun {
     */
   def join(reactionPool: Pool, joinPool: Pool)(rs: Reaction*): Unit = {
 
-    val reactionInfos: Map[Reaction, Seq[InputMoleculeInfo]] = rs.map { r => (r, r.info.inputs) }.toMap
-    val inputMolecules: Set[Molecule] = rs.flatMap { r => r.inputMolecules.toSet }.toSet
+    val reactionInfos = rs.map { r => (r, r.info.inputs) }.toMap
 
     // create a join definition object holding the given reactions and inputs
     val join = new JoinDefinition(reactionInfos, reactionPool, joinPool)
 
     // set the owner on all input molecules in this join definition
-    inputMolecules.foreach { m =>
-      m.joinDef match {
-        case Some(owner) => throw new Exception(s"Molecule $m cannot be used as input since it was already used in $owner")
-        case None => m.joinDef = Some(join)
+    rs.flatMap { r => r.inputMolecules }
+      .toSet // We only need to set the owner once on each distinct input molecule.
+      .foreach { m =>
+        m.joinDef match {
+          case Some(owner) => throw new Exception(s"Molecule $m cannot be used as input since it was already used in $owner")
+          case None => m.joinDef = Some(join)
+        }
       }
-    }
+
+    join.performStaticChecking()
 
   }
 
