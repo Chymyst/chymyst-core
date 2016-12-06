@@ -151,9 +151,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       InputMoleculeInfo(`c`, SimpleConst(())),
       InputMoleculeInfo(`c`, Wildcard),
       InputMoleculeInfo(`bb`, Wildcard),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_)),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_)),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_)),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_, _)),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_, _)),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_, _)),
       InputMoleculeInfo(`s`, Wildcard)
       ) => true
       case _ => false
@@ -279,10 +279,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
     (r.info.inputs match {
       case List(
-      InputMoleculeInfo(`a`, OtherInputPattern(_)),
+      InputMoleculeInfo(`a`, OtherInputPattern(_,_)),
       InputMoleculeInfo(`b`, SimpleConst("xyz")),
       InputMoleculeInfo(`d`, SimpleConst(())),
-      InputMoleculeInfo(`c`, OtherInputPattern(_))
+      InputMoleculeInfo(`c`, OtherInputPattern(_,_))
       ) => true
       case _ => false
     }) shouldEqual true
@@ -370,19 +370,22 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     pat_bb.molecule shouldEqual bb
 
     (pat_aa.flag match {
-      case OtherInputPattern(matcher) =>
+      case OtherInputPattern(matcher, sha1) =>
         matcher.isDefinedAt(Some(1)) shouldEqual true
         matcher.isDefinedAt(None) shouldEqual false
+        sha1 shouldEqual "9247828A8E7754B2D961E955541CF1D4D77E2D1E"
         true
       case _ => false
     }) shouldEqual true
 
+
     (pat_bb.flag match {
-      case OtherInputPattern(matcher) =>
+      case OtherInputPattern(matcher, sha1) =>
         matcher.isDefinedAt((0, None)) shouldEqual true
         matcher.isDefinedAt((1, None)) shouldEqual false
         matcher.isDefinedAt((0, Some(1))) shouldEqual false
         matcher.isDefinedAt((1, Some(1))) shouldEqual false
+        sha1 shouldEqual "2FB215E623E8AF28E9EA279CBEA827A1065CA226"
         true
       case _ => false
     }) shouldEqual true

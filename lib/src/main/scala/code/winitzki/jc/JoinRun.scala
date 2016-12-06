@@ -90,7 +90,7 @@ object JoinRun {
   case object SimpleVar extends InputPatternType
   final case class SimpleConst(v: Any) extends InputPatternType
   case object UnknownInputPattern extends InputPatternType
-  final case class OtherInputPattern(matcher: PartialFunction[Any,Unit]) extends InputPatternType
+  final case class OtherInputPattern(matcher: PartialFunction[Any,Unit], sha1: String) extends InputPatternType
 
   sealed trait OutputPatternType
   final case class ConstOutputValue(v: Any) extends OutputPatternType
