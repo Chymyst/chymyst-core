@@ -215,8 +215,9 @@ We say that the molecules `c`, `d`, and `i` are consumed in this join definition
 Note that `f` is not an input molecule here; we will need to write another join definition to which `f` will be bound.
 
 It is perfectly acceptable for a reaction to output a molecule such as `f` that is not consumed by any reaction in this join definition.
-But if we forget to write any other join definition that consumes `f`, it will be a runtime error to inject `f`.
-As a warning, note that in the present example, `f` will be injected only if `x==1` (and it is impossible to determine at compile time whether `x==1` will be true at runtime).
+However, if we forget to write any other join definition that consumes `f`, it will be a runtime error to inject `f`.
+
+As a warning, note that in the present example the molecule `f` will be injected only if `x==1` (and it is impossible to determine at compile time whether `x==1` will be true at runtime).
 So, if we forget to write a join definition to which `f` is bound, it will be not necessarily easy to detect the error at runtime!
 
 An important requirement for join definitions is that any given molecule must be bound to one and only one join definition.
@@ -238,20 +239,23 @@ join(
 ) // runtime error: "c" is already bound to another join definition
 ```
 
+This rule enforces the immutability of chemical laws: it is impossible to add a new reaction that consumes a molecule already declared as input to a previous reaction.
+This feature of Join Calculus allows us to create a library of chemical reactions and guarantee that user programs will not be able to modify the intended flow of reactions.
+
 # Thread pools
 
-There are two kinds of tasks that `JoinRun` can perform concurrently:
-- running some reactions
-- injecting some new molecules and deciding which reactions will run next
+There are two kinds of tasks that `JoinRun` performs concurrently:
+- running reactions
+- injecting new molecules and deciding which reactions will run next
 
 Each join definition is a local value and is separate from all other join definitions.
 So, in principle all join definitions can perform their tasks fully concurrently and independently from each other.
 
 In practice, there are situations where we need to force certain reactions to run on certain threads.
-For example, user interface (UI) programming frameworks typically allocate one thread for all UI-related operations, such as updating the screen and callbacks for interacting with the user.
-The Android SDK as well as JavaFX both adopt this approach to thread management.
-In these environments, it is a non-negotiable requirement to be able to control which threads are used by which tasks.
-All screen updates as well as all user events must be scheduled on the single UI thread, while all long-running tasks must be delegated to specially created non-UI or "background" threads.
+For example, user interface (UI) programming frameworks typically allocate one thread for all UI-related operations, such as updating the screen or receiving callbacks from user interactions.
+The Android SDK, as well as JavaFX, both adopt this approach to thread management for user interface programming.
+In these environments, it is a non-negotiable requirement to have control over which threads are used by which tasks.
+In particular, all screen updates (as well as all user event callbacks) must be scheduled on the single UI thread, while all long-running tasks must be delegated to specially created non-UI or "background" threads.
 
 To facilitate this control, `JoinRun` implements the thread pool feature.
 
