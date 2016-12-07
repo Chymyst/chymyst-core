@@ -61,20 +61,23 @@ To this end, we are going to specify some values and expressions to be computed 
 The input arguments of the reaction body are going to be the values carried by the input molecules of the reaction.
 
 In `JoinRun`, we use the syntax like `b(123)` to denote molecule values.
-In this example, `b(123)`, the molecule `b` carries an integer value `123`.
+The syntax `b(123)` in a chemical law means that the molecule `b` carries an integer value `123`.
+Molecules to the left-hand side of the reaction arrow are input molecules of the reaction; molecules on the right-hand side are output molecules. 
 
-A typical Join Calculus reaction (equipped with molecule values and a reaction body) may look like this:
+A typical Join Calculus reaction (equipped with molecule values and a reaction body) looks like this in `JoinRun` syntax:
 
 ```scala
-b(x) + c(y) ⇒ {
+{
+case b(x) + c(y) ⇒
   val z = computeZ(x,y)
   b(z)
 }
 ```
 
 In this example, the reaction's input molecules are `b(x)` and `c(y)`; that is, the input molecules have chemical designations `b` and `c` and carry values `x` and `y` respectively.
+
 The reaction body is a function that receives `x` and `y` as input arguments.
-It computes a value `z` out of `x` and `y`, and puts that `z` onto the output molecule `b`.
+It computes a value `z` out of `x` and `y`. Then it puts that `z` onto the output molecule `b` and injects that output molecule back into the soup.
 
 Whenever input molecules are available in the soup, the runtime engine will start a reaction that consumes these input molecules.
 If many copies of input molecules are available, the runtime engine could start several reactions concurrently.
@@ -82,7 +85,7 @@ If many copies of input molecules are available, the runtime engine could start 
 
 Every reaction receives the values carried by its _input_ molecules as input arguments.
 The reaction body can be a pure function that computes output values purely from input values and outputs some new molecules that carry the newly computed output values.
-Then it is completely safe (free of race conditions) to execute concurrently several instances of the same reaction, consuming each time a different set of input molecules.
+If the reaction body is a pure function, it is completely safe (free of race conditions) to execute concurrently several instances of the same reaction, consuming each time a different set of input molecules.
 This is the way Join Calculus uses the “chemical simulator” to achieve safe and automatic concurrency in a purely functional way.
 
 ## The syntax of `JoinRun`
