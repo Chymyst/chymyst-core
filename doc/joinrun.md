@@ -347,6 +347,28 @@ Therefore, it may be advisable not to use exceptions within reactions.
 - only linear input patterns are supported (no `a(x) + a(y) + a(z) => ...`)
 - when a thread pool's queue is full, new reactions cannot be run, - this situation is not processed well
 
+# Troubleshooting
+
+## scalac: Error: Could not find proxy for value `x`
+
+This error occurs when the macro expansion tries to use wrong scope for molecule injectors.
+At the moment, this can happen with `scalatest` with code like this:
+
+```scala
+val x = m[Int]
+join( run { case x(_) => } ) shouldEqual ()
+```
+
+The error "Could not find proxy for value x" is generated during macro expansion.
+
+A workaround is to assign a separate value to the join definition result, and apply `shouldEqual` to that value:
+
+```scala
+val x = m[Int]
+val result = join( run { case x(_) => } )
+result shouldEqual ()
+```
+
 # Version history
 
 - 0.0.9 Macros for static analysis of reactions; unrestricted pattern-matching now available for molecule values.
