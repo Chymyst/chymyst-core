@@ -86,7 +86,48 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
   val constantZeroSha1 = "8227489534FBEA1F404CAAEC9F4CCAEEB9EF2DC1"
   val constantOneSha1 = "356A192B7913B04C54574D18C28D46E6395428AB"
 
-  it should "inspect a simple reaction body" in {
+  it should "inspect a runSimple reaction body" in {
+    val a = m[Int]
+    val qq = m[Unit]
+    val s = b[Unit, Int]
+    val bb = m[(Int, Option[Int])]
+
+    val result = runSimple { case a(x) + qq(_) => qq() }
+
+    (result.info.inputs match {
+      case List(
+      InputMoleculeInfo(`a`, UnknownInputPattern, _),
+      InputMoleculeInfo(`qq`, UnknownInputPattern, _)
+      ) => true
+      case _ => false
+    }) shouldEqual true
+    result.info.outputs shouldEqual None
+    result.info.hasGuard == GuardPresenceUnknown
+    result.info.sha1 != "3C5E53F3B9EA1CC2AB58F463114B178EB569390F" shouldEqual true
+  }
+
+  it should "inspect a two-molecule reaction body with None" in {
+    val a = m[Int]
+    val qq = m[Unit]
+    val s = b[Unit, Int]
+    val bb = m[Option[Int]]
+
+    val result = & { case a(x) + bb(None) => bb(None) }
+
+    (result.info.inputs match {
+      case List(
+      InputMoleculeInfo(a, SimpleVar, simpleVarXSha1),
+      InputMoleculeInfo(bb, OtherInputPattern(_), "4B93FCEF4617B49161D3D2F83E34012391D5A883")
+      ) => true
+      case _ => false
+    }) shouldEqual true
+
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, OtherOutputPattern)))
+    result.info.hasGuard == GuardAbsent
+    result.info.sha1 shouldEqual "E3484A31FA12EA19A7D84422C452E1F8099F8117"
+  }
+
+  it should "inspect a two-molecule reaction body" in {
     val a = m[Int]
     val qq = m[Unit]
     val s = b[Unit, Int]
