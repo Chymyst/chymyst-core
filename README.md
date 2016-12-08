@@ -66,7 +66,7 @@ Compared to `ScalaJoin` (Jiansen He's 2011 implementation of JC), `JoinRun` offe
 
 # Status
 
-Current version is `0.0.9`.
+Current version is `0.0.10`.
 The semantics of Join Calculus (restricted to single machine) is fully implemented and tested.
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
 Performance tests indicate that the runtime can schedule about 300,000 reactions per second per CPU core, and the performance bottleneck is the thread switching and pattern-matching.
@@ -74,8 +74,9 @@ Performance tests indicate that the runtime can schedule about 300,000 reactions
 Known limitations:
 
 - `JoinRun` is currently at most 20% slower than `ScalaJoin` on certain benchmarks that exercise a very large number of very short reactions.
-- No fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random
-- No distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`)
+- No fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random.
+- No distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`, and probably will not be).
+
 
 # Run unit tests
 
