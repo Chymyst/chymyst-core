@@ -43,7 +43,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
         val reaction1 = & { case q(_) + s(()) => }
         q(0)
       }
-    reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar))
+    reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, "8227489534FBEA1F404CAAEC9F4CCAEEB9EF2DC1"))
     reaction.info.outputs shouldEqual Some(List())
   }
 
@@ -81,18 +81,26 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     f(timeout = 100 millis)() shouldEqual Some(2)
   }
 
+  val simpleVarXSha1 = "8227489534FBEA1F404CAAEC9F4CCAEEB9EF2DC1"
+  val wildcardSha1 = "53A0ACFAD59379B3E050338BF9F23CFC172EE787"
+  val constantZeroSha1 = "8227489534FBEA1F404CAAEC9F4CCAEEB9EF2DC1"
+  val constantOneSha1 = "356A192B7913B04C54574D18C28D46E6395428AB"
+
   it should "inspect a simple reaction body" in {
     val a = m[Int]
     val qq = m[Unit]
     val s = b[Unit, Int]
     val bb = m[(Int, Option[Int])]
 
-    val result = & { case a(x) => qq() }
+    val result = & { case a(x) + qq(_) => qq() }
 
-    result.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar))
+    result.info.inputs shouldEqual List(
+      InputMoleculeInfo(a, SimpleVar, simpleVarXSha1),
+      InputMoleculeInfo(qq, Wildcard, wildcardSha1)
+    )
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, ConstOutputValue(()))))
     result.info.hasGuard == GuardAbsent
-    result.info.sha1 shouldEqual "D28AED0C1674FFB41F65B825902D334B2DC9E11E"
+    result.info.sha1 shouldEqual "3C5E53F3B9EA1CC2AB58F463114B178EB569390F"
   }
 
   it should "inspect a reaction body with another molecule and extra code" in {
@@ -113,7 +121,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
         qqq("")
     }
 
-    result.info.inputs shouldEqual List(InputMoleculeInfo(a, Wildcard), InputMoleculeInfo(a, SimpleVar), InputMoleculeInfo(a, SimpleConst(1)))
+    result.info.inputs shouldEqual List(
+      InputMoleculeInfo(a, Wildcard, wildcardSha1),
+      InputMoleculeInfo(a, SimpleVar, simpleVarXSha1),
+      InputMoleculeInfo(a, SimpleConst(1), constantOneSha1)
+    )
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a,OtherOutputPattern), OutputMoleculeInfo(a,OtherOutputPattern), OutputMoleculeInfo(qqq,ConstOutputValue(""))))
     result.info.hasGuard == GuardAbsent
   }
@@ -126,7 +138,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
     val result = & { case a(x) => & { case qq(_) => a(0) }; qq() }
 
-    result.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar))
+    result.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1))
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq,ConstOutputValue(()))))
     result.info.hasGuard == GuardAbsent
   }
@@ -145,16 +157,16 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
     (result.info.inputs match {
       case List(
-      InputMoleculeInfo(`a`, SimpleVar),
-      InputMoleculeInfo(`a`, SimpleVar),
-      InputMoleculeInfo(`a`, SimpleConst(1)),
-      InputMoleculeInfo(`c`, SimpleConst(())),
-      InputMoleculeInfo(`c`, Wildcard),
-      InputMoleculeInfo(`bb`, Wildcard),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_, _)),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_, _)),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_, _)),
-      InputMoleculeInfo(`s`, Wildcard)
+      InputMoleculeInfo(`a`, SimpleVar, _),
+      InputMoleculeInfo(`a`, SimpleVar, _),
+      InputMoleculeInfo(`a`, SimpleConst(1), _),
+      InputMoleculeInfo(`c`, SimpleConst(()), _),
+      InputMoleculeInfo(`c`, Wildcard, _),
+      InputMoleculeInfo(`bb`, Wildcard, _),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_), _),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_), _),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_), _),
+      InputMoleculeInfo(`s`, Wildcard, _)
       ) => true
       case _ => false
     }) shouldEqual true
@@ -279,10 +291,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
     (r.info.inputs match {
       case List(
-      InputMoleculeInfo(`a`, OtherInputPattern(_,_)),
-      InputMoleculeInfo(`b`, SimpleConst("xyz")),
-      InputMoleculeInfo(`d`, SimpleConst(())),
-      InputMoleculeInfo(`c`, OtherInputPattern(_,_))
+      InputMoleculeInfo(`a`, OtherInputPattern(_),_),
+      InputMoleculeInfo(`b`, SimpleConst("xyz"),_),
+      InputMoleculeInfo(`d`, SimpleConst(()),_),
+      InputMoleculeInfo(`c`, OtherInputPattern(_),_)
       ) => true
       case _ => false
     }) shouldEqual true
@@ -298,6 +310,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
   it should "fail to compile reactions with detectable compile-time errors" in {
     val a = b[Unit, Unit]
     val c = b[Unit, Unit]
+    val e = m[Unit]
+
+    "val r = & { case e() => }" shouldNot compile // no pattern variable in a non-blocking molecule "e"
+    "val r = & { case e(_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
 
     "val r = & { case a() => }" shouldNot compile // no pattern variable for reply in "a"
     "val r = & { case a(_) => }" shouldNot compile // no pattern variable for reply in "a"
@@ -370,25 +386,26 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     pat_bb.molecule shouldEqual bb
 
     (pat_aa.flag match {
-      case OtherInputPattern(matcher, sha1) =>
+      case OtherInputPattern(matcher) =>
         matcher.isDefinedAt(Some(1)) shouldEqual true
         matcher.isDefinedAt(None) shouldEqual false
-        sha1 shouldEqual "9247828A8E7754B2D961E955541CF1D4D77E2D1E"
         true
       case _ => false
     }) shouldEqual true
 
+    pat_aa.sha1 shouldEqual "9247828A8E7754B2D961E955541CF1D4D77E2D1E"
 
     (pat_bb.flag match {
-      case OtherInputPattern(matcher, sha1) =>
+      case OtherInputPattern(matcher) =>
         matcher.isDefinedAt((0, None)) shouldEqual true
         matcher.isDefinedAt((1, None)) shouldEqual false
         matcher.isDefinedAt((0, Some(1))) shouldEqual false
         matcher.isDefinedAt((1, Some(1))) shouldEqual false
-        sha1 shouldEqual "2FB215E623E8AF28E9EA279CBEA827A1065CA226"
         true
       case _ => false
     }) shouldEqual true
+
+    pat_bb.sha1 shouldEqual "2FB215E623E8AF28E9EA279CBEA827A1065CA226"
 
   }
 

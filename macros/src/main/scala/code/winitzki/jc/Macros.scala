@@ -74,7 +74,7 @@ object Macros {
   private case object SimpleVarF extends PatternFlag
   private case object WrongReplyVarF extends PatternFlag // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
   private final case class SimpleConstF(v: Any) extends PatternFlag // this is the [T] type of M[T] or B[T,R]
-  private final case class OtherPatternF(matcher: Any, patternSha: String) extends PatternFlag // "Any" is actually an expression tree for a partial function
+  private final case class OtherPatternF(matcher: Any) extends PatternFlag // "Any" is actually an expression tree for a partial function
 
   private sealed trait OutputPatternFlag
   private case object OtherOutputPatternF extends OutputPatternFlag
@@ -139,7 +139,7 @@ object Macros {
 
     class MoleculeInfo(reactionBodyOwner: c.Symbol) extends Traverser {
 
-      def from(reactionPart: Tree): (List[(c.Symbol, PatternFlag, Option[PatternFlag])], List[(c.Symbol, OutputPatternFlag)], List[(c.Symbol, OutputPatternFlag)]) = {
+      def from(reactionPart: Tree): (List[(c.Symbol, PatternFlag, Option[PatternFlag], String)], List[(c.Symbol, OutputPatternFlag)], List[(c.Symbol, OutputPatternFlag)]) = {
         inputMolecules = mutable.ArrayBuffer()
         outputMolecules = mutable.ArrayBuffer()
         replyMolecules = mutable.ArrayBuffer()
@@ -147,7 +147,7 @@ object Macros {
         (inputMolecules.toList, outputMolecules.toList, replyMolecules.toList)
       }
 
-      private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, PatternFlag, Option[PatternFlag])] = mutable.ArrayBuffer()
+      private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, PatternFlag, Option[PatternFlag], String)] = mutable.ArrayBuffer()
       private var outputMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
       private var replyMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
 
@@ -175,7 +175,7 @@ object Macros {
         case Literal(_) => SimpleConstF(binderTerm)
         case _ =>
           val partialFunctionTree: c.Tree = q"{ case $binderTerm => }"
-          OtherPatternF(partialFunctionTree, getSha1(binderTerm))
+          OtherPatternF(partialFunctionTree)
       }
 
       private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag = binderTerms match {
@@ -192,7 +192,7 @@ object Macros {
           // matcher with a single argument: a(x)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
             val flag2 = if (t.tpe <:< weakTypeOf[B[_,_]]) Some(WrongReplyVarF) else None
-            inputMolecules.append((t.symbol, getFlag(binder), flag2))
+            inputMolecules.append((t.symbol, getFlag(binder), flag2, getSha1(binder)))
 
           // matcher with two arguments: a(x, y)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
@@ -200,12 +200,12 @@ object Macros {
               case SimpleVarF => ReplyVarF(getSimpleVar(binder2))
               case f@_ => WrongReplyVarF // this is an error that we should report later
             }
-            inputMolecules.append((t.symbol, getFlag(binder1), Some(flag2)))
+            inputMolecules.append((t.symbol, getFlag(binder1), Some(flag2), getSha1(binder1)))
 
           // matcher with wrong number of arguments - neither 1 nor 2
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), _)
             if t.tpe <:< typeOf[Molecule] =>
-              inputMolecules.append((t.symbol, WrongReplyVarF, None))
+              inputMolecules.append((t.symbol, WrongReplyVarF, None, getSha1(t)))
 
           // possibly a molecule injection
           case Apply(Select(t@Ident(TermName(_)), TermName("apply")), binder) =>
@@ -229,7 +229,7 @@ object Macros {
       case WildcardF => q"_root_.code.winitzki.jc.JoinRun.Wildcard"
       case SimpleConstF(x) => q"_root_.code.winitzki.jc.JoinRun.SimpleConst(${x.asInstanceOf[c.Tree]})"
       case SimpleVarF => q"_root_.code.winitzki.jc.JoinRun.SimpleVar"
-      case OtherPatternF(matcherTree, patternSha) => q"_root_.code.winitzki.jc.JoinRun.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]}, $patternSha)"
+      case OtherPatternF(matcherTree) => q"_root_.code.winitzki.jc.JoinRun.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]})"
       case _ => q"_root_.code.winitzki.jc.JoinRun.UnknownInputPattern"
     }
 
@@ -285,7 +285,7 @@ object Macros {
 
     if (patternIn.isEmpty) c.error(c.enclosingPosition, "Reaction should not have an empty list of input molecules")
 
-    val inputMolecules = patternIn.map { case (s, p, _) => q"InputMoleculeInfo(${s.asTerm}, $p)" }
+    val inputMolecules = patternIn.map { case (s, p, _, sha1) => q"InputMoleculeInfo(${s.asTerm}, $p, $sha1)" }
 
     // Note: the output molecules could be sometimes not injected according to a runtime condition.
     // We do not try to examine the reaction body to determine which output molecules are always injected.
@@ -299,7 +299,7 @@ object Macros {
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of output molecules.
     lazy val allInputMatchersAreTrivial = patternIn.forall{
-      case (_, SimpleVarF, _) | (_, WildcardF, _) => true
+      case (_, SimpleVarF, _, _) | (_, WildcardF, _, _) => true
       case _ => false
     }
     lazy val inputMoleculesAreSubsetOfOutputMolecules = (patternIn.map(_._1) diff allOutputInfo.map(_._1)).isEmpty
@@ -309,7 +309,7 @@ object Macros {
     }
 
     // Prepare the ReactionInfo structure.
-    val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $hasGuardFlag, $sha1), $reactionBody)"
+    val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $hasGuardFlag, $sha1), $reactionBody, None, false)"
 //    println(s"debug: ${show(result)}")
     result
   }
