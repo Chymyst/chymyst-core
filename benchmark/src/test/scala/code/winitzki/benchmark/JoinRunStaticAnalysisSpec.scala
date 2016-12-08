@@ -106,7 +106,7 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     thrown.getMessage shouldEqual "In Join{a + b => ...; a + b => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a + b => ..."
   }
 
-  object P {
+  object IsEven {
     def unapply(x: Int): Option[Int] = if (x % 2 == 0) Some(x/2) else None
   }
 
@@ -115,11 +115,22 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
       val a = m[Int]
       val b = m[Int]
       join(
-        & { case a(P(x)) => },
+        & { case a(IsEven(x)) => },
         & { case a(2) + b(3) => }
       )
     }
     thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ..."
+  }
+
+  it should "detect shadowing of reactions with non-identical matchers that are nontrivially not weaker" in {
+
+    val a = m[Int]
+    val b = m[Int]
+    val result = join(
+      & { case a(IsEven(x)) => },
+      & { case a(1) + b(3) => }
+    )
+    result shouldEqual()
   }
 
   it should "detect shadowing of reactions with all supported matcher combinations" in {
@@ -145,22 +156,5 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     }
     thrown.getMessage shouldEqual "In Join{a + a + a + a + b + b + b + b => ...; a + a + a + a + b => ...}: Unavoidable indeterminism: reaction a + a + a + a + b + b + b + b => ... is shadowed by a + a + a + a + b => ..."
   }
-
-  it should "detect shadowing of reactions with non-identical matchers that are nontrivially not weaker" in {
-
-    object P {
-      def unapply(x: Int): Option[Int] = if (x % 2 == 0) Some(x / 2) else None
-    }
-
-    val a = m[Int]
-    val b = m[Int]
-    val result = join(
-      & { case a(P(x)) => },
-      & { case a(1) + b(3) => }
-    )
-    result shouldEqual()
-  }
-
-
 
 }
