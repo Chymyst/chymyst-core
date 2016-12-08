@@ -50,6 +50,16 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     result shouldEqual ()
   }
 
+  it should "detect no shadowing of reactions with guards" in {
+    val a = m[Int]
+    val b = m[Unit]
+    val result = join(
+      & { case a(x) if x > 0 => },
+      & { case a(_) + b(_) => }
+    )
+    result shouldEqual ()
+  }
+
   it should "detect shadowing of reactions with identical constant matchers" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
