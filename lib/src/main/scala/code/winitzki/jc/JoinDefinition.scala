@@ -247,6 +247,7 @@ private final case class JoinDefinition(
       r1 <- reactionInfos.keys
       r2 <- reactionInfos.keys
       if r1 != r2
+      if r1.info.hasGuard == GuardAbsent
       if (r1.inputMolecules diff r2.inputMolecules).isEmpty
       if r1.info.inputs.forall(_.flag.isUnconditional)
     } yield {

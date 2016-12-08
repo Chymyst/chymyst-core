@@ -125,7 +125,19 @@ object JoinRun {
     */
   final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
 
-  final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String)
+  final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) {
+    // The input pattern sequence is pre-sorted for further use.
+    val inputsSorted: Seq[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
+      // wildcard and simplevars are sorted together
+      val flagLabel = flag match {
+        case Wildcard | SimpleVar => 0
+        case SimpleConst(_) => 1
+        case OtherInputPattern(_) => 2
+        case _ => 3
+      }
+      (flagLabel, mol.toString, sha)
+    }
+  }
 
   // for M[T] molecules, the value inside AbsMolValue[T] is of type T; for B[T,R] molecules, the value is of type
   // ReplyValue[T,R]. For now, we don't use shapeless to enforce this typing relation.
