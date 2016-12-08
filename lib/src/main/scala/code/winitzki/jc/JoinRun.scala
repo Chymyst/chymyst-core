@@ -133,7 +133,9 @@ object JoinRun {
       * Pattern a(xxx) is weaker than b(yyy) if a==b and if anything matched by yyy will also be matched by xxx.
       *
       * @param info The input molecule info for another input molecule.
-      * @return True if we can safely determine that this matcher is weaker, false otherwise.
+      * @return Some(true) if we can surely determine that this matcher is weaker than another;
+      *         Some(false) if we can surely determine that this matcher is not weaker than another;
+      *         None if we cannot determine anything because information is insufficient.
       */
     def matcherIsWeakerThan(info: InputMoleculeInfo): Option[Boolean] = {
       if (molecule != info.molecule) None
@@ -158,6 +160,7 @@ object JoinRun {
         case SimpleVar => "."
         case SimpleConst(c) => c.toString
         case OtherInputPattern(_) => s"<${sha1.substring(0, 4)}...>"
+        case UnknownInputPattern => s"?"
       }
 
       s"$molecule($printedPattern)"
@@ -182,17 +185,19 @@ object JoinRun {
     */
   @tailrec
   private[jc] def allMatchersAreWeakerThan(input1: List[InputMoleculeInfo], input2: List[InputMoleculeInfo]): Boolean = {
-    println(s"debug: allMatchersAreWeakerThan(input1=$input1, input2=$input2")
     input1 match {
       case Nil => true // input1 has no matchers left
       case info1 :: rest1 => input2 match {
         case Nil => false // input1 has matchers but input2 has no matchers left
-        case info2 :: rest2 =>
-          info1.matcherIsWeakerThan(info2) match {
-            case None => allMatchersAreWeakerThan(input1, rest2)
-            case Some(true) => allMatchersAreWeakerThan(rest1, rest2)
-            case Some(false) => false
+        case _ =>
+          val isWeaker: InputMoleculeInfo => Boolean =
+            i => info1.matcherIsWeakerThan(i).getOrElse(false)
+
+          input2.find(isWeaker) match {
+            case Some(correspondingMatcher) => allMatchersAreWeakerThan(rest1, input2 diff List(correspondingMatcher))
+            case None => false
           }
+
       }
     }
   }
