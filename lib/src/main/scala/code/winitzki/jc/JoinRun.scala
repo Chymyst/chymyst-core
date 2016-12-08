@@ -98,8 +98,8 @@ object JoinRun {
   case object Wildcard extends InputPatternType
   case object SimpleVar extends InputPatternType
   final case class SimpleConst(v: Any) extends InputPatternType
+  final case class OtherInputPattern(matcher: PartialFunction[Any,Unit]) extends InputPatternType
   case object UnknownInputPattern extends InputPatternType
-  final case class OtherInputPattern(matcher: PartialFunction[Any,Unit], sha1: String) extends InputPatternType
 
   sealed trait OutputPatternType
   final case class ConstOutputValue(v: Any) extends OutputPatternType
@@ -110,10 +110,36 @@ object JoinRun {
   case object GuardAbsent extends GuardPresenceType
   case object GuardPresenceUnknown extends GuardPresenceType
 
-  final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType)
+  /** Compile-time information about an input molecule pattern in a reaction.
+    *
+    * @param molecule The molecule injector value that represents the input molecule.
+    * @param flag Type of the input pattern: wildcard, constant match, etc.
+    * @param sha1 Hash sum of the source code (AST tree) of the input pattern.
+    */
+  final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, sha1: String)
+
+  /** Compile-time information about an output molecule pattern in a reaction.
+    *
+    * @param molecule The molecule injector value that represents the output molecule.
+    * @param flag Type of the output pattern: either a constant value or other value.
+    */
   final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
 
   final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String)
+
+  // for M[T] molecules, the value inside AbsMolValue[T] is of type T; for B[T,R] molecules, the value is of type
+  // ReplyValue[T,R]. For now, we don't use shapeless to enforce this typing relation.
+  private[jc] type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
+  private[jc] type MutableLinearMoleculeBag = mutable.Map[Molecule, AbsMolValue[_]]
+  private[jc] type LinearMoleculeBag = Map[Molecule, AbsMolValue[_]]
+
+  private[jc] sealed class ExceptionInJoinRun(message: String) extends Exception(message)
+  private[JoinRun] final class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionNoJoinPool(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
+  private final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
 
   /** Represents a reaction body.
     *
@@ -121,7 +147,7 @@ object JoinRun {
     * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
     * @param retry Whether the reaction should be run again when an exception occurs in its body. Default is false.
     */
-  final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Option[Pool] = None, retry: Boolean = false) {
+  final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Option[Pool] = None, retry: Boolean) {
 
     /** Convenience method to specify thread pools per reaction.
       *
@@ -200,15 +226,19 @@ object JoinRun {
       if (duplicateMolecules.nonEmpty) throw new ExceptionInJoinRun(s"Nonlinear pattern: ${duplicateMolecules.mkString(", ")} used twice")
       moleculesInThisReaction.inputMolecules.toList
     }
-    ReactionInfo(inputMoleculesUsed.map(m => InputMoleculeInfo(m, UnknownInputPattern)), None, GuardPresenceUnknown, UUID.randomUUID().toString)
+    ReactionInfo(inputMoleculesUsed.map(m => InputMoleculeInfo(m, UnknownInputPattern, UUID.randomUUID().toString)), None, GuardPresenceUnknown, UUID.randomUUID().toString)
   }
 
-  /** Create a reaction value out of a simple reaction body - no pattern-matching with molecule values except the last one.
+  /** Create a reaction value out of a simple reaction body - no non-wildcard pattern-matching with molecule values except the last one.
+    * (The only exception is a pattern match with {{{null}}} or zero values.)
+    * The only reason this method exists is for us to be able to write join definitions without any macros.
+    * Since this method does not provide a full compile-time analysis of reactions, it should be used only for internal testing and debugging of JoinRun itself.
+    * At the moment, this method is used in benchmarks and tests of JoinRun that are run without depending on any macros.
     *
     * @param body Body of the reaction. Should not contain any pattern-matching on molecule values, except possibly for the last molecule in the list of input molecules.
     * @return Reaction value. The [[ReactionInfo]] structure will be filled out in a minimal fashion.
     */
-  private[winitzki] def runSimple(body: ReactionBody): Reaction = Reaction(makeSimpleInfo(body), body)
+  private[winitzki] def runSimple(body: ReactionBody): Reaction = Reaction(makeSimpleInfo(body), body, retry = false)
 
   // Container for molecule values
   private[jc] sealed trait AbsMolValue[T] {
@@ -424,19 +454,5 @@ object JoinRun {
     join.performStaticChecking()
 
   }
-
-  // for M[T] molecules, the value inside AbsMolValue[T] is of type T; for B[T,R] molecules, the value is of type
-  // ReplyValue[T,R]. For now, we don't use shapeless to enforce this typing relation.
-  private[jc] type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
-  private[jc] type MutableLinearMoleculeBag = mutable.Map[Molecule, AbsMolValue[_]]
-  private[jc] type LinearMoleculeBag = Map[Molecule, AbsMolValue[_]]
-
-  private[jc] sealed class ExceptionInJoinRun(message: String) extends Exception(message)
-  private[JoinRun] final class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
-  private[jc] final class ExceptionNoJoinPool(message: String) extends ExceptionInJoinRun(message)
-  private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
-  private final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
-  private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
-  private[jc] final class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
 
 }

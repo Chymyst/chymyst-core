@@ -248,7 +248,7 @@ private final case class JoinDefinition(
       r2 <- reactionInfos.keys
       if r1 != r2
       if (r1.inputMolecules diff r2.inputMolecules).isEmpty
-      if r1.info.inputs.forall{ case InputMoleculeInfo(m, f) => f.isUnconditional }
+      if r1.info.inputs.forall(_.flag.isUnconditional)
     } yield {
       (r1, r2)
     }
