@@ -94,17 +94,73 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     result shouldEqual()
   }
 
-  it should "detect shadowing of reactions with non-identical matchers that match a constant" in {
+  it should "detect shadowing of reactions with non-identical matchers that match a constant and a wildcard" in {
     val thrown = intercept[Exception] {
       val a = m[Option[Int]]
       val b = m[Int]
       join(
-        & { case a(Some(1)) => },
+        & { case b(_) + a(Some(1)) => },
         & { case a(Some(1)) + b(2) => }
+      )
+    }
+    thrown.getMessage shouldEqual "In Join{a + b => ...; a + b => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a + b => ..."
+  }
+
+  object P {
+    def unapply(x: Int): Option[Int] = if (x % 2 == 0) Some(x/2) else None
+  }
+
+  it should "detect shadowing of reactions with non-identical matchers that are nontrivially weaker" in {
+    val thrown = intercept[Exception] {
+      val a = m[Int]
+      val b = m[Int]
+      join(
+        & { case a(P(x)) => },
+        & { case a(2) + b(3) => }
       )
     }
     thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ..."
   }
+
+  it should "detect shadowing of reactions with all supported matcher combinations" in {
+    val thrown = intercept[Exception] {
+      val a = m[Option[Int]]
+      val b = m[Int]
+      join(
+        & { case a(_) + b(1) + a(Some(2)) + a(x) + b(1) + b(_) => },
+        & { case a(Some(1)) + b(2) + a(Some(2)) + a(Some(3)) + b(1) + b(_) + b(1) => }
+      )
+    }
+    thrown.getMessage shouldEqual "In Join{a + b => ...; a + b => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a + b => ..."
+  }
+
+  it should "detect shadowing of reactions with several wildcards" in {
+    val thrown = intercept[Exception] {
+      val a = m[Option[Int]]
+      val b = m[Int]
+      join(
+        & { case a(_) + b(1) + a(Some(2)) + a(x) + a(_) => },
+        & { case a(Some(1)) + b(2) + a(Some(2)) + a(Some(3)) + b(1) + b(_) + b(1) + a(x) => }
+      )
+    }
+    thrown.getMessage shouldEqual "In Join{a + b => ...; a + b => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a + b => ..."
+  }
+
+  it should "detect shadowing of reactions with non-identical matchers that are nontrivially not weaker" in {
+
+    object P {
+      def unapply(x: Int): Option[Int] = if (x % 2 == 0) Some(x / 2) else None
+    }
+
+    val a = m[Int]
+    val b = m[Int]
+    val result = join(
+      & { case a(P(x)) => },
+      & { case a(1) + b(3) => }
+    )
+    result shouldEqual()
+  }
+
 
 
 }

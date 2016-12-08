@@ -383,14 +383,14 @@ result shouldEqual ()
 
 These features are considered for implementation in the next versions:
 
-1. Perform static analysis of reactions, and warn the user about certain livelock and deadlock situations.
-1. Rework the decisions to start reactions so that the static analysis is used (inputs and outputs of reactions). In particular, do not lock the entire molecule bag - only lock some clusters that have contention on certain molecule inputs.
-1. Implement fairness with respect to molecules (random choice of input molecules for reactions). 
-1. Rework the decisions to start reactions so that many reactions can start at once.
-1. Implement injecting several molecules at once (and arbitrarily many at once).
-1. Implement nonlinear patterns for input molecules.
+Version 0.1: Perform static analysis of reactions, and warn the user about certain situations with unavoidable livelock, deadlock, or indeterminism.
+
+Version 0.2: Rework the decisions to start reactions so that the static analysis is used (inputs and outputs of reactions). In particular, do not lock the entire molecule bag - only lock some clusters that have contention on certain molecule inputs.
+This will allow us to implement fairness with respect to molecules (random choice of input molecules for reactions), and also start many reactions at once, inject many molecules at once,
+and repeated input molecules in reactions.
 
 These features are further away from implementation because they require some research:
 
-1. Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka streams.
-1. Investigate an implicit distributed execution of thread pools.
+Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka streams.
+
+Version 0.5: Investigate an implicit distributed execution of thread pools.

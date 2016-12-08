@@ -11,6 +11,8 @@ and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 TODO and roadmap:
   value * difficulty - description
 
+ 2 * 1 - print reaction infos using pattern information e.g. a(_) + b(.) => c(1)
+
  2 * 2 - cleanup packaging so that the user only imports one package object. Make sure the user needs to depend only on one JAR, too.
 
  2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
@@ -82,6 +84,7 @@ TODO and roadmap:
 import java.util.UUID
 import java.util.concurrent.{Semaphore, TimeUnit}
 
+import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.reflect.ClassTag
@@ -96,46 +99,122 @@ object JoinRun {
   }
 
   case object Wildcard extends InputPatternType
+
   case object SimpleVar extends InputPatternType
+
   final case class SimpleConst(v: Any) extends InputPatternType
-  final case class OtherInputPattern(matcher: PartialFunction[Any,Unit]) extends InputPatternType
+
+  final case class OtherInputPattern(matcher: PartialFunction[Any, Unit]) extends InputPatternType
+
   case object UnknownInputPattern extends InputPatternType
 
   sealed trait OutputPatternType
+
   final case class ConstOutputValue(v: Any) extends OutputPatternType
+
   case object OtherOutputPattern extends OutputPatternType
 
   sealed trait GuardPresenceType
+
   case object GuardPresent extends GuardPresenceType
+
   case object GuardAbsent extends GuardPresenceType
+
   case object GuardPresenceUnknown extends GuardPresenceType
 
   /** Compile-time information about an input molecule pattern in a reaction.
     *
     * @param molecule The molecule injector value that represents the input molecule.
-    * @param flag Type of the input pattern: wildcard, constant match, etc.
-    * @param sha1 Hash sum of the source code (AST tree) of the input pattern.
+    * @param flag     Type of the input pattern: wildcard, constant match, etc.
+    * @param sha1     Hash sum of the source code (AST tree) of the input pattern.
     */
-  final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, sha1: String)
+  final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, sha1: String) {
+    /** Determine whether this input molecule pattern is weaker than another pattern.
+      * Pattern a(xxx) is weaker than b(yyy) if a==b and if anything matched by yyy will also be matched by xxx.
+      *
+      * @param info The input molecule info for another input molecule.
+      * @return True if we can safely determine that this matcher is weaker, false otherwise.
+      */
+    def matcherIsWeakerThan(info: InputMoleculeInfo): Option[Boolean] = {
+      if (molecule != info.molecule) None
+      else flag match {
+        case Wildcard | SimpleVar => Some(true)
+        case OtherInputPattern(matcher1) => info.flag match {
+          case SimpleConst(c) => Some(matcher1.isDefinedAt(c))
+          case OtherInputPattern(_) => if (sha1 == info.sha1) Some(true) else None // We can reliably determine identical matchers.
+          case _ => Some(false) // Here we can't reliably determine whether this matcher is weaker.
+        }
+        case SimpleConst(c) => Some(info.flag match {
+          case SimpleConst(`c`) => true
+          case _ => false
+        })
+        case _ => Some(false)
+      }
+    }
+
+    override def toString: String = {
+      val printedPattern = flag match {
+        case Wildcard => "_"
+        case SimpleVar => "."
+        case SimpleConst(c) => c.toString
+        case OtherInputPattern(_) => s"<${sha1.substring(0, 4)}...>"
+      }
+
+      s"$molecule($printedPattern)"
+    }
+
+  }
 
   /** Compile-time information about an output molecule pattern in a reaction.
     *
     * @param molecule The molecule injector value that represents the output molecule.
-    * @param flag Type of the output pattern: either a constant value or other value.
+    * @param flag     Type of the output pattern: either a constant value or other value.
     */
   final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
 
-  final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) {
-    // The input pattern sequence is pre-sorted for further use.
-    val inputsSorted: Seq[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
-      // wildcard and simplevars are sorted together
-      val flagLabel = flag match {
-        case Wildcard | SimpleVar => 0
-        case SimpleConst(_) => 1
-        case OtherInputPattern(_) => 2
-        case _ => 3
+  /** Check that every input molecule matcher of one reaction is weaker than a corresponding matcher in another reaction.
+    * If true, it means that the first reaction can start whenever the second reaction can start, which is an instance of unavoidable indeterminism.
+    * The input1, input2 list2 should not contain UnknownInputPattern.
+    *
+    * @param input1 Sorted input list for the first reaction.
+    * @param input2 Sorted input list  for the second reaction.
+    * @return True if the first reaction is weaker than the second.
+    */
+  @tailrec
+  private[jc] def allMatchersAreWeakerThan(input1: List[InputMoleculeInfo], input2: List[InputMoleculeInfo]): Boolean = {
+    println(s"debug: allMatchersAreWeakerThan(input1=$input1, input2=$input2")
+    input1 match {
+      case Nil => true // input1 has no matchers left
+      case info1 :: rest1 => input2 match {
+        case Nil => false // input1 has matchers but input2 has no matchers left
+        case info2 :: rest2 =>
+          info1.matcherIsWeakerThan(info2) match {
+            case None => allMatchersAreWeakerThan(input1, rest2)
+            case Some(true) => allMatchersAreWeakerThan(rest1, rest2)
+            case Some(false) => false
+          }
       }
-      (flagLabel, mol.toString, sha)
+    }
+  }
+
+  final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) {
+
+    private val patternIsNotUnknown: InputMoleculeInfo => Boolean =
+      i => i.flag != UnknownInputPattern
+
+    private[jc] def allMatchersWeakerThan(info: ReactionInfo) =
+      inputsSorted.forall(patternIsNotUnknown) && allMatchersAreWeakerThan(inputsSorted, info.inputsSorted.filter(patternIsNotUnknown))
+
+    // The input pattern sequence is pre-sorted for further use.
+    private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
+      // wildcard and simplevars are sorted together; more specific matchers must precede less specific matchers
+      val patternPrecedence = flag match {
+        case Wildcard | SimpleVar => 3
+        case OtherInputPattern(_) => 2
+        case SimpleConst(_) => 1
+        case _ => 0
+      }
+      (mol.toString, patternPrecedence, sha)
     }
   }
 
@@ -187,11 +266,11 @@ object JoinRun {
       *
       * @return String representation of input molecules of the reaction.
       */
-    override def toString = s"${inputMolecules.map(_.toString).sorted.mkString(" + ")} => ...${if (retry)
+    override def toString = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${if (retry)
       "/R" else ""}"
 
     // Optimization: this is used often.
-    val inputMolecules: Seq[Molecule] = info.inputs.map(_.molecule)
+    val inputMolecules: Seq[Molecule] = info.inputs.map(_.molecule).sortBy(_.toString)
   }
 
   // Wait until the join definition to which `molecule` is bound becomes quiescent, then inject `callback`.
