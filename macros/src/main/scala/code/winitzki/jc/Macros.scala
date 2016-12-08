@@ -293,8 +293,8 @@ object Macros {
     val allOutputInfo = guardOut ++ bodyOut
     val outputMolecules = allOutputInfo.map { case (m, p) => q"OutputMoleculeInfo(${m.asTerm}, $p)" }
 
-    val hasGuard = guard != EmptyTree
-    val hasGuardFlag = if (hasGuard) q"GuardPresent" else q"GuardAbsent"
+    val isGuardAbsent = guard == EmptyTree
+    val hasGuardFlag = if (isGuardAbsent) q"GuardAbsent" else q"GuardPresent"
 
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of output molecules.
@@ -304,7 +304,7 @@ object Macros {
     }
     lazy val inputMoleculesAreSubsetOfOutputMolecules = (patternIn.map(_._1) diff allOutputInfo.map(_._1)).isEmpty
 
-    if(!hasGuard && allInputMatchersAreTrivial && inputMoleculesAreSubsetOfOutputMolecules) {
+    if(isGuardAbsent && allInputMatchersAreTrivial && inputMoleculesAreSubsetOfOutputMolecules) {
       maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
     }
 

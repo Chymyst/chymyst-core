@@ -62,7 +62,7 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ..."
   }
 
-  it should "detect shadowing of reactions with identical nonconstant matchers" in {
+  it should "detect shadowing of reactions with identical non-constant matchers" in {
     val thrown = intercept[Exception] {
       val a = m[Option[Int]]
       val b = m[Int]
@@ -74,7 +74,7 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ..."
   }
 
-  it should "fail to detect shadowing of reactions with nonidentical nonconstant matchers" in {
+  it should "fail to detect shadowing of reactions with non-identical non-constant matchers" in {
     val a = m[Option[Int]]
     val b = m[Int]
     val result = join(
@@ -83,5 +83,18 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     )
     result shouldEqual()
   }
+
+  it should "detect shadowing of reactions with non-identical matchers that match a constant" in {
+    val thrown = intercept[Exception] {
+      val a = m[Option[Int]]
+      val b = m[Int]
+      join(
+        & { case a(Some(1)) => },
+        & { case a(Some(1)) + b(2) => }
+      )
+    }
+    thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ..."
+  }
+
 
 }
