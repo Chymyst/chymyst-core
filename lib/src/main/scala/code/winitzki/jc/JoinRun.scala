@@ -11,13 +11,15 @@ and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 TODO and roadmap:
   value * difficulty - description
 
+ 2 * 1 - print reaction infos using pattern information e.g. a(_) + b(.) => c(1)
+
+ 2 * 2 - cleanup packaging so that the user only imports one package object. Make sure the user needs to depend only on one JAR, too.
+
  2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
 
  2 * 2 - maybe remove default pools altogether?
 
  2 * 2 - should `run` take ReactionBody or simply UnapplyArg => Unit?
-
- 3 * 1 - make helper functions to create new single-thread pools using a given thread or a given executor/handler
 
  5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
 
@@ -47,10 +49,11 @@ TODO and roadmap:
 
  Kinds of situations to detect at runtime:
  - Input molecules with nontrivial matchers are a subset of output molecules. This is a warning. (Input molecules with trivial matchers can't be a subset of output molecules - this is a compile-time error.)
- - Input molecules of one reaction are a subset of input molecules of another reaction, with the same matchers. This is an error (uncontrollable lack of deterministic execution).
+ - Input molecules of one reaction are a subset of input molecules of another reaction, with the same matchers. This is an error (uncontrollable indeterminism).
  - A cycle of input molecules being subset of output molecules, possibly spanning several join definitions (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
  - Output molecules in a reaction include a blocking molecule that might deadlock because other reactions with it require molecules that are injected later. Example: if m is non-blocking and b is blocking, and we have reaction m + b =>... and another reaction that outputs ... => b; m. This is potentially a problem because the first reaction will block waiting for "m", while the second reaction will not inject "m" until "b" returns.
   This is a warning since we can't be sure that the output molecules are always injected, and in what exact order.
+ - Molecules that should be singletons: a + ... -> a + ... with several different such reactions. If "a" is not a singleton here, we won't be able to control indeterminism.
 
  2 * 3 - understand the "reader-writer" example; implement it as a unit test
 
@@ -81,22 +84,158 @@ TODO and roadmap:
 import java.util.UUID
 import java.util.concurrent.{Semaphore, TimeUnit}
 
+import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.reflect.ClassTag
 
 object JoinRun {
 
-  sealed trait PatternType
-  case object Wildcard extends PatternType
-  case object SimpleVar extends PatternType
-  final case class SimpleConst(v: Any) extends PatternType
-  case object UnknownPattern extends PatternType
-  final case class OtherPattern(matcher: PartialFunction[Any,Unit]) extends PatternType
+  sealed trait InputPatternType {
+    def isUnconditional: Boolean = this match {
+      case Wildcard | SimpleVar => true
+      case _ => false
+    }
+  }
 
-  final case class InputMoleculeInfo(molecule: Molecule, flag: PatternType)
+  case object Wildcard extends InputPatternType
 
-  final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: List[Molecule], sha1: String)
+  case object SimpleVar extends InputPatternType
+
+  final case class SimpleConst(v: Any) extends InputPatternType
+
+  final case class OtherInputPattern(matcher: PartialFunction[Any, Unit]) extends InputPatternType
+
+  case object UnknownInputPattern extends InputPatternType
+
+  sealed trait OutputPatternType
+
+  final case class ConstOutputValue(v: Any) extends OutputPatternType
+
+  case object OtherOutputPattern extends OutputPatternType
+
+  sealed trait GuardPresenceType
+
+  case object GuardPresent extends GuardPresenceType
+
+  case object GuardAbsent extends GuardPresenceType
+
+  case object GuardPresenceUnknown extends GuardPresenceType
+
+  /** Compile-time information about an input molecule pattern in a reaction.
+    *
+    * @param molecule The molecule injector value that represents the input molecule.
+    * @param flag     Type of the input pattern: wildcard, constant match, etc.
+    * @param sha1     Hash sum of the source code (AST tree) of the input pattern.
+    */
+  final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, sha1: String) {
+    /** Determine whether this input molecule pattern is weaker than another pattern.
+      * Pattern a(xxx) is weaker than b(yyy) if a==b and if anything matched by yyy will also be matched by xxx.
+      *
+      * @param info The input molecule info for another input molecule.
+      * @return Some(true) if we can surely determine that this matcher is weaker than another;
+      *         Some(false) if we can surely determine that this matcher is not weaker than another;
+      *         None if we cannot determine anything because information is insufficient.
+      */
+    def matcherIsWeakerThan(info: InputMoleculeInfo): Option[Boolean] = {
+      if (molecule != info.molecule) None
+      else flag match {
+        case Wildcard | SimpleVar => Some(true)
+        case OtherInputPattern(matcher1) => info.flag match {
+          case SimpleConst(c) => Some(matcher1.isDefinedAt(c))
+          case OtherInputPattern(_) => if (sha1 == info.sha1) Some(true) else None // We can reliably determine identical matchers.
+          case _ => Some(false) // Here we can't reliably determine whether this matcher is weaker.
+        }
+        case SimpleConst(c) => Some(info.flag match {
+          case SimpleConst(`c`) => true
+          case _ => false
+        })
+        case _ => Some(false)
+      }
+    }
+
+    override def toString: String = {
+      val printedPattern = flag match {
+        case Wildcard => "_"
+        case SimpleVar => "."
+        case SimpleConst(c) => c.toString
+        case OtherInputPattern(_) => s"<${sha1.substring(0, 4)}...>"
+        case UnknownInputPattern => s"?"
+      }
+
+      s"$molecule($printedPattern)"
+    }
+
+  }
+
+  /** Compile-time information about an output molecule pattern in a reaction.
+    *
+    * @param molecule The molecule injector value that represents the output molecule.
+    * @param flag     Type of the output pattern: either a constant value or other value.
+    */
+  final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
+
+  /** Check that every input molecule matcher of one reaction is weaker than a corresponding matcher in another reaction.
+    * If true, it means that the first reaction can start whenever the second reaction can start, which is an instance of unavoidable indeterminism.
+    * The input1, input2 list2 should not contain UnknownInputPattern.
+    *
+    * @param input1 Sorted input list for the first reaction.
+    * @param input2 Sorted input list  for the second reaction.
+    * @return True if the first reaction is weaker than the second.
+    */
+  @tailrec
+  private[jc] def allMatchersAreWeakerThan(input1: List[InputMoleculeInfo], input2: List[InputMoleculeInfo]): Boolean = {
+    input1 match {
+      case Nil => true // input1 has no matchers left
+      case info1 :: rest1 => input2 match {
+        case Nil => false // input1 has matchers but input2 has no matchers left
+        case _ =>
+          val isWeaker: InputMoleculeInfo => Boolean =
+            i => info1.matcherIsWeakerThan(i).getOrElse(false)
+
+          input2.find(isWeaker) match {
+            case Some(correspondingMatcher) => allMatchersAreWeakerThan(rest1, input2 diff List(correspondingMatcher))
+            case None => false
+          }
+
+      }
+    }
+  }
+
+  final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) {
+
+    private val patternIsNotUnknown: InputMoleculeInfo => Boolean =
+      i => i.flag != UnknownInputPattern
+
+    private[jc] def allMatchersWeakerThan(info: ReactionInfo) =
+      inputsSorted.forall(patternIsNotUnknown) && allMatchersAreWeakerThan(inputsSorted, info.inputsSorted.filter(patternIsNotUnknown))
+
+    // The input pattern sequence is pre-sorted for further use.
+    private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
+      // wildcard and simplevars are sorted together; more specific matchers must precede less specific matchers
+      val patternPrecedence = flag match {
+        case Wildcard | SimpleVar => 3
+        case OtherInputPattern(_) => 2
+        case SimpleConst(_) => 1
+        case _ => 0
+      }
+      (mol.toString, patternPrecedence, sha)
+    }
+  }
+
+  // for M[T] molecules, the value inside AbsMolValue[T] is of type T; for B[T,R] molecules, the value is of type
+  // ReplyValue[T,R]. For now, we don't use shapeless to enforce this typing relation.
+  private[jc] type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
+  private[jc] type MutableLinearMoleculeBag = mutable.Map[Molecule, AbsMolValue[_]]
+  private[jc] type LinearMoleculeBag = Map[Molecule, AbsMolValue[_]]
+
+  private[jc] sealed class ExceptionInJoinRun(message: String) extends Exception(message)
+  private[JoinRun] final class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionNoJoinPool(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
+  private final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
 
   /** Represents a reaction body.
     *
@@ -104,8 +243,7 @@ object JoinRun {
     * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
     * @param retry Whether the reaction should be run again when an exception occurs in its body. Default is false.
     */
-  final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Option[Pool] = None, retry: Boolean = false) {
-    lazy val inputMoleculesUsed: Set[Molecule] = info.inputs.map { case InputMoleculeInfo(m, f) => m }.toSet
+  final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Option[Pool] = None, retry: Boolean) {
 
     /** Convenience method to specify thread pools per reaction.
       *
@@ -133,8 +271,11 @@ object JoinRun {
       *
       * @return String representation of input molecules of the reaction.
       */
-    override def toString = s"${inputMoleculesUsed.toSeq.map(_.toString).sorted.mkString(" + ")} => ...${if (retry)
+    override def toString = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${if (retry)
       "/R" else ""}"
+
+    // Optimization: this is used often.
+    val inputMolecules: Seq[Molecule] = info.inputs.map(_.molecule).sortBy(_.toString)
   }
 
   // Wait until the join definition to which `molecule` is bound becomes quiescent, then inject `callback`.
@@ -181,18 +322,22 @@ object JoinRun {
       if (duplicateMolecules.nonEmpty) throw new ExceptionInJoinRun(s"Nonlinear pattern: ${duplicateMolecules.mkString(", ")} used twice")
       moleculesInThisReaction.inputMolecules.toList
     }
-    ReactionInfo(inputMoleculesUsed.map(m => InputMoleculeInfo(m, UnknownPattern)), Nil, UUID.randomUUID().toString)
+    ReactionInfo(inputMoleculesUsed.map(m => InputMoleculeInfo(m, UnknownInputPattern, UUID.randomUUID().toString)), None, GuardPresenceUnknown, UUID.randomUUID().toString)
   }
 
-  /** Create a reaction value out of a simple reaction body - no pattern-matching with molecule values except the last one.
+  /** Create a reaction value out of a simple reaction body - no non-wildcard pattern-matching with molecule values except the last one.
+    * (The only exception is a pattern match with {{{null}}} or zero values.)
+    * The only reason this method exists is for us to be able to write join definitions without any macros.
+    * Since this method does not provide a full compile-time analysis of reactions, it should be used only for internal testing and debugging of JoinRun itself.
+    * At the moment, this method is used in benchmarks and tests of JoinRun that are run without depending on any macros.
     *
     * @param body Body of the reaction. Should not contain any pattern-matching on molecule values, except possibly for the last molecule in the list of input molecules.
     * @return Reaction value. The [[ReactionInfo]] structure will be filled out in a minimal fashion.
     */
-  private[winitzki] def runSimple(body: ReactionBody): Reaction = Reaction(makeSimpleInfo(body), body)
+  private[winitzki] def runSimple(body: ReactionBody): Reaction = Reaction(makeSimpleInfo(body), body, retry = false)
 
   // Container for molecule values
-  private sealed trait AbsMolValue[T] {
+  private[jc] sealed trait AbsMolValue[T] {
     def getValue: T
 
     override def toString: String = getValue match { case () => ""; case v@_ => v.toString }
@@ -202,17 +347,9 @@ object JoinRun {
     override def getValue: T = v
   }
 
-  private final case class BlockingMolValue[T,R](v: T, replyValue: ReplyValue[R]) extends AbsMolValue[T] {
+  private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: ReplyValue[R]) extends AbsMolValue[T] {
     override def getValue: T = v
   }
-
-  private sealed class ExceptionInJoinRun(message: String) extends Exception(message)
-  private[JoinRun] final class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
-  private final class ExceptionNoJoinPool(message: String) extends ExceptionInJoinRun(message)
-  private final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
-  private final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
-  private final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
-  private final class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
 
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
   abstract sealed class Molecule {
@@ -374,8 +511,8 @@ object JoinRun {
 
   private[jc] sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
   private final case class UnapplyCheckSimple(inputMolecules: mutable.MutableList[Molecule]) extends UnapplyArg // used only for `runSimple` and in tests
-  private final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg // used for checking that reaction values pass the pattern-matching, before running the reaction
-  private final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg // used for running the reaction
+  private[jc] final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg // used for checking that reaction values pass the pattern-matching, before running the reaction
+  private[jc] final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg // used for running the reaction
 
   /** Type alias for reaction body.
     *
@@ -395,268 +532,23 @@ object JoinRun {
     */
   def join(reactionPool: Pool, joinPool: Pool)(rs: Reaction*): Unit = {
 
-    val knownMolecules : Map[Reaction, Set[Molecule]] = rs.map { r => (r, r.inputMoleculesUsed) }.toMap
+    val reactionInfos = rs.map { r => (r, r.info.inputs) }.toMap
 
     // create a join definition object holding the given reactions and inputs
-    val join = new JoinDefinition(knownMolecules, reactionPool, joinPool)
+    val join = new JoinDefinition(reactionInfos, reactionPool, joinPool)
 
     // set the owner on all input molecules in this join definition
-    knownMolecules.values.toSet.flatten.foreach { m =>
-      m.joinDef match {
-        case Some(owner) => throw new Exception(s"Molecule $m cannot be used as input since it was already used in $owner")
-        case None => m.joinDef = Some(join)
-      }
-    }
-
-  }
-
-  /** Add a random shuffle method to sequences.
-    *
-    * @param a Sequence to be shuffled.
-    * @tparam T Type of sequence elements.
-    */
-  private implicit final class ShufflableSeq[T](a: Seq[T]) {
-    /** Shuffle sequence elements randomly.
-      *
-      * @return A new sequence with randomly permuted elements.
-      */
-    def shuffle: Seq[T] = scala.util.Random.shuffle(a)
-  }
-
-  // for M[T] molecules, the value inside AbsMolValue[T] is of type T; for B[T,R] molecules, the value is of type
-  // ReplyValue[T,R]. For now, we don't use shapeless to enforce this typing relation.
-  private type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
-  private type MutableLinearMoleculeBag = mutable.Map[Molecule, AbsMolValue[_]]
-  private type LinearMoleculeBag = Map[Molecule, AbsMolValue[_]]
-
-  /** Represents the join definition, which holds one or more reaction definitions.
-    * At run time, the join definition maintains a bag of currently available molecules
-    * and runs reactions.
-    * The user will never see any instances of this class.
-    *
-    * @param inputMolecules The molecules known to be inputs of the given reactions.
-    * @param reactionPool The thread pool on which reactions will be scheduled.
-    * @param joinPool The thread pool on which the join definition will decide reactions and manage the molecule bag.
-    */
-  private[JoinRun] final class JoinDefinition(val inputMolecules: Map[Reaction, Set[Molecule]],
-                                              val reactionPool: Pool, val joinPool: Pool) {
-
-    // TODO: implement
-    private val quiescenceCallbacks: mutable.Set[M[Unit]] = mutable.Set.empty
-
-    lazy val knownReactions: List[Reaction] = inputMolecules.keys.toList
-
-    private lazy val stringForm = s"Join{${knownReactions.map(_.toString).sorted.mkString("; ")}}"
-
-    override def toString = stringForm
-
-    /** The sha1 hash sum of the entire join definition, computed from sha1 of each reaction.
-      * The sha1 hash of each reaction is computed from the Scala syntax tree of the reaction's source code.
-      * The result is implementation-dependent and is guaranteed to be the same for join definitions compiled from exactly the same source code with the same version of Scala compiler.
-      */
-    private lazy val sha1 = getSha1(knownReactions.map(_.info.sha1).sorted.mkString(","))
-
-    var logLevel = 0
-
-    def printBag: String = {
-      val moleculesPrettyPrinted = if (moleculesPresent.size > 0) s"Molecules: ${moleculeBagToString(moleculesPresent)}" else "No molecules"
-
-      s"${this.toString}\n$moleculesPrettyPrinted"
-    }
-
-    def setQuiescenceCallback(callback: M[Unit]): Unit = {
-      quiescenceCallbacks.add(callback)
-    }
-
-    private lazy val possibleReactions: Map[Molecule, Seq[Reaction]] = inputMolecules.toSeq
-      .flatMap { case (r, ms) => ms.toSeq.map { m => (m, r) } }
-      .groupBy { case (m, r) => m }
-      .map { case (m, rs) => (m, rs.map(_._2)) }
-
-    // Initially, there are no molecules present.
-    private val moleculesPresent: MoleculeBag = new MutableBag[Molecule, AbsMolValue[_]]
-
-    private def moleculeBagToString(mb: MoleculeBag): String =
-      mb.getMap.toSeq
-        .map{ case (m, vs) => (m.toString, vs) }
-        .sortBy(_._1)
-        .flatMap {
-        case (m, vs) => vs.map {
-          case (mv, 1) => s"$m($mv)"
-          case (mv, i) => s"$m($mv) * $i"
+    rs.flatMap { r => r.inputMolecules }
+      .toSet // We only need to set the owner once on each distinct input molecule.
+      .foreach { m: Molecule =>
+        m.joinDef match {
+          case Some(owner) => throw new Exception(s"Molecule $m cannot be used as input since it was already used in $owner")
+          case None => m.joinDef = Some(join)
         }
-      }.mkString(", ")
-
-    private def moleculeBagToString(mb: LinearMoleculeBag): String =
-      mb.map {
-        case (m, jmv) => s"$m($jmv)"
-      }.mkString(", ")
-
-    private def moleculeBagToString(mb: MutableLinearMoleculeBag): String =
-      mb.map {
-        case (m, jmv) => s"$m($jmv)"
-      }.mkString(", ")
-
-    // Adding a molecule may trigger at most one reaction.
-    def inject[T](m: Molecule, jmv: AbsMolValue[T]): Unit = {
-      if (joinPool.isInactive) throw new ExceptionNoJoinPool(s"In $this: Cannot inject molecule $m since join pool is not active")
-      else if (!Thread.currentThread().isInterrupted) joinPool.runClosure ({
-        val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
-          moleculesPresent.addToBag(m, jmv)
-          if (logLevel > 0) println(s"Debug: $this injecting $m($jmv) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
-          val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
-          val reaction = possibleReactions.get(m)
-            .flatMap(_.shuffle.find(r => {
-              usedInputs.clear()
-              r.body.isDefinedAt(UnapplyRunCheck(moleculesPresent, usedInputs))
-            }))
-          reaction.foreach(_ => moleculesPresent.removeFromBag(usedInputs))
-          (reaction, usedInputs.toMap)
-        } // End of synchronized block.
-
-        // We are just starting a reaction, so we don't need to hold the thread any more.
-        reaction match {
-          case Some(r) =>
-            if (logLevel > 1) println(s"Debug: In $this: starting reaction {$r} on thread pool ${r.threadPool} while on thread pool $joinPool with inputs ${moleculeBagToString(usedInputs)}")
-            if (logLevel > 2) println(
-              if (moleculesPresent.size == 0)
-                s"Debug: In $this: no molecules remaining"
-              else
-                s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
-            )
-            // A basic check that we are using our mutable structures safely. We should never see this error.
-            if (!r.inputMoleculesUsed.equals(usedInputs.keys.toSet)) {
-              val message = s"Internal error: In $this: attempt to start reaction {$r} with incorrect inputs ${moleculeBagToString(usedInputs)}"
-              println(message)
-              throw new ExceptionWrongInputs(message)
-            }
-            // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
-            val poolForReaction = r.threadPool.getOrElse(reactionPool)
-            if (poolForReaction.isInactive) throw new ExceptionNoReactionPool(s"In $this: cannot run reaction $r since reaction pool is not active")
-            else if (!Thread.currentThread().isInterrupted) poolForReaction.runClosure( {
-              if (logLevel > 1) println(s"Debug: In $this: reaction {$r} started on thread pool $joinPool with thread id ${Thread.currentThread().getId}")
-              try {
-                // Here we actually apply the reaction body to its input molecules.
-                r.body.apply(UnapplyRun(usedInputs))
-              } catch {
-                case e: ExceptionInJoinRun =>
-                  // Running the reaction body produced an exception that is internal to JoinRun.
-                  // We should not try to recover from this; it is most either an error on user's part
-                  // or a bug in JoinRun.
-                  println(s"In $this: Reaction {$r} produced an exception that is internal to JoinRun. Input molecules ${moleculeBagToString(usedInputs)} were not injected again. Exception trace will be printed now.")
-                  e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
-                  throw e
-
-                case e: Exception =>
-                  // Running the reaction body produced an exception. Note that the exception has killed a thread.
-                  // We will now re-insert the input molecules. Hopefully, no side-effects or output molecules were produced so far.
-                  val aboutMolecules = if (r.retry) {
-                    usedInputs.foreach { case (mol, v) => inject(mol, v) }
-                    "were injected again"
-                  }
-                  else "were consumed and not injected again"
-
-                  println(s"In $this: Reaction {$r} produced an exception. Input molecules ${moleculeBagToString(usedInputs)} $aboutMolecules. Exception trace will be printed now.")
-                  e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
-              }
-              // For any blocking input molecules that have no reply, put an error message into them and reply with empty
-              // value to unblock the threads.
-
-              def nonemptyOpt[S](s: Seq[S]): Option[Seq[S]] = if (s.isEmpty) None else Some(s)
-
-              // Compute error messages here in case we will need them later.
-              val blockingMoleculesWithNoReply = nonemptyOpt(usedInputs
-                .filter { case (_, BlockingMolValue(_, replyValue)) => replyValue.result.isEmpty; case _ => false }
-                .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
-
-              val messageNoReply = blockingMoleculesWithNoReply map { s => s"Error: In $this: Reaction {$r} finished without replying to $s" }
-
-              val blockingMoleculesWithMultipleReply = nonemptyOpt(usedInputs
-                .filter { case (_, BlockingMolValue(_, replyValue)) => replyValue.repliedTwice; case _ => false }
-                .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
-
-              val messageMultipleReply = blockingMoleculesWithMultipleReply map { s => s"Error: In $this: Reaction {$r} replied to $s more than once" }
-
-              // We will report all errors to each blocking molecule.
-              val errorMessage = Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
-              val haveError = blockingMoleculesWithNoReply.nonEmpty || blockingMoleculesWithMultipleReply.nonEmpty
-
-              // Insert error messages into the reply wrappers and release all semaphores.
-              usedInputs.foreach {
-                case (_, BlockingMolValue(_, replyValue)) =>
-                  if (haveError) {
-                    replyValue.errorMessage = Some(errorMessage)
-                  }
-                  replyValue.releaseSemaphore()
-
-                case _ => ()
-              }
-
-              if (haveError) {
-                println(errorMessage)
-                throw new Exception(errorMessage)
-              }
-            }, name = Some(s"[Reaction $r in $this]"))
-
-          case None =>
-            if (logLevel > 2) println(s"Debug: In $this: no reactions started")
-            ()
-
-        }
-
-      }, name = Some(s"[Injecting $m($jmv) in $this]"))
-    }
-
-
-    // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
-    // We must make this a blocking call, so we acquire a semaphore (with timeout).
-    def injectAndReply[T,R](m: B[T,R], v: T, valueWithResult: ReplyValue[R]): R = {
-      inject(m, BlockingMolValue(v, valueWithResult))
-//      try  // not sure we need this.
-      BlockingIdle {
-        valueWithResult.acquireSemaphore()
       }
-//      catch {
-//        case e: InterruptedException => e.printStackTrace()
-//      }
-      valueWithResult.deleteSemaphore() // make sure it's gone
 
-      // check if we had any errors, and that we have a result value
-      valueWithResult.errorMessage match {
-        case Some(message) => throw new Exception(message)
-        case None => valueWithResult.result.getOrElse(
-          throw new ExceptionEmptyReply(s"Internal error: In $this: $m received an empty reply without an error message"
-          )
-        )
-      }
-    }
-
-    def injectAndReplyWithTimeout[T,R](timeout: Long, m: B[T,R], v: T, valueWithResult: ReplyValue[R]):
-    Option[R] = {
-      inject(m, BlockingMolValue(v, valueWithResult))
-      //      try  // not sure we need this.
-      val success = BlockingIdle {
-        valueWithResult.acquireSemaphore(Some(timeout))
-      }
-      //      catch {
-      //        case e: InterruptedException => e.printStackTrace()
-      //      }
-      valueWithResult.deleteSemaphore() // make sure it's gone
-
-      // check if we had any errors, and that we have a result value
-      valueWithResult.errorMessage match {
-        case Some(message) => throw new Exception(message)
-        case None => if (success) Some(valueWithResult.result.getOrElse(
-            throw new ExceptionEmptyReply(s"Internal error: In $this: $m received an empty reply without an error message"))
-        ) else None
-
-      }
-    }
+    join.performStaticChecking()
 
   }
-
-  private lazy val sha1Digest = java.security.MessageDigest.getInstance("SHA-1")
-
-  def getSha1(c: Any): String = sha1Digest.digest(c.toString.getBytes("UTF-8")).map("%02X".format(_)).mkString
 
 }

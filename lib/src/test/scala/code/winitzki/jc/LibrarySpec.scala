@@ -21,18 +21,18 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
   behavior of "future + molecule"
 
   it should "inject a molecule from a future computed out of a given future" in {
-    val waiter = new Waiter
 
     val c = new M[Unit]("c")
+    val f = new B[Unit, Unit]("f")
 
     val tp = new FixedPool(2)
     join(tp,tp)(
-      runSimple { case c(_) => waiter.dismiss() }
+      runSimple { case c(_) + f(_, r) => r() }
     )
 
     Future { Thread.sleep(50) } & c    // insert a molecule from the end of the future
 
-    waiter.await() // Waiter default is 150ms
+    f() shouldEqual ()
     tp.shutdownNow()
   }
 

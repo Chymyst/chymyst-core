@@ -12,7 +12,7 @@ It also works with Scala 2.10 (except Akka support) and with OpenJDK 7 (except f
 
 If you are new to Join Calculus, begin with this [tutorial introduction to `JoinRun`](doc/join_calculus_joinrun_tutorial.md).
 
-See also my presentation at _Scala by the Bay 2016_ ([talk slides are available](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_talk_2016.pdf)).
+I gave a presentation on `JoinRun` at [Scala by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
 There is some [technical documentation for `JoinRun` library](doc/joinrun.md).
 
@@ -66,7 +66,7 @@ Compared to `ScalaJoin` (Jiansen He's 2011 implementation of JC), `JoinRun` offe
 
 # Status
 
-Current version is `0.0.9`.
+Current version is `0.0.10`.
 The semantics of Join Calculus (restricted to single machine) is fully implemented and tested.
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
 Performance tests indicate that the runtime can schedule about 300,000 reactions per second per CPU core, and the performance bottleneck is the thread switching and pattern-matching.
@@ -74,8 +74,9 @@ Performance tests indicate that the runtime can schedule about 300,000 reactions
 Known limitations:
 
 - `JoinRun` is currently at most 20% slower than `ScalaJoin` on certain benchmarks that exercise a very large number of very short reactions.
-- No fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random
-- No distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`)
+- No fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random.
+- No distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`, and probably will not be).
+
 
 # Run unit tests
 
