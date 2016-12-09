@@ -23,7 +23,7 @@ object Macros {
 
   private[jc] def getName: String = macro getNameImpl
 
-  def getEnclosingName(c: theContext): String =
+  private def getEnclosingName(c: theContext): String =
     c.internal.enclosingOwner.name.decodedName.toString
       .stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
 
@@ -217,14 +217,14 @@ object Macros {
 
           // possibly a molecule injection
           case Apply(Select(t@Ident(TermName(_)), TermName("apply")), binder) =>
-            if (!isOwnedBy(t.symbol, reactionBodyOwner) && t.tpe <:< typeOf[Molecule])
+            if (!isOwnedBy(t.symbol, reactionBodyOwner) && t.tpe <:< typeOf[Molecule]) {
               // skip any molecule injectors defined in the inner scope
               outputMolecules.append((t.symbol, getOutputFlag(binder)))
-            else ()
+            }
 
-            if (t.tpe <:< weakTypeOf[ReplyValue[_]])
+            if (t.tpe <:< weakTypeOf[ReplyValue[_]]) {
               replyMolecules.append((t.symbol, getOutputFlag(binder)))
-            else ()
+            }
 
           case _ => super.traverse(tree)
 
