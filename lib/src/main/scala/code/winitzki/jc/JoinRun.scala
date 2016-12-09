@@ -229,7 +229,6 @@ object JoinRun {
 
   @tailrec
   private[JoinRun] def inputMatchersAreWeakerThanOutput(input: List[InputMoleculeInfo], output: List[OutputMoleculeInfo]): Boolean = {
-//    println(s"debug: inputMatchersAreWeakerThanOutput(input=$input, output=$output)")
     input match {
       case Nil => true
       case info :: rest => output match {
