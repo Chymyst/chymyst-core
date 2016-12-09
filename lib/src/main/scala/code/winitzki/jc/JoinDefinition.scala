@@ -262,11 +262,17 @@ private final case class JoinDefinition(
   }
 
   private def checkSingleReactionLivelock: Option[String] = {
-    ???
+    val errorList = reactionInfos.keys
+      .filter { r => r.info.inputMatchersWeakerThanOutput(r.info)}
+      .map(_.toString)
+    if (errorList.nonEmpty)
+      Some(s"Unavoidable livelock: reaction${if (errorList.size == 1) "" else "s"} ${errorList.mkString(", ")}")
+    else None
+
   }
 
   private def checkMultiReactionLivelock: Option[String] = {
-    ???
+    None
   }
 
   private[jc] def performStaticChecking(): Unit = {

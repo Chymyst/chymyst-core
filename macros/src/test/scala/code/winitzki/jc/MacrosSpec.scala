@@ -342,7 +342,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a,OtherOutputPattern)))
     r.info.hasGuard shouldEqual GuardAbsent
 
-    // Note: Scala 2.11 and Scala 2.12 have different syntax trees for the same reaction in this case!
+    // Note: Scala 2.11 and Scala 2.12 have different syntax trees for Some(1)
     val shaScala211 = "3A03F935B238FBC427CCEC83D25D69820AB5CDBE"
     val shaScala212 = "C4A42A1C5082B4C5023CC3B0497BB7BCA6642C17"
     Set(shaScala211, shaScala212) should contain oneElementOf List(r.info.sha1)
@@ -399,17 +399,20 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
   it should "detect output molecules with constant values" in {
     val bb = m[Int]
     val bbb = m[Int]
+    val cc = m[Option[Int]]
 
     val r1 = & { case bbb(x) => bb(x) }
     val r2 = & { case bbb(_) + bb(_) => bbb(0) }
-    val r3 = & { case bbb(x) + bb(_) + bb(_) => bbb(1) + bb(x) + bbb(2) }
+    val r3 = & { case bbb(x) + bb(_) + bb(_) => bbb(1) + bb(x) + bbb(2) + cc(None) + cc(Some(1)) }
 
     r1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb,OtherOutputPattern)))
     r2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bbb,ConstOutputValue(0))))
     r3.info.outputs shouldEqual Some(List(
       OutputMoleculeInfo(bbb,ConstOutputValue(1)),
       OutputMoleculeInfo(bb,OtherOutputPattern),
-      OutputMoleculeInfo(bbb,ConstOutputValue(2))
+      OutputMoleculeInfo(bbb,ConstOutputValue(2)),
+      OutputMoleculeInfo(cc,OtherOutputPattern),
+      OutputMoleculeInfo(cc,OtherOutputPattern)
     ))
   }
 
@@ -450,6 +453,31 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     (Set("2FB215E623E8AF28E9EA279CBEA827A1065CA226","A67750BF5B6338391B0034D3A99694889CBB26A3") contains pat_bb.sha1) shouldEqual true
 
   }
+
+  behavior of "auxiliary functions"
+
+  it should "find expression trees for constant values" in {
+    rawTree(1) shouldEqual "Literal(Constant(1))"
+    rawTree(None) shouldEqual "Select(Ident(scala), scala.None)"
+
+    (Set(
+        "Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1))))",
+        ""
+    ) contains rawTree(Some(1))) shouldEqual true
+  }
+
+  it should "find enclosing symbol names with correct scopes" in {
+    val x = getName
+
+    x shouldEqual "x"
+
+    val y = {
+      val z = getName
+      (z, getName)
+    }
+    y shouldEqual ("z", "y")
+  }
+
 
 }
 
