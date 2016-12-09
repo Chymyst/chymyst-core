@@ -13,7 +13,15 @@ object Macros {
 
   type theContext = blackbox.Context
 
-  def getName: String = macro getNameImpl
+  private[jc] def rawTree(x: Any): String = macro rawTreeImpl
+
+  def rawTreeImpl(c: theContext)(x: c.Expr[Any]) = {
+    import c.universe._
+    val result = showRaw(x.tree)
+    q"$result"
+  }
+
+  private[jc] def getName: String = macro getNameImpl
 
   def getEnclosingName(c: theContext): String =
     c.internal.enclosingOwner.name.decodedName.toString

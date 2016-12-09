@@ -144,10 +144,26 @@ object JoinRun {
         case OtherInputPattern(matcher1) => info.flag match {
           case SimpleConst(c) => Some(matcher1.isDefinedAt(c))
           case OtherInputPattern(_) => if (sha1 == info.sha1) Some(true) else None // We can reliably determine identical matchers.
-          case _ => Some(false) // Here we can't reliably determine whether this matcher is weaker.
+          case _ => Some(false) // Here we can reliably determine that this matcher is not weaker.
         }
         case SimpleConst(c) => Some(info.flag match {
           case SimpleConst(`c`) => true
+          case _ => false
+        })
+        case _ => Some(false)
+      }
+    }
+
+    def matcherIsWeakerThanOutput(info: OutputMoleculeInfo): Option[Boolean] = {
+      if (molecule != info.molecule) None
+      else flag match {
+        case Wildcard | SimpleVar => Some(true)
+        case OtherInputPattern(matcher1) => info.flag match {
+          case ConstOutputValue(c) => Some(matcher1.isDefinedAt(c))
+          case _ => None // Here we can't reliably determine whether this matcher is weaker.
+        }
+        case SimpleConst(c) => Some(info.flag match {
+          case ConstOutputValue(`c`) => true
           case _ => false
         })
         case _ => Some(false)
@@ -173,7 +189,16 @@ object JoinRun {
     * @param molecule The molecule injector value that represents the output molecule.
     * @param flag     Type of the output pattern: either a constant value or other value.
     */
-  final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
+  final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType) {
+    override def toString: String = {
+      val printedPattern = flag match {
+        case ConstOutputValue(c) => c.toString
+        case OtherOutputPattern => "?"
+      }
+
+      s"$molecule($printedPattern)"
+    }
+  }
 
   /** Check that every input molecule matcher of one reaction is weaker than a corresponding matcher in another reaction.
     * If true, it means that the first reaction can start whenever the second reaction can start, which is an instance of unavoidable indeterminism.
@@ -184,7 +209,7 @@ object JoinRun {
     * @return True if the first reaction is weaker than the second.
     */
   @tailrec
-  private[jc] def allMatchersAreWeakerThan(input1: List[InputMoleculeInfo], input2: List[InputMoleculeInfo]): Boolean = {
+  private[JoinRun] def allMatchersAreWeakerThan(input1: List[InputMoleculeInfo], input2: List[InputMoleculeInfo]): Boolean = {
     input1 match {
       case Nil => true // input1 has no matchers left
       case info1 :: rest1 => input2 match {
@@ -202,6 +227,25 @@ object JoinRun {
     }
   }
 
+  @tailrec
+  private[JoinRun] def inputMatchersAreWeakerThanOutput(input: List[InputMoleculeInfo], output: List[OutputMoleculeInfo]): Boolean = {
+    println(s"debug: inputMatchersAreWeakerThanOutput(input=$input, output=$output)")
+    input match {
+      case Nil => true
+      case info :: rest => output match {
+        case Nil => false
+        case _ =>
+          val isWeaker: OutputMoleculeInfo => Boolean =
+            i => info.matcherIsWeakerThanOutput(i).getOrElse(false)
+
+          output.find(isWeaker) match {
+            case Some(correspondingMatcher) => inputMatchersAreWeakerThanOutput(rest, output diff List(correspondingMatcher))
+            case None => false
+          }
+      }
+    }
+  }
+
   final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) {
 
     private val patternIsNotUnknown: InputMoleculeInfo => Boolean =
@@ -209,6 +253,11 @@ object JoinRun {
 
     private[jc] def allMatchersWeakerThan(info: ReactionInfo) =
       inputsSorted.forall(patternIsNotUnknown) && allMatchersAreWeakerThan(inputsSorted, info.inputsSorted.filter(patternIsNotUnknown))
+
+    private[jc] def inputMatchersWeakerThanOutput(info: ReactionInfo) = info.outputs match {
+      case Some(outputs) => inputsSorted.forall(patternIsNotUnknown) && inputMatchersAreWeakerThanOutput(inputsSorted, outputs)
+      case None => false
+    }
 
     // The input pattern sequence is pre-sorted for further use.
     private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
