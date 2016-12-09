@@ -142,7 +142,7 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
         & { case a(Some(1)) + b(2) + a(Some(2)) + a(Some(3)) + b(1) + b(_) + b(1) => }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a + b => ...; a + b => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a + b => ..."
+    thrown.getMessage shouldEqual "In Join{a + a + a + b + b + b + b => ...; a + a + a + b + b + b => ...}: Unavoidable indeterminism: reaction a + a + a + b + b + b + b => ... is shadowed by a + a + a + b + b + b => ..."
   }
 
   it should "detect shadowing of reactions with several wildcards" in {
