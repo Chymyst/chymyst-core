@@ -401,7 +401,7 @@ object JoinRun {
 
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
   abstract sealed class Molecule {
-    private[JoinRun] var joinDef: Option[JoinDefinition] = None
+    private[jc] var joinDef: Option[JoinDefinition] = None
 
     /** Check whether the molecule is already bound to a join definition.
       * Note that molecules can be injected only if they are bound.
@@ -595,7 +595,8 @@ object JoinRun {
         }
       }
 
-    join.performStaticChecking()
+    val foundErrors = StaticChecking.performStaticChecking(rs.toSet)
+    if (foundErrors.nonEmpty) throw new Exception(s"In $this: ${foundErrors.mkString("; ")}")
 
   }
 

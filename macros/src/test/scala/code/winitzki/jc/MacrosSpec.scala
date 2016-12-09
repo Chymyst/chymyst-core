@@ -454,6 +454,18 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
   }
 
+  behavior of "output value computation"
+
+  it should "not fail to compute outputs for livelock detection" in {
+    val thrown = intercept[Exception] {
+      val a = m[Int]
+      join(
+        & { case a(1) => a(1) }
+      )
+    }
+    thrown.getMessage shouldEqual "In Join{a => ...}: Unavoidable livelock: reaction a => ..."
+  }
+
   behavior of "auxiliary functions"
 
   it should "find expression trees for constant values" in {
@@ -464,6 +476,16 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
         "Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1))))",
         ""
     ) contains rawTree(Some(1))) shouldEqual true
+  }
+
+  it should "find expression trees for matchers" in {
+
+    (rawTree(Some(1) match {case Some(x) => } )) shouldEqual "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Bind(TermName(\"x\"), Ident(termNames.WILDCARD)))), EmptyTree, Literal(Constant(())))))"
+    (Set(
+      "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Bind(TermName(\"x\"), Ident(termNames.WILDCARD)))), EmptyTree, Literal(Constant(())))))",
+      ""
+    ) contains
+    rawTree(Some(1) match  { case Some(x) => })) shouldEqual true
   }
 
   it should "find enclosing symbol names with correct scopes" in {

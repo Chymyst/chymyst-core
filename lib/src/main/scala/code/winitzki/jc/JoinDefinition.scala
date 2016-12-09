@@ -241,11 +241,14 @@ private final case class JoinDefinition(
     }
   }
 
+}
+
+private object StaticChecking {
   // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
-  private def checkReactionShadowing: Option[String] = {
+  private def checkReactionShadowing(reactions: Set[Reaction]): Option[String] = {
     val suspiciousReactions = for {
-      r1 <- reactionInfos.keys
-      r2 <- reactionInfos.keys
+      r1 <- reactions
+      r2 <- reactions
       if r1 != r2
       if r1.info.hasGuard == GuardAbsent
       if r1.info.allMatchersWeakerThan(r2.info)
@@ -261,8 +264,8 @@ private final case class JoinDefinition(
     } else None
   }
 
-  private def checkSingleReactionLivelock: Option[String] = {
-    val errorList = reactionInfos.keys
+  private def checkSingleReactionLivelock(reactions: Set[Reaction]): Option[String] = {
+    val errorList = reactions
       .filter { r => r.info.inputMatchersWeakerThanOutput(r.info)}
       .map(_.toString)
     if (errorList.nonEmpty)
@@ -271,22 +274,17 @@ private final case class JoinDefinition(
 
   }
 
-  private def checkMultiReactionLivelock: Option[String] = {
+  private def checkMultiReactionLivelock(reactions: Set[Reaction]): Option[String] = {
+    // TODO: implement
     None
   }
 
-  private[jc] def performStaticChecking(): Unit = {
-    // TODO Livelock warnings
-
-    val foundErrors = Seq(
-      checkReactionShadowing,
-      checkSingleReactionLivelock,
-      checkMultiReactionLivelock
-    ).flatten
-
-    if (foundErrors.nonEmpty) throw new Exception(s"In $this: ${foundErrors.mkString("; ")}")
-
+  private[jc] def performStaticChecking(reactions: Set[Reaction]) = {
+    Seq(
+      checkReactionShadowing _,
+      checkSingleReactionLivelock _,
+      checkMultiReactionLivelock _
+    ).flatMap(_(reactions))
   }
 
 }
-
