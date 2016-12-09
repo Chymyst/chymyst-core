@@ -462,6 +462,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       join(
         & { case a(1) => a(1) }
       )
+      a.reactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
     }
     thrown.getMessage shouldEqual "In Join{a => ...}: Unavoidable livelock: reaction a => ..."
   }
