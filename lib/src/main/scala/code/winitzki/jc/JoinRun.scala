@@ -401,7 +401,8 @@ object JoinRun {
 
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
   abstract sealed class Molecule {
-    private[jc] var joinDef: Option[JoinDefinition] = None
+    private[JoinRun] var joinDef: Option[JoinDefinition] = None
+    private[jc] def reactions: Option[Set[Reaction]] = joinDef.map(_.reactionInfos.keys.toSet)
 
     /** Check whether the molecule is already bound to a join definition.
       * Note that molecules can be injected only if they are bound.
