@@ -261,10 +261,22 @@ private final case class JoinDefinition(
     } else None
   }
 
+  private def checkSingleReactionLivelock: Option[String] = {
+    ???
+  }
+
+  private def checkMultiReactionLivelock: Option[String] = {
+    ???
+  }
+
   private[jc] def performStaticChecking(): Unit = {
     // TODO Livelock warnings
 
-    val foundErrors = Seq(checkReactionShadowing).flatten
+    val foundErrors = Seq(
+      checkReactionShadowing,
+      checkSingleReactionLivelock,
+      checkMultiReactionLivelock
+    ).flatten
 
     if (foundErrors.nonEmpty) throw new Exception(s"In $this: ${foundErrors.mkString("; ")}")
 
