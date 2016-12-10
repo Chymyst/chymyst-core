@@ -164,14 +164,8 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
       val a = m[Int]
       val b = m[Int]
 
-      val r = & { case a(1) + b(_) => b(1) + b(2) + a(1) }
-      r.info.outputs shouldEqual Some(List(
-        OutputMoleculeInfo(b, ConstOutputValue(1)),
-        OutputMoleculeInfo(b, ConstOutputValue(2)),
-        OutputMoleculeInfo(a, ConstOutputValue(1))
-      ))
+      join(& { case a(1) + b(_) => b(1) + b(2) + a(1) })
 
-      join(r)
     }
     thrown.getMessage shouldEqual "In Join{a + b => ...}: Unavoidable livelock: reaction a + b => ..."
   }
