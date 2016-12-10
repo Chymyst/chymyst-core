@@ -44,7 +44,7 @@ In talking about `JoinRun`, I follow the “chemical machine” metaphor and ter
 |---|---|---|
 | input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
 | molecule injector | channel (port) name | `val a :  M[Int]` |
-| blocking injector | blocking channel | `val q :  B[Unit, Int]` |
+| blocking injector | synchronous channel | `val q :  B[Unit, Int]` |
 | reaction | process | `run { case a(x) + ... => ... }` |
 | injecting an output molecule | sending a message | `a(123)` _// side effect_ |
 | injecting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
@@ -54,8 +54,8 @@ In talking about `JoinRun`, I follow the “chemical machine” metaphor and ter
 
 Compared to [`ScalaJoin` (Jiansen He's 2011 implementation of JC)](https://github.com/Jiansen/ScalaJoin), `JoinRun` offers the following improvements:
 
-- Molecule injectors (“channels”) are locally scoped values (instances of abstract class `Molecule`) rather than singleton objects, as in `ScalaJoin`; this is more faithful to the semantics of JC, and allows more flexibility when defining reactions
-- Reactions are also locally scoped values (instances of class `Reaction`). `JoinRun` uses macros to perform some static analysis of reactions at compile time and to warn users of errors.
+- Molecule injectors (“channels”) are not singleton objects as in `ScalaJoin` but locally scoped values. This is how the semantics of JC is implemented in JoCaml. This allows us more flexibility in defining molecules.
+- Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`). `JoinRun` uses macros to perform some static analysis of reactions at compile time and detect some errors.
 - Reactions and molecules are “composable”: we can begin constructing a join definition incrementally, until we have `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules. (However, a join definition is immutable once it is written.)
 - “Join definitions” are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC)
 - Some common cases of invalid join definitions are flagged (as run-time errors) even before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply)

@@ -298,7 +298,7 @@ join(
 
 Join Calculus also requires that all input molecules for a reaction should be of different sorts.
 It is not allowed to have a reaction with repeated input molecules, e.g. of the form `a + a => ...` where the molecule of sort `a` is repeated.
-An input molecule list with a repeated molecule is called a “nonlinear pattern”.
+An input molecule pattern with a repeated molecule is called a “nonlinear pattern”.
 
 ```scala
 val x = m[Int]
@@ -429,44 +429,57 @@ It is interesting to note that this example code is fully declarative: it descri
 
 # Blocking molecules
 
-So far, we have used molecules whose injection was a non-blocking call.
-An important feature of Join Calculus is “blocking” (or “synchronous”) molecules.
+So far, we have used molecules whose injection was a non-blocking call whose side effect was to add a new molecule to the soup.
+These molecules are called “non-blocking”.
+An important feature of Join Calculus is the ability to define “blocking” (or “synchronous”) molecules.
 
 The runtime engine simulates the injecting of a blocking molecule in a special way.
 The injection call will be blocked until some reaction can start with the newly injected molecule.
-This reaction's body will be able to send a “reply value” back to the injecting process.
+This reaction's body will be able to send a “reply value” back to the injecting process (which can be another reaction body or any other process).
 Once the reply value has been sent, the injecting process is unblocked.
 
 Here is an example of declaring a blocking molecule:
 
 ```scala
-val f = b[Int, String]
+val f = b[Unit, Int]
 ```
 
-The molecule `f` carries a value of type `Int`; the reply value is of type `String`.
+The molecule `f` carries a value of type `Unit`; the reply value is of type `Int`.
+(These types can be arbitrary, just as for non-blocking molecules.)
 
-Sending a reply value is a special action available only with blocking molecules.
-The “replying” action is non-blocking within the reaction body.
-Example syntax for the reply action within a reaction body:
+Sending a reply value is a special feature available only with blocking molecules.
+We call this feature the **reply action**. 
+The reply action is a non-blocking operation.
+
+Here is an example showing the syntax for the reply action.
+Suppose we have a reaction that consumes a non-blocking molecule `c` with an integer value and a blocking molecule `f` defined above.
+We would like the blocking molecule to return the integer value that `c` carries.
 
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
 
-join( run { case c(n) + f(_, reply) => reply(n) } )
+join( run { case c(n) + f(_ , reply) => reply(n) } )
+
+c(123) // inject a copy of `c`
+
+val x = f() // now x = 123
 ```
 
-This reaction will proceed when a molecule `c(...)` is present and an `f()` is injected.
-The reaction body replies to `f` with the value `n` carried by the molecule `c(n)`.
+The syntax for the reply action makes it appear as if the molecule `f` carries _two_ values - its `Unit` value and a special `reply` function, and that the reaction body calls this `reply` function with an integer value.
+However, `f` is injected with the syntax `f()` -- just as any other molecule with `Unit` value.
+The `reply` function appears only in the pattern-matching expression for `f` inside a reaction.
 
-The syntax for replying suggests that `f` carries a special `reply` pseudo-molecule, and that the reaction body injects this `reply` molecule  with an integer value.
-However, the `reply` does not actually stand for a molecule injector - this is merely syntax for the “replying” action that is part of the semantics of the blocking molecule.
+Blocking molecule injectors are values of type `B[T,R]`, while non-blocking molecule injectors have type `M[T]`. 
+Here `T` is the type of value that the molecule carries, and `R` (for blocking molecules) is the type of the reply value.
+
+The pattern-matching expression for a blocking molecule of type `B[T,R]` has the form `case ... + f(v, r) + ...` where `v` is of type `T` and `r` is of type `Function1[R]`.
 
 ## Example 2: benchmarking the concurrent counter
 
 To illustrate the usage of non-blocking and blocking molecules, let us consider the task of benchmarking the concurrent counter we have previously defined.
 The plan is to initialize the counter to a large value _N_, then to inject _N_ decrement molecules, and finally wait until the counter reaches the value 0.
-We will use a blocking molecule to block until this happens, and thus to determine the time elapsed during the countdown. 
+We will use a blocking molecule to wait until this happens and thus to determine the time elapsed during the countdown. 
 
 Let us now extend the previous join definition to implement this new functionality.
 The simplest solution is to define a blocking molecule `fetch`, which will react with the counter molecule only when the counter reaches zero.
@@ -523,7 +536,7 @@ object C extends App {
 ```
 
 Some remarks:
-- Molecules with unit values do require a pattern variable when used in the `case` construction.
+- Molecules with unit values still require a pattern variable when used in the `case` construction.
 For this reason, we write `decr(_)` and `fetch(_, reply)` in the match patterns.
 However, these molecules can be injected simply as `decr()` and `fetch()`, since Scala inserts a `Unit` value automatically when calling functions.
 - We declared both reactions in one join definition, because these two reactions share the input molecule `counter`.
@@ -534,16 +547,40 @@ If a molecule remains in the soup after a reaction, it means that the molecule i
 If the relevant reaction never starts, a blocking molecule will block forever.
 The runtime engine cannot detect this situation because it cannot determine whether the relevant input molecules for that reaction might become available in the future.
 - If several reactions are available for the blocking molecule, one of these reactions will be selected at random.
-- It is an error if a reaction does not reply to the calling process:
+- Blocking molecules are printed with the suffix `"/B"`.
+
+## Error checking for blocking molecules
+
+It is an error if a reaction consumes a blocking molecule but does not reply.
+It is also an error to reply again after a reply was made.
+
+Sometimes, these errors can be caught at compile time:
+
 ```scala
-val f = b[Unit, Unit]
+val f = b[Unit, Int]
 val c = m[Int]
 join( run { case f(_,reply) + c(n) => c(n+1) } ) // forgot to reply!
+// compile-time error: "blocking input molecules should receive a reply but no reply found"
 
-f()
-java.lang.Exception: Error: In Join{f/B => ...}: Reaction {f/B => ...} finished without replying to f/B
+join( run { case f(_,reply) + c(n) => c(n+1) + r(n) + r(n) } ) // replied twice!
+// compile-time error: "blocking input molecules should receive one reply but multiple replies found"
 ```
-- Blocking molecules are printed with the suffix `"/B"`.
+
+However, a reaction could depend on a run-time condition, which is impossible to evaluate at compile time.
+In this case, a reaction that does not reply will generate a run-time error:
+
+```scala
+val f = b[Unit, Int]
+val c = m[Int]
+join( run { case f(_,reply) + c(n) => c(n+1); if (n==0) reply(n) } )
+
+c(1)
+f()
+java.lang.Exception: Error: In Join{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B
+```
+
+Note that this error will occur only when reactions actually start and the run-time condition is evaluated to `false`.
+In order to make reasoning about reactions easier, it is advisable to reorganize the chemistry such that reply actions (and, more generally, output molecule injections) are unconditional.
 
 ## Further details: Molecules and molecule injectors
 
