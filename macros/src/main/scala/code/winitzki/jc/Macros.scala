@@ -105,7 +105,7 @@ object Macros {
   def buildReactionImpl(c: theContext)(reactionBody: c.Expr[fmArg]) = {
     import c.universe._
 
-    val reactionBodyReset = c.untypecheck(reactionBody.tree)
+//    val reactionBodyReset = c.untypecheck(reactionBody.tree)
 
     /** Obtain the owner of the current macro call site.
       *
@@ -194,8 +194,8 @@ object Macros {
       override def traverse(tree: Tree): Unit = {
         tree match {
           // avoid traversing nested reactions: check whether this subtree is a Reaction() value
-          case q"code.winitzki.jc.JoinRun.Reaction.apply($a,$b,$_,$_)" => ()
-          case q"JoinRun.Reaction.apply($a,$b,$_,$_)" => ()
+          case q"code.winitzki.jc.JoinRun.Reaction.apply($_,$_,$_,$_)" => ()
+          case q"JoinRun.Reaction.apply($_,$_,$_,$_)" => ()
 
           // matcher with a single argument: a(x)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
@@ -217,8 +217,11 @@ object Macros {
 
           // possibly a molecule injection
           case Apply(Select(t@Ident(TermName(_)), TermName("apply")), binder) =>
-            if (!isOwnedBy(t.symbol, reactionBodyOwner) && t.tpe <:< typeOf[Molecule]) {
-              // skip any molecule injectors defined in the inner scope
+
+            // In the output list, we do not include any molecule injectors defined in the inner scope.
+            val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
+
+            if (includeThisSymbol && t.tpe <:< typeOf[Molecule]) {
               outputMolecules.append((t.symbol, getOutputFlag(binder)))
             }
 
