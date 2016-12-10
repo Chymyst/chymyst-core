@@ -49,7 +49,7 @@ TODO and roadmap:
 
  Kinds of situations to detect at runtime:
  - Input molecules with nontrivial matchers are a subset of output molecules. This is a warning. (Input molecules with trivial matchers can't be a subset of output molecules - this is a compile-time error.)
- - Input molecules of one reaction are a subset of input molecules of another reaction, with the same matchers. This is an error (uncontrollable indeterminism).
+ + Input molecules of one reaction are a subset of input molecules of another reaction, with the same matchers. This is an error (uncontrollable indeterminism).
  - A cycle of input molecules being subset of output molecules, possibly spanning several join definitions (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
  - Output molecules in a reaction include a blocking molecule that might deadlock because other reactions with it require molecules that are injected later. Example: if m is non-blocking and b is blocking, and we have reaction m + b =>... and another reaction that outputs ... => b; m. This is potentially a problem because the first reaction will block waiting for "m", while the second reaction will not inject "m" until "b" returns.
   This is a warning since we can't be sure that the output molecules are always injected, and in what exact order.
@@ -144,10 +144,26 @@ object JoinRun {
         case OtherInputPattern(matcher1) => info.flag match {
           case SimpleConst(c) => Some(matcher1.isDefinedAt(c))
           case OtherInputPattern(_) => if (sha1 == info.sha1) Some(true) else None // We can reliably determine identical matchers.
-          case _ => Some(false) // Here we can't reliably determine whether this matcher is weaker.
+          case _ => Some(false) // Here we can reliably determine that this matcher is not weaker.
         }
         case SimpleConst(c) => Some(info.flag match {
           case SimpleConst(`c`) => true
+          case _ => false
+        })
+        case _ => Some(false)
+      }
+    }
+
+    def matcherIsWeakerThanOutput(info: OutputMoleculeInfo): Option[Boolean] = {
+      if (molecule != info.molecule) None
+      else flag match {
+        case Wildcard | SimpleVar => Some(true)
+        case OtherInputPattern(matcher1) => info.flag match {
+          case ConstOutputValue(c) => Some(matcher1.isDefinedAt(c))
+          case _ => None // Here we can't reliably determine whether this matcher is weaker.
+        }
+        case SimpleConst(c) => Some(info.flag match {
+          case ConstOutputValue(`c`) => true
           case _ => false
         })
         case _ => Some(false)
@@ -173,7 +189,16 @@ object JoinRun {
     * @param molecule The molecule injector value that represents the output molecule.
     * @param flag     Type of the output pattern: either a constant value or other value.
     */
-  final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
+  final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType) {
+    override def toString: String = {
+      val printedPattern = flag match {
+        case ConstOutputValue(c) => c.toString
+        case OtherOutputPattern => "?"
+      }
+
+      s"$molecule($printedPattern)"
+    }
+  }
 
   /** Check that every input molecule matcher of one reaction is weaker than a corresponding matcher in another reaction.
     * If true, it means that the first reaction can start whenever the second reaction can start, which is an instance of unavoidable indeterminism.
@@ -184,7 +209,7 @@ object JoinRun {
     * @return True if the first reaction is weaker than the second.
     */
   @tailrec
-  private[jc] def allMatchersAreWeakerThan(input1: List[InputMoleculeInfo], input2: List[InputMoleculeInfo]): Boolean = {
+  private[JoinRun] def allMatchersAreWeakerThan(input1: List[InputMoleculeInfo], input2: List[InputMoleculeInfo]): Boolean = {
     input1 match {
       case Nil => true // input1 has no matchers left
       case info1 :: rest1 => input2 match {
@@ -202,6 +227,24 @@ object JoinRun {
     }
   }
 
+  @tailrec
+  private[JoinRun] def inputMatchersAreWeakerThanOutput(input: List[InputMoleculeInfo], output: List[OutputMoleculeInfo]): Boolean = {
+    input match {
+      case Nil => true
+      case info :: rest => output match {
+        case Nil => false
+        case _ =>
+          val isWeaker: OutputMoleculeInfo => Boolean =
+            i => info.matcherIsWeakerThanOutput(i).getOrElse(false)
+
+          output.find(isWeaker) match {
+            case Some(correspondingMatcher) => inputMatchersAreWeakerThanOutput(rest, output diff List(correspondingMatcher))
+            case None => false
+          }
+      }
+    }
+  }
+
   final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) {
 
     private val patternIsNotUnknown: InputMoleculeInfo => Boolean =
@@ -209,6 +252,11 @@ object JoinRun {
 
     private[jc] def allMatchersWeakerThan(info: ReactionInfo) =
       inputsSorted.forall(patternIsNotUnknown) && allMatchersAreWeakerThan(inputsSorted, info.inputsSorted.filter(patternIsNotUnknown))
+
+    private[jc] def inputMatchersWeakerThanOutput(info: ReactionInfo) = info.outputs match {
+      case Some(outputs) => inputsSorted.forall(patternIsNotUnknown) && inputMatchersAreWeakerThanOutput(inputsSorted, outputs)
+      case None => false
+    }
 
     // The input pattern sequence is pre-sorted for further use.
     private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
@@ -354,6 +402,7 @@ object JoinRun {
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
   abstract sealed class Molecule {
     private[JoinRun] var joinDef: Option[JoinDefinition] = None
+    private[jc] def reactions: Option[Set[Reaction]] = joinDef.map(_.reactionInfos.keys.toSet)
 
     /** Check whether the molecule is already bound to a join definition.
       * Note that molecules can be injected only if they are bound.
@@ -535,7 +584,7 @@ object JoinRun {
     val reactionInfos = rs.map { r => (r, r.info.inputs) }.toMap
 
     // create a join definition object holding the given reactions and inputs
-    val join = new JoinDefinition(reactionInfos, reactionPool, joinPool)
+    val join = JoinDefinition(reactionInfos, reactionPool, joinPool)
 
     // set the owner on all input molecules in this join definition
     rs.flatMap { r => r.inputMolecules }
@@ -547,7 +596,8 @@ object JoinRun {
         }
       }
 
-    join.performStaticChecking()
+    val foundErrors = StaticChecking.performStaticChecking(rs.toSet)
+    if (foundErrors.nonEmpty) throw new Exception(s"In $join: ${foundErrors.mkString("; ")}")
 
   }
 
