@@ -25,16 +25,19 @@ object MyBuild extends Build {
   import BuildSettings._
 
   // main project
-  /* can we do without this?
+  /* can we do without this? */
   lazy val joinrun: Project = Project(
     "joinrun",
-    file("."),
+    file("joinrun"),
     settings = buildSettings ++ Seq(
+      libraryDependencies ++= Seq(
+        "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+      ),
       parallelExecution in Test := false,
-      concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
-      run <<= run in Compile in benchmark)
-  ) aggregate(lib, macros, benchmark)
-  */
+      concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
+      )
+  ) aggregate(lib, macros, benchmark) dependsOn(lib, macros)
+
 
   // Macros for the JoinRun library - the users will need this too.
   lazy val macros: Project = Project(

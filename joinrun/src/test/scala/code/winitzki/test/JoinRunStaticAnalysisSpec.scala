@@ -1,10 +1,10 @@
-package code.winitzki.benchmark
+package code.winitzki.test
 
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
 import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.time.{Millis, Span}
+import org.scalatest.{FlatSpec, Matchers}
 
 class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
