@@ -31,7 +31,7 @@ Main differences between actors and JC processes:
 
 | JC processes | Actors |
 |---|---|
-| concurrent processes start automatically whenever several sets of input messages are available | a desired number of actors must be created manually|
+| concurrent processes start automatically whenever several input data sets are available | a desired number of concurrent actors must be created manually|
 | processes are implicit, the user's code only manipulates “concurrent data” | the user's code must manipulate explicit references to actors |
 | processes typically wait for (and consume) several input messages at once | actors wait for (and consume) only one input message at a time |
 | processes are immutable and stateless, all data is stored on messages (which are also immutable) | actors can mutate (“become another actor”); actors can hold mutable state |
@@ -42,27 +42,27 @@ In talking about `JoinRun`, I follow the “chemical machine” metaphor and ter
 
 | “Chemistry”  | JC terminology | JoinRun |
 |---|---|---|
-| molecule | message on channel | `a(123)` _// side effect_ |
+| input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
 | molecule injector | channel (port) name | `val a :  M[Int]` |
 | blocking injector | blocking channel | `val q :  B[Int]` |
 | reaction | process | `run { case a(x) + ... => ... }` |
-| injecting a molecule | sending a message | `a(123)` _// side effect_ |
+| injecting an output molecule | sending a message | `a(123)` _// side effect_ |
 | join definition | join definition | `join(r1, r2, ...)` |
 
 # Main features of `JoinRun`
 
-Compared to `ScalaJoin` (Jiansen He's 2011 implementation of JC), `JoinRun` offers the following improvements:
+Compared to [`ScalaJoin` (Jiansen He's 2011 implementation of JC)](https://github.com/Jiansen/ScalaJoin), `JoinRun` offers the following improvements:
 
-- Molecule injectors (“channels”) are locally scoped values (instances of abstract class `Molecule`) rather than singleton objects, as in `ScalaJoin`; this is more faithful to the semantics of JC, and allows much more flexibility when defining reactions
-- Reactions are also locally scoped values (instances of class `Reaction`). `JoinRun` performs some static analysis of reactions at compile time, using macros.
-- Reactions and molecules are composable: e.g. we can construct a join definition with `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules
+- Molecule injectors (“channels”) are locally scoped values (instances of abstract class `Molecule`) rather than singleton objects, as in `ScalaJoin`; this is more faithful to the semantics of JC, and allows more flexibility when defining reactions
+- Reactions are also locally scoped values (instances of class `Reaction`). `JoinRun` uses macros to perform some static analysis of reactions at compile time and to warn users of errors.
+- Reactions and molecules are “composable”: we can begin constructing a join definition incrementally, until we have `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules. (However, a join definition is immutable once it is written.)
 - “Join definitions” are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC)
 - Some common cases of invalid join definitions are flagged (as run-time errors) even before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply)
-- Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use actor-based or thread-based pools
+- Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use Akka actor-based or thread-based pools
 - “Fair” nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random
 - Fault tolerance: failed reactions are automatically restarted (when desired)
-- Lighter syntax for join definitions, compared with previous implementations
-- The user can trace the execution via logging levels; automatic naming of molecules for debugging is available (via macro)
+- Lighter syntax for join definitions, compared with previous implementations of Join Calculus
+- Tracing the execution via logging levels; automatic naming of molecules for debugging is available (via macro)
 
 # Status
 
