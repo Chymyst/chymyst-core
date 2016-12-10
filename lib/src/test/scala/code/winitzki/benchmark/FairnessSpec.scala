@@ -163,7 +163,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
       runSimple { case g(_,r) + f((x,y,0)) => r((x,y)) }
     )
 
-    val n = 200
+    val n = 400
 
     f((0,0, n))
 
