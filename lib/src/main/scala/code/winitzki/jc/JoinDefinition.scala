@@ -200,15 +200,18 @@ private final case class JoinDefinition(
   // We must make this a blocking call, so we acquire a semaphore (with timeout).
   private[jc] def injectAndReply[T,R](m: B[T,R], v: T, valueWithResult: ReplyValue[R]): R = {
     inject(m, BlockingMolValue(v, valueWithResult))
-    //      try  // not sure we need this.
-    BlockingIdle {
-      valueWithResult.acquireSemaphore()
+    try {
+      // not sure we need this.
+      BlockingIdle {
+        valueWithResult.acquireSemaphore()
+      }
     }
-    //      catch {
-    //        case e: InterruptedException => e.printStackTrace()
-    //      }
-    valueWithResult.deleteSemaphore() // make sure it's gone
-
+    catch {
+      case e: InterruptedException => e.printStackTrace()
+    }
+    finally {
+      valueWithResult.deleteSemaphore() // make sure it's gone
+    }
     // check if we had any errors, and that we have a result value
     valueWithResult.errorMessage match {
       case Some(message) => throw new Exception(message)
@@ -222,21 +225,27 @@ private final case class JoinDefinition(
   private[jc] def injectAndReplyWithTimeout[T,R](timeout: Long, m: B[T,R], v: T, valueWithResult: ReplyValue[R]):
   Option[R] = {
     inject(m, BlockingMolValue(v, valueWithResult))
-    //      try  // not sure we need this.
-    val success = BlockingIdle {
-      valueWithResult.acquireSemaphore(Some(timeout))
-    }
-    //      catch {
-    //        case e: InterruptedException => e.printStackTrace()
-    //      }
-    valueWithResult.deleteSemaphore() // make sure it's gone
-
+    val success =
+      try {
+        // not sure we need this.
+        BlockingIdle {
+          valueWithResult.acquireSemaphore(Some(timeout))
+        }
+      }
+      catch {
+        case e: InterruptedException => e.printStackTrace(); false
+        case _: Exception => false
+      }
+      finally {
+        valueWithResult.deleteSemaphore() // make sure it's gone
+      }
     // check if we had any errors, and that we have a result value
     valueWithResult.errorMessage match {
       case Some(message) => throw new Exception(message)
       case None => if (success) Some(valueWithResult.result.getOrElse(
         throw new ExceptionEmptyReply(s"Internal error: In $this: $m received an empty reply without an error message"))
-      ) else None
+      )
+      else None
 
     }
   }
