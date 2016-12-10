@@ -584,7 +584,7 @@ object JoinRun {
     val reactionInfos = rs.map { r => (r, r.info.inputs) }.toMap
 
     // create a join definition object holding the given reactions and inputs
-    val join = new JoinDefinition(reactionInfos, reactionPool, joinPool)
+    val join = JoinDefinition(reactionInfos, reactionPool, joinPool)
 
     // set the owner on all input molecules in this join definition
     rs.flatMap { r => r.inputMolecules }
@@ -597,7 +597,7 @@ object JoinRun {
       }
 
     val foundErrors = StaticChecking.performStaticChecking(rs.toSet)
-    if (foundErrors.nonEmpty) throw new Exception(s"In $this: ${foundErrors.mkString("; ")}")
+    if (foundErrors.nonEmpty) throw new Exception(s"In $join: ${foundErrors.mkString("; ")}")
 
   }
 
