@@ -484,6 +484,19 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     thrown.getMessage shouldEqual "In Join{a => ...}: Unavoidable livelock: reaction a => ..."
   }
 
+  it should "compute outputs in the correct order for a reaction with no livelock" in {
+    val a = m[Int]
+    val b = m[Int]
+    join(
+      & { case a(2) => b(2) + a(1) + b(1) }
+    )
+    a.reactions.get.map(_.info.outputs) shouldEqual Set(Some(List(
+      OutputMoleculeInfo(b, ConstOutputValue(2)),
+      OutputMoleculeInfo(a, ConstOutputValue(1)),
+      OutputMoleculeInfo(b, ConstOutputValue(1))
+    )))
+  }
+
   behavior of "auxiliary functions"
 
   it should "find expression trees for constant values" in {
@@ -498,12 +511,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
   it should "find expression trees for matchers" in {
 
-    rawTree(Some(1) match {case Some(x) => } ) shouldEqual "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Bind(TermName(\"x\"), Ident(termNames.WILDCARD)))), EmptyTree, Literal(Constant(())))))"
+    rawTree(Some(1) match {case Some(1) => } ) shouldEqual "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))), EmptyTree, Literal(Constant(())))))"
     (Set(
-      "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Bind(TermName(\"x\"), Ident(termNames.WILDCARD)))), EmptyTree, Literal(Constant(())))))",
+      "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))), EmptyTree, Literal(Constant(())))))",
       ""
     ) contains
-    rawTree(Some(1) match  { case Some(x) => })) shouldEqual true
+    rawTree(Some(1) match  { case Some(1) => })) shouldEqual true
   }
 
   it should "find enclosing symbol names with correct scopes" in {
