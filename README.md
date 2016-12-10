@@ -44,9 +44,10 @@ In talking about `JoinRun`, I follow the “chemical machine” metaphor and ter
 |---|---|---|
 | input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
 | molecule injector | channel (port) name | `val a :  M[Int]` |
-| blocking injector | blocking channel | `val q :  B[Int]` |
+| blocking injector | blocking channel | `val q :  B[Unit, Int]` |
 | reaction | process | `run { case a(x) + ... => ... }` |
 | injecting an output molecule | sending a message | `a(123)` _// side effect_ |
+| injecting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
 | join definition | join definition | `join(r1, r2, ...)` |
 
 # Main features of `JoinRun`
