@@ -181,9 +181,16 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
 
   it should "not detect livelock in a single reaction due to nontrivial matchers" in {
     val a = m[Int]
-    val b = m[Int]
     val result = join(
-      & { case a(IsEven(x)) + b(3) => b(1) + b(2) + a(x) }
+      & { case a(IsEven(x)) => a(x) }
+    )
+    result shouldEqual()
+  }
+
+  it should "not detect livelock in a single reaction due to guard" in {
+    val a = m[Int]
+    val result = join(
+      & { case a(x) if x > 0 => a(x) }
     )
     result shouldEqual()
   }

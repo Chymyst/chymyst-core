@@ -250,7 +250,7 @@ private object StaticChecking {
       r1 <- reactions
       r2 <- reactions
       if r1 != r2
-      if r1.info.hasGuard == GuardAbsent
+      if r1.info.hasGuard.knownFalse
       if r1.info.allMatchersWeakerThan(r2.info)
     } yield {
       (r1, r2)
@@ -266,7 +266,7 @@ private object StaticChecking {
 
   private def checkSingleReactionLivelock(reactions: Set[Reaction]): Option[String] = {
     val errorList = reactions
-      .filter { r => r.info.inputMatchersWeakerThanOutput(r.info)}
+      .filter { r => r.info.hasGuard.knownFalse && r.info.inputMatchersWeakerThanOutput(r.info)}
       .map(_.toString)
     if (errorList.nonEmpty)
       Some(s"Unavoidable livelock: reaction${if (errorList.size == 1) "" else "s"} ${errorList.mkString(", ")}")

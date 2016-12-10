@@ -114,7 +114,12 @@ object JoinRun {
 
   case object OtherOutputPattern extends OutputPatternType
 
-  sealed trait GuardPresenceType
+  sealed trait GuardPresenceType {
+    def knownFalse: Boolean = this match {
+      case GuardAbsent => true
+      case _ => false
+    }
+  }
 
   case object GuardPresent extends GuardPresenceType
 
