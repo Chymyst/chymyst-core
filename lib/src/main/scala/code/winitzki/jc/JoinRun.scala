@@ -11,19 +11,19 @@ and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 TODO and roadmap:
   value * difficulty - description
 
- 2 * 1 - print reaction infos using pattern information e.g. a(_) + b(.) => c(1)
+ 2 * 1 - print reaction infos using pattern information e.g. a(_) + b(.) + c(1) => c(2) + d(???)
 
- 2 * 2 - cleanup packaging so that the user only imports one package object. Make sure the user needs to depend only on one JAR, too.
+ 2 * 2 - cleanup packaging so that the user only imports one package object or makes one import. Make sure the user needs to depend only on one JAR, too.
 
  2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
 
- 2 * 2 - maybe remove default pools altogether?
+ 2 * 2 - maybe remove default pools altogether? It seems that every pool needs to be stopped.
 
  2 * 2 - should `run` take ReactionBody or simply UnapplyArg => Unit?
 
  5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
 
- 3 * 3 - "singleton" molecules that are always present at most once: detect them with macro, optimize their update, provide read-only volatile value
+ 3 * 3 - "singleton" molecules that are always present at most once: detect them with macro, optimize their update, provide read-only volatile value. Maybe provide read-only volatile values for all molecules? If a reaction consumes one molecule and ejects the same molecule, we can keep the "identity" of the molecule.
 
  2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
 
@@ -48,12 +48,11 @@ TODO and roadmap:
  This has to be done at runtime when join() is called, because macros have access only at one reaction at a time.
 
  Kinds of situations to detect at runtime:
- - Input molecules with nontrivial matchers are a subset of output molecules. This is a warning. (Input molecules with trivial matchers can't be a subset of output molecules - this is a compile-time error.)
+ + Input molecules with nontrivial matchers are a subset of output molecules. This is a warning. (Input molecules with trivial matchers can't be a subset of output molecules - this is a compile-time error.)
  + Input molecules of one reaction are a subset of input molecules of another reaction, with the same matchers. This is an error (uncontrollable indeterminism).
  - A cycle of input molecules being subset of output molecules, possibly spanning several join definitions (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
  - Output molecules in a reaction include a blocking molecule that might deadlock because other reactions with it require molecules that are injected later. Example: if m is non-blocking and b is blocking, and we have reaction m + b =>... and another reaction that outputs ... => b; m. This is potentially a problem because the first reaction will block waiting for "m", while the second reaction will not inject "m" until "b" returns.
   This is a warning since we can't be sure that the output molecules are always injected, and in what exact order.
- - Molecules that should be singletons: a + ... -> a + ... with several different such reactions. If "a" is not a singleton here, we won't be able to control indeterminism.
 
  2 * 3 - understand the "reader-writer" example; implement it as a unit test
 
@@ -67,6 +66,7 @@ TODO and roadmap:
 
  5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
  and be able to better reason about our declarative reactions. First, need to understand what is to be asserted.
+ Can we assert non-contention on certain molecules? Can we assert deterministic choice of some reactions?
 
  2 * 4 - allow molecule values to be parameterized types or even higher-kinded types? Need to test this.
 
