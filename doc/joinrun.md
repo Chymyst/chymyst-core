@@ -409,11 +409,13 @@ Version 0.5: Investigate an implicit distributed execution of thread pools.
 
  2 * 2 - maybe remove default pools altogether? It seems that every pool needs to be stopped.
 
- 2 * 2 - should `run` take ReactionBody or simply UnapplyArg => Unit?
+ 2 * 2 - should `run` take a `ReactionBody` or simply UnapplyArg => Unit?
+
+ 3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is injected from a thread T and the corresponding join definition runs on the same thread T, do not schedule a task but simply run the join definition synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a join definition that runs on thread T and the reaction is configured to run on the same thread, do not schedule a task but simply run the reaction synchronously.
 
  5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
 
- 3 * 3 - "singleton" molecules that are always present at most once: detect them with macro, optimize their update, provide read-only volatile value. Maybe provide read-only volatile values for all molecules? If a reaction consumes one molecule and ejects the same molecule, we can keep the "identity" of the molecule.
+ 3 * 3 - "singleton" molecules that are always present at most once: detect them with static analysis? Maybe annotate explicitly? Optimize their update, provide read-only volatile value. Maybe provide read-only volatile values for all molecules? If a reaction consumes one molecule and ejects the same molecule, we can keep the "identity" of the molecule.
 
  2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
 

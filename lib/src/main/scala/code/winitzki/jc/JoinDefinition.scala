@@ -253,6 +253,7 @@ private final case class JoinDefinition(
 }
 
 private object StaticChecking {
+
   // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
   private def checkReactionShadowing(reactions: Set[Reaction]): Option[String] = {
     val suspiciousReactions = for {
@@ -288,12 +289,24 @@ private object StaticChecking {
     None
   }
 
-  private[jc] def performStaticChecking(reactions: Set[Reaction]) = {
+  private def checkLivelockWarning(reactions: Set[Reaction]): Option[String] = {
+    // TODO: implement
+    None
+  }
+
+  private[jc] def findStaticErrors(reactions: Set[Reaction]) = {
     Seq(
       checkReactionShadowing _,
       checkSingleReactionLivelock _,
       checkMultiReactionLivelock _
     ).flatMap(_(reactions))
   }
+
+  private[jc] def findStaticWarnings(reactions: Set[Reaction]) = {
+    Seq(
+      checkLivelockWarning _
+    ).flatMap(_(reactions))
+  }
+
 
 }
