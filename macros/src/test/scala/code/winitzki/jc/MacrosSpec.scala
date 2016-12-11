@@ -504,19 +504,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     rawTree(None) shouldEqual "Select(Ident(scala), scala.None)"
 
     (Set(
-        "Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1))))",
-        ""
+        "Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1))))"
     ) contains rawTree(Some(1))) shouldEqual true
   }
 
   it should "find expression trees for matchers" in {
 
     rawTree(Some(1) match {case Some(1) => } ) shouldEqual "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))), EmptyTree, Literal(Constant(())))))"
-    (Set(
-      "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))), EmptyTree, Literal(Constant(())))))",
-      ""
-    ) contains
-    rawTree(Some(1) match  { case Some(1) => })) shouldEqual true
   }
 
   it should "find enclosing symbol names with correct scopes" in {

@@ -529,9 +529,11 @@ object JoinRun {
         }
       }
 
-    val foundErrors = StaticChecking.performStaticChecking(rs.toSet)
-    if (foundErrors.nonEmpty) throw new Exception(s"In $join: ${foundErrors.mkString("; ")}")
+    val foundWarnings = StaticChecking.findStaticWarnings(rs.toSet)
+    if (foundWarnings.nonEmpty) println(s"In $join: ${foundWarnings.mkString("; ")}")
 
+    val foundErrors = StaticChecking.findStaticErrors(rs.toSet)
+    if (foundErrors.nonEmpty) throw new Exception(s"In $join: ${foundErrors.mkString("; ")}")
   }
 
 }
