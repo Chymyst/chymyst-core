@@ -393,4 +393,79 @@ These features are further away from implementation because they require some re
 
 Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka streams.
 
+Version 0.4: Enterprise readiness: fault tolerance, monitoring, flexible logging, assertions on singleton molecules and perhaps on some other situations, thread fusing for singleton molecule reactions, read-only volatile readers for singletons.
+
 Version 0.5: Investigate an implicit distributed execution of thread pools.
+
+# Current To-Do List
+
+  value * difficulty - description
+
+ 2 * 1 - print reaction infos using pattern information e.g. a(_) + b(.) + c(1) => c(2) + d(???)
+
+ 2 * 2 - cleanup packaging so that the user only imports one package object or makes one import. Make sure the user needs to depend only on one JAR, too.
+
+ 2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
+
+ 2 * 2 - maybe remove default pools altogether? It seems that every pool needs to be stopped.
+
+ 2 * 2 - should `run` take ReactionBody or simply UnapplyArg => Unit?
+
+ 5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
+
+ 3 * 3 - "singleton" molecules that are always present at most once: detect them with macro, optimize their update, provide read-only volatile value. Maybe provide read-only volatile values for all molecules? If a reaction consumes one molecule and ejects the same molecule, we can keep the "identity" of the molecule.
+
+ 2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
+
+ 5 * 5 - implement fairness with respect to molecules
+ * - go through possible values when matching (can do?) Important: can get stuck when molecules are in different order. Or need to shuffle.
+
+ 4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
+
+ 3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
+ Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.
+
+ 5 * 5 - implement distributed execution by sharing the join pool with another machine (but running the join definitions only on the master node)
+
+ 2 * 2 - benchmark and profile the performance of blocking molecules (make many reactions that block and unblock)
+
+ 3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic.
+
+ 3 * 5 - Can we implement JoinRun using Future / Promise and remove all blocking and all semaphores?
+
+ 5 * 5 - Can we do some reasoning about reactions at runtime but before starting any reactions
+
+ This has to be done at runtime when join() is called, because macros have access only at one reaction at a time.
+
+ Kinds of situations to detect at runtime:
+ + Input molecules with nontrivial matchers are a subset of output molecules. This is a warning. (Input molecules with trivial matchers can't be a subset of output molecules - this is a compile-time error.)
+ + Input molecules of one reaction are a subset of input molecules of another reaction, with the same matchers. This is an error (uncontrollable indeterminism).
+ - A cycle of input molecules being subset of output molecules, possibly spanning several join definitions (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
+ - Output molecules in a reaction include a blocking molecule that might deadlock because other reactions with it require molecules that are injected later. Example: if m is non-blocking and b is blocking, and we have reaction m + b =>... and another reaction that outputs ... => b; m. This is potentially a problem because the first reaction will block waiting for "m", while the second reaction will not inject "m" until "b" returns.
+  This is only a warning since we can't be sure that the output molecules are always injected, and in what exact order.
+
+ 2 * 3 - understand the "reader-writer" example; implement it as a unit test
+
+ 3 * 2 - add per-molecule logging; log to file or to logger function
+
+ 4 * 5 - implement multiple injection construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. Implement starting many reactions concurrently at once, rather than one by one.
+ 
+ 4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same join definition, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on join definition information gleaned using a macro.
+
+ 3 * 3 - make "reply actions" before the reaction finishes, not after. Revise error reporting (on double use) accordingly.
+
+ 5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
+ and be able to better reason about our declarative reactions. First, need to understand what is to be asserted.
+ Can we assert non-contention on certain molecules? Can we assert deterministic choice of some reactions?
+
+ 2 * 4 - allow molecule values to be parameterized types or even higher-kinded types? Need to test this.
+
+ 2 * 2 - make memory profiling / benchmarking; how many molecules can we have per 1 GB of RAM?
+
+ 3 * 4 - implement nonlinear input patterns
+
+ 2 * 2 - annotate join pools with names. Make a macro for auto-naming join pools of various kinds.
+
+ 2 * 2 - add tests for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
+
+ 2 * 2 - add tests that time out on a blocking molecule and then reply to it. Should not cause errors. Also, sending out a blocking molecule and then timing out should remove the blocking molecule - implement and test that too.
