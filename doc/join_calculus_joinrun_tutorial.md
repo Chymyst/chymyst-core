@@ -19,7 +19,13 @@ Imagine that we have a large tank of water where many different chemical substan
 Different chemical reactions are possible in this “chemical soup”, as various molecules come together and react, producing other molecules.
 Reactions could start at the same time (i.e. concurrently) in different regions of the soup.
 
-Since we are going to simulate this in a computer, the “chemistry” here is completely imaginary and has nothing to do with real-life chemistry.
+Chemical reactions are written like this:
+
+HCl + NaOH ⇒ NaCl + H2O
+
+A molecule of hydrochloric acid reacts with a molecule of sodium hydroxide and yields a molecule of sodium chloride and a molecule of water.
+
+Since we are going to simulate reactions in a computer, the “chemistry” will be completely imaginary and will have nothing to do with real-life chemistry.
 We can define molecules of any sort, and we can postulate arbitrary reactions between them.
 For instance, we can postulate that there exist three sorts of molecules called `a`, `b`, `c`, and that they can react as follows:
 
@@ -27,7 +33,7 @@ For instance, we can postulate that there exist three sorts of molecules called 
 
 `a + c ⇒` [_nothing_]
 
-Of course, real-life chemistry would not allow two molecules to disappear without producing any other molecules.
+Of course, real-life chemistry would not allow a molecule to disappear without producing any other molecules.
 But our chemistry is imaginary, and so the programmer is free to postulate arbitrary “chemical laws.”
 
 To develop the chemical analogy further, we allow the “chemical soup” to contain many copies of each molecule.
