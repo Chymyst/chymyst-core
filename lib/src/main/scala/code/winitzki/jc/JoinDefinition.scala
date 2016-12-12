@@ -85,6 +85,11 @@ private final case class JoinDefinition(
       case (m, jmv) => s"$m($jmv)"
     }.mkString(", ")
 
+  private[jc] def injectMulti(moleculesAndValues: Seq[(M[_], Any)]): Unit = {
+    // TODO: implement correct semantics
+//    moleculesAndValues.foreach{ case (m, v) => m(v) }
+  }
+
   // Adding a molecule may trigger at most one reaction.
   private[jc] def inject[T](m: Molecule, jmv: AbsMolValue[T]): Unit = {
     if (joinPool.isInactive) throw new ExceptionNoJoinPool(s"In $this: Cannot inject molecule $m since join pool is not active")

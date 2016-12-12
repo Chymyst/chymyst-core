@@ -471,3 +471,5 @@ Version 0.5: Investigate an implicit distributed execution of thread pools.
  2 * 2 - add tests for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
 
  2 * 2 - add tests that time out on a blocking molecule and then reply to it. Should not cause errors. Also, sending out a blocking molecule and then timing out should remove the blocking molecule - implement and test that too.
+ 
+ 3 * 3 - fix possible bug: when `usedInputs` are injected, `inject` is always used, but `inject` assumes non-blocking molecule. Refactor `inject` so that it accepts any molecule and delegates to `injectNonBlocking` and `injectBlocking`. Or refactor such that this is not necessary (let molecules inject themselves with the correct method of JoinDefinition).
