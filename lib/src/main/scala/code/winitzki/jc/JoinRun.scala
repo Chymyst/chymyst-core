@@ -324,7 +324,7 @@ object JoinRun {
     override def toString: String = getValue match { case () => ""; case v@_ => v.toString }
   }
 
-  private final case class MolValue[T](v: T) extends AbsMolValue[T] {
+  private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
     override def getValue: T = v
   }
 
