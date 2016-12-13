@@ -244,5 +244,40 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     thrown.getMessage shouldEqual "In Join{a + b => ...; a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ...; Unavoidable livelock: reactions a + b => ..., a => ..."
   }
 
+  behavior of "deadlock detection"
+
+  it should "not warn about likely deadlock for a reaction that injects molecules for itself in the right order" in {
+    val a = m[Int]
+    val c = m[Int]
+    val f = b[Unit, Int]
+
+    join(
+      & { case f(_, r) + a(_) + c(_) => r(0) + a(1); f() }
+    )
+  }
+
+  it should "warn about likely deadlock for a reaction that injects molecules for itself" in {
+    val a = m[Int]
+    val c = m[Int]
+    val f = b[Unit, Int]
+
+    join(
+      & { case f(_, r) + a(_) + c(_) => f(); r(0) + a(1) }
+    )
+  }
+
+  it should "warn about likely deadlock for a reaction that injects molecules for another reaction" in {
+    val a = m[Int]
+    val c = m[Int]
+    val f = b[Unit, Int]
+
+    join(
+      & { case f(_, r) + a(_) => r(0) + a(1) }
+    )
+
+    join(
+      & { case c(_) => f(); a(1) }
+    )
+  }
 
 }
