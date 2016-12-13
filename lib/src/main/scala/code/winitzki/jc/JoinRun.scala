@@ -186,7 +186,8 @@ object JoinRun {
     private[jc] def allMatchersWeakerThan(info: ReactionInfo) =
       inputsSorted.forall(patternIsNotUnknown) && allMatchersAreWeakerThan(inputsSorted, info.inputsSorted.filter(patternIsNotUnknown))
 
-    private[jc] def inputMatchersWeakerThanOutput(info: ReactionInfo) = info.outputs match {
+    private[jc] def inputMatchersWeakerThanOutput(outputsOpt: Option[List[OutputMoleculeInfo]]) =
+    outputsOpt match {
       case Some(outputs) => inputsSorted.forall(patternIsNotUnknown) && inputMatchersAreWeakerThanOutput(inputsSorted, outputs)
       case None => false
     }
@@ -217,6 +218,7 @@ object JoinRun {
   private final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionNoSingleton(message: String) extends ExceptionInJoinRun(message)
 
   /** Represents a reaction body.
     *
@@ -335,7 +337,18 @@ object JoinRun {
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
   abstract sealed class Molecule {
     private[JoinRun] var joinDef: Option[JoinDefinition] = None
-    private[jc] def reactions: Option[Set[Reaction]] = joinDef.map(_.reactionInfos.keys.toSet)
+
+    /** The set of reactions that potentially consume this molecule.
+      *
+      * @return {{{None}}} if the molecule injector is not yet bound to any Join Definition.
+      */
+    private[jc] def consumingReactions: Option[Set[Reaction]] = joinDef.map(_.reactionInfos.keys.filter(_.inputMolecules contains this).toSet)
+
+    /** The set of reactions that potentially output this molecule.
+      *
+      * @return {{{None}}} if the molecule injector is not yet bound to any Join Definition.
+      */
+    private[jc] def injectingReactions: Option[Set[Reaction]] = joinDef.map(_.reactionInfos.keys.filter(_.info.outputs.exists(_.map(_.molecule) contains this)).toSet)
 
     /** Check whether the molecule is already bound to a join definition.
       * Note that molecules can be injected only if they are bound.
@@ -351,7 +364,11 @@ object JoinRun {
       joinDef.map(o => o.logLevel = logLevel).getOrElse(throw errorNoJoinDef)
 
     def logSoup: String = joinDef.map(o => o.printBag).getOrElse(throw errorNoJoinDef)
+
+    def isBlocking: Boolean
   }
+
+  type VolatileReader[T] = Unit => T
 
   /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a join definition.
     *
@@ -390,6 +407,10 @@ object JoinRun {
       case UnapplyRun(moleculeValues) => moleculeValues.get(this)
         .map(_.asInstanceOf[MolValue[T]].getValue)
     }
+
+    def reader: VolatileReader[T] = joinDef.map(_.getVolatileReader(this)).getOrElse(throw errorNoJoinDef)
+
+    override def isBlocking = false
   }
 
   /** Reply-value wrapper for blocking molecules. This is a mutable class.
@@ -486,6 +507,8 @@ object JoinRun {
           throw new ExceptionNoWrapper(s"Internal error: molecule $this with no value wrapper around value $m")
       }
     }
+
+    override def isBlocking = true
   }
 
   val defaultJoinPool = new FixedPool(2)
@@ -529,10 +552,10 @@ object JoinRun {
         }
       }
 
-    val foundWarnings = StaticChecking.findStaticWarnings(rs.toSet)
+    val foundWarnings = StaticChecking.findStaticWarnings(rs)
     if (foundWarnings.nonEmpty) println(s"In $join: ${foundWarnings.mkString("; ")}")
 
-    val foundErrors = StaticChecking.findStaticErrors(rs.toSet)
+    val foundErrors = StaticChecking.findStaticErrors(rs)
     if (foundErrors.nonEmpty) throw new Exception(s"In $join: ${foundErrors.mkString("; ")}")
   }
 

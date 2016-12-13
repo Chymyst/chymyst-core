@@ -255,12 +255,18 @@ private final case class JoinDefinition(
     }
   }
 
+  def getVolatileReader[T](m: M[T]): VolatileReader[T] = {
+    // TODO: implement correct functionality for singletons
+
+    throw new ExceptionNoSingleton(s"In $this: volatile reader requested for $m, which is not a singleton")
+  }
+
 }
 
 private object StaticChecking {
 
   // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
-  private def checkReactionShadowing(reactions: Set[Reaction]): Option[String] = {
+  private def checkReactionShadowing(reactions: Seq[Reaction]): Option[String] = {
     val suspiciousReactions = for {
       r1 <- reactions
       r2 <- reactions
@@ -279,27 +285,51 @@ private object StaticChecking {
     } else None
   }
 
-  private def checkSingleReactionLivelock(reactions: Set[Reaction]): Option[String] = {
+  private def checkSingleReactionLivelock(reactions: Seq[Reaction]): Option[String] = {
     val errorList = reactions
-      .filter { r => r.info.hasGuard.knownFalse && r.info.inputMatchersWeakerThanOutput(r.info)}
+      .filter { r => r.info.hasGuard.knownFalse && r.info.inputMatchersWeakerThanOutput(r.info.outputs)}
       .map(_.toString)
     if (errorList.nonEmpty)
       Some(s"Unavoidable livelock: reaction${if (errorList.size == 1) "" else "s"} ${errorList.mkString(", ")}")
     else None
-
   }
 
-  private def checkMultiReactionLivelock(reactions: Set[Reaction]): Option[String] = {
+  private def checkMultiReactionLivelock(reactions: Seq[Reaction]): Option[String] = {
     // TODO: implement
     None
   }
 
-  private def checkLivelockWarning(reactions: Set[Reaction]): Option[String] = {
+  private def checkLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
     // TODO: implement
     None
   }
 
-  private[jc] def findStaticErrors(reactions: Set[Reaction]) = {
+  private def checkDeadlockWarning(reactions: Seq[Reaction]): Option[String] = {
+    // A "possible deadlock" means that an output blocking molecule is followed by other output molecules.
+    val possibleDeadlocks: Seq[(OutputMoleculeInfo, Seq[OutputMoleculeInfo])] =
+      reactions.flatMap(_.info.outputs)
+      .flatMap {
+        _.tails.filter {
+          case t :: ts => t.molecule.isBlocking
+          case Nil => false
+        }.map { case t :: ts => (t, ts); case _ => null }
+      }
+    // The chemistry is likely to be a deadlock if at least one the other output molecules are consumed together with the blocking molecule in the same reaction.
+    val likelyDeadlocks: Seq[(OutputMoleculeInfo, Seq[OutputMoleculeInfo])] = possibleDeadlocks.filter {
+      case (info, infos) => info.molecule.consumingReactions.exists( // this code is wrong! need to check only the condition shown above, not all input molecules.
+        _.forall(_.info.inputMatchersWeakerThanOutput(Some(infos.toList)))
+      )
+    }
+
+    val suspiciousList = reactions
+      .filter { r => false }
+      .map(_.toString)
+    if (suspiciousList.nonEmpty)
+      Some(s"Likely deadlock: reaction${if (suspiciousList.size == 1) "" else "s"} ${suspiciousList.mkString(", ")}")
+    else None
+  }
+
+  private[jc] def findStaticErrors(reactions: Seq[Reaction]) = {
     Seq(
       checkReactionShadowing _,
       checkSingleReactionLivelock _,
@@ -307,8 +337,9 @@ private object StaticChecking {
     ).flatMap(_(reactions))
   }
 
-  private[jc] def findStaticWarnings(reactions: Set[Reaction]) = {
+  private[jc] def findStaticWarnings(reactions: Seq[Reaction]) = {
     Seq(
+      checkDeadlockWarning _,
       checkLivelockWarning _
     ).flatMap(_(reactions))
   }

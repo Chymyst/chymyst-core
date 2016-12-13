@@ -22,7 +22,7 @@ Join calculus (JC) is similar in some aspects to the well-known “actors” fra
 
 JC has these features that are similar to actors:
 
-- the user's code does not explicitly work with threads / mutexes / semaphores / locks
+- the user's code does not explicitly work with threads / mutexes / semaphores / locks / monitors
 - concurrent processes interact by message-passing
 - messages carry immutable data
 - JC processes start automatically when messages of certain type become available, just as actors run automatically when a message is received
