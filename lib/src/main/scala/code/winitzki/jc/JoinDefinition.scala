@@ -382,7 +382,7 @@ private object StaticChecking {
       .filter { r => inputMatchersSimilarToOutput(r.info.inputsSorted, r.info.outputs)}
       .map(_.toString)
     if (warningList.nonEmpty)
-      Some(s"Unavoidable livelock: reaction${if (warningList.size == 1) "" else "s"} ${warningList.mkString(", ")}")
+      Some(s"Possible livelock: reaction${if (warningList.size == 1) "" else "s"} ${warningList.mkString(", ")}")
     else None
   }
 
