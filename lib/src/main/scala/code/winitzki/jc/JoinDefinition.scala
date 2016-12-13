@@ -315,11 +315,33 @@ private object StaticChecking {
     }
   }
 
+  @tailrec
+  private def inputMatchersSimilarToOutput(input: List[InputMoleculeInfo], output: List[OutputMoleculeInfo]): Boolean = {
+    input match {
+      case Nil => true
+      case info :: rest => output match {
+        case Nil => false
+        case _ =>
+          val isWeaker: OutputMoleculeInfo => Boolean =
+            i => info.matcherIsSimilarToOutput(i).getOrElse(false)
+
+          output.find(isWeaker) match {
+            case Some(correspondingMatcher) => inputMatchersSimilarToOutput(rest, output diff List(correspondingMatcher))
+            case None => false
+          }
+      }
+    }
+  }
+
   private def inputMatchersWeakerThanOutput(input: List[InputMoleculeInfo], outputsOpt: Option[List[OutputMoleculeInfo]]) =
     outputsOpt.exists {
       outputs => input.forall(patternIsNotUnknown) && inputMatchersAreWeakerThanOutput(input, outputs)
     }
 
+  private def inputMatchersSimilarToOutput(input: List[InputMoleculeInfo], outputsOpt: Option[List[OutputMoleculeInfo]]) =
+    outputsOpt.exists {
+      outputs => inputMatchersSimilarToOutput(input, outputs)
+    }
 
   // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
   private def checkReactionShadowing(reactions: Seq[Reaction]): Option[String] = {
@@ -355,9 +377,13 @@ private object StaticChecking {
     None
   }
 
-  private def checkLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
-    // TODO: implement
-    None
+  private def checkSingleReactionLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
+    val warningList = reactions
+      .filter { r => inputMatchersSimilarToOutput(r.info.inputsSorted, r.info.outputs)}
+      .map(_.toString)
+    if (warningList.nonEmpty)
+      Some(s"Unavoidable livelock: reaction${if (warningList.size == 1) "" else "s"} ${warningList.mkString(", ")}")
+    else None
   }
 
   private def checkInputsForDeadlockWarning(reactions: Seq[Reaction]): Option[String] = {
@@ -436,7 +462,7 @@ private object StaticChecking {
     Seq(
       checkOutputsForDeadlockWarning _,
       checkInputsForDeadlockWarning _,
-      checkLivelockWarning _
+      checkSingleReactionLivelockWarning _
     ).flatMap(_(reactions))
   }
 
