@@ -467,6 +467,23 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     thrown.getMessage shouldEqual "In Join{a => ...}: Unavoidable livelock: reaction a => ..."
   }
 
+  it should "compute inputs and outputs correctly for an inline nested reaction" in {
+    val a = m[Int]
+    join(
+      & {
+        case a(1) =>
+          val c = m[Int]
+          join(& { case c(_) => })
+          c(2)
+          a(2)
+      }
+    )
+    a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(2)))))
+    a.consumingReactions.get.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, SimpleConst(1), constantOneSha1)))
+    a.injectingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(2)))))
+    a.injectingReactions.get.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, SimpleConst(1), constantOneSha1)))
+  }
+
   it should "not fail to compute outputs correctly for an inline nested reaction" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
@@ -479,10 +496,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
             a(1)
         }
       )
-      a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
-      a.consumingReactions.get.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, SimpleConst(1), "")))
-      a.injectingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
-      a.injectingReactions.get.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, SimpleConst(1), "")))
     }
     thrown.getMessage shouldEqual "In Join{a => ...}: Unavoidable livelock: reaction a => ..."
   }
