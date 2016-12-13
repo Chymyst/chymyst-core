@@ -19,7 +19,13 @@ Imagine that we have a large tank of water where many different chemical substan
 Different chemical reactions are possible in this “chemical soup”, as various molecules come together and react, producing other molecules.
 Reactions could start at the same time (i.e. concurrently) in different regions of the soup.
 
-Since we are going to simulate this in a computer, the “chemistry” here is completely imaginary and has nothing to do with real-life chemistry.
+Chemical reactions are written like this:
+
+HCl + NaOH ⇒ NaCl + H<sub>2</sub>O
+
+A molecule of hydrochloric acid (HCl) reacts with a molecule of sodium hydroxide (NaOH) and yields a molecule of salt (NaCl) and a molecule of water (H<sub>2</sub>O).
+
+Since we are going to simulate reactions in a computer, we make the “chemistry” completely arbitrary.
 We can define molecules of any sort, and we can postulate arbitrary reactions between them.
 For instance, we can postulate that there exist three sorts of molecules called `a`, `b`, `c`, and that they can react as follows:
 
@@ -27,10 +33,10 @@ For instance, we can postulate that there exist three sorts of molecules called 
 
 `a + c ⇒` [_nothing_]
 
-Of course, real-life chemistry would not allow two molecules to disappear without producing any other molecules.
-But our chemistry is imaginary, and so the programmer is free to postulate arbitrary “chemical laws.”
+Of course, real-life chemistry does not allow a molecule to disappear without producing any other molecules.
+But our “chemistry” is purely imaginary, and so the programmer is free to postulate arbitrary “chemical laws.”
 
-To develop the chemical analogy further, we allow the “chemical soup” to contain many copies of each molecule.
+To develop the chemical analogy further, we allow the “chemical soup” to hold many copies of each molecule.
 For example, the soup can contain five hundred copies of `a` and three hundred copies of `b`, and so on.
 We also assume that we can inject any molecule into the soup at any time.
 
@@ -54,44 +60,46 @@ The simulator can start many reactions concurrently whenever their input molecul
 The “chemical machine” is implemented by the runtime engine of `JoinRun`.
 Now, rather than merely watch as reactions happen, we are going to use this engine for practical computations.
 
-To this end, we are going to specify some values and expressions to be computed whenever reactions occur:
+To this end, we are going to modify the “chemical machine” as follows:
 
-- Each molecule will carry a value. Molecule values are strongly typed: A molecule of a given sort (such as `a` or `b`) can only carry values of some fixed specified type (such as `Boolean` or `String`).
-- Each reaction will carry a function (the **reaction body**) that computes some new values and puts these values on the output molecules.
-The input arguments of the reaction body are going to be the values carried by the input molecules of the reaction.
+1. Each molecule in the soup is now required to _carry a value_. Molecule values are strongly typed: A molecule of a given sort (such as `a` or `b`) can only carry values of some fixed type (such as `Boolean` or `String`).
+
+2. Since molecules must carry values, we now need to specify a value of the correct type when injecting a new molecule into the soup.
+
+3. For the same reason, reactions that inject new molecules will now need to put values on each of the output molecules. These output values must be functions of the values carried by the input molecules of the reaction. Therefore, each reaction will now need to carry a Scala expression (called the **reaction body**), which will compute the new output values and inject the output molecules.
+
+In this way, the chemical machine will perform computations whenever reactions occur.
 
 In `JoinRun`, we use the syntax like `b(123)` to denote molecule values.
-The syntax `b(123)` in a chemical law means that the molecule `b` carries an integer value `123`.
-Molecules to the left-hand side of the reaction arrow are input molecules of the reaction; molecules on the right-hand side are output molecules. 
+In a chemical law, the syntax `b(123)` means that the molecule `b` carries an integer value `123`.
+Molecules to the left-hand side of the arrow are input molecules of the reaction; molecules on the right-hand side are output molecules.
 
-A typical Join Calculus reaction (equipped with molecule values and a reaction body) looks like this in `JoinRun` syntax:
+A typical Join Calculus reaction (equipped with molecule values and a reaction body) looks like this in pseudocode syntax:
 
 ```scala
-{
-case b(x) + c(y) ⇒
-  val z = computeZ(x,y)
-  b(z)
-}
+a(x) + b(y) ⇒ a(z)
+where z = computeZ(x,y) // -- reaction body
 ```
 
-In this example, the reaction's input molecules are `b(x)` and `c(y)`; that is, the input molecules have chemical designations `b` and `c` and carry values `x` and `y` respectively.
+In this example, the reaction's input molecules are `a(x)` and `b(y)`; that is, the input molecules have chemical designations `a` and `b` and carry values `x` and `y` respectively.
 
-The reaction body is a function that receives `x` and `y` as input arguments.
-It computes a value `z` out of `x` and `y`. Then it puts that `z` onto the output molecule `b` and injects that output molecule back into the soup.
+The reaction body is an expression that receives `x` and `y` from the input molecules that are consumed at the start of the reaction.
+The reaction computes a value `z` out of `x` and `y` using the function `computeZ` (or any other code as needed).
+The newly computed value `z` is placed onto the output molecule `a`, which is injected back into the soup.
 
 Whenever input molecules are available in the soup, the runtime engine will start a reaction that consumes these input molecules.
 If many copies of input molecules are available, the runtime engine could start several reactions concurrently.
 (The runtime engine can decide how many reactions to run depending on system load and the number of available cores.)
 
 Every reaction receives the values carried by its _input_ molecules as input arguments.
-The reaction body can be a pure function that computes output values purely from input values and outputs some new molecules that carry the newly computed output values.
+The reaction body can be a pure function that computes output values solely from input values and outputs some new molecules that carry the newly computed output values.
 If the reaction body is a pure function, it is completely safe (free of race conditions) to execute concurrently several instances of the same reaction, consuming each time a different set of input molecules.
 This is the way Join Calculus uses the “chemical simulator” to achieve safe and automatic concurrency in a purely functional way.
 
 ## The syntax of `JoinRun`
 
 So far, we have been using some chemistry-resembling pseudocode to illustrate the structure of “chemical reactions”.
-The actual syntax of `JoinRun` is only a little more verbose than that:
+The actual syntax of `JoinRun` is only a little more verbose than that pseudocode:
 
 ```scala
 import code.winitzki.jc.JoinRun._
@@ -112,7 +120,7 @@ join(
 
 The helper functions `m`, `join`, and `run` are defined in the `JoinRun` library.
 
-## Example 0: concurrent counter
+## Example: Concurrent counter
 
 We would like to maintain a counter with an integer value, which can be incremented or decremented by non-blocking, concurrently running operations.
 (For example, we would like to be able to increment and decrement the counter from different processes running at the same time.)
@@ -234,7 +242,7 @@ So this facility should be used only for debugging.
 
 ## Common errors
 
-### Injecting molecules without defined reactions
+### Error: Injecting molecules without defined reactions
 
 It is an error to inject a molecule that is not yet defined as input molecule in any JD (i.e. not yet bound to any JD).
 
@@ -248,7 +256,7 @@ The same error will occur if such injection is attempted inside a reaction body,
 
 The correct way of using `JoinRun` is first to define molecules, then to create a JD where these molecules are used as inputs for reactions, and only then to start injecting these molecules.
 
-### Redefining input molecules
+### Error: Redefining input molecules
 
 It is also an error to write a reaction whose input molecule was already used as input in another join definition.
 
@@ -294,11 +302,11 @@ join(
 )
 ``` 
 
-### Nonlinear patterns
+### Error: Nonlinear pattern
 
 Join Calculus also requires that all input molecules for a reaction should be of different sorts.
 It is not allowed to have a reaction with repeated input molecules, e.g. of the form `a + a => ...` where the molecule of sort `a` is repeated.
-An input molecule list with a repeated molecule is called a “nonlinear pattern”.
+An input molecule pattern with a repeated molecule is called a “nonlinear pattern”.
 
 ```scala
 val x = m[Int]
@@ -343,7 +351,7 @@ After defining the molecules and specifying the reactions, the user can start in
 
 In this way, a complicated system of interacting concurrent processes can be specified through a particular set of “chemical laws” and reaction bodies.
 
-# Example 1: declarative solution of “dining philosophers"
+# Example: Declarative solution for “dining philosophers"
 
 The ["dining philosophers problem"](https://en.wikipedia.org/wiki/Dining_philosophers_problem) is to run a simulation of five philosophers who take turns eating and thinking.
 Each philosopher needs two forks to start eating, and every pair of neighbor philosophers shares a fork.
@@ -427,46 +435,59 @@ Spinoza is eating
 
 It is interesting to note that this example code is fully declarative: it describes what the “dining philosophers” simulation must do, and the code is quite close to the English-language description of the problem.
 
-# Blocking molecules
+# Blocking vs. non-blocking molecules
 
-So far, we have used molecules whose injection was a non-blocking call.
-An important feature of Join Calculus is “blocking” (or “synchronous”) molecules.
+So far, we have used molecules whose injection was a non-blocking call whose side effect was to add a new molecule to the soup.
+These molecules are called “non-blocking”.
+An important feature of Join Calculus is the ability to define “blocking” (or “synchronous”) molecules.
 
 The runtime engine simulates the injecting of a blocking molecule in a special way.
 The injection call will be blocked until some reaction can start with the newly injected molecule.
-This reaction's body will be able to send a “reply value” back to the injecting process.
+This reaction's body will be able to send a “reply value” back to the injecting process (which can be another reaction body or any other process).
 Once the reply value has been sent, the injecting process is unblocked.
 
 Here is an example of declaring a blocking molecule:
 
 ```scala
-val f = b[Int, String]
+val f = b[Unit, Int]
 ```
 
-The molecule `f` carries a value of type `Int`; the reply value is of type `String`.
+The molecule `f` carries a value of type `Unit`; the reply value is of type `Int`.
+(These types can be arbitrary, just as for non-blocking molecules.)
 
-Sending a reply value is a special action available only with blocking molecules.
-The “replying” action is non-blocking within the reaction body.
-Example syntax for the reply action within a reaction body:
+Sending a reply value is a special feature available only with blocking molecules.
+We call this feature the **reply action**. 
+The reply action is a non-blocking operation.
+
+Here is an example showing the syntax for the reply action.
+Suppose we have a reaction that consumes a non-blocking molecule `c` with an integer value and a blocking molecule `f` defined above.
+We would like the blocking molecule to return the integer value that `c` carries.
 
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
 
-join( run { case c(n) + f(_, reply) => reply(n) } )
+join( run { case c(n) + f(_ , reply) => reply(n) } )
+
+c(123) // inject a copy of `c`
+
+val x = f() // now x = 123
 ```
 
-This reaction will proceed when a molecule `c(...)` is present and an `f()` is injected.
-The reaction body replies to `f` with the value `n` carried by the molecule `c(n)`.
+The syntax for the reply action makes it appear as if the molecule `f` carries _two_ values - its `Unit` value and a special `reply` function, and that the reaction body calls this `reply` function with an integer value.
+However, `f` is injected with the syntax `f()` -- just as any other molecule with `Unit` value.
+The `reply` function appears only in the pattern-matching expression for `f` inside a reaction.
 
-The syntax for replying suggests that `f` carries a special `reply` pseudo-molecule, and that the reaction body injects this `reply` molecule  with an integer value.
-However, the `reply` does not actually stand for a molecule injector - this is merely syntax for the “replying” action that is part of the semantics of the blocking molecule.
+Blocking molecule injectors are values of type `B[T,R]`, while non-blocking molecule injectors have type `M[T]`. 
+Here `T` is the type of value that the molecule carries, and `R` (for blocking molecules) is the type of the reply value.
 
-## Example 2: benchmarking the concurrent counter
+The pattern-matching expression for a blocking molecule of type `B[T,R]` has the form `case ... + f(v, r) + ...` where `v` is of type `T` and `r` is of type `Function1[R]`.
+
+## Example: Benchmarking the concurrent counter
 
 To illustrate the usage of non-blocking and blocking molecules, let us consider the task of benchmarking the concurrent counter we have previously defined.
 The plan is to initialize the counter to a large value _N_, then to inject _N_ decrement molecules, and finally wait until the counter reaches the value 0.
-We will use a blocking molecule to block until this happens, and thus to determine the time elapsed during the countdown. 
+We will use a blocking molecule to wait until this happens and thus to determine the time elapsed during the countdown. 
 
 Let us now extend the previous join definition to implement this new functionality.
 The simplest solution is to define a blocking molecule `fetch`, which will react with the counter molecule only when the counter reaches zero.
@@ -523,9 +544,9 @@ object C extends App {
 ```
 
 Some remarks:
-- Molecules with unit values do require a pattern variable when used in the `case` construction.
+- Molecules with unit values still require a pattern variable when used in the `case` construction.
 For this reason, we write `decr(_)` and `fetch(_, reply)` in the match patterns.
-However, these molecules can be injected simply as `decr()` and `fetch()`, since Scala inserts a `Unit` value automatically when calling functions.
+However, these molecules can be injected simply by calling `decr()` and `fetch()`, since Scala inserts a `Unit` value automatically when calling functions.
 - We declared both reactions in one join definition, because these two reactions share the input molecule `counter`.
 - The injected blocking molecule `fetch()` will not remain in the soup after the reaction is finished.
 Actually, it would not make sense for `fetch()` to remain in the soup:
@@ -534,16 +555,44 @@ If a molecule remains in the soup after a reaction, it means that the molecule i
 If the relevant reaction never starts, a blocking molecule will block forever.
 The runtime engine cannot detect this situation because it cannot determine whether the relevant input molecules for that reaction might become available in the future.
 - If several reactions are available for the blocking molecule, one of these reactions will be selected at random.
-- It is an error if a reaction does not reply to the calling process:
+- Blocking molecules are printed with the suffix `"/B"`.
+
+## Example: Parallel Or
+
+TODO: document
+
+## Error checking for blocking molecules
+
+It is an error if a reaction consumes a blocking molecule but does not reply.
+It is also an error to reply again after a reply was made.
+
+Sometimes, these errors can be caught at compile time:
+
 ```scala
-val f = b[Unit, Unit]
+val f = b[Unit, Int]
 val c = m[Int]
 join( run { case f(_,reply) + c(n) => c(n+1) } ) // forgot to reply!
+// compile-time error: "blocking input molecules should receive a reply but no reply found"
 
-f()
-java.lang.Exception: Error: In Join{f/B => ...}: Reaction {f/B => ...} finished without replying to f/B
+join( run { case f(_,reply) + c(n) => c(n+1) + r(n) + r(n) } ) // replied twice!
+// compile-time error: "blocking input molecules should receive one reply but multiple replies found"
 ```
-- Blocking molecules are printed with the suffix `"/B"`.
+
+However, a reaction could depend on a run-time condition, which is impossible to evaluate at compile time.
+In this case, a reaction that does not reply will generate a run-time error:
+
+```scala
+val f = b[Unit, Int]
+val c = m[Int]
+join( run { case f(_,reply) + c(n) => c(n+1); if (n==0) reply(n) } )
+
+c(1)
+f()
+java.lang.Exception: Error: In Join{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B
+```
+
+Note that this error will occur only when reactions actually start and the run-time condition is evaluated to `false`.
+In order to make reasoning about reactions easier, it is advisable to reorganize the chemistry such that reply actions (and, more generally, output molecule injections) are unconditional.
 
 ## Further details: Molecules and molecule injectors
 
@@ -553,9 +602,9 @@ Molecules are injected into the “chemical soup” using the syntax such as `c(
 val c = m[Int]
 ```
 
-In Join Calculus, an injected molecule must carry a value.
+In Join Calculus, any injected molecule must carry a value.
 So the value `c` itself is not a molecule in the soup.
-The value `c` is a **molecule injector**, - that is, a value that can be used to inject molecules of sort `c` into the soup.
+The value `c` is a **molecule injector**, - that is, a function that, when called, will inject molecules of sort `c` into the soup.
 The result of calling the injector when evaluating `c(123)` is a _side-effect_ which injects the molecule of sort `c` with value `123` into the soup.
 
 If `c` is a non-blocking molecule, the call `c(123)` is non-blocking and immediately returns `Unit`.
@@ -585,6 +634,128 @@ will inject a molecule of sort `f` with value `123` into the soup.
 
 The calling process in `f(123)` will wait until some reaction consumes this molecule and executes a “reply action” with a `String` value.
 Only after the reaction body executes the “reply action”, the `x` will be assigned to that string value, and the calling process will become unblocked and will continue its computations.
+
+## Further details: The injection type matrix
+
+Let us consider what _could_ theoretically happen when we call an injector function.
+The injector call can be either blocking or non-blocking, and it could return a value or return no value.
+Let us write down all possible combinations of these types of injector calls as a type matrix.
+
+For this example, we assume that `c` is a non-blocking injector of type `M[Int]` and `f` is a blocking injector of type `B[Unit, Int]`.
+
+| | blocking injector | non-blocking injector |
+|---|---|---|
+| value is returned| `val x: Int = f()` | ? |
+| no value returned | ? | `c(123)` // side effect |
+
+So far, we have seen that blocking injectors return a value while non-blocking injectors don't.
+There are two more combinations that are not yet used:
+
+- a blocking injector that does not return a value
+- a non-blocking injector that returns a value
+
+It seems that both of these possibilities are useful (although Join Calculus in its academic formulations does not implement them).
+The `JoinRun` library implements both of these possibilities as special features:
+
+- a blocking injector can time out on its call and fail to return a value;
+- a non-blocking injector can return a “volatile reader” value that reads the current value of the molecule without blocking.
+
+With these additional features, the type matrix of injection is complete:
+
+| | blocking injector | non-blocking injector |
+|---|---|---|
+| value is returned: | `val x: Int = f()` | `val x: Int = c.reader()` |
+| no value returned: | timeout was reached | `c(123)` // side effect |
+
+### Timeouts for blocking injectors
+
+By default, a blocking injector call will block until a new reaction is started that consumes the blocking molecule and performs the reply action on that molecule.
+If no reaction can be started that consumes the blocking molecule, the injector call will block and wait indefinitely.
+It is often useful to limit the waiting time to a fixed timeout value.
+`JoinRun` implements the timeout as an additional argument to the blocking injector:
+
+```scala
+val f = b[Unit, Int]
+// write a join definition involving `f` and other molecules:
+join(...)
+
+// call `f` with 200ms timeout:
+val x: Option[Int] = f(timeout = 200 millis)()
+```
+
+If the injector call to `f` timed out without any reply action, the value of `x` will be `None`, and the blocking molecule `f()` will be removed from the soup (so that reactions will not start with it and attempt to reply).
+
+If the injector the call to `f()` succeeded and returned a reply value `r`, the value of `x` will be `Some(r)`.
+
+This functionality is absent from the academic formulations of Join calculus because it can be implemented using the “parallel Or” construction.
+However, this construction is cumbersome and will leave a thread blocked forever, which is undesirable from the implementation point of view.
+
+### Singleton molecules
+
+Often it is necessary to ensure that a certain molecule is present in the soup at most once.
+Such molecules are called **singletons**.
+Singleton molecules `s` must have reactions of the form `s + ... => s + ...`, -- that is, reactions that consume a single copy of `s` and then output a single copy of `s`.
+
+An example of a singleton is the concurrent counter molecule `c`, with reactions
+
+```
+c(x) + d(_) => c(x-1)
+c(x) + i(_) => c(x+1)
+c(x) + f(_, r) => c(x) + r(x)
+```
+These reactions treat `c` as a singleton because they first consume and then output a single copy of `c`.
+
+`JoinRun` provides special features for singleton molecules:
+
+- Only non-blocking molecules can be declared as singletons.
+- It is an error if a reaction consumes a singleton but does not inject it back into the soup, or injects it more than once.
+- It is also an error if a reaction injects a singleton it did not consume, or  if any other code injects additional copies of the singleton at any time.
+- Singleton molecules are injected directly from the join definition.
+In this way, singleton molecules are guaranteed to be injected once and only once.
+- Singleton molecules have volatile readers (see below).
+
+In order to declare a molecule as a singleton, the users of `JoinRun` must write a reaction that has no input molecules:
+
+```scala
+join (
+    // inject and declare a, c, q to be singletons
+    run { case _ => a(1) + c(123) + q() }
+)
+```
+
+Each non-blocking output molecule of such a reaction must be injected only once and is then declared to be a singleton molecule.
+
+The join definitions will run their singleton reactions once and only once, at the time of the `join(...)` call itself.
+
+### Volatile readers for singleton molecules
+
+Each singleton molecule has a **volatile reader** -- a function of type `Unit => T` that fetches the most recently injected value carried by that singleton molecule.
+
+```scala
+val c = m[Int]
+join(
+  run { case c(x) + incr(_) => c(x+1) },
+  run { case _ => c(0) } // inject `c(0)` and declare it a singleton
+)
+
+val readC: Int = c.reader() // initially returns 0
+```
+
+The volatile reader is thread-safe (can be used from any reaction without blocking any threads) because it provides only a reading access to the value carried by the molecule.
+The value of a singleton molecule can be modified only by a reaction that consumes the singleton and then injects it back with a different value.
+If the volatile reader is called while that reaction is being run, the reader will return the previous value of the singleton, which is probably going to become obsolete very shortly.
+The volatile reader is called “volatile” for this reason.
+
+The functionality of a volatile reader is equivalent to an additional reaction with a blocking molecule `f` that will read the value of `c`, such as
+
+```scala
+run { case c(x) + f(_, reply) => c(x) + reply(x) }
+```
+
+Calling `f()` returns the current value carried by `c`.
+However, the call `f()` may block for an unknown time and requires an extra scheduling operation.
+A volatile reader provides a very fast read-only access to a singleton molecule.
+
 
 ## Molecule names
 
@@ -646,7 +817,7 @@ But molecule injectors (as well as reactions) _are_ ordinary, locally defined Sc
 A reaction can then inject new molecules into the soup.
  - We can inject new molecules into the soup at any time and from any code (not only inside a reaction).
 
-# Example 3: concurrent map/reduce
+# Example: Concurrent map/reduce
 
 It remains to see how we can use the “chemical machine” for performing various concurrent computations.
 For instance, it is perhaps not evident what kind of molecules and reactions must be defined, say, to implement a concurrent buffered queue or a concurent merge-sort algorithm.
@@ -845,7 +1016,7 @@ In this way, the user can create as many independent counters as desired.
 This example shows how we can “hide” some molecules and yet use their reactions. 
 A closure can define local reaction with several input molecules, inject some of these molecules initially, and return some (but not all) molecule constructors to the global scope outside of the closure.
 
-# Example 4: concurrent merge-sort
+# Example: Concurrent merge-sort
 
 Chemical laws can be “recursive”: a molecule can start a reaction whose reaction body defines further reactions and injects the same molecule.
 Since each reaction body will have a fresh scope, new molecules and new reactions will be defined every time.
@@ -939,7 +1110,8 @@ While designing the “abstract chemistry” for our application, we need to kee
 This seems to be a genuine limitation of join calculus.
 
 It seems that this limitation cannot be lifted by any clever combinations of blocking and non-blocking molecules; perhaps this can be even proved formally, but I haven't tried learning the formal tools for that.
-I just tried to implement this but could not find appropriate reactions.
+I just tried to implement this but could not find a combination of reactions that will accomplish this.
+
 For instance, we could try injecting a blocking molecule that reacts with `a`.
 If `a` is absent, the injection will block.
 So the absence of `a` in the soup can be translated into blocking of a function call.

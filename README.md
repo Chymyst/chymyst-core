@@ -22,7 +22,7 @@ Join calculus (JC) is similar in some aspects to the well-known “actors” fra
 
 JC has these features that are similar to actors:
 
-- the user's code does not explicitly work with threads / mutexes / semaphores / locks
+- the user's code does not explicitly work with threads / mutexes / semaphores / locks / monitors
 - concurrent processes interact by message-passing
 - messages carry immutable data
 - JC processes start automatically when messages of certain type become available, just as actors run automatically when a message is received
@@ -44,8 +44,8 @@ In talking about `JoinRun`, I follow the “chemical machine” metaphor and ter
 |---|---|---|
 | input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
 | molecule injector | channel (port) name | `val a :  M[Int]` |
-| blocking injector | blocking channel | `val q :  B[Unit, Int]` |
-| reaction | process | `run { case a(x) + ... => ... }` |
+| blocking injector | synchronous channel | `val q :  B[Unit, Int]` |
+| reaction | process | `val r1 = run { case a(x) + ... => ... }` |
 | injecting an output molecule | sending a message | `a(123)` _// side effect_ |
 | injecting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
 | join definition | join definition | `join(r1, r2, ...)` |
@@ -54,15 +54,59 @@ In talking about `JoinRun`, I follow the “chemical machine” metaphor and ter
 
 Compared to [`ScalaJoin` (Jiansen He's 2011 implementation of JC)](https://github.com/Jiansen/ScalaJoin), `JoinRun` offers the following improvements:
 
-- Molecule injectors (“channels”) are locally scoped values (instances of abstract class `Molecule`) rather than singleton objects, as in `ScalaJoin`; this is more faithful to the semantics of JC, and allows more flexibility when defining reactions
-- Reactions are also locally scoped values (instances of class `Reaction`). `JoinRun` uses macros to perform some static analysis of reactions at compile time and to warn users of errors.
+- Lighter syntax for join definitions, compared with previous implementations of Join Calculus. Compare:
+
+JoinRun:
+
+```scala
+val a = m[Int]
+val c = m[Int, Int]
+join(
+  run { case a(x) + c(y, reply) =>
+    a(x+y)
+    reply(x)
+  }
+)
+a(1)
+```
+
+ScalaJoin:
+
+```scala
+object join1 extends Join {
+  object a extends AsyName[Int]
+  object c extends SynName[Int, Int]
+
+  join {
+    case a(x) and c(y) =>
+      a(x+y)
+      c.reply(x)
+  }
+}
+a(1)
+```
+
+As a baseline reference, the most concise syntax for Join Calculus is available in [JoCaml](http://jocaml.inria.fr) at the price of modifying the OCaml compiler:
+
+```ocaml
+def a(x) & c(y) =  
+   a(x+y) & reply x to c
+spawn a(1)
+```
+
+In the JoCaml syntax, `a` and `c` are declared implicitly, together with the reaction.
+This is not possible in Scala since Scala macros do not allow us to insert a new top-level value declaration into the code.
+So, declarations of molecule injectors need to be explicit.
+Other than that, `JoinRun`'s syntax is modeled on that of `ScalaJoin` and JoCaml.
+
+- Molecule injectors (“channels”) are not singleton objects as in `ScalaJoin` but locally scoped values. This is how the semantics of JC is implemented in JoCaml. In this way, we get more flexibility in defining molecules.
+- Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`). `JoinRun` uses macros to perform some static analysis of reactions at compile time and detect some errors.
 - Reactions and molecules are “composable”: we can begin constructing a join definition incrementally, until we have `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules. (However, a join definition is immutable once it is written.)
 - “Join definitions” are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC)
 - Some common cases of invalid join definitions are flagged (as run-time errors) even before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply)
 - Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use Akka actor-based or thread-based pools
 - “Fair” nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random
 - Fault tolerance: failed reactions are automatically restarted (when desired)
-- Lighter syntax for join definitions, compared with previous implementations of Join Calculus
 - Tracing the execution via logging levels; automatic naming of molecules for debugging is available (via macro)
 
 # Status
