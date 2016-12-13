@@ -94,7 +94,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
 
     result.min should be < (cycles/counters/2)
-    result.max should be > (cycles/counters*3)
+    result.max should be > (cycles/counters*2)
   }
 
   behavior of "multiple injection"
