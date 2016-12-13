@@ -316,7 +316,7 @@ private object StaticChecking {
   }
 
   @tailrec
-  private def inputMatchersSimilarToOutput(input: List[InputMoleculeInfo], output: List[OutputMoleculeInfo]): Boolean = {
+  private def inputMatchersAreSimilarToOutput(input: List[InputMoleculeInfo], output: List[OutputMoleculeInfo]): Boolean = {
     input match {
       case Nil => true
       case info :: rest => output match {
@@ -326,7 +326,7 @@ private object StaticChecking {
             i => info.matcherIsSimilarToOutput(i).getOrElse(false)
 
           output.find(isWeaker) match {
-            case Some(correspondingMatcher) => inputMatchersSimilarToOutput(rest, output diff List(correspondingMatcher))
+            case Some(correspondingMatcher) => inputMatchersAreSimilarToOutput(rest, output diff List(correspondingMatcher))
             case None => false
           }
       }
@@ -340,7 +340,7 @@ private object StaticChecking {
 
   private def inputMatchersSimilarToOutput(input: List[InputMoleculeInfo], outputsOpt: Option[List[OutputMoleculeInfo]]) =
     outputsOpt.exists {
-      outputs => inputMatchersSimilarToOutput(input, outputs)
+      outputs => inputMatchersAreSimilarToOutput(input, outputs)
     }
 
   // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
