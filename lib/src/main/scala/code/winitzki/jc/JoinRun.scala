@@ -69,8 +69,8 @@ object JoinRun {
       *         Some(false) if we can surely determine that this matcher is not weaker than another;
       *         None if we cannot determine anything because information is insufficient.
       */
-    def matcherIsWeakerThan(info: InputMoleculeInfo): Option[Boolean] = {
-      if (molecule != info.molecule) None
+    private[jc] def matcherIsWeakerThan(info: InputMoleculeInfo): Option[Boolean] = {
+      if (molecule != info.molecule) Some(false)
       else flag match {
         case Wildcard | SimpleVar => Some(true)
         case OtherInputPattern(matcher1) => info.flag match {
@@ -86,8 +86,8 @@ object JoinRun {
       }
     }
 
-    def matcherIsWeakerThanOutput(info: OutputMoleculeInfo): Option[Boolean] = {
-      if (molecule != info.molecule) None
+    private[jc] def matcherIsWeakerThanOutput(info: OutputMoleculeInfo): Option[Boolean] = {
+      if (molecule != info.molecule) Some(false)
       else flag match {
         case Wildcard | SimpleVar => Some(true)
         case OtherInputPattern(matcher1) => info.flag match {
@@ -99,6 +99,19 @@ object JoinRun {
           case _ => false
         })
         case _ => Some(false)
+      }
+    }
+
+    private[jc] def matcherIsSimilarToOutput(info: OutputMoleculeInfo): Option[Boolean] = {
+      if (molecule != info.molecule) Some(false)
+      else flag match {
+        case Wildcard | SimpleVar => Some(true)
+        case OtherInputPattern(matcher1) => info.flag match {
+          case ConstOutputValue(c) => Some(matcher1.isDefinedAt(c))
+          case _ => Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar.
+        }
+        case SimpleConst(c) => Some(true) // Maybe the output is an expression that evaluates to the same constant.
+        case _ => Some(true)
       }
     }
 
