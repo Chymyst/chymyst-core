@@ -1,14 +1,14 @@
-package code.winitzki.benchmark
+package code.winitzki.test
 
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
 import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.time.{Millis, Span}
+import org.scalatest.{FlatSpec, Matchers}
 
 class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(500, Millis)
+  val timeLimit = Span(1000, Millis)
 
   val warmupTimeMs = 50
 
@@ -28,7 +28,7 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ..."
   }
 
-  it should "detect shadowing of reactions with unfallible matchers" in {
+  it should "detect shadowing of reactions with infallible matchers" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
       val b = m[Int]
@@ -181,9 +181,16 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
 
   it should "not detect livelock in a single reaction due to nontrivial matchers" in {
     val a = m[Int]
-    val b = m[Int]
     val result = join(
-      & { case a(IsEven(x)) + b(3) => b(1) + b(2) + a(x) }
+      & { case a(IsEven(x)) => a(x) }
+    )
+    result shouldEqual()
+  }
+
+  it should "not detect livelock in a single reaction due to guard" in {
+    val a = m[Int]
+    val result = join(
+      & { case a(x) if x > 0 => a(x) }
     )
     result shouldEqual()
   }
@@ -223,6 +230,14 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     thrown.getMessage shouldEqual "In Join{a + b => ...}: Unavoidable livelock: reaction a + b => ..."
   }
 
+  it should "give a livelock warning in a single reaction due to constant output values" in {
+    val p = m[Int]
+    val q = m[Int]
+    join(
+      & { case p(x) + q(1) => q(x) + q(2) + p(1) } // Will have livelock when x==1, but not otherwise.
+    )
+  }
+
   it should "detect shadowing together with livelock" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
@@ -237,5 +252,40 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     thrown.getMessage shouldEqual "In Join{a + b => ...; a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ...; Unavoidable livelock: reactions a + b => ..., a => ..."
   }
 
+  behavior of "deadlock detection"
+
+  it should "not warn about likely deadlock for a reaction that injects molecules for itself in the right order" in {
+    val a = m[Int]
+    val c = m[Int]
+    val f = b[Unit, Int]
+
+    join(
+      & { case f(_, r) + a(_) + c(_) => r(0) + a(1); f() }
+    )
+  }
+
+  it should "warn about likely deadlock for a reaction that injects molecules for itself" in {
+    val a = m[Int]
+    val c = m[Int]
+    val f = b[Unit, Int]
+
+    join(
+      & { case f(_, r) + a(_) + c(_) => f(); r(0) + a(1) }
+    )
+  }
+
+  it should "warn about likely deadlock for a reaction that injects molecules for another reaction" in {
+    val a = m[Int]
+    val c = m[Int]
+    val f = b[Unit, Int]
+
+    join(
+      & { case f(_, r) + a(_) => r(0) + a(1) }
+    )
+
+    join(
+      & { case c(_) => f(); a(1) }
+    )
+  }
 
 }

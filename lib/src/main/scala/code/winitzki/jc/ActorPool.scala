@@ -1,5 +1,5 @@
 package code.winitzki.jc
-
+/* TODO: Move this to a different project that depends on Akka.
 import akka.actor.{Actor, ActorSystem, PoisonPill, Props}
 import akka.dispatch.Dispatchers
 import akka.routing.{BalancingPool, Broadcast, RoundRobinPool, SmallestMailboxPool}
@@ -40,3 +40,4 @@ private[jc] class ActorPool(threads: Int = 8) extends Pool {
   override def isInactive: Boolean = actorSystem.whenTerminated.isCompleted
 
 }
+*/
