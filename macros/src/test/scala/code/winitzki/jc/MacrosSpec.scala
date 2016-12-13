@@ -462,7 +462,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       join(
         & { case a(1) => a(1) }
       )
-      a.reactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
+      a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
     }
     thrown.getMessage shouldEqual "In Join{a => ...}: Unavoidable livelock: reaction a => ..."
   }
@@ -479,7 +479,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
             a(1)
         }
       )
-      a.reactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
+      a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
+      a.consumingReactions.get.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, SimpleConst(1), "")))
+      a.injectingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
+      a.injectingReactions.get.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, SimpleConst(1), "")))
     }
     thrown.getMessage shouldEqual "In Join{a => ...}: Unavoidable livelock: reaction a => ..."
   }
@@ -490,7 +493,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     join(
       & { case a(2) => b(2) + a(1) + b(1) }
     )
-    a.reactions.get.map(_.info.outputs) shouldEqual Set(Some(List(
+    a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(
       OutputMoleculeInfo(b, ConstOutputValue(2)),
       OutputMoleculeInfo(a, ConstOutputValue(1)),
       OutputMoleculeInfo(b, ConstOutputValue(1))
