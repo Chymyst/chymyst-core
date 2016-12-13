@@ -12,7 +12,6 @@ and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 import java.util.UUID
 import java.util.concurrent.{Semaphore, TimeUnit}
 
-import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.reflect.ClassTag
@@ -133,64 +132,7 @@ object JoinRun {
     }
   }
 
-  /** Check that every input molecule matcher of one reaction is weaker than a corresponding matcher in another reaction.
-    * If true, it means that the first reaction can start whenever the second reaction can start, which is an instance of unavoidable indeterminism.
-    * The input1, input2 list2 should not contain UnknownInputPattern.
-    *
-    * @param input1 Sorted input list for the first reaction.
-    * @param input2 Sorted input list  for the second reaction.
-    * @return True if the first reaction is weaker than the second.
-    */
-  @tailrec
-  private[JoinRun] def allMatchersAreWeakerThan(input1: List[InputMoleculeInfo], input2: List[InputMoleculeInfo]): Boolean = {
-    input1 match {
-      case Nil => true // input1 has no matchers left
-      case info1 :: rest1 => input2 match {
-        case Nil => false // input1 has matchers but input2 has no matchers left
-        case _ =>
-          val isWeaker: InputMoleculeInfo => Boolean =
-            i => info1.matcherIsWeakerThan(i).getOrElse(false)
-
-          input2.find(isWeaker) match {
-            case Some(correspondingMatcher) => allMatchersAreWeakerThan(rest1, input2 diff List(correspondingMatcher))
-            case None => false
-          }
-
-      }
-    }
-  }
-
-  @tailrec
-  private[JoinRun] def inputMatchersAreWeakerThanOutput(input: List[InputMoleculeInfo], output: List[OutputMoleculeInfo]): Boolean = {
-    input match {
-      case Nil => true
-      case info :: rest => output match {
-        case Nil => false
-        case _ =>
-          val isWeaker: OutputMoleculeInfo => Boolean =
-            i => info.matcherIsWeakerThanOutput(i).getOrElse(false)
-
-          output.find(isWeaker) match {
-            case Some(correspondingMatcher) => inputMatchersAreWeakerThanOutput(rest, output diff List(correspondingMatcher))
-            case None => false
-          }
-      }
-    }
-  }
-
   final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) {
-
-    private val patternIsNotUnknown: InputMoleculeInfo => Boolean =
-      i => i.flag != UnknownInputPattern
-
-    private[jc] def allMatchersWeakerThan(info: ReactionInfo) =
-      inputsSorted.forall(patternIsNotUnknown) && allMatchersAreWeakerThan(inputsSorted, info.inputsSorted.filter(patternIsNotUnknown))
-
-    private[jc] def inputMatchersWeakerThanOutput(outputsOpt: Option[List[OutputMoleculeInfo]]) =
-    outputsOpt match {
-      case Some(outputs) => inputsSorted.forall(patternIsNotUnknown) && inputMatchersAreWeakerThanOutput(inputsSorted, outputs)
-      case None => false
-    }
 
     // The input pattern sequence is pre-sorted for further use.
     private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
@@ -342,13 +284,17 @@ object JoinRun {
       *
       * @return {{{None}}} if the molecule injector is not yet bound to any Join Definition.
       */
-    private[jc] def consumingReactions: Option[Set[Reaction]] = joinDef.map(_.reactionInfos.keys.filter(_.inputMolecules contains this).toSet)
+    private[jc] def consumingReactions: Option[Set[Reaction]] = joinDef.map(_ => consumingReactionsSet)
+
+    private lazy val consumingReactionsSet: Set[Reaction] = joinDef.get.reactionInfos.keys.filter(_.inputMolecules contains this).toSet
 
     /** The set of reactions that potentially output this molecule.
       *
       * @return {{{None}}} if the molecule injector is not yet bound to any Join Definition.
       */
-    private[jc] def injectingReactions: Option[Set[Reaction]] = joinDef.map(_.reactionInfos.keys.filter(_.info.outputs.exists(_.map(_.molecule) contains this)).toSet)
+    private[jc] def injectingReactions: Option[Set[Reaction]] = joinDef.map(_ => injectingReactionsSet)
+
+    private lazy val injectingReactionsSet: Set[Reaction] = joinDef.get.reactionInfos.keys.filter(_.info.outputs.exists(_.map(_.molecule) contains this)).toSet
 
     /** Check whether the molecule is already bound to a join definition.
       * Note that molecules can be injected only if they are bound.
