@@ -230,6 +230,14 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     thrown.getMessage shouldEqual "In Join{a + b => ...}: Unavoidable livelock: reaction a + b => ..."
   }
 
+  it should "give a livelock warning in a single reaction due to constant output values" in {
+    val p = m[Int]
+    val q = m[Int]
+    join(
+      & { case p(x) + q(1) => q(x) + q(2) + p(1) } // Will have livelock when x==1, but not otherwise.
+    )
+  }
+
   it should "detect shadowing together with livelock" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
