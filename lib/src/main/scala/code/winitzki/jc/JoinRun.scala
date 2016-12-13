@@ -124,6 +124,7 @@ object JoinRun {
   final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType) {
     override def toString: String = {
       val printedPattern = flag match {
+        case ConstOutputValue(()) => ""
         case ConstOutputValue(c) => c.toString
         case OtherOutputPattern => "?"
       }
@@ -145,6 +146,15 @@ object JoinRun {
       }
       (mol.toString, patternPrecedence, sha)
     }
+
+    override def toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")} ${hasGuard match {
+      case GuardAbsent => ""
+      case GuardPresent => "if(...)"
+      case GuardPresenceUnknown => "?"
+    }} => ${outputs match {
+      case Some(outputMoleculeInfos) => outputMoleculeInfos.map(_.toString).mkString(" + ")
+      case None => "?"
+    }}"
   }
 
   // for M[T] molecules, the value inside AbsMolValue[T] is of type T; for B[T,R] molecules, the value is of type
