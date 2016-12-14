@@ -65,7 +65,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(4)
     join(tp,tp)(
       runSimple { case e(_) + c(_) => d() },
-      runSimple { case c(_) + f(_, r) => r("from c") + c() },
+      runSimple { case c(_) + f(_, r) => r("from c"); c() },
       runSimple { case d(_) + f2(_, r) => r("from d") }
     )
 

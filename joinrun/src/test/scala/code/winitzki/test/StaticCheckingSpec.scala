@@ -6,7 +6,7 @@ import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
-class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class StaticCheckingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(1000, Millis)
 
@@ -272,7 +272,7 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     val f = b[Unit, Int]
 
     join(
-      & { case f(_, r) + a(_) + c(_) => r(0) + a(1); f() }
+      & { case f(_, r) + a(_) + c(_) => r(0); a(1); f() }
     )
   }
 
@@ -282,7 +282,7 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     val f = b[Unit, Int]
 
     join(
-      & { case f(_, r) + a(_) + c(_) => f(); r(0) + a(1) }
+      & { case f(_, r) + a(_) + c(_) => f(); r(0); a(1) }
     )
   }
 
@@ -292,7 +292,7 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     val f = b[Unit, Int]
 
     join(
-      & { case f(_, r) + a(_) => r(0) + a(1) }
+      & { case f(_, r) + a(_) => r(0); a(1) }
     )
 
     join(

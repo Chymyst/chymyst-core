@@ -56,8 +56,8 @@ class MutableBag[K,V] {
     if (vs.isEmpty) bag -= k
   }
 
-  def removeFromBag(another: mutable.Map[K,V]): Unit =
-    another.foreach { case (k, v) => removeFromBag(k, v) }
+  def removeFromBag(anotherBag: mutable.Map[K,V]): Unit =
+    anotherBag.foreach { case (k, v) => removeFromBag(k, v) }
 
 }
 /* */

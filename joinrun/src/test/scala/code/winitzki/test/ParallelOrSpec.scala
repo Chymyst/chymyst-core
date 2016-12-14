@@ -49,14 +49,14 @@ class ParallelOrSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val res2 = m[Unit]
     val done = m[T]
 
-    join(tp, tp) (
+    join(tp) (
       & { case res1(_) => val x = b1(); done(x) }, // IntelliJ 2016.3 insists on `b1(())` here, but scalac is fine with `b1()`.
       & { case res2(_) => val x = b2(); done(x) }
     )
 
-    join(tp, tp)( & { case get(_, r) + done(x) => r(x) })
+    join(tp)( & { case get(_, r) + done(x) => r(x) })
 
-    join(tp, tp)( & { case res(_, r) =>  res1() + res2(); val x = get(); r(x) })
+    join(tp)( & { case res(_, r) =>  res1() + res2(); val x = get(); r(x) })
 
     res
   }
@@ -72,7 +72,7 @@ class ParallelOrSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(30)
 
-    join(tp, tp)(
+    join(tp)(
       & {case never(_, r) => r(neverReturn[String])},
       & {case fast(_, r) => Thread.sleep(10); r("fast")},
       & {case slow(_, r) => Thread.sleep(100); r("slow")}

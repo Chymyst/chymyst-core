@@ -182,7 +182,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val tp = new FixedPool(4)
     join(tp,tp)(
       runSimple { case c(_) => e(g2()) }, // e(0) should be injected now
-      runSimple { case d(_) + g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
+      runSimple { case d(_) + g(_,r) + g2(_,r2) => r(0); r2(0) } onThreads tp,
       runSimple { case e(x) + h(_,r) =>  r(x) }
     )
     c()+d()
@@ -205,8 +205,8 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val h = new B[Unit,Int]("h")
     val tp = new FixedPool(4)
     join(tp,tp)(
-      runSimple { case c(_) => val x = g() + g2(); e(x) }, // e(0) should never be injected because this thread is deadlocked
-      runSimple { case d(_) + g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
+      runSimple { case c(_) => val x = g(); g2(); e(x) }, // e(0) should never be injected because this thread is deadlocked
+      runSimple { case d(_) + g(_,r) + g2(_,r2) => r(0); r2(0) } onThreads tp,
       runSimple { case e(x) + h(_,r) =>  r(x) },
       runSimple { case d(_) + f(_) => e(2) },
       runSimple { case f(_) + e(_) => e(1) }

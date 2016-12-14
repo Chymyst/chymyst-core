@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.org/winitzki/joinrun-scala.svg?branch=master)](https://travis-ci.org/winitzki/joinrun-scala)
 
 # `JoinRun` - a new implementation of Join Calculus in Scala
-Join Calculus (JC) is a paradigm for purely functional concurrency.
+Join Calculus (JC) is a paradigm for concurrency in functional programming.
 It has the same expressive power as CSP ( [Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes) ) or [the Actor model](https://en.wikipedia.org/wiki/Actor_model).
 
 `JoinRun` embeds Join Calculus as a domain-specific language in Scala.
@@ -12,8 +12,8 @@ It also works with Scala 2.10 and with OpenJDK 7 (except for the new `LocalDateT
 
 # Overview of join calculus
 
-If you are new to Join Calculus, begin with this [tutorial introduction to `JoinRun`](doc/join_calculus_joinrun_tutorial.md).
-(Do not read the [Wikipedia page on Join Calculus](https://en.wikipedia.org/wiki/Join-calculus) , it will only confuse you.)
+If you are new to Join Calculus, begin with this [tutorial introduction](doc/join_calculus_joinrun_tutorial.md).
+(I do not recommend reading the [Wikipedia page on Join Calculus](https://en.wikipedia.org/wiki/Join-calculus) since it is likely to only confuse you.)
 
 I gave a presentation on `JoinRun` at [Scala by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
