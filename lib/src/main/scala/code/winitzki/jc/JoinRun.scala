@@ -310,7 +310,7 @@ object JoinRun {
 
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
   abstract sealed class Molecule {
-    private[JoinRun] var joinDef: Option[JoinDefinition] = None
+    private[jc] var joinDef: Option[JoinDefinition] = None
 
     /** The set of reactions that potentially consume this molecule.
       *
@@ -346,6 +346,8 @@ object JoinRun {
     def logSoup: String = joinDef.getOrElse(throw errorNoJoinDef).printBag
 
     def isBlocking: Boolean
+
+    def isSingleton: Boolean = false
   }
 
   type VolatileReader[T] = Unit => T
@@ -389,6 +391,10 @@ object JoinRun {
     }
 
     def reader: VolatileReader[T] = joinDef.map(_.getVolatileReader(this)).getOrElse(throw errorNoJoinDef)
+
+    private[jc] var isSingletonBoolean = false
+
+    override def isSingleton: Boolean = isSingletonBoolean
 
     override def isBlocking = false
   }
@@ -507,8 +513,8 @@ object JoinRun {
     */
   private[jc] type ReactionBody = PartialFunction[UnapplyArg, Unit]
 
-  def join(rs: Reaction*): Unit = join(defaultReactionPool, defaultJoinPool)(rs: _*)
-  def join(reactionPool: Pool)(rs: Reaction*): Unit = join(reactionPool, reactionPool)(rs: _*)
+  def join(rs: Reaction*): WarningsAndErrors = join(defaultReactionPool, defaultJoinPool)(rs: _*)
+  def join(reactionPool: Pool)(rs: Reaction*): WarningsAndErrors = join(reactionPool, reactionPool)(rs: _*)
 
   /** Create a join definition with one or more reactions.
     * All input and output molecules in reactions used in this JD should have been
@@ -517,38 +523,13 @@ object JoinRun {
     * @param rs One or more reactions of type [[JoinRun#Reaction]]
     * @param reactionPool Thread pool for running new reactions.
     * @param joinPool Thread pool for use when making decisions to schedule reactions.
+    * @return List of warning messages.
     */
-  def join(reactionPool: Pool, joinPool: Pool)(rs: Reaction*): Unit = {
+  def join(reactionPool: Pool, joinPool: Pool)(rs: Reaction*): WarningsAndErrors = {
 
-    val reactionInfos = rs.map { r => (r, r.info.inputs) }.toMap
+    // Create a join definition object holding the given reactions and inputs.
+    new JoinDefinition(rs, reactionPool, joinPool).diagnostics
 
-    // create a join definition object holding the given reactions and inputs
-    val join = JoinDefinition(reactionInfos, reactionPool, joinPool)
-
-    // set the owner on all input molecules in this join definition
-    rs.filter(_.inputMolecules.nonEmpty)
-      .flatMap(_.inputMolecules)
-      .toSet // We only need to assign the owner on each distinct input molecule once.
-      .foreach { m: Molecule =>
-      m.joinDef match {
-        case Some(owner) => throw new Exception(s"Molecule $m cannot be used as input since it was already used in $owner")
-        case None => m.joinDef = Some(join)
-      }
-    }
-
-    // add output reactions to molecules that may be bound to other join definitions later
-    rs.filter(_.inputMolecules.nonEmpty)
-      .foreach { r =>
-        r.info.outputs.foreach {
-          _.foreach { info => info.molecule.injectingReactionsSet += r }
-        }
-      }
-
-    val foundWarnings = StaticChecking.findStaticWarnings(rs)
-    if (foundWarnings.nonEmpty) println(s"In $join: ${foundWarnings.mkString("; ")}")
-
-    val foundErrors = StaticChecking.findStaticErrors(rs)
-    if (foundErrors.nonEmpty) throw new Exception(s"In $join: ${foundErrors.mkString("; ")}")
   }
 
 }
