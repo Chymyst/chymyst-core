@@ -295,10 +295,6 @@ object JoinRun {
     def getValue: T
 
     override def toString: String = getValue match { case () => ""; case v@_ => v.toString }
-
-    // Can we make hash code persistent across mutations with this simple trick?
-    private lazy val hashCodeValue: Int = super.hashCode()
-    override def hashCode(): Int = hashCodeValue
   }
 
   private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
@@ -307,6 +303,9 @@ object JoinRun {
 
   private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: ReplyValue[T,R]) extends AbsMolValue[T] {
     override def getValue: T = v
+    // Can we make hash code persistent across mutations with this simple trick?
+    private lazy val hashCodeValue: Int = super.hashCode()
+    override def hashCode(): Int = hashCodeValue
   }
 
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.

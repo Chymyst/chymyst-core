@@ -79,6 +79,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     tp.shutdownNow()
   }
+
   it should "ignore reply to blocking molecule after timeout" in {
     val a = m[Int]
     val f = b[Unit,Int]
@@ -102,6 +103,23 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     waiter.await()
     tp.shutdownNow()
     a.logSoup shouldEqual "Join{a + g/B => ...; f/B => ...}\nNo molecules"
+  }
+
+  it should "correctly handle multiple blocking molecules of the same sort" in {
+    val a = m[Int]
+    val c = m[Int]
+    val f = b[Int,Int]
+
+    val tp = new FixedPool(20)
+    join(tp)(
+      & { case f(x, r) + a(y) => c(x); val s = f(x+y); r(s) },
+      & { case f(x, r) + c(y) => r(x*y) }
+    )
+
+    a(10)
+    f(20) shouldEqual 600 // c(20) + f(30, r) => r(600)
+
+    tp.shutdownNow()
   }
 
 }
