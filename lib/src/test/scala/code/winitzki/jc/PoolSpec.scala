@@ -48,7 +48,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
           waiter { false shouldEqual true }
       }
     }
-    Thread.sleep(100)
+    Thread.sleep(20)
 
     tp.shutdownNow()
 
