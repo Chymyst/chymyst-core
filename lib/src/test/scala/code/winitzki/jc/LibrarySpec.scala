@@ -17,6 +17,8 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val warmupTimeMs = 50
 
+  val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
+
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
   behavior of "future + molecule"
@@ -43,13 +45,13 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = new M[String]("c")
     val tp = new FixedPool(2)
 
-    join(tp, tp)(
+    join(tp)(
       runSimple { case c(x) => waiter {x shouldEqual "send it off"}; waiter.dismiss() }
     )
 
     Future { Thread.sleep(50) } + c("send it off")    // insert a molecule from the end of the future
 
-    waiter.await()
+    waiter.await()(patienceConfig, implicitly[Position])
 
     tp.shutdownNow()
   }
@@ -114,7 +116,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     }
 
     b()
-    waiter.await()(PatienceConfig(timeout = Span(500, Millis)), implicitly[Position])
+    waiter.await()(patienceConfig, implicitly[Position])
 
     tp.shutdownNow()
   }
