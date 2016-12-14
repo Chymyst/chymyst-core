@@ -332,9 +332,9 @@ object JoinRun {
       new ExceptionNoJoinDef(s"Molecule ${this} is not bound to any join definition")
 
     def setLogLevel(logLevel: Int): Unit =
-      joinDef.map(o => o.logLevel = logLevel).getOrElse(throw errorNoJoinDef)
+      joinDef.getOrElse(throw errorNoJoinDef).logLevel = logLevel
 
-    def logSoup: String = joinDef.map(o => o.printBag).getOrElse(throw errorNoJoinDef)
+    def logSoup: String = joinDef.getOrElse(throw errorNoJoinDef).printBag
 
     def isBlocking: Boolean
   }
@@ -351,7 +351,7 @@ object JoinRun {
       *
       * @param v Value to be put onto the injected molecule.
       */
-    def apply(v: T): Unit = joinDef.map(_.inject[T](this, MolValue(v))).getOrElse(throw errorNoJoinDef)
+    def apply(v: T): Unit = joinDef.getOrElse(throw errorNoJoinDef).inject[T](this, MolValue(v))
 
     override def toString: String = name
 
@@ -402,7 +402,7 @@ object JoinRun {
     var errorMessage: Option[String] = None,
     var repliedTwice: Boolean = false
   ) {
-    def releaseSemaphore() = if (semaphore != null) semaphore.release()
+    def releaseSemaphore(): Unit = if (semaphore != null) semaphore.release()
 
     def acquireSemaphore(timeoutNanos: Option[Long] = None): Boolean =
       if (semaphore != null)

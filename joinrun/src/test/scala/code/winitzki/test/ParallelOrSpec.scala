@@ -50,7 +50,7 @@ class ParallelOrSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val done = m[T]
 
     join(tp, tp) (
-      & { case res1(_) => val x = b1(); done(x) },
+      & { case res1(_) => val x = b1(); done(x) }, // IntelliJ 2016.3 insists on `b1(())` here, but scalac is fine with `b1()`.
       & { case res2(_) => val x = b2(); done(x) }
     )
 
@@ -88,6 +88,10 @@ class ParallelOrSpec extends FlatSpec with Matchers with TimeLimitedTests {
     firstResult(never, slow, tp)(stringClassTag)() shouldEqual "slow"
 
     tp.shutdownNow()
+  }
+
+  it should "wait for blocking molecule before injecting non-blocking molecule" in {
+
   }
 
 }
