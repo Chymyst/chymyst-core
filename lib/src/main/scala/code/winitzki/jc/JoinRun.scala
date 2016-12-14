@@ -94,10 +94,11 @@ object JoinRun {
           case ConstOutputValue(c) => Some(matcher1.isDefinedAt(c))
           case _ => None // Here we can't reliably determine whether this matcher is weaker.
         }
-        case SimpleConst(c) => Some(info.flag match {
-          case ConstOutputValue(`c`) => true
-          case _ => false
-        })
+        case SimpleConst(c) => info.flag match {
+          case ConstOutputValue(`c`) => Some(true)
+          case ConstOutputValue(_) => Some(false) // definitely not the same constant
+          case _ => None // Otherwise, it could be this constant but we can't determine.
+        }
         case _ => Some(false)
       }
     }
