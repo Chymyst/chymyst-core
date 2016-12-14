@@ -25,7 +25,7 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
         & { case a(_) => }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a => ...; a => ...}: Unavoidable indeterminism: reaction a => ... is shadowed by a => ..."
+    thrown.getMessage shouldEqual "In Join{a => ...; a => ...}: Unavoidable indeterminism: reaction a => ... is shadowed by a => ..., reaction a => ... is shadowed by a => ..."
   }
 
   it should "detect shadowing of reactions with wildcards" in {

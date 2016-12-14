@@ -7,8 +7,9 @@ Currently, it compiles with Scala 2.11 and Scala 2.12 on Oracle JDK 8.
 # Previous work
 
 Here are previous implementations of Join Calculus that I was able to find.
+
 - The `Funnel` programming language: [M. Odersky et al., 2000](http://lampwww.epfl.ch/funnel/). This project was discontinued.
-- _Join Java_: [von Itzstein et al., 2001-2005](http://www.vonitzstein.com/Project_JoinJava.html). This was a modified Java language. The project is not maintained. 
+- _Join Java_: [von Itzstein et al., 2001-2005](http://www.vonitzstein.com/Project_JoinJava.html). This was a modified Java language compiler, with support for certain Join Calculus constructions. The project is not maintained.
 - The `JoCaml` language: [Official site](http://jocaml.inria.fr) and a publication about JoCaml: [Fournet et al. 2003](http://research.microsoft.com/en-us/um/people/fournet/papers/jocaml-afp4-summer-school-02.pdf). This is a dialect of OCaml implemented as a patch to the OCaml compiler. The project is still supported. 
 - “Join in Scala” compiler patch: [V. Cremet 2003](http://lampwww.epfl.ch/~cremet/misc/join_in_scala/index.html). The project is discontinued.
 - Joins library for .NET: [P. Crusso 2006](http://research.microsoft.com/en-us/um/people/crusso/joins/). The project is available as a binary .NET download from Microsoft Research.
@@ -335,7 +336,7 @@ The following syntax is used to specify fault tolerance in reactions:
 ```scala
 join(
   run { case a(x) + b(y) => ... }.withRetry, // will be retried
-  run { case b(y) => ...} // will not be retried - this is the default
+  run { case c(z) => ...} // will not be retried - this is the default
 )
 ```
 
@@ -356,7 +357,7 @@ At the moment, this can happen with `scalatest` with code like this:
 
 ```scala
 val x = m[Int]
-join( run { case x(_) => } ) shouldEqual ()
+join( & { case x(_) => } ) shouldEqual ()
 ```
 
 The error "Could not find proxy for value x" is generated during macro expansion.
@@ -365,7 +366,7 @@ A workaround is to assign a separate value to the join definition result, and ap
 
 ```scala
 val x = m[Int]
-val result = join( run { case x(_) => } )
+val result = join( & { case x(_) => } )
 result shouldEqual ()
 ```
 
