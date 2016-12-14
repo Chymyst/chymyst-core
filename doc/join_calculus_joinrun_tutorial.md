@@ -557,9 +557,115 @@ The runtime engine cannot detect this situation because it cannot determine whet
 - If several reactions are available for the blocking molecule, one of these reactions will be selected at random.
 - Blocking molecules are printed with the suffix `"/B"`.
 
+## Example: Wait for the earliest reply
+
+Suppose we have two blocking molecules `f` and `g` that return a reply value of type `T`.
+We would like to inject both `f` and `g` together and wait until a reply value is received, from whichever molecule unblocks sooner.
+If the other molecule gets a reply later, we will just ignore that.
+
+The result of this nondeterministic operation is the value of type `T` obtained from one of the molecules `f` and `g`, depending on which molecule got its reply first.
+
+We will now implement this operation in Join Calculus by reasoning about the chemistry that is required.
+We need to define a blocking molecule injector `firstReply` that will unblock when `f` or `g` unblocks, whichever is earliest.
+
+It is clear that we need to inject both `f()` and `g()` at the same time.
+But we cannot do this from one reaction, since `f()` will block and prevent us from injecting `g()`.
+Therefore we need two different reactions, one injecting `f()` and another injecting `g()`.
+
+These two reactions need some input molecules.
+These input molecules cannot be `f` and `g` since these two molecules are given to us, and we cannot add reactions that consume them.
+Therefore, we need at least one new molecule that will be consumed to start these two reactions.
+However, if we declare the two reactions as `c() => f()` and `c() => g()` and inject two copies of `c()`, we are not guaranteed that both reactions will start.
+It is possible that two copies of the first reaction (or two copies of the second reaction) are started instead.
+In other words, there will be an unavoidable indeterminism in our chemistry.
+`JoinRun` will detect this and refuse the join definition:
+
+```scala
+val c = m[Unit]
+val f = b[Unit, Int]
+val g = b[Unit, Int]
+join(
+    run { case c(_) => val x = f(); ... },
+    run { case c(_) => val x = g(); ... }
+)
+java.lang.Exception: In Join{c => ...; c => ...}: Unavoidable indeterminism: reaction c => ... is shadowed by c => ...
+```
+
+So, we need to define two _different_ molecules (say, `c` and `d`) as inputs for these two reactions.
+
+```scala
+val c = m[Unit]
+val d = m[Unit]
+val f = b[Unit, Int]
+val g = b[Unit, Int]
+join(
+    run { case c(_) => val x = f() },
+    run { case d(_) => val x = g() }
+)
+c() + d()
+```
+
+Since we have injected both `c()` and `d()`, both reactions can now proceed concurrently.
+When one of them finishes and gets a reply value `x`, we would like to use that value for replying to our new blocking molecule `firstResult`.
+
+Can we reply to `firstResult` in the same reactions? This would require us to make `firstResult` an input molecule in each of these reactions.
+However, we will have only one copy of `firstResult` injected.
+Having `firstResult` as input will therefore prevent both reactions from proceeding.
+
+Then there must be some other reaction that consumes `firstResult` and replies to it.
+This reaction must have the form `firstResult(_, reply) + ... => reply(x)`.
+It is clear that we need to have access to the value `x` that we will reply with.
+Therefore, we need a new auxiliary molecule, say `done(x)`, that will carry `x` on itself.
+The reaction with `firstResult` will then have the form `firstResult(_, reply) + done(x) => reply(x)`.
+
+Now it is clear that the value `x` should be injected on `done(x)` in both of the reactions.
+The complete program looks like this:
+
+```scala
+val c = m[Unit]
+val d = m[Unit]
+val f = b[Unit, Int]
+val g = b[Unit, Int]
+val done = m[Int]
+
+join(
+  run { case c(_) => val x = f(); done(x) },
+  run { case d(_) => val x = g(); done(x) }
+)
+
+val firstResult = b[Unit, Int]
+
+join(
+  run { case firstResult(_, r) + done(x) => r(x) }
+)
+
+c() + d()
+val result = firstResult()
+```
+
+### Refactoring into a library
+
+The code as written works but is not encapsulated - we are defining new molecules and new chemistry inline.
+There are two ways we could encapsulate this chemistry:
+
+- create a function that will return the `firstResult` injector, given the injectors `f` and `g`
+- create a “universal first result molecule” that carries `f` and `g` as its value and performs the required chemistry
+
+TODO: complete
+
 ## Example: Parallel Or
 
-TODO: document
+We will now consider a task called “Parallel Or”; this is somewhat similar to the “first result” task considered above.
+
+The task is to create a new blocking molecule `parallelOr` from two given blocking molecules `f` and `g` that return a reply value of `Boolean` type.
+We would like to inject both `f` and `g` together and wait until a reply value is received.
+The `parallelOr` will reply with `true` as soon as one of the blocking molecules `f` and `g` returns `true`.
+If both `f` and `g` return `false` then `parallelOr` will also return `false`.
+If both molecules `f` and `g` block (or one of them returns `false` while the other blocks) then `parallelOr` will block as well.
+
+We will now implement this operation in Join Calculus.
+
+TODO: complete
 
 ## Error checking for blocking molecules
 
@@ -684,10 +790,11 @@ val x: Option[Int] = f(timeout = 200 millis)()
 ```
 
 If the injector call to `f` timed out without any reply action, the value of `x` will be `None`, and the blocking molecule `f()` will be removed from the soup (so that reactions will not start with it and attempt to reply).
+If a reaction already started and attempts to reply with a blocking molecule that already timed out, the reply action will have no effect.
 
 If the injector the call to `f()` succeeded and returned a reply value `r`, the value of `x` will be `Some(r)`.
 
-This functionality is absent from the academic formulations of Join calculus because it can be implemented using the “parallel Or” construction.
+The timeout functionality is absent from the academic formulations of Join calculus because it can be implemented in pure Join Calculus, for instance, using the “Parallel Or” construction.
 However, this construction is cumbersome and will leave a thread blocked forever, which is undesirable from the implementation point of view.
 
 ### Singleton molecules

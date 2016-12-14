@@ -371,6 +371,8 @@ result shouldEqual ()
 
 # Version history
 
+- 0.0.10 Static checks for livelock and deadlock in reactions, with both compile-time errors and run-time errors.
+
 - 0.0.9 Macros for static analysis of reactions; unrestricted pattern-matching now available for molecule values.
 
 - 0.0.8 Add a timeout option for blocking molecules. Add `CachedPool` option. Tutorial text and ScalaDocs are almost finished. Minor cleanups and simplifications in the API.

@@ -16,6 +16,18 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
 
   behavior of "analysis of reaction shadowing"
 
+  it should "detect shadowing of simplest reactions" in {
+    val thrown = intercept[Exception] {
+      val a = m[Unit]
+      val b = m[Unit]
+      join(
+        & { case a(_) => b() },
+        & { case a(_) => }
+      )
+    }
+    thrown.getMessage shouldEqual "In Join{a => ...; a => ...}: Unavoidable indeterminism: reaction a => ... is shadowed by a => ..."
+  }
+
   it should "detect shadowing of reactions with wildcards" in {
     val thrown = intercept[Exception] {
       val a = m[Unit]

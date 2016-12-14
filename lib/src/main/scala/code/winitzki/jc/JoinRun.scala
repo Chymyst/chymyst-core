@@ -311,13 +311,15 @@ object JoinRun {
 
     private lazy val consumingReactionsSet: Set[Reaction] = joinDef.get.reactionInfos.keys.filter(_.inputMolecules contains this).toSet
 
-    /** The set of reactions that potentially output this molecule.
+    /** The set of reactions that *potentially* output this molecule.
+      * Note that these reactions may be defined in any join definitions, not necessarily in the JD to which this molecule is bound.
+      * The set of these reactions may change at run time if new join definitions are written that output this molecule.
       *
-      * @return {{{None}}} if the molecule injector is not yet bound to any Join Definition.
+      * @return Empty set if the molecule is not yet bound to any join definition.
       */
-    private[jc] def injectingReactions: Option[Set[Reaction]] = joinDef.map(_ => injectingReactionsSet)
+    private[jc] def injectingReactions: Set[Reaction] = injectingReactionsSet.toSet
 
-    private lazy val injectingReactionsSet: Set[Reaction] = joinDef.get.reactionInfos.keys.filter(_.info.outputs.exists(_.map(_.molecule) contains this)).toSet
+    private val injectingReactionsSet: mutable.Set[Reaction] = mutable.Set()
 
     /** Check whether the molecule is already bound to a join definition.
       * Note that molecules can be injected only if they are bound.
@@ -512,12 +514,21 @@ object JoinRun {
     val join = JoinDefinition(reactionInfos, reactionPool, joinPool)
 
     // set the owner on all input molecules in this join definition
-    rs.flatMap { r => r.inputMolecules }
-      .toSet // We only need to set the owner once on each distinct input molecule.
+    rs.filter(_.inputMolecules.nonEmpty)
+      .flatMap(_.inputMolecules)
+      .toSet // We only need to assign the owner on each distinct input molecule once.
       .foreach { m: Molecule =>
         m.joinDef match {
           case Some(owner) => throw new Exception(s"Molecule $m cannot be used as input since it was already used in $owner")
           case None => m.joinDef = Some(join)
+        }
+
+
+    // add output reactions to molecules that may be bound to other join definitions later
+    rs.filter(_.inputMolecules.nonEmpty)
+      .foreach { r =>
+        r.info.outputs.foreach {
+          _.foreach { info => info.molecule.injectingReactions += r }
         }
       }
 
