@@ -396,7 +396,7 @@ private object StaticChecking {
       bmInputs <- blockingInputsWithNonblockingInputs
       (bInput, mInputInfos) = bmInputs
       mInput <- mInputInfos
-      possibleReactions = Set(bInput, mInput).flatMap(_.molecule.injectingReactions).flatten.toSeq
+      possibleReactions = Set(bInput, mInput).flatMap(_.molecule.injectingReactions).toSeq
       reaction <- possibleReactions
       outputs <- reaction.info.outputs
       if outputs.nonEmpty
