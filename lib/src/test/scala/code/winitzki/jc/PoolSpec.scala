@@ -1,13 +1,14 @@
 package code.winitzki.jc
 
 import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.concurrent.Waiters.Waiter
+import org.scalatest.concurrent.Waiters.{PatienceConfig,Waiter}
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
+import org.scalactic.source.Position
 
 class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(500, Millis)
+  val timeLimit = Span(1500, Millis)
 
   behavior of "fixed thread pool"
 
@@ -27,7 +28,8 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
       }
     }
 
-    waiter.await()
+    val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
+    waiter.await()(patienceConfig, implicitly[Position])
 
     tp.shutdownNow()
   }
@@ -94,7 +96,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
           waiter.dismiss()
       }
     }
-    Thread.sleep(200)
+    Thread.sleep(20)
 
     tp.shutdownNow()
 
