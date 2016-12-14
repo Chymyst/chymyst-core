@@ -12,7 +12,7 @@ object BuildSettings {
 
   val buildSettings = Defaults.coreDefaultSettings ++ Seq(
     organization := "code.winitzki",
-    version := "0.0.8",
+    version := "0.0.10",
     scalaVersion := "2.11.8",
     crossScalaVersions := Seq("2.11.0", "2.11.1", "2.11.2", "2.11.3", "2.11.4", "2.11.5", "2.11.6", "2.11.7", "2.11.8", "2.12.0", "2.12.1"),
     resolvers += Resolver.sonatypeRepo("snapshots"),
@@ -32,6 +32,7 @@ object MyBuild extends Build {
     file("joinrun"),
     settings = buildSettings ++ Seq(
       libraryDependencies ++= Seq(
+        "org.scala-lang" % "scala-reflect" % scalaVersion.value % "test",
         "org.scalatest" %% "scalatest" % "3.0.0" % "test"
       ),
       parallelExecution in Test := false,
@@ -45,8 +46,8 @@ object MyBuild extends Build {
     "macros",
     file("macros"),
     settings = buildSettings ++ Seq(
-      libraryDependencies <+= scalaVersion("org.scala-lang" % "scala-reflect" % _),
       libraryDependencies ++= Seq(
+        "org.scala-lang" % "scala-reflect" % scalaVersion.value,
         "org.scalatest" %% "scalatest" % "3.0.0" % "test",
 
   // the "scala-compiler" is a necessary dependency only if we want to debug macros;

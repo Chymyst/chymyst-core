@@ -1,24 +1,27 @@
 [![Build Status](https://travis-ci.org/winitzki/joinrun-scala.svg?branch=master)](https://travis-ci.org/winitzki/joinrun-scala)
 
 # `JoinRun` - a new implementation of Join Calculus in Scala
-Join Calculus (JC) is a micro-framework for purely functional concurrency.
+Join Calculus (JC) is a paradigm for purely functional concurrency.
+It has the same expressive power as CSP ( [Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes) ) or [the Actor model](https://en.wikipedia.org/wiki/Actor_model).
 
-The code of `JoinRun` is inspired by previous implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
+`JoinRun` embeds Join Calculus as a domain-specific language in Scala.
+The code of `JoinRun` is based on previous implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
-The current implementation of `JoinRun` is tested under Oracle JDK 8 with Scala 2.11.8 and 2.12.0.
-It also works with Scala 2.10 (except Akka support) and with OpenJDK 7 (except for the new `LocalDateTime` functions and some performance issues).
+The current implementation of `JoinRun` is tested under Oracle JDK 8 with Scala 2.11 and 2.12.
+It also works with Scala 2.10 and with OpenJDK 7 (except for the new `LocalDateTime` functions and some performance issues).
 
 # Overview of join calculus
 
 If you are new to Join Calculus, begin with this [tutorial introduction to `JoinRun`](doc/join_calculus_joinrun_tutorial.md).
+(Do not read the [Wikipedia page on Join Calculus](https://en.wikipedia.org/wiki/Join-calculus) , it will only confuse you.)
 
 I gave a presentation on `JoinRun` at [Scala by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
 There is some [technical documentation for `JoinRun` library](doc/joinrun.md).
 
-## Join Calculus vs. "Actors"
+## Comparison: Join Calculus vs. Actor model
 
-Join calculus (JC) is similar in some aspects to the well-known “actors” framework (e.g. Akka).
+Join calculus (JC) is similar in some aspects to the well-known “actor model” framework (e.g. Akka).
 
 JC has these features that are similar to actors:
 
@@ -49,6 +52,18 @@ In talking about `JoinRun`, I follow the “chemical machine” metaphor and ter
 | injecting an output molecule | sending a message | `a(123)` _// side effect_ |
 | injecting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
 | join definition | join definition | `join(r1, r2, ...)` |
+
+## Comparison: Join Calculus vs. CSP
+
+Similarities:
+
+The channels of CSP are similar to JC's blocking molecules: sending a message will block until a process can be started that consumes the message and replies with a value.
+
+Differences:
+
+JC will start processes automatically and concurrently whenever input molecules are available. In CSP, the user needs to create and manage new threads manually, giving them channel values.
+
+JC has non-blocking molecules as a primitive construct. In CSP, non-blocking channels need to be simulated by [additional user code](https://gobyexample.com/non-blocking-channel-operations).
 
 # Main features of `JoinRun`
 
