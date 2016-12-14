@@ -102,16 +102,21 @@ object JoinRun {
       }
     }
 
+    // Here "similar" means either it's definitely weaker or it could be weaker (but it is definitely not stronger).
     private[jc] def matcherIsSimilarToOutput(info: OutputMoleculeInfo): Option[Boolean] = {
       if (molecule != info.molecule) Some(false)
       else flag match {
         case Wildcard | SimpleVar => Some(true)
         case OtherInputPattern(matcher1) => info.flag match {
           case ConstOutputValue(c) => Some(matcher1.isDefinedAt(c))
-          case _ => Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar.
+          case _ => Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
         }
-        case SimpleConst(c) => Some(true) // Maybe the output is an expression that evaluates to the same constant.
-        case _ => Some(true)
+        case SimpleConst(c) => Some(info.flag match {
+          case ConstOutputValue(`c`) => true
+          case ConstOutputValue(_) => false // definitely not the same constant
+          case _ => true // Otherwise, it could be this constant.
+        })
+        case UnknownInputPattern => Some(true) // pattern unknown - could be weaker.
       }
     }
 
@@ -160,10 +165,10 @@ object JoinRun {
       (mol.toString, patternPrecedence, sha)
     }
 
-    override def toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")} ${hasGuard match {
+    override def toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")}${hasGuard match {
       case GuardAbsent => ""
-      case GuardPresent => "if(...)"
-      case GuardPresenceUnknown => "?"
+      case GuardPresent => " if(...)"
+      case GuardPresenceUnknown => " ?"
     }} => ${outputs match {
       case Some(outputMoleculeInfos) => outputMoleculeInfos.map(_.toString).mkString(" + ")
       case None => "?"

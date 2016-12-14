@@ -402,22 +402,28 @@ private object StaticChecking {
       possibleReactions = Set(bInput, mInput).flatMap(_.molecule.injectingReactions).toSeq
       reaction <- possibleReactions
       outputs <- reaction.info.outputs
-      if outputs.nonEmpty
-      if outputs.map(_.molecule).slice(outputs.map(_.molecule).indexOf(bInput.molecule), outputs.size).contains(mInput.molecule)
-    } yield {
+      outputMolecules = outputs.map(_.molecule)
+      if outputMolecules.nonEmpty
       // Find a reaction that first injects bInput and then injects mInput, with stronger matchers than bInput and mInput respectively.
+      if outputMolecules.contains(bInput.molecule)
+      bInputIndex = outputMolecules.indexOf(bInput.molecule)
+      mInputIndex = outputMolecules.indexOf(mInput.molecule)
+      if mInputIndex > bInputIndex
+      if bInput.matcherIsSimilarToOutput(outputs(bInputIndex)).getOrElse(false)
+      if mInput.matcherIsSimilarToOutput(outputs(mInputIndex)).getOrElse(false)
+    } yield {
       (bInput, mInput, reaction)
     }
 
     val warningList = likelyDeadlocks
-      .map { case (bInput, mInput, reaction) => s"molecule ${bInput.molecule} may deadlock due to ${mInput.molecule} among the outputs of ${reaction.info}"}
+      .map { case (bInput, mInput, reaction) => s"molecule (${bInput.molecule}) may deadlock due to (${mInput.molecule}) among the outputs of ${reaction.info}"}
     if (warningList.nonEmpty)
-      Some(s"Likely deadlock${if (warningList.size == 1) "" else "s"}: ${warningList.mkString("; ")}")
+      Some(s"Possible deadlock${if (warningList.size == 1) "" else "s"}: ${warningList.mkString("; ")}")
     else None
   }
 
   private def checkOutputsForDeadlockWarning(reactions: Seq[Reaction]): Option[String] = {
-    // A "possible deadlock" means that an output blocking molecule is followed by other output molecules.
+    // A "possible deadlock" means that an output blocking molecule is followed by other output molecules that the blocking molecule may be waiting for.
     val possibleDeadlocks: Seq[(OutputMoleculeInfo, List[OutputMoleculeInfo])] =
       reactions.flatMap(_.info.outputs)
       .flatMap {
@@ -449,7 +455,7 @@ private object StaticChecking {
       .filter{ _._2.nonEmpty }
       .map { case (info, reactionOpt) => s"molecule ${info.molecule} may deadlock due to outputs of ${reactionOpt.get.info}"}
     if (warningList.nonEmpty)
-      Some(s"Likely deadlock${if (warningList.size == 1) "" else "s"}: ${warningList.mkString("; ")}")
+      Some(s"Possible deadlock${if (warningList.size == 1) "" else "s"}: ${warningList.mkString("; ")}")
     else None
   }
 
