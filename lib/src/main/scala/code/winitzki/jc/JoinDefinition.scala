@@ -11,15 +11,18 @@ import scala.collection.mutable
   * and runs reactions.
   * The user will never see any instances of this class.
   *
-  * @param reactionInfos Complete information about reactions declared in this join definition.
+  * @param reactions List of reactions as defined by the user.
   * @param reactionPool The thread pool on which reactions will be scheduled.
   * @param joinPool The thread pool on which the join definition will decide reactions and manage the molecule bag.
   */
-private final case class JoinDefinition(
-  reactionInfos: Map[Reaction, Seq[InputMoleculeInfo]],
-  reactionPool: Pool,
-  joinPool: Pool
-) {
+private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool, joinPool: Pool) {
+
+  private val (nonSingletonReactions, singletonReactions) = reactions.partition(_.inputMolecules.nonEmpty)
+
+  /** Complete information about reactions declared in this join definition.
+    * Singleton-declaring reactions are not included here.
+    */
+  private[jc] val reactionInfos: Map[Reaction, List[InputMoleculeInfo]] = nonSingletonReactions.map { r => (r, r.info.inputs) }.toMap
 
   // TODO: implement
   private val quiescenceCallbacks: mutable.Set[M[Unit]] = mutable.Set.empty
@@ -52,6 +55,13 @@ private final case class JoinDefinition(
     .flatMap { case (r, ms) => ms.map { info => (info.molecule, r) } }
     .groupBy { case (m, r) => m }
     .map { case (m, rs) => (m, rs.map(_._2)) }
+
+  /** The list of singleton molecules and their multiplicities.
+    * Only non-blocking molecules can be singletons.
+    */
+  private def singletons: Map[Molecule, Int] = singletonsMutableMap.toMap
+
+  private val singletonsMutableMap: mutable.Map[Molecule, Int] = mutable.Map()
 
   // Initially, there are no molecules present.
   private val moleculesPresent: MoleculeBag = new MutableBag[Molecule, AbsMolValue[_]]
@@ -266,4 +276,84 @@ private final case class JoinDefinition(
     throw new ExceptionNoSingleton(s"In $this: volatile reader requested for $m, which is not a singleton")
   }
 
+  def diagnostics: WarningsAndErrors = diagnosticsValue
+
+  private var diagnosticsValue: WarningsAndErrors = WarningsAndErrors(Nil, Nil, "")
+
+  private def initializeJoinDef() = {
+
+    // Set the owner on all input molecules in this join definition.
+    nonSingletonReactions
+      .flatMap(_.inputMolecules)
+      .toSet // We only need to assign the owner on each distinct input molecule once.
+      .foreach { m: Molecule =>
+      m.joinDef match {
+        case Some(owner) => throw new Exception(s"Molecule $m cannot be used as input since it was already used in $owner")
+        case None => m.joinDef = Some(this)
+      }
+    }
+
+    // Add output reactions to molecules that may be bound to other join definitions later.
+    nonSingletonReactions
+      .foreach { r =>
+        r.info.outputs.foreach {
+          _.foreach { info => info.molecule.injectingReactionsSet += r }
+        }
+      }
+
+    val singletonsDeclared: Map[Molecule, Int] =
+      singletonReactions.flatMap(_.info.outputs)
+        .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
+        .groupBy(identity)
+        .mapValues(_.size)
+
+    // Detect singleton molecules and inject them.
+    singletonReactions.foreach {
+      reaction =>
+        reaction.info.outputs.foreach(_.foreach{ case OutputMoleculeInfo(m: M[_], _) => m.isSingletonBoolean = true; case _ =>  })
+        reaction.body.apply(null)
+    }
+
+    // Inspect the molecules present and check that singletons have been injected in at least the required numbers.
+    val singletonsInjected: Map[Molecule, Int] =
+      moleculesPresent.getMap.mapValues(_.values.sum)
+
+    val singletonsFewerInjectedThanDeclared = singletonsDeclared.filter { case (mol, count) => singletonsInjected.getOrElse(mol, 0) < count }
+    val singletonsMoreInjectedThanDeclared = singletonsDeclared.filter { case (mol, count) => singletonsInjected.getOrElse(mol, 0) > count }
+    val singletonsInjectedNotDeclared = singletonsInjected.filter { case (mol, count) => singletonsDeclared.get(mol).isEmpty }
+
+    val errorFewerInjected = if (singletonsFewerInjectedThanDeclared.nonEmpty) Some(s"Fewer singletons injected than declared: ${singletonsFewerInjectedThanDeclared.map {
+      case (mol, count) => s"$mol injected ${singletonsInjected.getOrElse(mol,0)} but declared $count copies"
+    }.mkString(", ")}") else None
+
+    val warningMoreInjected = if (singletonsMoreInjectedThanDeclared.nonEmpty) Some(s"More singletons injected than declared: ${singletonsMoreInjectedThanDeclared.map {
+      case (mol, count) => s"$mol injected ${singletonsInjected.getOrElse(mol,0)} but declared $count copies"
+    }}") else None
+    val warningInjectedNotDeclared = if (singletonsInjectedNotDeclared.nonEmpty) Some(s"Singleton reaction injected molecules ${singletonsInjectedNotDeclared
+      .keysIterator.toList.map(_.toString).sorted.mkString(", ")
+    } that were not declared as singletons") else None
+
+    // Perform static analysis.
+
+    val foundWarnings = Seq(warningMoreInjected, warningInjectedNotDeclared).flatten ++ StaticAnalysis.findStaticWarnings(reactions)
+
+    val foundErrors = Seq(errorFewerInjected).flatten ++ StaticAnalysis.findStaticErrors(reactions)
+
+    diagnosticsValue = WarningsAndErrors(foundWarnings, foundErrors, s"$this")
+
+    diagnosticsValue.checkWarningsAndErrors()
+
+  }
+
+  // This is run when this Join Definition is first created.
+  initializeJoinDef()
+}
+
+case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], joinDef: String) {
+  def checkWarningsAndErrors(): Unit = {
+    if (warnings.nonEmpty) println(s"In $joinDef: ${warnings.mkString("; ")}")
+    if (errors.nonEmpty) throw new Exception(s"In $joinDef: ${errors.mkString("; ")}")
+  }
+
+  def hasErrorsOrWarnings: Boolean = warnings.nonEmpty || errors.nonEmpty
 }

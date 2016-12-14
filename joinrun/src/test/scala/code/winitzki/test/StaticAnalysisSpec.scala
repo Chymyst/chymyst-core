@@ -2,11 +2,12 @@ package code.winitzki.test
 
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
+import code.winitzki.jc.WarningsAndErrors
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
-class StaticCheckingSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(1000, Millis)
 
@@ -59,7 +60,7 @@ class StaticCheckingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       & { case a(1) => },
       & { case a(_) + b(_) => }
     )
-    result shouldEqual ()
+    result.hasErrorsOrWarnings shouldEqual false
   }
 
   it should "detect no shadowing of reactions with guards" in {
@@ -69,7 +70,7 @@ class StaticCheckingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       & { case a(x) if x > 0 => },
       & { case a(_) + b(_) => }
     )
-    result shouldEqual ()
+    result.hasErrorsOrWarnings shouldEqual false
   }
 
   it should "detect shadowing of reactions with identical constant matchers" in {
@@ -103,7 +104,7 @@ class StaticCheckingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       & { case a(Some(_)) => },
       & { case a(Some(1)) + b(2) => }
     )
-    result shouldEqual()
+    result.hasErrorsOrWarnings shouldEqual false
   }
 
   it should "detect shadowing of reactions with non-identical matchers that match a constant and a wildcard" in {
@@ -142,7 +143,7 @@ class StaticCheckingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       & { case a(IsEven(x)) => },
       & { case a(1) + b(3) => }
     )
-    result shouldEqual()
+    result.hasErrorsOrWarnings shouldEqual false
   }
 
   it should "detect shadowing of reactions with all supported matcher combinations" in {
@@ -188,23 +189,23 @@ class StaticCheckingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val result = join(
       & { case a(1) + b(3) => b(1) + b(2) + a(1) }
     )
-    result shouldEqual()
+    result.hasErrorsOrWarnings shouldEqual false
   }
 
-  it should "not detect livelock in a single reaction due to nontrivial matchers" in {
+  it should "detect possible livelock in a single reaction due to nontrivial matchers" in {
     val a = m[Int]
     val result = join(
       & { case a(IsEven(x)) => a(x) }
     )
-    result shouldEqual()
+    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction a(<A854...>) => a(?)"),List(),"Join{a => ...}")
   }
 
-  it should "not detect livelock in a single reaction due to guard" in {
+  it should "detect possible livelock in a single reaction due to guard" in {
     val a = m[Int]
     val result = join(
       & { case a(x) if x > 0 => a(x) }
     )
-    result shouldEqual()
+    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction a(.) if(...) => a(?)"),List(),"Join{a => ...}")
   }
 
   it should "detect livelock in a single reaction due to constant output values with nontrivial matchers" in {

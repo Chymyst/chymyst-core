@@ -5,7 +5,7 @@ import code.winitzki.jc.JoinRun._
 import scala.annotation.tailrec
 
 
-private object StaticChecking {
+private object StaticAnalysis {
 
   private val patternIsNotUnknown: InputMoleculeInfo => Boolean =
     i => i.flag != UnknownInputPattern
@@ -121,7 +121,7 @@ private object StaticChecking {
   private def checkSingleReactionLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
     val warningList = reactions
       .filter { r => inputMatchersSimilarToOutput(r.info.inputsSorted, r.info.outputs)}
-      .map(_.toString)
+      .map(_.info.toString)
     if (warningList.nonEmpty)
       Some(s"Possible livelock: reaction${if (warningList.size == 1) "" else "s"} ${warningList.mkString(", ")}")
     else None

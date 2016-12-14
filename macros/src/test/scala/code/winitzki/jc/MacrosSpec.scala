@@ -33,6 +33,16 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
   behavior of "macros for inspecting a reaction body"
 
+  it should "inspect reaction body with default clause that declares a singleton" in {
+    val a = m[Int]
+
+    val reaction = & { case _ => a(123) }
+
+    reaction.info.inputs shouldEqual Nil
+    reaction.info.hasGuard.knownFalse shouldEqual true
+    reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(123))))
+  }
+
   it should "inspect reaction body containing local molecule injectors" in {
     val a = m[Int]
 
@@ -370,9 +380,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val bb = m[Int]
     val bbb = m[Int]
 
-    "val r = & { case _ => bb(0) }" shouldNot compile // empty list of input molecules
-    "val r = & { case x => bb(x.asInstanceOf[Int]) }" shouldNot compile
-    "val r = & { case x => x }" shouldNot compile
+    "val r = & { case _ => bb(0) }" should compile // declaration of a singleton
+    "val r = & { case x => bb(x.asInstanceOf[Int]) }" shouldNot compile // no input molecules
+    "val r = & { case x => x }" shouldNot compile // no input molecules
   }
 
   it should "fail to compile reactions with unconditional livelock" in {
