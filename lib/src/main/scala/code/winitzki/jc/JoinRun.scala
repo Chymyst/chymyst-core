@@ -295,13 +295,17 @@ object JoinRun {
     def getValue: T
 
     override def toString: String = getValue match { case () => ""; case v@_ => v.toString }
+
+    // Can we make hash code persistent across mutations with this simple trick?
+    private lazy val hashCodeValue: Int = super.hashCode()
+    override def hashCode(): Int = hashCodeValue
   }
 
   private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
     override def getValue: T = v
   }
 
-  private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: ReplyValue[R]) extends AbsMolValue[T] {
+  private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: ReplyValue[T,R]) extends AbsMolValue[T] {
     override def getValue: T = v
   }
 
@@ -392,21 +396,23 @@ object JoinRun {
 
   /** Reply-value wrapper for blocking molecules. This is a mutable class.
     *
+    * @param molecule The blocking molecule whose reply value this wrapper represents.
     * @param result Reply value as {{{Option[R]}}}. Initially this is None, and it may be assigned at most once by the
-    *               "reply" action.
+    *               "reply" action if the reply is "valid" (i.e. not timed out).
     * @param semaphore Mutable semaphore reference. This is initialized only once when creating an instance of this
     *                  class. The semaphore will be acquired when injecting the molecule and released by the "reply"
     *                  action.
     * @param errorMessage Optional error message, to notify the caller or to raise an exception when the user made a
     *                     mistake in using the molecule.
-    * @param repliedTwice Will be set to "true" if the molecule received a reply more than once.
+    * @param replyInvalid Will be set to "true" if the molecule received a reply more than once, or if timeout expired.
     * @tparam R Type of the value replied to the caller via the "reply" action.
     */
-  private[jc] final case class ReplyValue[R](
+  private[jc] final case class ReplyValue[T,R](
+    molecule: B[T,R],
     var result: Option[R] = None,
     private var semaphore: Semaphore = { val s = new Semaphore(0, true); s.drainPermits(); s },
     var errorMessage: Option[String] = None,
-    var repliedTwice: Boolean = false
+    var replyInvalid: Boolean = false
   ) {
     def releaseSemaphore(): Unit = if (semaphore != null) semaphore.release()
 
@@ -423,12 +429,13 @@ object JoinRun {
       semaphore = null
     }
 
-    def apply(x: R): Unit = {
-      if (result.nonEmpty)
-        repliedTwice = true // We do not reassign the reply value. Error will be reported.
-      else {
+    def apply(x: R): Boolean = {
+      if (replyInvalid || result.nonEmpty) {
+        replyInvalid = true // We do not reassign the reply value. Error will be reported.
+      } else {
         result = Some(x)
       }
+      !replyInvalid
     }
   }
 
@@ -446,7 +453,7 @@ object JoinRun {
       * @return The "reply" value.
       */
     def apply(v: T): R =
-      joinDef.map(_.injectAndReply[T,R](this, v, ReplyValue[R]()))
+      joinDef.map(_.injectAndReply[T,R](this, v, ReplyValue[T,R](molecule = this)))
         .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this is not bound to any join definition"))
 
     /** Inject a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
@@ -456,16 +463,16 @@ object JoinRun {
       * @return Non-empty option if the reply was received; None on timeout.
       */
     def apply(timeout: Duration)(v: T): Option[R] =
-      joinDef.map(_.injectAndReplyWithTimeout[T,R](timeout.toNanos, this, v, ReplyValue[R]()))
+      joinDef.map(_.injectAndReplyWithTimeout[T,R](timeout.toNanos, this, v, ReplyValue[T,R](molecule = this)))
         .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this is not bound to any join definition"))
 
     override def toString: String = name + "/B"
 
-    def unapply(arg: UnapplyArg): Option[(T, ReplyValue[R])] = arg match {
+    def unapply(arg: UnapplyArg): Option[(T, ReplyValue[T,R])] = arg match {
 
       case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by runSimple
         inputMoleculesProbe += this
-        Some((null, null).asInstanceOf[(T, ReplyValue[R])]) // hack for testing only. This value will not be used.
+        Some((null, null).asInstanceOf[(T, ReplyValue[T,R])]) // hack for testing only. This value will not be used.
 
       // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
       // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
@@ -474,12 +481,12 @@ object JoinRun {
           v <- moleculeValues.getOne(this)
         } yield {
           usedInputs += (this -> v)
-          (v.getValue, null).asInstanceOf[(T, ReplyValue[R])]
+          (v.getValue, null).asInstanceOf[(T, ReplyValue[T,R])]
         }
 
       // This is used when running the chosen reaction.
       case UnapplyRun(moleculeValues) => moleculeValues.get(this).map {
-        case BlockingMolValue(v, srv) => (v, srv).asInstanceOf[(T, ReplyValue[R])]
+        case BlockingMolValue(v, srv) => (v, srv).asInstanceOf[(T, ReplyValue[T,R])]
         case m@_ =>
           throw new ExceptionNoWrapper(s"Internal error: molecule $this with no value wrapper around value $m")
       }
@@ -502,7 +509,7 @@ object JoinRun {
   private[jc] type ReactionBody = PartialFunction[UnapplyArg, Unit]
 
   def join(rs: Reaction*): Unit = join(defaultReactionPool, defaultJoinPool)(rs: _*)
-  def join(reactionPool: Pool)(rs: Reaction*): Unit = join(reactionPool, defaultJoinPool)(rs: _*)
+  def join(reactionPool: Pool)(rs: Reaction*): Unit = join(reactionPool, reactionPool)(rs: _*)
 
   /** Create a join definition with one or more reactions.
     * All input and output molecules in reactions used in this JD should have been

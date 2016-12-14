@@ -225,7 +225,7 @@ object Macros {
               outputMolecules.append((t.symbol, getOutputFlag(binder)))
             }
 
-            if (t.tpe <:< weakTypeOf[ReplyValue[_]]) {
+            if (t.tpe <:< weakTypeOf[ReplyValue[_,_]]) {
               replyMolecules.append((t.symbol, getOutputFlag(binder)))
             }
 
