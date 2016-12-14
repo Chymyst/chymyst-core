@@ -145,7 +145,10 @@ private final case class JoinDefinition(
                 // Running the reaction body produced an exception. Note that the exception has killed a thread.
                 // We will now re-insert the input molecules. Hopefully, no side-effects or output molecules were produced so far.
                 val aboutMolecules = if (r.retry) {
-                  usedInputs.foreach { case (mol, v) => inject(mol, v) }
+                  usedInputs.foreach {
+                    case (mol : M[_], v) => inject(mol, v)
+                    case (mol: B[_,_], v) => () // Do not re-inject blocking molecules - the reply action will be still usable when the reaction re-runs.
+                  }
                   "were injected again"
                 }
                 else "were consumed and not injected again"
