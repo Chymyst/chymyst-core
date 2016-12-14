@@ -319,7 +319,7 @@ object JoinRun {
       */
     private[jc] def injectingReactions: Set[Reaction] = injectingReactionsSet.toSet
 
-    private val injectingReactionsSet: mutable.Set[Reaction] = mutable.Set()
+    private[jc] val injectingReactionsSet: mutable.Set[Reaction] = mutable.Set()
 
     /** Check whether the molecule is already bound to a join definition.
       * Note that molecules can be injected only if they are bound.
@@ -518,17 +518,17 @@ object JoinRun {
       .flatMap(_.inputMolecules)
       .toSet // We only need to assign the owner on each distinct input molecule once.
       .foreach { m: Molecule =>
-        m.joinDef match {
-          case Some(owner) => throw new Exception(s"Molecule $m cannot be used as input since it was already used in $owner")
-          case None => m.joinDef = Some(join)
-        }
-
+      m.joinDef match {
+        case Some(owner) => throw new Exception(s"Molecule $m cannot be used as input since it was already used in $owner")
+        case None => m.joinDef = Some(join)
+      }
+    }
 
     // add output reactions to molecules that may be bound to other join definitions later
     rs.filter(_.inputMolecules.nonEmpty)
       .foreach { r =>
         r.info.outputs.foreach {
-          _.foreach { info => info.molecule.injectingReactions += r }
+          _.foreach { info => info.molecule.injectingReactionsSet += r }
         }
       }
 
