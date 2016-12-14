@@ -387,14 +387,14 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
   it should "not block the smart threadpool when all threads are waiting for new reactions" in {
     val tp = new SmartPool(2)
     val g = blockThreadsDueToBlockingMolecule(tp)
-    g(timeout = 100 millis)() shouldEqual Some(())
+    g(timeout = 200 millis)() shouldEqual Some(())
     tp.shutdownNow()
   }
 
   it should "not block the smart threadpool when more threads are available" in {
     val tp = new SmartPool(3)
     val g = blockThreadsDueToBlockingMolecule(tp)
-    g(timeout = 100 millis)() shouldEqual Some(())
+    g(timeout = 200 millis)() shouldEqual Some(())
     tp.shutdownNow()
   }
 

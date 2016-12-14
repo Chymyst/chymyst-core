@@ -10,6 +10,8 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(1500, Millis)
 
+  val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
+
   behavior of "fixed thread pool"
 
   it should "run a task on a separate thread" in {
@@ -28,7 +30,6 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
       }
     }
 
-    val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
     waiter.await()(patienceConfig, implicitly[Position])
 
     tp.shutdownNow()
@@ -54,7 +55,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     tp.shutdownNow()
 
-    waiter.await()
+    waiter.await()(patienceConfig, implicitly[Position])
   }
 
   behavior of "cached thread pool"
@@ -75,7 +76,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
       }
     }
 
-    waiter.await()
+    waiter.await()(patienceConfig, implicitly[Position])
 
     tp.shutdownNow()
   }
@@ -100,7 +101,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     tp.shutdownNow()
 
-    waiter.await()
+    waiter.await()(patienceConfig, implicitly[Position])
   }
 
 }
