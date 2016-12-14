@@ -463,7 +463,7 @@ Version 0.5: Investigate an implicit distributed execution of thread pools.
 
  5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
  and be able to better reason about our declarative reactions. First, need to understand what is to be asserted.
- Can we assert non-contention on certain molecules? Can we assert deterministic choice of some reactions?
+ Can we assert non-contention on certain molecules? Can we assert deterministic choice of some reactions? Should we assert the number of certain molecules present (precisely N`, or at most N)?
 
  2 * 4 - allow molecule values to be parameterized types or even higher-kinded types? Need to test this.
 
@@ -475,4 +475,4 @@ Version 0.5: Investigate an implicit distributed execution of thread pools.
 
  2 * 2 - add tests for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
 
- 2 * 2 - add tests that time out on a blocking molecule and then reply to it. Should not cause errors. Also, sending out a blocking molecule and then timing out should remove the blocking molecule - implement and test that too.
+ 3 * 3 - implement "singleton" molecules, with runtime assertions and thread fusion
