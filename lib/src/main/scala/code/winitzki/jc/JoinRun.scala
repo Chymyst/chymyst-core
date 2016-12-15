@@ -351,8 +351,6 @@ object JoinRun {
     def isSingleton: Boolean = false
   }
 
-  type VolatileReader[T] = Unit => T
-
   /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a join definition.
     *
     * @param name Name of the molecule, used for debugging only.
@@ -391,7 +389,7 @@ object JoinRun {
         .map(_.asInstanceOf[MolValue[T]].getValue)
     }
 
-    def reader: VolatileReader[T] = joinDef.map(_.getVolatileReader(this)).getOrElse(throw errorNoJoinDef)
+    def value: T = joinDef.map(_.getVolatileValue(this)).getOrElse(throw errorNoJoinDef)
 
     private[jc] var isSingletonBoolean = false
 
@@ -528,7 +526,8 @@ object JoinRun {
     */
   def join(reactionPool: Pool, joinPool: Pool)(rs: Reaction*): WarningsAndErrors = {
 
-    // Create a join definition object holding the given reactions and inputs.
+    // Create a join definition object holding the given local chemistry.
+    // The constructor of JoinDefinition will perform static analysis of all given reactions.
     new JoinDefinition(rs, reactionPool, joinPool).diagnostics
 
   }
