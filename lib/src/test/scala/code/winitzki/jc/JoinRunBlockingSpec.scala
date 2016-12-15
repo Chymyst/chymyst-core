@@ -4,18 +4,22 @@ import JoinRun._
 import Library.withPool
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt
 
 /** More unit tests for blocking molecule functionality.
   *
   */
-class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterAll {
+class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
-  val tp0 = new SmartPool(200)
+  var tp0: Pool = null
 
-  override def afterAll() = {
+  override def beforeEach(): Unit = {
+    tp0 = new SmartPool(50)
+  }
+
+  override def afterEach(): Unit = {
     tp0.shutdownNow()
   }
 
@@ -101,7 +105,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     join(tp0)(
       runSimple { case d(_)  => d2(g2()) },
       runSimple { case d2(x) + e(_, r) => r(x) },
-      runSimple { case c(n) + g(_,r) + g2(_, r2) => c(n); r(n); r(n+1); r2(n); r2(n+1) }
+      runSimple { case c(n) + g(_,r) + g2(_, r2) => c(n); r(n); r2(n); Thread.sleep(100); r(n+1); r2(n+1) }
     )
     c(2) + d()
     g() shouldEqual 2
