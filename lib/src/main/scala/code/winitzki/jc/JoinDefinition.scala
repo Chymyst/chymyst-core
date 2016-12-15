@@ -19,6 +19,16 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
 
   private val (nonSingletonReactions, singletonReactions) = reactions.partition(_.inputMolecules.nonEmpty)
 
+  /** The list of singleton molecules and their multiplicities.
+    * Only non-blocking molecules can be singletons.
+    * This list may be incorrect if the singleton reaction code injects molecules conditionally.
+    */
+  val singletonsDeclared: Map[Molecule, Int] =
+    singletonReactions.flatMap(_.info.outputs)
+      .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
+      .groupBy(identity)
+      .mapValues(_.size)
+
   /** Complete information about reactions declared in this join definition.
     * Singleton-declaring reactions are not included here.
     */
@@ -56,13 +66,6 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     .groupBy { case (m, r) => m }
     .map { case (m, rs) => (m, rs.map(_._2)) }
 
-  /** The list of singleton molecules and their multiplicities.
-    * Only non-blocking molecules can be singletons.
-    */
-  private def singletons: Map[Molecule, Int] = singletonsMutableMap.toMap
-
-  private val singletonsMutableMap: mutable.Map[Molecule, Int] = mutable.Map()
-
   // Initially, there are no molecules present.
   private val moleculesPresent: MoleculeBag = new MutableBag[Molecule, AbsMolValue[_]]
 
@@ -91,18 +94,25 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
   private[jc] def inject[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
     if (joinPool.isInactive) throw new ExceptionNoJoinPool(s"In $this: Cannot inject molecule $m since join pool is not active")
     else if (!Thread.currentThread().isInterrupted) joinPool.runClosure ({
-      val (reaction, usedInputs: LinearMoleculeBag) = synchronized {
-        moleculesPresent.addToBag(m, molValue)
-        if (logLevel > 0) println(s"Debug: $this injecting $m($molValue) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
-        val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
-        val reaction = possibleReactions.get(m)
-          .flatMap(_.shuffle.find(r => {
-            usedInputs.clear()
-            r.body.isDefinedAt(UnapplyRunCheck(moleculesPresent, usedInputs))
-          }))
-        reaction.foreach(_ => moleculesPresent.removeFromBag(usedInputs))
-        (reaction, usedInputs.toMap)
-      } // End of synchronized block.
+      val (reaction, usedInputs: LinearMoleculeBag) =
+        synchronized {
+          if (m.isSingleton) {
+            if (singletonsDeclared.get(m).isEmpty) throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject singleton $m($molValue) not declared in this join definition")
+            val oldCount = moleculesPresent.getCount(m)
+            val maxCount = singletonsDeclared.getOrElse(m, 0)
+            if (oldCount + 1 > maxCount) throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject singleton $m($molValue) having current count $oldCount, max count $maxCount")
+          }
+          moleculesPresent.addToBag(m, molValue)
+          if (logLevel > 0) println(s"Debug: $this injecting $m($molValue) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+          val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
+          val reaction = possibleReactions.get(m)
+            .flatMap(_.shuffle.find(r => {
+              usedInputs.clear()
+              r.body.isDefinedAt(UnapplyRunCheck(moleculesPresent, usedInputs))
+            }))
+          reaction.foreach(_ => moleculesPresent.removeFromBag(usedInputs))
+          (reaction, usedInputs.toMap)
+        } // End of synchronized block.
 
       // We are just starting a reaction, so we don't need to hold the thread any more.
       reaction match {
@@ -301,47 +311,24 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
         }
       }
 
-    val singletonsDeclared: Map[Molecule, Int] =
-      singletonReactions.flatMap(_.info.outputs)
-        .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
-        .groupBy(identity)
-        .mapValues(_.size)
-
     // Detect singleton molecules and inject them.
     singletonReactions.foreach {
       reaction =>
         reaction.info.outputs.foreach(_.foreach{ case OutputMoleculeInfo(m: M[_], _) => m.isSingletonBoolean = true; case _ =>  })
-        reaction.body.apply(null)
     }
-
-    // Inspect the molecules present and check that singletons have been injected in at least the required numbers.
-    val singletonsInjected: Map[Molecule, Int] =
-      moleculesPresent.getMap.mapValues(_.values.sum)
-
-    val singletonsFewerInjectedThanDeclared = singletonsDeclared.filter { case (mol, count) => singletonsInjected.getOrElse(mol, 0) < count }
-    val singletonsMoreInjectedThanDeclared = singletonsDeclared.filter { case (mol, count) => singletonsInjected.getOrElse(mol, 0) > count }
-    val singletonsInjectedNotDeclared = singletonsInjected.filter { case (mol, count) => singletonsDeclared.get(mol).isEmpty }
-
-    val errorFewerInjected = if (singletonsFewerInjectedThanDeclared.nonEmpty) Some(s"Fewer singletons injected than declared: ${singletonsFewerInjectedThanDeclared.map {
-      case (mol, count) => s"$mol injected ${singletonsInjected.getOrElse(mol,0)} but declared $count copies"
-    }.mkString(", ")}") else None
-
-    val warningMoreInjected = if (singletonsMoreInjectedThanDeclared.nonEmpty) Some(s"More singletons injected than declared: ${singletonsMoreInjectedThanDeclared.map {
-      case (mol, count) => s"$mol injected ${singletonsInjected.getOrElse(mol,0)} but declared $count copies"
-    }}") else None
-    val warningInjectedNotDeclared = if (singletonsInjectedNotDeclared.nonEmpty) Some(s"Singleton reaction injected molecules ${singletonsInjectedNotDeclared
-      .keysIterator.toList.map(_.toString).sorted.mkString(", ")
-    } that were not declared as singletons") else None
 
     // Perform static analysis.
 
-    val foundWarnings = Seq(warningMoreInjected, warningInjectedNotDeclared).flatten ++ StaticAnalysis.findStaticWarnings(reactions)
+    val foundWarnings = StaticAnalysis.findSingletonWarnings(singletonsDeclared, nonSingletonReactions) ++ StaticAnalysis.findStaticWarnings(nonSingletonReactions)
 
-    val foundErrors = Seq(errorFewerInjected).flatten ++ StaticAnalysis.findStaticErrors(reactions)
+    val foundErrors = StaticAnalysis.findSingletonErrors(singletonsDeclared, nonSingletonReactions) ++ StaticAnalysis.findStaticErrors(nonSingletonReactions)
 
     diagnosticsValue = WarningsAndErrors(foundWarnings, foundErrors, s"$this")
 
     diagnosticsValue.checkWarningsAndErrors()
+
+    // Inject singleton molecules.
+    singletonReactions.foreach { reaction => reaction.body.apply(null) }
 
   }
 

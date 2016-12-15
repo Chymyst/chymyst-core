@@ -185,6 +185,7 @@ object JoinRun {
   private[jc] sealed class ExceptionInJoinRun(message: String) extends Exception(message)
   private[JoinRun] final class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionNoJoinPool(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionInjectingSingleton(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
   private final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)

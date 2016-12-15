@@ -213,5 +213,69 @@ private object StaticAnalysis {
     ).flatMap(_(reactions))
   }
 
+  private def checkInputsForSingletons(singletons: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
+    // Each singleton should occur in some reaction as an input. No singleton should be consumed twice by a reaction.
+    // Each singleton that is consumed by a reaction should also be injected by the same reaction.
+    val singletonsConsumedMaxTimes: Map[Molecule, (Reaction, Int)] =
+    if (reactions.isEmpty)
+      Map()
+    else
+      singletons.map { case (m, _) => m -> reactions.map(r => (r, r.inputMolecules.count(_ == m))).maxBy(_._2) }
+
+    val wrongConsumed = singletonsConsumedMaxTimes
+      .flatMap {
+        case (mol, (reaction, 0)) => Some(s"singleton ($mol) not consumed by any reactions")
+        case (mol, (reaction, 1)) => None
+        case (mol, (reaction, countConsumed)) => Some(s"singleton ($mol) consumed $countConsumed times by reaction ${reaction.info}")
+      }
+
+    val wrongOutput = singletons.map {
+      case (m, _) => m -> reactions.find(r => r.inputMolecules.count(_ == m) == 1 && r.info.outputs.exists(!_.exists(_.molecule == m)))
+    }.flatMap {
+      case (mol, Some(r)) => Some(s"singleton ($mol) consumed but not injected by reaction ${r.info}")
+      case _ => None
+    }
+
+    val errorList = wrongConsumed ++ wrongOutput
+
+    if (errorList.nonEmpty)
+      Some(s"Incorrect chemistry: ${errorList.mkString("; ")}")
+    else None
+  }
+
+  private def checkOutputsForSingletons(singletons: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
+    // No singleton should be output by a reaction that does not consume it.
+    // No singleton should be output more than once by a reaction.
+
+    val errorList = singletons.flatMap {
+      case (m, _) =>
+        reactions.flatMap {
+          r =>
+            val outputTimes = r.info.outputs.map(_.map(_.molecule).count(_ == m)).getOrElse(0)
+            if (outputTimes > 1)
+              Some(s"singleton ($m) injected more than once by reaction ${r.info}")
+            else if (outputTimes == 1 && !r.inputMolecules.contains(m))
+              Some(s"singleton ($m) injected but not consumed by reaction ${r.info}")
+            else
+              None
+        }
+    }
+
+    if (errorList.nonEmpty)
+      Some(s"Incorrect chemistry: ${errorList.mkString("; ")}")
+    else None
+  }
+
+  private[jc] def findSingletonErrors(singletons: Map[Molecule, Int], reactions: Seq[Reaction]) = {
+    Seq(
+      checkOutputsForSingletons _,
+      checkInputsForSingletons _
+    ).flatMap(_(singletons, reactions))
+  }
+
+  private[jc] def findSingletonWarnings(singletons: Map[Molecule, Int], reactions: Seq[Reaction]) = {
+    // TODO: implement
+    Seq()
+  }
 
 }
