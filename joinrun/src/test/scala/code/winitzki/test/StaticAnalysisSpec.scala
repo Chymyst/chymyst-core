@@ -246,9 +246,11 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "give a livelock warning in a single reaction due to constant output values" in {
     val p = m[Int]
     val q = m[Int]
-    join(
+    val warnings = join(
       & { case p(x) + q(1) => q(x) + q(2) + p(1) } // Will have livelock when x==1, but not otherwise.
     )
+
+    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction p(.) + q(1) => q(?) + q(2) + p(1)"),List(),"Join{p + q => ...}")
   }
 
   it should "detect shadowing together with livelock" in {
@@ -272,9 +274,10 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = m[Int]
     val f = b[Unit, Int]
 
-    join(
+    val warnings = join(
       & { case f(_, r) + a(_) + c(_) => r(0); a(1); f() }
     )
+    warnings shouldEqual WarningsAndErrors(Nil, Nil, "Join{a + c + f/B => ...}")
   }
 
   it should "warn about likely deadlock for a reaction that injects molecules for itself" in {
@@ -282,9 +285,10 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = m[Int]
     val f = b[Unit, Int]
 
-    join(
+    val warnings = join(
       & { case f(_, r) + a(_) + c(_) => f(); r(0); a(1) }
     )
+    warnings shouldEqual WarningsAndErrors(List("Possible deadlock: molecule f/B may deadlock due to outputs of a(_) + c(_) + f/B(_) => f/B() + a(1)", "Possible deadlock: molecule (f/B) may deadlock due to (a) among the outputs of a(_) + c(_) + f/B(_) => f/B() + a(1)"),List(),"Join{a + c + f/B => ...}")
   }
 
   it should "warn about likely deadlock for a reaction that injects molecules for another reaction" in {
@@ -292,13 +296,15 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = m[Int]
     val f = b[Unit, Int]
 
-    join(
+    val warnings1 = join(
       & { case f(_, r) + a(_) => r(0); a(1) }
     )
 
-    join(
+    val warnings2 = join(
       & { case c(_) => f(); a(1) }
     )
+    warnings1 shouldEqual WarningsAndErrors(Nil, Nil, "Join{a + f/B => ...}")
+    warnings2 shouldEqual WarningsAndErrors(List("Possible deadlock: molecule f/B may deadlock due to outputs of a(_) + f/B(_) => a(1)"),List(),"Join{c => ...}")
   }
 
 }
