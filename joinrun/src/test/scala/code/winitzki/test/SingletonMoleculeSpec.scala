@@ -16,14 +16,14 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     val f = b[Unit, String]
     val d = m[String]
 
-    val tp1 = new FixedPool(2)
+    val tp1 = new FixedPool(1) // This test works only with single threads.
 
     join(tp1, tp1)(
       & {case f(_, r) + d(text) => r(text); d(text) },
       & {case _ => d("ok") } // singleton
     )
 
-    (1 to 20).foreach { i =>
+    (1 to 50).foreach { i =>
       d(s"bad $i") // this should not be injected
       f() shouldEqual "ok"
     }
@@ -121,6 +121,53 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       )
     }
     thrown.getMessage shouldEqual "In Join{c/B => ...}: Incorrect chemistry: singleton (d) injected but not consumed by reaction c/B(_) => d(); Incorrect chemistry: singleton (d) not consumed by any reactions"
+
+    tp.shutdownNow()
+  }
+
+  behavior of "volatile reader"
+
+  it should "read the initial value of the singleton molecule after stabilization" in {
+    val d = m[Int]
+    val incr = b[Unit, Int]
+    val stabilize_d = b[Unit, Unit]
+
+    val tp = new FixedPool(1)
+
+    join(tp)(
+      & { case d(x) + incr(_, r) => r(x); d(x+1) },
+      & { case d(x) + stabilize_d(_, r) => r(); d(x) }, // Await stabilizing the presence of d
+      & { case _ => d(123) } // singleton
+    )
+    stabilize_d()
+    d.value shouldEqual 123
+
+    tp.shutdownNow()
+  }
+
+  it should "read the value of the singleton molecule after many changes" in {
+    val d = m[Int]
+    val incr = b[Unit, Unit]
+    val stabilize_d = b[Unit, Unit]
+
+    val tp = new FixedPool(1)
+
+    val n = 100
+    val delta_n = 500
+
+    join(tp)(
+      & { case d(x) + incr(_, r) => d(x+1); r() },
+      & { case d(x) + stabilize_d(_, r) => d(x); r() }, // Await stabilizing the presence of d
+      & { case _ => d(n) } // singleton
+    )
+    stabilize_d()
+    d.value shouldEqual n
+
+    (n+1 to n+delta_n).foreach { i =>
+      d.value shouldEqual i-1
+      incr()
+      d.value shouldEqual i
+    }
 
     tp.shutdownNow()
   }

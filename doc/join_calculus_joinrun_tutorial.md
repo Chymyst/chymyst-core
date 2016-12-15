@@ -770,7 +770,7 @@ With these additional features, the type matrix of injection is complete:
 
 | | blocking injector | non-blocking injector |
 |---|---|---|
-| value is returned: | `val x: Int = f()` | `val x: Int = c.reader()` |
+| value is returned: | `val x: Int = f()` | `val x: Int = c.value` |
 | no value returned: | timeout was reached | `c(123)` // side effect |
 
 ### Timeouts for blocking injectors
@@ -836,7 +836,7 @@ The join definitions will run their singleton reactions once and only once, at t
 
 ### Volatile readers for singleton molecules
 
-Each singleton molecule has a **volatile reader** -- a function of type `Unit => T` that fetches the most recently injected value carried by that singleton molecule.
+Each singleton molecule has a **volatile reader** -- a function of type `=> T` that fetches the most recently injected value carried by that singleton molecule.
 
 ```scala
 val c = m[Int]
@@ -845,13 +845,13 @@ join(
   run { case _ => c(0) } // inject `c(0)` and declare it a singleton
 )
 
-val readC: Int = c.reader() // initially returns 0
+val readC: Int = c.value // initially returns 0
 ```
 
-The volatile reader is thread-safe (can be used from any reaction without blocking any threads) because it provides only a reading access to the value carried by the molecule.
+The volatile reader is thread-safe (can be used from any reaction without blocking any threads) because it provides a read-only access to the value carried by the molecule.
 The value of a singleton molecule can be modified only by a reaction that consumes the singleton and then injects it back with a different value.
-If the volatile reader is called while that reaction is being run, the reader will return the previous value of the singleton, which is probably going to become obsolete very shortly.
-The volatile reader is called “volatile” for this reason.
+If the volatile reader is called while that reaction is being run, the reader will return the previous known value of the singleton, which is probably going to become obsolete very shortly.
+I call the volatile reader “volatile” for this reason.
 
 The functionality of a volatile reader is equivalent to an additional reaction with a blocking molecule `f` that will read the value of `c`, such as
 
@@ -861,8 +861,7 @@ run { case c(x) + f(_, reply) => c(x) + reply(x) }
 
 Calling `f()` returns the current value carried by `c`.
 However, the call `f()` may block for an unknown time and requires an extra scheduling operation.
-A volatile reader provides a very fast read-only access to a singleton molecule.
-
+A volatile reader provides very fast read-only access to the value of a singleton molecule.
 
 ## Molecule names
 

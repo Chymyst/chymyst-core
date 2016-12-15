@@ -23,11 +23,13 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     * Only non-blocking molecules can be singletons.
     * This list may be incorrect if the singleton reaction code injects molecules conditionally.
     */
-  val singletonsDeclared: Map[Molecule, Int] =
+  private val singletonsDeclared: Map[Molecule, Int] =
     singletonReactions.flatMap(_.info.outputs)
       .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
       .groupBy(identity)
       .mapValues(_.size)
+
+  private val singletonValues: mutable.Map[Molecule, AbsMolValue[_]] = mutable.Map()
 
   /** Complete information about reactions declared in this join definition.
     * Singleton-declaring reactions are not included here.
@@ -103,6 +105,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
             if (oldCount + 1 > maxCount) throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject singleton $m($molValue) having current count $oldCount, max count $maxCount")
           }
           moleculesPresent.addToBag(m, molValue)
+          singletonValues(m) = molValue
           if (logLevel > 0) println(s"Debug: $this injecting $m($molValue) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
           val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
           val reaction = possibleReactions.get(m)
@@ -280,10 +283,12 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     }
   }
 
-  def getVolatileReader[T](m: M[T]): VolatileReader[T] = {
-    // TODO: implement correct functionality for singletons
-
-    throw new ExceptionNoSingleton(s"In $this: volatile reader requested for $m, which is not a singleton")
+  private[jc] def getVolatileValue[T](m: M[T]): T = {
+    if (m.isSingleton) {
+      singletonValues.get(m).map(_.asInstanceOf[AbsMolValue[T]].getValue).getOrElse(throw new Exception(s"The volatile reader for singleton ($m) is not yet ready"))
+    }
+    else
+      throw new ExceptionNoSingleton(s"In $this: volatile reader requested for $m, which is not a singleton")
   }
 
   def diagnostics: WarningsAndErrors = diagnosticsValue
