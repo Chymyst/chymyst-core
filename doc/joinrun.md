@@ -7,8 +7,9 @@ Currently, it compiles with Scala 2.11 and Scala 2.12 on Oracle JDK 8.
 # Previous work
 
 Here are previous implementations of Join Calculus that I was able to find.
+
 - The `Funnel` programming language: [M. Odersky et al., 2000](http://lampwww.epfl.ch/funnel/). This project was discontinued.
-- _Join Java_: [von Itzstein et al., 2001-2005](http://www.vonitzstein.com/Project_JoinJava.html). This was a modified Java language. The project is not maintained. 
+- _Join Java_: [von Itzstein et al., 2001-2005](http://www.vonitzstein.com/Project_JoinJava.html). This was a modified Java language compiler, with support for certain Join Calculus constructions. The project is not maintained.
 - The `JoCaml` language: [Official site](http://jocaml.inria.fr) and a publication about JoCaml: [Fournet et al. 2003](http://research.microsoft.com/en-us/um/people/fournet/papers/jocaml-afp4-summer-school-02.pdf). This is a dialect of OCaml implemented as a patch to the OCaml compiler. The project is still supported. 
 - “Join in Scala” compiler patch: [V. Cremet 2003](http://lampwww.epfl.ch/~cremet/misc/join_in_scala/index.html). The project is discontinued.
 - Joins library for .NET: [P. Crusso 2006](http://research.microsoft.com/en-us/um/people/crusso/joins/). The project is available as a binary .NET download from Microsoft Research.
@@ -335,7 +336,7 @@ The following syntax is used to specify fault tolerance in reactions:
 ```scala
 join(
   run { case a(x) + b(y) => ... }.withRetry, // will be retried
-  run { case b(y) => ...} // will not be retried - this is the default
+  run { case c(z) => ...} // will not be retried - this is the default
 )
 ```
 
@@ -356,7 +357,7 @@ At the moment, this can happen with `scalatest` with code like this:
 
 ```scala
 val x = m[Int]
-join( run { case x(_) => } ) shouldEqual ()
+join( & { case x(_) => } ) shouldEqual ()
 ```
 
 The error "Could not find proxy for value x" is generated during macro expansion.
@@ -365,11 +366,13 @@ A workaround is to assign a separate value to the join definition result, and ap
 
 ```scala
 val x = m[Int]
-val result = join( run { case x(_) => } )
+val result = join( & { case x(_) => } )
 result shouldEqual ()
 ```
 
 # Version history
+
+- 0.0.10 Static checks for livelock and deadlock in reactions, with both compile-time errors and run-time errors.
 
 - 0.0.9 Macros for static analysis of reactions; unrestricted pattern-matching now available for molecule values.
 
@@ -415,8 +418,6 @@ Version 0.5: Investigate an implicit distributed execution of thread pools.
 
  5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
 
- 3 * 3 - "singleton" molecules that are always present at most once: detect them with static analysis? Maybe annotate explicitly? Optimize their update, provide read-only volatile value. Maybe provide read-only volatile values for all molecules? If a reaction consumes one molecule and ejects the same molecule, we can keep the "identity" of the molecule.
-
  2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
 
  5 * 5 - implement fairness with respect to molecules
@@ -440,10 +441,14 @@ Version 0.5: Investigate an implicit distributed execution of thread pools.
  This has to be done at runtime when join() is called, because macros have access only at one reaction at a time.
 
  Kinds of situations to detect at runtime:
+
  + Input molecules with nontrivial matchers are a subset of output molecules. This is a warning. (Input molecules with trivial matchers can't be a subset of output molecules - this is a compile-time error.)
+
  + Input molecules of one reaction are a subset of input molecules of another reaction, with the same matchers. This is an error (uncontrollable indeterminism).
+
  - A cycle of input molecules being subset of output molecules, possibly spanning several join definitions (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
- - Output molecules in a reaction include a blocking molecule that might deadlock because other reactions with it require molecules that are injected later. Example: if m is non-blocking and b is blocking, and we have reaction m + b =>... and another reaction that outputs ... => b; m. This is potentially a problem because the first reaction will block waiting for "m", while the second reaction will not inject "m" until "b" returns.
+
+ + Output molecules in a reaction include a blocking molecule that might deadlock because other reactions with it require molecules that are injected later. Example: if m is non-blocking and b is blocking, and we have reaction m + b =>... and another reaction that outputs ... => b; m. This is potentially a problem because the first reaction will block waiting for "m", while the second reaction will not inject "m" until "b" returns.
   This is only a warning since we can't be sure that the output molecules are always injected, and in what exact order.
 
  2 * 3 - understand the "reader-writer" example; implement it as a unit test
@@ -454,11 +459,9 @@ Version 0.5: Investigate an implicit distributed execution of thread pools.
  
  4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same join definition, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on join definition information gleaned using a macro.
 
- 3 * 3 - make "reply actions" before the reaction finishes, not after. Revise error reporting (on double use) accordingly.
-
  5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
  and be able to better reason about our declarative reactions. First, need to understand what is to be asserted.
- Can we assert non-contention on certain molecules? Can we assert deterministic choice of some reactions?
+ Can we assert non-contention on certain molecules? Can we assert deterministic choice of some reactions? Should we assert the number of certain molecules present (precisely N`, or at most N)?
 
  2 * 4 - allow molecule values to be parameterized types or even higher-kinded types? Need to test this.
 
@@ -470,6 +473,4 @@ Version 0.5: Investigate an implicit distributed execution of thread pools.
 
  2 * 2 - add tests for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
 
- 2 * 2 - add tests that time out on a blocking molecule and then reply to it. Should not cause errors. Also, sending out a blocking molecule and then timing out should remove the blocking molecule - implement and test that too.
- 
- 3 * 3 - fix possible bug: when `usedInputs` are injected, `inject` is always used, but `inject` assumes non-blocking molecule. Refactor `inject` so that it accepts any molecule and delegates to `injectNonBlocking` and `injectBlocking`. Or refactor such that this is not necessary (let molecules inject themselves with the correct method of JoinDefinition).
+ 3 * 5 - implement "singleton" molecules with automatic detection of possible singletons; implement automatic thread fusion for singletons

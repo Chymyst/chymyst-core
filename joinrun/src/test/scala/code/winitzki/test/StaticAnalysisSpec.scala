@@ -2,11 +2,12 @@ package code.winitzki.test
 
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
+import code.winitzki.jc.WarningsAndErrors
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
-class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(1000, Millis)
 
@@ -15,6 +16,18 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
   behavior of "analysis of reaction shadowing"
+
+  it should "detect shadowing of simplest reactions" in {
+    val thrown = intercept[Exception] {
+      val a = m[Unit]
+      val b = m[Unit]
+      join(
+        & { case a(_) => b() },
+        & { case a(_) => }
+      )
+    }
+    thrown.getMessage shouldEqual "In Join{a => ...; a => ...}: Unavoidable indeterminism: reaction a => ... is shadowed by a => ..., reaction a => ... is shadowed by a => ..."
+  }
 
   it should "detect shadowing of reactions with wildcards" in {
     val thrown = intercept[Exception] {
@@ -47,7 +60,7 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
       & { case a(1) => },
       & { case a(_) + b(_) => }
     )
-    result shouldEqual ()
+    result.hasErrorsOrWarnings shouldEqual false
   }
 
   it should "detect no shadowing of reactions with guards" in {
@@ -57,7 +70,7 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
       & { case a(x) if x > 0 => },
       & { case a(_) + b(_) => }
     )
-    result shouldEqual ()
+    result.hasErrorsOrWarnings shouldEqual false
   }
 
   it should "detect shadowing of reactions with identical constant matchers" in {
@@ -91,7 +104,7 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
       & { case a(Some(_)) => },
       & { case a(Some(1)) + b(2) => }
     )
-    result shouldEqual()
+    result.hasErrorsOrWarnings shouldEqual false
   }
 
   it should "detect shadowing of reactions with non-identical matchers that match a constant and a wildcard" in {
@@ -130,7 +143,7 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
       & { case a(IsEven(x)) => },
       & { case a(1) + b(3) => }
     )
-    result shouldEqual()
+    result.hasErrorsOrWarnings shouldEqual false
   }
 
   it should "detect shadowing of reactions with all supported matcher combinations" in {
@@ -176,23 +189,23 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     val result = join(
       & { case a(1) + b(3) => b(1) + b(2) + a(1) }
     )
-    result shouldEqual()
+    result.hasErrorsOrWarnings shouldEqual false
   }
 
-  it should "not detect livelock in a single reaction due to nontrivial matchers" in {
+  it should "detect possible livelock in a single reaction due to nontrivial matchers" in {
     val a = m[Int]
     val result = join(
       & { case a(IsEven(x)) => a(x) }
     )
-    result shouldEqual()
+    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction a(<A854...>) => a(?)"),List(),"Join{a => ...}")
   }
 
-  it should "not detect livelock in a single reaction due to guard" in {
+  it should "detect possible livelock in a single reaction due to guard" in {
     val a = m[Int]
     val result = join(
       & { case a(x) if x > 0 => a(x) }
     )
-    result shouldEqual()
+    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction a(.) if(...) => a(?)"),List(),"Join{a => ...}")
   }
 
   it should "detect livelock in a single reaction due to constant output values with nontrivial matchers" in {
@@ -233,9 +246,11 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
   it should "give a livelock warning in a single reaction due to constant output values" in {
     val p = m[Int]
     val q = m[Int]
-    join(
+    val warnings = join(
       & { case p(x) + q(1) => q(x) + q(2) + p(1) } // Will have livelock when x==1, but not otherwise.
     )
+
+    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction p(.) + q(1) => q(?) + q(2) + p(1)"),List(),"Join{p + q => ...}")
   }
 
   it should "detect shadowing together with livelock" in {
@@ -259,9 +274,10 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     val c = m[Int]
     val f = b[Unit, Int]
 
-    join(
-      & { case f(_, r) + a(_) + c(_) => r(0) + a(1); f() }
+    val warnings = join(
+      & { case f(_, r) + a(_) + c(_) => r(0); a(1); f() }
     )
+    warnings shouldEqual WarningsAndErrors(Nil, Nil, "Join{a + c + f/B => ...}")
   }
 
   it should "warn about likely deadlock for a reaction that injects molecules for itself" in {
@@ -269,9 +285,10 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     val c = m[Int]
     val f = b[Unit, Int]
 
-    join(
-      & { case f(_, r) + a(_) + c(_) => f(); r(0) + a(1) }
+    val warnings = join(
+      & { case f(_, r) + a(_) + c(_) => f(); r(0); a(1) }
     )
+    warnings shouldEqual WarningsAndErrors(List("Possible deadlock: molecule f/B may deadlock due to outputs of a(_) + c(_) + f/B(_) => f/B() + a(1)", "Possible deadlock: molecule (f/B) may deadlock due to (a) among the outputs of a(_) + c(_) + f/B(_) => f/B() + a(1)"),List(),"Join{a + c + f/B => ...}")
   }
 
   it should "warn about likely deadlock for a reaction that injects molecules for another reaction" in {
@@ -279,13 +296,15 @@ class JoinRunStaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedT
     val c = m[Int]
     val f = b[Unit, Int]
 
-    join(
-      & { case f(_, r) + a(_) => r(0) + a(1) }
+    val warnings1 = join(
+      & { case f(_, r) + a(_) => r(0); a(1) }
     )
 
-    join(
+    val warnings2 = join(
       & { case c(_) => f(); a(1) }
     )
+    warnings1 shouldEqual WarningsAndErrors(Nil, Nil, "Join{a + f/B => ...}")
+    warnings2 shouldEqual WarningsAndErrors(List("Possible deadlock: molecule f/B may deadlock due to outputs of a(_) + f/B(_) => a(1)"),List(),"Join{c => ...}")
   }
 
 }

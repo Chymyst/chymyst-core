@@ -35,6 +35,8 @@ class MutableBag[K,V] {
 
   def getMap: Map[K, Map[V, Int]] = bag.toMap.mapValues(_.toMap)
 
+  def getCount(k: K): Int = bag.getOrElse(k, mutable.Map()).values.sum
+
   def size: Int = bag.values.map(_.values.sum).sum
 
   def getOne(k: K): Option[V] = bag.get(k).flatMap(_.headOption.map(_._1))
@@ -56,8 +58,8 @@ class MutableBag[K,V] {
     if (vs.isEmpty) bag -= k
   }
 
-  def removeFromBag(another: mutable.Map[K,V]): Unit =
-    another.foreach { case (k, v) => removeFromBag(k, v) }
+  def removeFromBag(anotherBag: mutable.Map[K,V]): Unit =
+    anotherBag.foreach { case (k, v) => removeFromBag(k, v) }
 
 }
 /* */

@@ -4,7 +4,7 @@ package code.winitzki.benchmark
 This file is not a part of JoinRun. Only the benchmark application uses this file
 for performance comparisons between JoinRun and ScalaJoin.
 
-Some minor changes were made to accomodate updates in Scala standard library since 2011.
+Some minor changes were made to accomodate updates in the Scala standard library since 2011.
 */
 
 /** A module providing constracts for join patterns.
@@ -30,6 +30,7 @@ Some minor changes were made to accomodate updates in Scala standard library sin
 
 import scala.collection.immutable.HashMap
 import scala.collection.mutable.{HashSet, MutableList, Queue, Set, Stack}
+import scala.reflect.ClassTag
 
 // Base class for local channels
 trait NameBase{
@@ -45,7 +46,7 @@ trait NameBase{
   *  @param owner  the Join object where this channel is defined
   *  @param argT   the descriptor the argument type
   */
-class AsyName[Arg](implicit owner: Join, argT:ClassManifest[Arg]) extends NameBase{
+class AsyName[Arg](implicit owner: Join, argT:ClassTag[Arg]) extends NameBase{
 
   def getQ:Queue[Arg] = {argQ}
   // Does not support subtyping

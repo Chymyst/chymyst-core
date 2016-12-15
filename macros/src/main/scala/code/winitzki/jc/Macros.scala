@@ -102,7 +102,7 @@ object Macros {
     */
   def run(reactionBody: fmArg): Reaction = macro buildReactionImpl
 
-  def buildReactionImpl(c: theContext)(reactionBody: c.Expr[fmArg]) = {
+  def buildReactionImpl(c: theContext)(reactionBody: c.Expr[fmArg]): c.universe.Tree = {
     import c.universe._
 
 //    val reactionBodyReset = c.untypecheck(reactionBody.tree)
@@ -138,33 +138,45 @@ object Macros {
       def from(tree: Tree): List[(Tree, Tree, Tree, String)] = {
         info = List()
         this.traverse(tree)
-        info.filter { // PartialFunction automatically adds a default case; we don't want to analyze that CaseDef.
+        info.filter { // PartialFunction automatically adds a default case; we ignore that CaseDef.
             case CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, _) => false
             case _ => true
           }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody, getSha1(c)) }
       }
     }
 
+    def isSingletonReaction(pattern: Tree, guard: Tree, body: Tree): Boolean = {
+      pattern match {
+        case Ident(termNames.WILDCARD) => true
+        case _ => false
+      }
+    }
+
     class MoleculeInfo(reactionBodyOwner: c.Symbol) extends Traverser {
 
+      /** Examine an expression tree, looking for molecule expressions.
+        *
+        * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
+        * @return A triple: List of input molecule patterns, list of output molecule patterns, and list of reply action patterns.
+        */
       def from(reactionPart: Tree): (List[(c.Symbol, PatternFlag, Option[PatternFlag], String)], List[(c.Symbol, OutputPatternFlag)], List[(c.Symbol, OutputPatternFlag)]) = {
         inputMolecules = mutable.ArrayBuffer()
         outputMolecules = mutable.ArrayBuffer()
-        replyMolecules = mutable.ArrayBuffer()
+        replyActions = mutable.ArrayBuffer()
         traverse(reactionPart)
-        (inputMolecules.toList, outputMolecules.toList, replyMolecules.toList)
+        (inputMolecules.toList, outputMolecules.toList, replyActions.toList)
       }
 
       private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, PatternFlag, Option[PatternFlag], String)] = mutable.ArrayBuffer()
       private var outputMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
-      private var replyMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
+      private var replyActions: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
 
       private def getSimpleVar(binderTerm: Tree): c.universe.Ident = binderTerm match {
         case Bind(TermName(n), Ident(termNames.WILDCARD)) => Ident(TermName(n))
       }
 
       /** Detect whether the symbol {{{s}}} is defined inside the scope of the symbol {{{owner}}}.
-        * Will return true if
+        * Will return true for code like {{{ val owner = .... { val s = ... }  }}}
         *
         * @param s Symbol to be examined.
         * @param owner Owner symbol of the scope to be examined.
@@ -225,8 +237,8 @@ object Macros {
               outputMolecules.append((t.symbol, getOutputFlag(binder)))
             }
 
-            if (t.tpe <:< weakTypeOf[ReplyValue[_]]) {
-              replyMolecules.append((t.symbol, getOutputFlag(binder)))
+            if (t.tpe <:< weakTypeOf[ReplyValue[_,_]]) {
+              replyActions.append((t.symbol, getOutputFlag(binder)))
             }
 
           case _ => super.traverse(tree)
@@ -294,7 +306,8 @@ object Macros {
     maybeError("blocking input molecules", "but no reply found for", blockingMoleculesWithoutReply, "receive a reply")
     maybeError("blocking input molecules", "but multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
 
-    if (patternIn.isEmpty) c.error(c.enclosingPosition, "Reaction should not have an empty list of input molecules")
+    if (patternIn.isEmpty && !isSingletonReaction(pattern, guard, body))
+      c.error(c.enclosingPosition, "Reaction should not have an empty list of input molecules")
 
     val inputMolecules = patternIn.map { case (s, p, _, sha1) => q"InputMoleculeInfo(${s.asTerm}, $p, $sha1)" }
 
