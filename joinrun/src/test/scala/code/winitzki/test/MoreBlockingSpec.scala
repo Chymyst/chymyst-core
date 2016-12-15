@@ -134,9 +134,10 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       & { case d(x) + incr(_, r) => r(); wait(); d(x+1) }
     )
     d(100)
-    incr(timeout = 400 millis)() // update started and is waiting for e()
+    incr() // update started and is waiting for e()
+    get_d(timeout = 400 millis)() shouldEqual None
     e()
-    get_d() shouldEqual 100
+    get_d(timeout = 400 millis)() shouldEqual Some(101)
 
     tp.shutdownNow()
   }
@@ -145,21 +146,22 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = m[Unit]
     val d = m[Int]
     val e = m[Unit]
+    val f = m[Int]
     val wait = b[Unit, Unit]
     val incr = b[Unit, Unit]
-    val get_d = b[Unit, Int]
+    val get_f = b[Unit, Int]
 
     val tp = new FixedPool(6)
 
     join(tp)(
-      & { case get_d(_, r) + d(x) => r(x) },
+      & { case get_f(_, r) + f(x) => r(x) },
       & { case c(_) => incr(); e() },
       & { case wait(_, r) + e(_) => r() },
-      & { case d(x) + incr(_, r) => r(); wait(); d(x+1) }
+      & { case d(x) + incr(_, r) => r(); wait(); f(x+1) }
     )
     d(100)
     c() // update started and is waiting for e(), which should come after incr() gets its reply
-    get_d() shouldEqual 100
+    get_f() shouldEqual 101
 
     tp.shutdownNow()
   }
@@ -168,21 +170,23 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = m[Unit]
     val d = m[Int]
     val e = m[Unit]
+    val f = m[Int]
     val wait = b[Unit, Unit]
     val incr = b[Unit, Unit]
-    val get_d = b[Unit, Int]
+    val get_f = b[Unit, Int]
 
     val tp = new FixedPool(6)
 
     join(tp)(
-      & { case get_d(_, r) + d(x) => r(x) },
+      & { case get_f(_, r) + f(x) => r(x) },
       & { case c(_) => incr(); e() },
       & { case wait(_, r) + e(_) => r() },
-      & { case d(x) + incr(_, r) => wait(); r(); d(x+1) }
+      & { case d(x) + incr(_, r) => wait(); r(); f(x+1) }
     )
+    d.setLogLevel(3)
     d(100)
     c() // update started and is waiting for e(), which should come after incr() gets its reply
-    get_d() shouldEqual 100
+    get_f(timeout = 400 millis)() shouldEqual None
 
     tp.shutdownNow()
   }

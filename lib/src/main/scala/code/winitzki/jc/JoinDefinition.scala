@@ -146,9 +146,10 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
                 // Running the reaction body produced an exception that is internal to JoinRun.
                 // We should not try to recover from this; it is most either an error on user's part
                 // or a bug in JoinRun.
-                println(s"In $this: Reaction {$r} produced an exception that is internal to JoinRun. Input molecules ${moleculeBagToString(usedInputs)} were not injected again. Exception trace will be printed now.")
-                e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
-                throw e
+                println(s"In $this: Reaction {$r} produced an exception that is internal to JoinRun. Input molecules ${moleculeBagToString(usedInputs)} were not injected again. Message: ${e.getMessage}")
+                // let's not print it, and let's not throw it again
+//                e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
+//                throw e
 
               case e: Exception =>
                 // Running the reaction body produced an exception. Note that the exception has killed a thread.
@@ -162,7 +163,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
                 }
                 else "were consumed and not injected again"
 
-                println(s"In $this: Reaction {$r} produced an exception. Input molecules ${moleculeBagToString(usedInputs)} $aboutMolecules. Exception trace will be printed now.")
+                println(s"In $this: Reaction {$r} produced an exception. Input molecules ${moleculeBagToString(usedInputs)} $aboutMolecules. Message: ${e.getMessage}")
                 e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
             }
             // For any blocking input molecules that have no reply, put an error message into them and reply with empty
@@ -172,13 +173,13 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
 
             // Compute error messages here in case we will need them later.
             val blockingMoleculesWithNoReply = nonemptyOpt(usedInputs
-              .filter { case (_, BlockingMolValue(_, replyValue)) => replyValue.result.isEmpty && !replyValue.replyInvalid; case _ => false }
+              .filter { case (_, BlockingMolValue(_, replyValue)) => replyValue.result.isEmpty && !replyValue.replyTimeout; case _ => false }
               .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
 
             val messageNoReply = blockingMoleculesWithNoReply map { s => s"Error: In $this: Reaction {$r} finished without replying to $s" }
 
             val blockingMoleculesWithMultipleReply = nonemptyOpt(usedInputs
-              .filter { case (_, BlockingMolValue(_, replyValue)) => replyValue.replyInvalid && replyValue.result.nonEmpty; case _ => false }
+              .filter { case (_, BlockingMolValue(_, replyValue)) => replyValue.replyRepeated; case _ => false }
               .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
 
             val messageMultipleReply = blockingMoleculesWithMultipleReply map { s => s"Error: In $this: Reaction {$r} replied to $s more than once" }
@@ -215,8 +216,8 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
 
   private def removeBlockingMolecule[T,R](m: B[T,R], blockingMolValue: BlockingMolValue[T,R]): Unit = synchronized {
     moleculesPresent.removeFromBag(m, blockingMolValue)
-    if (logLevel > 0) println(s"Debug: $this removing $m($blockingMolValue) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
-    blockingMolValue.replyValue.replyInvalid = true
+    if (logLevel > 0) println(s"Debug: $this removed $m($blockingMolValue) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+    blockingMolValue.replyValue.replyTimeout = true
   }
 
   // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.

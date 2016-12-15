@@ -31,7 +31,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
     val a = new M[Unit]("a")
     val f = new B[Unit,Int]("f")
-    join(tp0,tp0)( runSimple { case a(_) + f(_, r) => r(3) })
+    join(tp0)( runSimple { case a(_) + f(_, r) => r(3) })
     a()
     a()
     a()
@@ -44,7 +44,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
     val a = new M[Unit]("a")
     val f = new B[Unit,Int]("f")
-    join(tp0,tp0)( runSimple { case a(_) + f(_, r) => r(3) })
+    join(tp0)( runSimple { case a(_) + f(_, r) => r(3) })
     a()
     f(timeout = 100 millis)() shouldEqual Some(3)
   }
@@ -53,7 +53,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
     val a = new M[Unit]("a")
     val f = new B[Unit,Int]("f")
-    join(tp0,tp0)( runSimple { case a(_) + f(_, r) => r(3) })
+    join(tp0)( runSimple { case a(_) + f(_, r) => r(3) })
     a()
     f() shouldEqual 3 // now the a() molecule is gone
     f(timeout = 100 millis)() shouldEqual None
@@ -63,7 +63,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
     val a = new M[Unit]("a")
     val f = new B[Unit,Int]("f")
-    join(tp0,tp0)( runSimple { case a(_) + f(_, r) => Thread.sleep(50); r(3) })
+    join(tp0)( runSimple { case a(_) + f(_, r) => Thread.sleep(50); r(3) })
     a()
     f(timeout = 100 millis)() shouldEqual Some(3)
   }
@@ -72,50 +72,47 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
     val a = new M[Unit]("a")
     val f = new B[Unit,Int]("f")
-    join(tp0,tp0)( runSimple { case a(_) + f(_, r) => Thread.sleep(150); r(3) })
+    join(tp0)( runSimple { case a(_) + f(_, r) => Thread.sleep(150); r(3) })
     a()
     f(timeout = 100 millis)() shouldEqual None
   }
 
   behavior of "join definitions with invalid replies"
 
-  it should "throw exception when a reaction attempts to reply twice" in {
+  it should "use the first reply when a reaction attempts to reply twice" in {
     val c = new M[Int]("c")
     val g = new B[Unit,Int]("g")
-    join(tp0,tp0)(
-      runSimple { case c(n) + g(_,r) => c(n) + r(n) + r(n+1) }
+    join(tp0)(
+      runSimple { case c(n) + g(_,r) => c(n); r(n); r(n+1) }
     )
     c(2)
     waitSome()
 
-    val thrown = intercept[Exception] {
-      println(s"got result: ${g()} but should not have printed this!")
-    }
-    thrown.getMessage shouldEqual "Error: In Join{c + g/B => ...}: Reaction {c + g/B => ...} replied to g/B more than once"
+    g() shouldEqual 2
   }
 
-  it should "throw exception when a reaction attempts to reply twice to more than one molecule" in {
+  it should "use the first replies when a reaction attempts to reply twice to more than one molecule" in {
     val c = new M[Int]("c")
     val d = new M[Unit]("d")
+    val d2 = new M[Int]("d2")
+    val e = new B[Unit,Int]("e")
     val g = new B[Unit,Int]("g")
     val g2 = new B[Unit,Int]("g2")
-    join(tp0,tp0)(
-      runSimple { case d(_) => g2() },
-      runSimple { case c(n) + g(_,r) + g2(_, r2) => c(n) + r(n) + r(n+1) + r2(n) + r2(n+1) }
+    join(tp0)(
+      runSimple { case d(_)  => d2(g2()) },
+      runSimple { case d2(x) + e(_, r) => r(x) },
+      runSimple { case c(n) + g(_,r) + g2(_, r2) => c(n); r(n); r(n+1); r2(n); r2(n+1) }
     )
     c(2) + d()
-    waitSome()
+    g() shouldEqual 2
+    e() shouldEqual 2
 
-    val thrown = intercept[Exception] {
-      println(s"got result: ${g()} but should not have printed this!")
-    }
-    thrown.getMessage shouldEqual "Error: In Join{c + g/B + g2/B => ...; d => ...}: Reaction {c + g/B + g2/B => ...} replied to g/B, g2/B more than once"
   }
 
   it should "throw exception when a reaction does not reply to one blocking molecule" in {
     val c = new M[Unit]("c")
     val g = new B[Unit,Int]("g")
-    join(tp0,tp0)(
+    join(tp0)(
       runSimple { case c(_) + g(_,r) => c() }
     )
     c()
@@ -148,7 +145,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     tp.shutdownNow()
   }
 
-  it should "throw exception when a reaction does not reply to one blocking molecule but does reply to another" in {
+  it should "get a reply when a reaction does not reply to one blocking molecule but does reply to another" in {
     val c = new M[Unit]("c")
     val d = new M[Unit]("d")
     val g = new B[Unit,Int]("g")
@@ -162,7 +159,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     waitSome()
 
     val thrown = intercept[Exception] {
-      println(s"got result: ${g()} but should not have printed this!")
+      println(s"got result2: ${g()} but should not have printed this!")
     }
     thrown.getMessage shouldEqual "Error: In Join{c + g/B + g2/B => ...; d => ...}: Reaction {c + g/B + g2/B => ...} finished without replying to g2/B"
 
@@ -270,7 +267,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val g = new B[Unit,Unit]("g")
     val g2 = new B[Unit,Int]("g2")
 
-    join(tp0,tp0)( runSimple { case c(_) + g(_, r) => r() } ) // we will use this to monitor the d() reaction
+    join(tp0)( runSimple { case c(_) + g(_, r) => r() } ) // we will use this to monitor the d() reaction
 
     join(tp1,tp0)(
       runSimple { case d(_) => c(); sleeping; c() }, // this thread is blocked by sleeping
@@ -285,21 +282,21 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
   it should "block the fixed threadpool when one thread is sleeping with Thread.sleep" in {
     val tp = new FixedPool(1)
     val (g, g2) = makeBlockingCheck(Thread.sleep(300), tp)
-    g2(timeout = 150 millis)() shouldEqual None // this should be blocked now
+    g2(timeout = 150 millis)() shouldEqual None // this should be blocked
     tp.shutdownNow()
   }
 
   it should "block the fixed threadpool when one thread is sleeping with BlockingIdle(Thread.sleep)" in {
     val tp = new FixedPool(1)
     val (g, g2) = makeBlockingCheck(BlockingIdle{Thread.sleep(300)}, tp)
-    g2(timeout = 150 millis)() shouldEqual None // this should be blocked now
+    g2(timeout = 150 millis)() shouldEqual None // this should be blocked
     tp.shutdownNow()
   }
 
   it should "block the cached threadpool when one thread is sleeping with Thread.sleep" in {
     withPool(new CachedPool(1)){ tp =>
       val (g, g2) = makeBlockingCheck(Thread.sleep(300), tp)
-      g2(timeout = 150 millis)() shouldEqual None // this should be blocked now
+      g2(timeout = 150 millis)() shouldEqual None // this should be blocked
     }
   }
 

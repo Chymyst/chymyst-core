@@ -351,7 +351,7 @@ object JoinRun {
     def isSingleton: Boolean = false
   }
 
-  /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a join definition.
+  /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a join definition and until all reactions involving this molecule are declared.
     *
     * @param name Name of the molecule, used for debugging only.
     * @tparam T Type of the value carried by the molecule.
@@ -405,18 +405,20 @@ object JoinRun {
     *               "reply" action if the reply is "valid" (i.e. not timed out).
     * @param semaphore Mutable semaphore reference. This is initialized only once when creating an instance of this
     *                  class. The semaphore will be acquired when injecting the molecule and released by the "reply"
-    *                  action.
+    *                  action. The semaphore will be destroyed and never initialized again once a reply is received.
     * @param errorMessage Optional error message, to notify the caller or to raise an exception when the user made a
-    *                     mistake in using the molecule.
-    * @param replyInvalid Will be set to "true" if the molecule received a reply more than once, or if timeout expired.
+    *                     mistake in chemistry.
+    * @param replyTimeout Will be set to "true" if the molecule was injected with a timeout and the timeout was reached.
+    * @param replyRepeated Will be set to "true" if the molecule received a reply more than once.
     * @tparam R Type of the value replied to the caller via the "reply" action.
     */
   private[jc] final case class ReplyValue[T,R](
     molecule: B[T,R],
     var result: Option[R] = None,
-    private var semaphore: Semaphore = { val s = new Semaphore(0, true); s.drainPermits(); s },
+    private var semaphore: Semaphore = { val s = new Semaphore(0, false); s.drainPermits(); s },
     var errorMessage: Option[String] = None,
-    var replyInvalid: Boolean = false
+    var replyTimeout: Boolean = false,
+    var replyRepeated: Boolean = false
   ) {
     def releaseSemaphore(): Unit = if (semaphore != null) semaphore.release()
 
@@ -433,17 +435,27 @@ object JoinRun {
       semaphore = null
     }
 
+    /** Perform a reply action for a blocking molecule.
+      * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
+      *
+      * @param x Value to reply with.
+      * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
+      */
     def apply(x: R): Boolean = {
-      if (replyInvalid || result.nonEmpty) {
-        replyInvalid = true // We do not reassign the reply value. Error will be reported.
-      } else {
+      // The reply value will be assigned only if there was no timeout and no previous reply action.
+      if (!replyTimeout && !replyRepeated && result.isEmpty) {
         result = Some(x)
+      } else if (!replyTimeout && result.nonEmpty) {
+        replyRepeated = true
       }
-      !replyInvalid
+
+      releaseSemaphore()
+
+      !replyTimeout && !replyRepeated
     }
   }
 
-  /** Blocking molecule class. Instance is mutable until the molecule is bound to a join definition.
+  /** Blocking molecule class. Instance is mutable until the molecule is bound to a join definition and until all reactions involving this molecule are declared.
     *
     * @param name Name of the molecule, used for debugging only.
     * @tparam T Type of the value carried by the molecule.
