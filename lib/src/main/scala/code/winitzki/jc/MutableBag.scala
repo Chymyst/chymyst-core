@@ -35,6 +35,8 @@ class MutableBag[K,V] {
 
   def getMap: Map[K, Map[V, Int]] = bag.toMap.mapValues(_.toMap)
 
+  def getCount(k: K): Int = bag.getOrElse(k, mutable.Map()).values.sum
+
   def size: Int = bag.values.map(_.values.sum).sum
 
   def getOne(k: K): Option[V] = bag.get(k).flatMap(_.headOption.map(_._1))
