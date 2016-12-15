@@ -131,7 +131,7 @@ Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` an
 
 # Status
 
-Current version is `0.0.10`.
+Current version is `0.1.0`.
 The semantics of Join Calculus (restricted to single machine) is fully implemented and tested.
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
 Performance tests indicate that the runtime can schedule about 300,000 reactions per second per CPU core, and the performance bottleneck is the thread switching and pattern-matching.
