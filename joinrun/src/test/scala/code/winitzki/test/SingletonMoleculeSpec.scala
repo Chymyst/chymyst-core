@@ -141,13 +141,15 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
   it should "refuse to read the value of a non-singleton molecule" in {
     val c = m[Int]
 
-    join( & { case c(_) => } )
+    val tp = new FixedPool(1)
+    join(tp)( & { case c(_) => } )
 
     val thrown = intercept[Exception] {
       c.value
     }
 
     thrown.getMessage shouldEqual "In Join{c => ...}: volatile reader requested for non-singleton (c)"
+    tp.shutdownNow()
   }
 
   it should "refuse to read the value of a singleton too early" in {
