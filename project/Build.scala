@@ -12,7 +12,7 @@ object BuildSettings {
 
   val buildSettings = Defaults.coreDefaultSettings ++ Seq(
     organization := "code.winitzki",
-    version := "0.0.10",
+    version := "0.1.0",
     scalaVersion := "2.11.8",
     crossScalaVersions := Seq("2.11.0", "2.11.1", "2.11.2", "2.11.3", "2.11.4", "2.11.5", "2.11.6", "2.11.7", "2.11.8", "2.12.0", "2.12.1"),
     resolvers += Resolver.sonatypeRepo("snapshots"),
