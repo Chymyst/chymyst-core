@@ -2,7 +2,7 @@ package code.winitzki.test
 
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
-import code.winitzki.jc.FixedPool
+import code.winitzki.jc.{FixedPool, SmartPool}
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
@@ -129,13 +129,11 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   it should "read the initial value of the singleton molecule after stabilization" in {
     val d = m[Int]
-    val incr = b[Unit, Int]
     val stabilize_d = b[Unit, Unit]
 
     val tp = new FixedPool(1)
 
     join(tp)(
-      & { case d(x) + incr(_, r) => r(x); d(x+1) },
       & { case d(x) + stabilize_d(_, r) => r(); d(x) }, // Await stabilizing the presence of d
       & { case _ => d(123) } // singleton
     )
@@ -164,12 +162,38 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     d.value shouldEqual n
 
     (n+1 to n+delta_n).foreach { i =>
-      d.value shouldEqual i-1
       incr()
-      d.value shouldEqual i
+      (i, d.value == i || d.value == i-1) shouldEqual (i, true)
     }
 
     tp.shutdownNow()
+  }
+
+  it should "keep the previous value of the singleton molecule while update reaction is running" in {
+    val d = m[Int]
+    val e = m[Unit]
+    val wait = b[Unit, Unit]
+    val incr = b[Unit, Unit]
+    val stabilize_d = b[Unit, Unit]
+
+    val tp1 = new FixedPool(1)
+    val tp3 = new SmartPool(5)
+
+    join(tp3)(
+      & { case wait(_, r) + e(_) => r() } onThreads tp3,
+      & { case d(x) + incr(_, r) => r(); wait(); d(x+1) } onThreads tp1,
+      & { case d(x) + stabilize_d(_, r) => d(x); r() } onThreads tp1, // Await stabilizing the presence of d
+      & { case _ => d(100) } // singleton
+    )
+    d.setLogLevel(1)
+    stabilize_d()
+    d.value shouldEqual 100
+    incr() // update started and is waiting for e()
+    d.value shouldEqual 100
+    e()
+    stabilize_d()
+    d.value shouldEqual 101
+    tp1.shutdownNow()
   }
 
 }
