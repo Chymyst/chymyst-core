@@ -1,21 +1,23 @@
 [![Build Status](https://travis-ci.org/winitzki/joinrun-scala.svg?branch=master)](https://travis-ci.org/winitzki/joinrun-scala)
 
-# `JoinRun` - a new implementation of Join Calculus in Scala
+# `JoinRun` and `Chymyst` - a new implementation of Join Calculus in Scala
 Join Calculus (JC) is a paradigm for concurrency in functional programming.
-It has the same expressive power as CSP ( [Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes) ) or [the Actor model](https://en.wikipedia.org/wiki/Actor_model).
+It has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) or [the Actor model](https://en.wikipedia.org/wiki/Actor_model).
 
-`JoinRun` embeds Join Calculus as a domain-specific language in Scala.
+`JoinRun` is a small core library that embeds Join Calculus as a domain-specific language in Scala.
 The code of `JoinRun` is based on previous implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
 The current implementation of `JoinRun` is tested under Oracle JDK 8 with Scala 2.11 and 2.12.
 It also works with Scala 2.10 and with OpenJDK 7 (except for the new `LocalDateTime` functions and some performance issues).
 
-# Overview of join calculus
+`Chymyst` is a framework-in-planning that will build upon `JoinRun` and bring declarative concurrency to practice.
 
-If you are new to Join Calculus, begin with this [tutorial introduction](doc/join_calculus_joinrun_tutorial.md).
+# Overview of `JoinRun`
+
+To get started, begin with this [tutorial introduction](doc/chymyst00.md).
 (I do not recommend reading the [Wikipedia page on Join Calculus](https://en.wikipedia.org/wiki/Join-calculus) since it is likely to only confuse you.)
 
-I gave a presentation on `JoinRun` at [Scala by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
+I gave a presentation on an early version of `JoinRun` at [Scala by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
 There is some [technical documentation for `JoinRun` library](doc/joinrun.md).
 
@@ -41,7 +43,8 @@ Main differences between actors and JC processes:
 | messages are held in an unordered bag | messages are held in an ordered queue and processed in the order received |
 | message data is statically typed | message data is untyped |
 
-In talking about `JoinRun`, I follow the “chemical machine” metaphor and terminology, which differs from the terminology usually employed in academic papers on JC. Here is a dictionary:
+In talking about `JoinRun` and `Chymyst`, I follow the “chemical machine” metaphor and terminology, which differs from the terminology usually employed in academic papers on JC.
+Here is a dictionary:
 
 | “Chemistry”  | JC terminology | JoinRun |
 |---|---|---|
@@ -61,15 +64,17 @@ The channels of CSP are similar to JC's blocking molecules: sending a message wi
 
 Differences:
 
-JC will start processes automatically and concurrently whenever input molecules are available. In CSP, the user needs to create and manage new threads manually, giving them channel values.
+JC will start processes automatically and concurrently whenever input molecules are available.
+In CSP, the user needs to create and manage new threads manually, giving them channel values.
 
-JC has non-blocking molecules as a primitive construct. In CSP, non-blocking channels need to be simulated by [additional user code](https://gobyexample.com/non-blocking-channel-operations).
+JC has non-blocking molecules as a primitive construct.
+In CSP, non-blocking channels need to be simulated by [additional user code](https://gobyexample.com/non-blocking-channel-operations).
 
 # Main features of `JoinRun`
 
 Compared to [`ScalaJoin` (Jiansen He's 2011 implementation of JC)](https://github.com/Jiansen/ScalaJoin), `JoinRun` offers the following improvements:
 
-- Lighter syntax for join definitions, compared with previous implementations of Join Calculus. Compare:
+- Lighter syntax for join definitions. Compare:
 
 JoinRun:
 
@@ -101,7 +106,7 @@ object join1 extends Join {
 a(1)
 ```
 
-As a baseline reference, the most concise syntax for Join Calculus is available in [JoCaml](http://jocaml.inria.fr) at the price of modifying the OCaml compiler:
+As a baseline reference, the most concise syntax for Join Calculus is available in [JoCaml](http://jocaml.inria.fr), at the price of modifying the OCaml compiler:
 
 ```ocaml
 def a(x) & c(y) =  
@@ -110,19 +115,19 @@ spawn a(1)
 ```
 
 In the JoCaml syntax, `a` and `c` are declared implicitly, together with the reaction.
-This is not possible in Scala since Scala macros do not allow us to insert a new top-level value declaration into the code.
+This kind of implicit declaration is not possible in `JoinRun` because Scala macros do not allow us to insert a new top-level name declaration into the code.
 So, declarations of molecule injectors need to be explicit.
-Other than that, `JoinRun`'s syntax is modeled on that of `ScalaJoin` and JoCaml.
+Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` and JoCaml.
 
 - Molecule injectors (“channels”) are not singleton objects as in `ScalaJoin` but locally scoped values. This is how the semantics of JC is implemented in JoCaml. In this way, we get more flexibility in defining molecules.
 - Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`). `JoinRun` uses macros to perform some static analysis of reactions at compile time and detect some errors.
 - Reactions and molecules are “composable”: we can begin constructing a join definition incrementally, until we have `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules. (However, a join definition is immutable once it is written.)
-- “Join definitions” are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC)
-- Some common cases of invalid join definitions are flagged (as run-time errors) even before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply)
-- Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use Akka actor-based or thread-based pools
-- “Fair” nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random
-- Fault tolerance: failed reactions are automatically restarted (when desired)
-- Tracing the execution via logging levels; automatic naming of molecules for debugging is available (via macro)
+- “Join definitions” are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC).
+- Some common cases of invalid join definitions are flagged (as run-time errors) before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply).
+- Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use Akka actor-based or thread-based pools.
+- “Fair” nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random.
+- Fault tolerance: failed reactions are automatically restarted (when desired).
+- Tracing the execution via logging levels; automatic naming of molecules for debugging is available (via macro).
 
 # Status
 
@@ -150,7 +155,6 @@ Some tests are timed and will fail on a slow machine.
 
 `sbt benchmark/run` will run the benchmark application.
 
-
 # Build the library
 
 To build all JARs:
@@ -158,9 +162,10 @@ To build all JARs:
 ```
 sbt assembly
 ```
-will prepare a “root”, “core”, and “macros” assemblies.
+will prepare a `joinrun`, `benchmark`, `lib`, and `macros` JAR assemblies.
 
-The main library is in the “core” and “macros” artifacts.
+The main library is in the `joinrun` JAR assembly.
+User code should depend on that JAR only.
 
 # Basic usage of `JoinRun`
 
