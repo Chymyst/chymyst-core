@@ -23,7 +23,8 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       & {case _ => d("ok") } // singleton
     )
 
-    (1 to 50).foreach { i =>
+    (1 to 20).foreach { i =>
+      Thread.sleep(20)
       d(s"bad $i") // this should not be injected
       f() shouldEqual "ok"
     }
