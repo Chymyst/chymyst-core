@@ -2,9 +2,10 @@ package code.winitzki.jc
 
 import JoinRun._
 import Library._
+import org.scalactic.source.Position
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.{FlatSpec, Matchers}
-import org.scalatest.concurrent.Waiters.Waiter
+import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -16,6 +17,8 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val warmupTimeMs = 50
 
+  val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
+
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
   behavior of "future + molecule"
@@ -26,7 +29,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f = new B[Unit, Unit]("f")
 
     val tp = new FixedPool(2)
-    join(tp,tp)(
+    join(tp)(
       runSimple { case c(_) + f(_, r) => r() }
     )
 
@@ -42,13 +45,13 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = new M[String]("c")
     val tp = new FixedPool(2)
 
-    join(tp, tp)(
+    join(tp)(
       runSimple { case c(x) => waiter {x shouldEqual "send it off"}; waiter.dismiss() }
     )
 
     Future { Thread.sleep(50) } + c("send it off")    // insert a molecule from the end of the future
 
-    waiter.await()
+    waiter.await()(patienceConfig, implicitly[Position])
 
     tp.shutdownNow()
   }
@@ -63,9 +66,9 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f2 = new B[Unit, String]("f2")
 
     val tp = new FixedPool(4)
-    join(tp,tp)(
+    join(tp)(
       runSimple { case e(_) + c(_) => d() },
-      runSimple { case c(_) + f(_, r) => r("from c") + c() },
+      runSimple { case c(_) + f(_, r) => r("from c"); c() },
       runSimple { case d(_) + f2(_, r) => r("from d") }
     )
 
@@ -96,7 +99,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     // "fut" will succeed when "c" is injected
     val (c, fut) = moleculeFuture[String](tp)
 
-    join(tp,tp)(
+    join(tp)(
       runSimple { case b(_) => c("send it off") }
     )
 
@@ -113,7 +116,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     }
 
     b()
-    waiter.await()
+    waiter.await()(patienceConfig, implicitly[Position])
 
     tp.shutdownNow()
   }
