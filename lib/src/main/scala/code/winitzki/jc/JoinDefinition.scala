@@ -288,7 +288,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
       singletonValues.get(m).map(_.asInstanceOf[AbsMolValue[T]].getValue).getOrElse(throw new Exception(s"The volatile reader for singleton ($m) is not yet ready"))
     }
     else
-      throw new ExceptionNoSingleton(s"In $this: volatile reader requested for $m, which is not a singleton")
+      throw new ExceptionNoSingleton(s"In $this: volatile reader requested for non-singleton ($m)")
   }
 
   def diagnostics: WarningsAndErrors = diagnosticsValue

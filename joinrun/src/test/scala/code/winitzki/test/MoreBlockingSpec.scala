@@ -14,6 +14,8 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(1500, Millis)
 
+  behavior of "blocking molecules"
+
   it should "wait for blocking molecule before injecting non-blocking molecule" in {
     val a = m[Int]
     val f = b[Unit,Int]
@@ -105,7 +107,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = m[Int]
     val f = b[Int,Int]
 
-    val tp = new FixedPool(20)
+    val tp = new FixedPool(6)
     join(tp)(
       & { case f(x, r) + a(y) => c(x); val s = f(x+y); r(s) },
       & { case f(x, r) + c(y) => r(x*y) }
@@ -113,6 +115,74 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     a(10)
     f(20) shouldEqual 600 // c(20) + f(30, r) => r(600)
+
+    tp.shutdownNow()
+  }
+
+  it should "block execution thread until molecule is injected" in {
+    val d = m[Int]
+    val e = m[Unit]
+    val wait = b[Unit, Unit]
+    val incr = b[Unit, Unit]
+    val get_d = b[Unit, Int]
+
+    val tp = new FixedPool(6)
+
+    join(tp)(
+      & { case get_d(_, r) + d(x) => r(x) },
+      & { case wait(_, r) + e(_) => r() },
+      & { case d(x) + incr(_, r) => r(); wait(); d(x+1) }
+    )
+    d(100)
+    incr(timeout = 400 millis)() // update started and is waiting for e()
+    e()
+    get_d() shouldEqual 100
+
+    tp.shutdownNow()
+  }
+
+  it should "block another reaction until molecule is injected" in {
+    val c = m[Unit]
+    val d = m[Int]
+    val e = m[Unit]
+    val wait = b[Unit, Unit]
+    val incr = b[Unit, Unit]
+    val get_d = b[Unit, Int]
+
+    val tp = new FixedPool(6)
+
+    join(tp)(
+      & { case get_d(_, r) + d(x) => r(x) },
+      & { case c(_) => incr(); e() },
+      & { case wait(_, r) + e(_) => r() },
+      & { case d(x) + incr(_, r) => r(); wait(); d(x+1) }
+    )
+    d(100)
+    c() // update started and is waiting for e(), which should come after incr() gets its reply
+    get_d() shouldEqual 100
+
+    tp.shutdownNow()
+  }
+
+  it should "deadlock since another reaction is blocked until molecule is injected" in {
+    val c = m[Unit]
+    val d = m[Int]
+    val e = m[Unit]
+    val wait = b[Unit, Unit]
+    val incr = b[Unit, Unit]
+    val get_d = b[Unit, Int]
+
+    val tp = new FixedPool(6)
+
+    join(tp)(
+      & { case get_d(_, r) + d(x) => r(x) },
+      & { case c(_) => incr(); e() },
+      & { case wait(_, r) + e(_) => r() },
+      & { case d(x) + incr(_, r) => wait(); r(); d(x+1) }
+    )
+    d(100)
+    c() // update started and is waiting for e(), which should come after incr() gets its reply
+    get_d() shouldEqual 100
 
     tp.shutdownNow()
   }

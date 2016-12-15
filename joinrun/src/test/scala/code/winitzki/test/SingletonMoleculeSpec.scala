@@ -127,6 +127,48 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   behavior of "volatile reader"
 
+  it should "refuse to read the value of a molecule not bound to a join definition" in {
+    val c = m[Int]
+
+    val thrown = intercept[Exception] {
+      c.value
+    }
+
+    thrown.getMessage shouldEqual "Molecule c is not bound to any join definition"
+  }
+
+  it should "refuse to read the value of a non-singleton molecule" in {
+    val c = m[Int]
+
+    join( & { case c(_) => } )
+
+    val thrown = intercept[Exception] {
+      c.value
+    }
+
+    thrown.getMessage shouldEqual "In Join{c => ...}: volatile reader requested for non-singleton (c)"
+  }
+
+  it should "refuse to read the value of a singleton too early" in {
+    val c = m[Int]
+    val d = m[Int]
+
+    val tp = new FixedPool(1)
+
+    join(tp)(
+      & { case c(x) + d(_) => c(x) },
+      & { case _ => d(123) }
+    )
+
+    val thrown = intercept[Exception] {
+      d.value
+    }
+
+    thrown.getMessage shouldEqual "The volatile reader for singleton (c) is not yet ready"
+
+    tp.shutdownNow()
+  }
+
   it should "read the initial value of the singleton molecule after stabilization" in {
     val d = m[Int]
     val stabilize_d = b[Unit, Unit]
@@ -143,28 +185,28 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
-  it should "read the value of the singleton molecule after many changes" in {
+  it should "read the value of the singleton molecule sometimes inaccurately after many changes" in {
     val d = m[Int]
     val incr = b[Unit, Unit]
     val stabilize_d = b[Unit, Unit]
 
     val tp = new FixedPool(1)
 
-    val n = 100
-    val delta_n = 500
+    val n = 1
+    val delta_n = 1000
 
     join(tp)(
-      & { case d(x) + incr(_, r) => d(x+1); r() },
+      & { case d(x) + incr(_, r) => r(); d(x+1) },
       & { case d(x) + stabilize_d(_, r) => d(x); r() }, // Await stabilizing the presence of d
       & { case _ => d(n) } // singleton
     )
     stabilize_d()
     d.value shouldEqual n
 
-    (n+1 to n+delta_n).foreach { i =>
+    (n+1 to n+delta_n).map { i =>
       incr()
-      (i, d.value == i || d.value == i-1) shouldEqual (i, true)
-    }
+      if (d.value == i || d.value == i-1) 0 else 1
+    }.sum should be > 0 // there should be some cases when d.value reads the previous value
 
     tp.shutdownNow()
   }
@@ -185,7 +227,6 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       & { case d(x) + stabilize_d(_, r) => d(x); r() } onThreads tp1, // Await stabilizing the presence of d
       & { case _ => d(100) } // singleton
     )
-    d.setLogLevel(1)
     stabilize_d()
     d.value shouldEqual 100
     incr() // update started and is waiting for e()
@@ -193,7 +234,9 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     e()
     stabilize_d()
     d.value shouldEqual 101
+
     tp1.shutdownNow()
+    tp3.shutdownNow()
   }
 
 }
