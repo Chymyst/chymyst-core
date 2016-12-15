@@ -150,21 +150,29 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
   }
 
   it should "refuse to read the value of a singleton too early" in {
-    val c = m[Int]
-    val d = m[Int]
 
     val tp = new FixedPool(1)
 
-    join(tp)(
-      & { case c(x) + d(_) => c(x) },
-      & { case _ => d(123) }
-    )
+    def makeNewVolatile(i: Int) = {
+      val c = m[Int]
+      val d = m[Int]
 
-    val thrown = intercept[Exception] {
+      join(tp)(
+        & { case c(x) + d(_) => d(x) },
+        & { case _ => d(i) }
+      )
+
       d.value
     }
 
-    thrown.getMessage shouldEqual "The volatile reader for singleton (c) is not yet ready"
+
+    val thrown = intercept[Exception] {
+      (1 to 100).foreach { i =>
+        makeNewVolatile(i) // This should sometimes throw an exception, so let's make sure it does.
+      }
+    }
+
+    thrown.getMessage shouldEqual "The volatile reader for singleton (d) is not yet ready"
 
     tp.shutdownNow()
   }
@@ -205,7 +213,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     (n+1 to n+delta_n).map { i =>
       incr()
-      if (d.value == i || d.value == i-1) 0 else 1
+      i - d.value // this is mostly 0 but sometimes 1
     }.sum should be > 0 // there should be some cases when d.value reads the previous value
 
     tp.shutdownNow()
@@ -230,7 +238,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     stabilize_d()
     d.value shouldEqual 100
     incr() // update started and is waiting for e()
-    d.value shouldEqual 100
+    d.value shouldEqual 100 // We don't have d() present in the soup, but we can read its previous value.
     e()
     stabilize_d()
     d.value shouldEqual 101
