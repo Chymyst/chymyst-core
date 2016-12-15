@@ -418,8 +418,6 @@ Version 0.5: Investigate an implicit distributed execution of thread pools.
 
  5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
 
- 3 * 3 - "singleton" molecules that are always present at most once: detect them with static analysis? Maybe annotate explicitly? Optimize their update, provide read-only volatile value. Maybe provide read-only volatile values for all molecules? If a reaction consumes one molecule and ejects the same molecule, we can keep the "identity" of the molecule.
-
  2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
 
  5 * 5 - implement fairness with respect to molecules
@@ -475,4 +473,4 @@ Version 0.5: Investigate an implicit distributed execution of thread pools.
 
  2 * 2 - add tests for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
 
- 3 * 3 - implement "singleton" molecules, with runtime assertions and thread fusion
+ 3 * 5 - implement "singleton" molecules with automatic detection of possible singletons; implement automatic thread fusion for singletons

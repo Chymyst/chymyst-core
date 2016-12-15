@@ -152,14 +152,14 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(4)
     join(tp,tp)(
-      runSimple { case d(_) => g2() } onThreads tp,
+      runSimple { case d(_) => g() } onThreads tp,
       runSimple { case c(_) + g(_,r) + g2(_,_) => c() + r(0) }
     )
     c() + d()
     waitSome()
 
     val thrown = intercept[Exception] {
-      println(s"got result2: ${g()} but should not have printed this!")
+      println(s"got result2: ${g2()} but should not have printed this!")
     }
     thrown.getMessage shouldEqual "Error: In Join{c + g/B + g2/B => ...; d => ...}: Reaction {c + g/B + g2/B => ...} finished without replying to g2/B"
 
