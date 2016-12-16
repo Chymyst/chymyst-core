@@ -3,35 +3,91 @@ package code.winitzki.test
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
 import code.winitzki.jc.{FixedPool, Pool}
-import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.annotation.tailrec
+import scala.concurrent.duration._
 import scala.reflect.ClassTag
 
-class ParallelOrSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class ParallelOrSpec extends FlatSpec with Matchers {
 
-  val timeLimit = Span(1500, Millis)
-/*
-  def parallelOr[T](b1: B[Unit, T], b2: B[Unit, T], tp: Pool): B[Unit, T] = {
-    val res = b[Unit, T]
-    val res1 = m[T]
-    val res2 = m[T]
-    val res1_false = b[Unit, T]
-    val res2_false = b[Unit, T]
+  /** Given two blocking molecules f and g returning Boolean, construct a new blocking molecule {{{parallelOr}}}
+    *  that returns the Boolean Or value of whichever of f and g unblocks first.
+    * If one of `f` and `g` returns {{{true}}} then {{{parallelOr}}} also unblocks and returns {{{true}}}.
+    * If both `f` and `g` return {{{false}}} then {{{parallelOr}}} also returns {{{false}}}.
+    * Otherwise (if both `f` and `g` remain blocked or one of them returns {{{false}}} while the other emains blocked),
+    * {{{parallelOr}}} will continue to be blocked.
+    *
+    * @param f First blocking molecule injector.
+    * @param g Second blocking molecule injector.
+    * @param tp Thread pool on which to run this.
+    * @return New blocking molecule injector that will return the desired result or block.
+    */
+  def parallelOr(f: B[Unit, Boolean], g: B[Unit, Boolean], tp: Pool): B[Unit, Boolean] = {
+    val c = m[Unit]
+    val d = m[Unit]
+    val done = m[Boolean]
+    val result = m[Int]
+    val finalResult = m[Boolean]
 
-    join(tp, tp) (
-      & { case res(_, res_reply) + res1(b) => if (b) res_reply(b) else res_reply(res1_false()) },
-      & { case res1_false(_, res1f_reply) + res2(b) => res1f_reply(b) },
-      & { case res(_, res_reply) + res2(b) => if (b) res_reply(b) else res_reply(res2_false()) },
-      & { case res2_false(_, res2f_reply) + res1(b) => res2f_reply(b) }
+    val parallelOr = b[Unit, Boolean]
+
+    join(tp)(
+      & { case parallelOr(_, r) + finalResult(x) => r(x) }
     )
 
-    res1(b1) + res2(b2)
-    res
+    join(tp)(
+      & { case result(_) + done(true) => finalResult(true) },
+      & { case result(1) + done(false) => finalResult(false) },
+      & { case result(0) + done(false) => result(1) }
+    )
+
+    join(tp)(
+      & { case c(_) => val x = f(); done(x) },
+      & { case d(_) => val y = g(); done(y) }
+    )
+
+    c() + d() + result(0)
+
+    parallelOr
   }
-*/
+
+  it should "implement the Parallel Or operation correctly" in {
+
+    val never = b[Unit, Boolean]
+    val fastTrue = b[Unit, Boolean]
+    val slowTrue = b[Unit, Boolean]
+    val fastFalse = b[Unit, Boolean]
+    val slowFalse = b[Unit, Boolean]
+
+    val tp = new FixedPool(30)
+
+    join(tp)(
+      & {case never(_, r) => r(neverReturn[Boolean])},
+      & {case fastTrue(_, r) => Thread.sleep(10); r(true)},
+      & {case slowTrue(_, r) => Thread.sleep(200); r(true)},
+      & {case fastFalse(_, r) => Thread.sleep(10); r(false)},
+      & {case slowFalse(_, r) => Thread.sleep(200); r(false)}
+    )
+
+    implicit val stringClassTag = implicitly[ClassTag[String]]
+
+    parallelOr(fastTrue, fastFalse, tp)() shouldEqual true
+    parallelOr(fastTrue, slowFalse, tp)() shouldEqual true
+    parallelOr(slowTrue, fastFalse, tp)() shouldEqual true
+    parallelOr(slowTrue, slowFalse, tp)() shouldEqual true
+    parallelOr(fastTrue, never, tp)() shouldEqual true
+    parallelOr(never, slowTrue, tp)() shouldEqual true
+
+    parallelOr(slowFalse, fastFalse, tp)() shouldEqual false
+    parallelOr(slowFalse, fastFalse, tp)() shouldEqual false
+    parallelOr(fastFalse, slowTrue, tp)() shouldEqual true
+
+    parallelOr(never, fastFalse, tp)(timeout = 200 millis)() shouldEqual None
+    parallelOr(never, slowFalse, tp)(timeout = 200 millis)() shouldEqual None
+
+    tp.shutdownNow()
+  }
 
   /** Given two blocking molecules b1 and b2, construct a new blocking molecule injector that returns
     * the result of whichever of b1 and b2 unblocks first.
@@ -42,7 +98,7 @@ class ParallelOrSpec extends FlatSpec with Matchers with TimeLimitedTests {
     * @tparam T Type of the return value.
     * @return New blocking molecule injector that will return the desired result.
     */
-  def firstResult[T : ClassTag](b1: B[Unit, T], b2: B[Unit, T], tp: Pool): B[Unit, T] = {
+  def firstResult[T](b1: B[Unit, T], b2: B[Unit, T], tp: Pool): B[Unit, T] = {
     val get = b[Unit, T]
     val res = b[Unit, T]
     val res1 = m[Unit]
@@ -50,7 +106,7 @@ class ParallelOrSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val done = m[T]
 
     join(tp) (
-      & { case res1(_) => val x = b1(); done(x) }, // IntelliJ 2016.3 insists on `b1(())` here, but scalac is fine with `b1()`.
+      & { case res1(_) => val x = b1(); done(x) }, // IntelliJ 2016.3 CE insists on `b1(())` here, but scalac is fine with `b1()`.
       & { case res2(_) => val x = b2(); done(x) }
     )
 
@@ -75,17 +131,15 @@ class ParallelOrSpec extends FlatSpec with Matchers with TimeLimitedTests {
     join(tp)(
       & {case never(_, r) => r(neverReturn[String])},
       & {case fast(_, r) => Thread.sleep(10); r("fast")},
-      & {case slow(_, r) => Thread.sleep(100); r("slow")}
+      & {case slow(_, r) => Thread.sleep(200); r("slow")}
     )
 
-    implicit val stringClassTag = implicitly[ClassTag[String]]
-
-    firstResult(fast, fast, tp)(stringClassTag)() shouldEqual "fast"
-    firstResult(fast, slow, tp)(stringClassTag)() shouldEqual "fast"
-    firstResult(slow, fast, tp)(stringClassTag)() shouldEqual "fast"
-    firstResult(slow, slow, tp)(stringClassTag)() shouldEqual "slow"
-    firstResult(fast, never, tp)(stringClassTag)() shouldEqual "fast"
-    firstResult(never, slow, tp)(stringClassTag)() shouldEqual "slow"
+    firstResult(fast, fast, tp)() shouldEqual "fast"
+    firstResult(fast, slow, tp)() shouldEqual "fast"
+    firstResult(slow, fast, tp)() shouldEqual "fast"
+    firstResult(slow, slow, tp)() shouldEqual "slow"
+    firstResult(fast, never, tp)() shouldEqual "fast"
+    firstResult(never, slow, tp)() shouldEqual "slow"
 
     tp.shutdownNow()
   }
