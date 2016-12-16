@@ -120,7 +120,7 @@ class AsyName[Arg](implicit owner: Join, argT:ClassTag[Arg]) extends NameBase{
         returnV
       }
     }
-    case attr => {throw new Error("Failure arise when examing patterns "+attr)} // should not arrive here
+    case attr => {throw new Error("Failure arises when examining patterns "+attr)} // should not arrive here
   }
 }
 
@@ -259,7 +259,7 @@ class SynName[Arg, R](implicit owner: Join, argT:ClassManifest[Arg], resT:ClassM
         returnV
       }
     }
-    case attr => {throw new Error("Failure arise when examing patterns "+attr)} // should not arrive here
+    case attr => {throw new Error("Failure arises when examining patterns "+attr)} // should not arrive here
   }
   }
 }
