@@ -362,7 +362,7 @@ object JoinRun {
       *
       * @param v Value to be put onto the injected molecule.
       */
-    def apply(v: T): Unit = joinDef.getOrElse(throw errorNoJoinDef).inject[T](this, MolValue(v))
+    override def apply(v: T): Unit = joinDef.getOrElse(throw errorNoJoinDef).inject[T](this, MolValue(v))
 
     override def toString: String = name
 
@@ -413,14 +413,14 @@ object JoinRun {
     * @param replyRepeated Will be set to "true" if the molecule received a reply more than once.
     * @tparam R Type of the value replied to the caller via the "reply" action.
     */
-  private[jc] final case class ReplyValue[T,R](
+  private[jc] final case class ReplyValue[T,R] (
     molecule: B[T,R],
     var result: Option[R] = None,
     private var semaphore: Semaphore = { val s = new Semaphore(0, false); s.drainPermits(); s },
     var errorMessage: Option[String] = None,
     var replyTimeout: Boolean = false,
     var replyRepeated: Boolean = false
-  ) {
+  ) extends (R => Boolean) {
     def releaseSemaphore(): Unit = if (semaphore != null) semaphore.release()
 
     def acquireSemaphore(timeoutNanos: Option[Long]): Boolean =
@@ -442,7 +442,7 @@ object JoinRun {
       * @param x Value to reply with.
       * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
       */
-    def apply(x: R): Boolean = {
+    override def apply(x: R): Boolean = {
       // The reply value will be assigned only if there was no timeout and no previous reply action.
       if (!replyTimeout && !replyRepeated && result.isEmpty) {
         result = Some(x)
@@ -469,7 +469,7 @@ object JoinRun {
       * @param v Value to be put onto the injected molecule.
       * @return The "reply" value.
       */
-    def apply(v: T): R =
+    override def apply(v: T): R =
       joinDef.map(_.injectAndReply[T,R](this, v, ReplyValue[T,R](molecule = this)))
         .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this is not bound to any join definition"))
 
