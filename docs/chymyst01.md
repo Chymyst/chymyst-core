@@ -18,6 +18,7 @@ A molecule of hydrochloric acid (HCl) reacts with a molecule of sodium hydroxide
 
 Since we are going to simulate reactions in a computer, we make the “chemistry” completely arbitrary.
 We can define molecules of any sort, and we can postulate arbitrary reactions between them.
+
 For instance, we can postulate that there exist three sorts of molecules called `a`, `b`, `c`, and that they can react as follows:
 
 `a + b ⇒ a`
@@ -74,6 +75,7 @@ A typical reaction (equipped with molecule values and a reaction body) looks lik
 a(x) + b(y) ⇒ a(z)
 where z = computeZ(x,y) // -- reaction body
 ```
+
 In this example, the reaction's input molecules are `a(x)` and `b(y)`; that is, the input molecules have chemical designations `a` and `b` and carry values `x` and `y` respectively.
 
 The reaction body is an expression that receives `x` and `y` from the input molecules.
@@ -81,6 +83,7 @@ The reaction computes a value `z` out of `x` and `y` using the function `compute
 The newly computed value `z` is placed onto the output molecule `a`, which is injected back into the soup.
 
 Another example of reaction is
+
 ```scala
 a(x) + c(y) ⇒ println(x+y) // -- reaction body with no output molecules
 ```
@@ -90,7 +93,7 @@ The only result of running the reaction is the side-effect of printing the numbe
 
 ![Reaction diagram a(x) + b(y) => a(z), a(x) + c(y) => ...](http://winitzki.github.io/joinrun-scala/reactions2.svg)
 
-The computations performed by the chemical machine are _automatically_ concurrent.
+The computations performed by the chemical machine are _automatically concurrent_:
 Whenever input molecules are available in the soup, the runtime engine will start a reaction that consumes these input molecules.
 If many copies of input molecules are available, the runtime engine could start several reactions concurrently.
 (The runtime engine can decide how many reactions to run depending on system load and the number of available cores.)
@@ -177,14 +180,14 @@ decr() // now the soup again has counter(100)
 decr() + decr() // now the soup has counter(98)
 ```
 
-The syntax `decr() + decr()` means injecting two molecules at once.
+The syntax `decr() + decr()` is a shorthand for injecting two molecules at once.
 (In the current version of `JoinRun`, this is equivalent to injecting the molecules one by one.)
 
 It could happen that we are injecting `incr()` and `decr()` molecules too quickly for reactions to start.
 This will result in many instances of `incr()` or `decr()` molecules being present in the soup, waiting to be consumed.
 Is this a problem?
 
-Logically, we assume that only one instance of the `counter` molecule is present in the soup.
+Note that only one instance of the `counter` molecule is initially present in the soup.
 When the chemical machine starts a reaction, all input molecules are consumed first, and then the reaction body is evaluated.
 For this reason, the single `counter` molecule can start only one reaction at a time, together with either an `incr` or a `decr` molecule.
 Thus, we will not have any race conditions with the counter: There is no possibility of updating the counter value simultaneously from different reactions.
@@ -218,7 +221,7 @@ join(
 counter(100)
 incr() // prints “new value is 101"
 decr() // prints “new value is 100"
-decr()+decr() // prints “new value is 99” and then “new value is 98"
+decr() + decr() // prints “new value is 99” and then “new value is 98"
 ```
 
 ## Debugging
@@ -235,7 +238,7 @@ The `logSoup` output will also show the values carried by each molecule.
 
 After executing the code from the example above, here is how we could use this debugging facility:
 
-```scala
+```
 > println(counter.logSoup)
 Join{counter + decr => ...; counter + incr => ...}
 Molecules: counter(98)
@@ -308,7 +311,6 @@ val a = m[Unit]
 val b = m[Unit]
 
 join( run { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this JD.
-
 join( run { case x(n) + b(_) => println(s"have x($n) + b") } )
 // java.lang.Exception: Molecule x cannot be used as input since it is already bound to Join{a + x => ...}
 ```
@@ -332,12 +334,10 @@ Here is an example where we define one JD that computes a result and sends it on
 
 ```scala
 val show = m[Int]
-
 // JD where the “show” molecule is an input molecule
 join( run { case show(x) => println(s"") })
 
 val start = m[Unit]
-
 // JD where the “show” molecule is an output molecule (but not an input molecule)
 join(
   run { case start(_) => val res = compute(...); show(res) }
@@ -352,7 +352,6 @@ An input molecule pattern with a repeated molecule is called a “nonlinear patt
 
 ```scala
 val x = m[Int]
-
 join(run { case x(n1) + x(n2) =>  })
 // java.lang.Exception: Nonlinear pattern: x used twice
 ``` 
@@ -445,6 +444,7 @@ join (
 // inject molecules representing the initial state:
 t1() + t2() + t3() + t4() + t5()
 f12() + f23() + f34() + f45() + f51()
+// Now reactions will start and print to the console.
 ```
 
 Note that an `h + f + f` reaction will consume a “hungry philosopher” molecule and two “fork” molecules, so these three molecules will not be present in the soup during the time interval taken by the `h + f + f` reaction.
@@ -452,6 +452,7 @@ Thus, neighbor philosophers will not be able to start eating until the two “fo
 The decision of which philosophers start eating will be made randomly, and there will never be a deadlock.
 
 The result of running this program is the output such as
+
 ```
 Russell is thinking
 Aristotle is thinking

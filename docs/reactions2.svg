@@ -9,15 +9,15 @@
  </g>
  <g>
   <title>Layer 1</title>
-  <ellipse ry="25.5" rx="25.5" id="svg_1" cy="102.5" cx="82" stroke-width="1.5" stroke="#000" fill="#fff"/>
+  <ellipse ry="25.5" rx="25.5" id="svg_1" cy="102.5" cx="82" stroke-width="1.5" stroke="#000" fill="#CBFFFF"/>
   <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="24" id="svg_2" y="109.375195" x="34.31007" stroke-width="0" stroke="#000" fill="#000000">a</text>
-  <ellipse ry="25.5" rx="25.5" id="svg_7" cy="320.5" cx="146" stroke-width="1.5" stroke="#000" fill="#fff"/>
+  <ellipse ry="25.5" rx="25.5" id="svg_7" cy="320.5" cx="146" stroke-width="1.5" stroke="#000" fill="#CBFFFF"/>
   <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="24" id="svg_8" y="327.093928" x="93.809811" stroke-width="0" stroke="#000" fill="#000000">a</text>
-  <ellipse ry="25.5" rx="25.5" id="svg_4" cy="104.5" cx="214" stroke-width="1.5" stroke="#000" fill="#fff"/>
+  <ellipse ry="25.5" rx="25.5" id="svg_4" cy="104.5" cx="214" stroke-width="1.5" stroke="#000" fill="#FFAC8D"/>
   <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="24" id="svg_5" y="110.25013" x="163.778671" stroke-width="0" stroke="#000" fill="#000000">b</text>
-  <ellipse ry="25.5" rx="25.5" id="svg_11" cy="102.062532" cx="347.593669" stroke-width="1.5" stroke="#000" fill="#fff"/>
+  <ellipse ry="25.5" rx="25.5" id="svg_11" cy="102.062532" cx="347.593669" stroke-width="1.5" stroke="#000" fill="#CBFFFF"/>
   <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="24" id="svg_12" y="106.968863" x="301.310069" stroke-width="0" stroke="#000" fill="#000000">a</text>
-  <ellipse ry="25.5" rx="25.5" id="svg_14" cy="101.062532" cx="477.156201" stroke-width="1.5" stroke="#000" fill="#fff"/>
+  <ellipse ry="25.5" rx="25.5" id="svg_14" cy="101.062532" cx="477.156201" stroke-width="1.5" stroke="#000" fill="#CFCA6D"/>
   <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="24" id="svg_15" y="104" x="432.278932" stroke-width="0" stroke="#000" fill="#000000">c</text>
   <line stroke-linecap="null" stroke-linejoin="null" id="svg_27" y2="295.008958" x2="144.485582" y1="285.32042" x1="139.430692" fill-opacity="null" stroke-opacity="null" stroke-width="1.5" stroke="#000" fill="none"/>
   <line stroke-linecap="null" stroke-linejoin="null" id="svg_28" y2="294.587718" x2="144.766409" y1="284.618353" x1="149.540471" fill-opacity="null" stroke-opacity="null" stroke-width="1.5" stroke="#000" fill="none"/>
