@@ -14,12 +14,12 @@ It also works with Scala 2.10 and with OpenJDK 7 (except for the new `LocalDateT
 
 # Overview of `JoinRun`
 
-To get started, begin with this [tutorial introduction](doc/chymyst00.md).
+To get started, begin with this [tutorial introduction](docs/chymyst00.md).
 (I do not recommend reading the [Wikipedia page on Join Calculus](https://en.wikipedia.org/wiki/Join-calculus) since it is likely to only confuse you.)
 
 I gave a presentation on an early version of `JoinRun` at [Scala by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
-There is some [technical documentation for `JoinRun` library](doc/joinrun.md).
+There is some [technical documentation for `JoinRun` library](docs/joinrun.md).
 
 ## Comparison: JC vs. actor model
 
