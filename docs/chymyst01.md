@@ -74,6 +74,7 @@ A typical reaction (equipped with molecule values and a reaction body) looks lik
 ```scala
 a(x) + b(y) ⇒ a(z)
 where z = computeZ(x,y) // -- reaction body
+
 ```
 
 In this example, the reaction's input molecules are `a(x)` and `b(y)`; that is, the input molecules have chemical designations `a` and `b` and carry values `x` and `y` respectively.
@@ -86,6 +87,7 @@ Another example of reaction is
 
 ```scala
 a(x) + c(y) ⇒ println(x+y) // -- reaction body with no output molecules
+
 ```
 
 This reaction consumes the molecules `a` and `c` but does not inject any output molecules.
@@ -123,6 +125,7 @@ join(
     a(z)
   }
 )
+
 ```
 
 The helper functions `m`, `join`, and `run` are defined in the `JoinRun` library.
@@ -139,6 +142,7 @@ It is clear that we will need a molecule that carries the integer value of the c
 
 ```scala
 val counter = m[Int]
+
 ```
 
 The increment and decrement operations must be represented by other molecules.
@@ -148,6 +152,7 @@ These molecules do not need to carry values, so we will define the `Unit` type a
 ```scala
 val incr = m[Unit]
 val decr = m[Unit]
+
 ```
 
 Now we need to define the chemical reactions.
@@ -160,6 +165,7 @@ join(
   run { case counter(n) + incr(_) => counter(n+1) },
   run { case counter(n) + decr(_) => counter(n-1) }
 )
+
 ```
 
 The new value of the counter (either `n+1` or `n-1`) will be carried by the new counter molecule that we inject in these reactions.
@@ -178,6 +184,7 @@ counter(100)
 incr() // now the soup has counter(101)
 decr() // now the soup again has counter(100)
 decr() + decr() // now the soup has counter(98)
+
 ```
 
 The syntax `decr() + decr()` is a shorthand for injecting two molecules at once.
@@ -191,7 +198,6 @@ Note that only one instance of the `counter` molecule is initially present in th
 When the chemical machine starts a reaction, all input molecules are consumed first, and then the reaction body is evaluated.
 For this reason, the single `counter` molecule can start only one reaction at a time, together with either an `incr` or a `decr` molecule.
 Thus, we will not have any race conditions with the counter: There is no possibility of updating the counter value simultaneously from different reactions.
-
 
 ## Tracing the output
 
@@ -222,6 +228,7 @@ counter(100)
 incr() // prints “new value is 101"
 decr() // prints “new value is 100"
 decr() + decr() // prints “new value is 99” and then “new value is 98"
+
 ```
 
 ## Debugging
@@ -242,6 +249,7 @@ After executing the code from the example above, here is how we could use this d
 > println(counter.logSoup)
 Join{counter + decr => ...; counter + incr => ...}
 Molecules: counter(98)
+
 ```
 
 The debug output gives us two pieces of information:
@@ -267,6 +275,7 @@ The same effect can be achieved without macros at the cost of more boilerplate:
 ```scala
 val counter = new M[Int]("counter")
 // completely equivalent to `val counter = m[Int]`
+
 ```
 
 Molecule names are very useful for debugging and logging.
@@ -279,6 +288,7 @@ This is done by calling `setLogLevel` on any molecule injector that is bound to 
 
 ```scala
 counter.setLogLevel(2)
+
 ```
 
 After this, verbosity level 2 is set on all reactions involving the JD to which `counter` is bound.
@@ -293,8 +303,8 @@ It is an error to inject a molecule that is not yet defined as input molecule in
 
 ```scala
 val x = m[Int]
-
 x(100) // java.lang.Exception: Molecule x is not bound to any join definition
+
 ```
 
 The same error will occur if such injection is attempted inside a reaction body, or if we call `logSoup` on the molecule injector.
@@ -313,6 +323,7 @@ val b = m[Unit]
 join( run { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this JD.
 join( run { case x(n) + b(_) => println(s"have x($n) + b") } )
 // java.lang.Exception: Molecule x cannot be used as input since it is already bound to Join{a + x => ...}
+
 ```
 
 Correct use of `JoinRun` requires that we put these two reactions together into _one_ join definition:
@@ -326,6 +337,7 @@ join(
   run { case x(n) + a(_) => println(s"have x($n) + a") },
   run { case x(n) + b(_) => println(s"have x($n) + b") }
 ) // OK
+
 ``` 
 
 More generally, all reactions that share any input molecules must be defined together in a single JD.
@@ -342,6 +354,7 @@ val start = m[Unit]
 join(
   run { case start(_) => val res = compute(...); show(res) }
 )
+
 ``` 
 
 ### Error: Nonlinear pattern
@@ -354,6 +367,7 @@ An input molecule pattern with a repeated molecule is called a “nonlinear patt
 val x = m[Int]
 join(run { case x(n1) + x(n2) =>  })
 // java.lang.Exception: Nonlinear pattern: x used twice
+
 ``` 
 
 Sometimes it appears that repeating input molecules is the most natural way of expressing the desired behavior of certain concurrent programs.
@@ -445,6 +459,7 @@ join (
 t1() + t2() + t3() + t4() + t5()
 f12() + f23() + f34() + f45() + f51()
 // Now reactions will start and print to the console.
+
 ```
 
 Note that an `h + f + f` reaction will consume a “hungry philosopher” molecule and two “fork” molecules, so these three molecules will not be present in the soup during the time interval taken by the `h + f + f` reaction.
@@ -474,6 +489,8 @@ Aristotle is eating
 Aristotle is thinking
 Russell is thinking
 Spinoza is eating
+
 ```
 
 It is interesting to note that this example code is fully declarative: it describes what the “dining philosophers” simulation must do, and the code is quite close to the English-language description of the problem.
+

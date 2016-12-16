@@ -15,6 +15,7 @@ Here is an example of declaring a blocking molecule:
 
 ```scala
 val f = b[Unit, Int]
+
 ```
 
 The blocking molecule `f` carries a value of type `Unit`; the reply value is of type `Int`.
@@ -43,6 +44,7 @@ join( run { case c(n) + f(_ , reply) => reply(n) } )
 c(123) // inject an instance of `c` with value 123
 
 val x = f() // now x = 123
+
 ```
 
 Let us walk through the execution of this example step by step.
@@ -73,7 +75,7 @@ The `reply` function appears only in the pattern-matching expression for `f` ins
 Blocking molecule injectors are values of type `B[T,R]`, while non-blocking molecule injectors have type `M[T]`.
 Here `T` is the type of value that the molecule carries, and `R` (for blocking molecules) is the type of the reply value.
 
-The pattern-matching expression for a blocking molecule of type `B[T,R]` has the form `case ... + f(v, r) + ...` where `v` is of type `T` and `r` is of type `Function1[R]`.
+The pattern-matching expression for a blocking molecule of type `B[T,R]` has the form `case ... + f(v, r) + ...` where `v` is of type `T` and `r` is of type `R => Boolean`.
 Since `r` has a function type, users must match it with a pattern variable.
 The names `reply` or `r` can be used for clarity.
 
@@ -95,12 +97,14 @@ We can implement this reaction by using a guard in the `case` clause:
 
 ```scala
 run { case fetch(_, reply) + counter(n) if n == 0  => reply() }
+
 ```
 
 For more clarity, we can also use the pattern-matching facility of `JoinRun` to implement the same reaction like this:
 
 ```scala
 run { case counter(0) + fetch(_, reply)  => reply() }
+
 ```
 
 Here is the complete code:
@@ -135,9 +139,11 @@ object C extends App {
   val elapsed = initTime.until(now, MILLIS)
   println(s"Elapsed: $elapsed ms")
 }
+
 ```
 
 Some remarks:
+
 - Molecules with unit values still require a pattern variable when used in the `case` construction.
 For this reason, we write `decr(_)` and `fetch(_, reply)` in the match patterns.
 However, these molecules can be injected simply by calling `decr()` and `fetch()`, since Scala inserts a `Unit` value automatically when calling functions.
@@ -151,7 +157,7 @@ The runtime engine cannot detect this situation because it cannot determine whet
 - If several reactions are available for the blocking molecule, one of these reactions will be selected at random.
 - Blocking molecules are printed with the suffix `"/B"`.
 
-## Example: Wait for the first reply
+## Example: implementing "First Result"
 
 Suppose we have two blocking molecules `f` and `g` that return a reply value of type `T`.
 We would like to inject both `f` and `g` together and wait until a reply value is received, from whichever molecule unblocks sooner.
@@ -199,6 +205,7 @@ join(
     run { case d(_) => val x = g() }
 )
 c() + d()
+
 ```
 
 Since we have injected both `c()` and `d()`, both reactions can now proceed concurrently.
@@ -209,7 +216,10 @@ However, we will have only one copy of `firstResult` injected.
 Having `firstResult` as input will therefore prevent both reactions from proceeding.
 
 Then there must be some other reaction that consumes `firstResult` and replies to it.
-This reaction must have the form `firstResult(_, reply) + ... => reply(x)`.
+This reaction must have the form
+
+`firstResult(_, reply) + ??? => reply(x)`
+
 It is clear that we need to have access to the value `x` that we will reply with.
 Therefore, we need a new auxiliary molecule, say `done(x)`, that will carry `x` on itself.
 The reaction with `firstResult` will then have the form `firstResult(_, reply) + done(x) => reply(x)`.
@@ -237,7 +247,7 @@ c() + d()
 val result = firstResult()
 ```
 
-### How to encapsulate new chemistry
+### How to encapsulate the new chemistry
 
 The code as written works but is not encapsulated - we are defining new molecules and new chemistry inline.
 There are two ways we could encapsulate this chemistry:
@@ -274,6 +284,7 @@ def makeFirstResult[T](f: B[Unit, T], g: B[Unit, T]): B[Unit, T] = {
     // return only the `firstResult` injector:
     firstResult
 }
+
 ```
 
 The main advantage of this code is to encapsulate all the auxiliary molecule injectors within the local scope of the method `makeFirstResult`.
@@ -315,6 +326,7 @@ join(
   run { case d(_) => val y = g(); ??? }
 )
 c() + d()
+
 ```
 
 Now, the Boolean values `x` and `y` could be obtained in any order (or not at all).
@@ -340,6 +352,7 @@ join(
   run { case result(n) + done(x) => result(n+1) }
 )
 c() + d() + result(0)
+
 ```
 
 The effect of this chemistry will be that `result`'s value will get incremented whenever one of `f` or `g` returns.
@@ -357,6 +370,7 @@ There is only one way of defining this kind of reaction,
 
 ```scala
 run { case parallelOr(_, r) + finalResult(x) => r(x) }
+
 ```
 
 Now it is clear that the problem will be solved if we inject `finalResult` only when we actually have the final answer.
@@ -430,6 +444,7 @@ join( run { case f(_,reply) + c(n) => c(n+1) } ) // forgot to reply!
 
 join( run { case f(_,reply) + c(n) => c(n+1) + r(n) + r(n) } ) // replied twice!
 // compile-time error: "blocking input molecules should receive one reply but multiple replies found"
+
 ```
 
 However, a reaction could depend on a run-time condition, which is impossible to evaluate at compile time.
@@ -443,6 +458,7 @@ join( run { case f(_,reply) + c(n) => c(n+1); if (n==0) reply(n) } )
 c(1)
 f()
 java.lang.Exception: Error: In Join{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B
+
 ```
 
 Note that this error will occur only when reactions actually start and the run-time condition is evaluated to `false`.
