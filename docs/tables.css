@@ -2,10 +2,11 @@
 table {
     border:#ccc 1px solid;
     border-radius:3px;
+    border-collapse: separate;
 }
 table th {
     padding:21px 25px 22px 25px;
-/*     border-top:1px solid #fafafa; */
+    border:1px solid #e0e0e0;
     border-bottom:1px solid #808080;
 }
 table tr {
@@ -14,5 +15,5 @@ table tr {
 table td {
     padding:18px;
 /*     border-top: 1px solid #ffffff; */
-/*     border-bottom:1px solid #e0e0e0; */
+     border:1px solid #e0e0e0;
 }
