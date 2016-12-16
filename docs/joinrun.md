@@ -124,33 +124,53 @@ All input and output molecule injectors involved in the reaction must be already
 
 Note: Although molecules with `Unit` type can be injected as `a()`, the pattern-matching syntax for those molecules must be `case a(_) + ... => ...` 
 
-### Blocking molecules in reactions
+### Pattern-matching in reactions
 
-Blocking molecules use a syntax that suggests the existence of a special pseudo-molecule that performs the reply action:
+Each molecule carries one value of a fixed type.
+This type can be arbitrary -- a tuple, a case class, etc.
+
+The values carried by input molecules in reactions can be pattern-matched using all available features of the `case` clause in Scala.
+For example, reactions can match on a constant, destructure a case class, and use guards.
+A reaction will start only if all matchers succeed and the guard returns `true`.
+
+Here is an example with pattern-matching on non-blocking molecules `c` and `d` that carry non-simple types:
 
 ```scala
-val a = new M[Int]("a") // non-blocking molecule
+val c = new M[Option[Int]]("c") // non-blocking molecule
+val d = new M[(Int, String, Boolean)]("d") // non-blocking molecule
+
+val reaction = run { case c(Some(x)) + d((y, "hello", true)) if x == y => c(Some(y)) }
+```
+
+### Pattern-matching of blocking molecules
+
+The syntax for matching on blocking molecules requires a two-place matcher, such as `f(x,y)`, unlike the one-place matchers for non-blocking molecules such as `c(x)`.
+
+```scala
+val c = new M[Option[Int]]("c") // non-blocking molecule
 val f = new B[Int, String]("f") // blocking molecule
 
-val reaction2 = run { case a(x) + f(y, r) => r(x.toString) + a(y) }
+val reaction2 = run { case c(Some(x)) + f(y, r) => r(x.toString) + c(Some(y)) }
 
-val result = f(123) // result is of type String
+val result = f(123) // inject f(123), get reply value of type String
 ```
 
 In this reaction, the pattern-match on `f(y, r)` involves two pattern variables:
+
 - The pattern variable `y` is of type `Int` and matches the value carried by the injected molecule `f(123)`
 - The pattern variable `r` is of private type `ReplyValue[Int, String]` and matches and object that performs the reply action aimed at the caller of `f(123)`.
-Calling it as `r(x.toString)` will perform the reply action, - that is, will send the string back to the calling process, unblocking the call to `f(123)` in that process.
+Calling `r` as `r(x.toString)` will perform the reply action, sending the value of `x.toString` back to the calling process, which has been blocked by injecting `f(123)`.
+The reply action will unblock the calling process concurrently with the reaction body.
 
 This reply action must be performed as `r(...)` in the reaction body exactly once, and cannot be performed afterwards.
 
 It is a runtime error to write a reaction that either does not inject the reply action or uses it more than once.
 
-Also, the reply action object should not be used outside the reaction body.
-(This will have no effect.)
+Also, the reply action object `r` should not be used by any other reactions outside the reaction body where `r` was defined.
+(Using `r` after the reaction finishes will have no effect.)
 
 When a reaction is defined using the `run` macro, the compiler will detect some errors at compile time.
-For instance, it is a compile-time error to omit the reply pseudo-molecule from the pattern:
+For instance, it is a compile-time error to omit the reply matcher variable from the pattern:
 
 ```scala
 val f = b[Int, Unit]
@@ -173,7 +193,7 @@ join(reaction1, reaction2, reaction3, ...)
 ```
 
 A join definition can take any number of reactions.
-With Scala's `:_*` syntax, a join definition can take a sequence of reactions computed at runtime.
+With Scala's `:_*` syntax, a join definition can also take a sequence of reactions.
 
 All reactions listed in the join definition will be activated at once.
 
@@ -356,7 +376,7 @@ result shouldEqual ()
 
 # Version history
 
-- 0.1.0 First alpha release. Singleton molecules and volatile readers. Several important bugfixes.
+- 0.1.0 First alpha release of `JoinRun`. Changes: implementing singleton molecules and volatile readers; several important bugfixes.
 
 - 0.0.10 Static checks for livelock and deadlock in reactions, with both compile-time errors and run-time errors.
 
