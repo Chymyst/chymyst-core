@@ -61,6 +61,10 @@ Typically, the reaction body will inject new molecules into the soup.
 - We can inject new molecules into the soup at any time and from any code (not only inside a reaction body).
 - It is not possible to decide which reactions will proceed first, or which molecules will be consumed first, when the chemistry allows several possibilities. It is also not possible to know at what time reactions will start. Reactions and molecules do not have priorities and are not ordered in the soup. It is the responsibility of the programmer to define the chemical laws appropriately so that the behavior of the program is deterministic when determinism is required. (This is always possible!)
 
+- All reactions that share some _input_ molecule must be defined in the same join definition.
+Reactions that share no input molecules can (and should) be defined in separate join definitions.
+
+
 ## Molecules and molecule injectors
 
 Molecules are injected into the “chemical soup” using the syntax such as `c(123)`. Here, `c` is a value we define using a construction such as

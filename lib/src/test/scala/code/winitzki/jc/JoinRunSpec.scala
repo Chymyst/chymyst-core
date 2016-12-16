@@ -4,13 +4,17 @@ import JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.Waiter
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpec, Matchers}
 
-class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterAll {
+class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
-  val tp0 = new FixedPool(4)
+  var tp0: Pool = null
 
-  override def afterAll() = {
+  override def beforeEach(): Unit = {
+    tp0 = new FixedPool(4)
+  }
+
+  override def afterEach(): Unit = {
     tp0.shutdownNow()
   }
   
@@ -45,7 +49,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0)(runSimple { case b(_) + c(_) + a(Some(x)) => })
+    join(runSimple { case b(_) + c(_) + a(Some(x)) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -75,7 +79,6 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     val waiter = new Waiter
 
     val a = new M[Unit]("a")
-
     join(tp0)( runSimple { case a(_) => waiter.dismiss() })
 
     a()
@@ -88,6 +91,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
 
     val a = new M[Unit]("a")
     join(tp0)( runSimple { case a(_) => waiter.dismiss() })
+
     a()
     waiter.await()
   }
@@ -139,20 +143,20 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
   it should "throw exception when join pattern attempts to redefine a blocking molecule" in {
     val thrown = intercept[Exception] {
       val a = new B[Unit,Unit]("a")
-      join(tp0)( runSimple { case a(_,_) => () })
-      join(tp0)( runSimple { case a(_,_) => () })
+      join( runSimple { case a(_,_) => () })
+      join( runSimple { case a(_,_) => () })
     }
-    thrown.getMessage shouldEqual "Molecule a/B cannot be used as input since it was already used in Join{a/B => ...}"
+    thrown.getMessage shouldEqual "Molecule a/B cannot be used as input since it is already bound to Join{a/B => ...}"
   }
 
   it should "throw exception when join pattern attempts to redefine a non-blocking molecule" in {
     val thrown = intercept[Exception] {
       val a = new M[Unit]("x")
       val b = new M[Unit]("y")
-      join(tp0)( runSimple { case a(_) + b(_) => () })
-      join(tp0)( runSimple { case a(_) => () })
+      join( runSimple { case a(_) + b(_) => () })
+      join( runSimple { case a(_) => () })
     }
-    thrown.getMessage shouldEqual "Molecule x cannot be used as input since it was already used in Join{x + y => ...}"
+    thrown.getMessage shouldEqual "Molecule x cannot be used as input since it is already bound to Join{x + y => ...}"
   }
 
   it should "throw exception when trying to inject a blocking molecule that has no join" in {
