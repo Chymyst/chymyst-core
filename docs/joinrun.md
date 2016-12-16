@@ -392,7 +392,7 @@ result shouldEqual ()
 
 These features are considered for implementation in the next versions:
 
-Version 0.1: Perform static analysis of reactions, and warn the user about certain situations with unavoidable livelock, deadlock, or indeterminism.
+Version 0.1: (Released.) Perform static analysis of reactions, and warn the user about certain situations with unavoidable livelock, deadlock, or indeterminism.
 
 Version 0.2: Rework the decisions to start reactions.
 In particular, do not lock the entire molecule bag - only lock some groups of molecules that have contention on certain molecule inputs (decide this using static analysis information).
@@ -413,8 +413,6 @@ Version 0.5: Investigate an implicit distributed execution of chemical reactions
 
  value * difficulty - description
 
- 2 * 2 - should `run` take a `ReactionBody` or simply UnapplyArg => Unit?
-
  2 * 2 - benchmark and profile the performance of blocking molecules (make many reactions that block and unblock)
 
  2 * 3 - investigate using wait/notify instead of semaphore; does it give better performance? This depends on benchmarking of blocking molecules.
@@ -422,20 +420,24 @@ Version 0.5: Investigate an implicit distributed execution of chemical reactions
  3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
  Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.
 
+ 5 * 5 - implement fairness with respect to molecules
+ * - go through possible values when matching (can do?) Important: reactions can get stuck when molecules are in different order. Or need to shuffle.
+
+ 3 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
+
+ 2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
+
+ 4 * 5 - implement multiple injection construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. Implement starting many reactions concurrently at once, rather than one by one.
+ 
+ 4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same join definition, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on join definition information gleaned using a macro.
+
+ 4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
+
  2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
 
  2 * 2 - maybe remove default pools altogether? It seems that every pool needs to be stopped.
 
  3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is injected from a thread T and the corresponding join definition runs on the same thread T, do not schedule a task but simply run the join definition synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a join definition that runs on thread T and the reaction is configured to run on the same thread, do not schedule a task but simply run the reaction synchronously.
-
- 5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
-
- 2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
-
- 5 * 5 - implement fairness with respect to molecules
- * - go through possible values when matching (can do?) Important: reactions can get stuck when molecules are in different order. Or need to shuffle.
-
- 4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
 
  5 * 5 - is it possible to implement distributed execution by sharing the join pool with another machine (but running the join definitions only on the master node)?
 
@@ -443,28 +445,12 @@ Version 0.5: Investigate an implicit distributed execution of chemical reactions
 
  3 * 5 - Can we implement JoinRun using Future / Promise and remove all blocking and all semaphores?
 
- 5 * 5 - Can we do some reasoning about reactions at runtime but before starting any reactions (this is mostly already done)
-
- This has to be done at runtime when join() is called, because macros have access only at one reaction at a time.
-
- Kinds of situations to detect at runtime:
-
- + Input molecules with nontrivial matchers are a subset of output molecules. This is a warning. (Input molecules with trivial matchers can't be a subset of output molecules - this is a compile-time error.)
-
- + Input molecules of one reaction are a subset of input molecules of another reaction, with the same matchers. This is an error (uncontrollable indeterminism).
-
- - A cycle of input molecules being subset of output molecules, possibly spanning several join definitions (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
-
- + Output molecules in a reaction include a blocking molecule that might deadlock because other reactions with it require molecules that are injected later. Example: if m is non-blocking and b is blocking, and we have reaction m + b =>... and another reaction that outputs ... => b; m. This is potentially a problem because the first reaction will block waiting for "m", while the second reaction will not inject "m" until "b" returns.
-  This is only a warning since we can't be sure that the output molecules are always injected, and in what exact order.
+ 2 * 2 - Detect this condition at the join definition time:
+ A cycle of input molecules being subset of output molecules, possibly spanning several join definitions (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
 
  2 * 3 - understand the "reader-writer" example; implement it as a unit test
 
  3 * 2 - add per-molecule logging; log to file or to logger function
-
- 4 * 5 - implement multiple injection construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. Implement starting many reactions concurrently at once, rather than one by one.
- 
- 4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same join definition, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on join definition information gleaned using a macro.
 
  5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
  and be able to better reason about our declarative reactions. First, need to understand what is to be asserted.
