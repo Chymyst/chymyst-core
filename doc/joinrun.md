@@ -4,22 +4,6 @@
 
 Currently, it compiles with Scala 2.11 and Scala 2.12 on Oracle JDK 8.
 
-# Previous work
-
-Here are previous implementations of Join Calculus that I was able to find.
-
-- The `Funnel` programming language: [M. Odersky et al., 2000](http://lampwww.epfl.ch/funnel/). This project was discontinued.
-- _Join Java_: [von Itzstein et al., 2001-2005](http://www.vonitzstein.com/Project_JoinJava.html). This was a modified Java language compiler, with support for certain Join Calculus constructions. The project is not maintained.
-- The `JoCaml` language: [Official site](http://jocaml.inria.fr) and a publication about JoCaml: [Fournet et al. 2003](http://research.microsoft.com/en-us/um/people/fournet/papers/jocaml-afp4-summer-school-02.pdf). This is a dialect of OCaml implemented as a patch to the OCaml compiler. The project is still supported. 
-- “Join in Scala” compiler patch: [V. Cremet 2003](http://lampwww.epfl.ch/~cremet/misc/join_in_scala/index.html). The project is discontinued.
-- Joins library for .NET: [P. Crusso 2006](http://research.microsoft.com/en-us/um/people/crusso/joins/). The project is available as a binary .NET download from Microsoft Research.
-- `ScalaJoins`, a prototype implementation in Scala: [P. Haller 2008](http://lampwww.epfl.ch/~phaller/joins/index.html). The project is not maintained.
-- `ScalaJoin`: an improvement over `ScalaJoins`, [J. He 2011](https://github.com/Jiansen/ScalaJoin). The project is not maintained.
-- Joinads, a not-quite-Join-Calculus implementation in F# and Haskell: [Petricek and Syme 2011](https://www.microsoft.com/en-us/research/publication/joinads-a-retargetable-control-flow-construct-for-reactive-parallel-and-concurrent-programming/). The project is not maintained.
-- Proof-of-concept implementations of Join Calculus for iOS: [CocoaJoin](https://github.com/winitzki/AndroJoin) and Android: [AndroJoin](https://github.com/winitzki/AndroJoin). These projects are not maintained.
-
-The implementation in `JoinRun` is based on ideas from Jiansen He's `ScalaJoin` as well as on CocoaJoin / AndroJoin.
-
 # Main structures
 
 Join Calculus is implemented using molecule injectors, reactions, and join definitions.
@@ -372,6 +356,8 @@ result shouldEqual ()
 
 # Version history
 
+- 0.1.0 First alpha release. Singleton molecules and volatile readers. Several important bugfixes.
+
 - 0.0.10 Static checks for livelock and deadlock in reactions, with both compile-time errors and run-time errors.
 
 - 0.0.9 Macros for static analysis of reactions; unrestricted pattern-matching now available for molecule values.
@@ -388,31 +374,37 @@ These features are considered for implementation in the next versions:
 
 Version 0.1: Perform static analysis of reactions, and warn the user about certain situations with unavoidable livelock, deadlock, or indeterminism.
 
-Version 0.2: Rework the decisions to start reactions so that the static analysis is used (inputs and outputs of reactions). In particular, do not lock the entire molecule bag - only lock some clusters that have contention on certain molecule inputs.
-This will allow us to implement fairness with respect to molecules (random choice of input molecules for reactions), and also start many reactions at once, inject many molecules at once,
-and repeated input molecules in reactions.
+Version 0.2: Rework the decisions to start reactions.
+In particular, do not lock the entire molecule bag - only lock some groups of molecules that have contention on certain molecule inputs (decide this using static analysis information).
+This will allow us to implement interesting features such as:
 
-These features are further away from implementation because they require some research:
+- fairness with respect to molecules (random choice of input molecules for reactions)
+- start many reactions at once when possible
+- inject many molecules at once, rather than one by one
+- allow nonlinear input patterns
 
 Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka streams.
 
 Version 0.4: Enterprise readiness: fault tolerance, monitoring, flexible logging, assertions on singleton molecules and perhaps on some other situations, thread fusing for singleton molecule reactions, read-only volatile readers for singletons.
 
-Version 0.5: Investigate an implicit distributed execution of thread pools.
+Version 0.5: Investigate an implicit distributed execution of chemical reactions ("soup pools").
 
 # Current To-Do List
 
-  value * difficulty - description
+ value * difficulty - description
 
- 2 * 1 - print reaction infos using pattern information e.g. a(_) + b(.) + c(1) => c(2) + d(???)
+ 2 * 2 - should `run` take a `ReactionBody` or simply UnapplyArg => Unit?
 
- 2 * 2 - cleanup packaging so that the user only imports one package object or makes one import. Make sure the user needs to depend only on one JAR, too.
+ 2 * 2 - benchmark and profile the performance of blocking molecules (make many reactions that block and unblock)
+
+ 2 * 3 - investigate using wait/notify instead of semaphore; does it give better performance? This depends on benchmarking of blocking molecules.
+
+ 3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
+ Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.
 
  2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
 
  2 * 2 - maybe remove default pools altogether? It seems that every pool needs to be stopped.
-
- 2 * 2 - should `run` take a `ReactionBody` or simply UnapplyArg => Unit?
 
  3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is injected from a thread T and the corresponding join definition runs on the same thread T, do not schedule a task but simply run the join definition synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a join definition that runs on thread T and the reaction is configured to run on the same thread, do not schedule a task but simply run the reaction synchronously.
 
@@ -421,22 +413,17 @@ Version 0.5: Investigate an implicit distributed execution of thread pools.
  2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
 
  5 * 5 - implement fairness with respect to molecules
- * - go through possible values when matching (can do?) Important: can get stuck when molecules are in different order. Or need to shuffle.
+ * - go through possible values when matching (can do?) Important: reactions can get stuck when molecules are in different order. Or need to shuffle.
 
  4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
 
- 3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
- Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.
-
- 5 * 5 - implement distributed execution by sharing the join pool with another machine (but running the join definitions only on the master node)
-
- 2 * 2 - benchmark and profile the performance of blocking molecules (make many reactions that block and unblock)
+ 5 * 5 - is it possible to implement distributed execution by sharing the join pool with another machine (but running the join definitions only on the master node)?
 
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic.
 
  3 * 5 - Can we implement JoinRun using Future / Promise and remove all blocking and all semaphores?
 
- 5 * 5 - Can we do some reasoning about reactions at runtime but before starting any reactions
+ 5 * 5 - Can we do some reasoning about reactions at runtime but before starting any reactions (this is mostly already done)
 
  This has to be done at runtime when join() is called, because macros have access only at one reaction at a time.
 

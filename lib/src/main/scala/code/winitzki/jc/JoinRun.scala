@@ -184,6 +184,7 @@ object JoinRun {
 
   private[jc] sealed class ExceptionInJoinRun(message: String) extends Exception(message)
   private[JoinRun] final class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionMoleculeAlreadyBound(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionNoJoinPool(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionInjectingSingleton(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
@@ -356,7 +357,7 @@ object JoinRun {
     * @param name Name of the molecule, used for debugging only.
     * @tparam T Type of the value carried by the molecule.
     */
-  final class M[T: ClassTag](val name: String) extends Molecule with Function1[T, Unit] {
+  final class M[T](val name: String) extends Molecule with (T => Unit) {
     /** Inject a non-blocking molecule.
       *
       * @param v Value to be put onto the injected molecule.
@@ -422,7 +423,7 @@ object JoinRun {
   ) {
     def releaseSemaphore(): Unit = if (semaphore != null) semaphore.release()
 
-    def acquireSemaphore(timeoutNanos: Option[Long] = None): Boolean =
+    def acquireSemaphore(timeoutNanos: Option[Long]): Boolean =
       if (semaphore != null)
         timeoutNanos match {
           case Some(nanos) => semaphore.tryAcquire(nanos, TimeUnit.NANOSECONDS)
@@ -461,7 +462,7 @@ object JoinRun {
     * @tparam T Type of the value carried by the molecule.
     * @tparam R Type of the value replied to the caller via the "reply" action.
     */
-  final class B[T: ClassTag, R](val name: String) extends Molecule with Function1[T, R] {
+  final class B[T, R](val name: String) extends Molecule with (T => R) {
 
     /** Inject a blocking molecule and receive a value when the reply action is performed.
       *
