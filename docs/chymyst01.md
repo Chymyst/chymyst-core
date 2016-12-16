@@ -24,6 +24,10 @@ For instance, we can postulate that there exist three sorts of molecules called 
 
 `a + c ⇒` [_nothing_]
 
+
+![Reaction diagram a + b => a, a + c => ...](http://winitzki.github.io/joinrun-scala/reaction1.svg)
+<img src="http://winitzki.github.io/joinrun-scala/reaction1.svg">
+
 Of course, real-life chemistry does not allow a molecule to disappear without producing any other molecules.
 But our chemistry is purely imaginary, and so the programmer is free to postulate arbitrary chemical laws.
 
@@ -71,12 +75,22 @@ A typical reaction (equipped with molecule values and a reaction body) looks lik
 a(x) + b(y) ⇒ a(z)
 where z = computeZ(x,y) // -- reaction body
 ```
-
 In this example, the reaction's input molecules are `a(x)` and `b(y)`; that is, the input molecules have chemical designations `a` and `b` and carry values `x` and `y` respectively.
 
 The reaction body is an expression that receives `x` and `y` from the input molecules.
 The reaction computes a value `z` out of `x` and `y` using the function `computeZ` (or any other code as needed).
 The newly computed value `z` is placed onto the output molecule `a`, which is injected back into the soup.
+
+Another example of reaction is
+```scala
+a(x) + c(y) ⇒ println(x+y) // -- reaction body with no output molecules
+```
+
+This reaction consumes the molecules `a` and `c` but does not inject any output molecules.
+The only result of running the reaction is the side-effect of printing the number `x+y`.
+
+![Reaction diagram a + b => a, a + c => ...](http://winitzki.github.io/joinrun-scala/reaction2.svg)
+<img src="http://winitzki.github.io/joinrun-scala/reaction2.svg">
 
 The computations performed by the chemical machine are _automatically_ concurrent.
 Whenever input molecules are available in the soup, the runtime engine will start a reaction that consumes these input molecules.
