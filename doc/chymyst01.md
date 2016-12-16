@@ -239,6 +239,24 @@ In this example, there is presently only one copy of the `counter` molecule, car
 
 Note that the debug output is limited to the molecules bound to that JD (i.e. all molecules that are inputs in it).
 
+### Molecule names
+
+A perceptive reader will ask at this point:
+How did the program know the names `counter`, `decr`, and `incr`?
+These are names of local variables defined using `val counter = m[Int]` and so on.
+Ordinarily, Scala code does not have access to these names.
+
+The magic is actually performed by the method `m`, which is a macro that looks up the name of the enclosing variable.
+The same effect can be achieved without macros at the cost of more boilerplate:
+
+```scala
+val counter = new M[Int]("counter")
+// completely equivalent to `val counter = m[Int]`
+```
+
+Molecule names are very useful for debugging and logging.
+In this tutorial, we will always use macros to define molecules.
+
 ### Logging the flow of reactions and molecules
 
 To get asynchronous, real-time logging information about the molecules being consumed or injected and about the reactions being started, the user can set the logging level on the JD.
