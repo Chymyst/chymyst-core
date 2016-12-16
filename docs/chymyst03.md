@@ -1,3 +1,5 @@
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
+
 # Molecules and injectors, in depth
 
 ## Molecule names
@@ -16,6 +18,7 @@ Here is an example of defining injectors using explicit class constructors and m
 ```scala
 val counter = new M[Int]("counter")
 val fetch = new B[Unit, Int]("fetch")
+
 ```
 
 This code is completely equivalent to the shorter code written using macros:
@@ -26,6 +29,7 @@ import code.winitzki.jc.Macros._
 
 val counter = m[Int]
 val fetch = b[Unit, Int]
+
 ```
 
 These macros can read the names `"counter"` and `"fetch"` from the surrounding code context.
@@ -41,9 +45,10 @@ val y = new B[Unit, Int]("fetch")
 
 x.toString // returns “counter"
 y.toString // returns “fetch/B"
+
 ```
 
-## Remarks about the semantics of `JoinRun`/`Chymyst`
+## Remarks about the semantics of JoinRun
 
 - Injected molecules are _not_ Scala values.
 Injected molecules cannot be, say, stored in a data structure or passed as arguments to functions.
@@ -71,6 +76,7 @@ Molecules are injected into the “chemical soup” using the syntax such as `c(
 
 ```scala
 val c = m[Int]
+
 ```
 
 Any molecule injected in the soup must carry a value.
@@ -85,26 +91,35 @@ The non-blocking injector `c` has type `M[Int]` and can be also created directly
 
 ```scala
 val c = new M[Int]("c")
+
 ```
 
 For a blocking molecule, the injection call will block until a reaction can start that consumes that molecule.
 
 A blocking injector is defined like this,
+
 ```scala
 val f = b[Int, String]
+
 ```
+
 Now `f` is an injector that takes an `Int` value and returns a `String`.
 
 Injectors for blocking molecules are essentially functions: their type is `B[T, R]`, which extends `Function1[T, R]`.
 The injector `f` could be equivalently defined by
+
 ```scala
 val f = new B[Int, String]("f")
+
 ```
 
 Once `f` is defined like this, an injection call such as
+
 ```scala
 val x = f(123)
+
 ```
+
 will inject a molecule of sort `f` with value `123` into the soup.
 
 The calling process in `f(123)` will wait until some reaction consumes this molecule and executes a “reply action” with a `String` value.
@@ -155,6 +170,7 @@ join(...)
 
 // call `f` with 200ms timeout:
 val x: Option[Int] = f(timeout = 200 millis)()
+
 ```
 
 If the injector call to `f` timed out without any reply action, the value of `x` will be `None`, and the blocking molecule `f()` will be removed from the soup (so that reactions will not start with it and attempt to reply).
@@ -173,11 +189,12 @@ Singleton molecules `s` must have reactions of the form `s + ... => s + ...`, --
 
 An example of a singleton is the concurrent counter molecule `c`, with reactions
 
-```
+```scala
 c(x) + d(_) => c(x-1)
 c(x) + i(_) => c(x+1)
 c(x) + f(_, r) => c(x) + r(x)
 ```
+
 These reactions treat `c` as a singleton because they first consume and then output a single copy of `c`.
 
 `JoinRun` provides special features for singleton molecules:
@@ -197,6 +214,7 @@ join (
     run { case _ => a(1) + c(123) + q() }
     // now define some reactions that consume a, c, and q
 )
+
 ```
 
 Each non-blocking output molecule of such a reaction must be injected only once and is then declared to be a singleton molecule.
@@ -215,6 +233,7 @@ join(
 )
 
 val readC: Int = c.value // initially returns 0
+
 ```
 
 The volatile reader is thread-safe (can be used from any reaction without blocking any threads) because it provides a read-only access to the value carried by the molecule.
@@ -226,6 +245,7 @@ The functionality of a volatile reader is equivalent to an additional reaction w
 
 ```scala
 run { case c(x) + f(_, reply) => c(x) + reply(x) }
+
 ```
 
 Calling `f()` returns the current value carried by `c`.

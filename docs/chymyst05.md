@@ -59,6 +59,7 @@ run { case d(x) => if (x>100) finished() else a(x+1) }
 )
 
 a(10)
+
 ```
 
 When this is run, the reactions will cycle through the four molecules `a`, `b`, `c`, `d` while incrementing the value each time, until the value 100 is reached.
@@ -98,6 +99,7 @@ join(reactions:_*)
 
 // inject the first molecule
 injectors(0)(10)
+
 ```
 
 
@@ -132,6 +134,7 @@ def submitJob[R](closure: Unit => R, finished: M[R]): M[R] = {
 
    startJobMolecule
 }
+
 ```
 
 The `finished` molecule should be bound to another join definition.
@@ -150,6 +153,7 @@ join(
       finished(result)
   }
 )
+
 ```
 
 
@@ -171,6 +175,7 @@ def wait_forever: b[Unit, Unit] = {
 
   wait
 }
+
 ```
 
 The function `wait_forever` will return a blocking molecule injector that will block forever, never returning any value.
@@ -206,6 +211,7 @@ def makeReaction[T](reaction: (M[T],T) => Unit): M[T] = {
   join( run { case a(x) => reaction(a, x) } )
   a
 }
+
 ```
 
 Since `reaction` is an arbitrary function, it can inject further molecules if needed.
@@ -220,6 +226,7 @@ def makeReaction2[T1,T2](reaction: (M[T1],T1,M[T2],T2) => Unit): (M[T1],M[T2]) =
   join( run { case a1(x1) + a2(x2) => reaction(a1, x1, a2, x2) } )
   (a1,a2)
 }
+
 ```
 
 ### Packaging a reaction in a molecule
@@ -232,6 +239,7 @@ In effect, the result is a “universal molecule” that can define its own reac
 ```scala
 val u = new M[Unit => Unit)]("universal molecule")
 join( run { case u(reaction) => reaction() } )
+
 ```
 
 To use this “universal molecule”, we need to supply a reaction body and put it into the molecule while injecting.
@@ -244,6 +252,7 @@ val q = m[Int]
 u({ _ => p(123) + q(234) })
 // make a reaction u(x) => p(0) and inject u
 u({ _ => p(0) })
+
 ```
 
 This example is artificial and not very useful; it just illustrates some of the possibilities that the chemical paradigm offers us.
@@ -282,4 +291,6 @@ val (result: M[String], fut: Future[String]) = moleculeFuture[String]
 join( run { case a(x) => result(s"finished: $x") } ) // we define our reaction that will eventually inject "result(...)"
 
 ExternalLibrary.consumeUserFuture(fut) // the external library takes our value "fut" and does something with it
+
 ```
+
