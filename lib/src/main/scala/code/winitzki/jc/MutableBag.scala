@@ -1,6 +1,9 @@
 package code.winitzki.jc
 
-import scala.collection.mutable
+import collection.JavaConverters._
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
+
+import collection.mutable
 
 /*
 class MutableBag[K,V] { // quadratic time, extremely slow
@@ -62,6 +65,45 @@ class MutableBag[K,V] {
     anotherBag.foreach { case (k, v) => removeFromBag(k, v) }
 
 }
+// about 30% slower than MutableBag, and not sure we need it, since all operations with molecule bag are synchronized now.
+class ConcurrentMutableBag[K,V] {
+
+  private val bagConcurrentMap: ConcurrentMap[K, ConcurrentMap[V, Int]] = new ConcurrentHashMap()
+
+  override def toString: String = bagConcurrentMap.asScala.toString
+
+  def getMap: Map[K, Map[V, Int]] = bagConcurrentMap.asScala.toMap.mapValues(_.asScala.toMap)
+
+  def getCount(k: K): Int = getMap.getOrElse(k, Map()).values.sum
+
+  def size: Int = getMap.values.map(_.values.sum).sum
+
+  def getOne(k: K): Option[V] = getMap.get(k).flatMap(_.headOption.map(_._1))
+
+  def addToBag(k: K, v: V): Unit = if (bagConcurrentMap.containsKey(k)) {
+    val vs = bagConcurrentMap.get(k)
+    val newCount = vs.getOrDefault(v, 0) + 1
+    vs.put(v, newCount)
+  } else {
+    bagConcurrentMap.put(k, new ConcurrentHashMap[V, Int](Map(v -> 1).asJava))
+  }
+
+  def removeFromBag(k: K, v: V): Unit = if (bagConcurrentMap.containsKey(k)) {
+    val vs = bagConcurrentMap.get(k)
+    val newCount = vs.getOrDefault(v, 1) - 1
+    if (newCount == 0)
+      vs.remove(v)
+    else
+      vs.put(v, newCount)
+    if (vs.isEmpty)
+      bagConcurrentMap.remove(k)
+  }
+
+  def removeFromBag(anotherBag: mutable.Map[K,V]): Unit =
+    anotherBag.foreach { case (k, v) => removeFromBag(k, v) }
+
+}
+
 /* */
 // previous implementation - becomes slow if we have many repeated values, fails performance test
 /*

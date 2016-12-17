@@ -46,11 +46,13 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
   it should "not timeout when a blocking molecule is responding" in {
 
-    val a = new M[Unit]("a")
-    val f = new B[Unit,Int]("f")
-    join(tp0)( runSimple { case a(_) + f(_, r) => r(3) })
-    a()
-    f(timeout = 100 millis)() shouldEqual Some(3)
+    (1 to 1000).map { _ =>
+      val a = new M[Unit]("a")
+      val f = new B[Unit,Int]("f")
+      join(tp0)( runSimple { case a(_) + f(_, r) => r(0) })
+      a()
+      f(timeout = 100 millis)().getOrElse(1)
+    }.sum shouldEqual 0 // have about 4% failure rate here!
   }
 
   it should "timeout when a blocking molecule is not responding at all" in {

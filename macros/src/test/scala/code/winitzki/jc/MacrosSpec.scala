@@ -2,20 +2,23 @@ package code.winitzki.jc
 
 import JoinRun._
 import Macros._
-
-import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt
 
-class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
+class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   val warmupTimeMs = 50
 
-  val tp0 = new FixedPool(4)
+  var tp0: Pool = null
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
-  override def afterAll(): Unit = {
+  override def beforeEach(): Unit = {
+    tp0 = new FixedPool(4)
+  }
+
+  override def afterEach(): Unit = {
     tp0.shutdownNow()
   }
 
@@ -32,6 +35,16 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
   }
 
   behavior of "macros for inspecting a reaction body"
+
+
+  it should "correctly recognize nested injections of blocking molecules and reply values" in {
+    val a = b[Int, Int]
+    val d = m[Boolean]
+
+    join(
+      & { case a(x, r) => d(r(x)) }
+    )
+  }
 
   it should "inspect reaction body with default clause that declares a singleton" in {
     val a = m[Int]
@@ -53,7 +66,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
         val reaction1 = & { case q(_) + s(()) => }
         q(0)
       }
-    reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, "8227489534FBEA1F404CAAEC9F4CCAEEB9EF2DC1"))
+    reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1))
     reaction.info.outputs shouldEqual Some(List())
   }
 
@@ -61,11 +74,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val a = m[Int]
     val bb = m[Int]
     val f = b[Unit, Int]
-    join(tp0, tp0)(
+    join(tp0)(
       & { case f(_, r) + bb(x) => r(x) },
       & { case a(x) =>
         val p = m[Int]
-        join(tp0, tp0)(& { case p(y) => bb(y) })
+        join(tp0)(& { case p(y) => bb(y) })
         p(x + 1)
       }
     )
@@ -78,11 +91,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val a = m[Int]
     val bb = m[Int]
     val f = b[Unit, Int]
-    join(tp0, tp0)(
+    join(tp0)(
       runSimple { case f(_, r) + bb(x) => r(x) },
       runSimple { case a(x) =>
         val p = m[Int]
-        join(tp0, tp0)(& { case p(y) => bb(y) })
+        join(tp0)(& { case p(y) => bb(y) })
         p(x + 1)
       }
     )
@@ -177,7 +190,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       InputMoleculeInfo(a, SimpleVar, simpleVarXSha1),
       InputMoleculeInfo(a, SimpleConst(1), constantOneSha1)
     )
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a,OtherOutputPattern), OutputMoleculeInfo(a,OtherOutputPattern), OutputMoleculeInfo(qqq,ConstOutputValue(""))))
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qqq, ConstOutputValue(""))))
     result.info.hasGuard == GuardAbsent
   }
 
@@ -190,7 +203,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val result = & { case a(x) => & { case qq(_) => a(0) }; qq() }
 
     result.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1))
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq,ConstOutputValue(()))))
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, ConstOutputValue(()))))
     result.info.hasGuard == GuardAbsent
   }
 
@@ -222,7 +235,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       case _ => false
     }) shouldEqual true
 
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(s,ConstOutputValue(())), OutputMoleculeInfo(a,OtherOutputPattern), OutputMoleculeInfo(qq,ConstOutputValue(()))))
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(s, ConstOutputValue(())), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qq, ConstOutputValue(()))))
     result.info.hasGuard shouldEqual GuardPresent
   }
 
@@ -242,7 +255,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0, tp0)(runSimple { case b(_) + a(Some(x)) + c(_) => })
+    join(tp0)(runSimple { case b(_) + a(Some(x)) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b => ...}\nNo molecules" // this is the wrong result
     // when the problem is fixed, this test will have to be rewritten
@@ -253,7 +266,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0, tp0)(& { case b(_) + a(None) + c(_) => })
+    join(tp0)(& { case b(_) + a(None) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -273,7 +286,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0, tp0)(runSimple { case a(None) + b(_) + c(_) => })
+    join(tp0)(runSimple { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a => ...}\nNo molecules"
   }
@@ -283,7 +296,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0, tp0)(& { case a(None) + b(_) + c(_) => })
+    join(tp0)(& { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -293,7 +306,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0, tp0)(& { case a(Some(x)) + b(_) + c(_) => })
+    join(tp0)(& { case a(Some(x)) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -302,7 +315,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val a = new M[Option[Int]]("a")
     val b = new M[Unit]("b")
 
-    join(tp0, tp0)(& { case a(Some(x)) + b(_) => })
+    join(tp0)(& { case a(Some(x)) + b(_) => })
 
     a(Some(1))
     waitSome()
@@ -317,7 +330,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0, tp0)(& { case a(1) + b(_) + c(_) => })
+    join(tp0)(& { case a(1) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -327,7 +340,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0, tp0)(& { case a(None) + b(_) + c(_) => })
+    join(tp0)(& { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
   }
@@ -342,14 +355,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
     (r.info.inputs match {
       case List(
-      InputMoleculeInfo(`a`, OtherInputPattern(_),_),
-      InputMoleculeInfo(`b`, SimpleConst("xyz"),_),
-      InputMoleculeInfo(`d`, SimpleConst(()),_),
-      InputMoleculeInfo(`c`, OtherInputPattern(_),_)
+      InputMoleculeInfo(`a`, OtherInputPattern(_), _),
+      InputMoleculeInfo(`b`, SimpleConst("xyz"), _),
+      InputMoleculeInfo(`d`, SimpleConst(()), _),
+      InputMoleculeInfo(`c`, OtherInputPattern(_), _)
       ) => true
       case _ => false
     }) shouldEqual true
-    r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a,OtherOutputPattern)))
+    r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern)))
     r.info.hasGuard shouldEqual GuardAbsent
 
     // Note: Scala 2.11 and Scala 2.12 have different syntax trees for Some(1)
@@ -415,14 +428,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     val r2 = & { case bbb(_) + bb(_) => bbb(0) }
     val r3 = & { case bbb(x) + bb(_) + bb(_) => bbb(1) + bb(x) + bbb(2) + cc(None) + cc(Some(1)) }
 
-    r1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb,OtherOutputPattern)))
-    r2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bbb,ConstOutputValue(0))))
+    r1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, OtherOutputPattern)))
+    r2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bbb, ConstOutputValue(0))))
     r3.info.outputs shouldEqual Some(List(
-      OutputMoleculeInfo(bbb,ConstOutputValue(1)),
-      OutputMoleculeInfo(bb,OtherOutputPattern),
-      OutputMoleculeInfo(bbb,ConstOutputValue(2)),
-      OutputMoleculeInfo(cc,OtherOutputPattern),
-      OutputMoleculeInfo(cc,OtherOutputPattern)
+      OutputMoleculeInfo(bbb, ConstOutputValue(1)),
+      OutputMoleculeInfo(bb, OtherOutputPattern),
+      OutputMoleculeInfo(bbb, ConstOutputValue(2)),
+      OutputMoleculeInfo(cc, OtherOutputPattern),
+      OutputMoleculeInfo(cc, OtherOutputPattern)
     ))
   }
 
@@ -432,7 +445,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
 
     val result = & { case aa(Some(x)) + bb((0, None)) => aa(Some(x + 1)) }
 
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(aa,OtherOutputPattern)))
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(aa, OtherOutputPattern)))
 
     val pat_aa = result.info.inputs(0)
     pat_aa.molecule shouldEqual aa
@@ -448,7 +461,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     }) shouldEqual true
 
     // Scala 2.11 vs. Scala 2.12
-    (Set("9247828A8E7754B2D961E955541CF1D4D77E2D1E","A67750BF5B6338391B0034D3A99694889CBB26A3") contains pat_aa.sha1) shouldEqual true
+    (Set("9247828A8E7754B2D961E955541CF1D4D77E2D1E", "A67750BF5B6338391B0034D3A99694889CBB26A3") contains pat_aa.sha1) shouldEqual true
 
     (pat_bb.flag match {
       case OtherInputPattern(matcher) =>
@@ -460,7 +473,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       case _ => false
     }) shouldEqual true
 
-    (Set("2FB215E623E8AF28E9EA279CBEA827A1065CA226","A67750BF5B6338391B0034D3A99694889CBB26A3") contains pat_bb.sha1) shouldEqual true
+    (Set("2FB215E623E8AF28E9EA279CBEA827A1065CA226", "A67750BF5B6338391B0034D3A99694889CBB26A3") contains pat_bb.sha1) shouldEqual true
 
   }
 
@@ -530,13 +543,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
     rawTree(None) shouldEqual "Select(Ident(scala), scala.None)"
 
     (Set(
-        "Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1))))"
+      "Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1))))"
     ) contains rawTree(Some(1))) shouldEqual true
   }
 
   it should "find expression trees for matchers" in {
 
-    rawTree(Some(1) match {case Some(1) => } ) shouldEqual "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))), EmptyTree, Literal(Constant(())))))"
+    rawTree(Some(1) match { case Some(1) => }) shouldEqual "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))), EmptyTree, Literal(Constant(())))))"
   }
 
   it should "find enclosing symbol names with correct scopes" in {
@@ -548,7 +561,56 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
       val z = getName
       (z, getName)
     }
-    y shouldEqual ("z", "y")
+    y shouldEqual("z", "y")
+  }
+
+  it should "correctly recognize nested injections of non-blocking molecules" in {
+    val a = m[Int]
+    val c = m[Unit]
+    val d = m[Boolean]
+
+    join(
+      & { case a(x) + d(_) => c(a(1)) }
+    )
+
+    a.isBound shouldEqual true
+    c.isBound shouldEqual false
+
+
+    val reaction = a.consumingReactions.get.head
+    c.injectingReactions.head shouldEqual reaction
+    a.injectingReactions.head shouldEqual reaction
+
+    reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1), InputMoleculeInfo(d, Wildcard, wildcardSha1))
+    reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
+  }
+
+  it should "correctly recognize nested injections of blocking molecules and reply values" in {
+    val a = b[Int, Int]
+    val c = m[Int]
+    val d = m[Boolean]
+
+    join(
+      & { case d(_) => c(a(1)) },
+      & { case a(x, r) => d(r(x)) }
+    )
+
+    a.isBound shouldEqual true
+    c.isBound shouldEqual false
+    d.isBound shouldEqual true
+
+    val reaction1 = d.consumingReactions.get.head
+    a.injectingReactions.head shouldEqual reaction1
+    c.injectingReactions.head shouldEqual reaction1
+
+    val reaction2 = a.consumingReactions.get.head
+    d.injectingReactions.head shouldEqual reaction2
+
+    reaction1.info.inputs shouldEqual List(InputMoleculeInfo(d, Wildcard, wildcardSha1))
+    reaction1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
+
+    reaction2.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1))
+    reaction2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(d, OtherOutputPattern)))
   }
 
 }

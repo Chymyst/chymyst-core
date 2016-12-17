@@ -153,7 +153,7 @@ With these additional features, the type matrix of injection is complete:
 
 | | blocking injector | non-blocking injector |
 |---|---|---|
-| value is returned: | `val x: Int = f()` | `val x: Int = c.value` |
+| value is returned: | `val x: Int = f()` | `val x: Int = c.volatileValue` |
 | no value returned: | timeout was reached | `c(123)` // side effect |
 
 ### Timeouts for blocking injectors
@@ -232,7 +232,7 @@ join(
   run { case _ => c(0) } // inject `c(0)` and declare it a singleton
 )
 
-val readC: Int = c.value // initially returns 0
+val readC: Int = c.volatileValue // initially returns 0
 
 ```
 
