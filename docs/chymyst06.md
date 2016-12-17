@@ -31,3 +31,32 @@ I learned about the “Reflexive Chemical Abstract Machine” from the introduct
 (Initially I was able to understand _only_ the introduction part in that paper!)
 
 Do not start by reading these papers if you are a beginner in Join Calculus - you will only be unnecessarily confused, because those texts are intended for advanced computer scientists and not pedagogically appropriate for beginners.
+
+Also, I do not recommend reading the [Wikipedia page on Join Calculus](https://en.wikipedia.org/wiki/Join-calculus).
+As of December 2016, this page says this about Join Calculus:
+
+> The join-calculus ... can be considered, at its core, an asynchronous π-calculus with several strong restrictions:
+>
+> - Scope restriction, reception, and replicated reception are syntactically merged into a single construct, the _definition_;
+> - Communication occurs only on defined names;
+> - For every defined name there is exactly one replicated reception.
+>
+> However, as a language for programming, the join-calculus offers at least one convenience over the π-calculus — namely the use of multi-way join patterns, the ability to match against messages from multiple channels simultaneously.
+
+This text is impossible to understand unless you are already well-versed in the research literature. (What would it mean to have "communication on _undefined_ names"?)
+
+Research literature on Join Calculus typically uses terms such as "channel" or "message", which are not very helpful for understanding how to write concurrent program.
+
+Instead of using the academic terminology, I always follow the “chemical machine” metaphor and terminology when talking about `JoinRun` and `Chymyst` programming.
+Here is a dictionary:
+
+| Chemical machine  | Academic Join Calculus | `JoinRun` code |
+|---|---|---|
+| input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
+| molecule injector | channel (port) name | `val a :  M[Int]` |
+| blocking injector | synchronous channel | `val q :  B[Unit, Int]` |
+| reaction | process | `val r1 = run { case a(x) + ... => ... }` |
+| injecting an output molecule | sending a message | `a(123)` _// side effect_ |
+| injecting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
+| join definition | join definition | `join(r1, r2, ...)` |
+

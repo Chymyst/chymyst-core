@@ -26,7 +26,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         & { case a(_) => }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a => ...; a => ...}: Unavoidable indeterminism: reaction a => ... is shadowed by a => ..., reaction a => ... is shadowed by a => ..."
+    thrown.getMessage shouldEqual "In Join{a => ...; a => ...}: Unavoidable nondeterminism: reaction a => ... is shadowed by a => ..., reaction a => ... is shadowed by a => ..."
   }
 
   it should "detect shadowing of reactions with wildcards" in {
@@ -38,7 +38,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         & { case a(_) + b(_) => }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ..."
+    thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction a + b => ... is shadowed by a => ..."
   }
 
   it should "detect shadowing of reactions with infallible matchers" in {
@@ -50,7 +50,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         & { case a(1) + b(2) => }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ..."
+    thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction a + b => ... is shadowed by a => ..."
   }
 
   it should "detect no shadowing of reactions with nontrivial matchers" in {
@@ -82,7 +82,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         & { case a(1) + b(2) => }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ..."
+    thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction a + b => ... is shadowed by a => ..."
   }
 
   it should "detect shadowing of reactions with identical non-constant matchers" in {
@@ -94,7 +94,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         & { case a(Some(1)) + b(2) => }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ..."
+    thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction a + b => ... is shadowed by a => ..."
   }
 
   it should "fail to detect shadowing of reactions with non-identical non-constant matchers" in {
@@ -116,7 +116,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         & { case a(Some(1)) + b(2) => }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a + b => ...; a + b => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a + b => ..."
+    thrown.getMessage shouldEqual "In Join{a + b => ...; a + b => ...}: Unavoidable nondeterminism: reaction a + b => ... is shadowed by a + b => ..."
   }
 
   object IsEven {
@@ -132,7 +132,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         & { case a(2) + b(3) => }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ..."
+    thrown.getMessage shouldEqual "In Join{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction a + b => ... is shadowed by a => ..."
   }
 
   it should "detect shadowing of reactions with non-identical matchers that are nontrivially not weaker" in {
@@ -155,7 +155,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         & { case a(Some(1)) + b(2) + a(Some(2)) + a(Some(3)) + b(1) + b(_) + b(1) => }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a + a + a + b + b + b + b => ...; a + a + a + b + b + b => ...}: Unavoidable indeterminism: reaction a + a + a + b + b + b + b => ... is shadowed by a + a + a + b + b + b => ..."
+    thrown.getMessage shouldEqual "In Join{a + a + a + b + b + b + b => ...; a + a + a + b + b + b => ...}: Unavoidable nondeterminism: reaction a + a + a + b + b + b + b => ... is shadowed by a + a + a + b + b + b => ..."
   }
 
   it should "detect shadowing of reactions with several wildcards" in {
@@ -167,7 +167,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         & { case a(Some(1)) + b(2) + a(Some(2)) + a(Some(3)) + b(1) + b(_) + b(1) + a(x) => }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a + a + a + a + b + b + b + b => ...; a + a + a + a + b => ...}: Unavoidable indeterminism: reaction a + a + a + a + b + b + b + b => ... is shadowed by a + a + a + a + b => ..."
+    thrown.getMessage shouldEqual "In Join{a + a + a + a + b + b + b + b => ...; a + a + a + a + b => ...}: Unavoidable nondeterminism: reaction a + a + a + a + b + b + b + b => ... is shadowed by a + a + a + a + b => ..."
   }
 
   behavior of "analysis of livelock"
@@ -264,7 +264,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         & { case a(2) + b(3) => }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a + b => ...; a + b => ...; a => ...}: Unavoidable indeterminism: reaction a + b => ... is shadowed by a => ...; Unavoidable livelock: reactions a + b => ..., a => ..."
+    thrown.getMessage shouldEqual "In Join{a + b => ...; a + b => ...; a => ...}: Unavoidable nondeterminism: reaction a + b => ... is shadowed by a => ...; Unavoidable livelock: reactions a + b => ..., a => ..."
   }
 
   behavior of "deadlock detection"
