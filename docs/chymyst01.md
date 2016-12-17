@@ -37,7 +37,7 @@ We also assume that we can inject any molecule into the soup at any time.
 
 It is not difficult to implement a simulator for the chemical behavior we just described.
 Having specified the list of chemical laws and injected some initial molecules into the soup, we start the simulation.
-The chemical machine will run all the reactions that are all wed by the chemical laws.
+The chemical machine will run all the reactions that are allowed by the chemical laws.
 
 We will say that in a reaction such as
 
@@ -235,11 +235,10 @@ decr() + decr() // prints “new value is 99” and then “new value is 98"
 
 `JoinRun` has some debugging facilities to help the programmer verify that the chemistry works as intended.
 
-### Printing the contents of the soup
+### Logging the contents of the soup
 
-For a given molecule, there must exist a single join definition (JD) to which this molecule is “bound” -- that is, the JD where this molecule is consumed as input molecule by some reactions.
-
-For debugging purposes, we can use the `logSoup` method on the molecule injector.
+For debugging purposes, it is useful to see what molecules are waiting for reactions at a given time.
+This is achieved by calling the `logSoup` method on the molecule injector.
 This method will return a string showing the molecules that are currently present in the soup and are waiting to react with other molecules.
 The `logSoup` output will also show the values carried by each molecule.
 
@@ -257,10 +256,12 @@ The debug output gives us two pieces of information:
 1. The JD which is being logged: `Join{counter + decr => ...; counter + incr => ...}`
 Note that the JD is identified by the reactions that are defined in it. The reactions are shown in a shorthand notation, by listing only the input molecules.
 
-2. The molecules that are currently waiting in the soup at that JD, namely `Molecules: counter(98)`.
+2. The molecules that are currently waiting in the soup belonging to that JD, namely `Molecules: counter(98)`.
 In this example, there is presently only one copy of the `counter` molecule, carrying the value `98`.
 
-Note that the debug output is limited to the molecules bound to that JD (i.e. all molecules that are inputs in it).
+Note that the debug output is limited to the molecules that can be consumed by reactions in that JD.
+We call them molecules **bound** to that JD.
+The JD will look at the presence or absence of these molecules when it decides which reactions to start.
 
 ### Molecule names
 
@@ -298,6 +299,9 @@ So this facility should be used only for debugging or testing.
 ## Common errors
 
 ### Error: Injecting molecules without defined reactions
+
+For each molecule, there must exist a single join definition (JD) to which this molecule is **bound** -- that is, the JD where this molecule is consumed as input molecule by some reactions.
+(See [Join Definitions](joinrun.md#join-definitions) for more details.)
 
 It is an error to inject a molecule that is not yet defined as input molecule in any JD (i.e. not yet bound to any JD).
 
@@ -408,15 +412,53 @@ This is always possible by using auxiliary molecules and/or guard conditions.
 ## Summary so far
 
 The chemical machine requires for its description:
+
 - a list of defined molecules, together with their types;
 - a list of reactions involving these molecules as inputs, together with reaction bodies.
 
-The user can define reactions in one or more join definitions.
-One join definition encompasses all reactions that have some _input_ molecules in common.
+These definitions comprise the chemical laws of a concurrent program.
 
-After defining the molecules and specifying the reactions, the user can start injecting molecules into the soup.
+The user can define reactions in one or more join definitions.
+Each join definition encompasses all reactions that have some _input_ molecules in common.
+Different join definitions must have no input molecules in common.
 
 In this way, a complicated system of interacting concurrent processes can be specified through a particular set of chemical laws and reaction bodies.
+
+After defining the molecules and specifying the reactions, the user can start the program by injecting some initial molecules into the soup.
+
+The chemical laws fully specify which computations need to be performed for which data.
+
+Let us reiterate the core ideas of the chemical paradigm of concurrency:
+
+In the chemical machine, there is no mutable global state; all data is immutable and must be carried by some molecules.
+Each of these molecules has a specific chemical designation, such as `a`, `b`, `counter`, and so on.
+These chemical designations are not strings `"a"` or `"b"`; one could imagine writing
+
+```scala
+val a = m[Int]
+val q = a
+
+```
+
+This will copy the molecule injector `a` into another local value `q`.
+However, this does not change the chemical designation of a molecule.
+The injector `q` will inject the same molecules as `a`.
+
+The chemical designation of the molecule specifies two aspects of the concurrent program:
+
+- which other input molecules (besides this one) are required to start a computation;
+- which computation will be performed when all the required input molecules are available.
+
+Each reaction specifies its input molecules, and in this way determines all the data necessary for computing the reaction body.
+The chemical machine will automatically make this data available, since a reaction can start only when all its input molecules are present in the soup.
+
+Each reaction also specifies a reaction body, which is a Scala expression that evaluates to `Unit`.
+This expression can perform arbitrary computations using the input molecule values.
+It can also inject new molecules into the soup, which is a side effect of calling a molecule injector.
+
+Up to this side effect, the reaction body can be a pure function, if it only depends on the input data of the reaction.
+In this case, many copies of the reaction can be safely executed concurrently if many sets of input molecules are available.
+Also, the reaction can be safely and automatically restarted in the case of a transient failure.
 
 # Example: Declarative solution for “dining philosophers"
 

@@ -11,7 +11,7 @@ private object StaticAnalysis {
     i => i.flag != UnknownInputPattern
 
   /** Check that every input molecule matcher of one reaction is weaker than a corresponding matcher in another reaction.
-    * If true, it means that the first reaction can start whenever the second reaction can start, which is an instance of unavoidable indeterminism.
+    * If true, it means that the first reaction can start whenever the second reaction can start, which is an instance of unavoidable nondeterminism.
     * The input1, input2 list2 should not contain UnknownInputPattern.
     *
     * @param input1 Sorted input list for the first reaction.
@@ -100,7 +100,7 @@ private object StaticAnalysis {
       val errorList = suspiciousReactions.map{ case (r1, r2) =>
         s"reaction $r2 is shadowed by $r1"
       }.mkString(", ")
-      Some(s"Unavoidable indeterminism: $errorList")
+      Some(s"Unavoidable nondeterminism: $errorList")
     } else None
   }
 
