@@ -132,20 +132,21 @@ The helper functions `m`, `join`, and `run` are defined in the `JoinRun` library
 
 ## Example: Concurrent counter
 
-We already know enough to start implementing some first examples of concurrent programs.
+We already know enough to start implementing a first concurrent program.
 
-Suppose we need to maintain a counter with an integer value, which can be incremented or decremented by non-blocking, concurrently running operations.
+Suppose we need to maintain a counter with an integer value, which can be incremented or decremented by non-blocking, concurrent requests.
 (For example, we would like to be able to increment and decrement the counter from different processes running at the same time.)
 
 To implement this in `JoinRun`, we begin by deciding which molecules we will need to define.
-It is clear that we will need a molecule that carries the integer value of the counter:
+Since there is no global state, it is clear that the integer value of the counter needs to be carried by a molecule.
+Let's call this molecule `counter` and specify that it carries an integer value:
 
 ```scala
 val counter = m[Int]
 
 ```
 
-The increment and decrement operations must be represented by other molecules.
+The increment and decrement requests must be represented by other molecules.
 Let us call them `incr` and `decr`.
 These molecules do not need to carry values, so we will define the `Unit` type as their value type:
 
@@ -172,8 +173,11 @@ The new value of the counter (either `n+1` or `n-1`) will be carried by the new 
 The previous counter molecule (with its old value `n`) will be consumed by the reactions.
 The `incr` and `decr` molecules will be likewise consumed.
 
+![Reaction diagram counter(n) + incr => counter(n+1) etc.](http://winitzki.github.io/joinrun-scala/counter-incr-decr.svg)
+
 It is important to note that the two reactions need to be defined together in a single call to `join`.
-The reason is that both reactions use the same input molecule `counter`.
+The reason is that both reactions contend on the same input molecule `counter`.
+
 This construction -- defining several reactions together -- is called a **join definition** and is written using the library function `join`.
 In `JoinRun`, all reactions that consume a given input molecule must be included in a single join definition.
 
@@ -267,7 +271,7 @@ The JD will look at the presence or absence of these molecules when it decides w
 
 A perceptive reader will ask at this point:
 How did the program know the names `counter`, `decr`, and `incr`?
-These are names of local variables defined using `val counter = m[Int]` and so on.
+These are names of local variables we defined using `val counter = m[Int]` and so on.
 Ordinarily, Scala code does not have access to these names.
 
 The magic is actually performed by the method `m`, which is a macro that looks up the name of the enclosing variable.
@@ -279,7 +283,7 @@ val counter = new M[Int]("counter")
 
 ```
 
-Molecule names are very useful for debugging and logging.
+Descriptive names of molecules are very useful for visualizing the reactions, as well as for debugging and logging.
 In this tutorial, we will always use macros to define molecules.
 
 ### Logging the flow of reactions and molecules
@@ -337,6 +341,7 @@ val a = m[Unit]
 val b = m[Unit]
 
 join( run { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this JD.
+
 join( run { case x(n) + b(_) => println(s"have x($n) + b") } )
 // java.lang.Exception: Molecule x cannot be used as input since it is already bound to Join{a + x => ...}
 
@@ -390,24 +395,105 @@ Sometimes it appears that repeating input molecules is the most natural way of e
 However, I believe it is always possible to introduce some new auxiliary molecules and to rewrite the “chemistry laws” so that input molecules are not repeated while the resulting computations give the same results.
 This limitation could be lifted in a later version of `JoinRun` if it proves useful to do so.
 
-## Order of reactions
+## Order of reactions and nondeterminism
 
-When there are several different reactions that can start the available molecules, the runtime engine will choose the reaction at random.
-In the current implementation of `JoinRun`, the runtime will choose reactions at random, so that every reaction has an equal chance of starting.
+When there are several different reactions that can start the available molecules, the runtime engine will choose the reaction at random,
+so that every reaction has an equal chance of starting.
 
 Similarly, when there are several copies of the same molecule that can be consumed as input by a reaction, the runtime engine will make a choice of which copy 
 of the molecule to consume.
-Currently, `JoinRun` will _not_ randomize the input molecules but make an implementation-dependent choice.
+Currently, `JoinRun` will _not_ fully randomize the input molecules but make an implementation-dependent choice.
 A truly random selection of input molecules may be implemented in the future.
 
-It is not possible to assign priorities to reactions or to molecules.
+Importantly, it is _not possible_ to assign priorities to reactions or to molecules.
 The order of reactions in a join definition is ignored, and the order of molecules in the input list is also ignored.
-The debugging facility will print the molecule names in alphabetical order, and reactions will be printed in an unspecified order.
+Just for the purposes of debugging, molecules will be printed in alphabetical order of names, and reactions will be printed in an unspecified order.
 
-The result of this is that the order in which reactions will start is non-deterministic and unknown.
+The result is that the order in which reactions will start is non-deterministic and unknown.
 
-If the priority of certain reactions is important for a particular application, it is the programmer's task to design the “chemical laws” in such a way that those reactions start in the desired order.
+If the priority of certain reactions is important for a particular application, it is the programmer's task to design the chemical laws in such a way that those reactions start in the desired order.
 This is always possible by using auxiliary molecules and/or guard conditions.
+
+In fact, a facility for assigning priority to molecules or reactions would be self-defeating.
+It will only give the programmer _an illusion of control_ over the order of reactions, while actually introducing subtle nondeterministic behavior.
+
+To illustrate this on an example, suppose we would like to compute the sum of a bunch of numbers in a concurrent way.
+We expect to receive many molecules `data(x)` with integer values `x`,
+and we need to compute and print the final sum value when no more `data(x)` molecules are present.
+
+Here is an (incorrect) attempt to write chemical laws for this program:
+
+```scala
+val data = m[Int]
+val sum = m[Int]
+join (
+  run { case data(x) + sum(y) => sum(x+y) }, // We really want the first reaction to be high priority
+   
+  run { case sum(x) => println(s"sum = $x") }  // and run the second one only after all `data` molecules are gone.
+)
+data(5) + data(10) + data(150)
+sum(0) // expect "sum = 165"
+
+```
+
+Our intention was to run only the first reaction and to ignore the second reaction as long as `data` molecules are available in the soup.
+The chemical machine does not actually allow us to assign a higher priority to the first reaction.
+But, if we were able to do that, what would be the result?
+
+In a real-life situation, the `data` molecules are going to be injected concurrently by different processes.
+(There wouldn't be much point in making the `data` molecules concurrent if they were all guaranteed to be present at the start of our program: we would have just used an array instead.)
+
+Since these other processes are concurrent and inject `data` molecules at unpredictable times,
+it could happen that the `data` molecules are injected somewhat more slowly than we are consuming them.
+If that happens, there will be a brief interval of time when no `data` molecules are in the soup (although other processes are about to inject some more of them).
+The chemical machine will then run the second reaction, consume the `sum` molecule and print the result, signalling (incorrectly) that the computation is finished.
+Perhaps this failure will _rarely_ happen, -- it unlikely to show up in your unit tests, but at some point it is definitely going to happen in production.
+
+This kind of nondeterminism is the prime reason concurrency is widely regarded as a hard programming problem.
+
+`JoinRun` will actually refuse our attempted program and print an error message before running anything, immediately after we define the chemical laws:
+
+```scala
+val data = m[Int]
+val sum = m[Int]
+join (
+  run { case data(x) + sum(y) => sum(x+y) },
+  run { case sum(x) => println(s"sum = $x") }
+)
+```
+
+```
+Exception: In Join{data + sum => ...; sum => ...}: Unavoidable nondeterminism: reaction data + sum => ... is shadowed by sum => ...
+
+```
+
+The error message means that the reaction `sum => ...` will sometimes prevent `data + sum => ...` from running,
+and the programmer will have no control over this nondeterminism.
+
+The correct way of implementing this problem is to keep track of how many `data` molecules we already consumed,
+and to emit `done` when we reach the total expected number of the `data` molecules.
+The main change is that the `sum` molecule will now carry a tuple of two integers instead of a single integer.
+Here is an example solution with a single reaction:
+
+```scala
+val data = m[Int]
+val sum = m[(Int, Int)]
+join (
+  run { case data(x) + sum((y, remaining)) =>
+      val newSum = x + y
+      if (remaining == 1)  println(s"sum = $newSum")
+      else  sum((newSum, remaining-1)) 
+     }
+)
+data(5) + data(10) + data(150) // inject three `data` molecules
+sum((0, 3)) // expect "sum = 165" printed
+
+```
+
+There is no nondeterminism in these chemical laws, and no priority needs to be explicitly assigned.
+
+The chemical machine forces the programmer to design the chemistry in such a way that
+the order of running reactions is completely determined by the data on the available molecules.
 
 ## Summary so far
 
@@ -464,6 +550,8 @@ Also, the reaction can be safely and automatically restarted in the case of a tr
 
 The ["dining philosophers problem"](https://en.wikipedia.org/wiki/Dining_philosophers_problem) is to run a simulation of five philosophers who take turns eating and thinking.
 Each philosopher needs two forks to start eating, and every pair of neighbor philosophers shares a fork.
+
+![Five dining philosophers](An_illustration_of_the_dining_philosophers_problem.png)
 
 The simplest solution of the “dining philosophers” problem is achieved using a molecule for each fork and two molecules per philosopher: one representing a thinking philosopher and the other representing a hungry philosopher.
 
