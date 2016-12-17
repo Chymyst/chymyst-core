@@ -184,6 +184,7 @@ object JoinRun {
 
   private[jc] sealed class ExceptionInJoinRun(message: String) extends Exception(message)
   private[JoinRun] final class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionMoleculeAlreadyBound(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionNoJoinPool(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionInjectingSingleton(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
@@ -356,12 +357,12 @@ object JoinRun {
     * @param name Name of the molecule, used for debugging only.
     * @tparam T Type of the value carried by the molecule.
     */
-  final class M[T: ClassTag](val name: String) extends Molecule with Function1[T, Unit] {
+  final class M[T](val name: String) extends Molecule with (T => Unit) {
     /** Inject a non-blocking molecule.
       *
       * @param v Value to be put onto the injected molecule.
       */
-    def apply(v: T): Unit = joinDef.getOrElse(throw errorNoJoinDef).inject[T](this, MolValue(v))
+    override def apply(v: T): Unit = joinDef.getOrElse(throw errorNoJoinDef).inject[T](this, MolValue(v))
 
     override def toString: String = name
 
@@ -412,17 +413,17 @@ object JoinRun {
     * @param replyRepeated Will be set to "true" if the molecule received a reply more than once.
     * @tparam R Type of the value replied to the caller via the "reply" action.
     */
-  private[jc] final case class ReplyValue[T,R](
+  private[jc] final case class ReplyValue[T,R] (
     molecule: B[T,R],
     var result: Option[R] = None,
     private var semaphore: Semaphore = { val s = new Semaphore(0, false); s.drainPermits(); s },
     var errorMessage: Option[String] = None,
     var replyTimeout: Boolean = false,
     var replyRepeated: Boolean = false
-  ) {
+  ) extends (R => Boolean) {
     def releaseSemaphore(): Unit = if (semaphore != null) semaphore.release()
 
-    def acquireSemaphore(timeoutNanos: Option[Long] = None): Boolean =
+    def acquireSemaphore(timeoutNanos: Option[Long]): Boolean =
       if (semaphore != null)
         timeoutNanos match {
           case Some(nanos) => semaphore.tryAcquire(nanos, TimeUnit.NANOSECONDS)
@@ -441,7 +442,7 @@ object JoinRun {
       * @param x Value to reply with.
       * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
       */
-    def apply(x: R): Boolean = {
+    override def apply(x: R): Boolean = {
       // The reply value will be assigned only if there was no timeout and no previous reply action.
       if (!replyTimeout && !replyRepeated && result.isEmpty) {
         result = Some(x)
@@ -461,14 +462,14 @@ object JoinRun {
     * @tparam T Type of the value carried by the molecule.
     * @tparam R Type of the value replied to the caller via the "reply" action.
     */
-  final class B[T: ClassTag, R](val name: String) extends Molecule with Function1[T, R] {
+  final class B[T, R](val name: String) extends Molecule with (T => R) {
 
     /** Inject a blocking molecule and receive a value when the reply action is performed.
       *
       * @param v Value to be put onto the injected molecule.
       * @return The "reply" value.
       */
-    def apply(v: T): R =
+    override def apply(v: T): R =
       joinDef.map(_.injectAndReply[T,R](this, v, ReplyValue[T,R](molecule = this)))
         .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this is not bound to any join definition"))
 

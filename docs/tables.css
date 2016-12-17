@@ -1,0 +1,19 @@
+/* markdown tables */
+table {
+    border:#ccc 1px solid;
+    border-radius:3px;
+    border-collapse: separate;
+}
+table th {
+    padding:21px 25px 22px 25px;
+    border:1px solid #e0e0e0;
+    border-bottom:1px solid #808080;
+}
+table tr {
+    padding-left:20px;
+}
+table td {
+    padding:18px;
+/*     border-top: 1px solid #ffffff; */
+     border:1px solid #e0e0e0;
+}

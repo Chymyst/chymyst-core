@@ -220,46 +220,14 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     blockingMolValue.replyValue.replyTimeout = true
   }
 
-  // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
-  // We must make this a blocking call, so we acquire a semaphore (with timeout).
-  private[jc] def injectAndReply[T,R](m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): R = {
-    val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
-    inject(m, blockingMolValue)
-    try {
-      // not sure we need this.
-      BlockingIdle {
-        replyValueWrapper.acquireSemaphore()
-      }
-    }
-    catch {
-      case e: InterruptedException => e.printStackTrace()
-    }
-    finally {
-      replyValueWrapper.deleteSemaphore() // make sure it's gone
-    }
-
-    // If we are here, we might need to forcibly remove the blocking molecule from the soup.
-    removeBlockingMolecule(m, blockingMolValue)
-
-    // check if we had any errors, and that we have a result value
-    replyValueWrapper.errorMessage match {
-      case Some(message) => throw new Exception(message)
-      case None => replyValueWrapper.result.getOrElse(
-        throw new ExceptionEmptyReply(s"Internal error: In $this: $m received an empty reply without an error message"
-        )
-      )
-    }
-  }
-
-  private[jc] def injectAndReplyWithTimeout[T,R](timeout: Long, m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]):
-  Option[R] = {
+  private def injectAndReplyInternal[T,R](timeoutOpt: Option[Long], m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): Boolean = {
     val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
     inject(m, blockingMolValue)
     val success =
       try {
         // not sure we need this.
         BlockingIdle {
-          replyValueWrapper.acquireSemaphore(Some(timeout))
+          replyValueWrapper.acquireSemaphore(timeoutNanos = timeoutOpt)
         }
       }
       catch {
@@ -273,14 +241,33 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     // If we are here, we might need to forcibly remove the blocking molecule from the soup.
     removeBlockingMolecule(m, blockingMolValue)
 
+    success
+  }
+
+  // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
+  // We must make this a blocking call, so we acquire a semaphore (with timeout).
+  private[jc] def injectAndReply[T,R](m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): R = {
+    injectAndReplyInternal(timeoutOpt = None, m, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value
     replyValueWrapper.errorMessage match {
       case Some(message) => throw new Exception(message)
-      case None => if (success) Some(replyValueWrapper.result.getOrElse(
+      case None => replyValueWrapper.result.getOrElse(
+        throw new ExceptionEmptyReply(s"Internal error: In $this: $m received an empty reply without an error message"
+        )
+      )
+    }
+  }
+
+  private[jc] def injectAndReplyWithTimeout[T,R](timeout: Long, m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]):
+  Option[R] = {
+    val haveReply = injectAndReplyInternal(timeoutOpt = Some(timeout), m, v, replyValueWrapper)
+    // check if we had any errors, and that we have a result value
+    replyValueWrapper.errorMessage match {
+      case Some(message) => throw new Exception(message)
+      case None => if (haveReply) Some(replyValueWrapper.result.getOrElse(
         throw new ExceptionEmptyReply(s"Internal error: In $this: $m received an empty reply without an error message"))
       )
       else None
-
     }
   }
 
@@ -304,7 +291,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
       .toSet // We only need to assign the owner on each distinct input molecule once.
       .foreach { m: Molecule =>
       m.joinDef match {
-        case Some(owner) => throw new Exception(s"Molecule $m cannot be used as input since it was already used in $owner")
+        case Some(owner) => throw new ExceptionMoleculeAlreadyBound(s"Molecule $m cannot be used as input since it is already bound to $owner")
         case None => m.joinDef = Some(this)
       }
     }
@@ -324,7 +311,6 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     }
 
     // Perform static analysis.
-
     val foundWarnings = StaticAnalysis.findSingletonWarnings(singletonsDeclared, nonSingletonReactions) ++ StaticAnalysis.findStaticWarnings(nonSingletonReactions)
 
     val foundErrors = StaticAnalysis.findSingletonErrors(singletonsDeclared, nonSingletonReactions) ++ StaticAnalysis.findStaticErrors(nonSingletonReactions)

@@ -4,22 +4,6 @@
 
 Currently, it compiles with Scala 2.11 and Scala 2.12 on Oracle JDK 8.
 
-# Previous work
-
-Here are previous implementations of Join Calculus that I was able to find.
-
-- The `Funnel` programming language: [M. Odersky et al., 2000](http://lampwww.epfl.ch/funnel/). This project was discontinued.
-- _Join Java_: [von Itzstein et al., 2001-2005](http://www.vonitzstein.com/Project_JoinJava.html). This was a modified Java language compiler, with support for certain Join Calculus constructions. The project is not maintained.
-- The `JoCaml` language: [Official site](http://jocaml.inria.fr) and a publication about JoCaml: [Fournet et al. 2003](http://research.microsoft.com/en-us/um/people/fournet/papers/jocaml-afp4-summer-school-02.pdf). This is a dialect of OCaml implemented as a patch to the OCaml compiler. The project is still supported. 
-- “Join in Scala” compiler patch: [V. Cremet 2003](http://lampwww.epfl.ch/~cremet/misc/join_in_scala/index.html). The project is discontinued.
-- Joins library for .NET: [P. Crusso 2006](http://research.microsoft.com/en-us/um/people/crusso/joins/). The project is available as a binary .NET download from Microsoft Research.
-- `ScalaJoins`, a prototype implementation in Scala: [P. Haller 2008](http://lampwww.epfl.ch/~phaller/joins/index.html). The project is not maintained.
-- `ScalaJoin`: an improvement over `ScalaJoins`, [J. He 2011](https://github.com/Jiansen/ScalaJoin). The project is not maintained.
-- Joinads, a not-quite-Join-Calculus implementation in F# and Haskell: [Petricek and Syme 2011](https://www.microsoft.com/en-us/research/publication/joinads-a-retargetable-control-flow-construct-for-reactive-parallel-and-concurrent-programming/). The project is not maintained.
-- Proof-of-concept implementations of Join Calculus for iOS: [CocoaJoin](https://github.com/winitzki/AndroJoin) and Android: [AndroJoin](https://github.com/winitzki/AndroJoin). These projects are not maintained.
-
-The implementation in `JoinRun` is based on ideas from Jiansen He's `ScalaJoin` as well as on CocoaJoin / AndroJoin.
-
 # Main structures
 
 Join Calculus is implemented using molecule injectors, reactions, and join definitions.
@@ -140,33 +124,53 @@ All input and output molecule injectors involved in the reaction must be already
 
 Note: Although molecules with `Unit` type can be injected as `a()`, the pattern-matching syntax for those molecules must be `case a(_) + ... => ...` 
 
-### Blocking molecules in reactions
+### Pattern-matching in reactions
 
-Blocking molecules use a syntax that suggests the existence of a special pseudo-molecule that performs the reply action:
+Each molecule carries one value of a fixed type.
+This type can be arbitrary -- a tuple, a case class, etc.
+
+The values carried by input molecules in reactions can be pattern-matched using all available features of the `case` clause in Scala.
+For example, reactions can match on a constant, destructure a case class, and use guards.
+A reaction will start only if all matchers succeed and the guard returns `true`.
+
+Here is an example with pattern-matching on non-blocking molecules `c` and `d` that carry non-simple types:
 
 ```scala
-val a = new M[Int]("a") // non-blocking molecule
+val c = new M[Option[Int]]("c") // non-blocking molecule
+val d = new M[(Int, String, Boolean)]("d") // non-blocking molecule
+
+val reaction = run { case c(Some(x)) + d((y, "hello", true)) if x == y => c(Some(y)) }
+```
+
+### Pattern-matching of blocking molecules
+
+The syntax for matching on blocking molecules requires a two-place matcher, such as `f(x,y)`, unlike the one-place matchers for non-blocking molecules such as `c(x)`.
+
+```scala
+val c = new M[Option[Int]]("c") // non-blocking molecule
 val f = new B[Int, String]("f") // blocking molecule
 
-val reaction2 = run { case a(x) + f(y, r) => r(x.toString) + a(y) }
+val reaction2 = run { case c(Some(x)) + f(y, r) => r(x.toString) + c(Some(y)) }
 
-val result = f(123) // result is of type String
+val result = f(123) // inject f(123), get reply value of type String
 ```
 
 In this reaction, the pattern-match on `f(y, r)` involves two pattern variables:
+
 - The pattern variable `y` is of type `Int` and matches the value carried by the injected molecule `f(123)`
-- The pattern variable `r` is of private type `ReplyValue[Int, String]` and matches an object that performs the reply action aimed at the caller of `f(123)`.
-Calling it as `r(x.toString)` will perform the reply action, - that is, will send the string back to the calling process, unblocking the call to `f(123)` in that process.
+- The pattern variable `r` is of type `Int => String` and matches a function object that performs the reply action aimed at the caller of `f(123)`.
+Calling `r` as `r(x.toString)` will perform the reply action, sending the value of `x.toString` back to the calling process, which has been blocked by injecting `f(123)`.
+The reply action will unblock the calling process concurrently with the reaction body.
 
 This reply action must be performed as `r(...)` in the reaction body exactly once, and cannot be performed afterwards.
 
 It is a runtime error to write a reaction that either does not inject the reply action or uses it more than once.
 
-Also, the reply action object should not be used outside the reaction body.
-(This will have no effect.)
+Also, the reply action object `r` should not be used by any other reactions outside the reaction body where `r` was defined.
+(Using `r` after the reaction finishes will have no effect.)
 
 When a reaction is defined using the `run` macro, the compiler will detect some errors at compile time.
-For instance, it is a compile-time error to omit the reply pseudo-molecule from the pattern:
+For instance, it is a compile-time error to omit the reply matcher variable from the pattern:
 
 ```scala
 val f = b[Int, Unit]
@@ -189,7 +193,7 @@ join(reaction1, reaction2, reaction3, ...)
 ```
 
 A join definition can take any number of reactions.
-With Scala's `:_*` syntax, a join definition can take a sequence of reactions computed at runtime.
+With Scala's `:_*` syntax, a join definition can also take a sequence of reactions.
 
 All reactions listed in the join definition will be activated at once.
 
@@ -372,6 +376,8 @@ result shouldEqual ()
 
 # Version history
 
+- 0.1.0 First alpha release of `JoinRun`. Changes: implementing singleton molecules and volatile readers; several important bugfixes.
+
 - 0.0.10 Static checks for livelock and deadlock in reactions, with both compile-time errors and run-time errors.
 
 - 0.0.9 Macros for static analysis of reactions; unrestricted pattern-matching now available for molecule values.
@@ -386,78 +392,65 @@ result shouldEqual ()
 
 These features are considered for implementation in the next versions:
 
-Version 0.1: Perform static analysis of reactions, and warn the user about certain situations with unavoidable livelock, deadlock, or indeterminism.
+Version 0.1: (Released.) Perform static analysis of reactions, and warn the user about certain situations with unavoidable livelock, deadlock, or indeterminism.
 
-Version 0.2: Rework the decisions to start reactions so that the static analysis is used (inputs and outputs of reactions). In particular, do not lock the entire molecule bag - only lock some clusters that have contention on certain molecule inputs.
-This will allow us to implement fairness with respect to molecules (random choice of input molecules for reactions), and also start many reactions at once, inject many molecules at once,
-and repeated input molecules in reactions.
+Version 0.2: Rework the decisions to start reactions.
+In particular, do not lock the entire molecule bag - only lock some groups of molecules that have contention on certain molecule inputs (decide this using static analysis information).
+This will allow us to implement interesting features such as:
 
-These features are further away from implementation because they require some research:
+- fairness with respect to molecules (random choice of input molecules for reactions)
+- start many reactions at once when possible
+- inject many molecules at once, rather than one by one
+- allow nonlinear input patterns
 
 Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka streams.
 
 Version 0.4: Enterprise readiness: fault tolerance, monitoring, flexible logging, assertions on singleton molecules and perhaps on some other situations, thread fusing for singleton molecule reactions, read-only volatile readers for singletons.
 
-Version 0.5: Investigate an implicit distributed execution of thread pools.
+Version 0.5: Investigate an implicit distributed execution of chemical reactions ("soup pools").
 
 # Current To-Do List
 
-  value * difficulty - description
+ value * difficulty - description
 
- 2 * 1 - print reaction infos using pattern information e.g. a(_) + b(.) + c(1) => c(2) + d(???)
+ 2 * 2 - benchmark and profile the performance of blocking molecules (make many reactions that block and unblock)
 
- 2 * 2 - cleanup packaging so that the user only imports one package object or makes one import. Make sure the user needs to depend only on one JAR, too.
+ 2 * 3 - investigate using wait/notify instead of semaphore; does it give better performance? This depends on benchmarking of blocking molecules.
+
+ 3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
+ Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.
+
+ 5 * 5 - implement fairness with respect to molecules
+ * - go through possible values when matching (can do?) Important: reactions can get stuck when molecules are in different order. Or need to shuffle.
+
+ 3 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
+
+ 2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
+
+ 4 * 5 - implement multiple injection construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. Implement starting many reactions concurrently at once, rather than one by one.
+ 
+ 4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same join definition, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on join definition information gleaned using a macro.
+
+ 4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
 
  2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
 
  2 * 2 - maybe remove default pools altogether? It seems that every pool needs to be stopped.
 
- 2 * 2 - should `run` take a `ReactionBody` or simply UnapplyArg => Unit?
-
  3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is injected from a thread T and the corresponding join definition runs on the same thread T, do not schedule a task but simply run the join definition synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a join definition that runs on thread T and the reaction is configured to run on the same thread, do not schedule a task but simply run the reaction synchronously.
 
- 5 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
-
- 2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
-
- 5 * 5 - implement fairness with respect to molecules
- * - go through possible values when matching (can do?) Important: can get stuck when molecules are in different order. Or need to shuffle.
-
- 4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
-
- 3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
- Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.
-
- 5 * 5 - implement distributed execution by sharing the join pool with another machine (but running the join definitions only on the master node)
-
- 2 * 2 - benchmark and profile the performance of blocking molecules (make many reactions that block and unblock)
+ 5 * 5 - is it possible to implement distributed execution by sharing the join pool with another machine (but running the join definitions only on the master node)?
 
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic.
 
  3 * 5 - Can we implement JoinRun using Future / Promise and remove all blocking and all semaphores?
 
- 5 * 5 - Can we do some reasoning about reactions at runtime but before starting any reactions
-
- This has to be done at runtime when join() is called, because macros have access only at one reaction at a time.
-
- Kinds of situations to detect at runtime:
-
- + Input molecules with nontrivial matchers are a subset of output molecules. This is a warning. (Input molecules with trivial matchers can't be a subset of output molecules - this is a compile-time error.)
-
- + Input molecules of one reaction are a subset of input molecules of another reaction, with the same matchers. This is an error (uncontrollable indeterminism).
-
- - A cycle of input molecules being subset of output molecules, possibly spanning several join definitions (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
-
- + Output molecules in a reaction include a blocking molecule that might deadlock because other reactions with it require molecules that are injected later. Example: if m is non-blocking and b is blocking, and we have reaction m + b =>... and another reaction that outputs ... => b; m. This is potentially a problem because the first reaction will block waiting for "m", while the second reaction will not inject "m" until "b" returns.
-  This is only a warning since we can't be sure that the output molecules are always injected, and in what exact order.
+ 2 * 2 - Detect this condition at the join definition time:
+ A cycle of input molecules being subset of output molecules, possibly spanning several join definitions (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
 
  2 * 3 - understand the "reader-writer" example; implement it as a unit test
 
  3 * 2 - add per-molecule logging; log to file or to logger function
-
- 4 * 5 - implement multiple injection construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. Implement starting many reactions concurrently at once, rather than one by one.
- 
- 4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same join definition, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on join definition information gleaned using a macro.
 
  5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
  and be able to better reason about our declarative reactions. First, need to understand what is to be asserted.
