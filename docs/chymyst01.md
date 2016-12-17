@@ -187,17 +187,17 @@ decr() + decr() // now the soup has counter(98)
 
 ```
 
-The syntax `decr() + decr()` is a shorthand for injecting two molecules at once.
-(In the current version of `JoinRun`, this is equivalent to injecting the molecules one by one.)
+The syntax `decr() + decr()` is a shorthand for injecting several molecules at once.
 
 It could happen that we are injecting `incr()` and `decr()` molecules too quickly for reactions to start.
 This will result in many instances of `incr()` or `decr()` molecules being present in the soup, waiting to be consumed.
 Is this a problem?
 
-Note that only one instance of the `counter` molecule is initially present in the soup.
-When the chemical machine starts a reaction, all input molecules are consumed first, and then the reaction body is evaluated.
-For this reason, the single `counter` molecule can start only one reaction at a time, together with either an `incr` or a `decr` molecule.
-Thus, we will not have any race conditions with the counter: There is no possibility of updating the counter value simultaneously from different reactions.
+Recall that when the chemical machine starts a reaction, all input molecules are consumed first, and then the reaction body is evaluated.
+In our case, each reaction needs to consume a `counter` molecule, but only one instance of `counter` molecule is initially present in the soup.
+For this reason, the chemical machine will need to choose whether the single `counter` molecule will react with an `incr` or a `decr` molecule.
+Only when the incrementing or the decrementing calculation is finished, the new instance of the `counter` molecule will be injected into the soup.
+This automatically prevents race conditions with the counter: There is no possibility of updating the counter value simultaneously from different reactions.
 
 ## Tracing the output
 
@@ -310,6 +310,18 @@ x(100) // java.lang.Exception: Molecule x is not bound to any join definition
 The same error will occur if such injection is attempted inside a reaction body, or if we call `logSoup` on the molecule injector.
 
 The correct way of using `JoinRun` is first to define molecules, then to create a JD where these molecules are used as inputs for reactions, and only then to start injecting these molecules.
+
+The method `isBound` can be used to determine at run time whether a molecule has been already bound to a join definition:
+
+```scala
+val x = m[Int]
+x.isBound // returns `false`
+
+join( run { case x(2) =>  } )
+
+x.isBound // returns `true`
+
+```
 
 ### Error: Redefining input molecules
 
