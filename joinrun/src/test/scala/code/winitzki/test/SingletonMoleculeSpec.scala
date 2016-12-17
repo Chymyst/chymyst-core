@@ -200,7 +200,8 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       makeNewVolatile(i)
     }.sum // how many times we failed
 
-    result shouldEqual 0
+    println(s"Volatile value was not ready $result times")
+    result should be > 50
 
     tp.shutdownNow()
   }
@@ -216,6 +217,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       & { case _ => d(123) } // singleton
     )
     stabilize_d()
+    d.hasVolatileValue shouldEqual true
     d.volatileValue shouldEqual 123
 
     tp.shutdownNow()

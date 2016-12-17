@@ -12,7 +12,7 @@ object Benchmarks7 {
 
   /// create `n` asynchronous counters, initialize each to `count`, then decrement `count*n` times, until all counters are zero.
   /// collect the zero-counter events, make sure there are `n` of them, then fire an `all_done` event that yields the benchmark time.
-  val numberOfounters = 5
+  val numberOfCounters = 5
 
   def benchmark7(count: Int, threads: Int = 2): Long = {
 
@@ -29,11 +29,11 @@ object Benchmarks7 {
     )
 //    done.setLogLevel(2)
     val initialTime = LocalDateTime.now
-    all_done(numberOfounters)
+    all_done(numberOfCounters)
 
-    val d = make_counters(done, numberOfounters, count, tp)
+    val d = make_counters(done, numberOfCounters, count, tp)
 //    d.setLogLevel(2)
-    (1 to (count*numberOfounters)).foreach{ _ => d() }
+    (1 to (count*numberOfCounters)).foreach{ _ => d() }
 
     var result = f(initialTime)
     tp.shutdownNow()
@@ -43,7 +43,7 @@ object Benchmarks7 {
   // this deadlocks whenever `count` * `counters` becomes large.
   def benchmark8(count: Int, threads: Int = 2): Long = {
 
-    println(s"Creating $numberOfounters concurrent counters, each going from $count to 0")
+    println(s"Creating $numberOfCounters concurrent counters, each going from $count to 0")
 
     object j8 extends Join {
       object done extends AsyName[Unit]
@@ -60,8 +60,8 @@ object Benchmarks7 {
 
     val initialTime = LocalDateTime.now
     j8.all_done(count)
-    val d = make_counters8a(j8.done, numberOfounters, count, threads)
-    (1 to (count*numberOfounters)).foreach{ _ => d() }
+    val d = make_counters8a(j8.done, numberOfCounters, count, threads)
+    (1 to (count*numberOfCounters)).foreach{ _ => d() }
     j8.f(initialTime)
   }
 

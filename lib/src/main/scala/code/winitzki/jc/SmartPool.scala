@@ -38,12 +38,17 @@ class SmartThread(r: Runnable, pool: SmartPool) extends Thread(r) {
   */
 class SmartPool(parallelism: Int) extends Pool {
 
-  def currentPoolSize = executor.getCorePoolSize
+  def currentPoolSize: Int = executor.getCorePoolSize
 
   private[jc] def startedBlockingCall() = synchronized {
-    val newPoolSize = currentPoolSize + 1
-    executor.setMaximumPoolSize(newPoolSize)
-    executor.setCorePoolSize(newPoolSize)
+    val maxThreads = 1000 + 2*parallelism // Looks like we will die hard at about 2021 threads...
+    val newPoolSize = math.min(currentPoolSize + 1, maxThreads)
+    if (newPoolSize > currentPoolSize) {
+      executor.setMaximumPoolSize(newPoolSize)
+      executor.setCorePoolSize(newPoolSize)
+    } else {
+      println(s"JoinRun warning:In $this: It is dangerous to increase the pool size, which is now $currentPoolSize. Memory is ${Runtime.getRuntime.maxMemory}")
+    }
   }
 
   private[jc] def finishedBlockingCall() = synchronized {
@@ -52,11 +57,11 @@ class SmartPool(parallelism: Int) extends Pool {
     executor.setMaximumPoolSize(newPoolSize)
   }
 
-  val maxQueueCapacity = parallelism*1000 + 100
+  val maxQueueCapacity: Int = parallelism*1000 + 100
 
   private val queue = new LinkedBlockingQueue[Runnable](maxQueueCapacity)
 
-  val initialThreads = parallelism
+  val initialThreads: Int = parallelism
   val secondsToRecycleThread = 1
   val shutdownWaitTimeMs = 200
 

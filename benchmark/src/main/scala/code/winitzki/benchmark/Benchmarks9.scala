@@ -47,4 +47,63 @@ object Benchmarks9 {
     tp.shutdownNow()
     result
   }
+
+
+  def make_ping_pong_stack(done: M[Unit], tp: Pool): B[Int,Int] = {
+    val c = m[Unit]
+    val d = b[Int, Int]
+    val e = b[Int, Int]
+
+    join(tp)(
+      & { case c(_) + d(n, reply) => if (n > 0) {
+        c()
+        e(n-1)
+      }
+      else {
+        done()
+      }
+      reply(n)
+      },
+      & { case c(_) + e(n, reply) => if (n > 0) {
+        c()
+        d(n-1)
+      }
+      else {
+        done()
+      }
+        reply(n-1)
+      }
+    )
+    c()
+    // We return just one molecule injector.
+    d
+  }
+
+  val pingPongCalls = 1000
+
+  // ping-pong-stack with blocking molecules
+  def benchmark9_2(count: Int, threads: Int = 2): Long = {
+
+    val done = m[Unit]
+    val all_done = m[Int]
+    val f = b[LocalDateTime,Long]
+
+    val tp = new SmartPool(threads) // this will not work with a fixed pool
+
+    join(
+      run { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
+      run { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
+    )
+    //    done.setLogLevel(2)
+    val initialTime = LocalDateTime.now
+    all_done(1)
+
+    val d = make_ping_pong_stack(done, tp)
+    d(pingPongCalls)
+
+    var result = f(initialTime)
+    tp.shutdownNow()
+    result
+  }
+
 }
