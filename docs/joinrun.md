@@ -259,7 +259,7 @@ join(
 ```
 
 This rule enforces the immutability of chemical laws:
-Once a join definition is written, we fix the reactions that a given molecule could initiate (i.e. the reactions that will consume this molecule).
+Once a join definition is written, we have fixed the reactions that a given molecule could initiate (i.e. the reactions that consume this molecule).
 It is impossible to add a new reaction that consumes a molecule if that molecule is already bound to another join definition.
 
 This feature of Join Calculus allows us to create a library of chemical reactions and guarantee that user programs will not be able to modify the intended flow of reactions.
