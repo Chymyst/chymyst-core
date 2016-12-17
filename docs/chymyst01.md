@@ -379,7 +379,8 @@ This limitation could be lifted in a later version of `JoinRun` if it proves use
 When there are several different reactions that can start the available molecules, the runtime engine will choose the reaction at random.
 In the current implementation of `JoinRun`, the runtime will choose reactions at random, so that every reaction has an equal chance of starting.
 
-Similarly, when there are several copy of the same molecule that can be consumed as input by a reaction, the runtime engine will make a choice of which copy of the molecule to consume.
+Similarly, when there are several copies of the same molecule that can be consumed as input by a reaction, the runtime engine will make a choice of which copy 
+of the molecule to consume.
 Currently, `JoinRun` will _not_ randomize the input molecules but make an implementation-dependent choice.
 A truly random selection of input molecules may be implemented in the future.
 
