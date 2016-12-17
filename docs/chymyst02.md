@@ -56,8 +56,10 @@ So `c(123)` will remain in the soup for now.
 Next, we call the blocking injector `f()`, which injects an instance of `f()` into the soup.
 Now the soup has both `c` and `f`, while the calling process is blocked until a reaction involving `f` can start.
 
-This reaction is ready to start since both its inputs, `c` and `f`, are present.
-However, the start of the reaction is concurrent with the process that calls `f`, and may occur somewhat later than the call to `f()`, depending on the CPU load.
+We have such a reaction: this is `c + f => ...`. This reaction is ready to start since both its inputs, `c` and `f`, are now present.
+Nevertheless, the start of the reaction is concurrent with the process that calls `f`, and may occur somewhat later than the call to `f()`, depending on the CPU load.
+So, the call to `f()` will be blocked for some (hopefully short) time.
+
 Once the reaction starts, it will receive the value `n = 123` from the input molecule `c(123)`.
 Both `c(123)` and `f()` will be consumed by the reaction.
 The reaction will then perform the reply action `reply(n)` with `n` set to `123`.
