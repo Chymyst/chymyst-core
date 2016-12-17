@@ -3,6 +3,9 @@ package code.winitzki.jc
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.JoinRunUtils._
 
+import collection.JavaConverters._
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
+
 import scala.collection.mutable
 
 
@@ -29,7 +32,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
       .groupBy(identity)
       .mapValues(_.size)
 
-  private val singletonValues: mutable.Map[Molecule, AbsMolValue[_]] = mutable.Map()
+  private val singletonValues: ConcurrentMap[Molecule, AbsMolValue[_]] = new ConcurrentHashMap()
 
   /** Complete information about reactions declared in this join definition.
     * Singleton-declaring reactions are not included here.
@@ -105,7 +108,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
             if (oldCount + 1 > maxCount) throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject singleton $m($molValue) having current count $oldCount, max count $maxCount")
           }
           moleculesPresent.addToBag(m, molValue)
-          singletonValues(m) = molValue
+          singletonValues.put(m, molValue)
           if (logLevel > 0) println(s"Debug: $this injecting $m($molValue) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
           val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
           val reaction = possibleReactions.get(m)
@@ -273,7 +276,10 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
 
   private[jc] def getVolatileValue[T](m: M[T]): T = {
     if (m.isSingleton) {
-      singletonValues.get(m).map(_.asInstanceOf[AbsMolValue[T]].getValue).getOrElse(throw new Exception(s"The volatile reader for singleton ($m) is not yet ready"))
+      val errorReaderNotReady = new Exception(s"The volatile reader for singleton ($m) is not yet ready")
+      if (singletonValues.containsKey(m)) {
+        singletonValues.get(m).asInstanceOf[AbsMolValue[T]].getValue
+      } else throw errorReaderNotReady
     }
     else
       throw new ExceptionNoSingleton(s"In $this: volatile reader requested for non-singleton ($m)")

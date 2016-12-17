@@ -138,15 +138,16 @@ Current version is `0.1.0`.
 The semantics of JC (restricted to single machine) is fully implemented and tested.
 
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
+`JoinRun` is about 50% faster than `ScalaJoin` on certain benchmarks that exercise a very large number of very short reactions.
 Performance tests indicate that the runtime can schedule about 300,000 reactions per second per CPU core, and the performance bottleneck is in submitting jobs to threads (a distant second bottleneck is pattern-matching in the internals of the library).
+
 
 Known limitations:
 
-- `JoinRun` is currently between 80% to 120% the speed of `ScalaJoin` on certain benchmarks that exercise a very large number of very short reactions.
 - `JoinRun` has no fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random.
 - `JoinRun` has no distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`, and probably will not be).
 Distributed computation should be implemented in a better way than posting channel names on an HTTP server.
-At the moment, `JoinRun` can use many cores on a single machine.
+(However, `JoinRun` will use all cores on a single machine.)
 
 # Run unit tests
 
