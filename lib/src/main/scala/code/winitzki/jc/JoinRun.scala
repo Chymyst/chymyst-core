@@ -236,12 +236,7 @@ object JoinRun {
 
   // Wait until the join definition to which `molecule` is bound becomes quiescent, then inject `callback`.
   // TODO: implement
-  def wait_until_quiet[T](molecule: M[T], callback: M[Unit]): Unit = {
-    molecule.joinDef match {
-      case Some(owner) => owner.setQuiescenceCallback(callback)
-      case None => throw new Exception(s"Molecule $molecule is not bound to a join definition")
-    }
-  }
+  def wait_until_quiet[T](molecule: M[T], callback: M[Unit]): Unit = molecule.getJoinDef.setQuiescenceCallback(callback)
 
   /**
     * Convenience syntax: users can write a(x)+b(y) to inject several molecules at once.
@@ -265,56 +260,76 @@ object JoinRun {
     def unapply(attr:Any) = Some(attr,attr)
   }
 
-  /** Compute a minimum amount of information about the reaction, without using macros.
+  /** Create a reaction value out of a simple reaction body.
+    * The reaction body must be "simple" in the sense that it allows very limited pattern-matching with molecule values:
+    * - all patterns must be simple variables or wildcards, or {{{null}}} or zero constant values, except the last molecule in the reaction.
+    * - the last molecule in the reaction can have a nontrivial pattern matcher.
+    *
+    * The only reason this method exists is to enable testing JoinRun without depending on the macro package.
+    * Since this method does not provide a full compile-time analysis of reactions, it should be used only for internal testing and debugging of JoinRun itself.
+    * At the moment, this method is used in benchmarks and unit tests of JoinRun that run without depending on the macro package.
     *
     * @param body Body of the reaction. Should not contain any pattern-matching on molecule values, except possibly for the last molecule in the list of input molecules.
-    * @return A [[ReactionInfo]] structure that only has information about input molecules.
+    * @return Reaction value. The [[ReactionInfo]] structure will be filled out in a minimal fashion (only has information about input molecules, and all patterns are "unknown").
     */
-  private def makeSimpleInfo(body: ReactionBody): ReactionInfo = {
-    val inputMoleculesUsed = {
-      val moleculesInThisReaction = UnapplyCheckSimple(mutable.MutableList.empty)
-      body.isDefinedAt(moleculesInThisReaction)
-      val duplicateMolecules = moleculesInThisReaction.inputMolecules diff moleculesInThisReaction.inputMolecules.distinct
-      if (duplicateMolecules.nonEmpty) throw new ExceptionInJoinRun(s"Nonlinear pattern: ${duplicateMolecules.mkString(", ")} used twice")
-      moleculesInThisReaction.inputMolecules.toList
-    }
-    ReactionInfo(inputMoleculesUsed.map(m => InputMoleculeInfo(m, UnknownInputPattern, UUID.randomUUID().toString)), None, GuardPresenceUnknown, UUID.randomUUID().toString)
+  private[winitzki] def runSimple(body: ReactionBody): Reaction = {
+    val moleculesInThisReaction = UnapplyCheckSimple(mutable.MutableList.empty)
+    body.isDefinedAt(moleculesInThisReaction)
+    // detect nonlinear patterns
+    val duplicateMolecules = moleculesInThisReaction.inputMolecules diff moleculesInThisReaction.inputMolecules.distinct
+    if (duplicateMolecules.nonEmpty) throw new ExceptionInJoinRun(s"Nonlinear pattern: ${duplicateMolecules.mkString(", ")} used twice")
+    val inputMoleculesUsed = moleculesInThisReaction.inputMolecules.toList
+    val inputMoleculeInfo = inputMoleculesUsed.map(m => InputMoleculeInfo(m, UnknownInputPattern, UUID.randomUUID().toString))
+    val simpleInfo = ReactionInfo(inputMoleculeInfo, None, GuardPresenceUnknown, UUID.randomUUID().toString)
+    Reaction(simpleInfo, body, retry = false)
   }
 
-  /** Create a reaction value out of a simple reaction body - no non-wildcard pattern-matching with molecule values except the last one.
-    * (The only exception is a pattern match with {{{null}}} or zero values.)
-    * The only reason this method exists is for us to be able to write join definitions without any macros.
-    * Since this method does not provide a full compile-time analysis of reactions, it should be used only for internal testing and debugging of JoinRun itself.
-    * At the moment, this method is used in benchmarks and tests of JoinRun that are run without depending on any macros.
-    *
-    * @param body Body of the reaction. Should not contain any pattern-matching on molecule values, except possibly for the last molecule in the list of input molecules.
-    * @return Reaction value. The [[ReactionInfo]] structure will be filled out in a minimal fashion.
-    */
-  private[winitzki] def runSimple(body: ReactionBody): Reaction = Reaction(makeSimpleInfo(body), body, retry = false)
-
-  // Container for molecule values
+  // Abstract container for molecule values.
   private[jc] sealed trait AbsMolValue[T] {
     def getValue: T
 
     override def toString: String = getValue match { case () => ""; case v@_ => v.toString }
   }
 
+  /** Container for the value of a non-blocking molecule.
+    *
+    * @param v The value of type T carried by the molecule.
+    * @tparam T The type of the value.
+    */
   private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
     override def getValue: T = v
   }
 
+  /** Container for the value of a blocking molecule.
+    *
+    * @param v The value of type T carried by the molecule.
+    * @param replyValue The wrapper for the reply value, which will ultimately return a value of type R.
+    * @tparam T The type of the value carried by the molecule.
+    * @tparam R The type of the reply value.
+    */
   private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: ReplyValue[T,R]) extends AbsMolValue[T] {
     override def getValue: T = v
-    // Can we make hash code persistent across mutations with this simple trick?
+    // Make hash code persistent across mutations with this simple trick.
     private lazy val hashCodeValue: Int = super.hashCode()
     override def hashCode(): Int = hashCodeValue
   }
 
-  // Abstract molecule injector. This type is used in collections of molecules that do not require knowing molecule types.
+  // Abstract molecule injector. This type is used in collections of molecules that do not require knowledge of molecule types.
   abstract sealed class Molecule {
+
+    /** Check whether the molecule is already bound to a join definition.
+      * Note that molecules can be injected only if they are bound.
+      *
+      * @return True if already bound, false otherwise.
+      */
+    def isBound: Boolean = joinDef.nonEmpty
+
     private[jc] var joinDef: Option[JoinDefinition] = None
 
-    /** The set of reactions that potentially consume this molecule.
+    private[jc] def getJoinDef: JoinDefinition =
+      joinDef.getOrElse(throw new ExceptionNoJoinDef(s"Molecule ${this} is not bound to any join definition"))
+
+    /** The set of reactions that can consume this molecule.
       *
       * @return {{{None}}} if the molecule injector is not yet bound to any Join Definition.
       */
@@ -322,7 +337,9 @@ object JoinRun {
 
     private lazy val consumingReactionsSet: Set[Reaction] = joinDef.get.reactionInfos.keys.filter(_.inputMolecules contains this).toSet
 
-    /** The set of reactions that *potentially* output this molecule.
+    /** The set of all reactions that *potentially* inject this molecule as output.
+      * Some of these reactions may evaluate a runtime condition to decide whether to inject the molecule; so injection is not guaranteed.
+      *
       * Note that these reactions may be defined in any join definitions, not necessarily in the JD to which this molecule is bound.
       * The set of these reactions may change at run time if new join definitions are written that output this molecule.
       *
@@ -332,20 +349,10 @@ object JoinRun {
 
     private[jc] val injectingReactionsSet: mutable.Set[Reaction] = mutable.Set()
 
-    /** Check whether the molecule is already bound to a join definition.
-      * Note that molecules can be injected only if they are bound.
-      *
-      * @return True if already bound, false otherwise.
-      */
-    def isDefined: Boolean = joinDef.nonEmpty
-
-    protected def errorNoJoinDef =
-      new ExceptionNoJoinDef(s"Molecule ${this} is not bound to any join definition")
-
     def setLogLevel(logLevel: Int): Unit =
-      joinDef.getOrElse(throw errorNoJoinDef).logLevel = logLevel
+      getJoinDef.logLevel = logLevel
 
-    def logSoup: String = joinDef.getOrElse(throw errorNoJoinDef).printBag
+    def logSoup: String = getJoinDef.printBag
 
     def isBlocking: Boolean
 
@@ -362,9 +369,9 @@ object JoinRun {
       *
       * @param v Value to be put onto the injected molecule.
       */
-    override def apply(v: T): Unit = joinDef.getOrElse(throw errorNoJoinDef).inject[T](this, MolValue(v))
+    override def apply(v: T): Unit = getJoinDef.inject[T](this, MolValue(v))
 
-    override def toString: String = name
+    override def toString: String = if (name.isEmpty) "<no name>" else name
 
     def unapply(arg: UnapplyArg): Option[T] = arg match {
 
@@ -390,7 +397,7 @@ object JoinRun {
         .map(_.asInstanceOf[MolValue[T]].getValue)
     }
 
-    def value: T = joinDef.map(_.getVolatileValue(this)).getOrElse(throw errorNoJoinDef)
+    def value: T = getJoinDef.getVolatileValue(this)
 
     private[jc] var isSingletonBoolean = false
 
@@ -421,9 +428,11 @@ object JoinRun {
     var replyTimeout: Boolean = false,
     var replyRepeated: Boolean = false
   ) extends (R => Boolean) {
-    def releaseSemaphore(): Unit = if (semaphore != null) semaphore.release()
+    private[jc] def releaseSemaphore(): Unit = synchronized {
+      if (semaphore != null) semaphore.release()
+    }
 
-    def acquireSemaphore(timeoutNanos: Option[Long]): Boolean =
+    private[jc] def acquireSemaphore(timeoutNanos: Option[Long]): Boolean =
       if (semaphore != null)
         timeoutNanos match {
           case Some(nanos) => semaphore.tryAcquire(nanos, TimeUnit.NANOSECONDS)
@@ -431,8 +440,8 @@ object JoinRun {
         }
       else false
 
-    def deleteSemaphore(): Unit = {
-      releaseSemaphore()
+    private[jc] def deleteSemaphore(): Unit = synchronized {
+      if (semaphore != null) semaphore.release()
       semaphore = null
     }
 
@@ -470,8 +479,7 @@ object JoinRun {
       * @return The "reply" value.
       */
     override def apply(v: T): R =
-      joinDef.map(_.injectAndReply[T,R](this, v, ReplyValue[T,R](molecule = this)))
-        .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this is not bound to any join definition"))
+      getJoinDef.injectAndReply[T,R](this, v, ReplyValue[T,R](molecule = this))
 
     /** Inject a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
       *
@@ -480,8 +488,7 @@ object JoinRun {
       * @return Non-empty option if the reply was received; None on timeout.
       */
     def apply(timeout: Duration)(v: T): Option[R] =
-      joinDef.map(_.injectAndReplyWithTimeout[T,R](timeout.toNanos, this, v, ReplyValue[T,R](molecule = this)))
-        .getOrElse(throw new ExceptionNoJoinDef(s"Molecule $this is not bound to any join definition"))
+      getJoinDef.injectAndReplyWithTimeout[T,R](timeout.toNanos, this, v, ReplyValue[T,R](molecule = this))
 
     override def toString: String = name + "/B"
 
