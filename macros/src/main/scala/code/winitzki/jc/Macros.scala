@@ -66,29 +66,54 @@ object Macros {
     */
   object & {
     // Users will create reactions using these functions.
-    def apply(reactionBody: fmArg): Reaction = macro buildReactionImpl
+    def apply(reactionBody: ReactionBody): Reaction = macro buildReactionImpl
   }
 
-  private sealed trait PatternFlag {
+  /** Describes the pattern matcher for input molecules.
+    * Possible values:
+    * Wildcard: a(_)
+    * SimpleVar: a(x)
+    * SimpleConst: a(1)
+    * WrongReplyVar: the second matcher for blocking molecules is not a simple variable
+    * OtherPattern: we don't recognize the pattern (could be a case class or a general Unapply expression)
+    */
+  private sealed trait InputPatternFlag {
     def notReplyValue: Boolean = this match {
       case ReplyVarF(_) => false
       case _ => true
     }
 
+    /** Does this pattern contain a nontrivial syntax tree that could contain other molecules?
+      *
+      * @return true or false
+      */
+    def notSimple: Boolean = this match {
+      case OtherPatternF(_) => true
+      case _ => false
+    }
+
   }
 
-  private case object WildcardF extends PatternFlag
-  private final case class ReplyVarF(replyVar: Any) extends PatternFlag // "Any" is actually a replyVar name
-  private case object SimpleVarF extends PatternFlag
-  private case object WrongReplyVarF extends PatternFlag // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
-  private final case class SimpleConstF(v: Any) extends PatternFlag // this is the [T] type of M[T] or B[T,R]
-  private final case class OtherPatternF(matcher: Any) extends PatternFlag // "Any" is actually an expression tree for a partial function
+  private case object WildcardF extends InputPatternFlag
+  private final case class ReplyVarF(replyVar: Any) extends InputPatternFlag // "Any" is actually a replyVar name
+  private case object SimpleVarF extends InputPatternFlag
+  private case object WrongReplyVarF extends InputPatternFlag // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
+  private final case class SimpleConstF(v: Any) extends InputPatternFlag // this is the [T] type of M[T] or B[T,R]
+  private final case class OtherPatternF(matcher: Any) extends InputPatternFlag // "Any" is actually an expression tree for a partial function
 
-  private sealed trait OutputPatternFlag
+  /** Describes the pattern matcher for output molecules.
+    * Possible values:
+    * ConstOutputPattern: a(1)
+    * OtherOutputPattern: a(x) or anything else
+    */
+  private sealed trait OutputPatternFlag {
+    def notSimple: Boolean = this match {
+      case ConstOutputPattern(_) => false
+      case _ => true
+    }
+  }
   private case object OtherOutputPatternF extends OutputPatternFlag
   private final case class ConstOutputPattern(v: Any) extends OutputPatternFlag
-
-  private type fmArg = ReactionBody // UnapplyArg => Unit // ReactionBody
 
   /**
     * Users will define reactions using this function.
@@ -100,9 +125,9 @@ object Macros {
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
     * @return A reaction value, to be used later in [[JoinRun#join]].
     */
-  def run(reactionBody: fmArg): Reaction = macro buildReactionImpl
+  def run(reactionBody: ReactionBody): Reaction = macro buildReactionImpl
 
-  def buildReactionImpl(c: theContext)(reactionBody: c.Expr[fmArg]): c.universe.Tree = {
+  def buildReactionImpl(c: theContext)(reactionBody: c.Expr[ReactionBody]): c.universe.Tree = {
     import c.universe._
 
 //    val reactionBodyReset = c.untypecheck(reactionBody.tree)
@@ -159,7 +184,7 @@ object Macros {
         * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
         * @return A triple: List of input molecule patterns, list of output molecule patterns, and list of reply action patterns.
         */
-      def from(reactionPart: Tree): (List[(c.Symbol, PatternFlag, Option[PatternFlag], String)], List[(c.Symbol, OutputPatternFlag)], List[(c.Symbol, OutputPatternFlag)]) = {
+      def from(reactionPart: Tree): (List[(c.Symbol, InputPatternFlag, Option[InputPatternFlag], String)], List[(c.Symbol, OutputPatternFlag)], List[(c.Symbol, OutputPatternFlag)]) = {
         inputMolecules = mutable.ArrayBuffer()
         outputMolecules = mutable.ArrayBuffer()
         replyActions = mutable.ArrayBuffer()
@@ -167,7 +192,7 @@ object Macros {
         (inputMolecules.toList, outputMolecules.toList, replyActions.toList)
       }
 
-      private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, PatternFlag, Option[PatternFlag], String)] = mutable.ArrayBuffer()
+      private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, InputPatternFlag, Option[InputPatternFlag], String)] = mutable.ArrayBuffer()
       private var outputMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
       private var replyActions: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
 
@@ -189,7 +214,7 @@ object Macros {
         case o@_ => isOwnedBy(o, owner)
       }
 
-      private def getFlag(binderTerm: Tree): PatternFlag = binderTerm match {
+      private def getFlag(binderTerm: Tree): InputPatternFlag = binderTerm match {
         case Ident(termNames.WILDCARD) => WildcardF
         case Bind(TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF
         case Literal(_) => SimpleConstF(binderTerm)
@@ -211,8 +236,10 @@ object Macros {
 
           // matcher with a single argument: a(x)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
-            val flag2 = if (t.tpe <:< weakTypeOf[B[_,_]]) Some(WrongReplyVarF) else None
-            inputMolecules.append((t.symbol, getFlag(binder), flag2, getSha1(binder)))
+            val flag2Opt = if (t.tpe <:< weakTypeOf[B[_,_]]) Some(WrongReplyVarF) else None
+            val flag1 = getFlag(binder)
+            if (flag1.notSimple) traverse(binder)
+            inputMolecules.append((t.symbol, flag1, flag2Opt, getSha1(binder)))
 
           // matcher with two arguments: a(x, y)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
@@ -220,7 +247,12 @@ object Macros {
               case SimpleVarF => ReplyVarF(getSimpleVar(binder2))
               case f@_ => WrongReplyVarF // this is an error that we should report later
             }
-            inputMolecules.append((t.symbol, getFlag(binder1), Some(flag2), getSha1(binder1)))
+            val flag1 = getFlag(binder1)
+            // Perhaps we need to continue to analyze the "binder" (it could be another molecule).
+            if (flag1.notSimple) traverse(binder1)
+            if (flag2.notSimple) traverse(binder2)
+            // After traversing the subtrees, we append this molecule information.
+            inputMolecules.append((t.symbol, flag1, Some(flag2), getSha1(binder1)))
 
           // matcher with wrong number of arguments - neither 1 nor 2
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), _)
@@ -230,15 +262,19 @@ object Macros {
           // possibly a molecule injection
           case Apply(Select(t@Ident(TermName(_)), TermName("apply")), binder) =>
 
-            // In the output list, we do not include any molecule injectors defined in the inner scope.
+            // In the output list, we do not include any molecule injectors defined in the inner scope of the reaction.
             val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
 
-            if (includeThisSymbol && t.tpe <:< typeOf[Molecule]) {
-              outputMolecules.append((t.symbol, getOutputFlag(binder)))
-            }
+            val flag1 = getOutputFlag(binder)
+            if (flag1.notSimple && binder.nonEmpty) traverse(binder.head)
 
+            if (includeThisSymbol) {
+              if (t.tpe <:< typeOf[Molecule]) {
+                outputMolecules.append((t.symbol, flag1))
+              }
+            }
             if (t.tpe <:< weakTypeOf[ReplyValue[_,_]]) {
-              replyActions.append((t.symbol, getOutputFlag(binder)))
+              replyActions.append((t.symbol, flag1))
             }
 
           case _ => super.traverse(tree)
@@ -248,7 +284,7 @@ object Macros {
     }
 
     // this boilerplate is necessary for being able to use PatternType values in macro quasiquotes
-    implicit val liftablePatternFlag = Liftable[PatternFlag] {
+    implicit val liftablePatternFlag = Liftable[InputPatternFlag] {
       case WildcardF => q"_root_.code.winitzki.jc.JoinRun.Wildcard"
       case SimpleConstF(x) => q"_root_.code.winitzki.jc.JoinRun.SimpleConst(${x.asInstanceOf[c.Tree]})"
       case SimpleVarF => q"_root_.code.winitzki.jc.JoinRun.SimpleVar"
