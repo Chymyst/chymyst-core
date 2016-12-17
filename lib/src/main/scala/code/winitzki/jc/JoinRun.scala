@@ -416,27 +416,38 @@ object JoinRun {
   /** Reply-value wrapper for blocking molecules. This is a mutable class.
     *
     * @param molecule The blocking molecule whose reply value this wrapper represents.
-    * @param result Reply value as {{{Option[R]}}}. Initially this is None, and it may be assigned at most once by the
+    * result Reply value as {{{Option[R]}}}. Initially this is None, and it may be assigned at most once by the
     *               "reply" action if the reply is "valid" (i.e. not timed out).
-    * @param semaphore Mutable semaphore reference. This is initialized only once when creating an instance of this
+    * semaphore Mutable semaphore reference. This is initialized only once when creating an instance of this
     *                  class. The semaphore will be acquired when injecting the molecule and released by the "reply"
     *                  action. The semaphore will be destroyed and never initialized again once a reply is received.
-    * @param errorMessage Optional error message, to notify the caller or to raise an exception when the user made a
+    * errorMessage Optional error message, to notify the caller or to raise an exception when the user made a
     *                     mistake in chemistry.
-    * @param replyTimeout Will be set to "true" if the molecule was injected with a timeout and the timeout was reached.
-    * @param replyRepeated Will be set to "true" if the molecule received a reply more than once.
+    * replyTimeout Will be set to "true" if the molecule was injected with a timeout and the timeout was reached.
+    * replyRepeated Will be set to "true" if the molecule received a reply more than once.
+    * @tparam T Type of the value carried by the molecule.
     * @tparam R Type of the value replied to the caller via the "reply" action.
     */
-  private[jc] final case class ReplyValue[T,R] (
-    molecule: B[T,R],
-    var result: Option[R] = None,
-    private var semaphore: Semaphore = { val s = new Semaphore(0, false); s.drainPermits(); s },
-    var errorMessage: Option[String] = None,
-    var replyTimeout: Boolean = false,
-    var replyRepeated: Boolean = false
-  ) extends (R => Boolean) {
+  private[jc] final class ReplyValue[T,R] (molecule: B[T,R]) extends (R => Boolean) {
+
+    @volatile var result: Option[R] = None
+
+    @volatile private var semaphore: Semaphore = {
+      val s = new Semaphore(0, false); s.drainPermits(); s
+    }
+
+    @volatile var errorMessage: Option[String] = None
+
+    @volatile var replyTimeout: Boolean = false
+
+    @volatile var replyRepeated: Boolean = false
+
     private[jc] def releaseSemaphore(): Unit = synchronized {
       if (semaphore != null) semaphore.release()
+    }
+
+    private[jc] def deleteSemaphore(): Unit = synchronized {
+      semaphore = null
     }
 
     private[jc] def acquireSemaphore(timeoutNanos: Option[Long]): Boolean =
@@ -447,18 +458,13 @@ object JoinRun {
         }
       else false
 
-    private[jc] def deleteSemaphore(): Unit = synchronized {
-      if (semaphore != null) semaphore.release()
-      semaphore = null
-    }
-
     /** Perform a reply action for a blocking molecule.
       * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
       *
       * @param x Value to reply with.
       * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
       */
-    override def apply(x: R): Boolean = {
+    override def apply(x: R): Boolean = synchronized {
       // The reply value will be assigned only if there was no timeout and no previous reply action.
       if (!replyTimeout && !replyRepeated && result.isEmpty) {
         result = Some(x)
@@ -486,7 +492,7 @@ object JoinRun {
       * @return The "reply" value.
       */
     override def apply(v: T): R =
-      getJoinDef.injectAndReply[T,R](this, v, ReplyValue[T,R](molecule = this))
+      getJoinDef.injectAndReply[T,R](this, v, new ReplyValue[T,R](molecule = this))
 
     /** Inject a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
       *
@@ -495,7 +501,7 @@ object JoinRun {
       * @return Non-empty option if the reply was received; None on timeout.
       */
     def apply(timeout: Duration)(v: T): Option[R] =
-      getJoinDef.injectAndReplyWithTimeout[T,R](timeout.toNanos, this, v, ReplyValue[T,R](molecule = this))
+      getJoinDef.injectAndReplyWithTimeout[T,R](timeout.toNanos, this, v, new ReplyValue[T,R](molecule = this))
 
     override def toString: String = name + "/B"
 
@@ -503,7 +509,8 @@ object JoinRun {
 
       case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by runSimple
         inputMoleculesProbe += this
-        Some((null, null).asInstanceOf[(T, ReplyValue[T,R])]) // hack for testing only. This value will not be used.
+        Some((null, null).asInstanceOf[(T, ReplyValue[T,R])]) // hack for testing purposes only:
+      // The null value will not be used in any production code since runSimple is private.
 
       // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
       // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
@@ -512,7 +519,8 @@ object JoinRun {
           v <- moleculeValues.getOne(this)
         } yield {
           usedInputs += (this -> v)
-          (v.getValue, null).asInstanceOf[(T, ReplyValue[T,R])]
+          (v.getValue, null).asInstanceOf[(T, ReplyValue[T,R])] // hack for verifying isDefinedAt:
+          // The null value will not be used, since the reply value is always matched unconditionally.
         }
 
       // This is used when running the chosen reaction.
