@@ -236,10 +236,9 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     val g = new B[Unit,Int]("getValue")
     join(tp0)(
       runSimple { case c(n) + d(_) => c(n-1) },
-      runSimple { case c(n) + g(_,r) => c(n) + r(n) }
+      runSimple { case c(0) + g(_,r) => r(0) }
     )
     c(2) + d() + d()
-    waitSome()
     g() shouldEqual 0
   }
 
