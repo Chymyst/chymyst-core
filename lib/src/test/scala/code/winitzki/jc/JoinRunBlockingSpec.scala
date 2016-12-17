@@ -337,24 +337,24 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
   def blockThreadsDueToBlockingMolecule(tp1: Pool): B[Unit, Unit] = {
     val c = new M[Unit]("c")
-    val d = new M[Unit]("d")
-    val e = new M[Unit]("e")
+    val cStarted = new M[Unit]("cStarted")
+    val c2 = new M[Unit]("c2")
+    val never = new M[Unit]("never")
     val f = new B[Unit,Int]("g")
     val f2 = new B[Unit,Int]("f2")
     val g = new B[Unit,Unit]("g")
+    val started = new B[Unit,Unit]("started")
 
     join(tp1,tp0)(
-      runSimple { case c(_) => f() }, // this reaction will wait
-      runSimple { case d(_) => e(); f2() }, // together with this reaction
-      runSimple { case e(_) + f(_, r) => r(0) }, // for this reaction to reply, but there won't be any threads left
       runSimple { case g(_, r) => r() }, // and so this reaction will be blocked forever
-      runSimple { case f2(_, r) + c(_) => r(0)} // while this will never happen since "c" will be gone when "f2" is injected
+      runSimple { case c(_) => cStarted(); println(f()) }, // this reaction is blocked forever because f() does not reply
+      runSimple { case c2(_) + cStarted(_) + started(_, r) => r(); println(f2()) }, // this reaction is blocked forever because f2() does not reply
+      runSimple { case f(_, r) + never(_) => r(0)}, // this will never reply since "never" is never injected
+      runSimple { case f2(_, r) + never(_) => r(0)} // this will never reply since "never" is never injected
     )
 
-    c()
-    waitSome()
-    d()
-    waitSome()
+    c() + c2()
+    started() // now we are sure that both reactions are running and stuck
 
     g
   }
@@ -376,7 +376,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
   it should "block the cached threadpool when all threads are waiting for new reactions" in {
     val tp = new CachedPool(2)
     val g = blockThreadsDueToBlockingMolecule(tp)
-    g(timeout = 200 millis)() shouldEqual None
+    g(timeout = 100 millis)() shouldEqual None
     tp.shutdownNow()
   }
 
