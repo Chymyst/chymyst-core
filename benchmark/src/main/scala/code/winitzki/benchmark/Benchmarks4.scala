@@ -6,11 +6,14 @@ import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
 
 object Benchmarks4 {
-  def benchmark4_100(count: Int, threads: Int = 2): Long = {
+  val differentReactions = 100
+
+  def benchmark4_100(count_unused: Int, threads: Int = 2): Long = {
     val initialTime = LocalDateTime.now
-    val n = 20
+
+    val count = 2000
     val g = {
-      val is: IndexedSeq[Int] = 0 until n
+      val is: IndexedSeq[Int] = 0 until differentReactions
       val f = m[Unit]
       val g = b[LocalDateTime, Long]
       val as = is.map(i => new M[Int](s"a$i"))
@@ -19,8 +22,8 @@ object Benchmarks4 {
       ) ++ is.map(
         i => {
           val a = as(i)
-          val b = if (i == n-1) as(0) else as(i + 1)
-          if (i == n-1)
+          val b = if (i == differentReactions-1) as(0) else as(i + 1)
+          if (i == differentReactions-1)
             run { case a(m) => if (m == 0) f() else b(m - 1) }
           else
             run { case a(m) => b(m) }

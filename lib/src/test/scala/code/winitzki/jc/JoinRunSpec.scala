@@ -26,12 +26,38 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
 
   behavior of "join definition"
 
+  it should "track whether molecule injectors are bound" in {
+    val a = new M[Unit]("a123")
+    val b = new M[Unit]("b")
+    val c = new M[Unit]("")
+
+    a.toString shouldEqual "a123"
+    b.toString shouldEqual "b"
+    c.toString shouldEqual "<no name>"
+
+    a.isBound shouldEqual false
+    b.isBound shouldEqual false
+    c.isBound shouldEqual false
+
+    join(tp0)(runSimple { case a(_) + c(_) => b() })
+
+    a.isBound shouldEqual true
+    b.isBound shouldEqual false
+    c.isBound shouldEqual true
+
+    a.injectingReactions shouldEqual Set()
+    b.injectingReactions shouldEqual Set() // we don't use macros here, so we don't know which molecules are injected as output
+    c.injectingReactions shouldEqual Set()
+    a.consumingReactions.get.size shouldEqual 1
+    a.consumingReactions.get.head.toString shouldEqual "<no name> + a123 => ..."
+    b.consumingReactions shouldEqual None
+    c.consumingReactions.get shouldEqual a.consumingReactions.get
+  }
+
   it should "define a reaction with correct inputs" in {
     val a = new M[Unit]("a")
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
-
-    a.toString shouldEqual "a"
 
     join(tp0)(runSimple { case a(_) + b(_) + c(_) => })
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
