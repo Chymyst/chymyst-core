@@ -6,9 +6,10 @@ import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
 
 object Benchmarks4 {
-  def benchmark4_100(count: Int, threads: Int = 2): Long = {
+  def benchmark4_100(count_unused: Int, threads: Int = 2): Long = {
     val initialTime = LocalDateTime.now
-    val n = 20
+    val n = 100
+    val count = 2000
     val g = {
       val is: IndexedSeq[Int] = 0 until n
       val f = m[Unit]

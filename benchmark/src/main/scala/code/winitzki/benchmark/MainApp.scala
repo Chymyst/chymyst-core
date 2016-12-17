@@ -28,26 +28,27 @@ object MainApp extends App {
 
   val threads = 8
 
-  println(s"Benchmark parameters n = $n, threads = $threads")
+  println(s"Benchmark parameters: count to $n, threads = $threads")
 
   Seq(
-    //    benchmark5_6 _ -> false, // same but with only 6 reactions, using Jiansen's Join.scala
-    //    benchmark5_100 _ -> false, // (this deadlocks) 50 different reactions chained together, using Jiansen's Join.scala
-    //    benchmark8 _ -> false, // (this deadlocks) many concurrent counters, using Jiansen's Join.scala
+  // List the benchmarks that we should run.
+    s"count using JoinRun" -> benchmark1 _,
+    s"count using Jiansen's Join.scala" -> benchmark2 _,
+    "counter in a closure, using JoinRun" -> benchmark3 _,
+    "counter in a closure, using Jiansen's Join.scala" -> benchmark2a _,
+    "100 different reactions chained together, 2000 times" -> benchmark4_100 _,
 
-    /*1*/   benchmark1 _ -> true, // simple counter
-    /*2*/   benchmark2 _ -> true, // simple counter using Jiansen's Join.scala
-    /*3*/   benchmark3 _ -> true, // simple counter encapsulated in a closure - it's faster for some reason
-    /*4*/   benchmark2a _ -> true, // simple counter encapsulated in a closure, using Jiansen's Join.scala
+//  "(this deadlocks) 50 different reactions chained together, using Jiansen's Join.scala" -> benchmark5_100 _,
+//  "(StackOverflowError) same but with only 6 reactions, using Jiansen's Join.scala" -> benchmark5_6 _,
 
-    /*5*/   benchmark4_100 _ -> true, // 100 different reactions chained together
+    "5 concurrent counters with non-blocking access" -> benchmark7 _,
 
-    /*6*/   benchmark7 _ -> true, // many concurrent counters with non-blocking access
-    /*7*/   benchmark9_1 _ -> true // many concurrent counters with blocking access
+//  "(this deadlocks) many concurrent counters with non-blocking access, using Jiansen's Join.scala" -> benchmark8 _,
 
-  )
-    .zipWithIndex.foreach {
-    case ((benchmark, flag), i) => if(flag) println(s"Benchmark ${i+1} took ${run3times { benchmark(n,threads) }} ms") else println(s"Benchmark ${i+1} skipped")
+    "5 concurrent counters with blocking access" -> benchmark9_1 _
+
+  ).zipWithIndex.foreach {
+    case ((message, benchmark), i) => println(s"Benchmark ${i+1} took ${run3times { benchmark(n,threads) }} ms ($message)")
   }
 
   defaultJoinPool.shutdownNow()
