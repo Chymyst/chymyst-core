@@ -397,7 +397,14 @@ object JoinRun {
         .map(_.asInstanceOf[MolValue[T]].getValue)
     }
 
-    def value: T = getJoinDef.getVolatileValue(this)
+    /** Volatile reader for a molecule.
+      * The molecule must be declared as a singleton.
+      *
+      * @return The value carried by the singleton when it was last injected. Will throw exception if the singleton has not yet been injected.
+      */
+    def volatileValue: T = getJoinDef.getVolatileValue(this)
+
+    def hasVolatileValue: Boolean = getJoinDef.hasVolatileValue(this)
 
     private[jc] var isSingletonBoolean = false
 
