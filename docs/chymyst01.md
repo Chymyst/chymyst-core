@@ -37,7 +37,7 @@ We also assume that we can inject any molecule into the soup at any time.
 
 It is not difficult to implement a simulator for the chemical behavior we just described.
 Having specified the list of chemical laws and injected some initial molecules into the soup, we start the simulation.
-The chemical machine will run all the reactions that are allwed by the chemical laws.
+The chemical machine will run all the reactions that are all wed by the chemical laws.
 
 We will say that in a reaction such as
 
