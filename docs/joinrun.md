@@ -24,6 +24,7 @@ Molecule injectors should be defined as local values, before these molecules can
 ```scala
 val x = new M[Int]("x")
 val y = new B[Unit, String]("y")
+
 ```
 
 Each molecule carries a name.
@@ -35,6 +36,7 @@ The convenience macros `m` and `b` can be used to further reduce the boilerplate
 ```scala
 val counter = m[Int] // same as new M[Int]("counter")
 val fetch = b[Unit, String] // same as new B[Unit, String]("fetch")
+
 ```
 
 These macros will read the enclosing `val` definition at compile time and substitute the name of the variable into the class constructor.
@@ -61,6 +63,7 @@ y() // inject molecule with unit value
 val f = b[Int, String] // define injector using macro
 
 val result = f(10) // injecting a blocking molecule: "result" is of type String
+
 ```
 
 It is a runtime error to inject molecules that is not yet bound to any join definition.
@@ -77,6 +80,7 @@ import scala.concurrent.duration.DurationInt
 val f = b[Int, String]
 
 val result: Option[String] = f(timeout = 100 millis)(10)
+
 ```
 
 Injection with timeout results in an `Option` value.
@@ -95,6 +99,7 @@ The log level will affect the entire join definition to which the molecule is bo
 ```scala
 val x = m[Int]
 x.setLogLevel(2)
+
 ```
 
 The method `logSoup` returns a string that represents the molecules currently present in the join definition to which the molecule is bound.
@@ -103,6 +108,7 @@ The method `logSoup` returns a string that represents the molecules currently pr
 val x = m[Int]
 join(...)
 println(x.logSoup)
+
 ```
 
 It is a runtime error to use `setLogLevel` or `logSoup` on molecules that are not yet bound to any join definition.
@@ -114,6 +120,7 @@ It is created using the `run` method with a partial function syntax that resembl
 
 ```scala
 val reaction1 = run { case a(x) + b(y) => a(x+y) }
+
 ```
 
 Molecule injectors appearing within the pattern match (between `case` and  `=>`) are the **input molecules** of that reaction.
@@ -140,6 +147,7 @@ val c = new M[Option[Int]]("c") // non-blocking molecule
 val d = new M[(Int, String, Boolean)]("d") // non-blocking molecule
 
 val reaction = run { case c(Some(x)) + d((y, "hello", true)) if x == y => c(Some(y)) }
+
 ```
 
 ### Pattern-matching of blocking molecules
@@ -153,6 +161,7 @@ val f = new B[Int, String]("f") // blocking molecule
 val reaction2 = run { case c(Some(x)) + f(y, r) => r(x.toString) + c(Some(y)) }
 
 val result = f(123) // inject f(123), get reply value of type String
+
 ```
 
 In this reaction, the pattern-match on `f(y, r)` involves two pattern variables:
@@ -179,6 +188,7 @@ val f = b[Int, Unit]
 
 // this is incorrect usage because "r" is not being matched:
 run { case f(x, _) => ... } // Error: blocking input molecules should not contain a pattern that matches on anything other than a simple variable
+
 ```
 
 ## Join definitions
@@ -190,6 +200,7 @@ Join definitions are made with the `join` method:
 
 ```scala
 join(reaction1, reaction2, reaction3, ...)
+
 ```
 
 A join definition can take any number of reactions.
@@ -212,6 +223,7 @@ join(
   run { case c(x) + d(_) => c(x-1); if (x==1) f() },
   run { case c(x) + i(_) => c(x+1) }
 )
+
 ```
 
 In this join definition, the input molecules are `c`, `d`, and `i`, while the output molecules are `c` and `f`.
@@ -226,7 +238,8 @@ As a warning, note that in the present example the molecule `f` will be injected
 So, if we forget to write a join definition to which `f` is bound, it will be not necessarily easy to detect the error at runtime!
 
 An important requirement for join definitions is that any given molecule must be bound to one and only one join definition.
-It is a runtime error to use separate join definitions for reactions that consume the same molecule.
+It is a runtime error to write reactions consuming the same molecule in different join definitions.
+
 An example of this error would be writing the previous join definition as two separate ones:
 
 ```scala
@@ -242,10 +255,17 @@ join(
 join(
   run { case c(x) + i(_) => c(x+1) }
 ) // runtime error: "c" is already bound to another join definition
+
 ```
 
-This rule enforces the immutability of chemical laws: it is impossible to add a new reaction that consumes a molecule already declared as input to a previous reaction.
+This rule enforces the immutability of chemical laws:
+Once a join definition is written, we fix the reactions that a given molecule could initiate (i.e. the reactions that will consume this molecule).
+It is impossible to add a new reaction that consumes a molecule if that molecule is already bound to another join definition.
+
 This feature of Join Calculus allows us to create a library of chemical reactions and guarantee that user programs will not be able to modify the intended flow of reactions.
+
+Also, because of this rule, different join definitions do not contend on input molecules.
+The decisions about which reactions to start are local to each join definition.
 
 # Thread pools
 
@@ -304,6 +324,7 @@ Example:
       val result = BlockingIdle{ callSyncHttpApi(url) }
       c(result)
     }
+
 ```
 
 Another case when `BlockingIdle` might be useful is when a reaction contains a complicated condition that will block the join decision thread.
@@ -317,6 +338,7 @@ val pool = new SmartPool(8)
 join(pool, defaultReactionPool)(
   run { case a(url) if BlockingIdle{ callSyncHttpApi(url).isSuccessful } => ...}
 )
+
 ```
 
 ## Fault tolerance and exceptions
@@ -342,6 +364,7 @@ join(
   run { case a(x) + b(y) => ... }.withRetry, // will be retried
   run { case c(z) => ...} // will not be retried - this is the default
 )
+
 ```
 
 As a rule, the user cannot catch an exception thrown in a different thread.
@@ -362,6 +385,7 @@ At the moment, this can happen with `scalatest` with code like this:
 ```scala
 val x = m[Int]
 join( & { case x(_) => } ) shouldEqual ()
+
 ```
 
 The error "Could not find proxy for value x" is generated during macro expansion.
@@ -372,6 +396,7 @@ A workaround is to assign a separate value to the join definition result, and ap
 val x = m[Int]
 val result = join( & { case x(_) => } )
 result shouldEqual ()
+
 ```
 
 # Version history
@@ -392,7 +417,7 @@ result shouldEqual ()
 
 These features are considered for implementation in the next versions:
 
-Version 0.1: (Released.) Perform static analysis of reactions, and warn the user about certain situations with unavoidable livelock, deadlock, or indeterminism.
+Version 0.1: (Released.) Perform static analysis of reactions, and warn the user about certain situations with unavoidable livelock, deadlock, or nondeterminism.
 
 Version 0.2: Rework the decisions to start reactions.
 In particular, do not lock the entire molecule bag - only lock some groups of molecules that have contention on certain molecule inputs (decide this using static analysis information).
@@ -432,6 +457,8 @@ Version 0.5: Investigate an implicit distributed execution of chemical reactions
  4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same join definition, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on join definition information gleaned using a macro.
 
  4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
+
+ 3 * 3 - add logging of reactions currently in progress at a given JD. (Need a custom thread class, or a registry of reactions?)
 
  2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
 

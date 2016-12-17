@@ -23,11 +23,11 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
 
     val tp = new FixedPool(8)
 
-    val h1 = new M[Int]("Aristotle is hungry")
-    val h2 = new M[Int]("Kant is hungry")
-    val h3 = new M[Int]("Marx is hungry")
-    val h4 = new M[Int]("Russell is hungry")
-    val h5 = new M[Int]("Spinoza is hungry")
+    val h1 = new M[Int]("Aristotle is eating")
+    val h2 = new M[Int]("Kant is eating")
+    val h3 = new M[Int]("Marx is eating")
+    val h4 = new M[Int]("Russell is eating")
+    val h5 = new M[Int]("Spinoza is eating")
     val t1 = new M[Int]("Aristotle is thinking")
     val t2 = new M[Int]("Kant is thinking")
     val t3 = new M[Int]("Marx is thinking")
