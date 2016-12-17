@@ -5,6 +5,7 @@ import code.winitzki.benchmark.Common._
 import code.winitzki.jc._
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
+import scala.concurrent.duration._
 
 object Benchmarks9 {
 
@@ -105,5 +106,37 @@ object Benchmarks9 {
     tp.shutdownNow()
     result
   }
+
+  def benchmark9_3(count: Int, threads: Int = 2): Long = {
+
+    val initialTime = LocalDateTime.now
+
+    val a = m[Boolean]
+    val collect = m[Int]
+    val ff = b[Unit, Int]
+    val get = b[Unit, Int]
+
+    val tp = new FixedPool(threads)
+
+    join(tp)(
+      & { case ff(_, reply) => var res = reply(123); a(res) },
+      & { case a(x) + collect(n) => collect(n + (if (x) 0 else 1)) },
+      & { case collect(n) + get(_, reply) => reply(n) }
+    )
+    collect(0)
+
+    val numberOfFailures = (1 to count).map { _ =>
+      if (ff(timeout = 10.seconds)().isEmpty) 1 else 0
+    }.sum
+
+    // we seem to have about 4% numberOfFailures and about 2 numberOfFalseReplies in 100,000
+    val numberOfFalseReplies = get()
+
+    println(s"failures=$numberOfFailures, false replies=$numberOfFalseReplies")
+    tp.shutdownNow()
+
+    elapsed(initialTime)
+  }
+
 
 }
