@@ -379,7 +379,8 @@ This limitation could be lifted in a later version of `JoinRun` if it proves use
 When there are several different reactions that can start the available molecules, the runtime engine will choose the reaction at random.
 In the current implementation of `JoinRun`, the runtime will choose reactions at random, so that every reaction has an equal chance of starting.
 
-Similarly, when there are several copy of the same molecule that can be consumed as input by a reaction, the runtime engine will make a choice of which copy of the molecule to consume.
+Similarly, when there are several copies of the same molecule that can be consumed as input by a reaction, the runtime engine will make a choice of which copy 
+of the molecule to consume.
 Currently, `JoinRun` will _not_ randomize the input molecules but make an implementation-dependent choice.
 A truly random selection of input molecules may be implemented in the future.
 
@@ -426,16 +427,16 @@ def rw(m: Molecule): Unit = {
   Thread.sleep(scala.util.Random.nextInt(20))
 }
 
-val h1 = new M[Int]("Aristotle is thinking")
-val h2 = new M[Int]("Kant is thinking")
-val h3 = new M[Int]("Marx is thinking")
-val h4 = new M[Int]("Russell is thinking")
-val h5 = new M[Int]("Spinoza is thinking")
-val t1 = new M[Int]("Aristotle is eating")
-val t2 = new M[Int]("Kant is eating")
-val t3 = new M[Int]("Marx is eating")
-val t4 = new M[Int]("Russell is eating")
-val t5 = new M[Int]("Spinoza is eating")
+val h1 = new M[Int]("Aristotle is eating")
+val h2 = new M[Int]("Kant is eating")
+val h3 = new M[Int]("Marx is eating")
+val h4 = new M[Int]("Russell is eating")
+val h5 = new M[Int]("Spinoza is eating")
+val t1 = new M[Int]("Aristotle is thinking")
+val t2 = new M[Int]("Kant is thinking")
+val t3 = new M[Int]("Marx is thinking")
+val t4 = new M[Int]("Russell is thinking")
+val t5 = new M[Int]("Spinoza is thinking")
 val f12 = new M[Unit]("Fork between 1 and 2")
 val f23 = new M[Unit]("Fork between 2 and 3")
 val f34 = new M[Unit]("Fork between 3 and 4")
