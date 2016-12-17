@@ -1,6 +1,6 @@
 package code.winitzki.test
 
-import code.winitzki.jc.FixedPool
+import code.winitzki.jc.{FixedPool, SmartPool}
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
@@ -12,7 +12,7 @@ import scala.concurrent.duration._
 
 class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(10000, Millis)
+  val timeLimit = Span(1500, Millis)
 
   behavior of "blocking molecules"
 
@@ -59,20 +59,20 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f = b[Unit,Int]
     val get = b[Unit, Int]
 
-    val tp = new FixedPool(4)
+    val tp = new FixedPool(6)
 
     join(tp)(
-      & { case f(_, reply) => var res = reply(123); a(res) },
+      & { case f(_, reply) => a(reply(123)) },
       & { case a(x) + collect(n) => collect(n + (if (x) 0 else 1))},
       & { case collect(n) + get(_, reply) => reply(n) }
     )
     collect(0)
 
-    val numberOfFailures = (1 to 500000).map { _ =>
-      if (f(timeout = 10.seconds)().isEmpty) 1 else 0
+    val numberOfFailures = (1 to 10000).map { _ =>
+      if (f(timeout = 1000.millis)().isEmpty) 1 else 0
     }.sum
 
-    // we seem to have about 4% numberOfFailures and about 2 numberOfFalseReplies in 100,000
+    // we seem to have about 4% numberOfFailures (but we get zero failures if we do not nullify the semaphore!) and about 4 numberOfFalseReplies in 100,000
     val numberOfFalseReplies = get()
 
     (numberOfFailures, numberOfFalseReplies) shouldEqual (0,0)
