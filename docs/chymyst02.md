@@ -181,7 +181,7 @@ These input molecules cannot be `f` and `g` since these two molecules are given 
 Therefore, we need at least one new molecule that will be consumed to start these two reactions.
 However, if we declare the two reactions as `c() => f()` and `c() => g()` and inject two copies of `c()`, we are not guaranteed that both reactions will start.
 It is possible that two copies of the first reaction (or two copies of the second reaction) are started instead.
-In other words, there will be an unavoidable indeterminism in our chemistry.
+In other words, there will be an unavoidable nondeterminism in our chemistry.
 `JoinRun` will in fact detect this problem and generate an error:
 
 ```scala
@@ -192,7 +192,7 @@ join(
     run { case c(_) => val x = f(); ... },
     run { case c(_) => val x = g(); ... }
 )
-java.lang.Exception: In Join{c => ...; c => ...}: Unavoidable indeterminism: reaction c => ... is shadowed by c => ...
+java.lang.Exception: In Join{c => ...; c => ...}: Unavoidable nondeterminism: reaction c => ... is shadowed by c => ...
 ```
 
 So, we need to define two _different_ molecules (say, `c` and `d`) as inputs for these two reactions.
@@ -433,7 +433,7 @@ The `parallelOr` injector should return `true` whenever one of these injectors r
 ## Error checking for blocking molecules
 
 Each blocking molecule must receive one (and only one) reply.
-So, it is an error if a reaction consumes a blocking molecule but does not reply.
+It is an error if a reaction consumes a blocking molecule but does not reply.
 It is also an error to reply again after a reply was made.
 
 Sometimes, errors of this type can be caught at compile time:

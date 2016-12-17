@@ -37,7 +37,7 @@ We also assume that we can inject any molecule into the soup at any time.
 
 It is not difficult to implement a simulator for the chemical behavior we just described.
 Having specified the list of chemical laws and injected some initial molecules into the soup, we start the simulation.
-The chemical machine will run all the reactions that are all wed by the chemical laws.
+The chemical machine will run all the reactions that are allowed by the chemical laws.
 
 We will say that in a reaction such as
 
@@ -132,20 +132,21 @@ The helper functions `m`, `join`, and `run` are defined in the `JoinRun` library
 
 ## Example: Concurrent counter
 
-We already know enough to start implementing some first examples of concurrent programs.
+We already know enough to start implementing a first concurrent program.
 
-Suppose we need to maintain a counter with an integer value, which can be incremented or decremented by non-blocking, concurrently running operations.
+Suppose we need to maintain a counter with an integer value, which can be incremented or decremented by non-blocking concurrent requests.
 (For example, we would like to be able to increment and decrement the counter from different processes running at the same time.)
 
 To implement this in `JoinRun`, we begin by deciding which molecules we will need to define.
-It is clear that we will need a molecule that carries the integer value of the counter:
+Since there is no global state, it is clear that the integer value of the counter needs to be carried by a molecule.
+Let's call this molecule `counter` and specify that it carries an integer value:
 
 ```scala
 val counter = m[Int]
 
 ```
 
-The increment and decrement operations must be represented by other molecules.
+The increment and decrement requests must be represented by other molecules.
 Let us call them `incr` and `decr`.
 These molecules do not need to carry values, so we will define the `Unit` type as their value type:
 
@@ -172,8 +173,11 @@ The new value of the counter (either `n+1` or `n-1`) will be carried by the new 
 The previous counter molecule (with its old value `n`) will be consumed by the reactions.
 The `incr` and `decr` molecules will be likewise consumed.
 
+![Reaction diagram counter(n) + incr => counter(n+1) etc.](http://winitzki.github.io/joinrun-scala/counter-incr-decr.svg)
+
 It is important to note that the two reactions need to be defined together in a single call to `join`.
-The reason is that both reactions use the same input molecule `counter`.
+The reason is that both reactions contend on the same input molecule `counter`.
+
 This construction -- defining several reactions together -- is called a **join definition** and is written using the library function `join`.
 In `JoinRun`, all reactions that consume a given input molecule must be included in a single join definition.
 
@@ -235,11 +239,10 @@ decr() + decr() // prints “new value is 99” and then “new value is 98"
 
 `JoinRun` has some debugging facilities to help the programmer verify that the chemistry works as intended.
 
-### Printing the contents of the soup
+### Logging the contents of the soup
 
-For a given molecule, there must exist a single join definition (JD) to which this molecule is “bound” -- that is, the JD where this molecule is consumed as input molecule by some reactions.
-
-For debugging purposes, we can use the `logSoup` method on the molecule injector.
+For debugging purposes, it is useful to see what molecules are waiting for reactions at a given time.
+This is achieved by calling the `logSoup` method on the molecule injector.
 This method will return a string showing the molecules that are currently present in the soup and are waiting to react with other molecules.
 The `logSoup` output will also show the values carried by each molecule.
 
@@ -257,16 +260,18 @@ The debug output gives us two pieces of information:
 1. The JD which is being logged: `Join{counter + decr => ...; counter + incr => ...}`
 Note that the JD is identified by the reactions that are defined in it. The reactions are shown in a shorthand notation, by listing only the input molecules.
 
-2. The molecules that are currently waiting in the soup at that JD, namely `Molecules: counter(98)`.
+2. The molecules that are currently waiting in the soup belonging to that JD, namely `Molecules: counter(98)`.
 In this example, there is presently only one copy of the `counter` molecule, carrying the value `98`.
 
-Note that the debug output is limited to the molecules bound to that JD (i.e. all molecules that are inputs in it).
+Note that the debug output is limited to the molecules that can be consumed by reactions in that JD.
+We call them molecules **bound** to that JD.
+The JD will look at the presence or absence of these molecules when it decides which reactions to start.
 
 ### Molecule names
 
 A perceptive reader will ask at this point:
 How did the program know the names `counter`, `decr`, and `incr`?
-These are names of local variables defined using `val counter = m[Int]` and so on.
+These are names of local variables we defined using `val counter = m[Int]` and so on.
 Ordinarily, Scala code does not have access to these names.
 
 The magic is actually performed by the method `m`, which is a macro that looks up the name of the enclosing variable.
@@ -278,7 +283,7 @@ val counter = new M[Int]("counter")
 
 ```
 
-Molecule names are very useful for debugging and logging.
+Descriptive names of molecules are very useful for visualizing the reactions, as well as for debugging and logging.
 In this tutorial, we will always use macros to define molecules.
 
 ### Logging the flow of reactions and molecules
@@ -298,6 +303,9 @@ So this facility should be used only for debugging or testing.
 ## Common errors
 
 ### Error: Injecting molecules without defined reactions
+
+For each molecule, there must exist a single join definition (JD) to which this molecule is **bound** -- that is, the JD where this molecule is consumed as input molecule by some reactions.
+(See [Join Definitions](joinrun.md#join-definitions) for more details.)
 
 It is an error to inject a molecule that is not yet defined as input molecule in any JD (i.e. not yet bound to any JD).
 
@@ -333,6 +341,7 @@ val a = m[Unit]
 val b = m[Unit]
 
 join( run { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this JD.
+
 join( run { case x(n) + b(_) => println(s"have x($n) + b") } )
 // java.lang.Exception: Molecule x cannot be used as input since it is already bound to Join{a + x => ...}
 
@@ -386,42 +395,183 @@ Sometimes it appears that repeating input molecules is the most natural way of e
 However, I believe it is always possible to introduce some new auxiliary molecules and to rewrite the “chemistry laws” so that input molecules are not repeated while the resulting computations give the same results.
 This limitation could be lifted in a later version of `JoinRun` if it proves useful to do so.
 
-## Order of reactions
+## Order of reactions and nondeterminism
 
-When there are several different reactions that can start the available molecules, the runtime engine will choose the reaction at random.
-In the current implementation of `JoinRun`, the runtime will choose reactions at random, so that every reaction has an equal chance of starting.
+When there are several different reactions that can start the available molecules, the runtime engine will choose the reaction at random,
+so that every reaction has an equal chance of starting.
 
 Similarly, when there are several copies of the same molecule that can be consumed as input by a reaction, the runtime engine will make a choice of which copy 
 of the molecule to consume.
-Currently, `JoinRun` will _not_ randomize the input molecules but make an implementation-dependent choice.
+Currently, `JoinRun` will _not_ fully randomize the input molecules but make an implementation-dependent choice.
 A truly random selection of input molecules may be implemented in the future.
 
-It is not possible to assign priorities to reactions or to molecules.
+Importantly, it is _not possible_ to assign priorities to reactions or to molecules.
 The order of reactions in a join definition is ignored, and the order of molecules in the input list is also ignored.
-The debugging facility will print the molecule names in alphabetical order, and reactions will be printed in an unspecified order.
+Just for the purposes of debugging, molecules will be printed in alphabetical order of names, and reactions will be printed in an unspecified order.
 
-The result of this is that the order in which reactions will start is non-deterministic and unknown.
+The result is that the order in which reactions will start is non-deterministic and unknown.
 
-If the priority of certain reactions is important for a particular application, it is the programmer's task to design the “chemical laws” in such a way that those reactions start in the desired order.
+If the priority of certain reactions is important for a particular application, it is the programmer's task to design the chemical laws in such a way that those reactions start in the desired order.
 This is always possible by using auxiliary molecules and/or guard conditions.
+
+In fact, a facility for assigning priority to molecules or reactions would be self-defeating.
+It will only give the programmer _an illusion of control_ over the order of reactions, while actually introducing subtle nondeterministic behavior.
+
+To illustrate this on an example, suppose we would like to compute the sum of a bunch of numbers in a concurrent way.
+We expect to receive many molecules `data(x)` with integer values `x`,
+and we need to compute and print the final sum value when no more `data(x)` molecules are present.
+
+Here is an (incorrect) attempt to write chemical laws for this program:
+
+```scala
+val data = m[Int]
+val sum = m[Int]
+join (
+  run { case data(x) + sum(y) => sum(x+y) }, // We really want the first reaction to be high priority
+   
+  run { case sum(x) => println(s"sum = $x") }  // and run the second one only after all `data` molecules are gone.
+)
+data(5) + data(10) + data(150)
+sum(0) // expect "sum = 165"
+
+```
+
+Our intention was to run only the first reaction and to ignore the second reaction as long as `data` molecules are available in the soup.
+The chemical machine does not actually allow us to assign a higher priority to the first reaction.
+But, if we were able to do that, what would be the result?
+
+In a real-life situation, the `data` molecules are going to be injected concurrently by different processes.
+(There wouldn't be much point in making the `data` molecules concurrent if they were all guaranteed to be present at the start of our program: we would have just used an array instead.)
+
+Since these other processes are concurrent and inject `data` molecules at unpredictable times,
+it could happen that the `data` molecules are injected somewhat more slowly than we are consuming them.
+If that happens, there will be a brief interval of time when no `data` molecules are in the soup (although other processes are about to inject some more of them).
+The chemical machine will then run the second reaction, consume the `sum` molecule and print the result, signalling (incorrectly) that the computation is finished.
+Perhaps this failure will _rarely_ happen, -- it unlikely to show up in your unit tests, but at some point it is definitely going to happen in production.
+
+This kind of nondeterminism is the prime reason concurrency is widely regarded as a hard programming problem.
+
+`JoinRun` will actually reject our attempted program and print an error message before running anything, immediately after we define the chemical laws with `join`:
+
+```scala
+val data = m[Int]
+val sum = m[Int]
+join (
+  run { case data(x) + sum(y) => sum(x+y) },
+  run { case sum(x) => println(s"sum = $x") }
+)
+```
+
+```
+Exception: In Join{data + sum => ...; sum => ...}: Unavoidable nondeterminism: reaction data + sum => ... is shadowed by sum => ...
+
+```
+
+The error message means that the reaction `sum => ...` will sometimes prevent `data + sum => ...` from running,
+and the programmer will have no control over this nondeterminism.
+
+The correct way of implementing this problem is to keep track of how many `data` molecules we already consumed,
+and to emit `done` when we reach the total expected number of the `data` molecules.
+Since reactions do not have mutable state, the information about the remaining `data` molecules has to be carried on the `sum` molecule.
+So, we will define the `sum` molecule with type `(Int,Int)`, where the second integer will be the number of `data` molecules that remain to be consumed.
+
+The reaction `data + sum` should proceed only when we know that some `data` molecules are still remaining.
+Otherwise, `sum` should start its own reaction and print the final result. 
+
+```scala
+val data = m[Int]
+val sum = m[(Int, Int)]
+join (
+  run { case data(x) + sum((y, remaining)) if remaining > 0 => sum((x+y, remaining - 1)) },
+  run { case sum((x, 0)) => println(s"sum = $x") }
+)
+data(5) + data(10) + data(150) // inject three `data` molecules
+sum((0, 3)) // expect "sum = 165" printed
+
+```
+
+Now are chemical laws are fully deterministic, and no priority needs to be explicitly assigned.
+
+The chemical machine forces the programmer to design the chemistry in such a way that
+the order of running reactions is completely determined by the data on the available molecules.
+
+Another way of maintaining determinism is to remove the reactions that may shadow each other.
+Here is an equivalent solution with just one reaction:
+
+```scala
+val data = m[Int]
+val sum = m[(Int, Int)]
+join (
+  run { case data(x) + sum((y, remaining)) =>
+      val newSum = x + y
+      if (remaining == 1)  println(s"sum = $newSum")
+      else  sum((newSum, remaining-1)) 
+     }
+)
+data(5) + data(10) + data(150) // inject three `data` molecules
+sum((0, 3)) // expect "sum = 165" printed
+
+```
+
 
 ## Summary so far
 
 The chemical machine requires for its description:
+
 - a list of defined molecules, together with their types;
 - a list of reactions involving these molecules as inputs, together with reaction bodies.
 
-The user can define reactions in one or more join definitions.
-One join definition encompasses all reactions that have some _input_ molecules in common.
+These definitions comprise the chemical laws of a concurrent program.
 
-After defining the molecules and specifying the reactions, the user can start injecting molecules into the soup.
+The user can define reactions in one or more join definitions.
+Each join definition encompasses all reactions that have some _input_ molecules in common.
+Different join definitions must have no input molecules in common.
 
 In this way, a complicated system of interacting concurrent processes can be specified through a particular set of chemical laws and reaction bodies.
+
+After defining the molecules and specifying the reactions, the user can start the program by injecting some initial molecules into the soup.
+
+Let us recapitulate the core ideas of the chemical paradigm of concurrency:
+
+In the chemical machine, there is no mutable global state; all data is immutable and must be carried by some molecules.
+Each of these molecules has a specific chemical designation, such as `a`, `b`, `counter`, and so on.
+These chemical designations are not strings `"a"` or `"b"`; one could imagine writing
+
+```scala
+val a = m[Int]
+val q = a
+
+```
+
+This will copy the molecule injector `a` into another local value `q`.
+However, this does not change the chemical designation of a molecule.
+The injector `q` will inject the same molecules as `a`.
+
+The chemical designation of the molecule specifies two aspects of the concurrent program:
+
+- which other input molecules (besides this one) are required to start a computation;
+- which computation will be performed when all the required input molecules are available.
+
+Each reaction specifies its input molecules, and in this way determines all the data necessary for computing the reaction body.
+The chemical machine will automatically make this data available, since a reaction can start only when all its input molecules are present in the soup.
+
+Each reaction also specifies a reaction body, which is a Scala expression that evaluates to `Unit`.
+This expression can perform arbitrary computations using the input molecule values.
+It can also inject new molecules into the soup, which is a side effect of calling a molecule injector function.
+
+Up to this side effect, the reaction body can be a pure function, if it only depends on the input data of the reaction.
+In this case, many copies of the reaction can be safely executed concurrently if many sets of input molecules are available.
+Also, the reaction can be safely and automatically restarted in the case of a transient failure.
+
+The chemical laws fully specify which computations need to be performed for the data on the given molecules.
+Whenever multiple sets of data are available, computations will be performed concurrently.
 
 # Example: Declarative solution for “dining philosophers"
 
 The ["dining philosophers problem"](https://en.wikipedia.org/wiki/Dining_philosophers_problem) is to run a simulation of five philosophers who take turns eating and thinking.
 Each philosopher needs two forks to start eating, and every pair of neighbor philosophers shares a fork.
+
+![Five dining philosophers](An_illustration_of_the_dining_philosophers_problem.png)
 
 The simplest solution of the “dining philosophers” problem is achieved using a molecule for each fork and two molecules per philosopher: one representing a thinking philosopher and the other representing a hungry philosopher.
 
