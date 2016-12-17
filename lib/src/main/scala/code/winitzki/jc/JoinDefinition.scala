@@ -3,10 +3,9 @@ package code.winitzki.jc
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.JoinRunUtils._
 
-import collection.JavaConverters._
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
-import scala.collection.mutable
+import collection.mutable
 
 
 /** Represents the join definition, which holds one or more reaction definitions.
