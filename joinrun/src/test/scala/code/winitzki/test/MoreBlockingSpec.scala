@@ -42,12 +42,12 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val waiter = new Waiter
 
-    val tp = new FixedPool(20)
+    val tp = new FixedPool(4)
 
     join(tp)(
       & { case f(_, r) => val res = r(123); waiter { res shouldEqual true }; waiter.dismiss() }
     )
-    f(timeout = 100 millis)() shouldEqual Some(123)
+    f(timeout = 10.seconds)() shouldEqual Some(123)
 
     waiter.await()
     tp.shutdownNow()
