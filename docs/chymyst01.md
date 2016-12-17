@@ -134,7 +134,7 @@ The helper functions `m`, `join`, and `run` are defined in the `JoinRun` library
 
 We already know enough to start implementing a first concurrent program.
 
-Suppose we need to maintain a counter with an integer value, which can be incremented or decremented by non-blocking, concurrent requests.
+Suppose we need to maintain a counter with an integer value, which can be incremented or decremented by non-blocking concurrent requests.
 (For example, we would like to be able to increment and decrement the counter from different processes running at the same time.)
 
 To implement this in `JoinRun`, we begin by deciding which molecules we will need to define.
@@ -451,7 +451,7 @@ Perhaps this failure will _rarely_ happen, -- it unlikely to show up in your uni
 
 This kind of nondeterminism is the prime reason concurrency is widely regarded as a hard programming problem.
 
-`JoinRun` will actually refuse our attempted program and print an error message before running anything, immediately after we define the chemical laws:
+`JoinRun` will actually reject our attempted program and print an error message before running anything, immediately after we define the chemical laws with `join`:
 
 ```scala
 val data = m[Int]
@@ -472,8 +472,31 @@ and the programmer will have no control over this nondeterminism.
 
 The correct way of implementing this problem is to keep track of how many `data` molecules we already consumed,
 and to emit `done` when we reach the total expected number of the `data` molecules.
-The main change is that the `sum` molecule will now carry a tuple of two integers instead of a single integer.
-Here is an example solution with a single reaction:
+Since reactions do not have mutable state, the information about the remaining `data` molecules has to be carried on the `sum` molecule.
+So, we will define the `sum` molecule with type `(Int,Int)`, where the second integer will be the number of `data` molecules that remain to be consumed.
+
+The reaction `data + sum` should proceed only when we know that some `data` molecules are still remaining.
+Otherwise, `sum` should start its own reaction and print the final result. 
+
+```scala
+val data = m[Int]
+val sum = m[(Int, Int)]
+join (
+  run { case data(x) + sum((y, remaining)) if remaining > 0 => sum((x+y, remaining - 1)) },
+  run { case sum((x, 0)) => println(s"sum = $x") }
+)
+data(5) + data(10) + data(150) // inject three `data` molecules
+sum((0, 3)) // expect "sum = 165" printed
+
+```
+
+Now are chemical laws are fully deterministic, and no priority needs to be explicitly assigned.
+
+The chemical machine forces the programmer to design the chemistry in such a way that
+the order of running reactions is completely determined by the data on the available molecules.
+
+Another way of maintaining determinism is to remove the reactions that may shadow each other.
+Here is an equivalent solution with just one reaction:
 
 ```scala
 val data = m[Int]
@@ -490,10 +513,6 @@ sum((0, 3)) // expect "sum = 165" printed
 
 ```
 
-There is no nondeterminism in these chemical laws, and no priority needs to be explicitly assigned.
-
-The chemical machine forces the programmer to design the chemistry in such a way that
-the order of running reactions is completely determined by the data on the available molecules.
 
 ## Summary so far
 
@@ -512,9 +531,7 @@ In this way, a complicated system of interacting concurrent processes can be spe
 
 After defining the molecules and specifying the reactions, the user can start the program by injecting some initial molecules into the soup.
 
-The chemical laws fully specify which computations need to be performed for which data.
-
-Let us reiterate the core ideas of the chemical paradigm of concurrency:
+Let us recapitulate the core ideas of the chemical paradigm of concurrency:
 
 In the chemical machine, there is no mutable global state; all data is immutable and must be carried by some molecules.
 Each of these molecules has a specific chemical designation, such as `a`, `b`, `counter`, and so on.
@@ -540,11 +557,14 @@ The chemical machine will automatically make this data available, since a reacti
 
 Each reaction also specifies a reaction body, which is a Scala expression that evaluates to `Unit`.
 This expression can perform arbitrary computations using the input molecule values.
-It can also inject new molecules into the soup, which is a side effect of calling a molecule injector.
+It can also inject new molecules into the soup, which is a side effect of calling a molecule injector function.
 
 Up to this side effect, the reaction body can be a pure function, if it only depends on the input data of the reaction.
 In this case, many copies of the reaction can be safely executed concurrently if many sets of input molecules are available.
 Also, the reaction can be safely and automatically restarted in the case of a transient failure.
+
+The chemical laws fully specify which computations need to be performed for the data on the given molecules.
+Whenever multiple sets of data are available, computations will be performed concurrently.
 
 # Example: Declarative solution for “dining philosophers"
 
