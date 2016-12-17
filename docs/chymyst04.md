@@ -16,6 +16,7 @@ This can be implemented in sequential code like this:
 val arr : Array[A] = ???
 
 arr.map(f).reduce(reduceB)
+
 ```
 
 Our task is to implement this as a concurrent computation.
@@ -31,6 +32,7 @@ Since we would like to apply the function `f` concurrently to values of type `A`
 
 ```scala
 val carrier = m[A]
+
 ```
 
 We will inject a copy of the “carrier” molecule for each element of the initial array:
@@ -38,18 +40,21 @@ We will inject a copy of the “carrier” molecule for each element of the init
 ```scala
 val arr : Array[A] = ???
 arr.foreach(i => carrier(i))
+
 ```
 
 As we apply `f` to each element, we will carry the intermediate results on molecules of another sort:
 
 ```scala
 val interm = m[B]
+
 ```
 
 Therefore, we need a reaction of this shape:
 
 ```scala
 run { case carrier(a) => val res = f(a); interm(res) }
+
 ```
 
 Finally, we need to gather the intermediate results carried by `interm` molecules.
@@ -59,6 +64,7 @@ We can also define a blocking molecule `fetch` that can be used to read the accu
 ```scala
 val accum = m[B]
 val fetch = b[Unit, B]
+
 ```
 
 At first we might write reactions for `accum` such as this one:
@@ -66,6 +72,7 @@ At first we might write reactions for `accum` such as this one:
 ```scala
 run { case accum(b) + interm(res) => accum( reduceB(b, res) ) },
 run { case accum(b) + fetch(_, reply) => reply(b) }
+
 ```
 
 Our plan is to inject an `accum(...)` molecule, so that this reaction will repeatedly consume every `interm(...)` molecule until all the intermediate results are processed.
@@ -94,6 +101,7 @@ run { case interm(res) + accum((n, b)) if n > 0 =>
   },
 run { case interm(res) + accum((0, _))  => accum((1, res)) },
 run { case fetch(_, reply) + accum((n, b)) if n == arr.size => reply(b) }
+
 ```
 
 Side note: due to the current limitations of `JoinRun`, the `accum` pattern matches must be written at the last place in the reactions.
@@ -142,6 +150,7 @@ object C extends App {
   val result = fetch()
   println(result) // prints 338350
 }
+
 ```
 
 # Molecules and reactions in local scopes
@@ -174,6 +183,7 @@ def makeCounter(initCount: Int): (M[Unit], B[Unit,Int]) = {
   // return these two injectors to the outside scope
   (decr, fetch)
 }
+
 ```
 
 The closure captures the injector for the `counter` molecule and injects a single copy of that molecule.
@@ -189,6 +199,7 @@ The function `makeCounter` can be called like this:
 val (d, f) = makeCounter(10000)
 d() + d() + d() // inject 3 decrement molecules
 val x = f() // fetch the current value
+
 ```
 
 Also note that each invocation of `makeCounter` will create new, fresh molecules `counter`, `decr`, and `fetch` inside the closure, because each invocation will create a fresh local scope.
@@ -211,6 +222,7 @@ We will also need another molecule to carry the sorted result.
 ```scala
 val mergesort = m[Array[Int]]
 val sorted = m[Array[Int]]
+
 ```
 
 The main idea of the merge-sort algorithm is to split the array in half, sort each half recursively, and then merge the two sorted halves into the resulting array.
@@ -224,6 +236,7 @@ join ( run { case mergesort(arr) =>
     }
   }
 )
+
 ```
 
 We still need to take two sorted arrays and merge them.
@@ -232,6 +245,7 @@ We could then envision a reaction like this:
 
 ```scala
 ... run { case sorted1(arr1) + sorted2(arr2) => sorted( arrayMerge(arr1, arr2) ) }
+
 ```
 
 Actually, we need to return the upper-level `sorted` molecule from merging the results carried by the lower-level `sorted1` and `sorted2` molecule.
@@ -250,6 +264,7 @@ join ( run { case mergesort(arr) =>
     }
   }
 )
+
 ```
 
 This is still not right; we need to arrange the reactions such that the `sorted1`, `sorted2` molecules are injected by the lower-level recursive injections of `mergesort`.
@@ -278,6 +293,7 @@ join(
 )
 // sort our array at top level, assuming `finalResult: M[Array[Int]]`
 mergesort((array, finalResult))
+
 ```
 
 The complete working example of concurrent merge-sort is in the file [MergesortSpec.scala](https://github.com/winitzki/joinrun-scala/blob/master/benchmark/src/test/scala/code/winitzki/benchmark/MergesortSpec.scala).

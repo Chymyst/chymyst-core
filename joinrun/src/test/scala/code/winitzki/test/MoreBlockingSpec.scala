@@ -47,7 +47,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     join(tp)(
       & { case f(_, r) => val res = r(123); waiter { res shouldEqual true }; waiter.dismiss() }
     )
-    f(timeout = 50 millis)() shouldEqual Some(123)
+    f(timeout = 100 millis)() shouldEqual Some(123)
 
     waiter.await()
     tp.shutdownNow()
@@ -64,7 +64,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     )
     a.setLogLevel(4)
     a.logSoup shouldEqual "Join{a + f/B => ...}\nNo molecules"
-    f(timeout = 50 millis)() shouldEqual None
+    f(timeout = 100 millis)() shouldEqual None
     // there should be no a(0) now, because the reaction has not yet run ("f" timed out and was withdrawn, so no molecules)
     a.logSoup shouldEqual "Join{a + f/B => ...}\nNo molecules"
     a(123)

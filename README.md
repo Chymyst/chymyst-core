@@ -1,10 +1,13 @@
 [![Build Status](https://travis-ci.org/winitzki/joinrun-scala.svg?branch=master)](https://travis-ci.org/winitzki/joinrun-scala)
 
+[![Join the chat at https://gitter.im/joinrun-scala/Lobby](https://badges.gitter.im/joinrun-scala/Lobby.svg)](https://gitter.im/joinrun-scala/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 # `JoinRun` and `Chymyst` - a new implementation of Join Calculus in Scala
+
 Join Calculus (JC) is a paradigm for concurrency in functional programming.
 It has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) or [the Actor model](https://en.wikipedia.org/wiki/Actor_model).
 
-`JoinRun` is a small core library that embeds Join Calculus as a domain-specific language in Scala.
+`JoinRun` is a small core library that embeds JC as a domain-specific language in Scala.
 The code of `JoinRun` is based on previous implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
 The current implementation of `JoinRun` is tested under Oracle JDK 8 with Scala 2.11 and 2.12.
@@ -14,16 +17,16 @@ It also works with Scala 2.10 and with OpenJDK 7 (except for the new `LocalDateT
 
 # Overview of `JoinRun`
 
-To get started, begin with this [tutorial introduction](doc/chymyst00.md).
+To get started, begin with this [tutorial introduction](docs/chymyst00.md).
 (I do not recommend reading the [Wikipedia page on Join Calculus](https://en.wikipedia.org/wiki/Join-calculus) since it is likely to only confuse you.)
 
 I gave a presentation on an early version of `JoinRun` at [Scala by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
-There is some [technical documentation for `JoinRun` library](doc/joinrun.md).
+There is some [technical documentation for `JoinRun` library](docs/joinrun.md).
 
-## Comparison: Join Calculus vs. Actor model
+## Comparison: JC vs. actor model
 
-Join calculus (JC) is similar in some aspects to the well-known “actor model” framework (e.g. Akka).
+JC is similar in some aspects to the well-known actor model framework (e.g. Akka).
 
 JC has these features that are similar to actors:
 
@@ -37,7 +40,7 @@ Main differences between actors and JC processes:
 | JC processes | Actors |
 |---|---|
 | concurrent processes start automatically whenever several input data sets are available | a desired number of concurrent actors must be created manually|
-| processes are implicit, the user's code only manipulates “concurrent data” | the user's code must manipulate explicit references to actors |
+| processes are implicit, the user's code only manipulates messages | the user's code must manipulate explicit references to actors as well as messages |
 | processes typically wait for (and consume) several input messages at once | actors wait for (and consume) only one input message at a time |
 | processes are immutable and stateless, all data is stored on messages (which are also immutable) | actors can mutate (“become another actor”); actors can hold mutable state |
 | messages are held in an unordered bag | messages are held in an ordered queue and processed in the order received |
@@ -46,7 +49,7 @@ Main differences between actors and JC processes:
 In talking about `JoinRun` and `Chymyst`, I follow the “chemical machine” metaphor and terminology, which differs from the terminology usually employed in academic papers on JC.
 Here is a dictionary:
 
-| “Chemistry”  | JC terminology | JoinRun |
+| Chemical machine  | Join Calculus | JoinRun |
 |---|---|---|
 | input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
 | molecule injector | channel (port) name | `val a :  M[Int]` |
@@ -56,7 +59,7 @@ Here is a dictionary:
 | injecting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
 | join definition | join definition | `join(r1, r2, ...)` |
 
-## Comparison: Join Calculus vs. CSP
+## Comparison: JC vs. CSP
 
 Similarities:
 
@@ -106,7 +109,7 @@ object join1 extends Join {
 a(1)
 ```
 
-As a baseline reference, the most concise syntax for Join Calculus is available in [JoCaml](http://jocaml.inria.fr), at the price of modifying the OCaml compiler:
+As a baseline reference, the most concise syntax for JC is available in [JoCaml](http://jocaml.inria.fr), at the price of modifying the OCaml compiler:
 
 ```ocaml
 def a(x) & c(y) =  
@@ -119,29 +122,31 @@ This kind of implicit declaration is not possible in `JoinRun` because Scala mac
 So, declarations of molecule injectors need to be explicit.
 Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` and JoCaml.
 
-- Molecule injectors (“channels”) are not singleton objects as in `ScalaJoin` but locally scoped values. This is how the semantics of JC is implemented in JoCaml. In this way, we get more flexibility in defining molecules.
+- Molecule injectors (or “channels”) are not singleton objects as in `ScalaJoin` but locally scoped values. This is how the semantics of JC is implemented in JoCaml. In this way, we get more flexibility in defining molecules.
 - Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`). `JoinRun` uses macros to perform some static analysis of reactions at compile time and detect some errors.
-- Reactions and molecules are “composable”: we can begin constructing a join definition incrementally, until we have `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules. (However, a join definition is immutable once it is written.)
-- “Join definitions” are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC).
+- Reactions and molecules are composable: we can begin constructing a join definition incrementally, until we have `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules. (However, a join definition is immutable once it is written.)
+- Join definitions are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC).
 - Some common cases of invalid join definitions are flagged (as run-time errors) before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply).
 - Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use Akka actor-based or thread-based pools.
-- “Fair” nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random.
+- Fair nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random.
 - Fault tolerance: failed reactions are automatically restarted (when desired).
 - Tracing the execution via logging levels; automatic naming of molecules for debugging is available (via macro).
 
 # Status
 
 Current version is `0.1.0`.
-The semantics of Join Calculus (restricted to single machine) is fully implemented and tested.
+The semantics of JC (restricted to single machine) is fully implemented and tested.
+
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
-Performance tests indicate that the runtime can schedule about 300,000 reactions per second per CPU core, and the performance bottleneck is the thread switching and pattern-matching.
+Performance tests indicate that the runtime can schedule about 300,000 reactions per second per CPU core, and the performance bottleneck is in submitting jobs to threads (a distant second bottleneck is pattern-matching in the internals of the library).
 
 Known limitations:
 
-- `JoinRun` is currently at most 20% slower than `ScalaJoin` on certain benchmarks that exercise a very large number of very short reactions.
-- No fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random.
-- No distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`, and probably will not be).
-
+- `JoinRun` is currently between 80% to 120% the speed of `ScalaJoin` on certain benchmarks that exercise a very large number of very short reactions.
+- `JoinRun` has no fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random.
+- `JoinRun` has no distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`, and probably will not be).
+Distributed computation should be implemented in a better way than posting channel names on an HTTP server.
+At the moment, `JoinRun` can use many cores on a single machine.
 
 # Run unit tests
 
