@@ -2,13 +2,13 @@
 
 [![Join the chat at https://gitter.im/joinrun-scala/Lobby](https://badges.gitter.im/joinrun-scala/Lobby.svg)](https://gitter.im/joinrun-scala/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-# `JoinRun` and `Chymyst` - a new implementation of Join Calculus in Scala
+# `JoinRun` and `Chymyst` - declarative concurrency in Scala
 
-Join Calculus (JC) is a paradigm for concurrency in functional programming.
-It has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) or [the Actor model](https://en.wikipedia.org/wiki/Actor_model).
+`JoinRun` is a small core library that provides a Scala domain-specific language for declarative concurrency.
+`JoinRun` is based on the chemical machine paradigm, known in the academic world as Join Calculus (JC).
+JC has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) and [the Actor model](https://en.wikipedia.org/wiki/Actor_model), but is easier to use.
 
-`JoinRun` is a small core library that embeds JC as a domain-specific language in Scala.
-The code of `JoinRun` is based on previous implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
+The initial code of `JoinRun` was based on previous work by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
 The current implementation of `JoinRun` is tested under Oracle JDK 8 with Scala 2.11 and 2.12.
 It also works with Scala 2.10 and with OpenJDK 7 (except for the new `LocalDateTime` functions and some performance issues).
@@ -17,12 +17,12 @@ It also works with Scala 2.10 and with OpenJDK 7 (except for the new `LocalDateT
 
 # Overview of `JoinRun`
 
-To get started, begin with this [tutorial introduction](docs/chymyst00.md).
-(I do not recommend reading the [Wikipedia page on Join Calculus](https://en.wikipedia.org/wiki/Join-calculus) since it is likely to only confuse you.)
+To get started, begin with this [tutorial introduction](http://winitzki.github.io/joinrun-scala/chymyst00.html).
 
 I gave a presentation on an early version of `JoinRun` at [Scala by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
 There is some [technical documentation for `JoinRun` library](docs/joinrun.md).
+
 
 ## Comparison: JC vs. actor model
 
