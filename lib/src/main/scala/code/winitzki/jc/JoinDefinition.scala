@@ -273,6 +273,9 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     }
   }
 
+  private[jc] def hasVolatileValue[T](m: M[T]): Boolean =
+    m.isSingleton && singletonValues.containsKey(m)
+
   private[jc] def getVolatileValue[T](m: M[T]): T = {
     if (m.isSingleton) {
       val errorReaderNotReady = new Exception(s"The volatile reader for singleton ($m) is not yet ready")
