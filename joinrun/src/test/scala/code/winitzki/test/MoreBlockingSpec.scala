@@ -12,7 +12,7 @@ import scala.concurrent.duration._
 
 class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(1500, Millis)
+  val timeLimit = Span(3000, Millis)
 
   behavior of "blocking molecules"
 
@@ -72,7 +72,8 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       if (f(timeout = 1000.millis)().isEmpty) 1 else 0
     }.sum
 
-    // we seem to have about 4% numberOfFailures (but we get zero failures if we do not nullify the semaphore!) and about 4 numberOfFalseReplies in 100,000
+    // we used to have about 4% numberOfFailures (but we get zero failures if we do not nullify the semaphore!) and about 4 numberOfFalseReplies in 100,000.
+    // now it seems to pass even with a million iterations (but that's too long for Travis).
     val numberOfFalseReplies = get()
 
     (numberOfFailures, numberOfFalseReplies) shouldEqual (0,0)
