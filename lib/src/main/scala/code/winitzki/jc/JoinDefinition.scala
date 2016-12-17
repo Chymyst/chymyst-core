@@ -226,20 +226,10 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
     inject(m, blockingMolValue)
     val success =
-      try {
-        // not sure we need this.
-        BlockingIdle {
-          replyValueWrapper.acquireSemaphore(timeoutNanos = timeoutOpt)
-        }
+      BlockingIdle {
+        replyValueWrapper.acquireSemaphore(timeoutNanos = timeoutOpt)
       }
-      catch {
-        case e: InterruptedException => e.printStackTrace(); false
-        case _: Exception => false
-      }
-      finally {
-        replyValueWrapper.deleteSemaphore() // make sure it's gone
-      }
-
+    replyValueWrapper.deleteSemaphore()
     // If we are here, we might need to forcibly remove the blocking molecule from the soup.
     removeBlockingMolecule(m, blockingMolValue)
 
