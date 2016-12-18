@@ -5,6 +5,7 @@ import java.time.LocalDateTime
 import code.winitzki.benchmark.Common._
 import code.winitzki.jc.FixedPool
 import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros.{run => &}
 import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
 

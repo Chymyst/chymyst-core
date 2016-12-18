@@ -70,8 +70,8 @@ object Benchmarks7 {
     val d = m[Unit]
 
     join(tp)(
-      & { case c(0) => done() },
-      & { case c(n) + d(_) if n > 0 => c(n - 1) }
+      run { case c(0) => done() },
+      run { case c(n) + d(_) if n > 0 => c(n - 1) }
     )
     (1 to counters).foreach(_ => c(init))
     // We return just one molecule.
