@@ -12,6 +12,8 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   val timeLimit = Span(1500, Millis)
 
+  behavior of "singleton injection"
+
   it should "refuse to inject a singleton from user code" in {
 
     val f = b[Unit, String]
@@ -24,10 +26,33 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       & {case _ => d("ok") } // singleton
     )
 
-    (1 to 20).foreach { i =>
-      Thread.sleep(20)
-      d(s"bad $i") // this should not be injected
+    (1 to 500).foreach { i =>
+      d(s"bad $i") // this "d" should not be injected, even though "d" is sometimes not in the soup due to reactions!
       f() shouldEqual "ok"
+    }
+
+    tp1.shutdownNow()
+  }
+
+  it should "refuse to inject a singleton immediately after join definition" in {
+
+    val tp1 = new FixedPool(1) // This test works only with single threads.
+
+    (1 to 50).foreach { i =>
+      val f = b[Unit, String]
+      val d = m[String]
+
+      join(tp1, tp1)(
+        & {case f(_, r) + d(text) => r(text); d(text) },
+        & {case _ => d("ok") } // singleton
+      )
+
+      (1 to 10).foreach { j =>
+        d(s"bad $i $j") // this "d" should not be injected, even though we are immediately after a join definition,
+        // and even if the initial d() injection was done late
+        f() shouldEqual "ok"
+      }
+
     }
 
     tp1.shutdownNow()
