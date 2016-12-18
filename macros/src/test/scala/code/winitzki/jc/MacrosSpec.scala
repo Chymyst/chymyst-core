@@ -1,6 +1,7 @@
 package code.winitzki.jc
 
 import JoinRun._
+import Macros.{run => &}
 import Macros._
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
