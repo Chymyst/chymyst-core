@@ -72,12 +72,13 @@ Blocking molecules work at once as [synchronizing barriers](https://en.wikipedia
 
 The syntax for the reply action makes it appear as if the molecule `f` carries _two_ values - its `Unit` value and a special `reply` function, and that the reaction body calls this `reply` function with an integer value.
 However, `f` is injected with the syntax `f()` -- just as any other molecule with `Unit` value.
-The `reply` function appears only in the pattern matching expression for `f` inside a reaction.
+The `reply` function appears only in the pattern-matching expression for `f` inside a reaction.
 
 Blocking molecule injectors are values of type `B[T,R]`, while non-blocking molecule injectors have type `M[T]`.
 Here `T` is the type of value that the molecule carries, and `R` (for blocking molecules) is the type of the reply value.
 
-The pattern matching expression for a blocking molecule of type `B[T,R]` has the form `case ... + f(v, r) + ...` where `v` is of type `T` and `r` is of type `R => Boolean`.
+The pattern-matching expression for a blocking molecule of type `B[T,R]` has the form `case ... + f(v, r) + ...` where `v` is of type `T` and `r` is of type 
+`R => Boolean`.
 Since `r` has a function type, users must match it with a pattern variable.
 The names `reply` or `r` can be used for clarity.
 
