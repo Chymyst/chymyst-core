@@ -174,7 +174,7 @@ def makeCounter(initCount: Int): (M[Unit], B[Unit,Int]) = {
   val fetch = m[Unit, Int]
 
   join(
-    run { counter(n) + fetch(_, r) => r(n)},
+    run { counter(n) + fetch(_, r) => counter(n) + r(n)},
     run { counter(n) + decr(_) => counter(n-1) }
   )
   // inject exactly one copy of `counter`
@@ -216,7 +216,7 @@ Chemical laws can be recursive: a molecule can start a reaction whose reaction b
 Since each reaction body will have a fresh scope, new molecules and new reactions will be defined every time.
 This will create a recursive configuration of reactions, such as a linked list or a tree of reactions.
 
-We will now figure out how to use **recursive chemistry** for implementing the merge-sort algorithm in `JoinRun`.
+We will now figure out how to use recursive molecules for implementing the merge-sort algorithm in `JoinRun`.
 
 The initial data will be an array, and we will therefore need a molecule to carry that array.
 We will also need another molecule to carry the sorted result.
