@@ -16,8 +16,8 @@ object Benchmarks9 {
     val d = b[Unit, Unit]
 
     join(tp)(
-      & { case c(0) => done() },
-      & { case c(n) + d(_, r) if n > 0 => c(n - 1); r() }
+      run { case c(0) => done() },
+      run { case c(n) + d(_, r) if n > 0 => c(n - 1); r() }
     )
     (1 to counters).foreach(_ => c(init))
     // We return just one molecule.
@@ -56,7 +56,7 @@ object Benchmarks9 {
     val e = b[Int, Int]
 
     join(tp)(
-      & { case c(_) + d(n, reply) => if (n > 0) {
+      run { case c(_) + d(n, reply) => if (n > 0) {
         c()
         e(n-1)
       }
@@ -65,7 +65,7 @@ object Benchmarks9 {
       }
       reply(n)
       },
-      & { case c(_) + e(n, reply) => if (n > 0) {
+      run { case c(_) + e(n, reply) => if (n > 0) {
         c()
         d(n-1)
       }
@@ -119,9 +119,9 @@ object Benchmarks9 {
     val tp = new FixedPool(threads)
 
     join(tp)(
-      & { case ff(_, reply) => var res = reply(123); a(res) },
-      & { case a(x) + collect(n) => collect(n + (if (x) 0 else 1)) },
-      & { case collect(n) + get(_, reply) => reply(n) }
+      run { case ff(_, reply) => var res = reply(123); a(res) },
+      run { case a(x) + collect(n) => collect(n + (if (x) 0 else 1)) },
+      run { case collect(n) + get(_, reply) => reply(n) }
     )
     collect(0)
 

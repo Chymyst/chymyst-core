@@ -18,7 +18,7 @@ object Benchmarks4 {
       val g = b[LocalDateTime, Long]
       val as = is.map(i => new M[Int](s"a$i"))
       val jrs = IndexedSeq(
-        & { case f(_) + g(initTime, r) => r(elapsed(initTime)) }
+        run { case f(_) + g(initTime, r) => r(elapsed(initTime)) }
       ) ++ is.map(
         i => {
           val a = as(i)

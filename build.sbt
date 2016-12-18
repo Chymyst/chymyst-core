@@ -24,6 +24,8 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   scalacOptions ++= Seq()
 )
 
+tutSettings
+
 lazy val joinrun = (project in file("joinrun"))
   .settings(commonSettings: _*)
   .settings(

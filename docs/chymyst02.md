@@ -1,7 +1,7 @@
 # Blocking vs. non-blocking molecules
 
 So far, we have used molecules whose injection was a non-blocking call:
-Injecting a molecule, such as `b(123)`, immediately returns `Unit` but performs a concurrent side effect (to add a new molecule to the soup).
+Injecting a molecule, such as `a(123)`, immediately returns `Unit` but performs a concurrent side effect (to add a new molecule to the soup).
 Such molecules are called **non-blocking**.
 
 An important feature of the chemical machine is the ability to define **blocking molecules**.
@@ -64,11 +64,11 @@ Once the reaction starts, it will receive the value `n = 123` from the input mol
 Both `c(123)` and `f()` will be consumed by the reaction.
 The reaction will then perform the reply action `reply(n)` with `n` set to `123`.
 Only at this point the calling process will get unblocked and receive `123` as the return value of the function call `f()`.
-From the point of view of the reaction that consumed a blocking molecule, the reply action is a non-blocking (i.e. very fast) function call.
+From the point of view of the reaction that consumes a blocking molecule, the reply action is a non-blocking (i.e. very fast) function call.
 The reaction will continue evaluating its reaction body, concurrently with the newly unblocked process that received the reply value `123` and can continue its computations.
 
 This is how the chemical machine implements blocking molecules.
-Blocking molecules work at once as synchronizing barriers and as channels of communication between processes.
+Blocking molecules work at once as [synchronizing barriers](https://en.wikipedia.org/wiki/Barrier_(computer_science)) and as channels of communication between processes.
 
 The syntax for the reply action makes it appear as if the molecule `f` carries _two_ values - its `Unit` value and a special `reply` function, and that the reaction body calls this `reply` function with an integer value.
 However, `f` is injected with the syntax `f()` -- just as any other molecule with `Unit` value.
@@ -77,7 +77,8 @@ The `reply` function appears only in the pattern-matching expression for `f` ins
 Blocking molecule injectors are values of type `B[T,R]`, while non-blocking molecule injectors have type `M[T]`.
 Here `T` is the type of value that the molecule carries, and `R` (for blocking molecules) is the type of the reply value.
 
-The pattern-matching expression for a blocking molecule of type `B[T,R]` has the form `case ... + f(v, r) + ...` where `v` is of type `T` and `r` is of type `R => Boolean`.
+The pattern-matching expression for a blocking molecule of type `B[T,R]` has the form `case ... + f(v, r) + ...` where `v` is of type `T` and `r` is of type 
+`R => Boolean`.
 Since `r` has a function type, users must match it with a pattern variable.
 The names `reply` or `r` can be used for clarity.
 
@@ -102,7 +103,7 @@ run { case fetch(_, reply) + counter(n) if n == 0  => reply() }
 
 ```
 
-For more clarity, we can also use the pattern-matching facility of `JoinRun` to implement the same reaction like this:
+For more clarity, we can also use the pattern matching facility of `JoinRun` to implement the same reaction like this:
 
 ```scala
 run { case counter(0) + fetch(_, reply)  => reply() }
@@ -149,12 +150,12 @@ Some remarks:
 - Molecules with unit values still require a pattern variable when used in the `case` construction.
 For this reason, we write `decr(_)` and `fetch(_, reply)` in the match patterns.
 However, these molecules can be injected simply by calling `decr()` and `fetch()`, since Scala inserts a `Unit` value automatically when calling functions.
-- We declared both reactions in one join definition, because these two reactions share the input molecule `counter`.
+- We declare both reactions in one join definition, because these two reactions share the input molecule `counter`.
 - The injected blocking molecule `fetch()` will not remain in the soup after the reaction is finished.
 Actually, it would not make sense for `fetch()` to remain in the soup:
 If a molecule remains in the soup after a reaction, it means that the molecule is going to be available for some later reaction without blocking its injecting call; but this is the behavior of a non-blocking molecule.
-- Blocking molecules are like functions except that they will block until their reactions are not available.
-If the relevant reaction never starts, a blocking molecule will block forever.
+- Blocking molecules are like functions except that they will block as long as their reactions are unavailable.
+If the relevant reaction never starts, a blocking molecule blocks forever.
 The runtime engine cannot detect this situation because it cannot determine whether the relevant input molecules for that reaction might become available in the future.
 - If several reactions are available for the blocking molecule, one of these reactions will be selected at random.
 - Blocking molecules are printed with the suffix `"/B"`.
@@ -386,7 +387,7 @@ run { case result(n) + done(x) =>
     }
 ```
 
-To make the chemistry clearer, we can rewrite this as three reactions using pattern-matching:
+To make the chemistry clearer, we can rewrite this as three reactions using pattern matching:
 
 ```scala
 join(
@@ -441,10 +442,10 @@ Sometimes, errors of this type can be caught at compile time:
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-join( run { case f(_,reply) + c(n) => c(n+1) } ) // forgot to reply!
+join( run { case f(_,r) + c(n) => c(n+1) } ) // forgot to reply!
 // compile-time error: "blocking input molecules should receive a reply but no reply found"
 
-join( run { case f(_,reply) + c(n) => c(n+1) + r(n) + r(n) } ) // replied twice!
+join( run { case f(_,r) + c(n) => c(n+1) + r(n) + r(n) } ) // replied twice!
 // compile-time error: "blocking input molecules should receive one reply but multiple replies found"
 
 ```
@@ -455,7 +456,7 @@ In this case, a reaction that does not reply will generate a run-time error:
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-join( run { case f(_,reply) + c(n) => c(n+1); if (n==0) reply(n) } )
+join( run { case f(_,r) + c(n) => c(n+1); if (n==0) r(n) } )
 
 c(1)
 f()
@@ -465,6 +466,6 @@ java.lang.Exception: Error: In Join{c + f/B => ...}: Reaction {c + f/B => ...} f
 
 Note that this error will occur only when reactions actually start and the run-time condition is evaluated to `false`.
 Also, the exception may be thrown on another thread, which may not be immediately visible.
-For these reasons, it is not easy to catch errors of this type, either at compile time or at runtime.
+For these reasons, it is not easy to catch errors of this type, either at compile time or at run time.
 To avoid these problems, it is advisable to reorganize the chemistry such that reply actions (and, more generally, output molecule injections) are unconditional.
 

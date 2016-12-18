@@ -58,17 +58,6 @@ object Macros {
     c.Expr[B[T, R]](q"new B[$t,$r]($s)")
   }
 
-  /**
-    * This is an alias for [[Macros#run]], to be used in case [[Macros#run]] clashes
-    * with another name imported into the local scope (e.g. in scalatest).
-    * Examples: & { a(_) => ... }
-    * & { a (_) => ...} onThreads threadPool
-    */
-  object & {
-    // Users will create reactions using these functions.
-    def apply(reactionBody: ReactionBody): Reaction = macro buildReactionImpl
-  }
-
   /** Describes the pattern matcher for input molecules.
     * Possible values:
     * Wildcard: a(_)
