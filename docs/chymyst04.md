@@ -23,7 +23,7 @@ Our task is to implement this as a concurrent computation.
 We would like to perform all computations concurrently - both applying `f` to each element of the array, and also accumulating the final result.
 
 For simplicity, we will assume that the `reduceB` operation is associative and commutative (that is, the type `B` is a commutative monoid).
-In that case, we are apply the `reduceB` operation to array elements in arbitrary order, which makes our task easier.
+In that case, we are applying the `reduceB` operation to array elements in arbitrary order, which makes our task easier.
 
 Implementing the map/reduce operation does not actually require the full power of concurrency: a “bulk synchronous processing” framework such as Hadoop or Spark will do the job.
 Our goal is to come up with a “chemical” approach to concurrent map/reduce.
@@ -205,16 +205,18 @@ val x = f() // fetch the current value
 Also note that each invocation of `makeCounter` will create new, fresh molecules `counter`, `decr`, and `fetch` inside the closure, because each invocation will create a fresh local scope.
 In this way, the user can create as many independent counters as desired.
 
-This example shows how we can “hide” some molecules and yet use their reactions.
-A closure can define local reaction with several input molecules, inject some of these molecules initially, and return some (but not all) molecule constructors to the global scope outside of the closure.
+This example shows how we can encapsulate some molecules and yet use their reactions.
+A closure can define local reaction with several input molecules, inject some of these molecules initially, and return some (but not all) molecule injectors to 
+the 
+global scope outside of the closure.
 
 # Example: Concurrent merge-sort
 
-Chemical laws can be “recursive”: a molecule can start a reaction whose reaction body defines further reactions and injects the same molecule.
+Chemical laws can be recursive: a molecule can start a reaction whose reaction body defines further reactions and injects the same molecule.
 Since each reaction body will have a fresh scope, new molecules and new reactions will be defined every time.
-This will create a recursive configuration of new reactions, such as a linked list or a tree of reactions.
+This will create a recursive configuration of reactions, such as a linked list or a tree of reactions.
 
-We will now figure out how to use “recursive chemistry” for implementing the merge-sort algorithm in `JoinRun`.
+We will now figure out how to use recursive molecules for implementing the merge-sort algorithm in `JoinRun`.
 
 The initial data will be an array, and we will therefore need a molecule to carry that array.
 We will also need another molecule to carry the sorted result.
