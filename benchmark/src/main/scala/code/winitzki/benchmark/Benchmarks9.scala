@@ -33,7 +33,7 @@ object Benchmarks9 {
 
     val tp = new FixedPool(threads)
 
-    join(
+    join(tp)(
       run { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
       run { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
     )
@@ -91,7 +91,7 @@ object Benchmarks9 {
 
     val tp = new SmartPool(threads) // this will not work with a fixed pool
 
-    join(
+    join(tp)(
       run { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
       run { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
     )
@@ -113,20 +113,20 @@ object Benchmarks9 {
 
     val a = m[Boolean]
     val collect = m[Int]
-    val ff = b[Unit, Int]
+    val f = b[Unit, Int]
     val get = b[Unit, Int]
 
     val tp = new FixedPool(threads)
 
     join(tp)(
-      run { case ff(_, reply) => var res = reply(123); a(res) },
+      run { case f(_, reply) => a(reply(123)) },
       run { case a(x) + collect(n) => collect(n + (if (x) 0 else 1)) },
       run { case collect(n) + get(_, reply) => reply(n) }
     )
     collect(0)
 
     val numberOfFailures = (1 to count).map { _ =>
-      if (ff(timeout = 10.seconds)().isEmpty) 1 else 0
+      if (f(timeout = 10.seconds)().isEmpty) 1 else 0
     }.sum
 
     // we seem to have about 4% numberOfFailures and about 2 numberOfFalseReplies in 100,000
@@ -136,6 +136,48 @@ object Benchmarks9 {
     tp.shutdownNow()
 
     elapsed(initialTime)
+  }
+
+  def make_counter_1_Jiansen(done: AsyName[Unit], counters: Int, init: Int): SynName[Unit,Unit] = {
+    object b9c1 extends Join {
+      object c extends AsyName[Int]
+      object d extends SynName[Unit, Unit]
+
+      join {
+        case c(0) => done()
+        case c(n) and d(_) if n > 0 => c(n-1); d.reply()
+      }
+    }
+    import b9c1._
+    (1 to counters).foreach(_ => c(init))
+    // We return just one molecule.
+    d
+  }
+
+  // inject a blocking molecule many times
+  def benchmark9_1_Jiansen(count: Int, threads: Int = 2): Long = {
+
+    object b9c1b extends Join {
+      object done extends AsyName[Unit]
+      object all_done extends AsyName[Int]
+      object f extends SynName[LocalDateTime, Long]
+
+      join {
+        case all_done(0) and f(tInit) => f.reply(elapsed(tInit))
+        case all_done(x) + done(_) if x > 0 => all_done(x-1)
+      }
+    }
+
+    import b9c1b._
+
+    val initialTime = LocalDateTime.now
+    all_done(numberOfCounters)
+
+    val d = make_counter_1_Jiansen(done, numberOfCounters, count)
+    (1 to (count*numberOfCounters)).foreach{ _ => d() }
+
+    var result = f(initialTime)
+    result
   }
 
 
