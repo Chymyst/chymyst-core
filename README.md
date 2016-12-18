@@ -146,6 +146,7 @@ Performance tests indicate that the runtime can schedule about 300,000 reactions
 
 Known limitations:
 
+- `JoinRun` is about 3x slower than `ScalaJoin` on the blocking molecule benchmark.
 - `JoinRun` has no fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random.
 - `JoinRun` has no distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`, and probably will not be).
 Distributed computation should be implemented in a better way than posting channel names on an HTTP server.
