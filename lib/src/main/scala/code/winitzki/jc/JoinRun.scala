@@ -14,7 +14,6 @@ import java.util.concurrent.{Semaphore, TimeUnit}
 
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
-import scala.reflect.ClassTag
 
 object JoinRun {
 
@@ -55,6 +54,7 @@ object JoinRun {
   case object GuardPresenceUnknown extends GuardPresenceType
 
   /** Compile-time information about an input molecule pattern in a reaction.
+    * This class is immutable.
     *
     * @param molecule The molecule injector value that represents the input molecule.
     * @param flag     Type of the input pattern: wildcard, constant match, etc.
@@ -136,6 +136,7 @@ object JoinRun {
   }
 
   /** Compile-time information about an output molecule pattern in a reaction.
+    * This class is immutable.
     *
     * @param molecule The molecule injector value that represents the output molecule.
     * @param flag     Type of the output pattern: either a constant value or other value.
@@ -152,6 +153,7 @@ object JoinRun {
     }
   }
 
+  // This class is immutable.
   final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) {
 
     // The input pattern sequence is pre-sorted for further use.
@@ -166,7 +168,9 @@ object JoinRun {
       (mol.toString, patternPrecedence, sha)
     }
 
-    override def toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")}${hasGuard match {
+    override def toString: String = stringForm
+
+    private val stringForm = s"${inputsSorted.map(_.toString).mkString(" + ")}${hasGuard match {
       case GuardAbsent => ""
       case GuardPresent => " if(...)"
       case GuardPresenceUnknown => " ?"
@@ -193,7 +197,7 @@ object JoinRun {
   private[jc] final class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionNoSingleton(message: String) extends ExceptionInJoinRun(message)
 
-  /** Represents a reaction body.
+  /** Represents a reaction body. This class is immutable.
     *
     * @param body Partial function of type {{{ UnapplyArg => Unit }}}
     * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
@@ -227,7 +231,9 @@ object JoinRun {
       *
       * @return String representation of input molecules of the reaction.
       */
-    override def toString = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${if (retry)
+    override def toString = stringForm
+
+    private lazy val stringForm = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${if (retry)
       "/R" else ""}"
 
     // Optimization: this is used often.
