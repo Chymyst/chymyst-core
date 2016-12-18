@@ -1,7 +1,7 @@
 package code.winitzki.jc
 
 import JoinRun._
-import Macros._
+import Macros.{getName, rawTree, m,b, run => &}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt

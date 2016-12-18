@@ -68,10 +68,10 @@ object Benchmarks1 {
     val f = b[LocalDateTime,Long]
 
     join(tp)(
-      & { case c(0) + f(tInit, r) => r(elapsed(tInit)) },
-      & { case g(_,reply) + c(n) => c(n); reply(n) },
-      & { case c(n) + i(_) => c(n+1) },
-      & { case c(n) + d(_) if n > 0 => c(n-1) }
+      run { case c(0) + f(tInit, r) => r(elapsed(tInit)) },
+      run { case g(_,reply) + c(n) => c(n); reply(n) },
+      run { case c(n) + i(_) => c(n+1) },
+      run { case c(n) + d(_) if n > 0 => c(n-1) }
     )
 
     c(init)

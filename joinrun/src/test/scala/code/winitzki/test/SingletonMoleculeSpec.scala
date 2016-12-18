@@ -1,6 +1,7 @@
 package code.winitzki.test
 
 import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros.{run => &}
 import code.winitzki.jc.Macros._
 import code.winitzki.jc.{FixedPool, SmartPool}
 import org.scalatest.concurrent.TimeLimitedTests
