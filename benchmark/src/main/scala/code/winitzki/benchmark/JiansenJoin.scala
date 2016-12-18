@@ -4,7 +4,7 @@ package code.winitzki.benchmark
 This file is not a part of JoinRun. Only the benchmark application uses this file
 for performance comparisons between JoinRun and ScalaJoin.
 
-Some minor changes were made to accomodate updates in the Scala standard library since 2011.
+Some minor changes were made to accommodate updates in the Scala standard library since 2011.
 */
 
 /** A module providing constracts for join patterns.

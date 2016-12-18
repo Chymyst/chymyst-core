@@ -51,7 +51,7 @@ object MainApp extends App {
 
     s"${Benchmarks9.pingPongCalls} blocked threads with ping-pong calls" -> benchmark9_2 _,
 
-    s"count using blocking access with checking reply status" -> benchmark9_3 _
+    s"count to ${counterMultiplier*n} using blocking access with checking reply status" -> benchmark9_3 _
   ).zipWithIndex.foreach {
     case ((message, benchmark), i) => println(s"Benchmark ${i+1} took ${run3times { benchmark(n,threads) }} ms ($message)")
   }

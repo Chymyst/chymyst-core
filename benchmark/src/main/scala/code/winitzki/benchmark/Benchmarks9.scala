@@ -107,6 +107,8 @@ object Benchmarks9 {
     result
   }
 
+  val counterMultiplier = 10
+
   def benchmark9_3(count: Int, threads: Int = 2): Long = {
 
     val initialTime = LocalDateTime.now
@@ -125,14 +127,15 @@ object Benchmarks9 {
     )
     collect(0)
 
-    val numberOfFailures = (1 to count).map { _ =>
-      if (f(timeout = 10.seconds)().isEmpty) 1 else 0
+    val numberOfFailures = (1 to count*counterMultiplier).map { _ =>
+      if (f(timeout = 1.seconds)().isEmpty) 1 else 0
     }.sum
 
-    // we seem to have about 4% numberOfFailures and about 2 numberOfFalseReplies in 100,000
+    // In this benchmark, we used to have about 4% numberOfFailures and about 2 numberOfFalseReplies in 100,000
     val numberOfFalseReplies = get()
 
-    println(s"failures=$numberOfFailures, false replies=$numberOfFalseReplies")
+    if (numberOfFailures != 0 || numberOfFalseReplies != 0)
+      println(s"failures=$numberOfFailures, false replies=$numberOfFalseReplies (both should be 0)")
     tp.shutdownNow()
 
     elapsed(initialTime)

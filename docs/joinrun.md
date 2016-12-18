@@ -438,8 +438,6 @@ Version 0.5: Investigate an implicit distributed execution of chemical reactions
 
  value * difficulty - description
 
- 2 * 2 - benchmark and profile the performance of blocking molecules (make many reactions that block and unblock)
-
  2 * 3 - investigate using wait/notify instead of semaphore; does it give better performance? This depends on benchmarking of blocking molecules.
 
  3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
