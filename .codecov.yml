@@ -1,0 +1,2 @@
+ignore:
+  - "benchmark/src/main/scala" # ignore benchmark application for coverage analysis (but include the tests)
