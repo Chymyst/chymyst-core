@@ -68,7 +68,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
 
       a()
-      waiter.await()
+      waiter.await()(patienceConfig, implicitly[Position])
     }.get shouldEqual()
   }
 
