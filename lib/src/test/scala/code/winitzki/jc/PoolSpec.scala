@@ -1,6 +1,6 @@
 package code.winitzki.jc
 
-import code.winitzki.jc.JoinRun.{AbsMolValue, InjectionInfo, Molecule, ReactionOrInjectionInfo}
+import code.winitzki.jc.JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
@@ -13,7 +13,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
-  val dummyInfo = InjectionInfo(new MutableBag[Molecule, AbsMolValue[_]])
+  val dummyInfo = emptyReactionInfo
 
   behavior of "thread with info"
 
@@ -21,8 +21,8 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val waiter = new Waiter
 
     tp.runClosure({
-      val threadInfoOptOpt: Option[Option[ReactionOrInjectionInfo]] = Thread.currentThread match {
-        case t : ThreadWithInfo => Some(t.runnableInfo)
+      val threadInfoOptOpt: Option[Option[ReactionInfo]] = Thread.currentThread match {
+        case t : ThreadWithInfo => Some(t.reactionInfo)
         case _ => None
       }
       waiter { threadInfoOptOpt shouldEqual Some(Some(dummyInfo)) }
@@ -43,6 +43,33 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   it should "run tasks on a thread with info, in smart pool" in {
     Library.withPool(new SmartPool(2))(checkPool).get shouldEqual ()
+  }
+
+  it should "run reactions on a thread with reaction info" in {
+    Library.withPool(new FixedPool(2)){ tp =>
+      val waiter = new Waiter
+      val a = new M[Unit]("a")
+
+      join(tp)(
+        runSimple { case a(_) =>
+          val reactionInfo = Thread.currentThread match {
+            case t: ThreadWithInfo => t.reactionInfo
+            case _ => None
+          }
+
+          waiter {
+            (reactionInfo match {
+              case Some(ReactionInfo(List(InputMoleculeInfo(a, UnknownInputPattern, _)), None, GuardPresenceUnknown, _)) => true
+              case _ => false
+            }) shouldEqual true
+          }
+          waiter.dismiss()
+        }
+      )
+
+      a()
+      waiter.await()
+    }.get shouldEqual()
   }
 
   behavior of "fixed thread pool"

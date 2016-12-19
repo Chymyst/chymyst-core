@@ -2,7 +2,7 @@ package code.winitzki.jc
 
 import java.util.concurrent.ThreadFactory
 
-import code.winitzki.jc.JoinRun.ReactionOrInjectionInfo
+import code.winitzki.jc.JoinRun.ReactionInfo
 
 
 class SmartThread(runnable: Runnable, pool: SmartPool) extends ThreadWithInfo(runnable) {
@@ -26,18 +26,29 @@ class SmartThread(runnable: Runnable, pool: SmartPool) extends ThreadWithInfo(ru
 
 }
 
+/** Thread that knows how JoinRun uses it at any time.
+  * The {{{reactionInfo}}} variable is initially set to None, and will be set to Some(...) whenever JoinRun task runs on this thread.
+  *
+  * @param runnable The initial task given to the thread. (Required by the Thread interface.)
+  */
 class ThreadWithInfo(runnable: Runnable) extends Thread(runnable) {
-  val runnableInfo: Option[ReactionOrInjectionInfo] = runnable match {
-    case r: RunnableWithInfo => Some(r.info)
-    case _ => None
+  @volatile var reactionInfo: Option[ReactionInfo] = None
+}
+
+class RunnableWithInfo(closure: => Unit, val info: ReactionInfo) extends Runnable {
+  override def toString: String = info.toString
+  override def run(): Unit = {
+    Thread.currentThread match {
+      case t: ThreadWithInfo =>
+        t.reactionInfo = Some(info)
+      case _ =>
+    }
+    closure
   }
 }
 
-class RunnableWithInfo(closure: => Unit, val info: ReactionOrInjectionInfo) extends Runnable {
-  override def toString: String = info.toString
-  override def run(): Unit = closure
-}
-
 class ThreadFactoryWithInfo extends ThreadFactory {
-  override def newThread(r: Runnable): Thread = new ThreadWithInfo(r)
+  override def newThread(r: Runnable): Thread = {
+    new ThreadWithInfo(r)
+  }
 }

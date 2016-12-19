@@ -155,15 +155,8 @@ object JoinRun {
     }
   }
 
-  // This is carried by each thread, in order to monitor the reactions that are being scheduled.
-  sealed trait ReactionOrInjectionInfo
-
-  final case class InjectionInfo(injected: MoleculeBag) extends ReactionOrInjectionInfo {
-    override val toString: String = moleculeBagToString(injected)
-  }
-
   // This class is immutable.
-  final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) extends ReactionOrInjectionInfo {
+  final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) {
 
     // The input pattern sequence is pre-sorted for further use.
     private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
@@ -186,6 +179,11 @@ object JoinRun {
       case None => "?"
     }}"
   }
+
+  /** A special value for {{{ReactionInfo}}} to signal that we are not running a reaction.
+    *
+    */
+  private[jc] val emptyReactionInfo = ReactionInfo(Nil, None, GuardPresenceUnknown, "")
 
   // for M[T] molecules, the value inside AbsMolValue[T] is of type T; for B[T,R] molecules, the value is of type
   // ReplyValue[T,R]. For now, we don't use shapeless to enforce this typing relation.

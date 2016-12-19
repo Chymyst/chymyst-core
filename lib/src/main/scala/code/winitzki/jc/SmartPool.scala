@@ -2,7 +2,7 @@ package code.winitzki.jc
 
 import java.util.concurrent._
 
-import code.winitzki.jc.JoinRun.ReactionOrInjectionInfo
+import code.winitzki.jc.JoinRun.ReactionInfo
 
 /** This is similar to scala.concurrent.blocking and is used to annotate expressions that should lead to a possible increase of thread count.
   * Multiple nested calls to {{{BlockingIdle}}} are equivalent to one call.
@@ -65,7 +65,7 @@ class SmartPool(parallelism: Int) extends Pool {
     }
   }
 
-  override def runClosure(closure: => Unit, info: ReactionOrInjectionInfo): Unit =
+  override def runClosure(closure: => Unit, info: ReactionInfo): Unit =
     executor.submit(new RunnableWithInfo(closure, info))
 
   override def isInactive: Boolean = executor.isShutdown || executor.isTerminated
