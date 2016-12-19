@@ -12,7 +12,7 @@ import scala.concurrent.duration._
 
 class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(300, Millis)
+  val timeLimit = Span(3000, Millis)
 
   behavior of "singleton injection"
 
