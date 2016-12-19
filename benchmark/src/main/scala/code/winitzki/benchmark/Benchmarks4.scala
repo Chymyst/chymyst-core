@@ -1,14 +1,16 @@
 package code.winitzki.benchmark
 
 import java.time.LocalDateTime
+
 import code.winitzki.benchmark.Common._
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
+import code.winitzki.jc.Pool
 
 object Benchmarks4 {
   val differentReactions = 100
 
-  def benchmark4_100(count_unused: Int, threads: Int = 2): Long = {
+  def benchmark4_100(count_unused: Int, tp: Pool): Long = {
     val initialTime = LocalDateTime.now
 
     val count = 2000
@@ -29,14 +31,14 @@ object Benchmarks4 {
             run { case a(m) => b(m) }
         }
       )
-      join(jrs: _*)
+      join(tp)(jrs: _*)
       as(0)(count)
       g
     }
     g(initialTime)
   }
 
-  def benchmark5_6(count: Int, threads: Int = 2): Long = {
+  def benchmark5_6(count: Int, tp: Pool): Long = {
 
     object j5 extends Join {
       object f extends AsyName[Unit]
@@ -67,7 +69,7 @@ object Benchmarks4 {
   }
 
   // this generates a stack overflow with more than about 50 reactions when count is about 10
-  def benchmark5_100(count: Int, threads: Int = 2): Long = {
+  def benchmark5_100(count: Int, tp: Pool): Long = {
 
     object j5_100 extends Join {
       object f extends AsyName[Unit]

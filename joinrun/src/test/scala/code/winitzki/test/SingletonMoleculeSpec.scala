@@ -180,7 +180,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
-  it should "always able to read the value of a singleton early" in {
+  it should "always be able to read the value of a singleton early" in {
 
     val tp = new FixedPool(1)
 

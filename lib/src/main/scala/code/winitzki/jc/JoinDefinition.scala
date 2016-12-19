@@ -222,13 +222,6 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     // We already decided on starting a reaction, so we don't hold the `synchronized` lock on the molecule bag any more.
     reactionOpt match {
       case Some(reaction) =>
-        if (logLevel > 1) println(s"Debug: In $this: starting reaction {$reaction} on thread pool ${reaction.threadPool} while on thread pool $joinPool with inputs ${moleculeBagToString(usedInputs)}")
-        if (logLevel > 2) println(
-          if (moleculesPresent.size == 0)
-            s"Debug: In $this: no molecules remaining"
-          else
-            s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
-        )
         // A basic check that we are using our mutable structures safely. We should never see this error.
         if (!reaction.inputMolecules.toSet.equals(usedInputs.keySet)) {
           val message = s"Internal error: In $this: attempt to start reaction {$reaction} with incorrect inputs ${moleculeBagToString(usedInputs)}"
@@ -240,6 +233,13 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
         if (poolForReaction.isInactive)
           throw new ExceptionNoReactionPool(s"In $this: cannot run reaction $reaction since reaction pool is not active")
         else if (!Thread.currentThread().isInterrupted)
+          if (logLevel > 1) println(s"Debug: In $this: starting reaction {$reaction} on thread pool $poolForReaction while on thread pool $joinPool with inputs ${moleculeBagToString(usedInputs)}")
+        if (logLevel > 2) println(
+          if (moleculesPresent.size == 0)
+            s"Debug: In $this: no molecules remaining"
+          else
+            s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
+        )
           // Schedule the reaction now. Provide reaction info to the thread.
           poolForReaction.runClosure(buildReactionClosure(reaction, usedInputs), reaction.info)
 
