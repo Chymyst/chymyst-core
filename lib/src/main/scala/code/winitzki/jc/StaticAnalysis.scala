@@ -278,4 +278,26 @@ private object StaticAnalysis {
     Seq()
   }
 
+  private[jc] def findSingletonInjectionErrors(singletonsDeclared: Map[Molecule, Int], singletonsInjected: Map[Molecule, Int]): Seq[String] = {
+    // Inspect the singletons actually injected. Their multiplicities must be not less than the declared multiplicities.
+    val foundErrors = singletonsDeclared
+      .filter { case (mol, count) => singletonsInjected.getOrElse(mol, 0) < count }
+      .map { case (mol, count) =>
+        val countInjected = singletonsInjected.getOrElse(mol, 0)
+        s"$mol $countInjected times instead of $count"
+      }
+    if (foundErrors.nonEmpty) Seq(s"Too few singletons injected: ${foundErrors.mkString(", ")}") else Seq()
+  }
+
+  private[jc] def findSingletonInjectionWarnings(singletonsDeclared: Map[Molecule, Int], singletonsInjected: Map[Molecule, Int]) = {
+    // Inspect the singletons actually injected. Their multiplicities must be not more than the declared multiplicities.
+    val foundErrors = singletonsDeclared
+      .filter { case (mol, count) => singletonsInjected.getOrElse(mol, 0) > count }
+      .map { case (mol, count) =>
+        val countInjected = singletonsInjected.getOrElse(mol, 0)
+        s"$mol $countInjected times instead of $count"
+      }
+    if (foundErrors.nonEmpty) Seq(s"Possibly too many singletons injected: ${foundErrors.mkString(", ")}") else Seq()
+  }
+
 }

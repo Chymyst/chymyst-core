@@ -4,7 +4,8 @@ import JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.Waiter
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import scala.concurrent.duration._
 
 class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
@@ -18,7 +19,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     tp0.shutdownNow()
   }
   
-  val timeLimit = Span(1000, Millis)
+  val timeLimit = Span(2000, Millis)
 
   val warmupTimeMs = 50
 
@@ -289,47 +290,50 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     tp.shutdownNow()
   }
 
-  it should "process simple reactions quickly enough" in {
-    val n = 1000
+  it should "fail to finish if processes crash with high probability and retry is not set" in {
+    val n = 20
+
+    val probabilityOfCrash = 0.9
 
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
-    val g = new B[Unit, Int]("getValue")
+    val g = new B[Unit, Unit]("getValue")
     val tp = new FixedPool(2)
+
     join(tp0)(
-      runSimple  { case c(x) + d(_) => c(x - 1) } onThreads tp,
-      runSimple  { case c(0) + g(_, r) => c(0) + r(0) }
+      runSimple  { case c(x) + d(_) =>
+        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
+      }.noRetry onThreads tp,
+      runSimple  { case c(0) + g(_, r) => r() }
     )
     c(n)
     (1 to n).foreach { _ => d() }
 
-    g() shouldEqual 0
+    g(timeout = 1500 millis)() shouldEqual None
 
     tp.shutdownNow()
   }
 
   it should "resume fault-tolerant reactions by retrying even if processes crash with fixed probability" in {
-    val n = 20
+    val n = 200
 
-    val probabilityOfCrash = 0.5
+    val probabilityOfCrash = 0.9
 
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
-    val g = new B[Unit, Int]("getValue")
+    val g = new B[Unit, Unit]("getValue")
     val tp = new FixedPool(2)
 
     join(tp0)(
       runSimple  { case c(x) + d(_) =>
         if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
       }.withRetry onThreads tp,
-      runSimple  { case c(x) + g(_, r) => c(x) + r(x) }
+      runSimple  { case c(0) + g(_, r) => r() }
     )
     c(n)
     (1 to n).foreach { _ => d() }
 
-    waitSome()
-    Thread.sleep(200) // give it some more time to compensate for crashes
-    g() shouldEqual 0
+    g(timeout = 1500 millis)() shouldEqual Some(())
 
     tp.shutdownNow()
   }
