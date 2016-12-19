@@ -13,7 +13,7 @@ import scala.concurrent.duration.DurationInt
   */
 class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
-  var tp0: Pool = null
+  var tp0: Pool = _
 
   override def beforeEach(): Unit = {
     tp0 = new SmartPool(50)
@@ -137,7 +137,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val g = new B[Unit,Int]("g")
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(4)
-    join(tp,tp)(
+    join(tp)(
       runSimple { case d(_) => g2() } onThreads tp,
       runSimple { case c(_) + g(_,_) + g2(_,_) => c() }
     )
@@ -158,7 +158,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val g = new B[Unit,Int]("g")
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(4)
-    join(tp,tp)(
+    join(tp)(
       runSimple { case d(_) => g() } onThreads tp,
       runSimple { case c(_) + g(_,r) + g2(_,_) => c() + r(0) }
     )
@@ -184,7 +184,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val g2 = new B[Unit,Int]("g2")
     val h = new B[Unit,Int]("h")
     val tp = new FixedPool(4)
-    join(tp,tp)(
+    join(tp)(
       runSimple { case c(_) => e(g2()) }, // e(0) should be injected now
       runSimple { case d(_) + g(_,r) + g2(_,r2) => r(0); r2(0) } onThreads tp,
       runSimple { case e(x) + h(_,r) =>  r(x) }
@@ -208,7 +208,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val g2 = new B[Unit,Int]("g2")
     val h = new B[Unit,Int]("h")
     val tp = new FixedPool(4)
-    join(tp,tp)(
+    join(tp)(
       runSimple { case c(_) => val x = g(); g2(); e(x) }, // e(0) should never be injected because this thread is deadlocked
       runSimple { case d(_) + g(_,r) + g2(_,r2) => r(0); r2(0) } onThreads tp,
       runSimple { case e(x) + h(_,r) =>  r(x) },
@@ -236,7 +236,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val g = new B[Unit,Int]("g")
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(4)
-    join(tp,tp)(
+    join(tp)(
       runSimple { case d(_) => g() }, // this will be used to inject g() and blocked
       runSimple { case c(_) + g(_,r) => r(0) }, // this will not start because we have no c()
       runSimple { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
