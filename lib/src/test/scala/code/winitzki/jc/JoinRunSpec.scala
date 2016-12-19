@@ -19,7 +19,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     tp0.shutdownNow()
   }
   
-  val timeLimit = Span(2000, Millis)
+  val timeLimit = Span(5000, Millis)
 
   val warmupTimeMs = 50
 
@@ -293,6 +293,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
   it should "fail to finish if 1 out of 2 processes crash, and retry is not set" in {
     val n = 20
 
+    val probabilityOfCrash = 0.5
+
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
     val g = new B[Unit, Unit]("getValue")
@@ -300,20 +302,22 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
 
     join(tp0)(
       runSimple  { case c(x) + d(_) =>
-        if (x%2 == 0) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
+        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
       }.noRetry onThreads tp,
       runSimple  { case c(0) + g(_, r) => r() }
     )
     c(n)
     (1 to n).foreach { _ => d() }
 
-    g(timeout = 1500 millis)() shouldEqual None
-
+    val result = g(timeout = 1500 millis)()
     tp.shutdownNow()
+    result shouldEqual None
   }
 
   it should "resume fault-tolerant reactions by retrying even if 1 out of 2 processes crash" in {
     val n = 20
+
+    val probabilityOfCrash = 0.5
 
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
@@ -322,16 +326,16 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
 
     join(tp0)(
       runSimple  { case c(x) + d(_) =>
-        if (x%2 == 0) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
+        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
       }.withRetry onThreads tp,
       runSimple  { case c(0) + g(_, r) => r() }
     )
     c(n)
     (1 to n).foreach { _ => d() }
 
-    g(timeout = 1500 millis)() shouldEqual Some(())
-
+    val result = g(timeout = 1500 millis)()
     tp.shutdownNow()
+    result shouldEqual Some(())
   }
 
 }
