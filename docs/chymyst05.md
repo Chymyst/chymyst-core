@@ -167,13 +167,13 @@ We also need to make sure that the molecule `godot()` is never injected into the
 So we declare `godot` locally within the scope of `wait_forever`, where we'll inject nothing into the soup.
 
 ```scala
-def wait_forever: b[Unit, Unit] = {
+def wait_forever: B[Unit, Unit] = {
   val godot = m[Unit]
   val wait = b[Unit, Unit]
 
   join( run { case godot(_) + wait(_, r) => r() } )
-  // forgot to inject godot here, which is key to starve this reaction.
-  wait()
+  // forgot to inject `godot` here, which is key to starve this reaction.
+  wait
 }
 
 ```
