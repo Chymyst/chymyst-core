@@ -3,7 +3,7 @@ package code.winitzki.jc
 
 import java.util.concurrent._
 
-import code.winitzki.jc.JoinRun.ReactionOrInjectionInfo
+import code.winitzki.jc.JoinRun.ReactionInfo
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -22,7 +22,7 @@ class FixedPool(threads: Int) extends PoolExecutor(threads,
 trait Pool {
   def shutdownNow(): Unit
 
-  def runClosure(closure: => Unit, info: ReactionOrInjectionInfo): Unit
+  def runClosure(closure: => Unit, info: ReactionInfo): Unit
 
   def isActive: Boolean = !isInactive
   def isInactive: Boolean
@@ -46,7 +46,7 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorSer
     }
   }
 
-  def runClosure(closure: => Unit, info: ReactionOrInjectionInfo): Unit =
+  def runClosure(closure: => Unit, info: ReactionInfo): Unit =
     execService.execute(new RunnableWithInfo(closure, info))
 
   override def isInactive: Boolean = execService.isShutdown || execService.isTerminated
@@ -56,7 +56,7 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorSer
 private[jc] class PoolFutureExecutor(threads: Int = 8, execFactory: Int => ExecutorService) extends PoolExecutor(threads, execFactory) {
   private val execContext = ExecutionContext.fromExecutor(execService)
 
-  override def runClosure(closure: => Unit, info: ReactionOrInjectionInfo): Unit =
+  override def runClosure(closure: => Unit, info: ReactionInfo): Unit =
     Future { closure }(execContext)
 }
 
@@ -67,7 +67,7 @@ private[jc] class PoolFutureExecutor(threads: Int = 8, execFactory: Int => Execu
 class HandlerPool(handler: { def post(r: Runnable): Unit }) extends Pool {
   override def shutdownNow(): Unit = ()
 
-  override def runClosure(closure: => Unit, info: ReactionOrInjectionInfo): Unit =
+  override def runClosure(closure: => Unit, info: ReactionInfo): Unit =
     handler.post(new RunnableWithInfo(closure, info))
 
   override def isInactive: Boolean = false

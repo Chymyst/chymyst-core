@@ -86,13 +86,15 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
   it should "use the first reply when a reaction attempts to reply twice" in {
     val c = new M[Int]("c")
+    val d = new M[Unit]("d")
+    val f = new B[Unit,Unit]("f")
     val g = new B[Unit,Int]("g")
     join(tp0)(
-      runSimple { case c(n) + g(_,r) => c(n); r(n); r(n+1) }
+      runSimple { case c(n) + g(_,r) => c(n); r(n); r(n+1); d() },
+      runSimple { case d(_) + f(_,r) => r() }
     )
-    c(2)
-    waitSome()
-
+    c(2) + d()
+    f() // make sure "r(n+1)" was called
     g() shouldEqual 2
   }
 
@@ -353,7 +355,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     )
 
     c() + c2()
-    started() // now we are sure that both reactions are running and stuck
+    started(timeout = 500 millis)() shouldEqual Some(()) // now we are sure that both reactions are running and stuck
 
     g
   }

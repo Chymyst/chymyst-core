@@ -160,6 +160,17 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     }
   }
 
+  /** Determine whether the current thread is running a reaction, and if so, fetch the reaction info.
+    *
+    * @return {{{None}}} if the current thread is not running a reaction.
+    */
+  private def currentReactionInfo: Option[ReactionInfo] = {
+    Thread.currentThread match {
+      case t: ThreadWithInfo => t.reactionInfo
+      case _ => None
+    }
+  }
+
   /** Add a new molecule to the bag of molecules at its reaction site.
     * Then decide on which reaction can be started, and schedule that reaction on the reaction pool.
     * Adding a molecule may trigger at most one reaction, due to linearity of input patterns.
@@ -175,31 +186,26 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
       synchronized {
         if (m.isSingleton) {
           if (singletonsDeclared.get(m).isEmpty) throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject singleton $m($molValue) not declared in this join definition")
+
+          // This thread is allowed to inject this singleton only if it is a ThreadWithInfo and the reaction running on this thread has consumed this singleton.
+          val reactionInfoOpt = currentReactionInfo
+          val isAllowedToInject = reactionInfoOpt.exists(_.inputs.map(_.molecule).contains(m))
+          if (!isAllowedToInject) {
+            val refusalReason = reactionInfoOpt match {
+              case Some(info) => s"this reaction {$info} does not consume it"
+              case None => "this thread does not run a chemical reaction"
+            }
+            val errorMessage = s"In $this: Refusing to inject singleton $m($molValue) because $refusalReason"
+            throw new ExceptionInjectingSingleton(errorMessage)
+          }
+
+          // This thread is allowed to inject a singleton; but are there already enough copies of this singleton?
           val oldCount = moleculesPresent.getCount(m)
           val maxCount = singletonsInjected.getOrElse(m, 0)
           if (oldCount + 1 > maxCount) throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject singleton $m($molValue) having current count $oldCount, max count $maxCount")
-          else {
-            // This thread is allowed to inject this singleton only if it is a ThreadWithInfo and the reaction running on this thread has consumed this singleton.
-            val reactionInfoOpt: Option[ReactionInfo] = Thread.currentThread match {
-              case t: ThreadWithInfo => t.runnableInfo.flatMap {
-                case info: ReactionInfo => Some(info)
-                case _ => None
-              }
-              case _ => None
-            }
-            val isAllowedToInject = reactionInfoOpt.exists(_.inputs.map(_.molecule).contains(m))
-            if (isAllowedToInject)
-              singletonValues.put(m, molValue)
-            else {
-              val refusalReason = reactionInfoOpt match {
-                case Some(info) => s"this reaction {$info} did not consume it"
-                case None => "this thread does not run a chemical reaction"
-              }
-              val errorMessage = s"In $this: Refusing to inject singleton $m($molValue) because $refusalReason"
-              println(errorMessage)
-              throw new ExceptionInjectingSingleton(errorMessage)
-            }
-          }
+
+          // OK, we can proceed to inject this singleton molecule.
+          singletonValues.put(m, molValue)
         }
         moleculesPresent.addToBag(m, molValue)
         if (logLevel > 0) println(s"Debug: $this injecting $m($molValue) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
@@ -263,7 +269,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
         }
       }
       else
-        joinPool.runClosure(buildInjectClosure(m, molValue), InjectionInfo(MutableBag.of(m, molValue)))
+        joinPool.runClosure(buildInjectClosure(m, molValue), currentReactionInfo.getOrElse(emptyReactionInfo))
     }
   }
 
@@ -273,9 +279,9 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
       moleculesPresent.removeFromBag(m, blockingMolValue)
       if (logLevel > 0) println(s"Debug: $this removed $m($blockingMolValue) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
     }
-    blockingMolValue.synchronized(
+    blockingMolValue.synchronized {
       blockingMolValue.replyValue.replyTimeout = hadTimeout
-    )
+    }
   }
 
   private def injectAndReplyInternal[T,R](timeoutOpt: Option[Long], m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): Boolean = {
@@ -366,7 +372,9 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     // Perform static analysis.
     val foundWarnings = StaticAnalysis.findSingletonWarnings(singletonsDeclared, nonSingletonReactions) ++ StaticAnalysis.findStaticWarnings(nonSingletonReactions)
 
-    val foundErrors = StaticAnalysis.findSingletonErrors(singletonsDeclared, nonSingletonReactions) ++ StaticAnalysis.findStaticErrors(nonSingletonReactions)
+    val foundErrors = StaticAnalysis.findSingletonDeclarationErrors(singletonReactions) ++
+      StaticAnalysis.findSingletonErrors(singletonsDeclared, nonSingletonReactions) ++
+      StaticAnalysis.findStaticErrors(nonSingletonReactions)
 
     val staticDiagnostics = WarningsAndErrors(foundWarnings, foundErrors, s"$this")
 
