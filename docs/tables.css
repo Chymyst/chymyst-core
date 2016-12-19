@@ -17,3 +17,26 @@ table td {
 /*     border-top: 1px solid #ffffff; */
      border:1px solid #e0e0e0;
 }
+
+/* markdown code */
+
+code {
+    font-size: inherit;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    margin-top: 1em;
+    margin-bottom: 0.6em;
+}
+
+.container {
+    width: 80%;
+}
+
+ul, ol {
+    padding-left: 40px;
+}
+
+.highlight {
+    margin-bottom: 12px;
+}
