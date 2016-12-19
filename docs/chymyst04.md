@@ -116,7 +116,7 @@ run { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
 We can now inject all `carrier` molecules, a single `accum((0, null))` molecule, and a `fetch()` molecule.
 Because of the guard condition, the reaction with `fetch()` will not run until all intermediate results have been accumulated.
 
-Here is the complete code for this example.
+Here is the complete code for this example (see also `MapReduceSpec.scala` in the unit tests).
 We will apply the function `f(x) = x*x` to elements of an integer array, and then compute the sum of the resulting array of squares.
 
 ```scala
@@ -175,7 +175,7 @@ A solution is to define `counter` and its reactions within a function that retur
 The `counter` injector will not be returned to the outside scope, and so the user will not be able to inject extra copies of that molecule.
 
 ```scala
-def makeCounter(initCount: Int): (M[Unit], B[Unit,Int]) = {
+def makeCounter(initCount: Int): (M[Unit], B[Unit, Int]) = {
   val counter = m[Int]
   val decr = m[Unit]
   val fetch = m[Unit, Int]
@@ -225,12 +225,12 @@ This will create a recursive configuration of reactions, such as a linked list o
 
 We will now figure out how to use recursive molecules for implementing the merge-sort algorithm in `JoinRun`.
 
-The initial data will be an array, and we will therefore need a molecule to carry that array.
+The initial data will be an array of type `T`, and we will therefore need a molecule to carry that array.
 We will also need another molecule to carry the sorted result.
 
 ```scala
-val mergesort = m[Array[Int]]
-val sorted = m[Array[Int]]
+val mergesort = m[Array[T]]
+val sorted = m[Array[T]]
 
 ```
 
@@ -265,8 +265,8 @@ join ( run { case mergesort(arr) =>
     if (arr.length == 1) sorted(arr) else {
       val (part1, part2) = arr.splitAt(arr.length / 2)
       // define lower-level "sorted" molecules
-      val sorted1 = m[Array[Int]]
-      val sorted2 = m[Array[Int]]
+      val sorted1 = m[Array[T]]
+      val sorted2 = m[Array[T]]
       join( run { case sorted1(arr1) + sorted2(arr2) => sorted( arrayMerge(arr1, arr2) ) } )
       // inject recursively
       mergesort(part1) + mergesort(part2)
@@ -300,7 +300,7 @@ join(
       }
   }
 )
-// sort our array at top level, assuming `finalResult: M[Array[Int]]`
+// sort our array at top level, assuming `finalResult: M[Array[T]]`
 mergesort((array, finalResult))
 
 ```
