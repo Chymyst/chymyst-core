@@ -13,7 +13,7 @@ import scala.concurrent.duration.DurationInt
   */
 class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
-  var tp0: Pool = null
+  var tp0: Pool = _
 
   override def beforeEach(): Unit = {
     tp0 = new SmartPool(50)
@@ -86,13 +86,15 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
   it should "use the first reply when a reaction attempts to reply twice" in {
     val c = new M[Int]("c")
+    val d = new M[Unit]("d")
+    val f = new B[Unit,Unit]("f")
     val g = new B[Unit,Int]("g")
     join(tp0)(
-      runSimple { case c(n) + g(_,r) => c(n); r(n); r(n+1) }
+      runSimple { case c(n) + g(_,r) => c(n); r(n); r(n+1); d() },
+      runSimple { case d(_) + f(_,r) => r() }
     )
-    c(2)
-    waitSome()
-
+    c(2) + d()
+    f() // make sure "r(n+1)" was called
     g() shouldEqual 2
   }
 
@@ -135,7 +137,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val g = new B[Unit,Int]("g")
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(4)
-    join(tp,tp)(
+    join(tp)(
       runSimple { case d(_) => g2() } onThreads tp,
       runSimple { case c(_) + g(_,_) + g2(_,_) => c() }
     )
@@ -156,7 +158,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val g = new B[Unit,Int]("g")
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(4)
-    join(tp,tp)(
+    join(tp)(
       runSimple { case d(_) => g() } onThreads tp,
       runSimple { case c(_) + g(_,r) + g2(_,_) => c() + r(0) }
     )
@@ -182,7 +184,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val g2 = new B[Unit,Int]("g2")
     val h = new B[Unit,Int]("h")
     val tp = new FixedPool(4)
-    join(tp,tp)(
+    join(tp)(
       runSimple { case c(_) => e(g2()) }, // e(0) should be injected now
       runSimple { case d(_) + g(_,r) + g2(_,r2) => r(0); r2(0) } onThreads tp,
       runSimple { case e(x) + h(_,r) =>  r(x) }
@@ -206,7 +208,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val g2 = new B[Unit,Int]("g2")
     val h = new B[Unit,Int]("h")
     val tp = new FixedPool(4)
-    join(tp,tp)(
+    join(tp)(
       runSimple { case c(_) => val x = g(); g2(); e(x) }, // e(0) should never be injected because this thread is deadlocked
       runSimple { case d(_) + g(_,r) + g2(_,r2) => r(0); r2(0) } onThreads tp,
       runSimple { case e(x) + h(_,r) =>  r(x) },
@@ -234,7 +236,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val g = new B[Unit,Int]("g")
     val g2 = new B[Unit,Int]("g2")
     val tp = new FixedPool(4)
-    join(tp,tp)(
+    join(tp)(
       runSimple { case d(_) => g() }, // this will be used to inject g() and blocked
       runSimple { case c(_) + g(_,r) => r(0) }, // this will not start because we have no c()
       runSimple { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
@@ -337,24 +339,22 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
   def blockThreadsDueToBlockingMolecule(tp1: Pool): B[Unit, Unit] = {
     val c = new M[Unit]("c")
     val cStarted = new M[Unit]("cStarted")
-    val c2 = new M[Unit]("c2")
     val never = new M[Unit]("never")
-    val f = new B[Unit,Int]("g")
-    val f2 = new B[Unit,Int]("f2")
+    val f = new B[Unit,Int]("forever")
+    val f2 = new B[Unit,Int]("forever2")
     val g = new B[Unit,Unit]("g")
     val started = new B[Unit,Unit]("started")
 
     join(tp1,tp0)(
       runSimple { case g(_, r) => r() }, // and so this reaction will be blocked forever
       runSimple { case c(_) => cStarted(); println(f()) }, // this reaction is blocked forever because f() does not reply
-      runSimple { case c2(_) + cStarted(_) + started(_, r) => r(); println(f2()) }, // this reaction is blocked forever because f2() does not reply
+      runSimple { case cStarted(_) + started(_, r) => r(); println(f2()) }, // this reaction is blocked forever because f2() does not reply
       runSimple { case f(_, r) + never(_) => r(0)}, // this will never reply since "never" is never injected
       runSimple { case f2(_, r) + never(_) => r(0)} // this will never reply since "never" is never injected
     )
-
-    c() + c2()
-    started() // now we are sure that both reactions are running and stuck
-
+c.setLogLevel(3)
+    c()
+    started(timeout = 500 millis)() shouldEqual Some(()) // now we are sure that both reactions are running and stuck
     g
   }
 

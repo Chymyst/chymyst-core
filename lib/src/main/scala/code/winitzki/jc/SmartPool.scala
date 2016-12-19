@@ -2,6 +2,8 @@ package code.winitzki.jc
 
 import java.util.concurrent._
 
+import code.winitzki.jc.JoinRun.ReactionInfo
+
 /** This is similar to scala.concurrent.blocking and is used to annotate expressions that should lead to a possible increase of thread count.
   * Multiple nested calls to {{{BlockingIdle}}} are equivalent to one call.
   */
@@ -13,30 +15,14 @@ object BlockingIdle {
     }
 }
 
-class SmartThread(r: Runnable, pool: SmartPool) extends Thread(r) {
-  private var inBlockingCall: Boolean = false
-
-  /** Given that the expression {{{expr}}} is "idle blocking", the thread pool will increase the parallelism.
-    * This method always runs on {{{this}}} thread, so no need to synchronize the mutation of {{{var inBlockingCall}}}.
-    *
-    * @param expr Expression that will be idle blocking.
-    * @tparam T Type of value of this expression.
-    * @return The same result as the expression would return.
-    */
-  private[jc] def blockingCall[T](expr: => T): T = if (inBlockingCall) expr else {
-    inBlockingCall = true
-    pool.startedBlockingCall()
-    val result = expr
-    pool.finishedBlockingCall()
-    this.synchronized( inBlockingCall = false )
-    result
-  }
-}
-
 /** A cached pool that increases its thread count whenever a blocking molecule is injected, and decreases afterwards.
   * The {{{BlockingIdle}}} function, similar to {{{scala.concurrent.blocking}}}, is used to annotate expressions that should lead to an increase of thread count, and to a decrease of thread count once the idle blocking call returns.
   */
 class SmartPool(parallelism: Int) extends Pool {
+
+  private def newThreadFactory: ThreadFactory = new ThreadFactory {
+    override def newThread(r: Runnable): Thread = new SmartThread(r, SmartPool.this)
+  }
 
   def currentPoolSize: Int = executor.getCorePoolSize
 
@@ -65,10 +51,7 @@ class SmartPool(parallelism: Int) extends Pool {
   val secondsToRecycleThread = 1
   val shutdownWaitTimeMs = 200
 
-  private val executor = new ThreadPoolExecutor(initialThreads, parallelism, secondsToRecycleThread, TimeUnit.SECONDS,
-    queue, new ThreadFactory {
-      override def newThread(r: Runnable): Thread = new SmartThread(r, SmartPool.this)
-    })
+  private val executor = new ThreadPoolExecutor(initialThreads, parallelism, secondsToRecycleThread, TimeUnit.SECONDS, queue, newThreadFactory)
 
   override def shutdownNow(): Unit = new Thread {
     try {
@@ -82,8 +65,8 @@ class SmartPool(parallelism: Int) extends Pool {
     }
   }
 
-  override def runClosure(closure: => Unit, name: Option[String]): Unit =
-    executor.submit(new NamedRunnable(closure, name))
+  override def runClosure(closure: => Unit, info: ReactionInfo): Unit =
+    executor.submit(new RunnableWithInfo(closure, info))
 
   override def isInactive: Boolean = executor.isShutdown || executor.isTerminated
 }

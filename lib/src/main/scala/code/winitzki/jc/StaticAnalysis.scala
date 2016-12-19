@@ -213,9 +213,9 @@ private object StaticAnalysis {
     ).flatMap(_(reactions))
   }
 
+  // Each singleton should occur in some reaction as an input. No singleton should be consumed twice by a reaction.
+  // Each singleton that is consumed by a reaction should also be injected by the same reaction.
   private def checkInputsForSingletons(singletons: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
-    // Each singleton should occur in some reaction as an input. No singleton should be consumed twice by a reaction.
-    // Each singleton that is consumed by a reaction should also be injected by the same reaction.
     val singletonsConsumedMaxTimes: Map[Molecule, (Reaction, Int)] =
     if (reactions.isEmpty)
       Map()
@@ -243,11 +243,10 @@ private object StaticAnalysis {
     else None
   }
 
+  // No singleton should be output by a reaction that does not consume it.
+  // No singleton should be output more than once by a reaction.
   private def checkOutputsForSingletons(singletons: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
-    // No singleton should be output by a reaction that does not consume it.
-    // No singleton should be output more than once by a reaction.
-
-    val errorList = singletons.flatMap {
+      val errorList = singletons.flatMap {
       case (m, _) =>
         reactions.flatMap {
           r =>
@@ -276,6 +275,34 @@ private object StaticAnalysis {
   private[jc] def findSingletonWarnings(singletons: Map[Molecule, Int], reactions: Seq[Reaction]) = {
     // TODO: implement
     Seq()
+  }
+
+
+  private[jc] def findSingletonDeclarationErrors(singletonReactions: Seq[Reaction]): Seq[String] = {
+    val foundErrors = singletonReactions.map(_.info).filterNot(_.hasGuard.knownFalse)
+    if (foundErrors.nonEmpty) foundErrors.map { info => s"Singleton reaction {$info} should not have a guard condition" } else Seq()
+  }
+
+  // Inspect the singletons actually injected. Their multiplicities must be not less than the declared multiplicities.
+  private[jc] def findSingletonInjectionErrors(singletonsDeclared: Map[Molecule, Int], singletonsInjected: Map[Molecule, Int]): Seq[String] = {
+    val foundErrors = singletonsDeclared
+      .filter { case (mol, count) => singletonsInjected.getOrElse(mol, 0) < count }
+      .map { case (mol, count) =>
+        val countInjected = singletonsInjected.getOrElse(mol, 0)
+        s"$mol $countInjected times instead of $count"
+      }
+    if (foundErrors.nonEmpty) Seq(s"Too few singletons injected: ${foundErrors.mkString(", ")}") else Seq()
+  }
+
+  // Inspect the singletons actually injected. Their multiplicities must be not more than the declared multiplicities.
+  private[jc] def findSingletonInjectionWarnings(singletonsDeclared: Map[Molecule, Int], singletonsInjected: Map[Molecule, Int]) = {
+    val foundErrors = singletonsDeclared
+      .filter { case (mol, count) => singletonsInjected.getOrElse(mol, 0) > count }
+      .map { case (mol, count) =>
+        val countInjected = singletonsInjected.getOrElse(mol, 0)
+        s"$mol $countInjected times instead of $count"
+      }
+    if (foundErrors.nonEmpty) Seq(s"Possibly too many singletons injected: ${foundErrors.mkString(", ")}") else Seq()
   }
 
 }
