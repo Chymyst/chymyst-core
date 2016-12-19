@@ -291,6 +291,6 @@ val (result: M[String], fut: Future[String]) = moleculeFuture[String]
 join( run { case a(x) => result(s"finished: $x") } ) // we define our reaction that will eventually inject "result(...)"
 
 ExternalLibrary.consumeUserFuture(fut) // the external library takes our value "fut" and does something with it
-
+//  Some chemistry code that eventually injects _a_ to resolve the result.
 ```
 
