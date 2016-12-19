@@ -392,7 +392,7 @@ object JoinRun {
       *
       * @param v Value to be put onto the injected molecule.
       */
-    override def apply(v: T): Unit = getJoinDef.inject[T](this, MolValue(v))
+    def apply(v: T): Unit = getJoinDef.inject[T](this, MolValue(v))
 
     override def toString: String = if (name.isEmpty) "<no name>" else name
 
@@ -487,7 +487,7 @@ object JoinRun {
       * @param x Value to reply with.
       * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
       */
-    override def apply(x: R): Boolean = synchronized {
+    def apply(x: R): Boolean = synchronized {
       // The reply value will be assigned only if there was no timeout and no previous reply action.
       if (!replyTimeout && !replyRepeated && result.isEmpty) {
         result = Some(x)
@@ -514,7 +514,7 @@ object JoinRun {
       * @param v Value to be put onto the injected molecule.
       * @return The "reply" value.
       */
-    override def apply(v: T): R =
+    def apply(v: T): R =
       getJoinDef.injectAndReply[T,R](this, v, new ReplyValue[T,R](molecule = this))
 
     /** Inject a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.

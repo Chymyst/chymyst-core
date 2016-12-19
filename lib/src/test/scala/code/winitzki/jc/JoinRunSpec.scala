@@ -9,7 +9,7 @@ import scala.concurrent.duration._
 
 class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
-  var tp0: Pool = null
+  var tp0: Pool = _
 
   override def beforeEach(): Unit = {
     tp0 = new FixedPool(4)

@@ -10,7 +10,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   val warmupTimeMs = 50
 
-  var tp0: Pool = null
+  var tp0: Pool = _
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
