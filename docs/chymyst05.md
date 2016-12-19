@@ -109,7 +109,7 @@ injectors(0)(10)
 
 A basic asynchronous task is to start a long background job and get notified when it is done.
 
-A chemical model is easy to invent: The reaction needs no data to start (the calculation can be inserted directly in the reaction body).
+A chemical model is easy to invent: the reaction needs no data to start (the calculation can be inserted directly in the reaction body).
 So we define a reaction with a single non-blocking input molecule that carries a `Unit` value.
 The reaction will consume the molecule, do the long calculation, and then inject a `finished(...)` molecule that carries the result value on it.
 
@@ -164,15 +164,15 @@ Suppose we want to implement a function `wait_forever()` that blocks indefinitel
 The chemical model is that a blocking molecule `wait` reacts with another, non-blocking molecule `godot`; but `godot` never appears in the soup.
 
 We also need to make sure that the molecule `godot()` is never injected into the soup.
-So we declare `godot` locally within the scope of `wait_forever`, where will inject nothing into the soup.
+So we declare `godot` locally within the scope of `wait_forever`, where we'll inject nothing into the soup.
 
 ```scala
-def wait_forever: b[Unit, Unit] = {
+def wait_forever: B[Unit, Unit] = {
   val godot = m[Unit]
   val wait = b[Unit, Unit]
 
-  join( run { case godot(_,r) + wait(_) => r() } )
-
+  join( run { case godot(_) + wait(_, r) => r() } )
+  // forgot to inject `godot` here, which is key to starve this reaction.
   wait
 }
 
@@ -291,6 +291,6 @@ val (result: M[String], fut: Future[String]) = moleculeFuture[String]
 join( run { case a(x) => result(s"finished: $x") } ) // we define our reaction that will eventually inject "result(...)"
 
 ExternalLibrary.consumeUserFuture(fut) // the external library takes our value "fut" and does something with it
-
+//  Some chemistry code that eventually injects _a_ to resolve the result.
 ```
 
