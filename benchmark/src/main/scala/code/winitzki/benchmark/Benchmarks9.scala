@@ -25,13 +25,12 @@ object Benchmarks9 {
   }
 
   // inject a blocking molecule many times
-  def benchmark9_1(count: Int, threads: Int = 2): Long = {
+  def benchmark9_1(count: Int, tp: Pool): Long = {
 
     val done = m[Unit]
     val all_done = m[Int]
     val f = b[LocalDateTime,Long]
 
-    val tp = new FixedPool(threads)
 
     join(tp)(
       run { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
@@ -44,9 +43,7 @@ object Benchmarks9 {
     val d = make_counter_1(done, numberOfCounters, count, tp)
     (1 to (count*numberOfCounters)).foreach{ _ => d() }
 
-    var result = f(initialTime)
-    tp.shutdownNow()
-    result
+    f(initialTime)
   }
 
 
@@ -83,13 +80,13 @@ object Benchmarks9 {
   val pingPongCalls = 1000
 
   // ping-pong-stack with blocking molecules
-  def benchmark9_2(count: Int, threads: Int = 2): Long = {
+  def benchmark9_2(count: Int, tp: Pool): Long = {
 
     val done = m[Unit]
     val all_done = m[Int]
     val f = b[LocalDateTime,Long]
 
-    val tp = new SmartPool(threads) // this will not work with a fixed pool
+    val tp = new SmartPool(MainApp.threads) // this benchmark will not work with a fixed pool
 
     join(tp)(
       run { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
@@ -109,7 +106,7 @@ object Benchmarks9 {
 
   val counterMultiplier = 10
 
-  def benchmark9_3(count: Int, threads: Int = 2): Long = {
+  def benchmark10(count: Int, tp: Pool): Long = {
 
     val initialTime = LocalDateTime.now
 
@@ -117,8 +114,6 @@ object Benchmarks9 {
     val collect = m[Int]
     val f = b[Unit, Int]
     val get = b[Unit, Int]
-
-    val tp = new FixedPool(threads)
 
     join(tp)(
       run { case f(_, reply) => a(reply(123)) },
@@ -136,7 +131,6 @@ object Benchmarks9 {
 
     if (numberOfFailures != 0 || numberOfFalseReplies != 0)
       println(s"failures=$numberOfFailures, false replies=$numberOfFalseReplies (both should be 0)")
-    tp.shutdownNow()
 
     elapsed(initialTime)
   }
@@ -158,7 +152,7 @@ object Benchmarks9 {
   }
 
   // inject a blocking molecule many times
-  def benchmark9_1_Jiansen(count: Int, threads: Int = 2): Long = {
+  def benchmark9_1_Jiansen(count: Int, tp: Pool): Long = {
 
     object b9c1b extends Join {
       object done extends AsyName[Unit]

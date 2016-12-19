@@ -339,24 +339,22 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
   def blockThreadsDueToBlockingMolecule(tp1: Pool): B[Unit, Unit] = {
     val c = new M[Unit]("c")
     val cStarted = new M[Unit]("cStarted")
-    val c2 = new M[Unit]("c2")
     val never = new M[Unit]("never")
-    val f = new B[Unit,Int]("g")
-    val f2 = new B[Unit,Int]("f2")
+    val f = new B[Unit,Int]("forever")
+    val f2 = new B[Unit,Int]("forever2")
     val g = new B[Unit,Unit]("g")
     val started = new B[Unit,Unit]("started")
 
     join(tp1,tp0)(
       runSimple { case g(_, r) => r() }, // and so this reaction will be blocked forever
       runSimple { case c(_) => cStarted(); println(f()) }, // this reaction is blocked forever because f() does not reply
-      runSimple { case c2(_) + cStarted(_) + started(_, r) => r(); println(f2()) }, // this reaction is blocked forever because f2() does not reply
+      runSimple { case cStarted(_) + started(_, r) => r(); println(f2()) }, // this reaction is blocked forever because f2() does not reply
       runSimple { case f(_, r) + never(_) => r(0)}, // this will never reply since "never" is never injected
       runSimple { case f2(_, r) + never(_) => r(0)} // this will never reply since "never" is never injected
     )
-
-    c() + c2()
+c.setLogLevel(3)
+    c()
     started(timeout = 500 millis)() shouldEqual Some(()) // now we are sure that both reactions are running and stuck
-
     g
   }
 

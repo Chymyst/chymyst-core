@@ -23,7 +23,7 @@ class ShutdownSpec extends FlatSpec with Matchers {
     val thrown = intercept[Exception] {
       x()
     }
-    thrown.getMessage shouldEqual "In Join{x => ...}: Cannot inject molecule x since join pool is not active"
+    thrown.getMessage shouldEqual "In Join{x => ...}: Cannot inject molecule x() because join pool is not active"
     pool.shutdownNow()
   }
 
@@ -52,6 +52,6 @@ class ShutdownSpec extends FlatSpec with Matchers {
     val thrown = intercept[Exception] {
       x()
     }
-    thrown.getMessage shouldEqual "In Join{x => ...}: Cannot inject molecule x since join pool is not active"
+    thrown.getMessage shouldEqual "In Join{x => ...}: Cannot inject molecule x() because join pool is not active"
   }
 }

@@ -8,7 +8,7 @@ import code.winitzki.jc.JoinRun.ReactionInfo
 import scala.concurrent.{ExecutionContext, Future}
 
 class CachedPool(threads: Int) extends PoolExecutor(threads,
-  t => new ThreadPoolExecutor(1, t, 1L, TimeUnit.SECONDS, new LinkedBlockingQueue[Runnable], new ThreadFactoryWithInfo)
+  t => new ThreadPoolExecutor(1, t, 1L, TimeUnit.SECONDS, new SynchronousQueue[Runnable], new ThreadFactoryWithInfo)
 )
 
 class FixedPool(threads: Int) extends PoolExecutor(threads,
