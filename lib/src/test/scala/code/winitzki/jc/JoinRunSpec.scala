@@ -4,11 +4,12 @@ import JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.Waiter
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import scala.concurrent.duration._
 
 class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
-  var tp0: Pool = null
+  var tp0: Pool = _
 
   override def beforeEach(): Unit = {
     tp0 = new FixedPool(4)
@@ -18,7 +19,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     tp0.shutdownNow()
   }
   
-  val timeLimit = Span(1000, Millis)
+  val timeLimit = Span(5000, Millis)
 
   val warmupTimeMs = 50
 
@@ -268,6 +269,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     tp.shutdownNow()
   }
 
+  // this test sometimes fails
   it should "use two threads for concurrent computations" in {
     val c = new M[Unit]("counter")
     val d = new M[Unit]("decrement")
@@ -278,60 +280,63 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     val tp = new FixedPool(2)
 
     join(tp0)(
-      runSimple { case c(_) + d(_) => Thread.sleep(200); f() } onThreads tp,
+      runSimple { case c(_) + d(_) => Thread.sleep(300); f() } onThreads tp,
       runSimple { case a(x) + g(_, r) => r(x) },
       runSimple { case f(_) + a(x) => a(x+1) }
     )
     a(0) + c() + c() + d() + d()
-    Thread.sleep(300) // This is less than 2*200ms, and the test fails unless we use 2 threads concurrently.
+    Thread.sleep(500) // This is less than 2*300ms, and the test fails unless we use 2 threads concurrently.
     g() shouldEqual 2
 
     tp.shutdownNow()
   }
 
-  it should "process simple reactions quickly enough" in {
-    val n = 1000
-
-    val c = new M[Int]("counter")
-    val d = new M[Unit]("decrement")
-    val g = new B[Unit, Int]("getValue")
-    val tp = new FixedPool(2)
-    join(tp0)(
-      runSimple  { case c(x) + d(_) => c(x - 1) } onThreads tp,
-      runSimple  { case c(0) + g(_, r) => c(0) + r(0) }
-    )
-    c(n)
-    (1 to n).foreach { _ => d() }
-
-    g() shouldEqual 0
-
-    tp.shutdownNow()
-  }
-
-  it should "resume fault-tolerant reactions by retrying even if processes crash with fixed probability" in {
+  it should "fail to finish if 1 out of 2 processes crash, and retry is not set" in {
     val n = 20
 
     val probabilityOfCrash = 0.5
 
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
-    val g = new B[Unit, Int]("getValue")
+    val g = new B[Unit, Unit]("getValue")
+    val tp = new FixedPool(2)
+
+    join(tp0)(
+      runSimple  { case c(x) + d(_) =>
+        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
+      }.noRetry onThreads tp,
+      runSimple  { case c(0) + g(_, r) => r() }
+    )
+    c(n)
+    (1 to n).foreach { _ => d() }
+
+    val result = g(timeout = 1500 millis)()
+    tp.shutdownNow()
+    result shouldEqual None
+  }
+
+  it should "resume fault-tolerant reactions by retrying even if 1 out of 2 processes crash" in {
+    val n = 20
+
+    val probabilityOfCrash = 0.5
+
+    val c = new M[Int]("counter")
+    val d = new M[Unit]("decrement")
+    val g = new B[Unit, Unit]("getValue")
     val tp = new FixedPool(2)
 
     join(tp0)(
       runSimple  { case c(x) + d(_) =>
         if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
       }.withRetry onThreads tp,
-      runSimple  { case c(x) + g(_, r) => c(x) + r(x) }
+      runSimple  { case c(0) + g(_, r) => r() }
     )
     c(n)
     (1 to n).foreach { _ => d() }
 
-    waitSome()
-    Thread.sleep(200) // give it some more time to compensate for crashes
-    g() shouldEqual 0
-
+    val result = g(timeout = 1500 millis)()
     tp.shutdownNow()
+    result shouldEqual Some(())
   }
 
 }

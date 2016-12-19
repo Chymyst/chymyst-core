@@ -22,7 +22,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     val get = b[Unit, List[Int]]
 
     val tp = new FixedPool(4)
-    join(tp,tp)(
+    join(tp)(
       &{ case d(n) => r(n*2) },
       &{ case res(list) + r(s) => res(s::list) },
       &{ case get(_, reply) + res(list) if list.size == count => reply(list) }
@@ -36,6 +36,41 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     tp.shutdownNow()
     println(s"map/reduce test with n=$count took ${elapsed(initTime)} ms")
+  }
+
+  it should "perform map-reduce as in tutorial" in {
+    // declare the "map" and the "reduce" functions
+    def f(x: Int): Int = x*x
+    def reduceB(acc: Int, x: Int): Int = acc + x
+
+    val arr = 1 to 100
+
+    // declare molecule types
+    val carrier = m[Int]
+    val interm = m[Int]
+    val accum = m[(Int,Int)]
+    val fetch = b[Unit,Int]
+
+    val tp = new FixedPool(4)
+    // declare the reaction for "map"
+    join(tp)(
+      & { case carrier(a) => val res = f(a); interm(res) }
+    )
+
+    // reactions for "reduce" must be together since they share "accum"
+    join(tp)(
+      & { case accum((n, b)) + interm(res) if n > 0 =>
+        accum((n+1, reduceB(b, res) ))
+      },
+      & { case accum((0, _)) + interm(res) => accum((1, res)) },
+      & { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
+    )
+
+    // inject molecules
+    accum((0, 0))
+    arr.foreach(i => carrier(i))
+    val result = fetch()
+    result shouldEqual 338350
   }
 
 }

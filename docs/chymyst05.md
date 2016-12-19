@@ -142,6 +142,7 @@ The `finished` molecule should be bound to another join definition.
 Another implementation of the same idea will put the `finished` injector into the molecule value, together with the closure that needs to be run.
 
 However, we lose some polymorphism since Scala values cannot be parameterized by types.
+The `startJobMolecule` cannot have type parameters and has to accept `Any` as a type:
 
 ```scala
 val startJobMolecule = new M[(Unit => Any, M[Any])]
@@ -156,6 +157,23 @@ join(
 
 ```
 
+A solution to this difficulty is to create a method that is parameterized by type and returns a `startJobMolecule`:
+
+```scala
+def makeStartJobMolecule[R]: M[(Unit => R, M[R])] = {
+  val startJobMolecule = new M[(Unit => R, M[R])]
+
+  join(
+    run {
+      case startJobMolecule(closure, finished) =>
+        val result = closure()
+        finished(result)
+   }
+  )
+  startJobMolecule
+}
+
+```
 
 ## Waiting forever
 

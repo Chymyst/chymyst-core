@@ -9,6 +9,11 @@ private[jc] object JoinRunUtils {
   def flatten[T](optionSet: Option[Set[T]]): Set[T] = optionSet.getOrElse(Set())
   def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 
+  trait PersistentHashCode {
+    // Make hash code persistent across mutations with this simple trick.
+    private lazy val hashCodeValue: Int = super.hashCode()
+    override def hashCode(): Int = hashCodeValue
+  }
 
   /** Add a random shuffle method to sequences.
     *
@@ -22,5 +27,7 @@ private[jc] object JoinRunUtils {
       */
     def shuffle: Seq[T] = scala.util.Random.shuffle(a)
   }
+
+  def nonemptyOpt[S](s: Seq[S]): Option[Seq[S]] = if (s.isEmpty) None else Some(s)
 
 }

@@ -30,13 +30,25 @@ class MutableBag[K,V] { // quadratic time, extremely slow
 }
 */
 /* */
+
+object MutableBag {
+
+  def of[K, V](k: K, v: V): MutableBag[K, V] = {
+    val b = new MutableBag[K,V]
+    b.addToBag(k, v)
+    b
+  }
+}
+
 class MutableBag[K,V] {
 
   private val bag: mutable.Map[K, mutable.Map[V, Int]] = mutable.Map.empty
 
   override def toString = bag.toString
 
-  def getMap: Map[K, Map[V, Int]] = bag.toMap.mapValues(_.toMap)
+  def getMap: Map[K, Map[V, Int]] = bag.mapValues(_.toMap).toMap
+
+  def getCountMap: Map[K, Int] = bag.mapValues(_.values.sum).toMap
 
   def getCount(k: K): Int = bag.getOrElse(k, mutable.Map()).values.sum
 

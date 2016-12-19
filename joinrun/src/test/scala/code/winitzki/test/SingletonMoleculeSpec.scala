@@ -3,14 +3,18 @@ package code.winitzki.test
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros.{run => &}
 import code.winitzki.jc.Macros._
-import code.winitzki.jc.{FixedPool, SmartPool}
+import code.winitzki.jc.{CachedPool, FixedPool, SmartPool}
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
+import scala.concurrent.duration._
+
 class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(1500, Millis)
+  val timeLimit = Span(3000, Millis)
+
+  behavior of "singleton injection"
 
   it should "refuse to inject a singleton from user code" in {
 
@@ -24,10 +28,34 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       & {case _ => d("ok") } // singleton
     )
 
+    (1 to 100).foreach { i =>
+      d(s"bad $i") // this "d" should not be injected, even though "d" is sometimes not in the soup due to reactions!
+//      f(timeout = 200 millis)() shouldEqual Some("ok")
+      f()
+    }
+
+    tp1.shutdownNow()
+  }
+
+  it should "refuse to inject a singleton immediately after join definition" in {
+
+    val tp1 = new FixedPool(1) // This test works only with single threads.
+
     (1 to 20).foreach { i =>
-      Thread.sleep(20)
-      d(s"bad $i") // this should not be injected
-      f() shouldEqual "ok"
+      val f = b[Unit, String]
+      val d = m[String]
+
+      join(tp1, tp1)(
+        & {case f(_, r) + d(text) => r(text); d(text) },
+        & {case _ => d("ok") } // singleton
+      )
+
+      (1 to 10).foreach { j =>
+        d(s"bad $i $j") // this "d" should not be injected, even though we are immediately after a join definition,
+        // and even if the initial d() injection was done late
+        f(timeout = 200 millis)() shouldEqual Some("ok")
+      }
+
     }
 
     tp1.shutdownNow()
@@ -153,7 +181,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
-  it should "refuse to read the value of a singleton too early" in {
+  it should "always be able to read the value of a singleton early" in {
 
     val tp = new FixedPool(1)
 
@@ -170,18 +198,14 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     }
 
 
-    val thrown = intercept[Exception] {
-      (1 to 100).foreach { i =>
-        makeNewVolatile(i) // This should sometimes throw an exception, so let's make sure it does.
-      }
+    (1 to 100).foreach { i =>
+      makeNewVolatile(i) // This should sometimes throw an exception, so let's make sure it does.
     }
-
-    thrown.getMessage shouldEqual "The volatile reader for singleton (d) is not yet ready"
 
     tp.shutdownNow()
   }
 
-  it should "report that the value of a singleton is not ready if called too early" in {
+  it should "report that the value of a singleton is ready even if called early" in {
 
     val tp = new FixedPool(1)
 
@@ -202,7 +226,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     }.sum // how many times we failed
 
     println(s"Volatile value was not ready $result times")
-    result should be > 20
+    result shouldEqual 0
 
     tp.shutdownNow()
   }
@@ -239,11 +263,12 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       & { case d(x) + stabilize_d(_, r) => d(x); r() }, // Await stabilizing the presence of d
       & { case _ => d(n) } // singleton
     )
-    stabilize_d()
+    stabilize_d(timeout = 500 millis)()
     d.volatileValue shouldEqual n
 
     (n+1 to n+delta_n).map { i =>
-      incr()
+      incr(timeout = 500 millis)() shouldEqual Some(())
+
       i - d.volatileValue // this is mostly 0 but sometimes 1
     }.sum should be > 0 // there should be some cases when d.value reads the previous value
 
@@ -266,12 +291,12 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       & { case d(x) + stabilize_d(_, r) => d(x); r() } onThreads tp1, // Await stabilizing the presence of d
       & { case _ => d(100) } // singleton
     )
-    stabilize_d()
+    stabilize_d(timeout = 500 millis)() shouldEqual Some(())
     d.volatileValue shouldEqual 100
-    incr() // update started and is waiting for e()
+    incr(timeout = 500 millis)() shouldEqual Some(()) // update started and is waiting for e()
     d.volatileValue shouldEqual 100 // We don't have d() present in the soup, but we can read its previous value.
     e()
-    stabilize_d()
+    stabilize_d(timeout = 500 millis)() shouldEqual Some(())
     d.volatileValue shouldEqual 101
 
     tp1.shutdownNow()

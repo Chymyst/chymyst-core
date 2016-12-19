@@ -1,17 +1,19 @@
 package code.winitzki.jc
 
 
-import java.util.concurrent.{ExecutorService, Executors, SynchronousQueue, ThreadPoolExecutor, TimeUnit}
+import java.util.concurrent._
 
-import code.winitzki.jc.JoinRun.ReactionBody
+import code.winitzki.jc.JoinRun.ReactionInfo
 
 import scala.concurrent.{ExecutionContext, Future}
 
 class CachedPool(threads: Int) extends PoolExecutor(threads,
-  t => new ThreadPoolExecutor(1, t, 1L, TimeUnit.SECONDS, new SynchronousQueue[Runnable])
+  t => new ThreadPoolExecutor(1, t, 1L, TimeUnit.SECONDS, new SynchronousQueue[Runnable], new ThreadFactoryWithInfo)
 )
 
-class FixedPool(threads: Int) extends PoolExecutor(threads, Executors.newFixedThreadPool)
+class FixedPool(threads: Int) extends PoolExecutor(threads,
+  t => new ThreadPoolExecutor(t, t, 0L, TimeUnit.SECONDS, new LinkedBlockingQueue[Runnable], new ThreadFactoryWithInfo)
+)
 
 /** A pool of execution threads, or another way of running tasks (could use actors or whatever else).
   *  Tasks submitted for execution can have an optional name (useful for debugging).
@@ -20,15 +22,12 @@ class FixedPool(threads: Int) extends PoolExecutor(threads, Executors.newFixedTh
 trait Pool {
   def shutdownNow(): Unit
 
-  def runClosure(closure: => Unit, name: Option[String] = None): Unit
+  def runClosure(closure: => Unit, info: ReactionInfo): Unit
 
   def isActive: Boolean = !isInactive
   def isInactive: Boolean
-}
 
-// not used now
-abstract class NamedPool(val name: String) extends Pool {
-  override def toString: String = s"Pool[$name]"
+  def canMakeThreads: Boolean = true
 }
 
 private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorService) extends Pool {
@@ -47,33 +46,29 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorSer
     }
   }
 
-  def runClosure(closure: => Unit, name: Option[String] = None): Unit =
-    execService.execute(new NamedRunnable(closure, name))
+  def runClosure(closure: => Unit, info: ReactionInfo): Unit =
+    execService.execute(new RunnableWithInfo(closure, info))
 
   override def isInactive: Boolean = execService.isShutdown || execService.isTerminated
 }
 
+// Not used now.
 private[jc] class PoolFutureExecutor(threads: Int = 8, execFactory: Int => ExecutorService) extends PoolExecutor(threads, execFactory) {
   private val execContext = ExecutionContext.fromExecutor(execService)
 
-  override def runClosure(closure: => Unit, name: Option[String] = None): Unit =
+  override def runClosure(closure: => Unit, info: ReactionInfo): Unit =
     Future { closure }(execContext)
-}
-
-class NamedRunnable(closure: => Unit, name: Option[String] = None) extends Runnable {
-  override def toString: String = name.getOrElse(super.toString)
-  override def run(): Unit = closure
 }
 
 /** Create a pool from a Handler interface. The pool will submit tasks using a Handler.post() method.
   *
-  * This is useful for Android and JavaFX environments.
+  * This is useful for Android and JavaFX environments. Not yet tested. Behavior with singletons will be probably wrong.
   */
 class HandlerPool(handler: { def post(r: Runnable): Unit }) extends Pool {
   override def shutdownNow(): Unit = ()
 
-  override def runClosure(closure: => Unit, name: Option[String]): Unit =
-    handler.post(new NamedRunnable(closure, name))
+  override def runClosure(closure: => Unit, info: ReactionInfo): Unit =
+    handler.post(new RunnableWithInfo(closure, info))
 
   override def isInactive: Boolean = false
 }

@@ -438,9 +438,11 @@ Version 0.5: Investigate an implicit distributed execution of chemical reactions
 
  value * difficulty - description
 
- 2 * 2 - benchmark and profile the performance of blocking molecules (make many reactions that block and unblock)
-
  2 * 3 - investigate using wait/notify instead of semaphore; does it give better performance? This depends on benchmarking of blocking molecules.
+
+ 2 * 3 - support a fixed number of singleton copies; remove Molecule.isSingleton mutable field in favor of a function on getJoinDef 
+
+ 2 * 3 - detect livelock due to singleton injection (at the moment, they are not considered as present inputs)
 
  3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
  Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.

@@ -4,7 +4,7 @@ import code.winitzki.benchmark.Benchmarks1._
 import code.winitzki.benchmark.Benchmarks4._
 import code.winitzki.benchmark.Benchmarks7._
 import code.winitzki.benchmark.Benchmarks9._
-
+import code.winitzki.jc.{FixedPool, Pool}
 import code.winitzki.jc.JoinRun.{defaultJoinPool, defaultReactionPool}
 
 object MainApp extends App {
@@ -30,7 +30,7 @@ object MainApp extends App {
 
   println(s"Benchmark parameters: count to $n, threads = $threads")
 
-  Seq(
+  Seq[(String, (Int, Pool) => Long)](
   // List the benchmarks that we should run.
 
     s"count using JoinRun" -> benchmark1 _,
@@ -47,12 +47,18 @@ object MainApp extends App {
 //  "(this deadlocks) many concurrent counters with non-blocking access, using Jiansen's Join.scala" -> benchmark8 _,
 
     s"${Benchmarks9.numberOfCounters} concurrent counters with blocking access" -> benchmark9_1 _,
-    
+    s"${Benchmarks9.numberOfCounters} concurrent counters with blocking access, using Jiansen's Join.scala" -> benchmark9_1_Jiansen _,
+
     s"${Benchmarks9.pingPongCalls} blocked threads with ping-pong calls" -> benchmark9_2 _,
 
-    s"count using blocking access with checking reply status" -> benchmark9_3 _
+    s"count to ${counterMultiplier*n} using blocking access with checking reply status" -> benchmark10 _
   ).zipWithIndex.foreach {
-    case ((message, benchmark), i) => println(s"Benchmark ${i+1} took ${run3times { benchmark(n,threads) }} ms ($message)")
+    case ((message, benchmark), i) => println(s"Benchmark ${i+1} took ${run3times {
+      val tp = new FixedPool(threads)
+      val result = benchmark(n, tp)
+      tp.shutdownNow()
+      result
+    }} ms ($message)")
   }
 
   defaultJoinPool.shutdownNow()
