@@ -1,12 +1,13 @@
 # Example: Concurrent map/reduce
 
-It remains to see how we can use the “chemical machine” for performing various concurrent computations.
+It remains to see how we can use the chemical machine for performing various concurrent computations.
 For instance, it is perhaps not evident what kind of molecules and reactions must be defined, say, to implement a concurrent buffered queue or a concurent merge-sort algorithm.
 Another interesting application would be a concurrent GUI interaction together with some jobs in the background.
-Solving these problems via “chemistry” requires a certain paradigm shift.
-In order to build up our “chemical” intuition, let us go through some more examples.
+Solving these problems via chemistry requires a certain paradigm shift.
+In order to build up our chemical intuition, let us go through some more examples.
 
-A map/reduce operation first takes an array `Array[A]` and applies a function `f : A => B` to each of the elements.
+Consider the problem of implementing a concurrent map/reduce operation.
+This operation first takes an array `Array[A]` and applies a function `f : A => B` to each of the elements.
 This yields an `Array[B]` of intermediate results.
 After that, a “reduce”-like operation `reduceB : (B, B) => B`  is applied to that array, and the final result of type `B` is computed.
 
@@ -20,13 +21,13 @@ arr.map(f).reduce(reduceB)
 ```
 
 Our task is to implement this as a concurrent computation.
-We would like to perform all computations concurrently - both applying `f` to each element of the array, and also accumulating the final result.
+We would like to perform all computations concurrently -- both applying `f` to each element of the array and accumulating the final result should be done at the same time when possible.
 
 For simplicity, we will assume that the `reduceB` operation is associative and commutative (that is, the type `B` is a commutative monoid).
 In that case, we are applying the `reduceB` operation to array elements in arbitrary order, which makes our task easier.
 
-Implementing the map/reduce operation does not actually require the full power of concurrency: a “bulk synchronous processing” framework such as Hadoop or Spark will do the job.
-Our goal is to come up with a “chemical” approach to concurrent map/reduce.
+Implementing the map/reduce operation does not actually require the full power of concurrency: a [bulk synchronous processing](https://en.wikipedia.org/wiki/Bulk_synchronous_parallel) framework such as Hadoop or Spark will do the job.
+Our goal is to come up with a chemical approach to concurrent map/reduce for tutorial purposes.
 
 Since we would like to apply the function `f` concurrently to values of type `A`, we need to put all these values on separate copies of some “carrier” molecule.
 
@@ -35,11 +36,19 @@ val carrier = m[A]
 
 ```
 
-We will inject a copy of the “carrier” molecule for each element of the initial array:
+We will inject a copy of the `carrier` molecule for each element of the initial array:
 
 ```scala
 val arr : Array[A] = ???
 arr.foreach(i => carrier(i))
+
+```
+
+Since the molecule injector inherits the functional type, we could equivalently write this as
+
+```scala
+val arr : Array[A] = ???
+arr.foreach(carrier)
 
 ```
 
@@ -82,7 +91,7 @@ However, there is a serious problem with this implementation: We will not actual
 Our idea was that the processing will stop when there are no `interm` molecules left.
 However, the `interm` molecules are produced by previous reactions, which may take time.
 We do not know when each `interm` molecule will be injected: there may be prolonged periods of absence of any `interm` molecules in the soup (while some reactions are still busy evaluating `f`).
-The runtime engine cannot know which reactions will eventually inject some more `interm` molecules, and so there is no way to detect that the entire map/reduce job is done.
+The runtime engine cannot know which reactions will eventually inject some more `interm` molecules, and so there is no way to detect whether the entire map/reduce job is finished.
 
 It is the programmer's responsibility to organize the reactions such that the “end-of-job” situation can be detected.
 The simplest way of doing this is to count how many `accum` reactions have been run.
@@ -96,15 +105,13 @@ We will also include a condition on the counter that will start the accumulation
 ```scala
 val accum = m[(Int, B)]
 
-run { case interm(res) + accum((n, b)) if n > 0 =>
+run { case accum((n, b)) + interm(res) if n > 0 =>
     accum((n+1, reduceB(b, res) ))
   },
-run { case interm(res) + accum((0, _))  => accum((1, res)) },
-run { case fetch(_, reply) + accum((n, b)) if n == arr.size => reply(b) }
+run { case accum((0, _)) + interm(res) => accum((1, res)) },
+run { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
 
 ```
-
-Side note: due to the current limitations of `JoinRun`, the `accum` pattern matches must be written at the last place in the reactions.
 
 We can now inject all `carrier` molecules, a single `accum((0, null))` molecule, and a `fetch()` molecule.
 Because of the guard condition, the reaction with `fetch()` will not run until all intermediate results have been accumulated.
@@ -137,11 +144,11 @@ object C extends App {
 
   // reactions for "reduce" must be together since they share "accum"
   join(
-      run { case interm(res) + accum((n, b)) if n > 0 =>
+      run { case accum((n, b)) + interm(res) if n > 0 =>
         accum((n+1, reduceB(b, res) ))
       },
-      run { case interm(res) + accum((0, _))  => accum((1, res)) },
-      run { case fetch(_, reply) + accum((n, b)) if n == arr.size => reply(b) }
+      run { case accum((0, _)) + interm(res) => accum((1, res)) },
+      run { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
   )
 
   // inject molecules

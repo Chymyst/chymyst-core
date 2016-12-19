@@ -290,10 +290,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     tp.shutdownNow()
   }
 
-  it should "fail to finish if processes crash with high probability and retry is not set" in {
+  it should "fail to finish if 1 out of 2 processes crash, and retry is not set" in {
     val n = 20
-
-    val probabilityOfCrash = 0.9
 
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
@@ -302,7 +300,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
 
     join(tp0)(
       runSimple  { case c(x) + d(_) =>
-        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
+        if (x%2 == 0) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
       }.noRetry onThreads tp,
       runSimple  { case c(0) + g(_, r) => r() }
     )
@@ -314,10 +312,8 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     tp.shutdownNow()
   }
 
-  it should "resume fault-tolerant reactions by retrying even if processes crash with fixed probability" in {
-    val n = 200
-
-    val probabilityOfCrash = 0.9
+  it should "resume fault-tolerant reactions by retrying even if 1 out of 2 processes crash" in {
+    val n = 20
 
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
@@ -326,7 +322,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
 
     join(tp0)(
       runSimple  { case c(x) + d(_) =>
-        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
+        if (x%2 == 0) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
       }.withRetry onThreads tp,
       runSimple  { case c(0) + g(_, r) => r() }
     )
