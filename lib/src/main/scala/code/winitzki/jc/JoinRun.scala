@@ -10,12 +10,13 @@ and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
   * */
 
 import java.util.UUID
-import java.util.concurrent.{Semaphore, TimeUnit}
+import java.util.concurrent.{Semaphore, TimeUnit, ConcurrentLinkedQueue}
 
 import code.winitzki.jc.JoinRunUtils.PersistentHashCode
 
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
+import scala.collection.JavaConverters._
 
 object JoinRun {
 
@@ -588,5 +589,11 @@ object JoinRun {
     new JoinDefinition(rs, reactionPool, joinPool).diagnostics
 
   }
+
+  private val errorLog: ConcurrentLinkedQueue[String] = new ConcurrentLinkedQueue[String]()
+
+  private[jc] def reportError(message: String): Unit = errorLog.add(message)
+
+  def errors = errorLog.iterator().asScala.toIterable
 
 }
