@@ -12,6 +12,8 @@ and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
 import java.util.UUID
 import java.util.concurrent.{Semaphore, TimeUnit}
 
+import code.winitzki.jc.JoinRunUtils.PersistentHashCode
+
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 
@@ -153,8 +155,15 @@ object JoinRun {
     }
   }
 
+  // This is carried by each thread, in order to monitor the reactions that are being scheduled.
+  sealed trait ReactionOrInjectionInfo
+
+  final case class InjectionInfo(injected: MoleculeBag) extends ReactionOrInjectionInfo {
+    override val toString: String = moleculeBagToString(injected)
+  }
+
   // This class is immutable.
-  final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) {
+  final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) extends ReactionOrInjectionInfo {
 
     // The input pattern sequence is pre-sorted for further use.
     private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
@@ -168,9 +177,7 @@ object JoinRun {
       (mol.toString, patternPrecedence, sha)
     }
 
-    override def toString: String = stringForm
-
-    private val stringForm = s"${inputsSorted.map(_.toString).mkString(" + ")}${hasGuard match {
+    override val toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")}${hasGuard match {
       case GuardAbsent => ""
       case GuardPresent => " if(...)"
       case GuardPresenceUnknown => " ?"
@@ -185,6 +192,22 @@ object JoinRun {
   private[jc] type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
   private[jc] type MutableLinearMoleculeBag = mutable.Map[Molecule, AbsMolValue[_]]
   private[jc] type LinearMoleculeBag = Map[Molecule, AbsMolValue[_]]
+
+  private[jc] def moleculeBagToString(mb: MoleculeBag): String =
+    mb.getMap.toSeq
+      .map{ case (m, vs) => (m.toString, vs) }
+      .sortBy(_._1)
+      .flatMap {
+        case (m, vs) => vs.map {
+          case (mv, 1) => s"$m($mv)"
+          case (mv, i) => s"$m($mv) * $i"
+        }
+      }.mkString(", ")
+
+  private[jc] def moleculeBagToString(mb: LinearMoleculeBag): String =
+    mb.map {
+      case (m, jmv) => s"$m($jmv)"
+    }.mkString(", ")
 
   private[jc] sealed class ExceptionInJoinRun(message: String) extends Exception(message)
   private[JoinRun] final class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
@@ -227,17 +250,15 @@ object JoinRun {
       */
     def noRetry: Reaction = Reaction(info, body, threadPool, retry = false)
 
+    // Optimization: this is used often.
+    val inputMolecules: Seq[Molecule] = info.inputs.map(_.molecule).sortBy(_.toString)
+
     /** Convenience method for debugging.
       *
       * @return String representation of input molecules of the reaction.
       */
-    override def toString = stringForm
-
-    private lazy val stringForm = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${if (retry)
+    override val toString: String = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${if (retry)
       "/R" else ""}"
-
-    // Optimization: this is used often.
-    val inputMolecules: Seq[Molecule] = info.inputs.map(_.molecule).sortBy(_.toString)
   }
 
   // Wait until the join definition to which `molecule` is bound becomes quiescent, then inject `callback`.
@@ -313,15 +334,12 @@ object JoinRun {
     * @tparam T The type of the value carried by the molecule.
     * @tparam R The type of the reply value.
     */
-  private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: ReplyValue[T,R]) extends AbsMolValue[T] {
+  private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: ReplyValue[T,R]) extends AbsMolValue[T] with PersistentHashCode {
     override def getValue: T = v
-    // Make hash code persistent across mutations with this simple trick.
-    private lazy val hashCodeValue: Int = super.hashCode()
-    override def hashCode(): Int = hashCodeValue
   }
 
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowledge of molecule types.
-  abstract sealed class Molecule {
+  abstract sealed class Molecule extends PersistentHashCode {
 
     /** Check whether the molecule is already bound to a join definition.
       * Note that molecules can be injected only if they are bound.
@@ -330,7 +348,7 @@ object JoinRun {
       */
     def isBound: Boolean = joinDef.nonEmpty
 
-    private[jc] var joinDef: Option[JoinDefinition] = None
+    @volatile private[jc] var joinDef: Option[JoinDefinition] = None
 
     private[jc] def getJoinDef: JoinDefinition =
       joinDef.getOrElse(throw new ExceptionNoJoinDef(s"Molecule ${this} is not bound to any join definition"))
@@ -412,7 +430,7 @@ object JoinRun {
 
     def hasVolatileValue: Boolean = getJoinDef.hasVolatileValue(this)
 
-    private[jc] var isSingletonBoolean = false
+    @volatile private[jc] var isSingletonBoolean = false
 
     override def isSingleton: Boolean = isSingletonBoolean
 
