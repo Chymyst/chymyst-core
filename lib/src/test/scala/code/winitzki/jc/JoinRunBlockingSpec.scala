@@ -288,28 +288,28 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
   it should "block the fixed threadpool when one thread is sleeping with Thread.sleep" in {
     val tp = new FixedPool(1)
-    val (g, g2) = makeBlockingCheck(Thread.sleep(300), tp)
+    val (g, g2) = makeBlockingCheck(Thread.sleep(500), tp)
     g2(timeout = 150 millis)() shouldEqual None // this should be blocked
     tp.shutdownNow()
   }
 
   it should "block the fixed threadpool when one thread is sleeping with BlockingIdle(Thread.sleep)" in {
     val tp = new FixedPool(1)
-    val (g, g2) = makeBlockingCheck(BlockingIdle{Thread.sleep(300)}, tp)
+    val (g, g2) = makeBlockingCheck(BlockingIdle{Thread.sleep(500)}, tp)
     g2(timeout = 150 millis)() shouldEqual None // this should be blocked
     tp.shutdownNow()
   }
 
   it should "block the cached threadpool when one thread is sleeping with Thread.sleep" in {
     withPool(new CachedPool(1)){ tp =>
-      val (g, g2) = makeBlockingCheck(Thread.sleep(300), tp)
+      val (g, g2) = makeBlockingCheck(Thread.sleep(500), tp)
       g2(timeout = 150 millis)() shouldEqual None // this should be blocked
     }
   }
 
   it should "block the cached threadpool with BlockingIdle(Thread.sleep)" in {
     withPool(new CachedPool(1)) { tp =>
-      val (g, g2) = makeBlockingCheck(BlockingIdle {Thread.sleep(300)}, tp)
+      val (g, g2) = makeBlockingCheck(BlockingIdle {Thread.sleep(500)}, tp)
       g2(timeout = 150 millis)() shouldEqual None // this should be blocked
     }
   }
