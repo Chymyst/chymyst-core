@@ -134,7 +134,7 @@ Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` an
 - Some common cases of invalid join definitions are flagged (as run-time errors) before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply).
 - Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use Akka actor-based or thread-based pools.
 - Fair nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random.
-- Fault tolerance: failed reactions are automatically restarted (when desired).
+- Reactions marked as fault-tolerant will be automatically restarted if exceptions are thrown.
 - Tracing the execution via logging levels; automatic naming of molecules for debugging is available (via macro).
 
 # Status
