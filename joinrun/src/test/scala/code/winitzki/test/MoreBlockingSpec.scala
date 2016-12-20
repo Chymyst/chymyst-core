@@ -164,10 +164,10 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       & { case d(x) + incr(_, r) => r(); wait(); d(x+1) }
     )
     d(100)
-    incr() // update started and is waiting for e()
+    incr() // reaction 3 started and is waiting for e()
     get_d(timeout = 400 millis)() shouldEqual None
     e()
-    get_d(timeout = 400 millis)() shouldEqual Some(101)
+    get_d(timeout = 800 millis)() shouldEqual Some(101)
 
     tp.shutdownNow()
   }
