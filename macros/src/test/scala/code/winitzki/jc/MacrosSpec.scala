@@ -258,7 +258,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     site(tp0)(runSimple { case b(_) + a(Some(x)) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b => ...}\nNo molecules" // this is the wrong result
+    a.logSoup shouldEqual "Site{a + b => ...}\nNo molecules" // this is the wrong result
     // when the problem is fixed, this test will have to be rewritten
   }
 
@@ -269,7 +269,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     site(tp0)(& { case b(_) + a(None) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with non-simple default pattern-matching in the middle of reaction" in {
@@ -279,7 +279,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     site(& { case b(_) + a(List()) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "fail to define a simple reaction with correct inputs with empty option pattern-matching at start of reaction" in {
@@ -289,7 +289,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     site(tp0)(runSimple { case a(None) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with empty option pattern-matching at start of reaction" in {
@@ -299,7 +299,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     site(tp0)(& { case a(None) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at start of reaction" in {
@@ -309,7 +309,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     site(tp0)(& { case a(Some(x)) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "run reactions correctly with non-default pattern-matching at start of reaction" in {
@@ -320,10 +320,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     a(Some(1))
     waitSome()
-    a.logSoup shouldEqual "Join{a + b => ...}\nMolecules: a(Some(1))"
+    a.logSoup shouldEqual "Site{a + b => ...}\nMolecules: a(Some(1))"
     b()
     waitSome()
-    a.logSoup shouldEqual "Join{a + b => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant non-default pattern-matching at start of reaction" in {
@@ -333,7 +333,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     site(tp0)(& { case a(1) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant default option pattern-matching at start of reaction" in {
@@ -343,7 +343,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     site(tp0)(& { case a(None) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "determine input patterns correctly" in {
@@ -489,7 +489,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       )
       a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
     }
-    thrown.getMessage shouldEqual "In Join{a => ...}: Unavoidable livelock: reaction a => ..."
+    thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction a => ..."
   }
 
   it should "compute inputs and outputs correctly for an inline nested reaction" in {
@@ -522,7 +522,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a => ...}: Unavoidable livelock: reaction a => ..."
+    thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction a => ..."
   }
 
   it should "compute outputs in the correct order for a reaction with no livelock" in {

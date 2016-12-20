@@ -195,7 +195,7 @@ site(
     run { case c(_) => val x = f(); ... },
     run { case c(_) => val x = g(); ... }
 )
-java.lang.Exception: In Join{c => ...; c => ...}: Unavoidable nondeterminism: reaction c => ... is shadowed by c => ...
+java.lang.Exception: In Site{c => ...; c => ...}: Unavoidable nondeterminism: reaction c => ... is shadowed by c => ...
 ```
 
 So, we need to define two _different_ molecules (say, `c` and `d`) as inputs for these two reactions.
@@ -462,7 +462,7 @@ site( run { case f(_,r) + c(n) => c(n+1); if (n==0) r(n) } )
 
 c(1)
 f()
-java.lang.Exception: Error: In Join{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B
+java.lang.Exception: Error: In Site{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B
 
 ```
 

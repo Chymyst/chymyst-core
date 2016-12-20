@@ -50,7 +50,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, j
 
   private lazy val knownReactions: Seq[Reaction] = reactionInfos.keys.toSeq
 
-  override lazy val toString: String = s"Join{${knownReactions.map(_.toString).sorted.mkString("; ")}}"
+  override lazy val toString: String = s"Site{${knownReactions.map(_.toString).sorted.mkString("; ")}}"
 
   /** The sha1 hash sum of the entire reaction site, computed from sha1 of each reaction.
     * The sha1 hash of each reaction is computed from the Scala syntax tree of the reaction's source code.

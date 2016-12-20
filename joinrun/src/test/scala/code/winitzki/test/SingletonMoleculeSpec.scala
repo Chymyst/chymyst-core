@@ -75,7 +75,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         & { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Join{c/B + d => ...}: Incorrect chemistry: singleton (d) consumed but not injected by reaction c/B(_) + d(_) => "
+    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect chemistry: singleton (d) consumed but not injected by reaction c/B(_) + d(_) => "
 
     tp.shutdownNow()
   }
@@ -93,7 +93,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         & { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Join{c/B + d => ...}: Incorrect chemistry: singleton (d) injected more than once by reaction c/B(_) + d(_) => d() + d()"
+    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect chemistry: singleton (d) injected more than once by reaction c/B(_) + d(_) => d() + d()"
 
     tp.shutdownNow()
   }
@@ -113,7 +113,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         & { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Join{c/B => ...; e => ...}: Incorrect chemistry: singleton (d) injected but not consumed by reaction c/B(_) => d(); singleton (d) injected but not consumed by reaction e(_) => d(); Incorrect chemistry: singleton (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B => ...; e => ...}: Incorrect chemistry: singleton (d) injected but not consumed by reaction c/B(_) => d(); singleton (d) injected but not consumed by reaction e(_) => d(); Incorrect chemistry: singleton (d) not consumed by any reactions"
 
     tp.shutdownNow()
   }
@@ -131,7 +131,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         & { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Join{d + d + e => ...}: Incorrect chemistry: singleton (d) consumed 2 times by reaction d(_) + d(_) + e(_) => d()"
+    thrown.getMessage shouldEqual "In Site{d + d + e => ...}: Incorrect chemistry: singleton (d) consumed 2 times by reaction d(_) + d(_) + e(_) => d()"
 
     tp.shutdownNow()
   }
@@ -169,7 +169,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         & { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Join{c/B => ...}: Incorrect chemistry: singleton (d) injected but not consumed by reaction c/B(_) => d(); Incorrect chemistry: singleton (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B => ...}: Incorrect chemistry: singleton (d) injected but not consumed by reaction c/B(_) => d(); Incorrect chemistry: singleton (d) not consumed by any reactions"
 
     tp.shutdownNow()
   }
@@ -196,7 +196,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       c.volatileValue
     }
 
-    thrown.getMessage shouldEqual "In Join{c => ...}: volatile reader requested for non-singleton (c)"
+    thrown.getMessage shouldEqual "In Site{c => ...}: volatile reader requested for non-singleton (c)"
     tp.shutdownNow()
   }
 
@@ -240,7 +240,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       )
     }
 
-    thrown.getMessage shouldEqual "In Join{c + d => ...; f/B => ...}: Refusing to inject molecule f/B() as a singleton (must be a non-blocking molecule)"
+    thrown.getMessage shouldEqual "In Site{c + d => ...; f/B => ...}: Refusing to inject molecule f/B() as a singleton (must be a non-blocking molecule)"
 
     tp.shutdownNow()
   }
@@ -358,7 +358,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         & { case _ => if (false) { d(); e() }; f(); } // singletons d() and e() will actually not be injected because of a condition
       )
     }
-    thrown.getMessage shouldEqual "In Join{c/B + d + e + f => ...}: Too few singletons injected: d injected 0 times instead of 1, e injected 0 times instead of 1"
+    thrown.getMessage shouldEqual "In Site{c/B + d + e + f => ...}: Too few singletons injected: d injected 0 times instead of 1, e injected 0 times instead of 1"
 
     tp.shutdownNow()
   }
