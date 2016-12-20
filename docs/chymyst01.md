@@ -417,7 +417,7 @@ Currently, `JoinRun` will _not_ fully randomize the input molecules but make an 
 A truly random selection of input molecules may be implemented in the future.
 
 Importantly, it is _not possible_ to assign priorities to reactions or to molecules.
-The order of reactions in a reaction site is ignored, and the order of molecules in the input list is also ignored.
+The chemical machine ignores the order of reactions as listed in the `site(...)` call, as well as the order of molecules in the input list of each reaction.
 Just for the purposes of debugging, molecules will be printed in alphabetical order of names, and reactions will be printed in an unspecified order.
 
 The result is that the order in which reactions will start is non-deterministic and unknown.
@@ -462,7 +462,7 @@ Perhaps this failure will _rarely_ happen, -- it unlikely to show up in your uni
 
 This kind of nondeterminism is the prime reason concurrency is widely regarded as a hard programming problem.
 
-`JoinRun` will actually reject our attempted program and print an error message before running anything, immediately after we define the chemical laws with `join`:
+`JoinRun` will actually reject our attempted program and print an error message before running anything, immediately after we define the reaction site:
 
 ```scala
 val data = m[Int]

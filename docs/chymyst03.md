@@ -58,7 +58,7 @@ But injectors _are_ ordinary, locally defined Scala values and can be manipulate
 Blocking molecule injectors are of class `B`, non-blocking of class `M`.
 - Reactions are local values of class `Reaction`. Reactions are created using the function `run { case ... => ... }`.
 - Only one `case` clause can be used in each reaction.
--  Reaction sites are values of class `ReactionSite`. These values are not visible to the user: they are created in a closed scope by the `join` function.
+-  Reaction sites are values of class `ReactionSite`. These values are not visible to the user: they are created in a closed scope by the `site(...)` call.
 - Reaction sites are immutable once written.
 - Molecule injectors are immutable after all reactions have been written where these molecules are used.
 - Reactions proceed by first deciding which molecules can be used as inputs to some reaction; these molecules are then atomically removed from the soup, and the reaction body is executed.
