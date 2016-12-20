@@ -28,7 +28,7 @@ For instance, we can postulate that there exist three sorts of molecules called 
 `a + c ⇒` [_nothing_]
 
 
-![Reaction diagram a + b => a, a + c => ...](http://chymyst.github.io/joinrun-scala/reactions1.svg)
+![Reaction diagram a + b => a, a + c => ...](https://chymyst.github.io/joinrun-scala/reactions1.svg)
 
 Of course, real-life chemistry does not allow a molecule to disappear without producing any other molecules.
 But our chemistry is purely imaginary, and so the programmer is free to postulate arbitrary chemical laws.
@@ -95,7 +95,7 @@ a(x) + c(y) ⇒ println(x+y) // -- reaction body with no output molecules
 This reaction consumes the molecules `a` and `c` but does not inject any output molecules.
 The only result of running the reaction is the side-effect of printing the number `x+y`.
 
-![Reaction diagram a(x) + b(y) => a(z), a(x) + c(y) => ...](http://chymyst.github.io/joinrun-scala/reactions2.svg)
+![Reaction diagram a(x) + b(y) => a(z), a(x) + c(y) => ...](https://chymyst.github.io/joinrun-scala/reactions2.svg)
 
 The computations performed by the chemical machine are _automatically concurrent_:
 Whenever input molecules are available in the soup, the runtime engine will start a reaction that consumes these input molecules.
@@ -178,7 +178,7 @@ Each reaction says that the new value of the counter (either `n+1` or `n-1`) wil
 The previous counter molecule (with its old value `n`) will be consumed by the reactions.
 The `incr` and `decr` molecules will be likewise consumed.
 
-![Reaction diagram counter(n) + incr => counter(n+1) etc.](http://chymyst.github.io/joinrun-scala/counter-incr-decr.svg)
+![Reaction diagram counter(n) + incr => counter(n+1) etc.](https://chymyst.github.io/joinrun-scala/counter-incr-decr.svg)
 
 In `JoinRun`, a reaction site is created by the call to `site(...)`, which can contain one or several reactions.
 Why did we write the two reactions in one site?

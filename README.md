@@ -20,7 +20,7 @@ It also works with Scala 2.10 and with OpenJDK 7 (except for the new `LocalDateT
 
 # Overview of `JoinRun`
 
-To get started, begin with this [tutorial introduction](http://chymyst.github.io/joinrun-scala/chymyst00.html).
+To get started, begin with this [tutorial introduction](https://chymyst.github.io/joinrun-scala/chymyst00.html).
 
 I gave a presentation on an early version of `JoinRun` at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
