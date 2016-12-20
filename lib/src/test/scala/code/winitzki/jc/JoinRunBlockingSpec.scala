@@ -261,11 +261,9 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     )
     g2() shouldEqual 1 // this should initially work
     d() // do not inject c(). Now the first reaction is blocked because second reaction cannot start.
-    waitSome()
-    g2(timeout = 100 millis)() shouldEqual None // this should be blocked now
+    g2(timeout = 300 millis)() shouldEqual None // this should be blocked now
     tp.shutdownNow()
     tp1.shutdownNow()
-
   }
 
   def makeBlockingCheck(sleeping: => Unit, tp1: Pool): (B[Unit,Unit], B[Unit,Int]) = {

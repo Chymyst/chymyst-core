@@ -33,9 +33,9 @@ trait Pool {
 private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorService) extends Pool {
   protected val execService = execFactory(threads)
 
-  val sleepTime = 200
+  val sleepTime = 200L
 
-  def shutdownNow() = new Thread {
+  def shutdownNow(): Unit = new Thread {
     try{
       execService.shutdown()
       execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
@@ -44,6 +44,7 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorSer
       execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
       execService.shutdownNow()
     }
+    ()
   }
 
   def runClosure(closure: => Unit, info: ReactionInfo): Unit =

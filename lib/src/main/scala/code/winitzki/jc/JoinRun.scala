@@ -283,7 +283,7 @@ object JoinRun {
     * @return an unapply operation
     */
   object + {
-    def unapply(attr:Any) = Some(attr,attr)
+    def unapply(attr:Any): Option[(Any, Any)] = Some((attr,attr))
   }
 
   /** Create a reaction value out of a simple reaction body.
@@ -592,7 +592,10 @@ object JoinRun {
 
   private val errorLog: ConcurrentLinkedQueue[String] = new ConcurrentLinkedQueue[String]()
 
-  private[jc] def reportError(message: String): Unit = errorLog.add(message)
+  private[jc] def reportError(message: String): Unit = {
+    errorLog.add(message)
+    ()
+  }
 
   def errors = errorLog.iterator().asScala.toIterable
 
