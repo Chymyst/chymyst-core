@@ -7,7 +7,7 @@ import org.scalatest.{FlatSpec, Matchers}
 
 class JiansenFairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(500, Millis)
+  val timeLimit = Span(2000, Millis)
 
   // fairness over reactions:
   // We have n molecules A:JA[Unit], which can all interact with a single molecule C:JA[(Int,Array[Int])].

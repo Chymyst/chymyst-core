@@ -559,11 +559,17 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     x shouldEqual "x"
 
+    val y = {
+      val z = getName
+      (z, getName)
+    }
+    y shouldEqual(("z", "y"))
+
     val (y1,y2) = {
       val z = getName
       (z, getName)
     }
-    (y1,y2) shouldEqual(("z", "y"))
+    (y1, y2) shouldEqual(("z", "x$7"))
   }
 
   it should "correctly recognize nested injections of non-blocking molecules" in {

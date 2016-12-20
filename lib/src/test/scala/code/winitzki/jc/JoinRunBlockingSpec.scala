@@ -316,7 +316,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
   it should "not block the smart threadpool with BlockingIdle(Thread.sleep)" in {
     val tp = new SmartPool(1)
     val (g, g2) = makeBlockingCheck(BlockingIdle{Thread.sleep(500)}, tp)
-    g2(timeout = 50 millis)() shouldEqual Some(1) // this should not be blocked
+    g2(timeout = 150 millis)() shouldEqual Some(1) // this should not be blocked
     tp.currentPoolSize shouldEqual 2
     g() // now we know that the first reaction has finished
     tp.currentPoolSize shouldEqual 1
