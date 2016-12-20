@@ -388,7 +388,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
 
     staticDiagnostics.checkWarningsAndErrors()
 
-    // Inject singleton molecules (note: this is on the same thread as the declaration of `join`!).
+    // Inject singleton molecules (note: this is on the same thread as the call to `site`!).
     // This must be done without starting any reactions.
     // It is OK that the argument is `null` because singleton reactions match on the wildcard: { case _ => ... }
     injectingSingletons = true

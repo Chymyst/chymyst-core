@@ -205,7 +205,7 @@ Chemical reactions are static - they must be specified at compile time and canno
 `JoinRun` goes beyond this limitation, since reactions in `JoinRun` are values created at run time.
 For instance, we could create an array of molecules and reactions, where the size of the array is determined at run time.
 
-However, reactions will not be activated until a reaction site is made by calling `join`, which we can only do once.
+However, reactions will not be activated until a reaction site is made by calling `site`, which we can only do once.
 (We cannot write a second reaction site using an input molecule that is already bound to a previous reaction site. More generally, we cannot modify a reaction site once it has been written.)
 
 For this reason, reaction sites in `JoinRun` are still static in an important sense.
