@@ -204,9 +204,9 @@ object JoinRun {
     }.mkString(", ")
 
   private[jc] sealed class ExceptionInJoinRun(message: String) extends Exception(message)
-  private[JoinRun] final class ExceptionNoJoinDef(message: String) extends ExceptionInJoinRun(message)
+  private[JoinRun] final class ExceptionNoReactionSite(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionMoleculeAlreadyBound(message: String) extends ExceptionInJoinRun(message)
-  private[jc] final class ExceptionNoJoinPool(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionNoSitePool(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionInjectingSingleton(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
   private final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
@@ -345,11 +345,11 @@ object JoinRun {
     @volatile private[jc] var reactionSiteOpt: Option[ReactionSite] = None
 
     private[jc] def site: ReactionSite =
-      reactionSiteOpt.getOrElse(throw new ExceptionNoJoinDef(s"Molecule ${this} is not bound to any reaction site"))
+      reactionSiteOpt.getOrElse(throw new ExceptionNoReactionSite(s"Molecule ${this} is not bound to any reaction site"))
 
     /** The set of reactions that can consume this molecule.
       *
-      * @return {{{None}}} if the molecule injector is not yet bound to any Join Definition.
+      * @return {{{None}}} if the molecule injector is not yet bound to any reaction site.
       */
     private[jc] def consumingReactions: Option[Set[Reaction]] = reactionSiteOpt.map(_ => consumingReactionsSet)
 
@@ -552,7 +552,7 @@ object JoinRun {
     override def isBlocking = true
   }
 
-  val defaultJoinPool = new FixedPool(2)
+  val defaultSitePool = new FixedPool(2)
   val defaultReactionPool = new FixedPool(4)
 
   private[jc] sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
@@ -565,7 +565,7 @@ object JoinRun {
     */
   private[jc] type ReactionBody = PartialFunction[UnapplyArg, Any]
 
-  def site(reactions: Reaction*): WarningsAndErrors = site(defaultReactionPool, defaultJoinPool)(reactions: _*)
+  def site(reactions: Reaction*): WarningsAndErrors = site(defaultReactionPool, defaultSitePool)(reactions: _*)
   def site(reactionPool: Pool)(reactions: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(reactions: _*)
 
   /** Create a reaction site with one or more reactions.

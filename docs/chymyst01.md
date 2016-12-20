@@ -247,9 +247,9 @@ decr() + decr() // prints “new value is 99” and then “new value is 98"
 
 ### Logging the contents of the soup
 
-For debugging purposes, it is useful to see what molecules are waiting for reactions at a given time.
-This is achieved by calling the `logSoup` method on the molecule injector.
-This method will return a string showing the molecules that are currently present in the soup and are waiting to react with other molecules.
+For debugging purposes, it is useful to see what molecules are waiting for reactions at a given reaction site.
+This is achieved by calling the `logSoup` method on any molecule injector bound to that RS.
+This method will return a string showing the molecules that are currently present in the soup and waiting to react with other molecules at that RS.
 The `logSoup` output will also show the values carried by each molecule.
 
 After executing the code from the example above, here is how we could use this debugging facility:
@@ -263,10 +263,11 @@ Molecules: counter(98)
 
 The debug output gives us two pieces of information:
 
-1. The RS which is being logged: `Site{counter + decr => ...; counter + incr => ...}`
+- The RS which is being logged: `Site{counter + decr => ...; counter + incr => ...}`
 Note that the RS is identified by the reactions that are defined in it.
 The reactions are shown in a shorthand notation, by listing only the input molecules.
-2. The molecules that are currently waiting in the soup at that RS, namely `Molecules: counter(98)`.
+
+- The molecules that are currently waiting in the soup at that RS, namely `Molecules: counter(98)`.
 In this example, there is presently only one copy of the `counter` molecule, carrying the value `98`.
 
 Note that the debug output is limited to the molecules that can be consumed by reactions at that RS.
@@ -276,7 +277,7 @@ The RS will look at the presence or absence of these molecules when it decides w
 ### Molecule names
 
 A perceptive reader will ask at this point:
-How did the program know the names `counter`, `decr`, and `incr`?
+How did the program know the names `counter`, `decr`, and `incr` when we called `logSoup`?
 These are names of local variables we defined using `val counter = m[Int]` and so on.
 Ordinarily, Scala code does not have access to these names.
 
@@ -303,7 +304,7 @@ counter.setLogLevel(2)
 ```
 
 After this, verbosity level 2 is set on all reactions involving the RS to which `counter` is bound.
-This might result in a large printout if many reactions are proceeding.
+This might result in a large printout if many reactions are happening.
 So this facility should be used only for debugging or testing.
 
 ## Common errors
@@ -311,7 +312,7 @@ So this facility should be used only for debugging or testing.
 ### Error: Injecting molecules without defined reactions
 
 For each molecule, there must exist a single reaction site (RS) to which this molecule is **bound** -- that is, the RS where this molecule is consumed as input molecule by some reactions.
-(See [Join Definitions](joinrun.md#join-definitions) for more details.)
+(See [Reaction Sites](joinrun.md#reaction-sites) for more details.)
 
 It is an error to inject a molecule that is not yet defined as input molecule at any RS (i.e. not yet bound to any RS).
 

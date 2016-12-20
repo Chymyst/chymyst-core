@@ -43,7 +43,7 @@ class ShutdownSpec extends FlatSpec with Matchers {
 
   it should "fail to schedule reactions after shutdown of default thread pools" in {
 
-    defaultJoinPool.shutdownNow()
+    defaultSitePool.shutdownNow()
     defaultReactionPool.shutdownNow()
 
     val x = m[Unit]
