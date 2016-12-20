@@ -1,5 +1,7 @@
 [![Build Status](https://travis-ci.org/winitzki/joinrun-scala.svg?branch=master)](https://travis-ci.org/winitzki/joinrun-scala)
 [![Coverage Status](https://codecov.io/gh/winitzki/joinrun-scala/coverage.svg?branch=master)](https://codecov.io/gh/winitzki/joinrun-scala?branch=master)
+[![Version](http://img.shields.io/badge/version-0.7.7-blue.svg?style=flat)](https://github.com/winitzki/joinrun-scala/releases)
+[![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://opensource.org/licenses/MIT)
 
 [![Join the chat at https://gitter.im/joinrun-scala/Lobby](https://badges.gitter.im/joinrun-scala/Lobby.svg)](https://gitter.im/joinrun-scala/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
