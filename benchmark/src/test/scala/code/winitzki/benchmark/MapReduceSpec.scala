@@ -52,17 +52,17 @@ class MapReduceSpec extends FlatSpec with Matchers {
     val fetch = b[Unit,Int]
 
     val tp = new FixedPool(4)
+
     // declare the reaction for "map"
     join(tp)(
-      & { case carrier(a) => val res = f(a); interm(res) }
+      & { case carrier(x) => val res = f(x); interm(res) }
     )
 
     // reactions for "reduce" must be together since they share "accum"
     join(tp)(
-      & { case accum((n, b)) + interm(res) if n > 0 =>
+      & { case accum((n, b)) + interm(res) =>
         accum((n+1, reduceB(b, res) ))
       },
-      & { case accum((0, _)) + interm(res) => accum((1, res)) },
       & { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
     )
 
@@ -70,7 +70,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     accum((0, 0))
     arr.foreach(i => carrier(i))
     val result = fetch()
-    result shouldEqual 338350
+    result shouldEqual arr.map(f).reduce(reduceB) // 338350
   }
 
 }
