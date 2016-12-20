@@ -18,7 +18,7 @@ class ShutdownSpec extends FlatSpec with Matchers {
     pool2.shutdownNow()
 
     val x = m[Unit]
-    join(pool,pool2)(runSimple{ case x(()) => })
+    site(pool,pool2)(runSimple{ case x(()) => })
 
     val thrown = intercept[Exception] {
       x()
@@ -34,7 +34,7 @@ class ShutdownSpec extends FlatSpec with Matchers {
     pool.shutdownNow()
 
     val x = m[Unit]
-    join(pool,pool2)(runSimple{ case x(()) => })
+    site(pool,pool2)(runSimple{ case x(()) => })
 
     x()
 
@@ -47,7 +47,7 @@ class ShutdownSpec extends FlatSpec with Matchers {
     defaultReactionPool.shutdownNow()
 
     val x = m[Unit]
-    join(runSimple{ case x(()) => })
+    site(runSimple{ case x(()) => })
 
     val thrown = intercept[Exception] {
       x()

@@ -60,7 +60,7 @@ Here is a dictionary:
 | reaction | process | `val r1 = run { case a(x) + ... => ... }` |
 | injecting an output molecule | sending a message | `a(123)` _// side effect_ |
 | injecting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
-| join definition | join definition | `join(r1, r2, ...)` |
+| reaction site | join definition | `site(r1, r2, ...)` |
 
 ## Comparison: JC vs. CSP
 
@@ -89,7 +89,7 @@ JoinRun:
 ```scala
 val a = m[Int]
 val c = m[Int, Int]
-join(
+site(
   run { case a(x) + c(y, reply) =>
     a(x+y)
     reply(x)
@@ -243,7 +243,7 @@ val counter = b[Int] // the name of this molecule is "counter"
 val decr = b[Unit] // the name is "decr"
 val get = b[Unit,Int] // the name is "get"
 
-join (
+site (
     run { case counter(n) + decr(_) if n > 0 => counter(n-1) },
     run { case counter(n) + get(_, res) => res(n) + counter(n) }
 )

@@ -142,12 +142,12 @@ object C extends App {
   val fetch = b[Unit,Int]
 
   // declare the reaction for "map"
-  join(
+  site(
     run { case carrier(x) => val res = f(x); interm(res) }
   )
 
   // reactions for "reduce" must be together since they share "accum"
-  join(
+  site(
       run { case accum((n, b)) + interm(res) if n > 0 =>
         accum((n+1, reduceB(b, res) ))
       },
@@ -184,7 +184,7 @@ def makeCounter(initCount: Int): (M[Unit], B[Unit, Int]) = {
   val decr = m[Unit]
   val fetch = m[Unit, Int]
 
-  join(
+  site(
     run { counter(n) + fetch(_, r) => counter(n) + r(n)},
     run { counter(n) + decr(_) => counter(n-1) }
   )
@@ -241,7 +241,7 @@ val sorted = m[Array[T]]
 The main idea of the merge-sort algorithm is to split the array in half, sort each half recursively, and then merge the two sorted halves into the resulting array.
 
 ```scala
-join ( run { case mergesort(arr) =>
+site ( run { case mergesort(arr) =>
     if (arr.length == 1) sorted(arr) else {
       val (part1, part2) = arr.splitAt(arr.length / 2)
       // inject recursively
@@ -265,13 +265,13 @@ Actually, we need to return the upper-level `sorted` molecule from merging the r
 In order to achieve this, we need to define the merging reaction _within the scope_ of the `mergesort` reaction:
 
 ```scala
-join ( run { case mergesort(arr) =>
+site ( run { case mergesort(arr) =>
     if (arr.length == 1) sorted(arr) else {
       val (part1, part2) = arr.splitAt(arr.length / 2)
       // define lower-level "sorted" molecules
       val sorted1 = m[Array[T]]
       val sorted2 = m[Array[T]]
-      join( run { case sorted1(arr1) + sorted2(arr2) => sorted( arrayMerge(arr1, arr2) ) } )
+      site( run { case sorted1(arr1) + sorted2(arr2) => sorted( arrayMerge(arr1, arr2) ) } )
       // inject recursively
       mergesort(part1) + mergesort(part2)
     }
@@ -287,7 +287,7 @@ We will then pass the lower-level `sorted` molecule injectors to the recursive c
 ```scala
 val mergesort = new M[(Array[T], M[Array[T]])]
 
-join(
+site(
   run {
     case mergesort((arr, sorted)) =>
       if (arr.length <= 1) sorted(arr)
@@ -296,7 +296,7 @@ join(
         // "sorted1" and "sorted2" will be the sorted results from lower level
         val sorted1 = new M[Array[T]]
         val sorted2 = new M[Array[T]]
-        join(
+        site(
           run { case sorted1(arr1) + sorted2(arr2) => sorted(arrayMerge(arr1, arr2)) }
         )
         // inject lower-level mergesort

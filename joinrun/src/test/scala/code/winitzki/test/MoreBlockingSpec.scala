@@ -27,7 +27,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(6)
 
-    join(tp)(
+    site(tp)(
       &{ case f(_, r) => r(123) },
       &{ case g(_, r) + a(x) => r(x) },
       &{ case g(_, r) + d(x) => r(-x) },
@@ -46,7 +46,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(4)
 
-    join(tp)(
+    site(tp)(
       & { case f(_, r) => val res = r(123); waiter { res shouldEqual true }; waiter.dismiss() }
     )
     f(timeout = 10.seconds)() shouldEqual Some(123)
@@ -63,7 +63,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(6)
 
-    join(tp)(
+    site(tp)(
       & { case f(_, reply) => a(reply(123)) },
       & { case a(x) + collect(n) => collect(n + (if (x) 0 else 1))},
       & { case collect(n) + get(_, reply) => reply(n) }
@@ -89,7 +89,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(20)
 
-    join(tp)(
+    site(tp)(
       & { case f(_, r) + a(x) => r(x); a(0) }
     )
     a.setLogLevel(4)
@@ -116,7 +116,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(20)
 
-    join(tp)(
+    site(tp)(
       & { case f(_, r) => val x = g(); val res = r(x); waiter { res shouldEqual false }; waiter.dismiss() },
       & { case g(_, r) + a(x) => r(x) }
     )
@@ -138,7 +138,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f = b[Int,Int]
 
     val tp = new FixedPool(6)
-    join(tp)(
+    site(tp)(
       & { case f(x, r) + a(y) => c(x); val s = f(x+y); r(s) },
       & { case f(x, r) + c(y) => r(x*y) }
     )
@@ -158,7 +158,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(6)
 
-    join(tp)(
+    site(tp)(
       & { case get_d(_, r) + d(x) => r(x) },
       & { case wait(_, r) + e(_) => r() },
       & { case d(x) + incr(_, r) => r(); wait(); d(x+1) }
@@ -183,7 +183,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(6)
 
-    join(tp)(
+    site(tp)(
       & { case get_f(_, r) + f(x) => r(x) },
       & { case c(_) => incr(); e() },
       & { case wait(_, r) + e(_) => r() },
@@ -207,7 +207,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(6)
 
-    join(tp)(
+    site(tp)(
       & { case get_f(_, r) + f(x) => r(x) },
       & { case c(_) => incr(); e() },
       & { case wait(_, r) + e(_) => r() },

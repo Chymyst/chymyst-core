@@ -20,7 +20,7 @@ object Benchmarks7 {
     val all_done = m[Int]
     val f = b[LocalDateTime,Long]
 
-    join(tp)(
+    site(tp)(
       run { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
       run { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
     )
@@ -62,7 +62,7 @@ object Benchmarks7 {
     val c = m[Int]
     val d = m[Unit]
 
-    join(tp)(
+    site(tp)(
       run { case c(0) => done() },
       run { case c(n) + d(_) if n > 0 => c(n - 1) }
     )

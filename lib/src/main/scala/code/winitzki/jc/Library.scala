@@ -10,7 +10,7 @@ object Library {
   /** Create a non-blocking molecule that, when injected, will resolve the future.
     * Example usage: val (m, fut) = moleculeFuture[String](pool)
     *
-    * @param pool Thread pool on which to run the new join definition.
+    * @param pool Thread pool on which to run the new reaction site.
     * @tparam T Type of value carried by the molecule and by the future.
     * @return Tuple consisting of new molecule injector and the new future.
     */
@@ -18,7 +18,7 @@ object Library {
     val f = new M[T]("future")
     val p = Promise[T]()
 
-    join(pool,pool)(
+    site(pool,pool)(
       runSimple { case f(x) => p.success(x); () }
     )
     (f, p.future)

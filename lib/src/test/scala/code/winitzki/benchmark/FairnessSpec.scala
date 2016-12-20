@@ -10,7 +10,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(1000, Millis)
 
-  behavior of "join definition"
+  behavior of "reaction site"
 
   // fairness over reactions:
   // We have n molecules A:M[Unit], which can all interact with a single molecule C:M[(Int,Array[Int])].
@@ -35,7 +35,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(4)
     val tp1 = new FixedPool(1)
 
-    join(tp, tp1)(
+    site(tp, tp1)(
       runSimple { case getC(_, r) + done(arr) => r(arr) },
       runSimple { case a0(_) + c((n,arr)) => if (n > 0) { arr(0) += 1; c((n-1,arr)) + a0() } else done(arr) },
       runSimple { case a1(_) + c((n,arr)) => if (n > 0) { arr(1) += 1; c((n-1,arr)) + a1() } else done(arr) },
@@ -76,7 +76,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(8)
 
-    join(tp, tp)(
+    site(tp, tp)(
       runSimple { case done(arr) + getC(_, r) => r(arr) },
       runSimple { case c(n) + a(i) => if (n>0) { a(i+1) + c(n-1) } else a(i) + gather(List()) },
       runSimple { case gather(arr) + a(i) =>
@@ -113,7 +113,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(8)
 
-    join(tp, tp)(
+    site(tp, tp)(
       runSimple { case a(_) + b(_) => d() },
       runSimple { case b(_) + c(_) => e() },
       runSimple { case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
@@ -145,7 +145,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
       val b = new M[Unit]("b")
       val c = new M[Unit]("c")
 
-      join(tp, tp)(
+      site(tp, tp)(
         runSimple { case a(_) + b(_) => d1() },
         runSimple { case b(_) + c(_) => d2() }
       )
@@ -157,7 +157,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f = new M[(Int,Int,Int)]("f")
     val g = new B[Unit, (Int,Int)]("g")
 
-    join(tp, tp)(
+    site(tp, tp)(
       runSimple { case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
       runSimple { case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
       runSimple { case g(_,r) + f((x,y,0)) => r((x,y)) }

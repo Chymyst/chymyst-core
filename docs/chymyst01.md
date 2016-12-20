@@ -120,8 +120,8 @@ import code.winitzki.jc.Macros._
 val a = m[Int] // a(...) will be a molecule with an integer value
 val b = m[Int] // ditto for b(...)
 
-// declare the available reaction(s)
-join(
+// declare the reaction site and the available reaction(s)
+site(
   run { case a(x) + b(y) =>
     val z = computeZ(x,y)
     a(z)
@@ -131,6 +131,9 @@ join(
 ```
 
 The helper functions `m`, `join`, and `run` are defined in the `JoinRun` library.
+
+We will talk later in more detail about reaction sites.
+For now, think of 
 
 ## Example: Concurrent counter
 
@@ -164,7 +167,7 @@ The reactions must be such that the counter's value is incremented when we injec
 So, it looks like we will need two reactions:
 
 ```scala
-join(
+site(
   run { case counter(n) + incr(_) => counter(n+1) },
   run { case counter(n) + decr(_) => counter(n-1) }
 )
@@ -180,8 +183,8 @@ The `incr` and `decr` molecules will be likewise consumed.
 It is important to note that the two reactions need to be defined together in a single call to `join`.
 The reason is that both reactions contend on the same input molecule `counter`.
 
-This construction -- defining several reactions together -- is called a **join definition** and is written using the library function `join`.
-In `JoinRun`, all reactions that consume a given input molecule must be included in a single join definition.
+This construction -- defining several reactions together -- is called a **reaction site** and is written using the library function `join`.
+In `JoinRun`, all reactions that consume a given input molecule must be included in a single reaction site.
 
 After defining the molecules and their reactions, we can start injecting new molecules into the soup:
 
@@ -225,7 +228,7 @@ def printAndInject(x: Int) = {
 }
 
 // declare the available reaction(s)
-join(
+site(
   run { case counter(n) + decr(_) => printAndInject(n-1) }
   run { case counter(n) + incr(_) => printAndInject(n+1) },
 )
@@ -306,14 +309,14 @@ So this facility should be used only for debugging or testing.
 
 ### Error: Injecting molecules without defined reactions
 
-For each molecule, there must exist a single join definition (JD) to which this molecule is **bound** -- that is, the JD where this molecule is consumed as input molecule by some reactions.
+For each molecule, there must exist a single reaction site (JD) to which this molecule is **bound** -- that is, the JD where this molecule is consumed as input molecule by some reactions.
 (See [Join Definitions](joinrun.md#join-definitions) for more details.)
 
 It is an error to inject a molecule that is not yet defined as input molecule in any JD (i.e. not yet bound to any JD).
 
 ```scala
 val x = m[Int]
-x(100) // java.lang.Exception: Molecule x is not bound to any join definition
+x(100) // java.lang.Exception: Molecule x is not bound to any reaction site
 
 ```
 
@@ -321,13 +324,13 @@ The same error will occur if such injection is attempted inside a reaction body,
 
 The correct way of using `JoinRun` is first to define molecules, then to create a JD where these molecules are used as inputs for reactions, and only then to start injecting these molecules.
 
-The method `isBound` can be used to determine at run time whether a molecule has been already bound to a join definition:
+The method `isBound` can be used to determine at run time whether a molecule has been already bound to a reaction site:
 
 ```scala
 val x = m[Int]
 x.isBound // returns `false`
 
-join( run { case x(2) =>  } )
+site( run { case x(2) =>  } )
 
 x.isBound // returns `true`
 
@@ -342,21 +345,21 @@ val x = m[Int]
 val a = m[Unit]
 val b = m[Unit]
 
-join( run { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this JD.
+site( run { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this JD.
 
-join( run { case x(n) + b(_) => println(s"have x($n) + b") } )
+site( run { case x(n) + b(_) => println(s"have x($n) + b") } )
 // java.lang.Exception: Molecule x cannot be used as input since it is already bound to Join{a + x => ...}
 
 ```
 
-Correct use of `JoinRun` requires that we put these two reactions together into _one_ join definition:
+Correct use of `JoinRun` requires that we put these two reactions together into _one_ reaction site:
  
 ```scala
 val x = m[Int]
 val a = m[Unit]
 val b = m[Unit]
 
-join(
+site(
   run { case x(n) + a(_) => println(s"have x($n) + a") },
   run { case x(n) + b(_) => println(s"have x($n) + b") }
 ) // OK
@@ -370,11 +373,11 @@ Here is an example where we define one JD that computes a result and sends it on
 ```scala
 val show = m[Int]
 // JD where the “show” molecule is an input molecule
-join( run { case show(x) => println(s"") })
+site( run { case show(x) => println(s"") })
 
 val start = m[Unit]
 // JD where the “show” molecule is an output molecule (but not an input molecule)
-join(
+site(
   run { case start(_) => val res = compute(...); show(res) }
 )
 
@@ -388,7 +391,7 @@ An input molecule pattern with a repeated molecule is called a “nonlinear patt
 
 ```scala
 val x = m[Int]
-join(run { case x(n1) + x(n2) =>  })
+site(run { case x(n1) + x(n2) =>  })
 // java.lang.Exception: Nonlinear pattern: x used twice
 
 ``` 
@@ -408,7 +411,7 @@ Currently, `JoinRun` will _not_ fully randomize the input molecules but make an 
 A truly random selection of input molecules may be implemented in the future.
 
 Importantly, it is _not possible_ to assign priorities to reactions or to molecules.
-The order of reactions in a join definition is ignored, and the order of molecules in the input list is also ignored.
+The order of reactions in a reaction site is ignored, and the order of molecules in the input list is also ignored.
 Just for the purposes of debugging, molecules will be printed in alphabetical order of names, and reactions will be printed in an unspecified order.
 
 The result is that the order in which reactions will start is non-deterministic and unknown.
@@ -428,7 +431,7 @@ Here is an (incorrect) attempt to write chemical laws for this program:
 ```scala
 val data = m[Int]
 val sum = m[Int]
-join (
+site (
   run { case data(x) + sum(y) => sum(x+y) }, // We really want the first reaction to be high priority
    
   run { case sum(x) => println(s"sum = $x") }  // and run the second one only after all `data` molecules are gone.
@@ -458,7 +461,7 @@ This kind of nondeterminism is the prime reason concurrency is widely regarded a
 ```scala
 val data = m[Int]
 val sum = m[Int]
-join (
+site (
   run { case data(x) + sum(y) => sum(x+y) },
   run { case sum(x) => println(s"sum = $x") }
 )
@@ -483,7 +486,7 @@ Otherwise, `sum` should start its own reaction and print the final result.
 ```scala
 val data = m[Int]
 val sum = m[(Int, Int)]
-join (
+site (
   run { case data(x) + sum((y, remaining)) if remaining > 0 => sum((x+y, remaining - 1)) },
   run { case sum((x, 0)) => println(s"sum = $x") }
 )
@@ -503,7 +506,7 @@ Here is an equivalent solution with just one reaction:
 ```scala
 val data = m[Int]
 val sum = m[(Int, Int)]
-join (
+site (
   run { case data(x) + sum((y, remaining)) =>
       val newSum = x + y
       if (remaining == 1)  println(s"sum = $newSum")
@@ -525,9 +528,9 @@ The chemical machine requires for its description:
 
 These definitions comprise the chemical laws of a concurrent program.
 
-The user can define reactions in one or more join definitions.
-Each join definition encompasses all reactions that have some _input_ molecules in common.
-Different join definitions must have no input molecules in common.
+The user can define reactions in one or more reaction sites.
+Each reaction site encompasses all reactions that have some _input_ molecules in common.
+Different reaction sites must have no input molecules in common.
 
 In this way, a complicated system of interacting concurrent processes can be specified through a particular set of chemical laws and reaction bodies.
 
@@ -607,7 +610,7 @@ val f34 = new M[Unit]("Fork between 3 and 4")
 val f45 = new M[Unit]("Fork between 4 and 5")
 val f51 = new M[Unit]("Fork between 5 and 1")
 
-join (
+site (
   run { case t1(_) => rw(h1); h1() },
   run { case t2(_) => rw(h2); h2() },
   run { case t3(_) => rw(h3); h3() },

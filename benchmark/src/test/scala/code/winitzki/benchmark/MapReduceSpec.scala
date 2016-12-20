@@ -22,7 +22,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     val get = b[Unit, List[Int]]
 
     val tp = new FixedPool(4)
-    join(tp)(
+    site(tp)(
       &{ case d(n) => r(n*2) },
       &{ case res(list) + r(s) => res(s::list) },
       &{ case get(_, reply) + res(list) if list.size == count => reply(list) }
@@ -54,12 +54,12 @@ class MapReduceSpec extends FlatSpec with Matchers {
     val tp = new FixedPool(4)
 
     // declare the reaction for "map"
-    join(tp)(
+    site(tp)(
       & { case carrier(x) => val res = f(x); interm(res) }
     )
 
     // reactions for "reduce" must be together since they share "accum"
-    join(tp)(
+    site(tp)(
       & { case accum((n, b)) + interm(res) =>
         accum((n+1, reduceB(b, res) ))
       },

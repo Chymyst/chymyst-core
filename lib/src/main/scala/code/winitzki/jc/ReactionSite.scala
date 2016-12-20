@@ -8,16 +8,15 @@ import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 import collection.mutable
 
 
-/** Represents the join definition, which holds one or more reaction definitions.
-  * At run time, the join definition maintains a bag of currently available molecules
-  * and runs reactions.
+/** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
+  * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
   * The user will never see any instances of this class.
   *
   * @param reactions List of reactions as defined by the user.
   * @param reactionPool The thread pool on which reactions will be scheduled.
-  * @param joinPool The thread pool on which the join definition will decide reactions and manage the molecule bag.
+  * @param joinPool The thread pool on which the reaction site will decide reactions and manage the molecule bag.
   */
-private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool, joinPool: Pool) {
+private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, joinPool: Pool) {
 
   private val (nonSingletonReactions, singletonReactions) = reactions.partition(_.inputMolecules.nonEmpty)
 
@@ -41,7 +40,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     */
   private val singletonValues: ConcurrentMap[Molecule, AbsMolValue[_]] = new ConcurrentHashMap()
 
-  /** Complete information about reactions declared in this join definition.
+  /** Complete information about reactions declared in this reaction site.
     * Singleton-declaring reactions are not included here.
     */
   private[jc] val reactionInfos: Map[Reaction, List[InputMoleculeInfo]] = nonSingletonReactions.map { r => (r, r.info.inputs) }.toMap
@@ -53,9 +52,9 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
 
   override lazy val toString: String = s"Join{${knownReactions.map(_.toString).sorted.mkString("; ")}}"
 
-  /** The sha1 hash sum of the entire join definition, computed from sha1 of each reaction.
+  /** The sha1 hash sum of the entire reaction site, computed from sha1 of each reaction.
     * The sha1 hash of each reaction is computed from the Scala syntax tree of the reaction's source code.
-    * The result is implementation-dependent and is guaranteed to be the same only for join definitions compiled from exactly the same source code with the same version of Scala compiler.
+    * The result is implementation-dependent and is guaranteed to be the same only for reaction sites compiled from exactly the same source code with the same version of Scala compiler.
     */
   private lazy val sha1 = getSha1(knownReactions.map(_.info.sha1).sorted.mkString(","))
 
@@ -192,7 +191,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     val (reactionOpt: Option[Reaction], usedInputs: LinearMoleculeBag) =
       synchronized {
         if (m.isSingleton) {
-          if (singletonsDeclared.get(m).isEmpty) throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject singleton $m($molValue) not declared in this join definition")
+          if (singletonsDeclared.get(m).isEmpty) throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject singleton $m($molValue) not declared in this reaction site")
 
           // This thread is allowed to inject this singleton only if it is a ThreadWithInfo and the reaction running on this thread has consumed this singleton.
           val reactionInfoOpt = currentReactionInfo
@@ -350,7 +349,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
 
   private def initializeJoinDef(): (Map[Molecule, Int], WarningsAndErrors) = {
 
-    // Set the owner on all input molecules in this join definition.
+    // Set the owner on all input molecules in this reaction site.
     nonSingletonReactions
       .flatMap(_.inputMolecules)
       .toSet // We only need to assign the owner on each distinct input molecule once.
@@ -361,7 +360,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
       }
     }
 
-    // Add output reactions to molecules that may be bound to other join definitions later.
+    // Add output reactions to molecules that may be bound to other reaction sites later.
     nonSingletonReactions
       .foreach { r =>
         r.info.outputs.foreach {

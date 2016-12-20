@@ -34,14 +34,14 @@ The organization and supervision of distributed computations, the maintenance of
 In principle, a sufficiently sophisticated runtime engine could organize a distributed computation completely transparently to the programmer.
 It remains to be seen whether it is feasible and/or useful to implement such a runtime engine.
 
-3. Reactions are immutable: it is impossible to add more reactions at run time to an existing join definition.
-(This limitation is enforced in `JoinRun` by making join definitions immutable and invisible to the user.)
+3. Reactions are immutable: it is impossible to add more reactions at run time to an existing reaction site.
+(This limitation is enforced in `JoinRun` by making reaction sites immutable and invisible to the user.)
 
-Once a join definition declares a certain molecule as an input molecule for some reactions, it is impossible to add further reactions that consume this molecule.
+Once a reaction site declares a certain molecule as an input molecule for some reactions, it is impossible to add further reactions that consume this molecule.
 
-However, `JoinRun` gives users a different mechanism for writing a join definition with reactions computed at run time.
-Since reactions are local values (as are molecule injectors), users can first create any number of reactions and store these reactions in an array, before writing a join definition with these reactions.
-Once all desired reactions have been assembled, users can write a join definition that uses all the reactions from the array.
+However, `JoinRun` gives users a different mechanism for writing a reaction site with reactions computed at run time.
+Since reactions are local values (as are molecule injectors), users can first create any number of reactions and store these reactions in an array, before writing a reaction site with these reactions.
+Once all desired reactions have been assembled, users can write a reaction site that uses all the reactions from the array.
 
 As an (artificial) example, consider the following pattern of reactions:
 
@@ -52,7 +52,7 @@ val b = m[Int]
 val c = m[Int]
 val d = m[Int]
 
-join(
+site(
 run { case a(x) => b(x+1) },
 run { case b(x) => c(x+1) },
 run { case c(x) => d(x+1) },
@@ -65,7 +65,7 @@ a(10)
 
 When this is run, the reactions will cycle through the four molecules `a`, `b`, `c`, `d` while incrementing the value each time, until the value 100 is reached.
 
-Now, suppose we need to write a join definition where we have `n` molecules and `n` reactions, instead of just four.
+Now, suppose we need to write a reaction site where we have `n` molecules and `n` reactions, instead of just four.
 Suppose that `n` is a runtime parameter.
 Since reactions and molecule injectors are local values, we can simply create them and store in a data structure:
 
@@ -95,8 +95,8 @@ val reactions = (0 until n).map{ i =>
   }
 }
 
-// write the join definition
-join(reactions:_*)
+// write the reaction site
+site(reactions:_*)
 
 // inject the first molecule
 injectors(0)(10)
@@ -128,7 +128,7 @@ A convenient implementation is to define a function that will return an injector
 def submitJob[R](closure: Unit => R, finished: M[R]): M[R] = {
   val startJobMolecule = new M[Unit]
 
-  join( run { case startJobMolecule(_) =>
+  site( run { case startJobMolecule(_) =>
     val result = closure()
     finished(result) }
    )
@@ -138,7 +138,7 @@ def submitJob[R](closure: Unit => R, finished: M[R]): M[R] = {
 
 ```
 
-The `finished` molecule should be bound to another join definition.
+The `finished` molecule should be bound to another reaction site.
 
 Another implementation of the same idea will put the `finished` injector into the molecule value, together with the closure that needs to be run.
 
@@ -148,7 +148,7 @@ The `startJobMolecule` cannot have type parameters and has to accept `Any` as a 
 ```scala
 val startJobMolecule = new M[(Unit => Any, M[Any])]
 
-join(
+site(
   run {
     case startJobMolecule(closure, finished) =>
       val result = closure()
@@ -164,7 +164,7 @@ A solution to this difficulty is to create a method that is parameterized by typ
 def makeStartJobMolecule[R]: M[(Unit => R, M[R])] = {
   val startJobMolecule = new M[(Unit => R, M[R])]
 
-  join(
+  site(
     run {
       case startJobMolecule(closure, finished) =>
         val result = closure()
@@ -190,7 +190,7 @@ def wait_forever: B[Unit, Unit] = {
   val godot = m[Unit]
   val wait = b[Unit, Unit]
 
-  join( run { case godot(_) + wait(_, r) => r() } )
+  site( run { case godot(_) + wait(_, r) => r() } )
   // forgot to inject `godot` here, which is key to starve this reaction.
   wait
 }
@@ -205,10 +205,10 @@ Chemical reactions are static - they must be specified at compile time and canno
 `JoinRun` goes beyond this limitation, since reactions in `JoinRun` are values created at run time.
 For instance, we could create an array of molecules and reactions, where the size of the array is determined at run time.
 
-However, reactions will not be activated until a join definition is made by calling `join`, which we can only do once.
-(We cannot write a second join definition using an input molecule that is already bound to a previous join definition. More generally, we cannot modify a join definition once it has been written.)
+However, reactions will not be activated until a reaction site is made by calling `join`, which we can only do once.
+(We cannot write a second reaction site using an input molecule that is already bound to a previous reaction site. More generally, we cannot modify a reaction site once it has been written.)
 
-For this reason, join definitions in `JoinRun` are still static in an important sense.
+For this reason, reaction sites in `JoinRun` are still static in an important sense.
 For instance, when we receive a molecule injector `c` as a result of some computation, the reactions that can start by consuming `c` are already fixed.
 We can neither disable these reactions nor add another reaction that will also consume `c`.
 
@@ -218,16 +218,16 @@ There are several tricks we can use:
 - define new reactions by a closure that takes arguments and returns new molecule injectors
 - define molecules whose values contain other molecule injectors, and use them in reactions
 - define molecules whose values are functions that manipulate other molecule injectors
-- incrementally define new molecules and new reactions, store them in data structures, and assemble a final join definition later (see the example above in the section about limitations of the chemical machine)
+- incrementally define new molecules and new reactions, store them in data structures, and assemble a final reaction site later (see the example above in the section about limitations of the chemical machine)
 
 ### Packaging a reaction in a function with parameters
 
-Since molecule injectors are local values that close over their join definitions, we can easily define a general “1-molecule reaction constructor” that creates an arbitrary reaction with a single input molecule.
+Since molecule injectors are local values that close over their reaction sites, we can easily define a general “1-molecule reaction constructor” that creates an arbitrary reaction with a single input molecule.
 
 ```scala
 def makeReaction[T](reaction: (M[T],T) => Unit): M[T] = {
   val a = new M[T]("auto molecule 1") // the name is just for debugging
-  join( run { case a(x) => reaction(a, x) } )
+  site( run { case a(x) => reaction(a, x) } )
   a
 }
 
@@ -242,7 +242,7 @@ Similarly, we could create reaction constructors for more input molecules:
 def makeReaction2[T1,T2](reaction: (M[T1],T1,M[T2],T2) => Unit): (M[T1],M[T2]) = {
   val a1 = new M[T1]("auto molecule 1")
   val a2 = new M[T1]("auto molecule 2")
-  join( run { case a1(x1) + a2(x2) => reaction(a1, x1, a2, x2) } )
+  site( run { case a1(x1) + a2(x2) => reaction(a1, x1, a2, x2) } )
   (a1,a2)
 }
 
@@ -257,7 +257,7 @@ In effect, the result is a “universal molecule” that can define its own reac
 
 ```scala
 val u = new M[Unit => Unit)]("universal molecule")
-join( run { case u(reaction) => reaction() } )
+site( run { case u(reaction) => reaction() } )
 
 ```
 
@@ -307,7 +307,7 @@ val a = m[Int]
 val (result: M[String], fut: Future[String]) = moleculeFuture[String]
 // injecting the molecule result(...) will resolve "fut"
 
-join( run { case a(x) => result(s"finished: $x") } ) // we define our reaction that will eventually inject "result(...)"
+site( run { case a(x) => result(s"finished: $x") } ) // we define our reaction that will eventually inject "result(...)"
 
 ExternalLibrary.consumeUserFuture(fut) // the external library takes our value "fut" and does something with it
 //  Some chemistry code that eventually injects _a_ to resolve the result.
