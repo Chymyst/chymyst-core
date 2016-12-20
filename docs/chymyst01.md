@@ -1,3 +1,5 @@
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
+
 # The chemical machine paradigm
 
 `JoinRun`/`Chymyst` adopts an unusual approach to declarative concurrent programming.
