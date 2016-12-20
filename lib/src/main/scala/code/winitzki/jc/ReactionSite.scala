@@ -264,7 +264,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
 
   private[jc] def inject[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
     if (sitePool.isInactive)
-      throw new ExceptionNoJoinPool(s"In $this: Cannot inject molecule $m($molValue) because join pool is not active")
+      throw new ExceptionNoSitePool(s"In $this: Cannot inject molecule $m($molValue) because join pool is not active")
     else if (!Thread.currentThread().isInterrupted) {
       if (injectingSingletons) {
         // Inject them on the same thread, and do not start any reactions.
@@ -408,7 +408,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
     (singletonsActuallyInjected, diagnostics)
   }
 
-  // This is run when this Join Definition is first created.
+  // This is run when this ReactionSite is first created.
   val (singletonsInjected, diagnostics) = initializeJoinDef()
 }
 
