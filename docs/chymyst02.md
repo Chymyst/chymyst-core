@@ -41,7 +41,7 @@ We would like the blocking molecule to return the integer value that `c` carries
 val f = b[Unit, Int]
 val c = m[Int]
 
-join( run { case c(n) + f(_ , reply) => reply(n) } )
+site( run { case c(n) + f(_ , reply) => reply(n) } )
 
 c(123) // inject an instance of `c` with value 123
 
@@ -90,7 +90,7 @@ To illustrate the usage of non-blocking and blocking molecules, let us consider 
 The plan is to initialize the counter to a large value _N_, then to inject _N_ decrement molecules, and finally wait until the counter reaches the value 0.
 We will use a blocking molecule to wait until this happens and thus to determine the time elapsed during the countdown.
 
-Let us now extend the previous join definition to implement this new functionality.
+Let us now extend the previous reaction site to implement this new functionality.
 The simplest solution is to define a blocking molecule `fetch`, which will react with the counter molecule only when the counter reaches zero.
 Since we don't need to pass any data (just the fact that the counting is over), the `fetch` molecule will carry `Unit` and also bring back a `Unit` reply.
 This reaction can be written in pseudocode like this:
@@ -129,7 +129,7 @@ object C extends App {
   val decr = m[Unit]
 
   // declare reactions
-  join(
+  site(
     run { case counter(0) + fetch(_, reply)  => reply() },
     run { case counter(n) + decr(_) => counter(n-1) }
   )
@@ -152,7 +152,7 @@ Some remarks:
 - Molecules with unit values still require a pattern variable when used in the `case` construction.
 For this reason, we write `decr(_)` and `fetch(_, reply)` in the match patterns.
 However, these molecules can be injected simply by calling `decr()` and `fetch()`, since Scala inserts a `Unit` value automatically when calling functions.
-- We declare both reactions in one join definition, because these two reactions share the input molecule `counter`.
+- We declare both reactions in one reaction site, because these two reactions share the input molecule `counter`.
 - The injected blocking molecule `fetch()` will not remain in the soup after the reaction is finished.
 Actually, it would not make sense for `fetch()` to remain in the soup:
 If a molecule remains in the soup after a reaction, it means that the molecule is going to be available for some later reaction without blocking its injecting call; but this is the behavior of a non-blocking molecule.
@@ -191,7 +191,7 @@ In other words, there will be an unavoidable nondeterminism in our chemistry.
 val c = m[Unit]
 val f = b[Unit, Int]
 val g = b[Unit, Int]
-join(
+site(
     run { case c(_) => val x = f(); ... },
     run { case c(_) => val x = g(); ... }
 )
@@ -205,7 +205,7 @@ val c = m[Unit]
 val d = m[Unit]
 val f = b[Unit, Int]
 val g = b[Unit, Int]
-join(
+site(
     run { case c(_) => val x = f() },
     run { case d(_) => val x = g() }
 )
@@ -240,11 +240,11 @@ val f = b[Unit, Int]
 val g = b[Unit, Int]
 val done = m[Int]
 
-join(
+site(
   run { case c(_) => val x = f(); done(x) },
   run { case d(_) => val x = g(); done(x) }
 )
-join(
+site(
   run { case firstResult(_, r) + done(x) => r(x) }
 )
 
@@ -276,11 +276,11 @@ def makeFirstResult[T](f: B[Unit, T], g: B[Unit, T]): B[Unit, T] = {
     val g = b[Unit, Int]
     val done = m[Int]
 
-    join(
+    site(
       run { case c(_) => val x = f(); done(x) },
       run { case d(_) => val x = g(); done(x) }
     )
-    join(
+    site(
       run { case firstResult(_, r) + done(x) => r(x) }
     )
 
@@ -326,7 +326,7 @@ val d = m[Unit]
 val f = b[Unit, Boolean]
 val g = b[Unit, Boolean]
 
-join(
+site(
   run { case c(_) => val x = f(); ??? },
   run { case d(_) => val y = g(); ??? }
 )
@@ -351,7 +351,7 @@ val result = m[Int]
 val f = b[Unit, Boolean]
 val g = b[Unit, Boolean]
 
-join(
+site(
   run { case c(_) => val x = f(); done(x) },
   run { case d(_) => val y = g(); done(y) },
   run { case result(n) + done(x) => result(n+1) }
@@ -392,14 +392,14 @@ run { case result(n) + done(x) =>
 To make the chemistry clearer, we can rewrite this as three reactions using pattern matching:
 
 ```scala
-join(
+site(
   run { case result(_) + done(true) => finalResult(true) },
   run { case result(1) + done(false) => finalResult(false) },
   run { case result(0) + done(false) => result(1) }
 )
 ```
 
-Here is the complete code for `parallelOr`, where we have separated the reactions in three independent join definitions.
+Here is the complete code for `parallelOr`, where we have separated the reactions in three independent reaction sites.
 
 ```scala
 val c = m[Unit]
@@ -411,15 +411,15 @@ val f = b[Unit, Boolean]
 val g = b[Unit, Boolean]
 val parallelOr = b[Unit, Boolean]
 
-join(
+site(
   run { case parallelOr(_, r) + finalResult(x) => r(x) }
 )
-join(
+site(
   run { case result(_) + done(true) => finalResult(true) },
   run { case result(1) + done(false) => finalResult(false) },
   run { case result(0) + done(false) => result(1) }
 )
-join(
+site(
   run { case c(_) => val x = f(); done(x) },
   run { case d(_) => val y = g(); done(y) }
 )
@@ -444,10 +444,10 @@ Sometimes, errors of this type can be caught at compile time:
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-join( run { case f(_,r) + c(n) => c(n+1) } ) // forgot to reply!
+site( run { case f(_,r) + c(n) => c(n+1) } ) // forgot to reply!
 // compile-time error: "blocking input molecules should receive a reply but no reply found"
 
-join( run { case f(_,r) + c(n) => c(n+1) + r(n) + r(n) } ) // replied twice!
+site( run { case f(_,r) + c(n) => c(n+1) + r(n) + r(n) } ) // replied twice!
 // compile-time error: "blocking input molecules should receive one reply but multiple replies found"
 
 ```
@@ -458,7 +458,7 @@ In this case, a reaction that does not reply will generate a run-time error:
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-join( run { case f(_,r) + c(n) => c(n+1); if (n==0) r(n) } )
+site( run { case f(_,r) + c(n) => c(n+1); if (n==0) r(n) } )
 
 c(1)
 f()

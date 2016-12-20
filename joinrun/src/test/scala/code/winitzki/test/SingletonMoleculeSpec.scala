@@ -24,7 +24,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     val tp1 = new FixedPool(1) // This test works only with single threads.
 
-    join(tp1, tp1)(
+    site(tp1, tp1)(
       & {case f(_, r) + d(text) => r(text); d(text) },
       & {case _ => d("ok") } // singleton
     )
@@ -38,7 +38,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp1.shutdownNow()
   }
 
-  it should "refuse to inject a singleton immediately after join definition" in {
+  it should "refuse to inject a singleton immediately after reaction site" in {
 
     val tp1 = new FixedPool(1) // This test works only with single threads.
 
@@ -46,13 +46,13 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       val f = b[Unit, String]
       val d = m[String]
 
-      join(tp1, tp1)(
+      site(tp1, tp1)(
         & {case f(_, r) + d(text) => r(text); d(text) },
         & {case _ => d("ok") } // singleton
       )
 
       (1 to 10).foreach { j =>
-        d(s"bad $i $j") // this "d" should not be injected, even though we are immediately after a join definition,
+        d(s"bad $i $j") // this "d" should not be injected, even though we are immediately after a reaction site,
         // and even if the initial d() injection was done late
         f(timeout = 200 millis)() shouldEqual Some("ok")
       }
@@ -70,7 +70,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       val c = b[Unit, String]
       val d = m[Unit]
 
-      join(tp)(
+      site(tp)(
         & { case c(_, r) + d(_) => r("ok") },
         & { case _ => d() } // singleton
       )
@@ -88,7 +88,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       val c = b[Unit, String]
       val d = m[Unit]
 
-      join(tp)(
+      site(tp)(
         & { case c(_, r) + d(_) => r("ok"); d() + d() },
         & { case _ => d() } // singleton
       )
@@ -107,7 +107,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       val d = m[Unit]
       val e = m[Unit]
 
-      join(tp)(
+      site(tp)(
         & { case c(_, r) => r("ok"); d() },
         & { case e(_) => d() },
         & { case _ => d() } // singleton
@@ -126,7 +126,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       val d = m[Unit]
       val e = m[Unit]
 
-      join(tp)(
+      site(tp)(
         & { case e(_) + d(_) + d(_) => d() },
         & { case _ => d() } // singleton
       )
@@ -136,23 +136,23 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
-  it should "signal error when a singleton is injected but not bound to any join definition" in {
+  it should "signal error when a singleton is injected but not bound to any reaction site" in {
 
     val tp = new FixedPool(3)
 
     val thrown = intercept[Exception] {
       val d = m[Unit]
 
-      join(tp)(
+      site(tp)(
         & { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "Molecule d is not bound to any join definition"
+    thrown.getMessage shouldEqual "Molecule d is not bound to any reaction site"
 
     tp.shutdownNow()
   }
 
-  it should "signal error when a singleton is injected but not bound to this join definition" in {
+  it should "signal error when a singleton is injected but not bound to this reaction site" in {
 
     val tp = new FixedPool(3)
 
@@ -160,11 +160,11 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       val c = b[Unit, String]
       val d = m[Unit]
 
-      join(tp)(
+      site(tp)(
         & { case d(_) => }
       )
 
-      join(tp)(
+      site(tp)(
         & { case c(_, r) => r("ok"); d() },
         & { case _ => d() } // singleton
       )
@@ -176,21 +176,21 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   behavior of "volatile reader"
 
-  it should "refuse to read the value of a molecule not bound to a join definition" in {
+  it should "refuse to read the value of a molecule not bound to a reaction site" in {
     val c = m[Int]
 
     val thrown = intercept[Exception] {
       c.volatileValue
     }
 
-    thrown.getMessage shouldEqual "Molecule c is not bound to any join definition"
+    thrown.getMessage shouldEqual "Molecule c is not bound to any reaction site"
   }
 
   it should "refuse to read the value of a non-singleton molecule" in {
     val c = m[Int]
 
     val tp = new FixedPool(1)
-    join(tp)( & { case c(_) => } )
+    site(tp)( & { case c(_) => } )
 
     val thrown = intercept[Exception] {
       c.volatileValue
@@ -208,7 +208,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       val c = m[Int]
       val d = m[Int]
 
-      join(tp)(
+      site(tp)(
         & { case c(x) + d(_) => d(x) },
         & { case _ => d(i) }
       )
@@ -233,7 +233,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     val f = b[Unit, Unit]
 
     val thrown = intercept[Exception] {
-      join(tp)(
+      site(tp)(
         & { case f(_, r) => r() },
         & { case c(x) + d(_) => d(x) },
         & { case _ => f(); d(0) }
@@ -253,7 +253,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       val c = m[Int]
       val d = m[Int]
 
-      join(tp)(
+      site(tp)(
         & { case c(x) + d(_) => d(x) },
         & { case _ => d(i) }
       )
@@ -277,7 +277,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     val tp = new FixedPool(1)
 
-    join(tp)(
+    site(tp)(
       & { case d(x) + stabilize_d(_, r) => r(); d(x) }, // Await stabilizing the presence of d
       & { case _ => d(123) } // singleton
     )
@@ -298,7 +298,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     val n = 1
     val delta_n = 1000
 
-    join(tp)(
+    site(tp)(
       & { case d(x) + incr(_, r) => r(); d(x+1) },
       & { case d(x) + stabilize_d(_, r) => d(x); r() }, // Await stabilizing the presence of d
       & { case _ => d(n) } // singleton
@@ -325,7 +325,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     val tp1 = new FixedPool(1)
     val tp3 = new SmartPool(5)
 
-    join(tp3)(
+    site(tp3)(
       & { case wait(_, r) + e(_) => r() } onThreads tp3,
       & { case d(x) + incr(_, r) => r(); wait(); d(x+1) } onThreads tp1,
       & { case d(x) + stabilize_d(_, r) => d(x); r() } onThreads tp1, // Await stabilizing the presence of d
@@ -353,7 +353,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       val e = m[Unit]
       val f = m[Unit]
 
-      join(tp)(
+      site(tp)(
         & { case d(_) +e(_) + f(_) + c(_, r) => r("ok"); d(); e(); f() },
         & { case _ => if (false) { d(); e() }; f(); } // singletons d() and e() will actually not be injected because of a condition
       )
@@ -372,7 +372,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     val e = m[Unit]
     val f = m[Unit]
 
-    val warnings = join(tp)(
+    val warnings = site(tp)(
       & { case d(_) + e(_) + f(_) + c(_, r) => r("ok"); d(); e(); f() },
       & { case _ => (1 to 2).foreach { _ => d(); e() }; f(); } // singletons d() and e() will actually be injected more times
     )

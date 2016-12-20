@@ -7,7 +7,7 @@
 For debugging purposes, molecules in `JoinRun` can have names.
 These names have no effect on any concurrent computations.
 For instance, the runtime engine will not check that each molecule is assigned a name, or that the names for different molecule sorts are different.
-Molecule names are used only for debugging: they are printed when logging reactions and join definitions.
+Molecule names are used only for debugging: they are printed when logging reactions and reaction sites.
 
 There are two ways of assigning a name to a molecule:
 - specify the name explicitly, by using a class constructor;
@@ -58,16 +58,16 @@ But injectors _are_ ordinary, locally defined Scala values and can be manipulate
 Blocking molecule injectors are of class `B`, non-blocking of class `M`.
 - Reactions are local values of class `Reaction`. Reactions are created using the function `run { case ... => ... }`.
 - Only one `case` clause can be used in each reaction.
-- Join definitions are values of class `JoinDefinition`. These values are not visible to the user: they are created in a closed scope by the `join` function.
-- Join definitions are immutable once written.
+-  Reaction sites are values of class `JoinDefinition`. These values are not visible to the user: they are created in a closed scope by the `join` function.
+- Reaction sites are immutable once written.
 - Molecule injectors are immutable after all reactions have been written where these molecules are used.
 - Reactions proceed by first deciding which molecules can be used as inputs to some reaction; these molecules are then atomically removed from the soup, and the reaction body is executed.
 Typically, the reaction body will inject new molecules into the soup.
 - We can inject new molecules into the soup at any time and from any code (not only inside a reaction body).
 - It is not possible to decide which reactions will proceed first, or which molecules will be consumed first, when the chemistry allows several possibilities. It is also not possible to know at what time reactions will start. Reactions and molecules do not have priorities and are not ordered in the soup. It is the responsibility of the programmer to define the chemical laws appropriately so that the behavior of the program is deterministic when determinism is required. (This is always possible!)
 
-- All reactions that share some _input_ molecule must be defined in the same join definition.
-Reactions that share no input molecules can (and should) be defined in separate join definitions.
+- All reactions that share some _input_ molecule must be defined in the same reaction site.
+Reactions that share no input molecules can (and should) be defined in separate reaction sites.
 
 
 ## Molecules and molecule injectors
@@ -165,8 +165,8 @@ It is often useful to limit the waiting time to a fixed timeout value.
 
 ```scala
 val f = b[Unit, Int]
-// write a join definition involving `f` and other molecules:
-join(...)
+// write a reaction site involving `f` and other molecules:
+site(...)
 
 // call `f` with 200ms timeout:
 val x: Option[Int] = f(timeout = 200 millis)()
@@ -202,14 +202,14 @@ These reactions treat `c` as a singleton because they first consume and then out
 - Only non-blocking molecules can be declared as singletons.
 - It is an error if a reaction consumes a singleton but does not inject it back into the soup, or injects it more than once.
 - It is also an error if a reaction injects a singleton it did not consume, or if any other code injects additional copies of the singleton at any time. (However, local scoping can prevent other code from having access to a singleton injector.)
-- Singleton molecules are injected directly from the join definition.
+- Singleton molecules are injected directly from the reaction site.
 In this way, singleton molecules are guaranteed to be injected once and only once.
 - Singleton molecules have “volatile readers”.
 
 In order to declare a molecule as a singleton, the users of `JoinRun` can write a reaction that has no input molecules:
 
 ```scala
-join (
+site (
     // inject and declare a, c, and q to be singletons
     run { case _ => a(1) + c(123) + q() }
     // now define some reactions that consume a, c, and q
@@ -219,7 +219,7 @@ join (
 
 Each non-blocking output molecule of such a reaction must be injected only once and is then declared to be a singleton molecule.
 
-The join definitions will run their singleton reactions once and only once, at the time of the `join(...)` call itself.
+The reaction sites will run their singleton reactions once and only once, at the time of the `site(...)` call itself.
 
 ### Volatile readers for singleton molecules
 
@@ -227,7 +227,7 @@ Each singleton molecule has a **volatile reader** -- a function of type `=> T` t
 
 ```scala
 val c = m[Int]
-join(
+site(
   run { case c(x) + incr(_) => c(x+1) },
   run { case _ => c(0) } // inject `c(0)` and declare it a singleton
 )

@@ -60,5 +60,5 @@ Here is a dictionary:
 | reaction | process | `val r1 = run { case a(x) + ... => ... }` |
 | injecting an output molecule | sending a message | `a(123)` _// side effect_ |
 | injecting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
-| join definition | join definition | `join(r1, r2, ...)` |
+| reaction site | join definition | `site(r1, r2, ...)` |
 

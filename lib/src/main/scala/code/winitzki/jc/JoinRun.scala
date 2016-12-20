@@ -255,7 +255,7 @@ object JoinRun {
       "/R" else ""}"
   }
 
-  // Wait until the join definition to which `molecule` is bound becomes quiescent, then inject `callback`.
+  // Wait until the reaction site to which `molecule` is bound becomes quiescent, then inject `callback`.
   // TODO: implement
   def wait_until_quiet[T](molecule: M[T], callback: M[Unit]): Unit = molecule.getJoinDef.setQuiescenceCallback(callback)
 
@@ -335,7 +335,7 @@ object JoinRun {
   // Abstract molecule injector. This type is used in collections of molecules that do not require knowledge of molecule types.
   abstract sealed class Molecule extends PersistentHashCode {
 
-    /** Check whether the molecule is already bound to a join definition.
+    /** Check whether the molecule is already bound to a reaction site.
       * Note that molecules can be injected only if they are bound.
       *
       * @return True if already bound, false otherwise.
@@ -345,7 +345,7 @@ object JoinRun {
     @volatile private[jc] var joinDef: Option[JoinDefinition] = None
 
     private[jc] def getJoinDef: JoinDefinition =
-      joinDef.getOrElse(throw new ExceptionNoJoinDef(s"Molecule ${this} is not bound to any join definition"))
+      joinDef.getOrElse(throw new ExceptionNoJoinDef(s"Molecule ${this} is not bound to any reaction site"))
 
     /** The set of reactions that can consume this molecule.
       *
@@ -358,10 +358,10 @@ object JoinRun {
     /** The set of all reactions that *potentially* inject this molecule as output.
       * Some of these reactions may evaluate a runtime condition to decide whether to inject the molecule; so injection is not guaranteed.
       *
-      * Note that these reactions may be defined in any join definitions, not necessarily in the JD to which this molecule is bound.
-      * The set of these reactions may change at run time if new join definitions are written that output this molecule.
+      * Note that these reactions may be defined in any reaction sites, not necessarily in the JD to which this molecule is bound.
+      * The set of these reactions may change at run time if new reaction sites are written that output this molecule.
       *
-      * @return Empty set if the molecule is not yet bound to any join definition.
+      * @return Empty set if the molecule is not yet bound to any reaction site.
       */
     private[jc] def injectingReactions: Set[Reaction] = injectingReactionsSet.toSet
 
@@ -377,7 +377,7 @@ object JoinRun {
     def isSingleton: Boolean = false
   }
 
-  /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a join definition and until all reactions involving this molecule are declared.
+  /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
     *
     * @param name Name of the molecule, used for debugging only.
     * @tparam T Type of the value carried by the molecule.
@@ -496,7 +496,7 @@ object JoinRun {
     }
   }
 
-  /** Blocking molecule class. Instance is mutable until the molecule is bound to a join definition and until all reactions involving this molecule are declared.
+  /** Blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
     *
     * @param name Name of the molecule, used for debugging only.
     * @tparam T Type of the value carried by the molecule.
@@ -565,10 +565,10 @@ object JoinRun {
     */
   private[jc] type ReactionBody = PartialFunction[UnapplyArg, Any]
 
-  def join(rs: Reaction*): WarningsAndErrors = join(defaultReactionPool, defaultJoinPool)(rs: _*)
-  def join(reactionPool: Pool)(rs: Reaction*): WarningsAndErrors = join(reactionPool, reactionPool)(rs: _*)
+  def site(rs: Reaction*): WarningsAndErrors = site(defaultReactionPool, defaultJoinPool)(rs: _*)
+  def site(reactionPool: Pool)(rs: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(rs: _*)
 
-  /** Create a join definition with one or more reactions.
+  /** Create a reaction site with one or more reactions.
     * All input and output molecules in reactions used in this JD should have been
     * already defined, and input molecules should not be already bound to another JD.
     *
@@ -577,9 +577,9 @@ object JoinRun {
     * @param joinPool Thread pool for use when making decisions to schedule reactions.
     * @return List of warning messages.
     */
-  def join(reactionPool: Pool, joinPool: Pool)(rs: Reaction*): WarningsAndErrors = {
+  def site(reactionPool: Pool, joinPool: Pool)(rs: Reaction*): WarningsAndErrors = {
 
-    // Create a join definition object holding the given local chemistry.
+    // Create a reaction site object holding the given local chemistry.
     // The constructor of JoinDefinition will perform static analysis of all given reactions.
     new JoinDefinition(rs, reactionPool, joinPool).diagnostics
 
@@ -592,6 +592,6 @@ object JoinRun {
     ()
   }
 
-  def errors = errorLog.iterator().asScala.toIterable
+  def errors: Iterable[String] = errorLog.iterator().asScala.toIterable
 
 }
