@@ -580,7 +580,7 @@ object JoinRun {
   def site(reactionPool: Pool, sitePool: Pool)(reactions: Reaction*): WarningsAndErrors = {
 
     // Create a reaction site object holding the given local chemistry.
-    // The constructor of JoinDefinition will perform static analysis of all given reactions.
+    // The constructor of ReactionSite will perform static analysis of all given reactions.
     new ReactionSite(reactions, reactionPool, sitePool).diagnostics
 
   }
