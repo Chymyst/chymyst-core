@@ -20,12 +20,7 @@ import scala.collection.JavaConverters._
 
 object JoinRun {
 
-  sealed trait InputPatternType {
-    def isUnconditional: Boolean = this match {
-      case Wildcard | SimpleVar => true
-      case _ => false
-    }
-  }
+  sealed trait InputPatternType
 
   case object Wildcard extends InputPatternType
 
@@ -283,7 +278,7 @@ object JoinRun {
     * @return an unapply operation
     */
   object + {
-    def unapply(attr:Any) = Some(attr,attr)
+    def unapply(attr:Any): Option[(Any, Any)] = Some((attr,attr))
   }
 
   /** Create a reaction value out of a simple reaction body.
@@ -568,7 +563,7 @@ object JoinRun {
   /** Type alias for reaction body.
     *
     */
-  private[jc] type ReactionBody = PartialFunction[UnapplyArg, Unit]
+  private[jc] type ReactionBody = PartialFunction[UnapplyArg, Any]
 
   def join(rs: Reaction*): WarningsAndErrors = join(defaultReactionPool, defaultJoinPool)(rs: _*)
   def join(reactionPool: Pool)(rs: Reaction*): WarningsAndErrors = join(reactionPool, reactionPool)(rs: _*)
@@ -592,7 +587,10 @@ object JoinRun {
 
   private val errorLog: ConcurrentLinkedQueue[String] = new ConcurrentLinkedQueue[String]()
 
-  private[jc] def reportError(message: String): Unit = errorLog.add(message)
+  private[jc] def reportError(message: String): Unit = {
+    errorLog.add(message)
+    ()
+  }
 
   def errors = errorLog.iterator().asScala.toIterable
 

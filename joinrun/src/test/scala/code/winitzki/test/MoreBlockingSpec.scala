@@ -1,6 +1,6 @@
 package code.winitzki.test
 
-import code.winitzki.jc.{FixedPool, SmartPool}
+import code.winitzki.jc.FixedPool
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros.{run => &}
 import code.winitzki.jc.Macros._
@@ -10,6 +10,7 @@ import org.scalatest.concurrent.Waiters.Waiter
 import org.scalatest.time.{Millis, Span}
 
 import scala.concurrent.duration._
+import scala.language.postfixOps
 
 class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
@@ -70,14 +71,14 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     collect(0)
 
     val numberOfFailures = (1 to 10000).map { _ =>
-      if (f(timeout = 1000.millis)().isEmpty) 1 else 0
+      if (f(timeout = 1000 millis)().isEmpty) 1 else 0
     }.sum
 
     // we used to have about 4% numberOfFailures (but we get zero failures if we do not nullify the semaphore!) and about 4 numberOfFalseReplies in 100,000.
     // now it seems to pass even with a million iterations (but that's too long for Travis).
     val numberOfFalseReplies = get()
 
-    (numberOfFailures, numberOfFalseReplies) shouldEqual (0,0)
+    (numberOfFailures, numberOfFalseReplies) shouldEqual ((0,0))
 
     tp.shutdownNow()
   }
@@ -163,10 +164,10 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       & { case d(x) + incr(_, r) => r(); wait(); d(x+1) }
     )
     d(100)
-    incr() // update started and is waiting for e()
+    incr() // reaction 3 started and is waiting for e()
     get_d(timeout = 400 millis)() shouldEqual None
     e()
-    get_d(timeout = 400 millis)() shouldEqual Some(101)
+    get_d(timeout = 800 millis)() shouldEqual Some(101)
 
     tp.shutdownNow()
   }

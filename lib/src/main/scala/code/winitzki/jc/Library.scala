@@ -19,7 +19,7 @@ object Library {
     val p = Promise[T]()
 
     join(pool,pool)(
-      runSimple { case f(x) => p.success(x) }
+      runSimple { case f(x) => p.success(x); () }
     )
     (f, p.future)
   }
@@ -53,9 +53,9 @@ object Library {
     }
   }
 
-  def withPool[B](pool: => Pool)(doWork: Pool => B): Try[B] = cleanup(pool)(_.shutdownNow())(doWork)
+  def withPool[T](pool: => Pool)(doWork: Pool => T): Try[T] = cleanup(pool)(_.shutdownNow())(doWork)
 
-  def cleanup[A,B](resource: => A)(cleanup: A => Unit)(doWork: A => B): Try[B] = {
+  def cleanup[T,R](resource: => T)(cleanup: T => Unit)(doWork: T => R): Try[R] = {
     try {
       Success(doWork(resource))
     } catch {

@@ -62,7 +62,7 @@ val interm = m[B]
 Therefore, we need a reaction of this shape:
 
 ```scala
-run { case carrier(a) => val res = f(a); interm(res) }
+run { case carrier(x) => val res = f(x); interm(res) }
 
 ```
 
@@ -100,20 +100,22 @@ Let us change the type of `accum` to carry a tuple `(Int, B)`.
 The first element of the tuple will now represent a counter, which indicates how many intermediate results we have already processed.
 Reactions with `accum` will increment the counter; the reaction with `fetch` will proceed only if the counter is equal to the length of the array.
 
-We will also include a condition on the counter that will start the accumulation when the counter is equal to 0.
-
 ```scala
 val accum = m[(Int, B)]
 
-run { case accum((n, b)) + interm(res) if n > 0 =>
+run { case accum((n, b)) + interm(res) =>
     accum((n+1, reduceB(b, res) ))
   },
-run { case accum((0, _)) + interm(res) => accum((1, res)) },
 run { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
 
 ```
 
-We can now inject all `carrier` molecules, a single `accum((0, null))` molecule, and a `fetch()` molecule.
+What value should we inject with `accum` initially?
+When the first `interm(res)` molecule arrives, we will need to call `reduceB(x, res)` with some value `x` of type `B`.
+Since we assume that `B` is a monoid, there must be a special value, say `bZero`, such that `reduceB(bZero, res)==res`.
+So `bZero` is the value we need to inject on the initial `accum` molecule.
+
+We can now inject all `carrier` molecules, a single `accum((0, bZero))` molecule, and a `fetch()` molecule.
 Because of the guard condition, the reaction with `fetch()` will not run until all intermediate results have been accumulated.
 
 Here is the complete code for this example (see also `MapReduceSpec.scala` in the unit tests).
@@ -139,7 +141,7 @@ object C extends App {
 
   // declare the reaction for "map"
   join(
-    run { case carrier(a) => val res = f(a); interm(res) }
+    run { case carrier(x) => val res = f(x); interm(res) }
   )
 
   // reactions for "reduce" must be together since they share "accum"

@@ -9,7 +9,7 @@ class JoinRunUtilsSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(500, Millis)
 
-  val warmupTimeMs = 50
+  val warmupTimeMs = 50L
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 

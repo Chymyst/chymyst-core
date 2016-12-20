@@ -4,7 +4,8 @@ import JoinRun._
 import Library.withPool
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import scala.language.postfixOps
 
 import scala.concurrent.duration.DurationInt
 
@@ -25,7 +26,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
   val timeLimit = Span(1500, Millis)
 
-  val warmupTimeMs = 50
+  val warmupTimeMs = 50L
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
@@ -261,11 +262,9 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     )
     g2() shouldEqual 1 // this should initially work
     d() // do not inject c(). Now the first reaction is blocked because second reaction cannot start.
-    waitSome()
-    g2(timeout = 100 millis)() shouldEqual None // this should be blocked now
+    g2(timeout = 300 millis)() shouldEqual None // this should be blocked now
     tp.shutdownNow()
     tp1.shutdownNow()
-
   }
 
   def makeBlockingCheck(sleeping: => Unit, tp1: Pool): (B[Unit,Unit], B[Unit,Int]) = {
@@ -317,7 +316,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
   it should "not block the smart threadpool with BlockingIdle(Thread.sleep)" in {
     val tp = new SmartPool(1)
     val (g, g2) = makeBlockingCheck(BlockingIdle{Thread.sleep(500)}, tp)
-    g2(timeout = 50 millis)() shouldEqual Some(1) // this should not be blocked
+    g2(timeout = 150 millis)() shouldEqual Some(1) // this should not be blocked
     tp.currentPoolSize shouldEqual 2
     g() // now we know that the first reaction has finished
     tp.currentPoolSize shouldEqual 1
@@ -327,7 +326,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
   it should "implement BlockingIdle(BlockingIdle()) as BlockingIdle()" in {
     val tp = new SmartPool(1)
     val (g, g2) = makeBlockingCheck(BlockingIdle{BlockingIdle{Thread.sleep(300)}}, tp)
-    g2(timeout = 50 millis)() shouldEqual Some(1) // this should not be blocked
+    g2(timeout = 150 millis)() shouldEqual Some(1) // this should not be blocked
     tp.currentPoolSize shouldEqual 2
     g() // now we know that the first reaction has finished
     tp.currentPoolSize shouldEqual 1

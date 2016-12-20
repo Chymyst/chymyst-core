@@ -5,10 +5,11 @@ import Macros.{getName, rawTree, m,b, run => &}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt
+import scala.language.postfixOps
 
 class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
-  val warmupTimeMs = 50
+  val warmupTimeMs = 50L
 
   var tp0: Pool = _
 
@@ -378,6 +379,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     "val r = & { case e() => }" shouldNot compile // no pattern variable in a non-blocking molecule "e"
     "val r = & { case e(_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
+    "val r = & { case e(_,_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
 
     "val r = & { case a() => }" shouldNot compile // no pattern variable for reply in "a"
     "val r = & { case a(_) => }" shouldNot compile // no pattern variable for reply in "a"
@@ -561,7 +563,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       val z = getName
       (z, getName)
     }
-    y shouldEqual("z", "y")
+    y shouldEqual(("z", "y"))
+
+    val (y1,y2) = {
+      val z = getName
+      (z, getName)
+    }
+    (y1, y2) shouldEqual(("z", "x$7"))
   }
 
   it should "correctly recognize nested injections of non-blocking molecules" in {

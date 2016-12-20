@@ -4,7 +4,7 @@ import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
 object Common {
-  val warmupTimeMs = 50
+  val warmupTimeMs = 50L
 
   def elapsed(initTime: LocalDateTime): Long = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
 
