@@ -142,17 +142,6 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     waiter.await()
   }
 
-  it should "start a reaction with one input with Nothing in the molecule" in {
-
-    val waiter = new Waiter
-
-    val a = new M[Nothing]("a")
-    join(tp0)( runSimple { case a(_) => waiter.dismiss() })
-
-    a(_)
-    waiter.await()
-  }
-
   it should "start a simple reaction chain" in {
 
     val waiter = new Waiter
