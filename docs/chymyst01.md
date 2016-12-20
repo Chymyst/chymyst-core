@@ -3,7 +3,7 @@
 # The chemical machine paradigm
 
 `JoinRun`/`Chymyst` adopts an unusual approach to declarative concurrent programming.
-This approach is purely functional but does not use threads, futures, or monads.
+This approach is purely functional but does not use threads, actors, futures, or monads.
 It is easiest to understand this approach by using the **chemical machine** metaphor.
 
 ## Simulation of chemical reactions
@@ -54,10 +54,10 @@ The simulator will start many reactions concurrently whenever their input molecu
 
 ## Concurrent computations on the chemical machine
 
-The “chemical machine” is implemented by the runtime engine of `JoinRun`.
+The chemical machine is implemented by the runtime engine of `JoinRun`.
 Now, rather than merely watch as reactions happen, we are going to use this engine for running actual concurrent programs.
 
-To this end, we are going to modify the “chemical machine” as follows:
+To this end, we are going to modify the chemical machine as follows:
 
 1. Each molecule in the soup is required to _carry a value_. Molecule values are strongly typed: A molecule of a given sort (such as `a` or `b`) can only carry values of some fixed type (such as `Boolean` or `String`).
 
@@ -67,8 +67,8 @@ To this end, we are going to modify the “chemical machine” as follows:
 
 In this way, the chemical machine can be programmed to run arbitrary computations.
 
-We will use the syntax such as `b(123)` to denote molecule values.
-In a chemical law, the syntax `b(123)` means that the molecule `b` carries an integer value `123`.
+We will use syntax such as `b(123)` to denote molecule values.
+In a chemical reaction, the syntax `b(123)` means that the molecule `b` carries an integer value `123`.
 Molecules to the left-hand side of the arrow are input molecules of the reaction; molecules on the right-hand side are output molecules.
 
 A typical reaction (equipped with molecule values and a reaction body) looks like this in pseudocode syntax:
@@ -81,8 +81,8 @@ where z = computeZ(x,y) // -- reaction body
 
 In this example, the reaction's input molecules are `a(x)` and `b(y)`; that is, the input molecules have chemical designations `a` and `b` and carry values `x` and `y` respectively.
 
-The reaction body is an expression that receives `x` and `y` from the input molecules.
-The reaction computes a value `z` out of `x` and `y` using the function `computeZ` (or any other code as needed).
+The reaction body is an expression that captures the values `x` and `y` from the input molecules.
+The reaction body computes a value `z` out of `x` and `y` using the function `computeZ` (or any other code as needed).
 The newly computed value `z` is placed onto the output molecule `a`, which is injected back into the soup.
 
 Another example of reaction is
@@ -102,9 +102,9 @@ Whenever input molecules are available in the soup, the runtime engine will star
 If many copies of input molecules are available, the runtime engine could start several reactions concurrently.
 (The runtime engine can decide how many reactions to run depending on system load and the number of available cores.)
 
-Note that every reaction receives the values carried by its _input_ molecules.
-The reaction body can be a pure function that computes output values solely from the input values.
-If the reaction body is a pure function, it is completely safe (free of race conditions) to execute concurrently several copies of the same reaction, since each copy will consume a different set of input molecules.
+The reaction body can be a _pure function_ that computes output values solely from the input values it receives from its input molecules.
+If the reaction body is a pure function, it is completely safe (free of contention or race conditions) to execute concurrently several copies of the same reaction as different processes.
+Each process will consume its own input molecules and will work with its own input values.
 This is how the chemical machine achieves safe and automatic concurrency in a purely functional way.
 
 ## The syntax of `JoinRun`
@@ -132,7 +132,7 @@ site(
 
 The helper functions `m`, `site`, and `run` are defined in the `JoinRun` library.
 
-The `site` call will declare a **reaction site**, which can be visualized as a place where molecules gather and wait for their reaction partners.
+The `site` call declares a **reaction site**, which can be visualized as a place where molecules gather and wait for their reaction partners.
 We will talk later in more detail about reaction sites.
 
 ## Example: Concurrent counter
@@ -164,7 +164,7 @@ val decr = m[Unit]
 Now we need to define the chemical reactions.
 The reactions must be such that the counter's value is incremented when we inject the `incr` molecule, and decremented when we inject the `decr` molecule.
 
-So, it looks like we will need two reactions:
+So, it looks like we will need two reactions. Let us write a reaction site:
 
 ```scala
 site(
@@ -174,17 +174,18 @@ site(
 
 ```
 
-The new value of the counter (either `n+1` or `n-1`) will be carried by the new counter molecule that we inject in these reactions.
+Each reaction says that the new value of the counter (either `n+1` or `n-1`) will be carried by the new counter molecule injected by the reaction's body.
 The previous counter molecule (with its old value `n`) will be consumed by the reactions.
 The `incr` and `decr` molecules will be likewise consumed.
 
 ![Reaction diagram counter(n) + incr => counter(n+1) etc.](http://winitzki.github.io/joinrun-scala/counter-incr-decr.svg)
 
 In `JoinRun`, a reaction site is created by the call to `site(...)`, which can contain one or several reactions.
+Why did we write the two reactions in one site?
 
-In our example, both reactions `counter + incr => ...` and `counter + decr => ...` need the molecule `counter` as part of their input.
+Note that both reactions `counter + incr => ...` and `counter + decr => ...` need the molecule `counter` as part of their input.
 In order for any of these reactions to start, the molecule `counter` needs to be present at some reaction site,
-and thus the `incr` and `decr` molecules must be present at the _same_ reaction site (otherwise they can't get together with `counter` to start a reaction).
+and thus the `incr` and `decr` molecules must be present at the _same_ reaction site (otherwise they won't get together with `counter` to start a reaction).
 For this reason, both reactions need to be defined _together_ in a single reaction site.
 
 After defining the molecules and their reactions, we can start injecting new molecules into the soup:
@@ -199,6 +200,9 @@ decr() + decr() // now the soup has counter(98)
 
 The syntax `decr() + decr()` is a shorthand for injecting several molecules at once.
 
+Note that `counter`, `incr` and `decr` are local values, which we are now calling as functions, e.g. `incr()` and `decr()`, to actually inject the molecules.
+For this reason, we call `counter`, `incr`, and `decr` **molecule injectors**. 
+
 It could happen that we are injecting `incr()` and `decr()` molecules too quickly for reactions to start.
 This will result in many instances of `incr()` or `decr()` molecules being present in the soup, waiting to be consumed.
 Is this a problem?
@@ -211,13 +215,13 @@ This automatically prevents race conditions with the counter: There is no possib
 
 ## Tracing the output
 
-The code shown above will not print any output, so it is perhaps instructive to put some print statements into the reactions.
+The code shown above will not print any output, so it is perhaps instructive to put some print statements into the reaction bodies.
 
 ```scala
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
 
-// declare the molecule types
+// declare the molecule injectors and the value types
 val counter = m[Int]
 val incr = m[Unit]
 val decr = m[Unit]
@@ -228,7 +232,7 @@ def printAndInject(x: Int) = {
   counter(x)
 }
 
-// declare the available reaction(s)
+// write the reaction site
 site(
   run { case counter(n) + decr(_) => printAndInject(n-1) }
   run { case counter(n) + incr(_) => printAndInject(n+1) },
@@ -247,31 +251,31 @@ decr() + decr() // prints “new value is 99” and then “new value is 98"
 
 ### Logging the contents of the soup
 
-For debugging purposes, it is useful to see what molecules are waiting for reactions at a given reaction site.
-This is achieved by calling the `logSoup` method on any molecule injector bound to that RS.
-This method will return a string showing the molecules that are currently present in the soup and waiting to react with other molecules at that RS.
+For debugging purposes, it is useful to see what molecules are currently present in the soup and waiting to react with other molecules, at a given reaction site.
+This is achieved by calling the `logSoup` method on any of the molecule injectors.
+This method will return a string showing the molecules that are currently present in the soup at that RS.
 The `logSoup` output will also show the values carried by each molecule.
 
-After executing the code from the example above, here is how we could use this debugging facility:
+In our example, all three molecules `counter`, `incr`, and `decr` are declared as inputs in reactions, so we could use any of the injectors, say `decr`, to log the soup contents:
 
 ```
-> println(counter.logSoup)
+> println(decr.logSoup)
 Site{counter + decr => ...; counter + incr => ...}
 Molecules: counter(98)
 
 ```
 
-The debug output gives us two pieces of information:
+The debug output contains two pieces of information:
 
 - The RS which is being logged: `Site{counter + decr => ...; counter + incr => ...}`
-Note that the RS is identified by the reactions that are defined in it.
-The reactions are shown in a shorthand notation, by listing only the input molecules.
+Note that the RS is identified by the reactions that are declared in it.
+The reactions are shown in a shorthand notation, which only mentions the input molecules.
 
-- The molecules that are currently waiting in the soup at that RS, namely `Molecules: counter(98)`.
+- The list of molecules that are currently waiting in the soup at that RS, namely `Molecules: counter(98)`.
 In this example, there is presently only one copy of the `counter` molecule, carrying the value `98`.
 
-Note that the debug output is limited to the molecules that can be consumed by reactions at that RS.
-We call them molecules **bound** to that RS.
+Also note that the debug output is limited to the molecules that are declared as input at that RS.
+We say that these molecules are **bound** to that RS.
 The RS will look at the presence or absence of these molecules when it decides which reactions to start.
 
 ### Molecule names
@@ -296,7 +300,7 @@ In this tutorial, we will always use macros to define molecules.
 ### Logging the flow of reactions and molecules
 
 To get asynchronous, real-time logging information about the molecules being consumed or injected and about the reactions being started, the user can set the logging level on the RS.
-This is done by calling `setLogLevel` on any molecule injector that is bound to that RS.
+This is done by calling `setLogLevel` on any molecule injector bound to that RS.
 
 ```scala
 counter.setLogLevel(2)
@@ -311,8 +315,8 @@ So this facility should be used only for debugging or testing.
 
 ### Error: Injecting molecules without defined reactions
 
-For each molecule, there must exist a single reaction site (RS) to which this molecule is **bound** -- that is, the RS where this molecule is consumed as input molecule by some reactions.
-(See [Reaction Sites](joinrun.md#reaction-sites) for more details.)
+For each molecule, there must exist a single reaction site (RS) to which this molecule is bound -- that is, the RS where this molecule is consumed as input molecule by some reactions.
+(See [Reaction Sites](joinrun.md#reaction-sites) for a more detailed discussion.)
 
 It is an error to inject a molecule that is not yet defined as input molecule at any RS (i.e. not yet bound to any RS).
 
