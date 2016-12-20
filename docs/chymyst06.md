@@ -1,3 +1,5 @@
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
+
 # Previous work
 
 Here are previous implementations of Join Calculus that I was able to find.

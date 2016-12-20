@@ -1,3 +1,5 @@
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
+
 # `JoinRun` library documentation
 
 `JoinRun` is an implementation of Join Calculus as an embedded DSL in Scala.

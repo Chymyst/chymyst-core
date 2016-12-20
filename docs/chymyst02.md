@@ -1,3 +1,5 @@
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
+
 # Blocking vs. non-blocking molecules
 
 So far, we have used molecules whose injection was a non-blocking call:

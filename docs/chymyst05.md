@@ -1,3 +1,4 @@
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
 
 # Limitations of the Chemical Machine (and how to overcome them)
 
