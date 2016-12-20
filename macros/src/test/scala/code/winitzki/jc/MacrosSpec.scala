@@ -378,6 +378,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     "val r = & { case e() => }" shouldNot compile // no pattern variable in a non-blocking molecule "e"
     "val r = & { case e(_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
+    "val r = & { case e(_,_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
 
     "val r = & { case a() => }" shouldNot compile // no pattern variable for reply in "a"
     "val r = & { case a(_) => }" shouldNot compile // no pattern variable for reply in "a"

@@ -69,6 +69,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
 
   private[jc] def setQuiescenceCallback(callback: M[Unit]): Unit = {
     quiescenceCallbacks.add(callback)
+    ()
   }
 
   private lazy val possibleReactions: Map[Molecule, Seq[Reaction]] = reactionInfos.toSeq
@@ -271,6 +272,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
       else
         joinPool.runClosure(buildInjectClosure(m, molValue), currentReactionInfo.getOrElse(emptyReactionInfo))
     }
+    ()
   }
 
   // Remove a blocking molecule if it is present.

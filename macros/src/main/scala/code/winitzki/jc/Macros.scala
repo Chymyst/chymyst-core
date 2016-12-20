@@ -142,10 +142,11 @@ object Macros {
           case DefDef(_, TermName("applyOrElse"), _, _, _, Match(_, list)) =>
             info = list
 
-          // this is matched by a closure which is not a partial function
+          // this is matched by a closure which is not a partial function. Not used now.
+          /*
           case Function(List(ValDef(_, TermName(_), TypeTree(), EmptyTree)), Match(Ident(TermName(_)), list)) =>
            info = list
-
+          */
           case _ => super.traverse(tree)
         }
 
@@ -243,10 +244,12 @@ object Macros {
             // After traversing the subtrees, we append this molecule information.
             inputMolecules.append((t.symbol, flag1, Some(flag2), getSha1(binder1)))
 
-          // matcher with wrong number of arguments - neither 1 nor 2
+          // matcher with wrong number of arguments - neither 1 nor 2. This seems to be never called.
+            /*
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), _)
             if t.tpe <:< typeOf[Molecule] =>
               inputMolecules.append((t.symbol, WrongReplyVarF, None, getSha1(t)))
+            */
 
           // possibly a molecule injection
           case Apply(Select(t@Ident(TermName(_)), TermName("apply")), binder) =>

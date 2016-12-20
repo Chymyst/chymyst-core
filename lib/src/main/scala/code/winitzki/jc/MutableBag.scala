@@ -56,12 +56,15 @@ class MutableBag[K,V] {
 
   def getOne(k: K): Option[V] = bag.get(k).flatMap(_.headOption.map(_._1))
 
-  def addToBag(k: K, v: V): Unit = bag.get(k) match {
-    case Some(vs) =>
-      val newCount = vs.getOrElse(v, 0) + 1
-      vs += (v -> newCount)
+  def addToBag(k: K, v: V): Unit = {
+    bag.get(k) match {
+      case Some(vs) =>
+        val newCount = vs.getOrElse(v, 0) + 1
+        vs += (v -> newCount)
 
-    case None => bag += (k -> mutable.Map(v -> 1))
+      case None => bag += (k -> mutable.Map(v -> 1))
+    }
+    ()
   }
 
   def removeFromBag(k: K, v: V): Unit = bag.get(k).foreach { vs =>
@@ -92,12 +95,15 @@ class ConcurrentMutableBag[K,V] {
 
   def getOne(k: K): Option[V] = getMap.get(k).flatMap(_.headOption.map(_._1))
 
-  def addToBag(k: K, v: V): Unit = if (bagConcurrentMap.containsKey(k)) {
-    val vs = bagConcurrentMap.get(k)
-    val newCount = vs.getOrDefault(v, 0) + 1
-    vs.put(v, newCount)
-  } else {
-    bagConcurrentMap.put(k, new ConcurrentHashMap[V, Int](Map(v -> 1).asJava))
+  def addToBag(k: K, v: V): Unit = {
+    if (bagConcurrentMap.containsKey(k)) {
+      val vs = bagConcurrentMap.get(k)
+      val newCount = vs.getOrDefault(v, 0) + 1
+      vs.put(v, newCount)
+    } else {
+      bagConcurrentMap.put(k, new ConcurrentHashMap[V, Int](Map(v -> 1).asJava))
+    }
+    ()
   }
 
   def removeFromBag(k: K, v: V): Unit = if (bagConcurrentMap.containsKey(k)) {
@@ -109,6 +115,7 @@ class ConcurrentMutableBag[K,V] {
       vs.put(v, newCount)
     if (vs.isEmpty)
       bagConcurrentMap.remove(k)
+    ()
   }
 
   def removeFromBag(anotherBag: mutable.Map[K,V]): Unit =
