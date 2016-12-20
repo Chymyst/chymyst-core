@@ -14,9 +14,9 @@ import collection.mutable
   *
   * @param reactions List of reactions as defined by the user.
   * @param reactionPool The thread pool on which reactions will be scheduled.
-  * @param joinPool The thread pool on which the reaction site will decide reactions and manage the molecule bag.
+  * @param sitePool The thread pool on which the reaction site will decide reactions and manage the molecule bag.
   */
-private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, joinPool: Pool) {
+private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, sitePool: Pool) {
 
   private val (nonSingletonReactions, singletonReactions) = reactions.partition(_.inputMolecules.nonEmpty)
 
@@ -214,7 +214,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, j
           singletonValues.put(m, molValue)
         }
         moleculesPresent.addToBag(m, molValue)
-        if (logLevel > 0) println(s"Debug: $this injecting $m($molValue) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+        if (logLevel > 0) println(s"Debug: $this injecting $m($molValue) on thread pool $sitePool, now have molecules ${moleculeBagToString(moleculesPresent)}")
         val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
         val reaction = possibleReactions.get(m)
           .flatMap(_.shuffle.find(r => {
@@ -238,7 +238,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, j
         if (poolForReaction.isInactive)
           throw new ExceptionNoReactionPool(s"In $this: cannot run reaction $reaction since reaction pool is not active")
         else if (!Thread.currentThread().isInterrupted)
-          if (logLevel > 1) println(s"Debug: In $this: starting reaction {$reaction} on thread pool $poolForReaction while on thread pool $joinPool with inputs ${moleculeBagToString(usedInputs)}")
+          if (logLevel > 1) println(s"Debug: In $this: starting reaction {$reaction} on thread pool $poolForReaction while on thread pool $sitePool with inputs ${moleculeBagToString(usedInputs)}")
         if (logLevel > 2) println(
           if (moleculesPresent.size == 0)
             s"Debug: In $this: no molecules remaining"
@@ -263,7 +263,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, j
   private var injectingSingletons = false
 
   private[jc] def inject[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
-    if (joinPool.isInactive)
+    if (sitePool.isInactive)
       throw new ExceptionNoJoinPool(s"In $this: Cannot inject molecule $m($molValue) because join pool is not active")
     else if (!Thread.currentThread().isInterrupted) {
       if (injectingSingletons) {
@@ -276,7 +276,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, j
         }
       }
       else
-        joinPool.runClosure(buildInjectClosure(m, molValue), currentReactionInfo.getOrElse(emptyReactionInfo))
+        sitePool.runClosure(buildInjectClosure(m, molValue), currentReactionInfo.getOrElse(emptyReactionInfo))
     }
     ()
   }
@@ -285,7 +285,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, j
   private def removeBlockingMolecule[T,R](m: B[T,R], blockingMolValue: BlockingMolValue[T,R], hadTimeout: Boolean): Unit = {
     moleculesPresent.synchronized {
       moleculesPresent.removeFromBag(m, blockingMolValue)
-      if (logLevel > 0) println(s"Debug: $this removed $m($blockingMolValue) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+      if (logLevel > 0) println(s"Debug: $this removed $m($blockingMolValue) on thread pool $sitePool, now have molecules ${moleculeBagToString(moleculesPresent)}")
     }
     blockingMolValue.synchronized {
       blockingMolValue.replyValue.replyTimeout = hadTimeout
@@ -354,9 +354,9 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, j
       .flatMap(_.inputMolecules)
       .toSet // We only need to assign the owner on each distinct input molecule once.
       .foreach { m: Molecule =>
-      m.joinDef match {
+      m.reactionSiteOpt match {
         case Some(owner) => throw new ExceptionMoleculeAlreadyBound(s"Molecule $m cannot be used as input since it is already bound to $owner")
-        case None => m.joinDef = Some(this)
+        case None => m.reactionSiteOpt = Some(this)
       }
     }
 

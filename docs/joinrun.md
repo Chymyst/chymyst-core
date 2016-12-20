@@ -195,10 +195,10 @@ run { case f(x, _) => ... } // Error: blocking input molecules should not contai
 
 ## Reaction sites
 
-Reaction sites activate molecules and reactions:
-Until a reaction site is made, molecules cannot be injected, and no reactions will start.
+Writing a reaction site (RS) will at once activate molecules and reactions:
+Until an RS is written, molecules cannot be injected, and no reactions will start.
 
-Reaction sites are made with the `join` method:
+Reaction sites are written with the `site` method:
 
 ```scala
 site(reaction1, reaction2, reaction3, ...)
@@ -206,14 +206,14 @@ site(reaction1, reaction2, reaction3, ...)
 ```
 
 A reaction site can take any number of reactions.
-With Scala's `:_*` syntax, a reaction site can also take a sequence of reactions.
+With Scala's `:_*` syntax, an RS can also take a sequence of reactions.
 
-All reactions listed in the reaction site will be activated at once.
+All reactions listed in the RS will be activated at once.
 
-Whenever we inject any molecule that is used as input to one of these reactions, it is _this_ reaction site (and no other) that will decide which reactions to run.
-For this reason, we say that those molecules are "bound" to this reaction site, or that they are "consumed" in it, or that they are "input molecules" in this reaction site.
+Whenever we inject any molecule that is used as input to one of these reactions, it is _this_ RS (and no other) that will decide which reactions to run.
+For this reason, we say that those molecules are "bound" to this RS, or that they are "consumed" at that RS, or that they are "input molecules" at this RS.
 
-Here is an example of a reaction site:
+Here is an example of an RS:
 
 ```scala
 val c = new M[Int]("counter")
@@ -228,21 +228,21 @@ site(
 
 ```
 
-In this reaction site, the input molecules are `c`, `d`, and `i`, while the output molecules are `c` and `f`.
-We say that the molecules `c`, `d`, and `i` are consumed in this reaction site, or that they are bound to it.
+In this RS, the input molecules are `c`, `d`, and `i`, while the output molecules are `c` and `f`.
+We say that the molecules `c`, `d`, and `i` are consumed in this RS, or that they are bound to it.
 
-Note that `f` is not an input molecule here; we will need to write another reaction site to which `f` will be bound.
+Note that `f` is not an input molecule here; we will need to write another RS to which `f` will be bound.
 
-It is perfectly acceptable for a reaction to output a molecule such as `f` that is not consumed by any reaction in this reaction site.
-However, if we forget to write any other reaction site that consumes `f`, it will be a runtime error to inject `f`.
+It is perfectly acceptable for a reaction to output a molecule such as `f` that is not consumed by any reaction in this RS.
+However, if we forget to write any other RS that consumes `f`, it will be a runtime error to inject `f`.
 
 As a warning, note that in the present example the molecule `f` will be injected only if `x==1` (and it is impossible to determine at compile time whether `x==1` will be true at runtime).
-So, if we forget to write a reaction site to which `f` is bound, it will be not necessarily easy to detect the error at runtime!
+So, if we forget to write an RS to which `f` is bound, it will be not necessarily easy to detect the error at runtime!
 
 An important requirement for reaction sites is that any given molecule must be bound to one and only one reaction site.
 It is a runtime error to write reactions consuming the same molecule in different reaction sites.
 
-An example of this error would be writing the previous reaction site as two separate ones:
+An example of this error would be writing the previous RS as two separate ones:
 
 ```scala
 val c = new M[Int]("counter")
@@ -256,18 +256,18 @@ site(
 
 site(
   run { case c(x) + i(_) => c(x+1) }
-) // runtime error: "c" is already bound to another reaction site
+) // runtime error: "c" is already bound to another RS
 
 ```
 
 This rule enforces the immutability of chemical laws:
 Once a reaction site is written, we have fixed the reactions that a given molecule could initiate (i.e. the reactions that consume this molecule).
-It is impossible to add a new reaction that consumes a molecule if that molecule is already bound to another reaction site.
+It is impossible to add a new reaction that consumes a molecule if that molecule is already bound to another RS.
 
 This feature of Join Calculus allows us to create a library of chemical reactions and guarantee that user programs will not be able to modify the intended flow of reactions.
 
 Also, because of this rule, different reaction sites do not contend on input molecules.
-The decisions about which reactions to start are local to each reaction site.
+The decisions about which reactions to start are local to each RS.
 
 # Thread pools
 
@@ -275,8 +275,8 @@ There are two kinds of tasks that `JoinRun` performs concurrently:
 - running reactions
 - injecting new molecules and deciding which reactions will run next
 
-Each reaction site is a local value and is separate from all other reaction sites.
-So, in principle all reaction sites can perform their tasks fully concurrently and independently from each other.
+Each RS is a local value and is separate from all other RSs.
+So, in principle all RSs can perform their tasks fully concurrently and independently from each other.
 
 In practice, there are situations where we need to force certain reactions to run on certain threads.
 For example, user interface (UI) programming frameworks typically allocate one thread for all UI-related operations, such as updating the screen or receiving callbacks from user interactions.
@@ -286,11 +286,11 @@ In particular, all screen updates (as well as all user event callbacks) must be 
 
 To facilitate this control, `JoinRun` implements the thread pool feature.
 
-Each reaction site uses two thread pools: a thread pool for running reactions (`reactionPool`) and a thread pool for injecting molecules and deciding new reactions (`joinPool`).
+Each RS uses two thread pools: a thread pool for running reactions (`reactionPool`) and a thread pool for injecting molecules and deciding new reactions (`sitePool`).
 
-By default, these two thread pools are statically allocated and shared by all reaction sites.
+By default, these two thread pools are statically allocated and shared by all RSs.
 
-Users can create custom thread pools and specify, for any given reaction site,
+Users can create custom thread pools and specify, for any given RS,
 - on which thread pool the decisions will run
 - on which thread pool each reaction will run
 
@@ -329,7 +329,7 @@ Example:
 
 ```
 
-Another case when `BlockingIdle` might be useful is when a reaction contains a complicated condition that will block the join decision thread.
+Another case when `BlockingIdle` might be useful is when a reaction contains a complicated condition that will block the RS decision thread.
 In that case, `BlockingIdle` should be used, together with a `SmartPool` for join decisions.
  
 Example:
@@ -462,7 +462,7 @@ Version 0.5: Investigate an implicit distributed execution of chemical reactions
 
  4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
 
- 3 * 3 - add logging of reactions currently in progress at a given JD. (Need a custom thread class, or a registry of reactions?)
+ 3 * 3 - add logging of reactions currently in progress at a given RS. (Need a custom thread class, or a registry of reactions?)
 
  2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
 

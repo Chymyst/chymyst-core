@@ -263,15 +263,15 @@ Molecules: counter(98)
 
 The debug output gives us two pieces of information:
 
-1. The JD which is being logged: `Site{counter + decr => ...; counter + incr => ...}`
-Note that the JD is identified by the reactions that are defined in it. The reactions are shown in a shorthand notation, by listing only the input molecules.
-
-2. The molecules that are currently waiting in the soup belonging to that JD, namely `Molecules: counter(98)`.
+1. The RS which is being logged: `Site{counter + decr => ...; counter + incr => ...}`
+Note that the RS is identified by the reactions that are defined in it.
+The reactions are shown in a shorthand notation, by listing only the input molecules.
+2. The molecules that are currently waiting in the soup at that RS, namely `Molecules: counter(98)`.
 In this example, there is presently only one copy of the `counter` molecule, carrying the value `98`.
 
-Note that the debug output is limited to the molecules that can be consumed by reactions in that JD.
-We call them molecules **bound** to that JD.
-The JD will look at the presence or absence of these molecules when it decides which reactions to start.
+Note that the debug output is limited to the molecules that can be consumed by reactions at that RS.
+We call them molecules **bound** to that RS.
+The RS will look at the presence or absence of these molecules when it decides which reactions to start.
 
 ### Molecule names
 
@@ -294,15 +294,15 @@ In this tutorial, we will always use macros to define molecules.
 
 ### Logging the flow of reactions and molecules
 
-To get asynchronous, real-time logging information about the molecules being consumed or injected and about the reactions being started, the user can set the logging level on the JD.
-This is done by calling `setLogLevel` on any molecule injector that is bound to that JD.
+To get asynchronous, real-time logging information about the molecules being consumed or injected and about the reactions being started, the user can set the logging level on the RS.
+This is done by calling `setLogLevel` on any molecule injector that is bound to that RS.
 
 ```scala
 counter.setLogLevel(2)
 
 ```
 
-After this, verbosity level 2 is set on all reactions involving the JD to which `counter` is bound.
+After this, verbosity level 2 is set on all reactions involving the RS to which `counter` is bound.
 This might result in a large printout if many reactions are proceeding.
 So this facility should be used only for debugging or testing.
 
@@ -310,10 +310,10 @@ So this facility should be used only for debugging or testing.
 
 ### Error: Injecting molecules without defined reactions
 
-For each molecule, there must exist a single reaction site (JD) to which this molecule is **bound** -- that is, the JD where this molecule is consumed as input molecule by some reactions.
+For each molecule, there must exist a single reaction site (RS) to which this molecule is **bound** -- that is, the RS where this molecule is consumed as input molecule by some reactions.
 (See [Join Definitions](joinrun.md#join-definitions) for more details.)
 
-It is an error to inject a molecule that is not yet defined as input molecule in any JD (i.e. not yet bound to any JD).
+It is an error to inject a molecule that is not yet defined as input molecule at any RS (i.e. not yet bound to any RS).
 
 ```scala
 val x = m[Int]
@@ -323,7 +323,7 @@ x(100) // java.lang.Exception: Molecule x is not bound to any reaction site
 
 The same error will occur if such injection is attempted inside a reaction body, or if we call `logSoup` on the molecule injector.
 
-The correct way of using `JoinRun` is first to define molecules, then to create a JD where these molecules are used as inputs for reactions, and only then to start injecting these molecules.
+The correct way of using `JoinRun` is first to define molecules, then to create a RS where these molecules are used as inputs for reactions, and only then to start injecting these molecules.
 
 The method `isBound` can be used to determine at run time whether a molecule has been already bound to a reaction site:
 
@@ -339,14 +339,14 @@ x.isBound // returns `true`
 
 ### Error: Redefining input molecules
 
-It is also an error to write a reaction whose input molecule was already used as input in another JD.
+It is also an error to write a reaction whose input molecule was already used as input at another RS.
 
 ```scala
 val x = m[Int]
 val a = m[Unit]
 val b = m[Unit]
 
-site( run { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this JD.
+site( run { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this RS.
 
 site( run { case x(n) + b(_) => println(s"have x($n) + b") } )
 // java.lang.Exception: Molecule x cannot be used as input since it is already bound to Site{a + x => ...}
@@ -367,17 +367,17 @@ site(
 
 ``` 
 
-More generally, all reactions that share any input molecules must be defined together in a single JD.
-However, reactions that use a certain molecule only as an output molecule can be (and should be) written in another JD.
-Here is an example where we define one JD that computes a result and sends it on a molecule called `show`, which is bound to another JD:
+More generally, all reactions that share any input molecules must be defined together in a single RS.
+However, reactions that use a certain molecule only as an output molecule can be (and should be) written in another RS.
+Here is an example where we define one RS that computes a result and sends it on a molecule called `show`, which is bound to another RS:
 
 ```scala
 val show = m[Int]
-// JD where the “show” molecule is an input molecule
+// reaction site where the “show” molecule is an input molecule
 site( run { case show(x) => println(s"") })
 
 val start = m[Unit]
-// JD where the “show” molecule is an output molecule (but not an input molecule)
+// reaction site where the “show” molecule is an output molecule (but not an input molecule)
 site(
   run { case start(_) => val res = compute(...); show(res) }
 )
