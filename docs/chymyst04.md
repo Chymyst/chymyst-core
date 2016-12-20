@@ -1,3 +1,5 @@
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
+
 # Example: Concurrent map/reduce
 
 It remains to see how we can use the chemical machine for performing various concurrent computations.
