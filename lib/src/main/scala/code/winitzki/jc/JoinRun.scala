@@ -257,7 +257,7 @@ object JoinRun {
 
   // Wait until the reaction site to which `molecule` is bound becomes quiescent, then inject `callback`.
   // TODO: implement
-  def wait_until_quiet[T](molecule: M[T], callback: M[Unit]): Unit = molecule.getJoinDef.setQuiescenceCallback(callback)
+  def wait_until_quiet[T](molecule: M[T], callback: M[Unit]): Unit = molecule.site.setQuiescenceCallback(callback)
 
   /**
     * Convenience syntax: users can write a(x)+b(y) to inject several molecules at once.
@@ -340,25 +340,25 @@ object JoinRun {
       *
       * @return True if already bound, false otherwise.
       */
-    def isBound: Boolean = joinDef.nonEmpty
+    def isBound: Boolean = reactionSiteOpt.nonEmpty
 
-    @volatile private[jc] var joinDef: Option[JoinDefinition] = None
+    @volatile private[jc] var reactionSiteOpt: Option[ReactionSite] = None
 
-    private[jc] def getJoinDef: JoinDefinition =
-      joinDef.getOrElse(throw new ExceptionNoJoinDef(s"Molecule ${this} is not bound to any reaction site"))
+    private[jc] def site: ReactionSite =
+      reactionSiteOpt.getOrElse(throw new ExceptionNoJoinDef(s"Molecule ${this} is not bound to any reaction site"))
 
     /** The set of reactions that can consume this molecule.
       *
       * @return {{{None}}} if the molecule injector is not yet bound to any Join Definition.
       */
-    private[jc] def consumingReactions: Option[Set[Reaction]] = joinDef.map(_ => consumingReactionsSet)
+    private[jc] def consumingReactions: Option[Set[Reaction]] = reactionSiteOpt.map(_ => consumingReactionsSet)
 
-    private lazy val consumingReactionsSet: Set[Reaction] = joinDef.get.reactionInfos.keys.filter(_.inputMolecules contains this).toSet
+    private lazy val consumingReactionsSet: Set[Reaction] = reactionSiteOpt.get.reactionInfos.keys.filter(_.inputMolecules contains this).toSet
 
     /** The set of all reactions that *potentially* inject this molecule as output.
       * Some of these reactions may evaluate a runtime condition to decide whether to inject the molecule; so injection is not guaranteed.
       *
-      * Note that these reactions may be defined in any reaction sites, not necessarily in the JD to which this molecule is bound.
+      * Note that these reactions may be defined in any reaction sites, not necessarily at the site to which this molecule is bound.
       * The set of these reactions may change at run time if new reaction sites are written that output this molecule.
       *
       * @return Empty set if the molecule is not yet bound to any reaction site.
@@ -368,9 +368,9 @@ object JoinRun {
     private[jc] val injectingReactionsSet: mutable.Set[Reaction] = mutable.Set()
 
     def setLogLevel(logLevel: Int): Unit =
-      getJoinDef.logLevel = logLevel
+      site.logLevel = logLevel
 
-    def logSoup: String = getJoinDef.printBag
+    def logSoup: String = site.printBag
 
     def isBlocking: Boolean
 
@@ -387,7 +387,7 @@ object JoinRun {
       *
       * @param v Value to be put onto the injected molecule.
       */
-    def apply(v: T): Unit = getJoinDef.inject[T](this, MolValue(v))
+    def apply(v: T): Unit = site.inject[T](this, MolValue(v))
 
     override def toString: String = if (name.isEmpty) "<no name>" else name
 
@@ -420,9 +420,9 @@ object JoinRun {
       *
       * @return The value carried by the singleton when it was last injected. Will throw exception if the singleton has not yet been injected.
       */
-    def volatileValue: T = getJoinDef.getVolatileValue(this)
+    def volatileValue: T = site.getVolatileValue(this)
 
-    def hasVolatileValue: Boolean = getJoinDef.hasVolatileValue(this)
+    def hasVolatileValue: Boolean = site.hasVolatileValue(this)
 
     @volatile private[jc] var isSingletonBoolean = false
 
@@ -510,7 +510,7 @@ object JoinRun {
       * @return The "reply" value.
       */
     def apply(v: T): R =
-      getJoinDef.injectAndReply[T,R](this, v, new ReplyValue[T,R](molecule = this))
+      site.injectAndReply[T,R](this, v, new ReplyValue[T,R](molecule = this))
 
     /** Inject a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
       *
@@ -519,7 +519,7 @@ object JoinRun {
       * @return Non-empty option if the reply was received; None on timeout.
       */
     def apply(timeout: Duration)(v: T): Option[R] =
-      getJoinDef.injectAndReplyWithTimeout[T,R](timeout.toNanos, this, v, new ReplyValue[T,R](molecule = this))
+      site.injectAndReplyWithTimeout[T,R](timeout.toNanos, this, v, new ReplyValue[T,R](molecule = this))
 
     override def toString: String = name + "/B"
 
@@ -565,23 +565,23 @@ object JoinRun {
     */
   private[jc] type ReactionBody = PartialFunction[UnapplyArg, Any]
 
-  def site(rs: Reaction*): WarningsAndErrors = site(defaultReactionPool, defaultJoinPool)(rs: _*)
-  def site(reactionPool: Pool)(rs: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(rs: _*)
+  def site(reactions: Reaction*): WarningsAndErrors = site(defaultReactionPool, defaultJoinPool)(reactions: _*)
+  def site(reactionPool: Pool)(reactions: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(reactions: _*)
 
   /** Create a reaction site with one or more reactions.
-    * All input and output molecules in reactions used in this JD should have been
-    * already defined, and input molecules should not be already bound to another JD.
+    * All input and output molecules in reactions used in this site should have been
+    * already defined, and input molecules should not be already bound to another site.
     *
-    * @param rs One or more reactions of type [[JoinRun#Reaction]]
+    * @param reactions One or more reactions of type [[JoinRun#Reaction]]
     * @param reactionPool Thread pool for running new reactions.
-    * @param joinPool Thread pool for use when making decisions to schedule reactions.
+    * @param sitePool Thread pool for use when making decisions to schedule reactions.
     * @return List of warning messages.
     */
-  def site(reactionPool: Pool, joinPool: Pool)(rs: Reaction*): WarningsAndErrors = {
+  def site(reactionPool: Pool, sitePool: Pool)(reactions: Reaction*): WarningsAndErrors = {
 
     // Create a reaction site object holding the given local chemistry.
     // The constructor of JoinDefinition will perform static analysis of all given reactions.
-    new JoinDefinition(rs, reactionPool, joinPool).diagnostics
+    new ReactionSite(reactions, reactionPool, sitePool).diagnostics
 
   }
 

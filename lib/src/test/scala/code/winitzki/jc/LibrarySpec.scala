@@ -13,7 +13,7 @@ import scala.concurrent.Future
 
 class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(500, Millis)
+  val timeLimit = Span(2000, Millis)
 
   val warmupTimeMs = 50L
 

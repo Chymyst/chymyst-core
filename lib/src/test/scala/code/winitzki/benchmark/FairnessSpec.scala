@@ -8,7 +8,7 @@ import org.scalatest.{FlatSpec, Matchers}
 
 class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(1000, Millis)
+  val timeLimit = Span(2000, Millis)
 
   behavior of "reaction site"
 
@@ -136,11 +136,11 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   // interestingly, this test fails to complete in 500ms on Travis CI with Scala 2.10, but succeeds with 2.11
-  it should "fail to schedule reactions fairly after multiple injection into separate JDs" in {
+  it should "fail to schedule reactions fairly after multiple injection into separate RSs" in {
 
     val tp = new FixedPool(8)
 
-    def makeJD(d1: M[Unit], d2: M[Unit]): (M[Unit],M[Unit],M[Unit]) = {
+    def makeRS(d1: M[Unit], d2: M[Unit]): (M[Unit],M[Unit],M[Unit]) = {
       val a = new M[Unit]("a")
       val b = new M[Unit]("b")
       val c = new M[Unit]("c")
@@ -168,7 +168,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     f((0,0, n))
 
     (1 to n).foreach{ _ =>
-      val (a,b,c) = makeJD(d,e)
+      val (a,b,c) = makeRS(d,e)
       a()+b()+c() // at the moment, this is equivalent to a(); b(); c.
       // this test will need to be changed when true multiple injection is implemented.
     }

@@ -24,7 +24,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
     tp0.shutdownNow()
   }
 
-  val timeLimit = Span(1500, Millis)
+  val timeLimit = Span(3000, Millis)
 
   val warmupTimeMs = 50L
 
