@@ -7,7 +7,15 @@ import code.winitzki.benchmark.Benchmarks9._
 import code.winitzki.jc.{FixedPool, Pool}
 import code.winitzki.jc.JoinRun.{defaultJoinPool, defaultReactionPool}
 
+object MainAppConfig {
+
+  val n = 50000
+
+  val threads = 8
+}
+
 object MainApp extends App {
+  import MainAppConfig._
   val version = "0.0.5"
 
   def run3times(task: => Long): Long = {
@@ -23,10 +31,6 @@ object MainApp extends App {
     //    println(s"timing with priming: prime1 = $prime1, prime2 = $prime2, result = $result")
     (result + prime2 + 1) / 2
   }
-
-  val n = 50000
-
-  val threads = 8
 
   println(s"Benchmark parameters: count to $n, threads = $threads")
 

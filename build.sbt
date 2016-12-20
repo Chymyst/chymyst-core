@@ -21,7 +21,24 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   resolvers += Resolver.sonatypeRepo("snapshots"),
   resolvers += Resolver.sonatypeRepo("releases"),
   resolvers += "Typesafe releases" at "http://repo.typesafe.com/typesafe/releases",
-  scalacOptions ++= Seq()
+
+  scalacOptions ++= Seq( // https://tpolecat.github.io/2014/04/11/scalac-flags.html
+//    "-deprecation",
+    "-unchecked",
+    "-encoding", "UTF-8", // yes, this is 2 args
+    "-feature",
+    "-language:existentials",
+    "-language:higherKinds",
+    "-language:implicitConversions",
+    // "-Xfatal-warnings",
+    "-Xlint",
+//    "-Yno-adapted-args", // Makes calling a() fail to substitute a Unit argument into a.apply(x: Unit)
+    "-Ywarn-dead-code", // N.B. doesn't work well with the ??? hole
+    "-Ywarn-numeric-widen",
+    "-Ywarn-value-discard",
+    // "-Xfuture", // Makes Benchmarks code fail
+    "-Ywarn-unused-import" // 2.11 only
+  )
 )
 
 tutSettings

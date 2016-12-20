@@ -23,6 +23,18 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
     b.getOne(1) shouldEqual Some("a")
   }
 
+  it should "make a bag with one element" in {
+    val b = MutableBag.of(1, "a")
+    b.size shouldEqual 1
+    b.getOne(1) shouldEqual Some("a")
+  }
+
+  it should "print a bag" in {
+    val b = MutableBag.of(1, "a")
+    b.addToBag(2, "b")
+    b.toString shouldEqual "Map(2 -> Map(b -> 1), 1 -> Map(a -> 1))"
+  }
+
   it should "add two elements with the same key and the same value, them remove them both" in {
     val b = new MutableBag[Int, String]
     b.addToBag(1, "a")

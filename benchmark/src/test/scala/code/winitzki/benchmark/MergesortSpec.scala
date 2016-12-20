@@ -81,7 +81,7 @@ class MergesortSpec extends FlatSpec with Matchers {
             )
 
             // inject lower-level mergesort
-            mergesort(part1, sorted1) + mergesort(part2, sorted2)
+            mergesort((part1, sorted1)) + mergesort((part2, sorted2))
           }
       }
     )

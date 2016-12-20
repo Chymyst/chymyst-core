@@ -6,6 +6,7 @@ import java.util.concurrent._
 import code.winitzki.jc.JoinRun.ReactionInfo
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.language.reflectiveCalls
 
 class CachedPool(threads: Int) extends PoolExecutor(threads,
   t => new ThreadPoolExecutor(1, t, 1L, TimeUnit.SECONDS, new SynchronousQueue[Runnable], new ThreadFactoryWithInfo)
@@ -24,18 +25,15 @@ trait Pool {
 
   def runClosure(closure: => Unit, info: ReactionInfo): Unit
 
-  def isActive: Boolean = !isInactive
   def isInactive: Boolean
-
-  def canMakeThreads: Boolean = true
 }
 
 private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorService) extends Pool {
   protected val execService = execFactory(threads)
 
-  val sleepTime = 200
+  val sleepTime = 200L
 
-  def shutdownNow() = new Thread {
+  def shutdownNow(): Unit = new Thread {
     try{
       execService.shutdown()
       execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
@@ -43,8 +41,9 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorSer
       execService.shutdownNow()
       execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
       execService.shutdownNow()
+      ()
     }
-  }
+  }.start()
 
   def runClosure(closure: => Unit, info: ReactionInfo): Unit =
     execService.execute(new RunnableWithInfo(closure, info))
@@ -56,8 +55,10 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorSer
 private[jc] class PoolFutureExecutor(threads: Int = 8, execFactory: Int => ExecutorService) extends PoolExecutor(threads, execFactory) {
   private val execContext = ExecutionContext.fromExecutor(execService)
 
-  override def runClosure(closure: => Unit, info: ReactionInfo): Unit =
+  override def runClosure(closure: => Unit, info: ReactionInfo): Unit = {
     Future { closure }(execContext)
+    ()
+  }
 }
 
 /** Create a pool from a Handler interface. The pool will submit tasks using a Handler.post() method.

@@ -3,10 +3,11 @@ package code.winitzki.test
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros.{run => &}
 import code.winitzki.jc.Macros._
-import code.winitzki.jc.{CachedPool, FixedPool, SmartPool}
+import code.winitzki.jc.{FixedPool, SmartPool}
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
+import scala.language.postfixOps
 
 import scala.concurrent.duration._
 
@@ -117,6 +118,24 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
+  it should "signal error when a singleton is consumed multiple times by reaction" in {
+
+    val tp = new FixedPool(3)
+
+    val thrown = intercept[Exception] {
+      val d = m[Unit]
+      val e = m[Unit]
+
+      join(tp)(
+        & { case e(_) + d(_) + d(_) => d() },
+        & { case _ => d() } // singleton
+      )
+    }
+    thrown.getMessage shouldEqual "In Join{d + d + e => ...}: Incorrect chemistry: singleton (d) consumed 2 times by reaction d(_) + d(_) + e(_) => d()"
+
+    tp.shutdownNow()
+  }
+
   it should "signal error when a singleton is injected but not bound to any join definition" in {
 
     val tp = new FixedPool(3)
@@ -201,6 +220,27 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     (1 to 100).foreach { i =>
       makeNewVolatile(i) // This should sometimes throw an exception, so let's make sure it does.
     }
+
+    tp.shutdownNow()
+  }
+
+  it should "refuse to define a blocking molecule as a singleton" in {
+
+    val tp = new FixedPool(1)
+
+    val c = m[Int]
+    val d = m[Int]
+    val f = b[Unit, Unit]
+
+    val thrown = intercept[Exception] {
+      join(tp)(
+        & { case f(_, r) => r() },
+        & { case c(x) + d(_) => d(x) },
+        & { case _ => f(); d(0) }
+      )
+    }
+
+    thrown.getMessage shouldEqual "In Join{c + d => ...; f/B => ...}: Refusing to inject molecule f/B() as a singleton (must be a non-blocking molecule)"
 
     tp.shutdownNow()
   }
@@ -301,6 +341,46 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     tp1.shutdownNow()
     tp3.shutdownNow()
+  }
+
+  it should "signal error when a singleton is injected fewer times than declared" in {
+
+    val tp = new FixedPool(3)
+
+    val thrown = intercept[Exception] {
+      val c = b[Unit, String]
+      val d = m[Unit]
+      val e = m[Unit]
+      val f = m[Unit]
+
+      join(tp)(
+        & { case d(_) +e(_) + f(_) + c(_, r) => r("ok"); d(); e(); f() },
+        & { case _ => if (false) { d(); e() }; f(); } // singletons d() and e() will actually not be injected because of a condition
+      )
+    }
+    thrown.getMessage shouldEqual "In Join{c/B + d + e + f => ...}: Too few singletons injected: d injected 0 times instead of 1, e injected 0 times instead of 1"
+
+    tp.shutdownNow()
+  }
+
+  it should "signal no error (but a warning) when a singleton is injected more times than declared" in {
+
+    val tp = new FixedPool(3)
+
+    val c = b[Unit, String]
+    val d = m[Unit]
+    val e = m[Unit]
+    val f = m[Unit]
+
+    val warnings = join(tp)(
+      & { case d(_) + e(_) + f(_) + c(_, r) => r("ok"); d(); e(); f() },
+      & { case _ => (1 to 2).foreach { _ => d(); e() }; f(); } // singletons d() and e() will actually be injected more times
+    )
+
+    warnings.errors shouldEqual Seq()
+    warnings.warnings shouldEqual Seq("Possibly too many singletons injected: d injected 2 times instead of 1, e injected 2 times instead of 1")
+
+    tp.shutdownNow()
   }
 
 }

@@ -12,7 +12,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(1000, Millis)
 
-  val warmupTimeMs = 50
+  val warmupTimeMs = 50L
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 

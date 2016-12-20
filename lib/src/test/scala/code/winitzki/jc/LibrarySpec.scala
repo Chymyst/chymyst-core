@@ -15,7 +15,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(500, Millis)
 
-  val warmupTimeMs = 50
+  val warmupTimeMs = 50L
 
   val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
@@ -119,6 +119,13 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     waiter.await()(patienceConfig, implicitly[Position])
 
     tp.shutdownNow()
+  }
+
+  behavior of "cleanup with resource"
+
+  it should "catch exceptions and not fail" in {
+    val tryX = cleanup(1)(_ => throw new Exception("ignore this exception"))(_ => throw new Exception("foo"))
+    tryX.isFailure shouldEqual true
   }
 
 }
