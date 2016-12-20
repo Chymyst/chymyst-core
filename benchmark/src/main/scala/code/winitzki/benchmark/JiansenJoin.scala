@@ -5,6 +5,8 @@ This file is not a part of JoinRun. Only the benchmark application uses this fil
 for performance comparisons between JoinRun and ScalaJoin.
 
 Some minor changes were made to accommodate updates in the Scala standard library since 2011.
+
+This code is not being maintained. Compiling this file will give lots of warnings.
 */
 
 /** A module providing constracts for join patterns.
@@ -267,7 +269,7 @@ class SynName[Arg, R](implicit owner: Join, argT:ClassManifest[Arg], resT:ClassM
 object and{
   //  def unapply(attr:(Set[NameBase], Queue[(NameBase, Any)], PartialFunction[Any, Any], Int)) = {
   def unapply(attr:Any) = {
-    Some(attr,attr)
+    Some((attr,attr))
   }
 
 }

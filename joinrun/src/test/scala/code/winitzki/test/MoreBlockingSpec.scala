@@ -1,6 +1,6 @@
 package code.winitzki.test
 
-import code.winitzki.jc.{FixedPool, SmartPool}
+import code.winitzki.jc.FixedPool
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros.{run => &}
 import code.winitzki.jc.Macros._
@@ -78,7 +78,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     // now it seems to pass even with a million iterations (but that's too long for Travis).
     val numberOfFalseReplies = get()
 
-    (numberOfFailures, numberOfFalseReplies) shouldEqual (0,0)
+    (numberOfFailures, numberOfFalseReplies) shouldEqual ((0,0))
 
     tp.shutdownNow()
   }
