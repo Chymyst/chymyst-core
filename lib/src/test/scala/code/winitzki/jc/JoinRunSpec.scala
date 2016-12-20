@@ -7,6 +7,7 @@ import org.scalatest.time.{Millis, Span}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 import scala.concurrent.duration._
+import scala.language.postfixOps
 
 class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
@@ -24,7 +25,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
   
   val timeLimit = Span(5000, Millis)
 
-  val warmupTimeMs = 50
+  val warmupTimeMs = 50L
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
@@ -138,6 +139,17 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     join(tp0)( runSimple { case a(_) => waiter.dismiss() })
 
     a()
+    waiter.await()
+  }
+
+  it should "start a reaction with one input with Nothing in the molecule" in {
+
+    val waiter = new Waiter
+
+    val a = new M[Nothing]("a")
+    join(tp0)( runSimple { case a(_) => waiter.dismiss() })
+
+    a(_)
     waiter.await()
   }
 

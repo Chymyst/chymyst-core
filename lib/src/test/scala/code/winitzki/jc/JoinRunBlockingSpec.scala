@@ -4,7 +4,8 @@ import JoinRun._
 import Library.withPool
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import scala.language.postfixOps
 
 import scala.concurrent.duration.DurationInt
 
@@ -25,7 +26,7 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
   val timeLimit = Span(1500, Millis)
 
-  val warmupTimeMs = 50
+  val warmupTimeMs = 50L
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 

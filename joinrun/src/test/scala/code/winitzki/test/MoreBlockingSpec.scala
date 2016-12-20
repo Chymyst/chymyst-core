@@ -10,6 +10,7 @@ import org.scalatest.concurrent.Waiters.Waiter
 import org.scalatest.time.{Millis, Span}
 
 import scala.concurrent.duration._
+import scala.language.postfixOps
 
 class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
@@ -70,7 +71,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     collect(0)
 
     val numberOfFailures = (1 to 10000).map { _ =>
-      if (f(timeout = 1000.millis)().isEmpty) 1 else 0
+      if (f(timeout = 1000 millis)().isEmpty) 1 else 0
     }.sum
 
     // we used to have about 4% numberOfFailures (but we get zero failures if we do not nullify the semaphore!) and about 4 numberOfFalseReplies in 100,000.

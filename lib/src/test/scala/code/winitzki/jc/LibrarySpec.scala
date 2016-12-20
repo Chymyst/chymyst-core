@@ -15,7 +15,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(500, Millis)
 
-  val warmupTimeMs = 50
+  val warmupTimeMs = 50L
 
   val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
