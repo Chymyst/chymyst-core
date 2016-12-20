@@ -80,6 +80,7 @@ class MutableBag[K,V] {
     anotherBag.foreach { case (k, v) => removeFromBag(k, v) }
 
 }
+/*
 // about 30% slower than MutableBag, and not sure we need it, since all operations with molecule bag are synchronized now.
 class ConcurrentMutableBag[K,V] {
 
@@ -123,7 +124,7 @@ class ConcurrentMutableBag[K,V] {
 
 }
 
-/* */
+*/
 // previous implementation - becomes slow if we have many repeated values, fails performance test
 /*
 class MutableBag[K,V] {
