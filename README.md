@@ -130,7 +130,7 @@ Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` an
 - Molecule injectors (or “channels”) are not singleton objects as in `ScalaJoin` but locally scoped values. This is how the semantics of JC is implemented in JoCaml. In this way, we get more flexibility in defining molecules.
 - Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`). `JoinRun` uses macros to perform some static analysis of reactions at compile time and detect some errors.
 - Reactions and molecules are composable: we can begin constructing a join definition incrementally, until we have `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules. (However, a join definition is immutable once it is written.)
-- Join definitions are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC).
+- Join definitions are instances of class `ReactionSite` and are invisible to the user (as they should be according to the semantics of JC).
 - Some common cases of invalid join definitions are flagged (as run-time errors) before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply).
 - Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use Akka actor-based or thread-based pools.
 - Fair nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random.
