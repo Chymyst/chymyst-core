@@ -28,7 +28,7 @@ For instance, we can postulate that there exist three sorts of molecules called 
 `a + c ⇒` [_nothing_]
 
 
-![Reaction diagram a + b => a, a + c => ...](http://winitzki.github.io/joinrun-scala/reactions1.svg)
+![Reaction diagram a + b => a, a + c => ...](http://chymyst.github.io/joinrun-scala/reactions1.svg)
 
 Of course, real-life chemistry does not allow a molecule to disappear without producing any other molecules.
 But our chemistry is purely imaginary, and so the programmer is free to postulate arbitrary chemical laws.
@@ -95,7 +95,7 @@ a(x) + c(y) ⇒ println(x+y) // -- reaction body with no output molecules
 This reaction consumes the molecules `a` and `c` but does not inject any output molecules.
 The only result of running the reaction is the side-effect of printing the number `x+y`.
 
-![Reaction diagram a(x) + b(y) => a(z), a(x) + c(y) => ...](http://winitzki.github.io/joinrun-scala/reactions2.svg)
+![Reaction diagram a(x) + b(y) => a(z), a(x) + c(y) => ...](http://chymyst.github.io/joinrun-scala/reactions2.svg)
 
 The computations performed by the chemical machine are _automatically concurrent_:
 Whenever input molecules are available in the soup, the runtime engine will start a reaction that consumes these input molecules.
@@ -178,7 +178,7 @@ Each reaction says that the new value of the counter (either `n+1` or `n-1`) wil
 The previous counter molecule (with its old value `n`) will be consumed by the reactions.
 The `incr` and `decr` molecules will be likewise consumed.
 
-![Reaction diagram counter(n) + incr => counter(n+1) etc.](http://winitzki.github.io/joinrun-scala/counter-incr-decr.svg)
+![Reaction diagram counter(n) + incr => counter(n+1) etc.](http://chymyst.github.io/joinrun-scala/counter-incr-decr.svg)
 
 In `JoinRun`, a reaction site is created by the call to `site(...)`, which can contain one or several reactions.
 Why did we write the two reactions in one site?
@@ -403,26 +403,29 @@ site(run { case x(n1) + x(n2) =>  })
 ``` 
 
 Sometimes it appears that repeating input molecules is the most natural way of expressing the desired behavior of certain concurrent programs.
-However, I believe it is always possible to introduce some new auxiliary molecules and to rewrite the “chemistry laws” so that input molecules are not repeated while the resulting computations give the same results.
+However, I believe it is always possible to introduce some new auxiliary molecules and to rewrite the chemistry so that input molecules are not repeated, while the resulting computations give the same results.
 This limitation could be lifted in a later version of `JoinRun` if it proves useful to do so.
 
 ## Order of reactions and nondeterminism
 
-When there are several different reactions that can start the available molecules, the runtime engine will choose the reaction at random,
-so that every reaction has an equal chance of starting.
+When a reaction site has enough waiting molecules for several different reactions to start, the runtime engine will choose the reaction at random, giving each candidate reaction an equal chance of starting.
 
-Similarly, when there are several copies of the same molecule that can be consumed as input by a reaction, the runtime engine will make a choice of which copy 
-of the molecule to consume.
+TODO: Drawing of several possible reactions at a reaction site
+
+Similarly, when there are several copies of the same molecule that can be consumed as input by a reaction, the runtime engine will make a choice of which copy of the molecule to consume.
+
+TODO: Drawing of several possible input molecules for a reaction
+
 Currently, `JoinRun` will _not_ fully randomize the input molecules but make an implementation-dependent choice.
 A truly random selection of input molecules may be implemented in the future.
 
 Importantly, it is _not possible_ to assign priorities to reactions or to molecules.
-The chemical machine ignores the order of reactions as listed in the `site(...)` call, as well as the order of molecules in the input list of each reaction.
-Just for the purposes of debugging, molecules will be printed in alphabetical order of names, and reactions will be printed in an unspecified order.
+The chemical machine ignores the order in which reactions are listed in the `site(...)` call, as well as the order of molecules in the input list of each reaction.
+Just for the purposes of debugging, molecules will be printed in alphabetical order of names, and reactions will be printed in an unspecified but fixed order.
 
 The result is that the order in which reactions will start is non-deterministic and unknown.
 
-If the priority of certain reactions is important for a particular application, it is the programmer's task to design the chemical laws in such a way that those reactions start in the desired order.
+If the priority of certain reactions is important for a particular application, it is the programmer's task to design the chemistry in such a way that those reactions start in the desired order.
 This is always possible by using auxiliary molecules and/or guard conditions.
 
 In fact, a facility for assigning priority to molecules or reactions would be self-defeating.
@@ -430,9 +433,9 @@ It will only give the programmer _an illusion of control_ over the order of reac
 
 To illustrate this on an example, suppose we would like to compute the sum of a bunch of numbers in a concurrent way.
 We expect to receive many molecules `data(x)` with integer values `x`,
-and we need to compute and print the final sum value when no more `data(x)` molecules are present.
+and we need to compute and print the final sum value when no more `data(...)` molecules are present.
 
-Here is an (incorrect) attempt to write chemical laws for this program:
+Here is an (incorrect) attempt to design the chemistry for this program:
 
 ```scala
 val data = m[Int]
@@ -447,18 +450,16 @@ sum(0) // expect "sum = 165"
 
 ```
 
-Our intention was to run only the first reaction and to ignore the second reaction as long as `data` molecules are available in the soup.
+Our intention was to run only the first reaction and to ignore the second reaction as long as `data(...)` molecules are available in the soup.
 The chemical machine does not actually allow us to assign a higher priority to the first reaction.
 But, if we were able to do that, what would be the result?
 
-In a real-life situation, the `data` molecules are going to be injected concurrently by different processes.
-(There wouldn't be much point in making the `data` molecules concurrent if they were all guaranteed to be present at the start of our program: we would have just used an array instead.)
-
-Since these other processes are concurrent and inject `data` molecules at unpredictable times,
-it could happen that the `data` molecules are injected somewhat more slowly than we are consuming them.
-If that happens, there will be a brief interval of time when no `data` molecules are in the soup (although other processes are about to inject some more of them).
-The chemical machine will then run the second reaction, consume the `sum` molecule and print the result, signalling (incorrectly) that the computation is finished.
-Perhaps this failure will _rarely_ happen, -- it unlikely to show up in your unit tests, but at some point it is definitely going to happen in production.
+In reality, the `data(...)` molecules are going to be injected concurrently at unpredictable times.
+(For instance, they could be injected by several other reactions that run concurrently.)
+Then it could happen that the `data(...)` molecules are injected somewhat more slowly than we are consuming them at our reaction site.
+If that happens, there will be a brief interval of time when no `data(...)` molecules are in the soup (although other reactions are perhaps about to inject some more of them).
+The chemical machine will then run the second reaction, consume the `sum(...)` molecule and print the result, signalling (incorrectly) that the computation is finished.
+Perhaps this failure will _rarely_ happen and will not show up in our unit tests, but at some point it is definitely going to happen in production.
 
 This kind of nondeterminism is the prime reason concurrency is widely regarded as a hard programming problem.
 
@@ -477,15 +478,15 @@ Exception: In Site{data + sum => ...; sum => ...}: Unavoidable nondeterminism: r
 ```
 
 The error message means that the reaction `sum => ...` will sometimes prevent `data + sum => ...` from running,
-and the programmer will have no control over this nondeterminism.
+and that the programmer has no control over this nondeterminism.
 
-The correct way of implementing this problem is to keep track of how many `data` molecules we already consumed,
-and to emit `done` when we reach the total expected number of the `data` molecules.
-Since reactions do not have mutable state, the information about the remaining `data` molecules has to be carried on the `sum` molecule.
-So, we will define the `sum` molecule with type `(Int,Int)`, where the second integer will be the number of `data` molecules that remain to be consumed.
+The correct way of implementing this task is to keep track of how many `data(...)` molecules we already consumed,
+and to print the final reasult only when we reach the total expected number of the `data(...)` molecules.
+Since reactions do not have mutable state, the information about the remaining `data(...)` molecules has to be carried on the `sum(...)` molecule.
+So, we will define the `sum(...)` molecule with type `(Int,Int)`, where the second integer will be the number of `data(...)` molecules that remain to be consumed.
 
-The reaction `data + sum` should proceed only when we know that some `data` molecules are still remaining.
-Otherwise, `sum` should start its own reaction and print the final result. 
+The reaction `data + sum` should proceed only when we know that some `data(...)` molecules are still remaining.
+Otherwise, `sum(...)` should start its own reaction and print the final result. 
 
 ```scala
 val data = m[Int]
@@ -499,13 +500,13 @@ sum((0, 3)) // expect "sum = 165" printed
 
 ```
 
-Now are chemical laws are fully deterministic, and no priority needs to be explicitly assigned.
+Now the chemistry is fully deterministic, and no priority needs to be explicitly assigned.
 
 The chemical machine forces the programmer to design the chemistry in such a way that
 the order of running reactions is completely determined by the data on the available molecules.
 
-Another way of maintaining determinism is to remove the reactions that may shadow each other.
-Here is an equivalent solution with just one reaction:
+Another way of maintaining determinism is to avoid writing reactions that might shadow each other.
+Here is equivalent code with just one reaction:
 
 ```scala
 val data = m[Int]
@@ -530,50 +531,62 @@ The chemical machine requires for its description:
 - a list of defined molecules, together with their types;
 - a list of reactions involving these molecules as inputs, together with reaction bodies.
 
-These definitions comprise the chemical laws of a concurrent program.
+These definitions comprise the chemistry of a concurrent program.
 
-The user can define reactions in one or more reaction sites.
-Each reaction site encompasses all reactions that have some _input_ molecules in common.
+The user can define one or more reaction sites, each having one or more reactions.
+We imagine a reaction site to be a virtual place where molecules arrive and wait for other molecules, in order to start reactions with them. 
+For each molecule, there is only one reaction site at which it should go in order to be consumed by some reactions.
+
+For this reason, all reactions that have a common _input_ molecule must be declared at the same reaction site.
 Different reaction sites must have no input molecules in common.
 
-In this way, a complicated system of interacting concurrent processes can be specified through a particular set of chemical laws and reaction bodies.
+In this way, we can specify an arbitrarily complicated system of interacting concurrent processes by defining molecules, reaction sites, and the reactions at each site.
 
-After defining the molecules and specifying the reactions, the user can start the program by injecting some initial molecules into the soup.
+After defining the molecules and specifying the reactions, the user can inject some initial molecules into the soup.
+The chemical machine will start running all the possible reactions and keeping track of the molecules consumed by reactions or injected into the soup.
 
 Let us recapitulate the core ideas of the chemical paradigm of concurrency:
 
 In the chemical machine, there is no mutable global state; all data is immutable and must be carried by some molecules.
-Each of these molecules has a specific chemical designation, such as `a`, `b`, `counter`, and so on.
-These chemical designations are not strings `"a"` or `"b"`; one could imagine writing
-
-```scala
-val a = m[Int]
-val q = a
-
-```
-
-This will copy the molecule injector `a` into another local value `q`.
-However, this does not change the chemical designation of a molecule.
-The injector `q` will inject the same molecules as `a`.
-
-The chemical designation of the molecule specifies two aspects of the concurrent program:
-
-- which other input molecules (besides this one) are required to start a computation;
-- which computation will be performed when all the required input molecules are available.
 
 Each reaction specifies its input molecules, and in this way determines all the data necessary for computing the reaction body.
 The chemical machine will automatically make this data available, since a reaction can start only when all its input molecules are present in the soup.
 
-Each reaction also specifies a reaction body, which is a Scala expression that evaluates to `Unit`.
-This expression can perform arbitrary computations using the input molecule values.
-It can also inject new molecules into the soup, which is a side effect of calling a molecule injector function.
+Each reaction also specifies a reaction body, which is a Scala expression that evaluates to `Any`. (However, the result value of that expression is discarded.)
+The reaction body can perform arbitrary computations using the input molecule values.
+It can also inject new molecules into the soup.
+Injecting a molecule is a side effect of calling a molecule injector, which can be called at any time within a reaction body or in any other code.
 
 Up to this side effect, the reaction body can be a pure function, if it only depends on the input data of the reaction.
 In this case, many copies of the reaction can be safely executed concurrently if many sets of input molecules are available.
-Also, the reaction can be safely and automatically restarted in the case of a transient failure.
+Also, the reaction can be safely and automatically restarted in the case of a transient failure
+by simply injecting the input molecules again.
 
 The chemical laws fully specify which computations need to be performed for the data on the given molecules.
-Whenever multiple sets of data are available, computations will be performed concurrently.
+Whenever multiple sets of data are available, the corresponding computations will be performed concurrently.
+
+### Chemical designations of molecules vs. molecule names vs. local variable names 
+
+Each molecule has a specific chemical designation, such as `sum`, `counter`, and so on.
+These chemical designations are not actually strings `"sum"` or `"counter"`.
+(The names of the local variables and the molecule names are chosen purely for convenience.)
+
+We could define a local alias for a molecule injector, for example like this:
+
+```scala
+val counter = m[Int]
+val q = counter
+
+```
+
+This code will copy the molecule injector `counter` into another local value `q`.
+However, this does not change the chemical designation of the molecule.
+The injector `q` will inject the same molecules as `counter`; that is, molecules injected with `q(...)` will react in the same way and in the same reactions as molecules injected with `counter(...)`.
+
+The chemical designation of the molecule specifies two aspects of the concurrent program:
+
+- the chemical designations of other input molecules (besides this one) required to start a reaction;
+- the computation to be performed when all the required input molecules are available.
 
 # Example: Declarative solution for “dining philosophers"
 
@@ -664,5 +677,6 @@ Spinoza is eating
 
 ```
 
-It is interesting to note that this example code is fully declarative: it describes what the “dining philosophers” simulation must do, and the code is quite close to the English-language description of the problem.
+It is interesting to note that this example code is fully declarative: it describes what the “dining philosophers” simulation must do (but not how to do it),
+and the code is quite close to the English-language description of the problem.
 

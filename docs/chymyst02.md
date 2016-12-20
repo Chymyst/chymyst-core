@@ -3,7 +3,7 @@
 # Blocking vs. non-blocking molecules
 
 So far, we have used molecules whose injection was a non-blocking call:
-Injecting a molecule, such as `a(123)`, immediately returns `Unit` but performs a concurrent side effect (to add a new molecule to the soup).
+Injecting a molecule, such as `a(123)`, immediately returns `Unit` but performs a concurrent side effect (adding a new molecule to the soup).
 Such molecules are called **non-blocking**.
 
 An important feature of the chemical machine is the ability to define **blocking molecules**.
