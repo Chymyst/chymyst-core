@@ -45,7 +45,8 @@ As of December 2016, this page says this about Join Calculus:
 >
 > However, as a language for programming, the join-calculus offers at least one convenience over the π-calculus — namely the use of multi-way join patterns, the ability to match against messages from multiple channels simultaneously.
 
-This text is impossible to understand unless you are already well-versed in the research literature. (What would it mean to have "communication on _undefined_ names"?)
+This text is impossible to understand unless you are already well-versed in the research literature.
+(What does it mean to have "communication on _defined_ names" as opposed to _undefined_ names?)
 
 Research literature on Join Calculus typically uses terms such as "channel" or "message", which are not very helpful for understanding how to write concurrent program.
 
@@ -60,5 +61,5 @@ Here is a dictionary:
 | reaction | process | `val r1 = run { case a(x) + ... => ... }` |
 | injecting an output molecule | sending a message | `a(123)` _// side effect_ |
 | injecting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
-| join definition | join definition | `join(r1, r2, ...)` |
+| reaction site | join definition | `site(r1, r2, ...)` |
 

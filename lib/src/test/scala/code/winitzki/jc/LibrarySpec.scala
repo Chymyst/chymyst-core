@@ -13,7 +13,7 @@ import scala.concurrent.Future
 
 class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(500, Millis)
+  val timeLimit = Span(2000, Millis)
 
   val warmupTimeMs = 50L
 
@@ -29,7 +29,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f = new B[Unit, Unit]("f")
 
     val tp = new FixedPool(2)
-    join(tp)(
+    site(tp)(
       runSimple { case c(_) + f(_, r) => r() }
     )
 
@@ -45,7 +45,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = new M[String]("c")
     val tp = new FixedPool(2)
 
-    join(tp)(
+    site(tp)(
       runSimple { case c(x) => waiter {x shouldEqual "send it off"}; waiter.dismiss() }
     )
 
@@ -66,7 +66,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val f2 = new B[Unit, String]("f2")
 
     val tp = new FixedPool(4)
-    join(tp)(
+    site(tp)(
       runSimple { case e(_) + c(_) => d() },
       runSimple { case c(_) + f(_, r) => r("from c"); c() },
       runSimple { case d(_) + f2(_, r) => r("from d") }
@@ -99,7 +99,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     // "fut" will succeed when "c" is injected
     val (c, fut) = moleculeFuture[String](tp)
 
-    join(tp)(
+    site(tp)(
       runSimple { case b(_) => c("send it off") }
     )
 

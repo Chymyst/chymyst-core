@@ -42,7 +42,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val a = b[Int, Int]
     val d = m[Boolean]
 
-    join(
+    site(
       & { case a(x, r) => d(r(x)) }
     )
   }
@@ -75,11 +75,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val a = m[Int]
     val bb = m[Int]
     val f = b[Unit, Int]
-    join(tp0)(
+    site(tp0)(
       & { case f(_, r) + bb(x) => r(x) },
       & { case a(x) =>
         val p = m[Int]
-        join(tp0)(& { case p(y) => bb(y) })
+        site(tp0)(& { case p(y) => bb(y) })
         p(x + 1)
       }
     )
@@ -92,11 +92,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val a = m[Int]
     val bb = m[Int]
     val f = b[Unit, Int]
-    join(tp0)(
+    site(tp0)(
       runSimple { case f(_, r) + bb(x) => r(x) },
       runSimple { case a(x) =>
         val p = m[Int]
-        join(tp0)(& { case p(y) => bb(y) })
+        site(tp0)(& { case p(y) => bb(y) })
         p(x + 1)
       }
     )
@@ -256,9 +256,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0)(runSimple { case b(_) + a(Some(x)) + c(_) => })
+    site(tp0)(runSimple { case b(_) + a(Some(x)) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b => ...}\nNo molecules" // this is the wrong result
+    a.logSoup shouldEqual "Site{a + b => ...}\nNo molecules" // this is the wrong result
     // when the problem is fixed, this test will have to be rewritten
   }
 
@@ -267,9 +267,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0)(& { case b(_) + a(None) + c(_) => })
+    site(tp0)(& { case b(_) + a(None) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with non-simple default pattern-matching in the middle of reaction" in {
@@ -277,9 +277,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(& { case b(_) + a(List()) + c(_) => })
+    site(& { case b(_) + a(List()) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "fail to define a simple reaction with correct inputs with empty option pattern-matching at start of reaction" in {
@@ -287,9 +287,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0)(runSimple { case a(None) + b(_) + c(_) => })
+    site(tp0)(runSimple { case a(None) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with empty option pattern-matching at start of reaction" in {
@@ -297,9 +297,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0)(& { case a(None) + b(_) + c(_) => })
+    site(tp0)(& { case a(None) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at start of reaction" in {
@@ -307,23 +307,23 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0)(& { case a(Some(x)) + b(_) + c(_) => })
+    site(tp0)(& { case a(Some(x)) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "run reactions correctly with non-default pattern-matching at start of reaction" in {
     val a = new M[Option[Int]]("a")
     val b = new M[Unit]("b")
 
-    join(tp0)(& { case a(Some(x)) + b(_) => })
+    site(tp0)(& { case a(Some(x)) + b(_) => })
 
     a(Some(1))
     waitSome()
-    a.logSoup shouldEqual "Join{a + b => ...}\nMolecules: a(Some(1))"
+    a.logSoup shouldEqual "Site{a + b => ...}\nMolecules: a(Some(1))"
     b()
     waitSome()
-    a.logSoup shouldEqual "Join{a + b => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant non-default pattern-matching at start of reaction" in {
@@ -331,9 +331,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0)(& { case a(1) + b(_) + c(_) => })
+    site(tp0)(& { case a(1) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant default option pattern-matching at start of reaction" in {
@@ -341,9 +341,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    join(tp0)(& { case a(None) + b(_) + c(_) => })
+    site(tp0)(& { case a(None) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "determine input patterns correctly" in {
@@ -484,21 +484,21 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   it should "not fail to compute outputs for an inline reaction" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
-      join(
+      site(
         & { case a(1) => a(1) }
       )
       a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
     }
-    thrown.getMessage shouldEqual "In Join{a => ...}: Unavoidable livelock: reaction a => ..."
+    thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction a => ..."
   }
 
   it should "compute inputs and outputs correctly for an inline nested reaction" in {
     val a = m[Int]
-    join(
+    site(
       & {
         case a(1) =>
           val c = m[Int]
-          join(& { case c(_) => })
+          site(& { case c(_) => })
           c(2)
           a(2)
       }
@@ -512,23 +512,23 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   it should "not fail to compute outputs correctly for an inline nested reaction" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
-      join(
+      site(
         & {
           case a(1) =>
             val c = m[Int]
-            join(& { case c(_) => })
+            site(& { case c(_) => })
             c(2)
             a(1)
         }
       )
     }
-    thrown.getMessage shouldEqual "In Join{a => ...}: Unavoidable livelock: reaction a => ..."
+    thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction a => ..."
   }
 
   it should "compute outputs in the correct order for a reaction with no livelock" in {
     val a = m[Int]
     val b = m[Int]
-    join(
+    site(
       & { case a(2) => b(2) + a(1) + b(1) }
     )
     a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(
@@ -577,7 +577,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val c = m[Unit]
     val d = m[Boolean]
 
-    join(
+    site(
       & { case a(x) + d(_) => c(a(1)) }
     )
 
@@ -598,7 +598,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val c = m[Int]
     val d = m[Boolean]
 
-    join(
+    site(
       & { case d(_) => c(a(1)) },
       & { case a(x, r) => d(r(x)) }
     )

@@ -8,16 +8,15 @@ import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 import collection.mutable
 
 
-/** Represents the join definition, which holds one or more reaction definitions.
-  * At run time, the join definition maintains a bag of currently available molecules
-  * and runs reactions.
+/** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
+  * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
   * The user will never see any instances of this class.
   *
   * @param reactions List of reactions as defined by the user.
   * @param reactionPool The thread pool on which reactions will be scheduled.
-  * @param joinPool The thread pool on which the join definition will decide reactions and manage the molecule bag.
+  * @param sitePool The thread pool on which the reaction site will decide reactions and manage the molecule bag.
   */
-private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool, joinPool: Pool) {
+private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, sitePool: Pool) {
 
   private val (nonSingletonReactions, singletonReactions) = reactions.partition(_.inputMolecules.nonEmpty)
 
@@ -41,7 +40,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     */
   private val singletonValues: ConcurrentMap[Molecule, AbsMolValue[_]] = new ConcurrentHashMap()
 
-  /** Complete information about reactions declared in this join definition.
+  /** Complete information about reactions declared in this reaction site.
     * Singleton-declaring reactions are not included here.
     */
   private[jc] val reactionInfos: Map[Reaction, List[InputMoleculeInfo]] = nonSingletonReactions.map { r => (r, r.info.inputs) }.toMap
@@ -51,11 +50,11 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
 
   private lazy val knownReactions: Seq[Reaction] = reactionInfos.keys.toSeq
 
-  override lazy val toString: String = s"Join{${knownReactions.map(_.toString).sorted.mkString("; ")}}"
+  override lazy val toString: String = s"Site{${knownReactions.map(_.toString).sorted.mkString("; ")}}"
 
-  /** The sha1 hash sum of the entire join definition, computed from sha1 of each reaction.
+  /** The sha1 hash sum of the entire reaction site, computed from sha1 of each reaction.
     * The sha1 hash of each reaction is computed from the Scala syntax tree of the reaction's source code.
-    * The result is implementation-dependent and is guaranteed to be the same only for join definitions compiled from exactly the same source code with the same version of Scala compiler.
+    * The result is implementation-dependent and is guaranteed to be the same only for reaction sites compiled from exactly the same source code with the same version of Scala compiler.
     */
   private lazy val sha1 = getSha1(knownReactions.map(_.info.sha1).sorted.mkString(","))
 
@@ -192,7 +191,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     val (reactionOpt: Option[Reaction], usedInputs: LinearMoleculeBag) =
       synchronized {
         if (m.isSingleton) {
-          if (singletonsDeclared.get(m).isEmpty) throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject singleton $m($molValue) not declared in this join definition")
+          if (singletonsDeclared.get(m).isEmpty) throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject singleton $m($molValue) not declared in this reaction site")
 
           // This thread is allowed to inject this singleton only if it is a ThreadWithInfo and the reaction running on this thread has consumed this singleton.
           val reactionInfoOpt = currentReactionInfo
@@ -215,7 +214,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
           singletonValues.put(m, molValue)
         }
         moleculesPresent.addToBag(m, molValue)
-        if (logLevel > 0) println(s"Debug: $this injecting $m($molValue) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+        if (logLevel > 0) println(s"Debug: $this injecting $m($molValue) on thread pool $sitePool, now have molecules ${moleculeBagToString(moleculesPresent)}")
         val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
         val reaction = possibleReactions.get(m)
           .flatMap(_.shuffle.find(r => {
@@ -239,7 +238,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
         if (poolForReaction.isInactive)
           throw new ExceptionNoReactionPool(s"In $this: cannot run reaction $reaction since reaction pool is not active")
         else if (!Thread.currentThread().isInterrupted)
-          if (logLevel > 1) println(s"Debug: In $this: starting reaction {$reaction} on thread pool $poolForReaction while on thread pool $joinPool with inputs ${moleculeBagToString(usedInputs)}")
+          if (logLevel > 1) println(s"Debug: In $this: starting reaction {$reaction} on thread pool $poolForReaction while on thread pool $sitePool with inputs ${moleculeBagToString(usedInputs)}")
         if (logLevel > 2) println(
           if (moleculesPresent.size == 0)
             s"Debug: In $this: no molecules remaining"
@@ -264,8 +263,8 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
   private var injectingSingletons = false
 
   private[jc] def inject[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
-    if (joinPool.isInactive)
-      throw new ExceptionNoJoinPool(s"In $this: Cannot inject molecule $m($molValue) because join pool is not active")
+    if (sitePool.isInactive)
+      throw new ExceptionNoSitePool(s"In $this: Cannot inject molecule $m($molValue) because join pool is not active")
     else if (!Thread.currentThread().isInterrupted) {
       if (injectingSingletons) {
         // Inject them on the same thread, and do not start any reactions.
@@ -277,7 +276,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
         }
       }
       else
-        joinPool.runClosure(buildInjectClosure(m, molValue), currentReactionInfo.getOrElse(emptyReactionInfo))
+        sitePool.runClosure(buildInjectClosure(m, molValue), currentReactionInfo.getOrElse(emptyReactionInfo))
     }
     ()
   }
@@ -286,7 +285,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
   private def removeBlockingMolecule[T,R](m: B[T,R], blockingMolValue: BlockingMolValue[T,R], hadTimeout: Boolean): Unit = {
     moleculesPresent.synchronized {
       moleculesPresent.removeFromBag(m, blockingMolValue)
-      if (logLevel > 0) println(s"Debug: $this removed $m($blockingMolValue) on thread pool $joinPool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+      if (logLevel > 0) println(s"Debug: $this removed $m($blockingMolValue) on thread pool $sitePool, now have molecules ${moleculeBagToString(moleculesPresent)}")
     }
     blockingMolValue.synchronized {
       blockingMolValue.replyValue.replyTimeout = hadTimeout
@@ -350,18 +349,18 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
 
   private def initializeJoinDef(): (Map[Molecule, Int], WarningsAndErrors) = {
 
-    // Set the owner on all input molecules in this join definition.
+    // Set the owner on all input molecules in this reaction site.
     nonSingletonReactions
       .flatMap(_.inputMolecules)
       .toSet // We only need to assign the owner on each distinct input molecule once.
       .foreach { m: Molecule =>
-      m.joinDef match {
+      m.reactionSiteOpt match {
         case Some(owner) => throw new ExceptionMoleculeAlreadyBound(s"Molecule $m cannot be used as input since it is already bound to $owner")
-        case None => m.joinDef = Some(this)
+        case None => m.reactionSiteOpt = Some(this)
       }
     }
 
-    // Add output reactions to molecules that may be bound to other join definitions later.
+    // Add output reactions to molecules that may be bound to other reaction sites later.
     nonSingletonReactions
       .foreach { r =>
         r.info.outputs.foreach {
@@ -389,7 +388,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
 
     staticDiagnostics.checkWarningsAndErrors()
 
-    // Inject singleton molecules (note: this is on the same thread as the declaration of `join`!).
+    // Inject singleton molecules (note: this is on the same thread as the call to `site`!).
     // This must be done without starting any reactions.
     // It is OK that the argument is `null` because singleton reactions match on the wildcard: { case _ => ... }
     injectingSingletons = true
@@ -409,7 +408,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     (singletonsActuallyInjected, diagnostics)
   }
 
-  // This is run when this Join Definition is first created.
+  // This is run when this ReactionSite is first created.
   val (singletonsInjected, diagnostics) = initializeJoinDef()
 }
 

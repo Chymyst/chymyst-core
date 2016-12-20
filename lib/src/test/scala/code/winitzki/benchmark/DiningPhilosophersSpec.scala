@@ -42,7 +42,7 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
     val done = new M[Unit]("done")
     val check = new B[Unit, Unit]("check")
 
-    join(tp, tp) (
+    site(tp, tp) (
       runSimple { case t1(n) => rw(h1); h1(n - 1) },
       runSimple { case t2(n) => rw(h2); h2(n - 1) },
       runSimple { case t3(n) => rw(h3); h3(n - 1) },
@@ -68,7 +68,7 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
 /*
     val stop = ja[Unit]
     val wait_for_stop = js[Unit,Unit]
-    join( &{ case stop(_) + wait_for_stop(_,r) => r() } )
+    site( &{ case stop(_) + wait_for_stop(_,r) => r() } )
     wait_until_quiet(t1, stop)
     wait_for_stop()
 */

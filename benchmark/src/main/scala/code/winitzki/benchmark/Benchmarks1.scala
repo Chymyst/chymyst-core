@@ -18,7 +18,7 @@ object Benchmarks1 {
     val f = b[LocalDateTime,Long]
 
 
-    join(tp)(
+    site(tp)(
       run { case c(0) + f(tInit, r) =>
         val t = LocalDateTime.now
         r(elapsed(tInit))
@@ -64,7 +64,7 @@ object Benchmarks1 {
     val d = m[Unit]
     val f = b[LocalDateTime,Long]
 
-    join(tp)(
+    site(tp)(
       run { case c(0) + f(tInit, r) => r(elapsed(tInit)) },
       run { case g(_,reply) + c(n) => c(n); reply(n) },
       run { case c(n) + i(_) => c(n+1) },

@@ -34,17 +34,17 @@ class ParallelOrSpec extends FlatSpec with Matchers {
 
     val parallelOr = b[Unit, Boolean]
 
-    join(tp)(
+    site(tp)(
       & { case parallelOr(_, r) + finalResult(x) => r(x) }
     )
 
-    join(tp)(
+    site(tp)(
       & { case result(_) + done(true) => finalResult(true) },
       & { case result(1) + done(false) => finalResult(false) },
       & { case result(0) + done(false) => result(1) }
     )
 
-    join(tp)(
+    site(tp)(
       & { case c(_) => val x = f(); done(x) },
       & { case d(_) => val y = g(); done(y) }
     )
@@ -64,7 +64,7 @@ class ParallelOrSpec extends FlatSpec with Matchers {
 
     val tp = new FixedPool(30)
 
-    join(tp)(
+    site(tp)(
       & {case never(_, r) => r(neverReturn[Boolean])},
       & {case fastTrue(_, r) => Thread.sleep(10); r(true)},
       & {case slowTrue(_, r) => Thread.sleep(200); r(true)},
@@ -107,14 +107,14 @@ class ParallelOrSpec extends FlatSpec with Matchers {
     val res2 = m[Unit]
     val done = m[T]
 
-    join(tp) (
+    site(tp) (
       & { case res1(_) => val x = b1(); done(x) }, // IntelliJ 2016.3 CE insists on `b1(())` here, but scalac is fine with `b1()`.
       & { case res2(_) => val x = b2(); done(x) }
     )
 
-    join(tp)( & { case get(_, r) + done(x) => r(x) })
+    site(tp)( & { case get(_, r) + done(x) => r(x) })
 
-    join(tp)( & { case res(_, r) =>  res1() + res2(); val x = get(); r(x) })
+    site(tp)( & { case res(_, r) =>  res1() + res2(); val x = get(); r(x) })
 
     res
   }
@@ -130,7 +130,7 @@ class ParallelOrSpec extends FlatSpec with Matchers {
 
     val tp = new FixedPool(30)
 
-    join(tp)(
+    site(tp)(
       & {case never(_, r) => r(neverReturn[String])},
       & {case fast(_, r) => Thread.sleep(10); r("fast")},
       & {case slow(_, r) => Thread.sleep(200); r("slow")}

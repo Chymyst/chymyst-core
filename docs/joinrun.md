@@ -8,11 +8,11 @@ Currently, it compiles with Scala 2.11 and Scala 2.12 on Oracle JDK 8.
 
 # Main structures
 
-Join Calculus is implemented using molecule injectors, reactions, and join definitions.
+Join Calculus is implemented using molecule injectors, reactions, and reaction sites.
 
 There are only two primitive operations:
 
-- define reactions by writing a join definition
+- define reactions by writing a reaction site
 - inject molecules by calling molecule injectors with argument values
 
 ## Molecule injectors
@@ -46,7 +46,7 @@ These macros will read the enclosing `val` definition at compile time and substi
 ## Injecting molecules
 
 Molecule injectors inherit from `Function1` and can be used as functions with one argument.
-Calling these functions will perform the side-effect of injecting the molecule into the soup that pertains to the join definition to which the molecule is bound.
+Calling these functions will perform the side-effect of injecting the molecule into the soup that pertains to the reaction site to which the molecule is bound.
 
 ```scala
 ... M[T] extends Function1[T, Unit]
@@ -68,7 +68,7 @@ val result = f(10) // injecting a blocking molecule: "result" is of type String
 
 ```
 
-It is a runtime error to inject molecules that is not yet bound to any join definition.
+It is a runtime error to inject molecules that is not yet bound to any reaction site.
 
 ### Timeout for a blocking molecule
 
@@ -96,7 +96,7 @@ For instance, this happens when the reaction code attempts to execute the reply 
 Molecule injectors have the method `setLogLevel`, which is by default set to 0.
 Positive values will lead to more debugging output.
 
-The log level will affect the entire join definition to which the molecule is bound.
+The log level will affect the entire reaction site to which the molecule is bound.
 
 ```scala
 val x = m[Int]
@@ -104,16 +104,16 @@ x.setLogLevel(2)
 
 ```
 
-The method `logSoup` returns a string that represents the molecules currently present in the join definition to which the molecule is bound.
+The method `logSoup` returns a string that represents the molecules currently present in the reaction site to which the molecule is bound.
 
 ```scala
 val x = m[Int]
-join(...)
+site(...)
 println(x.logSoup)
 
 ```
 
-It is a runtime error to use `setLogLevel` or `logSoup` on molecules that are not yet bound to any join definition.
+It is a runtime error to use `setLogLevel` or `logSoup` on molecules that are not yet bound to any reaction site.
 
 ## Reactions
 
@@ -193,27 +193,27 @@ run { case f(x, _) => ... } // Error: blocking input molecules should not contai
 
 ```
 
-## Join definitions
+## Reaction sites
 
-Join definitions activate molecules and reactions:
-Until a join definition is made, molecules cannot be injected, and no reactions will start.
+Writing a reaction site (RS) will at once activate molecules and reactions:
+Until an RS is written, molecules cannot be injected, and no reactions will start.
 
-Join definitions are made with the `join` method:
+Reaction sites are written with the `site` method:
 
 ```scala
-join(reaction1, reaction2, reaction3, ...)
+site(reaction1, reaction2, reaction3, ...)
 
 ```
 
-A join definition can take any number of reactions.
-With Scala's `:_*` syntax, a join definition can also take a sequence of reactions.
+A reaction site can take any number of reactions.
+With Scala's `:_*` syntax, an RS can also take a sequence of reactions.
 
-All reactions listed in the join definition will be activated at once.
+All reactions listed in the RS will be activated at once.
 
-Whenever we inject any molecule that is used as input to one of these reactions, it is _this_ join definition (and no other) that will decide which reactions to run.
-For this reason, we say that those molecules are "bound" to this join definition, or that they are "consumed" in it, or that they are "input molecules" in this join definition.
+Whenever we inject any molecule that is used as input to one of these reactions, it is _this_ RS (and no other) that will decide which reactions to run.
+For this reason, we say that those molecules are "bound" to this RS, or that they are "consumed" at that RS, or that they are "input molecules" at this RS.
 
-Here is an example of a join definition:
+Here is an example of an RS:
 
 ```scala
 val c = new M[Int]("counter")
@@ -221,28 +221,28 @@ val d = new M[Unit]("decrement")
 val i = new M[Unit]("increment")
 val f = new M[Unit]("finished")
 
-join(
+site(
   run { case c(x) + d(_) => c(x-1); if (x==1) f() },
   run { case c(x) + i(_) => c(x+1) }
 )
 
 ```
 
-In this join definition, the input molecules are `c`, `d`, and `i`, while the output molecules are `c` and `f`.
-We say that the molecules `c`, `d`, and `i` are consumed in this join definition, or that they are bound to it.
+In this RS, the input molecules are `c`, `d`, and `i`, while the output molecules are `c` and `f`.
+We say that the molecules `c`, `d`, and `i` are consumed in this RS, or that they are bound to it.
 
-Note that `f` is not an input molecule here; we will need to write another join definition to which `f` will be bound.
+Note that `f` is not an input molecule here; we will need to write another RS to which `f` will be bound.
 
-It is perfectly acceptable for a reaction to output a molecule such as `f` that is not consumed by any reaction in this join definition.
-However, if we forget to write any other join definition that consumes `f`, it will be a runtime error to inject `f`.
+It is perfectly acceptable for a reaction to output a molecule such as `f` that is not consumed by any reaction in this RS.
+However, if we forget to write any other RS that consumes `f`, it will be a runtime error to inject `f`.
 
 As a warning, note that in the present example the molecule `f` will be injected only if `x==1` (and it is impossible to determine at compile time whether `x==1` will be true at runtime).
-So, if we forget to write a join definition to which `f` is bound, it will be not necessarily easy to detect the error at runtime!
+So, if we forget to write an RS to which `f` is bound, it will be not necessarily easy to detect the error at runtime!
 
-An important requirement for join definitions is that any given molecule must be bound to one and only one join definition.
-It is a runtime error to write reactions consuming the same molecule in different join definitions.
+An important requirement for reaction sites is that any given molecule must be bound to one and only one reaction site.
+It is a runtime error to write reactions consuming the same molecule in different reaction sites.
 
-An example of this error would be writing the previous join definition as two separate ones:
+An example of this error would be writing the previous RS as two separate ones:
 
 ```scala
 val c = new M[Int]("counter")
@@ -250,24 +250,24 @@ val d = new M[Unit]("decrement")
 val i = new M[Unit]("increment")
 val f = new M[Unit]("finished")
 
-join(
+site(
   run { case c(x) + d(_) => c(x-1); if (x==1) f() }
 )
 
-join(
+site(
   run { case c(x) + i(_) => c(x+1) }
-) // runtime error: "c" is already bound to another join definition
+) // runtime error: "c" is already bound to another RS
 
 ```
 
 This rule enforces the immutability of chemical laws:
-Once a join definition is written, we have fixed the reactions that a given molecule could initiate (i.e. the reactions that consume this molecule).
-It is impossible to add a new reaction that consumes a molecule if that molecule is already bound to another join definition.
+Once a reaction site is written, we have fixed the reactions that a given molecule could initiate (i.e. the reactions that consume this molecule).
+It is impossible to add a new reaction that consumes a molecule if that molecule is already bound to another RS.
 
 This feature of Join Calculus allows us to create a library of chemical reactions and guarantee that user programs will not be able to modify the intended flow of reactions.
 
-Also, because of this rule, different join definitions do not contend on input molecules.
-The decisions about which reactions to start are local to each join definition.
+Also, because of this rule, different reaction sites do not contend on input molecules.
+The decisions about which reactions to start are local to each RS.
 
 # Thread pools
 
@@ -275,8 +275,8 @@ There are two kinds of tasks that `JoinRun` performs concurrently:
 - running reactions
 - injecting new molecules and deciding which reactions will run next
 
-Each join definition is a local value and is separate from all other join definitions.
-So, in principle all join definitions can perform their tasks fully concurrently and independently from each other.
+Each RS is a local value and is separate from all other RSs.
+So, in principle all RSs can perform their tasks fully concurrently and independently from each other.
 
 In practice, there are situations where we need to force certain reactions to run on certain threads.
 For example, user interface (UI) programming frameworks typically allocate one thread for all UI-related operations, such as updating the screen or receiving callbacks from user interactions.
@@ -286,11 +286,11 @@ In particular, all screen updates (as well as all user event callbacks) must be 
 
 To facilitate this control, `JoinRun` implements the thread pool feature.
 
-Each join definition uses two thread pools: a thread pool for running reactions (`reactionPool`) and a thread pool for injecting molecules and deciding new reactions (`joinPool`).
+Each RS uses two thread pools: a thread pool for running reactions (`reactionPool`) and a thread pool for injecting molecules and deciding new reactions (`sitePool`).
 
-By default, these two thread pools are statically allocated and shared by all join definitions.
+By default, these two thread pools are statically allocated and shared by all RSs.
 
-Users can create custom thread pools and specify, for any given join definition,
+Users can create custom thread pools and specify, for any given RS,
 - on which thread pool the decisions will run
 - on which thread pool each reaction will run
 
@@ -329,7 +329,7 @@ Example:
 
 ```
 
-Another case when `BlockingIdle` might be useful is when a reaction contains a complicated condition that will block the join decision thread.
+Another case when `BlockingIdle` might be useful is when a reaction contains a complicated condition that will block the RS decision thread.
 In that case, `BlockingIdle` should be used, together with a `SmartPool` for join decisions.
  
 Example:
@@ -337,7 +337,7 @@ Example:
 ```scala
 val pool = new SmartPool(8)
   ...
-join(pool, defaultReactionPool)(
+site(pool, defaultReactionPool)(
   run { case a(url) if BlockingIdle{ callSyncHttpApi(url).isSuccessful } => ...}
 )
 
@@ -362,7 +362,7 @@ input molecules being consumed and lost.
 The following syntax is used to specify fault tolerance in reactions:
 
 ```scala
-join(
+site(
   run { case a(x) + b(y) => ... }.withRetry, // will be retried
   run { case c(z) => ...} // will not be retried - this is the default
 )
@@ -386,17 +386,17 @@ At the moment, this can happen with `scalatest` with code like this:
 
 ```scala
 val x = m[Int]
-join( & { case x(_) => } ) shouldEqual ()
+site( & { case x(_) => } ) shouldEqual ()
 
 ```
 
 The error "Could not find proxy for value x" is generated during macro expansion.
 
-A workaround is to assign a separate value to the join definition result, and apply `shouldEqual` to that value:
+A workaround is to assign a separate value to the reaction site result, and apply `shouldEqual` to that value:
 
 ```scala
 val x = m[Int]
-val result = join( & { case x(_) => } )
+val result = site( & { case x(_) => } )
 result shouldEqual ()
 
 ```
@@ -458,26 +458,26 @@ Version 0.5: Investigate an implicit distributed execution of chemical reactions
 
  4 * 5 - implement multiple injection construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. Implement starting many reactions concurrently at once, rather than one by one.
  
- 4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same join definition, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on join definition information gleaned using a macro.
+ 4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same reaction site, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on reaction site information gleaned using a macro.
 
  4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
 
- 3 * 3 - add logging of reactions currently in progress at a given JD. (Need a custom thread class, or a registry of reactions?)
+ 3 * 3 - add logging of reactions currently in progress at a given RS. (Need a custom thread class, or a registry of reactions?)
 
  2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
 
  2 * 2 - maybe remove default pools altogether? It seems that every pool needs to be stopped.
 
- 3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is injected from a thread T and the corresponding join definition runs on the same thread T, do not schedule a task but simply run the join definition synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a join definition that runs on thread T and the reaction is configured to run on the same thread, do not schedule a task but simply run the reaction synchronously.
+ 3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is injected from a thread T and the corresponding reaction site runs on the same thread T, do not schedule a task but simply run the reaction site synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a reaction site that runs on thread T and the reaction is configured to run on the same thread, do not schedule a task but simply run the reaction synchronously.
 
- 5 * 5 - is it possible to implement distributed execution by sharing the join pool with another machine (but running the join definitions only on the master node)?
+ 5 * 5 - is it possible to implement distributed execution by sharing the join pool with another machine (but running the reaction sites only on the master node)?
 
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic.
 
  3 * 5 - Can we implement JoinRun using Future / Promise and remove all blocking and all semaphores?
 
- 2 * 2 - Detect this condition at the join definition time:
- A cycle of input molecules being subset of output molecules, possibly spanning several join definitions (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
+ 2 * 2 - Detect this condition at the reaction site time:
+ A cycle of input molecules being subset of output molecules, possibly spanning several reaction sites (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
 
  2 * 3 - understand the "reader-writer" example; implement it as a unit test
 

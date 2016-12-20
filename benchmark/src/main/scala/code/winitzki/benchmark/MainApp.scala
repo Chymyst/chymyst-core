@@ -5,7 +5,7 @@ import code.winitzki.benchmark.Benchmarks4._
 import code.winitzki.benchmark.Benchmarks7._
 import code.winitzki.benchmark.Benchmarks9._
 import code.winitzki.jc.{FixedPool, Pool}
-import code.winitzki.jc.JoinRun.{defaultJoinPool, defaultReactionPool}
+import code.winitzki.jc.JoinRun.{defaultSitePool, defaultReactionPool}
 
 object MainAppConfig {
 
@@ -65,7 +65,7 @@ object MainApp extends App {
     }} ms ($message)")
   }
 
-  defaultJoinPool.shutdownNow()
+  defaultSitePool.shutdownNow()
   defaultReactionPool.shutdownNow()
 
 }

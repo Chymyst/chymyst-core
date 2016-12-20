@@ -18,12 +18,12 @@ class ShutdownSpec extends FlatSpec with Matchers {
     pool2.shutdownNow()
 
     val x = m[Unit]
-    join(pool,pool2)(runSimple{ case x(()) => })
+    site(pool,pool2)(runSimple{ case x(()) => })
 
     val thrown = intercept[Exception] {
       x()
     }
-    thrown.getMessage shouldEqual "In Join{x => ...}: Cannot inject molecule x() because join pool is not active"
+    thrown.getMessage shouldEqual "In Site{x => ...}: Cannot inject molecule x() because join pool is not active"
     pool.shutdownNow()
   }
 
@@ -34,7 +34,7 @@ class ShutdownSpec extends FlatSpec with Matchers {
     pool.shutdownNow()
 
     val x = m[Unit]
-    join(pool,pool2)(runSimple{ case x(()) => })
+    site(pool,pool2)(runSimple{ case x(()) => })
 
     x()
 
@@ -43,15 +43,15 @@ class ShutdownSpec extends FlatSpec with Matchers {
 
   it should "fail to schedule reactions after shutdown of default thread pools" in {
 
-    defaultJoinPool.shutdownNow()
+    defaultSitePool.shutdownNow()
     defaultReactionPool.shutdownNow()
 
     val x = m[Unit]
-    join(runSimple{ case x(()) => })
+    site(runSimple{ case x(()) => })
 
     val thrown = intercept[Exception] {
       x()
     }
-    thrown.getMessage shouldEqual "In Join{x => ...}: Cannot inject molecule x() because join pool is not active"
+    thrown.getMessage shouldEqual "In Site{x => ...}: Cannot inject molecule x() because join pool is not active"
   }
 }
