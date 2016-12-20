@@ -65,7 +65,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     val c = new M[Unit]("c")
 
     site(tp0)(runSimple { case a(_) + b(_) + c(_) => })
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
 
   }
 
@@ -78,16 +78,16 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     site(tp0)(
       runSimple { case a(_) + b(_) + c(_) + f(_, r) => r() }
     )
-    a.logSoup shouldEqual "Join{a + b + c + f/B => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c + f/B => ...}\nNo molecules"
 
     a()
     a()
     b()
     Thread.sleep(400)
-    a.logSoup shouldEqual "Join{a + b + c + f/B => ...}\nMolecules: a() * 2, b()"
+    a.logSoup shouldEqual "Site{a + b + c + f/B => ...}\nMolecules: a() * 2, b()"
     c()
     f()
-    a.logSoup shouldEqual "Join{a + b + c + f/B => ...}\nMolecules: a()"
+    a.logSoup shouldEqual "Site{a + b + c + f/B => ...}\nMolecules: a()"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at end of reaction" in {
@@ -97,7 +97,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
 
     site(runSimple { case b(_) + c(_) + a(Some(x)) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with zero default pattern-matching at start of reaction" in {
@@ -107,7 +107,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
 
     site(runSimple { case a(0) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant non-default pattern-matching at end of reaction" in {
@@ -117,7 +117,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
 
     site(runSimple { case b(_) + c(_) + a(1) => })
 
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "start a simple reaction with one input, defining the injector explicitly" in {
@@ -190,7 +190,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
       site( runSimple { case a(_,_) => () })
       site( runSimple { case a(_,_) => () })
     }
-    thrown.getMessage shouldEqual "Molecule a/B cannot be used as input since it is already bound to Join{a/B => ...}"
+    thrown.getMessage shouldEqual "Molecule a/B cannot be used as input since it is already bound to Site{a/B => ...}"
   }
 
   it should "throw exception when join pattern attempts to redefine a non-blocking molecule" in {
@@ -200,7 +200,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
       site( runSimple { case a(_) + b(_) => () })
       site( runSimple { case a(_) => () })
     }
-    thrown.getMessage shouldEqual "Molecule x cannot be used as input since it is already bound to Join{x + y => ...}"
+    thrown.getMessage shouldEqual "Molecule x cannot be used as input since it is already bound to Site{x + y => ...}"
   }
 
   it should "throw exception when trying to inject a blocking molecule that has no join" in {

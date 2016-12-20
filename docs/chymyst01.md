@@ -110,7 +110,7 @@ This is how the chemical machine achieves safe and automatic concurrency in a pu
 ## The syntax of `JoinRun`
 
 So far, we have been using a kind of chemistry-resembling pseudocode to illustrate the structure of reactions in `JoinRun`.
-The actual syntax of `JoinRun` is only a little more verbose than that pseudocode:
+This pseudocode was designed to prepare us for the actual syntax of `JoinRun`, which is only a little more verbose:
 
 ```scala
 import code.winitzki.jc.JoinRun._
@@ -130,16 +130,16 @@ site(
 
 ```
 
-The helper functions `m`, `join`, and `run` are defined in the `JoinRun` library.
+The helper functions `m`, `site`, and `run` are defined in the `JoinRun` library.
 
+The `site` call will declare a **reaction site**, which can be visualized as a place where molecules gather and wait for their reaction partners.
 We will talk later in more detail about reaction sites.
-For now, think of 
 
 ## Example: Concurrent counter
 
-We already know enough to start implementing a first concurrent program.
+We already know enough to start implementing our first concurrent program!
 
-Suppose we need to maintain a counter with an integer value, which can be incremented or decremented by non-blocking concurrent requests.
+The task at hand is to maintain a counter with an integer value, which can be incremented or decremented by non-blocking concurrent requests.
 (For example, we would like to be able to increment and decrement the counter from different processes running at the same time.)
 
 To implement this in `JoinRun`, we begin by deciding which molecules we will need to define.
@@ -180,11 +180,12 @@ The `incr` and `decr` molecules will be likewise consumed.
 
 ![Reaction diagram counter(n) + incr => counter(n+1) etc.](http://winitzki.github.io/joinrun-scala/counter-incr-decr.svg)
 
-It is important to note that the two reactions need to be defined together in a single call to `join`.
-The reason is that both reactions contend on the same input molecule `counter`.
+In `JoinRun`, a reaction site is created by the call to `site(...)`, which can contain one or several reactions.
 
-This construction -- defining several reactions together -- is called a **reaction site** and is written using the library function `join`.
-In `JoinRun`, all reactions that consume a given input molecule must be included in a single reaction site.
+In our example, both reactions `counter + incr => ...` and `counter + decr => ...` need the molecule `counter` as part of their input.
+In order for any of these reactions to start, the molecule `counter` needs to be present at some reaction site,
+and thus the `incr` and `decr` molecules must be present at the _same_ reaction site (otherwise they can't get together with `counter` to start a reaction).
+For this reason, both reactions need to be defined _together_ in a single reaction site.
 
 After defining the molecules and their reactions, we can start injecting new molecules into the soup:
 
@@ -202,10 +203,10 @@ It could happen that we are injecting `incr()` and `decr()` molecules too quickl
 This will result in many instances of `incr()` or `decr()` molecules being present in the soup, waiting to be consumed.
 Is this a problem?
 
-Recall that when the chemical machine starts a reaction, all input molecules are consumed first, and then the reaction body is evaluated.
+Recall that when the chemical machine starts a reaction, all input molecules are consumed first, and only then the reaction body is evaluated.
 In our case, each reaction needs to consume a `counter` molecule, but only one instance of `counter` molecule is initially present in the soup.
 For this reason, the chemical machine will need to choose whether the single `counter` molecule will react with an `incr` or a `decr` molecule.
-Only when the incrementing or the decrementing calculation is finished, the new instance of the `counter` molecule will be injected into the soup.
+Only when the incrementing or the decrementing calculation is finished, the new instance of the `counter` molecule (with the updated integer value) will be injected into the soup.
 This automatically prevents race conditions with the counter: There is no possibility of updating the counter value simultaneously from different reactions.
 
 ## Tracing the output
@@ -255,14 +256,14 @@ After executing the code from the example above, here is how we could use this d
 
 ```
 > println(counter.logSoup)
-Join{counter + decr => ...; counter + incr => ...}
+Site{counter + decr => ...; counter + incr => ...}
 Molecules: counter(98)
 
 ```
 
 The debug output gives us two pieces of information:
 
-1. The JD which is being logged: `Join{counter + decr => ...; counter + incr => ...}`
+1. The JD which is being logged: `Site{counter + decr => ...; counter + incr => ...}`
 Note that the JD is identified by the reactions that are defined in it. The reactions are shown in a shorthand notation, by listing only the input molecules.
 
 2. The molecules that are currently waiting in the soup belonging to that JD, namely `Molecules: counter(98)`.
@@ -348,7 +349,7 @@ val b = m[Unit]
 site( run { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this JD.
 
 site( run { case x(n) + b(_) => println(s"have x($n) + b") } )
-// java.lang.Exception: Molecule x cannot be used as input since it is already bound to Join{a + x => ...}
+// java.lang.Exception: Molecule x cannot be used as input since it is already bound to Site{a + x => ...}
 
 ```
 
@@ -468,7 +469,7 @@ site (
 ```
 
 ```
-Exception: In Join{data + sum => ...; sum => ...}: Unavoidable nondeterminism: reaction data + sum => ... is shadowed by sum => ...
+Exception: In Site{data + sum => ...; sum => ...}: Unavoidable nondeterminism: reaction data + sum => ... is shadowed by sum => ...
 
 ```
 

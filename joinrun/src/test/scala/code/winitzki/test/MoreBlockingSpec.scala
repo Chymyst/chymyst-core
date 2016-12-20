@@ -93,16 +93,16 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       & { case f(_, r) + a(x) => r(x); a(0) }
     )
     a.setLogLevel(4)
-    a.logSoup shouldEqual "Join{a + f/B => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
     f(timeout = 100 millis)() shouldEqual None
     // there should be no a(0) now, because the reaction has not yet run ("f" timed out and was withdrawn, so no molecules)
-    a.logSoup shouldEqual "Join{a + f/B => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
     a(123)
     // there still should be no a(0), because the reaction did not run (have "a" but no "f")
     f() shouldEqual 123
     // now there should be a(0) because the reaction has run
     Thread.sleep(150)
-    a.logSoup shouldEqual "Join{a + f/B => ...}\nMolecules: a(0)"
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(0)"
 
     tp.shutdownNow()
   }
@@ -121,15 +121,15 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       & { case g(_, r) + a(x) => r(x) }
     )
 
-    a.logSoup shouldEqual "Join{a + g/B => ...; f/B => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + g/B => ...; f/B => ...}\nNo molecules"
     f(timeout = 300 millis)() shouldEqual None // this times out because the f => ... reaction is blocked by g(), which is waiting for a()
-    a.logSoup shouldEqual "Join{a + g/B => ...; f/B => ...}\nMolecules: g/B()" // f() should have been removed but g() remains
+    a.logSoup shouldEqual "Site{a + g/B => ...; f/B => ...}\nMolecules: g/B()" // f() should have been removed but g() remains
     a(123) // Now g() starts reacting with a() and unblocks the "f" reaction, which should try to reply to "f" after "f" timed out.
     // The attempt to reply to "f" should fail, which is indicated by returning "false" from "r(x)". This is verified by the "waiter".
     Thread.sleep(50)
     waiter.await()
     tp.shutdownNow()
-    a.logSoup shouldEqual "Join{a + g/B => ...; f/B => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + g/B => ...; f/B => ...}\nNo molecules"
   }
 
   it should "correctly handle multiple blocking molecules of the same sort" in {
