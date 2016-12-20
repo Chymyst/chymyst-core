@@ -5,10 +5,11 @@ import Macros.{getName, rawTree, m,b, run => &}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt
+import scala.language.postfixOps
 
 class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
-  val warmupTimeMs = 50
+  val warmupTimeMs = 50L
 
   var tp0: Pool = _
 

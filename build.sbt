@@ -23,16 +23,16 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   resolvers += "Typesafe releases" at "http://repo.typesafe.com/typesafe/releases",
 
   scalacOptions ++= Seq( // https://tpolecat.github.io/2014/04/11/scalac-flags.html
-    "-deprecation",
+//    "-deprecation",
+    "-unchecked",
     "-encoding", "UTF-8", // yes, this is 2 args
     "-feature",
     "-language:existentials",
     "-language:higherKinds",
     "-language:implicitConversions",
-    "-unchecked",
     // "-Xfatal-warnings",
     "-Xlint",
-    "-Yno-adapted-args", // Makes Reaction JoinRun.object + fail
+//    "-Yno-adapted-args", // Makes calling a() fail to substitute a Unit argument into a.apply(x: Unit)
     "-Ywarn-dead-code", // N.B. doesn't work well with the ??? hole
     "-Ywarn-numeric-widen",
     "-Ywarn-value-discard",

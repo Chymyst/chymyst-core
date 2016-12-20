@@ -48,8 +48,8 @@ class SmartPool(parallelism: Int) extends Pool {
   private val queue = new LinkedBlockingQueue[Runnable](maxQueueCapacity)
 
   val initialThreads: Int = parallelism
-  val secondsToRecycleThread = 1
-  val shutdownWaitTimeMs = 200
+  val secondsToRecycleThread = 1L
+  val shutdownWaitTimeMs = 200L
 
   private val executor = new ThreadPoolExecutor(initialThreads, parallelism, secondsToRecycleThread, TimeUnit.SECONDS, queue, newThreadFactory)
 
@@ -61,12 +61,14 @@ class SmartPool(parallelism: Int) extends Pool {
       executor.shutdownNow()
       executor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
       executor.shutdownNow()
-
+      ()
     }
-  }
+  }.run()
 
-  override def runClosure(closure: => Unit, info: ReactionInfo): Unit =
+  override def runClosure(closure: => Unit, info: ReactionInfo): Unit = {
     executor.submit(new RunnableWithInfo(closure, info))
+    ()
+  }
 
   override def isInactive: Boolean = executor.isShutdown || executor.isTerminated
 }
