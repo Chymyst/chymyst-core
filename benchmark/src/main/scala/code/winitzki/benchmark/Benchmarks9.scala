@@ -15,7 +15,7 @@ object Benchmarks9 {
     val c = m[Int]
     val d = b[Unit, Unit]
 
-    join(tp)(
+    site(tp)(
       run { case c(0) => done() },
       run { case c(n) + d(_, r) if n > 0 => c(n - 1); r() }
     )
@@ -32,7 +32,7 @@ object Benchmarks9 {
     val f = b[LocalDateTime,Long]
 
 
-    join(tp)(
+    site(tp)(
       run { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
       run { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
     )
@@ -52,7 +52,7 @@ object Benchmarks9 {
     val d = b[Int, Int]
     val e = b[Int, Int]
 
-    join(tp)(
+    site(tp)(
       run { case c(_) + d(n, reply) => if (n > 0) {
         c()
         e(n-1)
@@ -88,7 +88,7 @@ object Benchmarks9 {
 
     val tp = new SmartPool(MainAppConfig.threads) // this benchmark will not work with a fixed pool
 
-    join(tp)(
+    site(tp)(
       run { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
       run { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
     )
@@ -115,7 +115,7 @@ object Benchmarks9 {
     val f = b[Unit, Int]
     val get = b[Unit, Int]
 
-    join(tp)(
+    site(tp)(
       run { case f(_, reply) => a(reply(123)) },
       run { case a(x) + collect(n) => collect(n + (if (x) 0 else 1)) },
       run { case collect(n) + get(_, reply) => reply(n) }

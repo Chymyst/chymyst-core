@@ -31,7 +31,7 @@ object Benchmarks4 {
             run { case a(m) => b(m) }
         }
       )
-      join(tp)(jrs: _*)
+      site(tp)(jrs: _*)
       as(0)(count)
       g
     }

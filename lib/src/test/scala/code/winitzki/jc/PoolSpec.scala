@@ -48,7 +48,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
       val waiter = new Waiter
       val a = new M[Unit]("a")
 
-      join(tp)(
+      site(tp)(
         runSimple { case a(_) =>
           val reactionInfo = Thread.currentThread match {
             case t: ThreadWithInfo => t.reactionInfo
