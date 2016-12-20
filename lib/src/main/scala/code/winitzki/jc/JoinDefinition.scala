@@ -85,6 +85,11 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
 //    moleculesAndValues.foreach{ case (m, v) => m(v) }
   }
 
+  private sealed trait ReactionExitStatus
+  private case object ReactionExitSuccess extends ReactionExitStatus
+  private case object ReactionExitFailure extends ReactionExitStatus
+  private case object ReactionExitRetryFailure extends ReactionExitStatus
+
   /** This closure will be run on the reaction thread pool to start a new reaction.
     *
     * @param reaction Reaction to run.
@@ -92,9 +97,10 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     */
   private def buildReactionClosure(reaction: Reaction, usedInputs: LinearMoleculeBag): Unit = {
     if (logLevel > 1) println(s"Debug: In $this: reaction {$reaction} started on thread pool $reactionPool with thread id ${Thread.currentThread().getId}")
-    try {
+    val exitStatus : ReactionExitStatus = try {
       // Here we actually apply the reaction body to its input molecules.
       reaction.body.apply(UnapplyRun(usedInputs))
+      ReactionExitSuccess
     } catch {
       // Various exceptions that occurred while running the reaction.
       case e: ExceptionInJoinRun =>
@@ -102,24 +108,23 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
         // We should not try to recover from this; it is most either an error on user's part
         // or a bug in JoinRun.
         reportError(s"In $this: Reaction {$reaction} produced an exception that is internal to JoinRun. Input molecules ${moleculeBagToString(usedInputs)} were not injected again. Message: ${e.getMessage}")
-      // Let's not print it, and let's not throw it again, since it's our internal exception.
-      //                e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
-      //                throw e
+        // Let's not print it, and let's not throw it again, since it's our internal exception.
+        //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
+        //        throw e
+        ReactionExitFailure
 
       case e: Exception =>
         // Running the reaction body produced an exception. Note that the exception has killed a thread.
-        // We will now re-insert the input molecules. Hopefully, no side-effects or output molecules were produced so far.
-        val aboutMolecules = if (reaction.retry) {
-          usedInputs.foreach {
-            case (mol: M[_], v) => inject(mol, v)
-            case (mol: B[_, _], v) => () // Do not re-inject blocking molecules - the reply action will be still usable when the reaction re-runs.
-          }
-          "were injected again"
+        // We will now re-insert the input molecules (except the blocking ones). Hopefully, no side-effects or output molecules were produced so far.
+        val (status, aboutMolecules) = if (reaction.retry) {
+          usedInputs.foreach { case (mol, v) => inject(mol, v) }
+          (ReactionExitRetryFailure, "were injected again")
         }
-        else "were consumed and not injected again"
+        else (ReactionExitFailure, "were consumed and not injected again")
 
         reportError(s"In $this: Reaction {$reaction} produced an exception. Input molecules ${moleculeBagToString(usedInputs)} $aboutMolecules. Message: ${e.getMessage}")
-//        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
+        //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message. Let's not print this.
+        status
     }
 
     // Now that the reaction is finished, we inspect the results.
@@ -141,8 +146,11 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     val messageMultipleReply = blockingMoleculesWithMultipleReply map { s => s"Error: In $this: Reaction {$reaction} replied to $s more than once" }
 
     // We will report all errors to each blocking molecule.
+    // However, if the reaction failed with retry, we don't yet need to release semaphores and don't need to report errors due to missing reply.
+    val notFailedWithRetry = exitStatus != ReactionExitRetryFailure
     val errorMessage = Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
-    val haveErrorsWithBlockingMolecules = blockingMoleculesWithNoReply.nonEmpty || blockingMoleculesWithMultipleReply.nonEmpty
+    val haveErrorsWithBlockingMolecules =
+      (blockingMoleculesWithNoReply.nonEmpty && notFailedWithRetry)|| blockingMoleculesWithMultipleReply.nonEmpty
 
     // Insert error messages into the reply wrappers and release all semaphores.
     usedInputs.foreach {
@@ -150,7 +158,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
         if (haveErrorsWithBlockingMolecules) {
           replyValue.errorMessage = Some(errorMessage)
         }
-        replyValue.releaseSemaphore()
+        if (notFailedWithRetry) replyValue.releaseSemaphore()
 
       case _ => ()
     }
@@ -224,7 +232,6 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
         // A basic check that we are using our mutable structures safely. We should never see this error.
         if (!reaction.inputMolecules.toSet.equals(usedInputs.keySet)) {
           val message = s"Internal error: In $this: attempt to start reaction {$reaction} with incorrect inputs ${moleculeBagToString(usedInputs)}"
-          println(message)
           throw new ExceptionWrongInputs(message)
         }
         // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
@@ -266,7 +273,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
           moleculesPresent.addToBag(m, molValue)
           singletonValues.put(m, molValue)
         } else {
-          throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject molecule $m($molValue) because it is not a singleton")
+          throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject molecule $m($molValue) as a singleton (must be a non-blocking molecule)")
         }
       }
       else
@@ -335,7 +342,7 @@ private final class JoinDefinition(reactions: Seq[Reaction], reactionPool: Pool,
     if (m.isSingleton) {
       if (singletonValues.containsKey(m)) {
         singletonValues.get(m).asInstanceOf[AbsMolValue[T]].getValue
-      } else throw new Exception(s"The volatile reader for singleton ($m) is not yet ready")
+      } else throw new Exception(s"Internal error: In $this: The volatile reader for singleton ($m) is not yet ready")
     }
     else
       throw new ExceptionNoSingleton(s"In $this: volatile reader requested for non-singleton ($m)")

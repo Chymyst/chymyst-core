@@ -355,4 +355,33 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     result shouldEqual Some(())
   }
 
+  it should "resume fault-tolerant reactions that contain blocking molecules" in {
+    val n = 20
+
+    val probabilityOfCrash = 0.5
+
+    val c = new M[Int]("counter")
+    val d = new B[Unit, Unit]("decrement")
+    val g = new B[Unit, Unit]("getValue")
+    val tp = new FixedPool(2)
+
+    join(tp0)(
+      runSimple  { case c(x) + d(_, r) =>
+        if (scala.util.Random.nextDouble >= probabilityOfCrash) { c(x - 1); r() } else throw new Exception("crash! (it's OK, ignore this)")
+      }.withRetry onThreads tp,
+      runSimple  { case c(0) + g(_, r) => r() }
+    )
+    c(n)
+    (1 to n).foreach { _ =>
+      if (d(timeout = 1500 millis)().isEmpty) {
+        println(JoinRun.errors.toList) // this should not happen, but will be helpful for debugging
+      }
+    }
+
+    val result = g(timeout = 1500 millis)()
+    JoinRun.errors.exists(_.contains("Message: crash! (it's OK, ignore this)"))
+    tp.shutdownNow()
+    result shouldEqual Some(())
+  }
+
 }
