@@ -568,7 +568,7 @@ object JoinRun {
   /** Type alias for reaction body.
     *
     */
-  private[jc] type ReactionBody = PartialFunction[UnapplyArg, Unit]
+  private[jc] type ReactionBody = PartialFunction[UnapplyArg, Any]
 
   def join(rs: Reaction*): WarningsAndErrors = join(defaultReactionPool, defaultJoinPool)(rs: _*)
   def join(reactionPool: Pool)(rs: Reaction*): WarningsAndErrors = join(reactionPool, reactionPool)(rs: _*)
