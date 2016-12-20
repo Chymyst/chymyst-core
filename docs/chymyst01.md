@@ -471,9 +471,7 @@ site (
   run { case data(x) + sum(y) => sum(x+y) },
   run { case sum(x) => println(s"sum = $x") }
 )
-```
 
-```
 Exception: In Site{data + sum => ...; sum => ...}: Unavoidable nondeterminism: reaction data + sum => ... is shadowed by sum => ...
 
 ```
@@ -582,7 +580,7 @@ Whenever multiple sets of data are available, computations will be performed con
 The ["dining philosophers problem"](https://en.wikipedia.org/wiki/Dining_philosophers_problem) is to run a simulation of five philosophers who take turns eating and thinking.
 Each philosopher needs two forks to start eating, and every pair of neighbor philosophers shares a fork.
 
-![Five dining philosophers](An_illustration_of_the_dining_philosophers_problem.png)
+![Five dining philosophers](An_illustration_of_the_dining_philosophers_problem.png | width=400)
 
 The simplest solution of the “dining philosophers” problem is achieved using a molecule for each fork and two molecules per philosopher: one representing a thinking philosopher and the other representing a hungry philosopher.
 
