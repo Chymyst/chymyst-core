@@ -2,14 +2,17 @@ package code.winitzki.jc
 
 import JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.concurrent.Waiters.Waiter
+import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+
 import scala.concurrent.duration._
 
 class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
   var tp0: Pool = _
+
+  implicit val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
   override def beforeEach(): Unit = {
     tp0 = new FixedPool(4)
@@ -40,7 +43,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     b.isBound shouldEqual false
     c.isBound shouldEqual false
 
-    join(tp0)(runSimple { case a(_) + c(_) => b() })
+    join(runSimple { case a(_) + c(_) => b() })
 
     a.isBound shouldEqual true
     b.isBound shouldEqual false
@@ -63,12 +66,27 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     join(tp0)(runSimple { case a(_) + b(_) + c(_) => })
     a.logSoup shouldEqual "Join{a + b + c => ...}\nNo molecules"
 
+  }
+
+  it should "correctly list molecules present in soup" in {
+    val a = new M[Unit]("a")
+    val b = new M[Unit]("b")
+    val c = new M[Unit]("c")
+    val f = new B[Unit, Unit]("f")
+
+    join(tp0)(
+      runSimple { case a(_) + b(_) + c(_) + f(_, r) => r() }
+    )
+    a.logSoup shouldEqual "Join{a + b + c + f/B => ...}\nNo molecules"
+
     a()
     a()
     b()
-    waitSome()
-    waitSome()
-    a.logSoup shouldEqual "Join{a + b + c => ...}\nMolecules: a() * 2, b()"
+    Thread.sleep(400)
+    a.logSoup shouldEqual "Join{a + b + c + f/B => ...}\nMolecules: a() * 2, b()"
+    c()
+    f()
+    a.logSoup shouldEqual "Join{a + b + c + f/B => ...}\nMolecules: a()"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at end of reaction" in {
@@ -151,8 +169,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
   it should "throw exception when join pattern is nonlinear" in {
     val thrown = intercept[Exception] {
       val a = new M[Unit]("a")
-      join(tp0)( runSimple { case a(_) + a(_) => () })
-      a()
+      join( runSimple { case a(_) + a(_) => () })
     }
     thrown.getMessage shouldEqual "Nonlinear pattern: a used twice"
 
@@ -161,8 +178,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
   it should "throw exception when join pattern is nonlinear, with blocking molecule" in {
     val thrown = intercept[Exception] {
       val a = new B[Unit,Unit]("a")
-      join(tp0)( runSimple { case a(_,r) + a(_,s) => () })
-      a()
+      join( runSimple { case a(_,r) + a(_,s) => () })
     }
     thrown.getMessage shouldEqual "Nonlinear pattern: a/B used twice"
   }
@@ -227,7 +243,6 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     join(tp0)( runSimple { case a(x) + b(0) => a(x+1) }, runSimple { case a(z) + f(_, r) => r(z) })
     a(1)
     b(2)
-    waitSome()
     f() shouldEqual 1
   }
 
