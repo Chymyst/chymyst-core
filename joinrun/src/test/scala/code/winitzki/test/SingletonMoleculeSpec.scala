@@ -206,6 +206,27 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
+  it should "refuse to define a blocking molecule as a singleton" in {
+
+    val tp = new FixedPool(1)
+
+    val c = m[Int]
+    val d = m[Int]
+    val f = b[Unit, Unit]
+
+    val thrown = intercept[Exception] {
+      join(tp)(
+        & { case f(_, r) => r() },
+        & { case c(x) + d(_) => d(x) },
+        & { case _ => f(); d(0) }
+      )
+    }
+
+    thrown.getMessage shouldEqual "In Join{c + d => ...; f/B => ...}: Refusing to inject molecule f/B() as a singleton (must be a non-blocking molecule)"
+
+    tp.shutdownNow()
+  }
+
   it should "report that the value of a singleton is ready even if called early" in {
 
     val tp = new FixedPool(1)

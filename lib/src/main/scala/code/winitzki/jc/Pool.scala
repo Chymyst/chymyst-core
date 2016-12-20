@@ -25,7 +25,6 @@ trait Pool {
 
   def runClosure(closure: => Unit, info: ReactionInfo): Unit
 
-  def isActive: Boolean = !isInactive
   def isInactive: Boolean
 
   def canMakeThreads: Boolean = true
