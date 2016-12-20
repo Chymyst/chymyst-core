@@ -13,8 +13,6 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
-  val dummyInfo = emptyReactionInfo
-
   behavior of "thread with info"
 
   def checkPool(tp: Pool): Unit = {
@@ -25,10 +23,10 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
         case t : ThreadWithInfo => Some(t.reactionInfo)
         case _ => None
       }
-      waiter { threadInfoOptOpt shouldEqual Some(Some(dummyInfo)) }
+      waiter { threadInfoOptOpt shouldEqual Some(Some(emptyReactionInfo)) }
       waiter.dismiss()
 
-    }, dummyInfo)
+    }, emptyReactionInfo)
 
     waiter.await()(patienceConfig, implicitly[Position])
   }
@@ -88,7 +86,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
       } catch {
         case e: InterruptedException => ()
       }
-    }, dummyInfo)
+    }, emptyReactionInfo)
 
     waiter.await()(patienceConfig, implicitly[Position])
 
@@ -110,7 +108,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
           other.printStackTrace()
           waiter { false shouldEqual true }
       }
-    }, dummyInfo)
+    }, emptyReactionInfo)
     Thread.sleep(20)
 
     tp.shutdownNow()
@@ -134,7 +132,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
       } catch {
         case e: InterruptedException => ()
       }
-    }, dummyInfo)
+    }, emptyReactionInfo)
 
     waiter.await()(patienceConfig, implicitly[Position])
 
@@ -156,12 +154,39 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
           other.printStackTrace()
           waiter.dismiss()
       }
-    }, dummyInfo)
+    }, emptyReactionInfo)
     Thread.sleep(20)
 
     tp.shutdownNow()
 
     waiter.await()(patienceConfig, implicitly[Position])
+  }
+
+  behavior of "smart thread"
+
+  it should "run tasks on ordinary threads" in {
+    var x = 0
+    new RunnableWithInfo({x = 1}, emptyReactionInfo).run()
+
+    x shouldEqual 1
+
+  }
+
+  it should "run tasks on smart threads and store info" in {
+    val waiter = new Waiter
+
+    var x = 0
+    val runnable = new RunnableWithInfo({
+      x = 1; waiter.dismiss()
+    }, emptyReactionInfo)
+    val smartThread = new ThreadWithInfo(runnable)
+    smartThread.reactionInfo shouldEqual None // too early now, the runnable has not yet started
+    smartThread.start()
+
+    waiter.await()(patienceConfig, implicitly[Position])
+
+    x shouldEqual 1
+    smartThread.reactionInfo shouldEqual Some(emptyReactionInfo)
   }
 
 }

@@ -63,7 +63,7 @@ class SmartPool(parallelism: Int) extends Pool {
       executor.shutdownNow()
       ()
     }
-  }.run()
+  }.start()
 
   override def runClosure(closure: => Unit, info: ReactionInfo): Unit = {
     executor.submit(new RunnableWithInfo(closure, info))

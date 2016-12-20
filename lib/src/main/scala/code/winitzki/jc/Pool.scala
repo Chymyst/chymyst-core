@@ -26,8 +26,6 @@ trait Pool {
   def runClosure(closure: => Unit, info: ReactionInfo): Unit
 
   def isInactive: Boolean
-
-  def canMakeThreads: Boolean = true
 }
 
 private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorService) extends Pool {
@@ -45,7 +43,7 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorSer
       execService.shutdownNow()
       ()
     }
-  }.run()
+  }.start()
 
   def runClosure(closure: => Unit, info: ReactionInfo): Unit =
     execService.execute(new RunnableWithInfo(closure, info))

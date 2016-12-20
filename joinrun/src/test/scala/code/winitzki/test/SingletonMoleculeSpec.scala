@@ -118,6 +118,24 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
+  it should "signal error when a singleton is consumed multiple times by reaction" in {
+
+    val tp = new FixedPool(3)
+
+    val thrown = intercept[Exception] {
+      val d = m[Unit]
+      val e = m[Unit]
+
+      join(tp)(
+        & { case e(_) + d(_) + d(_) => d() },
+        & { case _ => d() } // singleton
+      )
+    }
+    thrown.getMessage shouldEqual "In Join{d + d + e => ...}: Incorrect chemistry: singleton (d) consumed 2 times by reaction d(_) + d(_) + e(_) => d()"
+
+    tp.shutdownNow()
+  }
+
   it should "signal error when a singleton is injected but not bound to any join definition" in {
 
     val tp = new FixedPool(3)
@@ -323,6 +341,46 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     tp1.shutdownNow()
     tp3.shutdownNow()
+  }
+
+  it should "signal error when a singleton is injected fewer times than declared" in {
+
+    val tp = new FixedPool(3)
+
+    val thrown = intercept[Exception] {
+      val c = b[Unit, String]
+      val d = m[Unit]
+      val e = m[Unit]
+      val f = m[Unit]
+
+      join(tp)(
+        & { case d(_) +e(_) + f(_) + c(_, r) => r("ok"); d(); e(); f() },
+        & { case _ => if (false) { d(); e() }; f(); } // singletons d() and e() will actually not be injected because of a condition
+      )
+    }
+    thrown.getMessage shouldEqual "In Join{c/B + d + e + f => ...}: Too few singletons injected: d injected 0 times instead of 1, e injected 0 times instead of 1"
+
+    tp.shutdownNow()
+  }
+
+  it should "signal no error (but a warning) when a singleton is injected more times than declared" in {
+
+    val tp = new FixedPool(3)
+
+    val c = b[Unit, String]
+    val d = m[Unit]
+    val e = m[Unit]
+    val f = m[Unit]
+
+    val warnings = join(tp)(
+      & { case d(_) + e(_) + f(_) + c(_, r) => r("ok"); d(); e(); f() },
+      & { case _ => (1 to 2).foreach { _ => d(); e() }; f(); } // singletons d() and e() will actually be injected more times
+    )
+
+    warnings.errors shouldEqual Seq()
+    warnings.warnings shouldEqual Seq("Possibly too many singletons injected: d injected 2 times instead of 1, e injected 2 times instead of 1")
+
+    tp.shutdownNow()
   }
 
 }

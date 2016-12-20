@@ -289,9 +289,9 @@ private object StaticAnalysis {
       .filter { case (mol, count) => singletonsInjected.getOrElse(mol, 0) < count }
       .map { case (mol, count) =>
         val countInjected = singletonsInjected.getOrElse(mol, 0)
-        s"$mol $countInjected times instead of $count"
+        s"$mol injected $countInjected times instead of $count"
       }
-    if (foundErrors.nonEmpty) Seq(s"Too few singletons injected: ${foundErrors.mkString(", ")}") else Seq()
+    if (foundErrors.nonEmpty) Seq(s"Too few singletons injected: ${foundErrors.toList.sorted.mkString(", ")}") else Seq()
   }
 
   // Inspect the singletons actually injected. Their multiplicities must be not more than the declared multiplicities.
@@ -300,9 +300,9 @@ private object StaticAnalysis {
       .filter { case (mol, count) => singletonsInjected.getOrElse(mol, 0) > count }
       .map { case (mol, count) =>
         val countInjected = singletonsInjected.getOrElse(mol, 0)
-        s"$mol $countInjected times instead of $count"
+        s"$mol injected $countInjected times instead of $count"
       }
-    if (foundErrors.nonEmpty) Seq(s"Possibly too many singletons injected: ${foundErrors.mkString(", ")}") else Seq()
+    if (foundErrors.nonEmpty) Seq(s"Possibly too many singletons injected: ${foundErrors.toList.sorted.mkString(", ")}") else Seq()
   }
 
 }
