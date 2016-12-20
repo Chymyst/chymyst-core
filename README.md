@@ -170,7 +170,7 @@ Some tests are timed and will fail on a slow machine.
 # Build the library
 
 To build all JARs:
-ink
+
 ```
 sbt assembly
 ```

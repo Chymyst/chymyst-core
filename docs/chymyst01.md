@@ -256,7 +256,7 @@ This is achieved by calling the `logSoup` method on any of the molecule injector
 This method will return a string showing the molecules that are currently present in the soup at that RS.
 The `logSoup` output will also show the values carried by each molecule.
 
-In our example, all three molecules `counter`, `incr`, and `decr` are declared as inputs in reactions, so we could use any of the injectors, say `decr`, to log the soup contents:
+In our example, all three molecules `counter`, `incr`, and `decr` are declared as inputs at our reaction site, so we could use any of the injectors, say `decr`, to log the soup contents:
 
 ```
 > println(decr.logSoup)
