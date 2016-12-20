@@ -121,4 +121,11 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
+  behavior of "cleanup with resource"
+
+  it should "catch exceptions and not fail" in {
+    val tryX = cleanup(1)(_ => throw new Exception("ignore this exception"))(_ => throw new Exception("foo"))
+    tryX.isFailure shouldEqual true
+  }
+
 }

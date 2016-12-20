@@ -20,12 +20,7 @@ import scala.collection.JavaConverters._
 
 object JoinRun {
 
-  sealed trait InputPatternType {
-    def isUnconditional: Boolean = this match {
-      case Wildcard | SimpleVar => true
-      case _ => false
-    }
-  }
+  sealed trait InputPatternType
 
   case object Wildcard extends InputPatternType
 
