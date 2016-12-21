@@ -92,7 +92,6 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     site(tp)(
       & { case f(_, r) + a(x) => r(x); a(0) }
     )
-    a.setLogLevel(4)
     a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
     f.timeout(100 millis)() shouldEqual None
     // there should be no a(0) now, because the reaction has not yet run ("f" timed out and was withdrawn, so no molecules)
@@ -213,7 +212,6 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       & { case wait(_, r) + e(_) => r() },
       & { case d(x) + incr(_, r) => wait(); r(); f(x+1) }
     )
-    d.setLogLevel(3)
     d(100)
     c() // update started and is waiting for e(), which should come after incr() gets its reply
     get_f.timeout(400 millis)() shouldEqual None
