@@ -326,7 +326,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     c(n)
     (1 to n).foreach { _ => d() }
 
-    val result = g(timeout = 1500 millis)()
+    val result = g.timeout(1500 millis)()
     tp.shutdownNow()
     result shouldEqual None
   }
@@ -350,7 +350,7 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     c(n)
     (1 to n).foreach { _ => d() }
 
-    val result = g(timeout = 1500 millis)()
+    val result = g.timeout(1500 millis)()
     tp.shutdownNow()
     result shouldEqual Some(())
   }
@@ -373,12 +373,12 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     )
     c(n)
     (1 to n).foreach { _ =>
-      if (d(timeout = 1500 millis)().isEmpty) {
+      if (d.timeout(1500 millis)().isEmpty) {
         println(JoinRun.errors.toList) // this should not happen, but will be helpful for debugging
       }
     }
 
-    val result = g(timeout = 1500 millis)()
+    val result = g.timeout(1500 millis)()
     JoinRun.errors.exists(_.contains("Message: crash! (it's OK, ignore this)"))
     tp.shutdownNow()
     result shouldEqual Some(())

@@ -43,6 +43,10 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
 
 tutSettings
 
+lazy val errorsForWartRemover = Seq(Wart.EitherProjectionPartial, Wart.Enumeration, Wart.Equals, Wart.ExplicitImplicitTypes, Wart.FinalCaseClass, Wart.FinalVal, Wart.LeakingSealed, Wart.NoNeedForMonad, Wart.Return, Wart.StringPlusAny, Wart.TraversableOps, Wart.TryPartial)
+
+lazy val warningsForWartRemover = Seq() //Seq(Wart.Any, Wart.AsInstanceOf, Wart.ImplicitConversion, Wart.IsInstanceOf, Wart.JavaConversions, Wart.Option2Iterable, Wart.OptionPartial, Wart.Nothing, Wart.Product, Wart.Serializable, Wart.ToString, Wart.While)
+
 lazy val joinrun = (project in file("joinrun"))
   .settings(commonSettings: _*)
   .settings(
@@ -61,6 +65,8 @@ lazy val macros = (project in file("macros"))
   .settings(commonSettings: _*)
   .settings(
     name := "macros",
+    wartremoverWarnings in (Compile, compile) ++= warningsForWartRemover,
+    wartremoverErrors in (Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
@@ -78,6 +84,8 @@ lazy val lib = (project in file("lib"))
     name := "lib",
     parallelExecution in Test := false,
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
+    wartremoverWarnings in (Compile, compile) ++= warningsForWartRemover,
+    wartremoverErrors in (Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
       //        "com.typesafe.akka" %% "akka-actor" % "2.4.12",
       "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",

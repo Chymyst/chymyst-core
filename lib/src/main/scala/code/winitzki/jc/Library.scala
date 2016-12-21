@@ -63,7 +63,7 @@ object Library {
     }
     finally {
       try {
-        if (resource != null) {
+        if (Option(resource).isDefined) {
           cleanup(resource)
         }
       } catch {

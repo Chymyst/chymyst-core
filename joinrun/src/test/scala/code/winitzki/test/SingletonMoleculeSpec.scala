@@ -31,7 +31,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     (1 to 100).foreach { i =>
       d(s"bad $i") // this "d" should not be emitted, even though "d" is sometimes not in the soup due to reactions!
-//      f(timeout = 200 millis)() shouldEqual Some("ok")
+//      f.timeout(200 millis)() shouldEqual Some("ok")
       f()
     }
 
@@ -54,7 +54,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       (1 to 10).foreach { j =>
         d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
         // and even if the initial d() emission was done late
-        f(timeout = 200 millis)() shouldEqual Some("ok")
+        f.timeout(200 millis)() shouldEqual Some("ok")
       }
 
     }
@@ -303,11 +303,11 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       & { case d(x) + stabilize_d(_, r) => d(x); r() }, // Await stabilizing the presence of d
       & { case _ => d(n) } // singleton
     )
-    stabilize_d(timeout = 500 millis)()
+    stabilize_d.timeout(500 millis)()
     d.volatileValue shouldEqual n
 
     (n+1 to n+delta_n).map { i =>
-      incr(timeout = 500 millis)() shouldEqual Some(())
+      incr.timeout(500 millis)() shouldEqual Some(())
 
       i - d.volatileValue // this is mostly 0 but sometimes 1
     }.sum should be > 0 // there should be some cases when d.value reads the previous value
@@ -331,12 +331,12 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       & { case d(x) + stabilize_d(_, r) => d(x); r() } onThreads tp1, // Await stabilizing the presence of d
       & { case _ => d(100) } // singleton
     )
-    stabilize_d(timeout = 500 millis)() shouldEqual Some(())
+    stabilize_d.timeout(500 millis)() shouldEqual Some(())
     d.volatileValue shouldEqual 100
-    incr(timeout = 500 millis)() shouldEqual Some(()) // update started and is waiting for e()
+    incr.timeout(500 millis)() shouldEqual Some(()) // update started and is waiting for e()
     d.volatileValue shouldEqual 100 // We don't have d() present in the soup, but we can read its previous value.
     e()
-    stabilize_d(timeout = 500 millis)() shouldEqual Some(())
+    stabilize_d.timeout(500 millis)() shouldEqual Some(())
     d.volatileValue shouldEqual 101
 
     tp1.shutdownNow()
