@@ -2,13 +2,14 @@
 
 # `JoinRun` library documentation
 
-`JoinRun` is an implementation of Join Calculus as an embedded DSL in Scala.
+`JoinRun` is an embedded DSL for declarative concurrency in Scala.
+It follows the **chemical machine** paradigm and provides high-level, purely functional concurrency primitives used by the `Chymyst` framework.
 
 Currently, it compiles with Scala 2.11 and Scala 2.12 on Oracle JDK 8.
 
 # Main structures
 
-Join Calculus is implemented using molecule emitters, reactions, and reaction sites.
+The main concepts of the chemical machine paradigm are molecule emitters, reactions, and reaction sites.
 
 There are only two primitive operations:
 
@@ -18,14 +19,15 @@ There are only two primitive operations:
 ## Molecule emitters
 
 Molecule emitters are instances of one of the two classes:
+
 - `M[T]` for non-blocking molecules carrying a value of type `T`
 - `B[T, R]` for blocking molecules carrying a value of type `T` and returning a value of type `R`
 
-Molecule emitters should be defined as local values, before these molecules can be used in reactions.
+Before molecules can be used in defining reactions, their molecule emitters must be defined as local values:
 
 ```scala
-val x = new M[Int]("x")
-val y = new B[Unit, String]("y")
+val x = new M[Int]("x") // define a non-blocking emitter with name "x" and integer value type
+val y = new B[Unit, String]("y") // define a blocking emitter with name "y", with empty value type, and String return type
 
 ```
 
@@ -41,7 +43,7 @@ val fetch = b[Unit, String] // same as new B[Unit, String]("fetch")
 
 ```
 
-These macros will read the enclosing `val` definition at compile time and substitute the name of the variable into the class constructor.
+These macros will read the enclosing `val` definition at compile time and substitute the name of the variable as a string into the class constructor.
 
 ## Emitting molecules
 
@@ -49,12 +51,12 @@ Molecule emitters inherit from `Function1` and can be used as functions with one
 Calling these functions will perform the side-effect of emitting the molecule into the soup that pertains to the reaction site to which the molecule is bound.
 
 ```scala
-... M[T] extends Function1[T, Unit]
-... B[T, R] extends Function1[T, R]
+... M[T] extends (T => Unit) ...
+... B[T, R] extends (T => R) ...
 
 val x = new M[Int]("x") // define emitter using class constructor
 
-// Need to define reactions - this is omitted here.
+// Need to define some reactions with "x" - that code is omitted here.
 
 x(123) // emit molecule with value 123
 
@@ -85,11 +87,11 @@ val result: Option[String] = f.timeout(100 millis)(10)
 
 ```
 
-Emission with timeout results in an `Option` value.
+Timed emission will result in an `Option` value.
 The value will be `None` if timeout is reached.
 
 Exceptions may be thrown as a result of emitting of a blocking molecule when it is unblocked:
-For instance, this happens when the reaction code attempts to execute the reply action more than once.
+For instance, this happens when the reaction body performs the reply action more than once, or the reaction body does not reply at all.
 
 ## Debugging
 
@@ -118,7 +120,7 @@ It is a runtime error to use `setLogLevel` or `logSoup` on molecules that are no
 ## Reactions
 
 A reaction is an instance of class `Reaction`.
-It is created using the `run` method with a partial function syntax that resembles pattern-matching on molecule values:
+Reactions are declared using the `go` method with a partial function syntax that resembles pattern-matching on molecule values:
 
 ```scala
 val reaction1 = go { case a(x) + b(y) => a(x+y) }
@@ -175,13 +177,12 @@ The reply action will unblock the calling process concurrently with the reaction
 
 This reply action must be performed as `r(...)` in the reaction body exactly once, and cannot be performed afterwards.
 
-It is a runtime error to write a reaction that either does not emit the reply action or uses it more than once.
+It is a compile-time error to write a reaction that either does not perform the reply action or does it more than once.
 
 Also, the reply action object `r` should not be used by any other reactions outside the reaction body where `r` was defined.
 (Using `r` after the reaction finishes will have no effect.)
 
-When a reaction is defined using the `run` macro, the compiler will detect some errors at compile time.
-For instance, it is a compile-time error to omit the reply matcher variable from the pattern:
+It is a compile-time error to omit the reply matcher variable from the pattern:
 
 ```scala
 val f = b[Int, Unit]
@@ -190,12 +191,13 @@ val f = b[Int, Unit]
 
 // this is incorrect usage because "r" is not being matched:
 go { case f(x, _) => ... } // Error: blocking input molecules should not contain a pattern that matches on anything other than a simple variable
+go { case f(_) = ... } // Same error message
 
 ```
 
 ## Reaction sites
 
-Writing a reaction site (RS) will at once activate molecules and reactions:
+Writing a reaction site (RS) will at once activate molecules and reactions.
 Until an RS is written, molecules cannot be emitted, and no reactions will start.
 
 Reaction sites are written with the `site` method:
@@ -212,6 +214,7 @@ All reactions listed in the RS will be activated at once.
 
 Whenever we emit any molecule that is used as input to one of these reactions, it is _this_ RS (and no other) that will decide which reactions to run.
 For this reason, we say that those molecules are "bound" to this RS, or that they are "consumed" at that RS, or that they are "input molecules" at this RS.
+To build intuition, we can imagine that each molecule must travel to its reaction site in order to start a reaction, or to wait there for other molecules, if a reaction requires several input molecules.
 
 Here is an example of an RS:
 

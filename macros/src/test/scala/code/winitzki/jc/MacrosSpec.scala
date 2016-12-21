@@ -387,7 +387,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     "val r = & { case a(_, _, _) => }" shouldNot compile // no pattern variable for reply in "a"
     "val r = & { case a(_, r) => }" shouldNot compile // no reply is performed with r
     "val r = & { case a(_, r) + a(_) + c(_) => r()  }" shouldNot compile // invalid patterns for "a" and "c"
-    "val r = & { case a(_, r) + a(_) + c(_) => r() + r() }" shouldNot compile // two replies are performed with r, and invalid patterns for "a" and "c"
+    "val r = & { case a(_, r) + a(_) + c(_) => r(); r() }" shouldNot compile // two replies are performed with r, and invalid patterns for "a" and "c"
 
   }
 
