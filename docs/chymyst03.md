@@ -4,12 +4,13 @@
 
 ## Molecule names
 
-For debugging purposes, molecules in `JoinRun` can have names.
+For debugging purposes, molecules in `JoinRun` have names.
 These names have no effect on any concurrent computations.
-For instance, the runtime engine will not check that each molecule is assigned a name, or that the names for different molecule sorts are different.
+For instance, the runtime engine will not check that each molecule's name is not empty, or that the names for different molecule sorts are different.
 Molecule names are used only for debugging: they are printed when logging reactions and reaction sites.
 
 There are two ways of assigning a name to a molecule:
+
 - specify the name explicitly, by using a class constructor;
 - use the macros `m` and `b`.
 
@@ -54,7 +55,7 @@ y.toString // returns “fetch/B"
 Emitted molecules cannot be, say, stored in a data structure or passed as arguments to functions.
 The programmer has no direct access to the molecules in the soup, apart from being able to emit them.
 But emitters _are_ ordinary, locally defined Scala values and can be manipulated as any other Scala values.
-- Emitterss are local values of class `B` or `M`, which both extend the abstract class `Molecule`.
+- Emitters are local values of class `B` or `M`, which both extend the abstract class `Molecule`.
 Blocking molecule emitters are of class `B`, non-blocking of class `M`.
 - Reactions are local values of class `Reaction`. Reactions are created using the function `go { case ... => ... }`.
 - Only one `case` clause can be used in each reaction.
@@ -72,7 +73,7 @@ Reactions that share no input molecules can (and should) be defined in separate 
 
 ## Molecules and molecule emitters
 
-Molecules are emitted into the “chemical soup” using the syntax such as `c(123)`. Here, `c` is a value we define using a construction such as
+Molecules are emitted into the chemical soup using the syntax such as `c(123)`. Here, `c` is a value we define using a construction such as
 
 ```scala
 val c = m[Int]
@@ -105,7 +106,7 @@ val f = b[Int, String]
 
 Now `f` is an emitter that takes an `Int` value and returns a `String`.
 
-Emitterss for blocking molecules are essentially functions: their type is `B[T, R]`, which extends `Function1[T, R]`.
+Emitters for blocking molecules are essentially functions: their type is `B[T, R]`, which extends `Function1[T, R]`.
 The emitter `f` could be equivalently defined by
 
 ```scala
@@ -116,16 +117,23 @@ val f = new B[Int, String]("f")
 Once `f` is defined like this, an emission call such as
 
 ```scala
-val x = f(123)
+val result = f(123)
 
 ```
 
 will emit a molecule of sort `f` with value `123` into the soup.
 
-The calling process in `f(123)` will wait until some reaction consumes this molecule and executes a “reply action” with a `String` value.
-Only after the reaction body executes the “reply action”, the `x` will be assigned to that string value, and the calling process will become unblocked and will continue its computations.
+The calling process in `f(123)` will wait until some reaction consumes this molecule and performs a **reply action** for the molecule `f`.
+The reply action must pass a string value to the reply function:
 
-## The emission type matrix
+```scala
+go { case c(x) + f(y, r) => r((x+y).toString) }
+
+```
+
+Only after the reaction body executes the reply action, the `result` will be assigned to that string value, and the calling process will become unblocked and will continue its computations.
+
+## The type matrix of molecule emission
 
 Let us consider what _could_ theoretically happen when we call an emitter function.
 The emitter call can be either blocking or non-blocking, and it could return a value or return no value.

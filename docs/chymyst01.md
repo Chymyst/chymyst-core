@@ -48,24 +48,27 @@ We will say that in a reaction such as
 the **input molecules** are  `a`, `b`, and `c`, and the **output molecules** are `d` and `e`.
 A reaction can have one or more input molecules, and zero or more output molecules.
 
-Once a reaction starts, the input molecules instantaneously disappear from the soup (they are “consumed” by the reaction), and then the output molecules are emitted into the soup.
+Once a reaction starts, the input molecules instantaneously disappear from the soup (we say they are **consumed** by the reaction), and then the output molecules are **emitted** into the soup.
 
 The simulator will start many reactions concurrently whenever their input molecules are available.
 
 ## Concurrent computations on the chemical machine
 
 The chemical machine is implemented by the runtime engine of `JoinRun`.
-Now, rather than merely watch as reactions happen, we are going to use this engine for running actual concurrent programs.
+Rather than merely watch as reactions happen, we are going to use the chemical machine for running actual concurrent programs.
 
-To this end, we are going to modify the chemical machine as follows:
+To this end, `JoinRun` introduces three features:
 
-1. Each molecule in the soup is required to _carry a value_. Molecule values are strongly typed: A molecule of a given sort (such as `a` or `b`) can only carry values of some fixed type (such as `Boolean` or `String`).
+1. Each molecule in the soup is now required to _carry a value_.
+Molecule values are strongly typed: a molecule of a given sort (such as `a` or `b`) can only carry values of some fixed type (such as `Boolean` or `String`).
 
-2. Since molecules must carry values, we now need to specify a value of the correct type when we emit a new molecule into the soup.
+2. Since molecules must carry values, we now need to specify a value of the correct type whenever we emit a new molecule into the soup.
 
-3. For the same reason, reactions that produce new molecules will now need to put values on each of the output molecules. These output values must be _functions of the input values_, -- that is, of the values carried by the input molecules consumed by this reaction. Therefore, each reaction will now need to carry a Scala expression (called the **reaction body**) that will compute the new output values and emit the output molecules.
+3. For the same reason, reactions that produce new molecules will now need to put values on each of the output molecules.
+These output values must be _functions of the input values_, -- that is, of the values carried by the input molecules consumed by this reaction.
+Therefore, each chemical reaction will now carry a Scala expression (called the **reaction body**) that will compute the new output values and emit the output molecules.
 
-In this way, the chemical machine can be programmed to run arbitrary computations.
+Let us see how the chemical machine can be programmed to run arbitrary computations.
 
 We will use syntax such as `b(123)` to denote molecule values.
 In a chemical reaction, the syntax `b(123)` means that the molecule `b` carries an integer value `123`.
@@ -82,17 +85,17 @@ where z = computeZ(x,y) // -- reaction body
 In this example, the reaction's input molecules are `a(x)` and `b(y)`; that is, the input molecules have chemical designations `a` and `b` and carry values `x` and `y` respectively.
 
 The reaction body is an expression that captures the values `x` and `y` from the input molecules.
-The reaction body computes a value `z` out of `x` and `y` using the function `computeZ` (or any other code as needed).
+The reaction body computes a value `z` out of `x` and `y` (in this example, this is done using the function `computeZ`).
 The newly computed value `z` is placed onto the output molecule `a`, which is emitted back into the soup.
 
-Another example of reaction is
+Another example of a reaction is
 
 ```scala
 a(x) + c(y) ⇒ println(x+y) // -- reaction body with no output molecules
 
 ```
 
-This reaction consumes the molecules `a` and `c` but does not emit any output molecules.
+This reaction consumes the molecules `a` and `c` as its input, but does not emit any output molecules.
 The only result of running the reaction is the side-effect of printing the number `x+y`.
 
 ![Reaction diagram a(x) + b(y) => a(z), a(x) + c(y) => ...](https://chymyst.github.io/joinrun-scala/reactions2.svg)
@@ -100,7 +103,7 @@ The only result of running the reaction is the side-effect of printing the numbe
 The computations performed by the chemical machine are _automatically concurrent_:
 Whenever input molecules are available in the soup, the runtime engine will start a reaction that consumes these input molecules.
 If many copies of input molecules are available, the runtime engine could start several reactions concurrently.
-(The runtime engine can decide how many reactions to run depending on system load and the number of available cores.)
+(The runtime engine can decide how many reactions to run depending on the system load and the number of available cores.)
 
 The reaction body can be a _pure function_ that computes output values solely from the input values it receives from its input molecules.
 If the reaction body is a pure function, it is completely safe (free of contention or race conditions) to execute concurrently several copies of the same reaction as different processes.
@@ -109,7 +112,7 @@ This is how the chemical machine achieves safe and automatic concurrency in a pu
 
 ## The syntax of `JoinRun`
 
-So far, we have been using a kind of chemistry-resembling pseudocode to illustrate the structure of reactions in `JoinRun`.
+So far, we have been using a kind of chemistry-resembling pseudocode to illustrate the structure of reactions.
 This pseudocode was designed to prepare us for the actual syntax of `JoinRun`, which is only a little more verbose:
 
 ```scala
@@ -130,7 +133,7 @@ site(
 
 ```
 
-The helper functions `m`, `site`, and `run` are defined in the `JoinRun` library.
+The helper functions `m`, `site`, and `go` are defined in the `JoinRun` library.
 
 The `site` call declares a **reaction site**, which can be visualized as a place where molecules gather and wait for their reaction partners.
 We will talk later in more detail about reaction sites.
