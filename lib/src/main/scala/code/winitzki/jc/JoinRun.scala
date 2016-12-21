@@ -281,7 +281,7 @@ object JoinRun {
     def unapply(attr:Any): Option[(Any, Any)] = Some((attr,attr))
   }
 
-  /** Create a reaction value out of a simple reaction body.
+  /** Create a reaction value out of a simple reaction body. Used only for testing.
     * The reaction body must be "simple" in the sense that it allows very limited pattern-matching with molecule values:
     * - all patterns must be simple variables or wildcards, or {{{null}}} or zero constant values, except the last molecule in the reaction.
     * - the last molecule in the reaction can have a nontrivial pattern matcher.
@@ -293,7 +293,7 @@ object JoinRun {
     * @param body Body of the reaction. Should not contain any pattern-matching on molecule values, except possibly for the last molecule in the list of input molecules.
     * @return Reaction value. The [[ReactionInfo]] structure will be filled out in a minimal fashion (only has information about input molecules, and all patterns are "unknown").
     */
-  private[winitzki] def goSimple(body: ReactionBody): Reaction = {
+  private[jc] def _go(body: ReactionBody): Reaction = {
     val moleculesInThisReaction = UnapplyCheckSimple(mutable.MutableList.empty)
     body.isDefinedAt(moleculesInThisReaction)
     // detect nonlinear patterns
@@ -393,7 +393,7 @@ object JoinRun {
 
     def unapply(arg: UnapplyArg): Option[T] = arg match {
 
-    case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by goSimple
+    case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by _go
       inputMoleculesProbe += this
       Some(null.asInstanceOf[T]) // hack for testing only. This value will not be used.
 
@@ -525,10 +525,10 @@ object JoinRun {
 
     def unapply(arg: UnapplyArg): Option[(T, ReplyValue[T,R])] = arg match {
 
-      case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by goSimple
+      case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by _go
         inputMoleculesProbe += this
         Some((null, null).asInstanceOf[(T, ReplyValue[T,R])]) // hack for testing purposes only:
-      // The null value will not be used in any production code since goSimple is private.
+      // The null value will not be used in any production code since _go is private.
 
       // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
       // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
@@ -556,7 +556,7 @@ object JoinRun {
   val defaultReactionPool = new FixedPool(4)
 
   private[jc] sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
-  private final case class UnapplyCheckSimple(inputMolecules: mutable.MutableList[Molecule]) extends UnapplyArg // used only for `goSimple` and in tests
+  private final case class UnapplyCheckSimple(inputMolecules: mutable.MutableList[Molecule]) extends UnapplyArg // used only for `_go` and in tests
   private[jc] final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg // used for checking that reaction values pass the pattern-matching, before running the reaction
   private[jc] final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg // used for running the reaction
 

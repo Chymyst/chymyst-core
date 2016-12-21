@@ -88,13 +88,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     f(timeout = 100 millis)() shouldEqual Some(2)
   }
 
-  it should "inspect reaction body with embedded join and goSimple" in {
+  it should "inspect reaction body with embedded join and _go" in {
     val a = m[Int]
     val bb = m[Int]
     val f = b[Unit, Int]
     site(tp0)(
-      goSimple { case f(_, r) + bb(x) => r(x) },
-      goSimple { case a(x) =>
+      _go { case f(_, r) + bb(x) => r(x) },
+      _go { case a(x) =>
         val p = m[Int]
         site(tp0)(& { case p(y) => bb(y) })
         p(x + 1)
@@ -110,13 +110,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   val constantZeroSha1 = "8227489534FBEA1F404CAAEC9F4CCAEEB9EF2DC1"
   val constantOneSha1 = "356A192B7913B04C54574D18C28D46E6395428AB"
 
-  it should "inspect a goSimple reaction body" in {
+  it should "inspect a _go reaction body" in {
     val a = m[Int]
     val qq = m[Unit]
     val s = b[Unit, Int]
     val bb = m[(Int, Option[Int])]
 
-    val result = goSimple { case a(x) + qq(_) => qq() }
+    val result = _go { case a(x) + qq(_) => qq() }
 
     (result.info.inputs match {
       case List(
@@ -256,7 +256,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    site(tp0)(goSimple { case b(_) + a(Some(x)) + c(_) => })
+    site(tp0)(_go { case b(_) + a(Some(x)) + c(_) => })
 
     a.logSoup shouldEqual "Site{a + b => ...}\nNo molecules" // this is the wrong result
     // when the problem is fixed, this test will have to be rewritten
@@ -287,7 +287,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    site(tp0)(goSimple { case a(None) + b(_) + c(_) => })
+    site(tp0)(_go { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Site{a => ...}\nNo molecules"
   }

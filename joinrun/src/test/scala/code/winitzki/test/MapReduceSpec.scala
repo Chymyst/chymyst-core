@@ -1,15 +1,16 @@
-package code.winitzki.benchmark
+package code.winitzki.test
 
 import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 
-import code.winitzki.benchmark.Common._
 import code.winitzki.jc.FixedPool
 import code.winitzki.jc.JoinRun._
-import code.winitzki.jc.Macros.{go => &}
 import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
 
 class MapReduceSpec extends FlatSpec with Matchers {
+
+  def elapsed(initTime: LocalDateTime): Long = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
 
   it should "perform a map/reduce-like computation" in {
     val count = 10
@@ -23,9 +24,9 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     val tp = new FixedPool(4)
     site(tp)(
-      &{ case d(n) => r(n*2) },
-      &{ case res(list) + r(s) => res(s::list) },
-      &{ case get(_, reply) + res(list) if list.size == count => reply(list) }
+      go { case d(n) => r(n*2) },
+      go { case res(list) + r(s) => res(s::list) },
+      go { case get(_, reply) + res(list) if list.size == count => reply(list) }
     )
 
     (1 to count).foreach(d(_))
@@ -55,15 +56,15 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     // declare the reaction for "map"
     site(tp)(
-      & { case carrier(x) => val res = f(x); interm(res) }
+      go { case carrier(x) => val res = f(x); interm(res) }
     )
 
     // reactions for "reduce" must be together since they share "accum"
     site(tp)(
-      & { case accum((n, b)) + interm(res) =>
+      go { case accum((n, b)) + interm(res) =>
         accum((n+1, reduceB(b, res) ))
       },
-      & { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
+      go { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
     )
 
     // emit molecules
