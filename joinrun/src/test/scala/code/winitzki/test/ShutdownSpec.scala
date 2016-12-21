@@ -1,8 +1,8 @@
-package code.winitzki.benchmark
+package code.winitzki.test
 
 import code.winitzki.jc.FixedPool
-import code.winitzki.jc.Macros._
 import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
 
 /** This test will shutdown the default thread pools and check that no reactions can occur afterwards.
@@ -18,12 +18,12 @@ class ShutdownSpec extends FlatSpec with Matchers {
     pool2.shutdownNow()
 
     val x = m[Unit]
-    site(pool,pool2)(runSimple{ case x(()) => })
+    site(pool,pool2)(go{ case x(()) => })
 
     val thrown = intercept[Exception] {
       x()
     }
-    thrown.getMessage shouldEqual "In Site{x => ...}: Cannot inject molecule x() because join pool is not active"
+    thrown.getMessage shouldEqual "In Site{x => ...}: Cannot emit molecule x() because join pool is not active"
     pool.shutdownNow()
   }
 
@@ -34,7 +34,7 @@ class ShutdownSpec extends FlatSpec with Matchers {
     pool.shutdownNow()
 
     val x = m[Unit]
-    site(pool,pool2)(runSimple{ case x(()) => })
+    site(pool,pool2)(go{ case x(()) => })
 
     x()
 
@@ -47,11 +47,11 @@ class ShutdownSpec extends FlatSpec with Matchers {
     defaultReactionPool.shutdownNow()
 
     val x = m[Unit]
-    site(runSimple{ case x(()) => })
+    site(go{ case x(()) => })
 
     val thrown = intercept[Exception] {
       x()
     }
-    thrown.getMessage shouldEqual "In Site{x => ...}: Cannot inject molecule x() because join pool is not active"
+    thrown.getMessage shouldEqual "In Site{x => ...}: Cannot emit molecule x() because join pool is not active"
   }
 }

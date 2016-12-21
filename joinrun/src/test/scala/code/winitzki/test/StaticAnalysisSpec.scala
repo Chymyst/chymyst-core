@@ -1,7 +1,7 @@
 package code.winitzki.test
 
 import code.winitzki.jc.JoinRun._
-import code.winitzki.jc.Macros.{run => &}
+import code.winitzki.jc.Macros.{go => &}
 import code.winitzki.jc.Macros._
 import code.winitzki.jc.WarningsAndErrors
 import org.scalatest.concurrent.TimeLimitedTests
@@ -270,7 +270,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   behavior of "deadlock detection"
 
-  it should "not warn about likely deadlock for a reaction that injects molecules for itself in the right order" in {
+  it should "not warn about likely deadlock for a reaction that emits molecules for itself in the right order" in {
     val a = m[Int]
     val c = m[Int]
     val f = b[Unit, Int]
@@ -281,7 +281,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     warnings shouldEqual WarningsAndErrors(Nil, Nil, "Site{a + c + f/B => ...}")
   }
 
-  it should "warn about likely deadlock for a reaction that injects molecules for itself" in {
+  it should "warn about likely deadlock for a reaction that emits molecules for itself" in {
     val a = m[Int]
     val c = m[Int]
     val f = b[Unit, Int]
@@ -292,7 +292,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     warnings shouldEqual WarningsAndErrors(List("Possible deadlock: molecule f/B may deadlock due to outputs of a(_) + c(_) + f/B(_) => f/B() + a(1)", "Possible deadlock: molecule (f/B) may deadlock due to (a) among the outputs of a(_) + c(_) + f/B(_) => f/B() + a(1)"),List(),"Site{a + c + f/B => ...}")
   }
 
-  it should "warn about likely deadlock for a reaction that injects molecules for another reaction" in {
+  it should "warn about likely deadlock for a reaction that emits molecules for another reaction" in {
     val a = m[Int]
     val c = m[Int]
     val f = b[Unit, Int]

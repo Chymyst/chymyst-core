@@ -1,7 +1,7 @@
 package code.winitzki.test
 
 import code.winitzki.jc.JoinRun._
-import code.winitzki.jc.Macros.{run => &}
+import code.winitzki.jc.Macros.{go => &}
 import code.winitzki.jc.Macros._
 import code.winitzki.jc.{FixedPool, SmartPool}
 import org.scalatest.concurrent.TimeLimitedTests
@@ -15,9 +15,9 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   val timeLimit = Span(3000, Millis)
 
-  behavior of "singleton injection"
+  behavior of "singleton emission"
 
-  it should "refuse to inject a singleton from user code" in {
+  it should "refuse to emit a singleton from user code" in {
 
     val f = b[Unit, String]
     val d = m[String]
@@ -30,7 +30,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     )
 
     (1 to 100).foreach { i =>
-      d(s"bad $i") // this "d" should not be injected, even though "d" is sometimes not in the soup due to reactions!
+      d(s"bad $i") // this "d" should not be emitted, even though "d" is sometimes not in the soup due to reactions!
 //      f(timeout = 200 millis)() shouldEqual Some("ok")
       f()
     }
@@ -38,7 +38,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp1.shutdownNow()
   }
 
-  it should "refuse to inject a singleton immediately after reaction site" in {
+  it should "refuse to emit a singleton immediately after reaction site" in {
 
     val tp1 = new FixedPool(1) // This test works only with single threads.
 
@@ -52,8 +52,8 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       )
 
       (1 to 10).foreach { j =>
-        d(s"bad $i $j") // this "d" should not be injected, even though we are immediately after a reaction site,
-        // and even if the initial d() injection was done late
+        d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
+        // and even if the initial d() emission was done late
         f(timeout = 200 millis)() shouldEqual Some("ok")
       }
 
@@ -62,7 +62,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp1.shutdownNow()
   }
 
-  it should "signal error when a singleton is consumed by reaction but not injected" in {
+  it should "signal error when a singleton is consumed by reaction but not emitted" in {
 
     val tp = new FixedPool(3)
 
@@ -75,12 +75,12 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         & { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect chemistry: singleton (d) consumed but not injected by reaction c/B(_) + d(_) => "
+    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect chemistry: singleton (d) consumed but not emitted by reaction c/B(_) + d(_) => "
 
     tp.shutdownNow()
   }
 
-  it should "signal error when a singleton is consumed by reaction and injected twice" in {
+  it should "signal error when a singleton is consumed by reaction and emitted twice" in {
 
     val tp = new FixedPool(3)
 
@@ -93,12 +93,12 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         & { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect chemistry: singleton (d) injected more than once by reaction c/B(_) + d(_) => d() + d()"
+    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect chemistry: singleton (d) emitted more than once by reaction c/B(_) + d(_) => d() + d()"
 
     tp.shutdownNow()
   }
 
-  it should "signal error when a singleton is injected but not consumed by reaction" in {
+  it should "signal error when a singleton is emitted but not consumed by reaction" in {
 
     val tp = new FixedPool(3)
 
@@ -113,7 +113,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         & { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B => ...; e => ...}: Incorrect chemistry: singleton (d) injected but not consumed by reaction c/B(_) => d(); singleton (d) injected but not consumed by reaction e(_) => d(); Incorrect chemistry: singleton (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B => ...; e => ...}: Incorrect chemistry: singleton (d) emitted but not consumed by reaction c/B(_) => d(); singleton (d) emitted but not consumed by reaction e(_) => d(); Incorrect chemistry: singleton (d) not consumed by any reactions"
 
     tp.shutdownNow()
   }
@@ -136,7 +136,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
-  it should "signal error when a singleton is injected but not bound to any reaction site" in {
+  it should "signal error when a singleton is emitted but not bound to any reaction site" in {
 
     val tp = new FixedPool(3)
 
@@ -152,7 +152,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
-  it should "signal error when a singleton is injected but not bound to this reaction site" in {
+  it should "signal error when a singleton is emitted but not bound to this reaction site" in {
 
     val tp = new FixedPool(3)
 
@@ -169,7 +169,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         & { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B => ...}: Incorrect chemistry: singleton (d) injected but not consumed by reaction c/B(_) => d(); Incorrect chemistry: singleton (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B => ...}: Incorrect chemistry: singleton (d) emitted but not consumed by reaction c/B(_) => d(); Incorrect chemistry: singleton (d) not consumed by any reactions"
 
     tp.shutdownNow()
   }
@@ -240,7 +240,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       )
     }
 
-    thrown.getMessage shouldEqual "In Site{c + d => ...; f/B => ...}: Refusing to inject molecule f/B() as a singleton (must be a non-blocking molecule)"
+    thrown.getMessage shouldEqual "In Site{c + d => ...; f/B => ...}: Refusing to emit molecule f/B() as a singleton (must be a non-blocking molecule)"
 
     tp.shutdownNow()
   }
@@ -343,7 +343,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp3.shutdownNow()
   }
 
-  it should "signal error when a singleton is injected fewer times than declared" in {
+  it should "signal error when a singleton is emitted fewer times than declared" in {
 
     val tp = new FixedPool(3)
 
@@ -355,15 +355,15 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
       site(tp)(
         & { case d(_) +e(_) + f(_) + c(_, r) => r("ok"); d(); e(); f() },
-        & { case _ => if (false) { d(); e() }; f(); } // singletons d() and e() will actually not be injected because of a condition
+        & { case _ => if (false) { d(); e() }; f(); } // singletons d() and e() will actually not be emitted because of a condition
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d + e + f => ...}: Too few singletons injected: d injected 0 times instead of 1, e injected 0 times instead of 1"
+    thrown.getMessage shouldEqual "In Site{c/B + d + e + f => ...}: Too few singletons emitted: d emitted 0 times instead of 1, e emitted 0 times instead of 1"
 
     tp.shutdownNow()
   }
 
-  it should "signal no error (but a warning) when a singleton is injected more times than declared" in {
+  it should "signal no error (but a warning) when a singleton is emitted more times than declared" in {
 
     val tp = new FixedPool(3)
 
@@ -374,11 +374,11 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     val warnings = site(tp)(
       & { case d(_) + e(_) + f(_) + c(_, r) => r("ok"); d(); e(); f() },
-      & { case _ => (1 to 2).foreach { _ => d(); e() }; f(); } // singletons d() and e() will actually be injected more times
+      & { case _ => (1 to 2).foreach { _ => d(); e() }; f(); } // singletons d() and e() will actually be emitted more times
     )
 
     warnings.errors shouldEqual Seq()
-    warnings.warnings shouldEqual Seq("Possibly too many singletons injected: d injected 2 times instead of 1, e injected 2 times instead of 1")
+    warnings.warnings shouldEqual Seq("Possibly too many singletons emitted: d emitted 2 times instead of 1, e emitted 2 times instead of 1")
 
     tp.shutdownNow()
   }

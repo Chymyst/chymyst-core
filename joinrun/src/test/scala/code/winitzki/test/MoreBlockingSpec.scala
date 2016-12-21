@@ -2,7 +2,7 @@ package code.winitzki.test
 
 import code.winitzki.jc.FixedPool
 import code.winitzki.jc.JoinRun._
-import code.winitzki.jc.Macros.{run => &}
+import code.winitzki.jc.Macros.{go => &}
 import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.concurrent.TimeLimitedTests
@@ -18,7 +18,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   behavior of "blocking molecules"
 
-  it should "wait for blocking molecule before injecting non-blocking molecule" in {
+  it should "wait for blocking molecule before emitting non-blocking molecule" in {
     val a = m[Int]
     val f = b[Unit,Int]
     val g = b[Unit,Int]
@@ -149,7 +149,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
-  it should "block execution thread until molecule is injected" in {
+  it should "block execution thread until molecule is emitted" in {
     val d = m[Int]
     val e = m[Unit]
     val wait = b[Unit, Unit]
@@ -172,7 +172,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
-  it should "block another reaction until molecule is injected" in {
+  it should "block another reaction until molecule is emitted" in {
     val c = m[Unit]
     val d = m[Int]
     val e = m[Unit]
@@ -196,7 +196,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
-  it should "deadlock since another reaction is blocked until molecule is injected" in {
+  it should "deadlock since another reaction is blocked until molecule is emitted" in {
     val c = m[Unit]
     val d = m[Int]
     val e = m[Unit]

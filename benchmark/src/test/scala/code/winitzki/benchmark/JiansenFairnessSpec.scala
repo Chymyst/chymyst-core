@@ -11,7 +11,7 @@ class JiansenFairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   // fairness over reactions:
   // We have n molecules A:JA[Unit], which can all interact with a single molecule C:JA[(Int,Array[Int])].
-  // We first inject all A's and then a single C.
+  // We first emit all A's and then a single C.
   // Each molecule A_i will increment C's counter at index i upon reaction.
   // We repeat this for N iterations, then we read the array and check that its values are distributed more or less randomly.
 
@@ -51,8 +51,8 @@ class JiansenFairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   // fairness across molecules:
-  // Inject n molecules A[Int] that can all interact with C[Int]. Each time they interact, their counter is incremented.
-  // Then inject a single C molecule, which will react until its counter goes to 0.
+  // Emit n molecules A[Int] that can all interact with C[Int]. Each time they interact, their counter is incremented.
+  // Then emit a single C molecule, which will react until its counter goes to 0.
   // At this point, gather all results from A[Int] into an array and return that array.
 
   it should "fail to implement fairness across molecules in Jiansen's Join" in {

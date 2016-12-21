@@ -1,7 +1,7 @@
 package code.winitzki.jc
 
 import JoinRun._
-import Macros.{getName, rawTree, m,b, run => &}
+import Macros.{getName, rawTree, m,b, go => &}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt
@@ -23,9 +23,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     tp0.shutdownNow()
   }
 
-  behavior of "macros for defining new molecule injectors"
+  behavior of "macros for defining new molecule emitters"
 
-  it should "compute invocation names for molecule injectors" in {
+  it should "compute invocation names for molecule emitters" in {
     val a = m[Int]
 
     a.toString shouldEqual "a"
@@ -38,7 +38,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   behavior of "macros for inspecting a reaction body"
 
 
-  it should "correctly recognize nested injections of blocking molecules and reply values" in {
+  it should "correctly recognize nested emissions of blocking molecules and reply values" in {
     val a = b[Int, Int]
     val d = m[Boolean]
 
@@ -57,7 +57,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(123))))
   }
 
-  it should "inspect reaction body containing local molecule injectors" in {
+  it should "inspect reaction body containing local molecule emitters" in {
     val a = m[Int]
 
     val reaction =
@@ -88,13 +88,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     f(timeout = 100 millis)() shouldEqual Some(2)
   }
 
-  it should "inspect reaction body with embedded join and runSimple" in {
+  it should "inspect reaction body with embedded join and _go" in {
     val a = m[Int]
     val bb = m[Int]
     val f = b[Unit, Int]
     site(tp0)(
-      runSimple { case f(_, r) + bb(x) => r(x) },
-      runSimple { case a(x) =>
+      _go { case f(_, r) + bb(x) => r(x) },
+      _go { case a(x) =>
         val p = m[Int]
         site(tp0)(& { case p(y) => bb(y) })
         p(x + 1)
@@ -110,13 +110,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   val constantZeroSha1 = "8227489534FBEA1F404CAAEC9F4CCAEEB9EF2DC1"
   val constantOneSha1 = "356A192B7913B04C54574D18C28D46E6395428AB"
 
-  it should "inspect a runSimple reaction body" in {
+  it should "inspect a _go reaction body" in {
     val a = m[Int]
     val qq = m[Unit]
     val s = b[Unit, Int]
     val bb = m[(Int, Option[Int])]
 
-    val result = runSimple { case a(x) + qq(_) => qq() }
+    val result = _go { case a(x) + qq(_) => qq() }
 
     (result.info.inputs match {
       case List(
@@ -256,7 +256,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    site(tp0)(runSimple { case b(_) + a(Some(x)) + c(_) => })
+    site(tp0)(_go { case b(_) + a(Some(x)) + c(_) => })
 
     a.logSoup shouldEqual "Site{a + b => ...}\nNo molecules" // this is the wrong result
     // when the problem is fixed, this test will have to be rewritten
@@ -287,7 +287,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    site(tp0)(runSimple { case a(None) + b(_) + c(_) => })
+    site(tp0)(_go { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Site{a => ...}\nNo molecules"
   }
@@ -505,8 +505,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     )
     a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(2)))))
     a.consumingReactions.get.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, SimpleConst(1), constantOneSha1)))
-    a.injectingReactions.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(2)))))
-    a.injectingReactions.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, SimpleConst(1), constantOneSha1)))
+    a.emittingReactions.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(2)))))
+    a.emittingReactions.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, SimpleConst(1), constantOneSha1)))
   }
 
   it should "not fail to compute outputs correctly for an inline nested reaction" in {
@@ -572,7 +572,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     (y1, y2) shouldEqual(("z", "x$7"))
   }
 
-  it should "correctly recognize nested injections of non-blocking molecules" in {
+  it should "correctly recognize nested emissions of non-blocking molecules" in {
     val a = m[Int]
     val c = m[Unit]
     val d = m[Boolean]
@@ -586,14 +586,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
 
     val reaction = a.consumingReactions.get.head
-    c.injectingReactions.head shouldEqual reaction
-    a.injectingReactions.head shouldEqual reaction
+    c.emittingReactions.head shouldEqual reaction
+    a.emittingReactions.head shouldEqual reaction
 
     reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1), InputMoleculeInfo(d, Wildcard, wildcardSha1))
     reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
   }
 
-  it should "correctly recognize nested injections of blocking molecules and reply values" in {
+  it should "correctly recognize nested emissions of blocking molecules and reply values" in {
     val a = b[Int, Int]
     val c = m[Int]
     val d = m[Boolean]
@@ -608,11 +608,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     d.isBound shouldEqual true
 
     val reaction1 = d.consumingReactions.get.head
-    a.injectingReactions.head shouldEqual reaction1
-    c.injectingReactions.head shouldEqual reaction1
+    a.emittingReactions.head shouldEqual reaction1
+    c.emittingReactions.head shouldEqual reaction1
 
     val reaction2 = a.consumingReactions.get.head
-    d.injectingReactions.head shouldEqual reaction2
+    d.emittingReactions.head shouldEqual reaction2
 
     reaction1.info.inputs shouldEqual List(InputMoleculeInfo(d, Wildcard, wildcardSha1))
     reaction1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)), OutputMoleculeInfo(c, OtherOutputPattern)))

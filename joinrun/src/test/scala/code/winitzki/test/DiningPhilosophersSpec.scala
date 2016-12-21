@@ -1,7 +1,8 @@
-package code.winitzki.benchmark
+package code.winitzki.test
 
 import code.winitzki.jc.FixedPool
 import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
@@ -43,19 +44,19 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
     val check = new B[Unit, Unit]("check")
 
     site(tp, tp) (
-      runSimple { case t1(n) => rw(h1); h1(n - 1) },
-      runSimple { case t2(n) => rw(h2); h2(n - 1) },
-      runSimple { case t3(n) => rw(h3); h3(n - 1) },
-      runSimple { case t4(n) => rw(h4); h4(n - 1) },
-      runSimple { case t5(n) => rw(h5); h5(n - 1) },
+      go { case t1(n) => rw(h1); h1(n - 1) },
+      go { case t2(n) => rw(h2); h2(n - 1) },
+      go { case t3(n) => rw(h3); h3(n - 1) },
+      go { case t4(n) => rw(h4); h4(n - 1) },
+      go { case t5(n) => rw(h5); h5(n - 1) },
 
-      runSimple { case done(_) + check(_, r) => r() },
+      go { case done(_) + check(_, r) => r() },
 
-      runSimple { case h1(n) + f12(_) + f51(_) => rw(t1); t1(n) + f12() + f51(); if (n == 0) done() },
-      runSimple { case h2(n) + f23(_) + f12(_) => rw(t2); t2(n) + f23() + f12() },
-      runSimple { case h3(n) + f34(_) + f23(_) => rw(t3); t3(n) + f34() + f23() },
-      runSimple { case h4(n) + f45(_) + f34(_) => rw(t4); t4(n) + f45() + f34() },
-      runSimple { case h5(n) + f51(_) + f45(_) => rw(t5); t5(n) + f51() + f45() }
+      go { case h1(n) + f12(_) + f51(_) => rw(t1); t1(n) + f12() + f51(); if (n == 0) done() },
+      go { case h2(n) + f23(_) + f12(_) => rw(t2); t2(n) + f23() + f12() },
+      go { case h3(n) + f34(_) + f23(_) => rw(t3); t3(n) + f34() + f23() },
+      go { case h4(n) + f45(_) + f34(_) => rw(t4); t4(n) + f45() + f34() },
+      go { case h5(n) + f51(_) + f45(_) => rw(t5); t5(n) + f51() + f45() }
     )
 
     t1(cycles) + t2(cycles) + t3(cycles) + t4(cycles) + t5(cycles)
