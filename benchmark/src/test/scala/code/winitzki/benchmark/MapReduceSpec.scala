@@ -5,7 +5,7 @@ import java.time.LocalDateTime
 import code.winitzki.benchmark.Common._
 import code.winitzki.jc.FixedPool
 import code.winitzki.jc.JoinRun._
-import code.winitzki.jc.Macros.{run => &}
+import code.winitzki.jc.Macros.{go => &}
 import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -66,7 +66,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
       & { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
     )
 
-    // inject molecules
+    // emit molecules
     accum((0, 0))
     arr.foreach(i => carrier(i))
     val result = fetch()

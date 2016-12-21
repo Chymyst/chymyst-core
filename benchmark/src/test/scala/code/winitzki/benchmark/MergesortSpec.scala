@@ -2,7 +2,7 @@ package code.winitzki.benchmark
 
 import Common._
 import code.winitzki.jc.FixedPool
-import code.winitzki.jc.Macros.{run => &}
+import code.winitzki.jc.Macros.{go => &}
 import code.winitzki.jc.Macros._
 import code.winitzki.jc.JoinRun._
 import org.scalatest.{FlatSpec, Matchers}
@@ -80,7 +80,7 @@ class MergesortSpec extends FlatSpec with Matchers {
                 resultToYield(arrayMerge(x,y)) }
             )
 
-            // inject lower-level mergesort
+            // emit lower-level mergesort
             mergesort((part1, sorted1)) + mergesort((part2, sorted2))
           }
       }
@@ -127,10 +127,10 @@ class MergesortSpec extends FlatSpec with Matchers {
 
     val arr = Array.fill[Int](count)(scala.util.Random.nextInt(count))
 
-    val result = timeWithPriming{ performMergeSort(arr, threads)}
+    val result = timeWithPriming{ performMergeSort(arr, threads); () }
     println(s"concurrent merge-sort test with count=$count and $threads threads took $result ms")
 
-    val result1 = timeWithPriming{ performMergeSort(arr, 1)}
+    val result1 = timeWithPriming{ performMergeSort(arr, 1); () }
     println(s"concurrent merge-sort test with count=$count and 1 threads took $result1 ms")
   }
 

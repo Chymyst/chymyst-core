@@ -1,7 +1,7 @@
 package code.winitzki.test
 
 import code.winitzki.jc.JoinRun._
-import code.winitzki.jc.Macros.{run => &}
+import code.winitzki.jc.Macros.{go => &}
 import code.winitzki.jc.Macros._
 import code.winitzki.jc.{FixedPool, Pool}
 import org.scalatest.{FlatSpec, Matchers}
@@ -20,10 +20,10 @@ class ParallelOrSpec extends FlatSpec with Matchers {
     * Otherwise (if both `f` and `g` remain blocked or one of them returns {{{false}}} while the other emains blocked),
     * {{{parallelOr}}} will continue to be blocked.
     *
-    * @param f First blocking molecule injector.
-    * @param g Second blocking molecule injector.
+    * @param f First blocking molecule emitter.
+    * @param g Second blocking molecule emitter.
     * @param tp Thread pool on which to run this.
-    * @return New blocking molecule injector that will return the desired result or block.
+    * @return New blocking molecule emitter that will return the desired result or block.
     */
   def parallelOr(f: B[Unit, Boolean], g: B[Unit, Boolean], tp: Pool): B[Unit, Boolean] = {
     val c = m[Unit]
@@ -91,14 +91,14 @@ class ParallelOrSpec extends FlatSpec with Matchers {
     tp.shutdownNow()
   }
 
-  /** Given two blocking molecules b1 and b2, construct a new blocking molecule injector that returns
+  /** Given two blocking molecules b1 and b2, construct a new blocking molecule emitter that returns
     * the result of whichever of b1 and b2 unblocks first.
     *
-    * @param b1 First blocking molecule injector.
-    * @param b2 Second blocking molecule injector.
+    * @param b1 First blocking molecule emitter.
+    * @param b2 Second blocking molecule emitter.
     * @param tp Thread pool on which to run this.
     * @tparam T Type of the return value.
-    * @return New blocking molecule injector that will return the desired result.
+    * @return New blocking molecule emitter that will return the desired result.
     */
   def firstResult[T](b1: B[Unit, T], b2: B[Unit, T], tp: Pool): B[Unit, T] = {
     val get = b[Unit, T]

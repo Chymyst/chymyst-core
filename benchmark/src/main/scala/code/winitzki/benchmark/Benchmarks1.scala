@@ -19,13 +19,13 @@ object Benchmarks1 {
 
 
     site(tp)(
-      run { case c(0) + f(tInit, r) =>
+      go { case c(0) + f(tInit, r) =>
         val t = LocalDateTime.now
         r(elapsed(tInit))
       },
-      run { case g(_,reply) + c(n) => c(n); reply(n) },
-      run { case c(n) + i(_) => c(n+1)  },
-      run { case c(n) + d(_) if n > 0 => c(n-1) }
+      go { case g(_,reply) + c(n) => c(n); reply(n) },
+      go { case c(n) + i(_) => c(n+1)  },
+      go { case c(n) + d(_) if n > 0 => c(n-1) }
     )
 
     val initialTime = LocalDateTime.now
@@ -65,10 +65,10 @@ object Benchmarks1 {
     val f = b[LocalDateTime,Long]
 
     site(tp)(
-      run { case c(0) + f(tInit, r) => r(elapsed(tInit)) },
-      run { case g(_,reply) + c(n) => c(n); reply(n) },
-      run { case c(n) + i(_) => c(n+1) },
-      run { case c(n) + d(_) if n > 0 => c(n-1) }
+      go { case c(0) + f(tInit, r) => r(elapsed(tInit)) },
+      go { case g(_,reply) + c(n) => c(n); reply(n) },
+      go { case c(n) + i(_) => c(n+1) },
+      go { case c(n) + d(_) if n > 0 => c(n-1) }
     )
 
     c(init)

@@ -22,8 +22,8 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
 
   /** The table of statically declared singleton molecules and their multiplicities.
     * Only non-blocking molecules can be singletons.
-    * This list may be incorrect if the singleton reaction code injects molecules conditionally.
-    * So, at the moment (1 to 10).foreach (_ => singleton() ) will not recognize that there are 10 singletons injected.
+    * This list may be incorrect if the singleton reaction code emits molecules conditionally.
+    * So, at the moment (1 to 10).foreach (_ => singleton() ) will not recognize that there are 10 singletons emitted.
     */
   private val singletonsDeclared: Map[Molecule, Int] =
     singletonReactions.flatMap(_.info.outputs)
@@ -31,11 +31,11 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
       .groupBy(identity)
       .mapValues(_.size)
 
-  /** The table of singleton molecules actually injected when singleton reactions are first run.
+  /** The table of singleton molecules actually emitted when singleton reactions are first run.
     *
     */
 
-  /** For each declared singleton molecule, store the value it carried when it was last injected.
+  /** For each declared singleton molecule, store the value it carried when it was last emitted.
     *
     */
   private val singletonValues: ConcurrentMap[Molecule, AbsMolValue[_]] = new ConcurrentHashMap()
@@ -79,7 +79,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
   // Initially, there are no molecules present.
   private val moleculesPresent: MoleculeBag = new MutableBag[Molecule, AbsMolValue[_]]
 
-  private[jc] def injectMulti(moleculesAndValues: Seq[(M[_], Any)]): Unit = {
+  private[jc] def emitMulti(moleculesAndValues: Seq[(M[_], Any)]): Unit = {
     // TODO: implement correct semantics
 //    moleculesAndValues.foreach{ case (m, v) => m(v) }
   }
@@ -106,7 +106,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
         // Running the reaction body produced an exception that is internal to JoinRun.
         // We should not try to recover from this; it is most either an error on user's part
         // or a bug in JoinRun.
-        reportError(s"In $this: Reaction {$reaction} produced an exception that is internal to JoinRun. Input molecules ${moleculeBagToString(usedInputs)} were not injected again. Message: ${e.getMessage}")
+        reportError(s"In $this: Reaction {$reaction} produced an exception that is internal to JoinRun. Input molecules ${moleculeBagToString(usedInputs)} were not emitted again. Message: ${e.getMessage}")
         // Let's not print it, and let's not throw it again, since it's our internal exception.
         //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
         //        throw e
@@ -116,10 +116,10 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
         // Running the reaction body produced an exception. Note that the exception has killed a thread.
         // We will now re-insert the input molecules (except the blocking ones). Hopefully, no side-effects or output molecules were produced so far.
         val (status, aboutMolecules) = if (reaction.retry) {
-          usedInputs.foreach { case (mol, v) => inject(mol, v) }
-          (ReactionExitRetryFailure, "were injected again")
+          usedInputs.foreach { case (mol, v) => emit(mol, v) }
+          (ReactionExitRetryFailure, "were emitted again")
         }
-        else (ReactionExitFailure, "were consumed and not injected again")
+        else (ReactionExitFailure, "were consumed and not emitted again")
 
         reportError(s"In $this: Reaction {$reaction} produced an exception. Input molecules ${moleculeBagToString(usedInputs)} $aboutMolecules. Message: ${e.getMessage}")
         //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message. Let's not print this.
@@ -183,38 +183,38 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
     *
     * This method could be scheduled to run on a separate thread.
     *
-    * @param m Molecule to be injected (can be blocking or non-blocking).
+    * @param m Molecule to be emitted (can be blocking or non-blocking).
     * @param molValue Wrapper for the molecule's value. (This is either a blocking molecule value wrapper or a non-blocking molecule value wrapper.)
     * @tparam T The type of value carried by the molecule.
     */
-  private def buildInjectClosure[T](m: Molecule, molValue: AbsMolValue[T]): Unit = try {
+  private def buildEmitClosure[T](m: Molecule, molValue: AbsMolValue[T]): Unit = try {
     val (reactionOpt: Option[Reaction], usedInputs: LinearMoleculeBag) =
       synchronized {
         if (m.isSingleton) {
-          if (singletonsDeclared.get(m).isEmpty) throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject singleton $m($molValue) not declared in this reaction site")
+          if (singletonsDeclared.get(m).isEmpty) throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) not declared in this reaction site")
 
-          // This thread is allowed to inject this singleton only if it is a ThreadWithInfo and the reaction running on this thread has consumed this singleton.
+          // This thread is allowed to emit this singleton only if it is a ThreadWithInfo and the reaction running on this thread has consumed this singleton.
           val reactionInfoOpt = currentReactionInfo
-          val isAllowedToInject = reactionInfoOpt.exists(_.inputs.map(_.molecule).contains(m))
-          if (!isAllowedToInject) {
+          val isAllowedToEmit = reactionInfoOpt.exists(_.inputs.map(_.molecule).contains(m))
+          if (!isAllowedToEmit) {
             val refusalReason = reactionInfoOpt match {
               case Some(info) => s"this reaction {$info} does not consume it"
               case None => "this thread does not run a chemical reaction"
             }
-            val errorMessage = s"In $this: Refusing to inject singleton $m($molValue) because $refusalReason"
-            throw new ExceptionInjectingSingleton(errorMessage)
+            val errorMessage = s"In $this: Refusing to emit singleton $m($molValue) because $refusalReason"
+            throw new ExceptionEmittingSingleton(errorMessage)
           }
 
-          // This thread is allowed to inject a singleton; but are there already enough copies of this singleton?
+          // This thread is allowed to emit a singleton; but are there already enough copies of this singleton?
           val oldCount = moleculesPresent.getCount(m)
-          val maxCount = singletonsInjected.getOrElse(m, 0)
-          if (oldCount + 1 > maxCount) throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject singleton $m($molValue) having current count $oldCount, max count $maxCount")
+          val maxCount = singletonsEmitted.getOrElse(m, 0)
+          if (oldCount + 1 > maxCount) throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) having current count $oldCount, max count $maxCount")
 
-          // OK, we can proceed to inject this singleton molecule.
+          // OK, we can proceed to emit this singleton molecule.
           singletonValues.put(m, molValue)
         }
         moleculesPresent.addToBag(m, molValue)
-        if (logLevel > 0) println(s"Debug: $this injecting $m($molValue) on thread pool $sitePool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+        if (logLevel > 0) println(s"Debug: $this emitting $m($molValue) on thread pool $sitePool, now have molecules ${moleculeBagToString(moleculesPresent)}")
         val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
         val reaction = possibleReactions.get(m)
           .flatMap(_.shuffle.find(r => {
@@ -258,25 +258,25 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
   }
 
   /** This variable is true only at the initial stage of building the reaction site,
-    * when singleton reactions are run in order to inject the initial singletons.
+    * when singleton reactions are run in order to emit the initial singletons.
     */
-  private var injectingSingletons = false
+  private var emittingSingletons = false
 
-  private[jc] def inject[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
+  private[jc] def emit[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
     if (sitePool.isInactive)
-      throw new ExceptionNoSitePool(s"In $this: Cannot inject molecule $m($molValue) because join pool is not active")
+      throw new ExceptionNoSitePool(s"In $this: Cannot emit molecule $m($molValue) because join pool is not active")
     else if (!Thread.currentThread().isInterrupted) {
-      if (injectingSingletons) {
-        // Inject them on the same thread, and do not start any reactions.
+      if (emittingSingletons) {
+        // Emit them on the same thread, and do not start any reactions.
         if (m.isSingleton) {
           moleculesPresent.addToBag(m, molValue)
           singletonValues.put(m, molValue)
         } else {
-          throw new ExceptionInjectingSingleton(s"In $this: Refusing to inject molecule $m($molValue) as a singleton (must be a non-blocking molecule)")
+          throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit molecule $m($molValue) as a singleton (must be a non-blocking molecule)")
         }
       }
       else
-        sitePool.runClosure(buildInjectClosure(m, molValue), currentReactionInfo.getOrElse(emptyReactionInfo))
+        sitePool.runClosure(buildEmitClosure(m, molValue), currentReactionInfo.getOrElse(emptyReactionInfo))
     }
     ()
   }
@@ -292,9 +292,9 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
     }
   }
 
-  private def injectAndReplyInternal[T,R](timeoutOpt: Option[Long], m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): Boolean = {
+  private def emitAndReplyInternal[T,R](timeoutOpt: Option[Long], m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): Boolean = {
     val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
-    inject(m, blockingMolValue)
+    emit(m, blockingMolValue)
     val success =
       BlockingIdle {
         replyValueWrapper.acquireSemaphore(timeoutNanos = timeoutOpt)
@@ -308,8 +308,8 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
 
   // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
   // We must make this a blocking call, so we acquire a semaphore (with or without timeout).
-  private[jc] def injectAndReply[T,R](m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): R = {
-    injectAndReplyInternal(timeoutOpt = None, m, v, replyValueWrapper)
+  private[jc] def emitAndReply[T,R](m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): R = {
+    emitAndReplyInternal(timeoutOpt = None, m, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value
     replyValueWrapper.errorMessage match {
       case Some(message) => throw new Exception(message)
@@ -320,10 +320,10 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
     }
   }
 
-  // This is a separate method because it has a different return type than injectAndReply.
-  private[jc] def injectAndReplyWithTimeout[T,R](timeout: Long, m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]):
+  // This is a separate method because it has a different return type than emitAndReply.
+  private[jc] def emitAndReplyWithTimeout[T,R](timeout: Long, m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]):
   Option[R] = {
-    val haveReply = injectAndReplyInternal(timeoutOpt = Some(timeout), m, v, replyValueWrapper)
+    val haveReply = emitAndReplyInternal(timeoutOpt = Some(timeout), m, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value
     replyValueWrapper.errorMessage match {
       case Some(message) => throw new Exception(message)
@@ -364,7 +364,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
     nonSingletonReactions
       .foreach { r =>
         r.info.outputs.foreach {
-          _.foreach { info => info.molecule.injectingReactionsSet += r }
+          _.foreach { info => info.molecule.emittingReactionsSet += r }
         }
       }
 
@@ -388,28 +388,28 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
 
     staticDiagnostics.checkWarningsAndErrors()
 
-    // Inject singleton molecules (note: this is on the same thread as the call to `site`!).
+    // Emit singleton molecules (note: this is on the same thread as the call to `site`!).
     // This must be done without starting any reactions.
     // It is OK that the argument is `null` because singleton reactions match on the wildcard: { case _ => ... }
-    injectingSingletons = true
+    emittingSingletons = true
     singletonReactions.foreach { reaction => reaction.body.apply(null.asInstanceOf[UnapplyArg]) }
-    injectingSingletons = false
+    emittingSingletons = false
 
-    val singletonsActuallyInjected = moleculesPresent.getCountMap
+    val singletonsActuallyEmitted = moleculesPresent.getCountMap
 
-    val singletonInjectionWarnings = StaticAnalysis.findSingletonInjectionWarnings(singletonsDeclared, singletonsActuallyInjected)
-    val singletonInjectionErrors = StaticAnalysis.findSingletonInjectionErrors(singletonsDeclared, singletonsActuallyInjected)
+    val singletonEmissionWarnings = StaticAnalysis.findSingletonEmissionWarnings(singletonsDeclared, singletonsActuallyEmitted)
+    val singletonEmissionErrors = StaticAnalysis.findSingletonEmissionErrors(singletonsDeclared, singletonsActuallyEmitted)
 
-    val singletonDiagnostics = WarningsAndErrors(singletonInjectionWarnings, singletonInjectionErrors, s"$this")
+    val singletonDiagnostics = WarningsAndErrors(singletonEmissionWarnings, singletonEmissionErrors, s"$this")
     val diagnostics = staticDiagnostics ++ singletonDiagnostics
 
     diagnostics.checkWarningsAndErrors()
 
-    (singletonsActuallyInjected, diagnostics)
+    (singletonsActuallyEmitted, diagnostics)
   }
 
   // This is run when this ReactionSite is first created.
-  val (singletonsInjected, diagnostics) = initializeJoinDef()
+  val (singletonsEmitted, diagnostics) = initializeJoinDef()
 }
 
 case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], joinDef: String) {

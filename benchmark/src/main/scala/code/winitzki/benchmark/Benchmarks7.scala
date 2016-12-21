@@ -21,8 +21,8 @@ object Benchmarks7 {
     val f = b[LocalDateTime,Long]
 
     site(tp)(
-      run { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
-      run { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
+      go { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
+      go { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
     )
     val initialTime = LocalDateTime.now
     all_done(numberOfCounters)
@@ -63,8 +63,8 @@ object Benchmarks7 {
     val d = m[Unit]
 
     site(tp)(
-      run { case c(0) => done() },
-      run { case c(n) + d(_) if n > 0 => c(n - 1) }
+      go { case c(0) => done() },
+      go { case c(n) + d(_) if n > 0 => c(n - 1) }
     )
     (1 to counters).foreach(_ => c(init))
     // We return just one molecule.
