@@ -30,7 +30,6 @@ There are a few academic papers on Join Calculus and a few expository descriptio
 Unfortunately, I cannot recommend reading them - they are unsuitable for learning about the chemical paradigm.
 
 I learned about the “Reflexive Chemical Abstract Machine” from the introduction in one of the [early papers on Join Calculus](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.32.3078&rep=rep1&type=pdf).
-(Initially I was able to understand _only_ the introduction part in that paper!)
 
 Do not start by reading these papers if you are a beginner in Join Calculus - you will only be unnecessarily confused, because those texts are intended for advanced computer scientists and not pedagogically appropriate for beginners.
 
@@ -50,7 +49,7 @@ This text is impossible to understand unless you are already well-versed in the 
 
 Research literature on Join Calculus typically uses terms such as "channel" or "message", which are not very helpful for understanding how to write concurrent program.
 
-Instead of using the academic terminology, I always follow the “chemical machine” metaphor and terminology when talking about `JoinRun` and `Chymyst` programming.
+Instead of using the academic terminology, I always follow the chemical machine metaphor and terminology when talking about `JoinRun` and `Chymyst` programming.
 Here is a dictionary:
 
 | Chemical machine  | Academic Join Calculus | `JoinRun` code |

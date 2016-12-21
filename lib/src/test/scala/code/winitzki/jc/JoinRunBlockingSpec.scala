@@ -69,18 +69,18 @@ class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
     val a = new M[Unit]("a")
     val f = new B[Unit,Int]("f")
-    site(tp0)( _go { case a(_) + f(_, r) => Thread.sleep(50); r(3) })
+    site(tp0)( _go { case a(_) + f(_, r) => Thread.sleep(100); r(3) })
     a()
-    f(timeout = 100 millis)() shouldEqual Some(3)
+    f(timeout = 500 millis)() shouldEqual Some(3)
   }
 
   it should "timeout when a blocking molecule is not responding quickly enough" in {
 
     val a = new M[Unit]("a")
     val f = new B[Unit,Int]("f")
-    site(tp0)( _go { case a(_) + f(_, r) => Thread.sleep(150); r(3) })
+    site(tp0)( _go { case a(_) + f(_, r) => Thread.sleep(500); r(3) })
     a()
-    f(timeout = 100 millis)() shouldEqual None
+    f(timeout = 200 millis)() shouldEqual None
   }
 
   behavior of "reaction sites with invalid replies"
