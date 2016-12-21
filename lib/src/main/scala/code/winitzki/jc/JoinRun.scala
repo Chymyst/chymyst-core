@@ -257,7 +257,7 @@ object JoinRun {
 
   // Wait until the reaction site to which `molecule` is bound becomes quiescent, then emit `callback`.
   // TODO: implement
-  def wait_until_quiet[T](molecule: M[T], callback: M[Unit]): Unit = molecule.site.setQuiescenceCallback(callback)
+  def waitUntilQuiet[T](molecule: M[T], callback: M[Unit]): Unit = molecule.site.setQuiescenceCallback(callback)
 
   /**
     * Convenience syntax: users can write a(x)+b(y) to emit several molecules at once.
