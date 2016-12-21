@@ -1,7 +1,7 @@
 package code.winitzki.jc
 
 import JoinRun._
-import Macros.{getName, rawTree, m,b, go => &}
+import Macros.{getName, rawTree, m,b, go}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt
@@ -43,14 +43,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val d = m[Boolean]
 
     site(
-      & { case a(x, r) => d(r(x)) }
+      go { case a(x, r) => d(r(x)) }
     )
   }
 
   it should "inspect reaction body with default clause that declares a singleton" in {
     val a = m[Int]
 
-    val reaction = & { case _ => a(123) }
+    val reaction = go { case _ => a(123) }
 
     reaction.info.inputs shouldEqual Nil
     reaction.info.hasGuard.knownFalse shouldEqual true
@@ -61,10 +61,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val a = m[Int]
 
     val reaction =
-      & { case a(x) =>
+      go { case a(x) =>
         val q = new M[Int]("q")
         val s = new M[Unit]("s")
-        val reaction1 = & { case q(_) + s(()) => }
+        val reaction1 = go { case q(_) + s(()) => }
         q(0)
       }
     reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1))
@@ -76,10 +76,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val bb = m[Int]
     val f = b[Unit, Int]
     site(tp0)(
-      & { case f(_, r) + bb(x) => r(x) },
-      & { case a(x) =>
+      go { case f(_, r) + bb(x) => r(x) },
+      go { case a(x) =>
         val p = m[Int]
-        site(tp0)(& { case p(y) => bb(y) })
+        site(tp0)(go { case p(y) => bb(y) })
         p(x + 1)
       }
     )
@@ -96,7 +96,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       _go { case f(_, r) + bb(x) => r(x) },
       _go { case a(x) =>
         val p = m[Int]
-        site(tp0)(& { case p(y) => bb(y) })
+        site(tp0)(go { case p(y) => bb(y) })
         p(x + 1)
       }
     )
@@ -136,7 +136,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val s = b[Unit, Int]
     val bb = m[Option[Int]]
 
-    val result = & { case a(x) + bb(None) => bb(None) }
+    val result = go { case a(x) + bb(None) => bb(None) }
 
     (result.info.inputs match {
       case List(
@@ -157,7 +157,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val s = b[Unit, Int]
     val bb = m[(Int, Option[Int])]
 
-    val result = & { case a(x) + qq(_) => qq() }
+    val result = go { case a(x) + qq(_) => qq() }
 
     result.info.inputs shouldEqual List(
       InputMoleculeInfo(a, SimpleVar, simpleVarXSha1),
@@ -178,7 +178,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       def apply(x: Int): Int = x + 1
     }
 
-    val result = & {
+    val result = go {
       case a(_) + a(x) + a(1) =>
         a(x + 1)
         if (x > 0) a(testWithApply(123))
@@ -201,7 +201,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val s = b[Unit, Int]
     val bb = m[(Int, Option[Int])]
 
-    val result = & { case a(x) => & { case qq(_) => a(0) }; qq() }
+    val result = go { case a(x) => go { case qq(_) => a(0) }; qq() }
 
     result.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1))
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, ConstOutputValue(()))))
@@ -216,7 +216,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val bb = m[(Int, Option[Int])]
 
     // reaction contains all kinds of pattern-matching constructions, blocking molecule in a guard, and unit values in molecules
-    val result = & {
+    val result = go {
       case a(p) + a(y) + a(1) + c(()) + c(_) + bb(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) if y > 0 && s() > 0 => a(p + 1); qq(); r(p)
     }
 
@@ -244,7 +244,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val a = m[Int]
     val qq = m[Unit]
 
-    val result = & {
+    val result = go {
       case a(x) => qq()
       case qq(_) + a(y) => qq()
     }
@@ -267,7 +267,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    site(tp0)(& { case b(_) + a(None) + c(_) => })
+    site(tp0)(go { case b(_) + a(None) + c(_) => })
 
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
@@ -277,7 +277,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    site(& { case b(_) + a(List()) + c(_) => })
+    site(go { case b(_) + a(List()) + c(_) => })
 
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
@@ -297,7 +297,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    site(tp0)(& { case a(None) + b(_) + c(_) => })
+    site(tp0)(go { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
@@ -307,7 +307,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    site(tp0)(& { case a(Some(x)) + b(_) + c(_) => })
+    site(tp0)(go { case a(Some(x)) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
@@ -316,7 +316,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val a = new M[Option[Int]]("a")
     val b = new M[Unit]("b")
 
-    site(tp0)(& { case a(Some(x)) + b(_) => })
+    site(tp0)(go { case a(Some(x)) + b(_) => })
 
     a(Some(1))
     waitSome()
@@ -331,7 +331,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    site(tp0)(& { case a(1) + b(_) + c(_) => })
+    site(tp0)(go { case a(1) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
@@ -341,7 +341,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    site(tp0)(& { case a(None) + b(_) + c(_) => })
+    site(tp0)(go { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
@@ -352,7 +352,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val c = new M[(Int, Int)]("c")
     val d = new M[Unit]("d")
 
-    val r = & { case a(Some(1)) + b("xyz") + d(()) + c((2, 3)) => a(Some(2)) }
+    val r = go { case a(Some(1)) + b("xyz") + d(()) + c((2, 3)) => a(Some(2)) }
 
     (r.info.inputs match {
       case List(
@@ -377,17 +377,17 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val c = b[Unit, Unit]
     val e = m[Unit]
 
-    "val r = & { case e() => }" shouldNot compile // no pattern variable in a non-blocking molecule "e"
-    "val r = & { case e(_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
-    "val r = & { case e(_,_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
+    "val r = go { case e() => }" shouldNot compile // no pattern variable in a non-blocking molecule "e"
+    "val r = go { case e(_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
+    "val r = go { case e(_,_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
 
-    "val r = & { case a() => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = & { case a(_) => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = & { case a(_, _) => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = & { case a(_, _, _) => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = & { case a(_, r) => }" shouldNot compile // no reply is performed with r
-    "val r = & { case a(_, r) + a(_) + c(_) => r()  }" shouldNot compile // invalid patterns for "a" and "c"
-    "val r = & { case a(_, r) + a(_) + c(_) => r(); r() }" shouldNot compile // two replies are performed with r, and invalid patterns for "a" and "c"
+    "val r = go { case a() => }" shouldNot compile // no pattern variable for reply in "a"
+    "val r = go { case a(_) => }" shouldNot compile // no pattern variable for reply in "a"
+    "val r = go { case a(_, _) => }" shouldNot compile // no pattern variable for reply in "a"
+    "val r = go { case a(_, _, _) => }" shouldNot compile // no pattern variable for reply in "a"
+    "val r = go { case a(_, r) => }" shouldNot compile // no reply is performed with r
+    "val r = go { case a(_, r) + a(_) + c(_) => r()  }" shouldNot compile // invalid patterns for "a" and "c"
+    "val r = go { case a(_, r) + a(_) + c(_) => r(); r() }" shouldNot compile // two replies are performed with r, and invalid patterns for "a" and "c"
 
   }
 
@@ -395,9 +395,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val bb = m[Int]
     val bbb = m[Int]
 
-    "val r = & { case _ => bb(0) }" should compile // declaration of a singleton
-    "val r = & { case x => bb(x.asInstanceOf[Int]) }" shouldNot compile // no input molecules
-    "val r = & { case x => x }" shouldNot compile // no input molecules
+    "val r = go { case _ => bb(0) }" should compile // declaration of a singleton
+    "val r = go { case x => bb(x.asInstanceOf[Int]) }" shouldNot compile // no input molecules
+    "val r = go { case x => x }" shouldNot compile // no input molecules
   }
 
   it should "fail to compile reactions with unconditional livelock" in {
@@ -405,20 +405,20 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val bbb = m[Int]
     val a = m[(Int, Int)]
 
-    "val r = & { case a((x,y)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
-    "val r = & { case a((_,x)) => a((x,x)) }" should compile // cannot detect unconditional livelock here
-    "val r = & { case a((1,_)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
+    "val r = go { case a((x,y)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
+    "val r = go { case a((_,x)) => a((x,x)) }" should compile // cannot detect unconditional livelock here
+    "val r = go { case a((1,_)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
 
-    "val r = & { case bb(x) => bb(1) }" shouldNot compile // unconditional livelock
-    "val r = & { case bb(x) if x > 0 => bb(1) }" should compile // no unconditional livelock due to guard
+    "val r = go { case bb(x) => bb(1) }" shouldNot compile // unconditional livelock
+    "val r = go { case bb(x) if x > 0 => bb(1) }" should compile // no unconditional livelock due to guard
 
-    "val r = & { case a(_) => a((1,1)) }" shouldNot compile // unconditional livelock
+    "val r = go { case a(_) => a((1,1)) }" shouldNot compile // unconditional livelock
 
-    "val r = & { case bbb(1) => bbb(2) }" should compile // no unconditional livelock
+    "val r = go { case bbb(1) => bbb(2) }" should compile // no unconditional livelock
 
-    "val r = & { case bbb(_) => bbb(0) }" shouldNot compile // unconditional livelock
-    "val r = & { case bbb(x) => bbb(x) + bb(x) }" shouldNot compile
-    "val r = & { case bbb(x) + bb(y) => bbb(x) + bb(x) + bb(y) }" shouldNot compile
+    "val r = go { case bbb(_) => bbb(0) }" shouldNot compile // unconditional livelock
+    "val r = go { case bbb(x) => bbb(x) + bb(x) }" shouldNot compile
+    "val r = go { case bbb(x) + bb(y) => bbb(x) + bb(x) + bb(y) }" shouldNot compile
   }
 
   it should "detect output molecules with constant values" in {
@@ -426,9 +426,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val bbb = m[Int]
     val cc = m[Option[Int]]
 
-    val r1 = & { case bbb(x) => bb(x) }
-    val r2 = & { case bbb(_) + bb(_) => bbb(0) }
-    val r3 = & { case bbb(x) + bb(_) + bb(_) => bbb(1) + bb(x) + bbb(2) + cc(None) + cc(Some(1)) }
+    val r1 = go { case bbb(x) => bb(x) }
+    val r2 = go { case bbb(_) + bb(_) => bbb(0) }
+    val r3 = go { case bbb(x) + bb(_) + bb(_) => bbb(1) + bb(x) + bbb(2) + cc(None) + cc(Some(1)) }
 
     r1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, OtherOutputPattern)))
     r2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bbb, ConstOutputValue(0))))
@@ -445,7 +445,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val aa = m[Option[Int]]
     val bb = m[(Int, Option[Int])]
 
-    val result = & { case aa(Some(x)) + bb((0, None)) => aa(Some(x + 1)) }
+    val result = go { case aa(Some(x)) + bb((0, None)) => aa(Some(x + 1)) }
 
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(aa, OtherOutputPattern)))
 
@@ -485,7 +485,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val thrown = intercept[Exception] {
       val a = m[Int]
       site(
-        & { case a(1) => a(1) }
+        go { case a(1) => a(1) }
       )
       a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
     }
@@ -495,10 +495,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   it should "compute inputs and outputs correctly for an inline nested reaction" in {
     val a = m[Int]
     site(
-      & {
+      go {
         case a(1) =>
           val c = m[Int]
-          site(& { case c(_) => })
+          site(go { case c(_) => })
           c(2)
           a(2)
       }
@@ -513,10 +513,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val thrown = intercept[Exception] {
       val a = m[Int]
       site(
-        & {
+        go {
           case a(1) =>
             val c = m[Int]
-            site(& { case c(_) => })
+            site(go { case c(_) => })
             c(2)
             a(1)
         }
@@ -529,7 +529,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val a = m[Int]
     val b = m[Int]
     site(
-      & { case a(2) => b(2) + a(1) + b(1) }
+      go { case a(2) => b(2) + a(1) + b(1) }
     )
     a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(
       OutputMoleculeInfo(b, ConstOutputValue(2)),
@@ -578,7 +578,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val d = m[Boolean]
 
     site(
-      & { case a(x) + d(_) => c(a(1)) }
+      go { case a(x) + d(_) => c(a(1)) }
     )
 
     a.isBound shouldEqual true
@@ -599,8 +599,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val d = m[Boolean]
 
     site(
-      & { case d(_) => c(a(1)) },
-      & { case a(x, r) => d(r(x)) }
+      go { case d(_) => c(a(1)) },
+      go { case a(x, r) => d(r(x)) }
     )
 
     a.isBound shouldEqual true
