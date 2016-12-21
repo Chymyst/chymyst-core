@@ -10,7 +10,7 @@
 `JoinRun` is a core library that provides a Scala domain-specific language for declarative concurrency.
 `Chymyst` is a framework-in-planning that will build upon `JoinRun` to enable creating concurrent applications declaratively.
 
-`JoinRun`/`Chymyst` are based on the chemical machine paradigm, known in the academic world as Join Calculus (JC).
+`JoinRun`/`Chymyst` are based on the **chemical machine** paradigm, known in the academic world as Join Calculus (JC).
 JC has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) and [the Actor model](https://en.wikipedia.org/wiki/Actor_model), but is easier to use.
 
 The initial code of `JoinRun` was based on previous work by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
@@ -27,20 +27,20 @@ I gave a presentation on an early version of `JoinRun` at [Scalæ by the Bay 201
 There is some [technical documentation for `JoinRun` library](docs/joinrun.md).
 
 
-## Comparison: JC vs. actor model
+## Comparison: chemical machine vs. actor model
 
-JC is similar in some aspects to the well-known actor model framework (e.g. Akka).
+Chemical machine programming is similar in some aspects to the well-known Actor Model (e.g. the [Akka framework](https://github.com/akka/akka)).
 
-JC has these features that are similar to actors:
+The chemical machine has these features that are similar to actors:
 
 - the user's code does not explicitly work with threads / mutexes / semaphores / locks / monitors
 - concurrent processes interact by message-passing
 - messages carry immutable data
-- JC processes start automatically when messages of certain type become available, just as actors run automatically when a message is received
+- chemical reactions (i.e. threads / processes) start automatically when messages of certain type become available, just as actors run automatically when a message is received
 
-Main differences between actors and JC processes:
+Main differences between actors and the chemical machine:
 
-| JC processes | Actors |
+| Chemical machine | Actors |
 |---|---|
 | concurrent processes start automatically whenever several input data sets are available | a desired number of concurrent actors must be created manually|
 | processes are implicit, the user's code only manipulates messages | the user's code must manipulate explicit references to actors as well as messages |
@@ -49,7 +49,7 @@ Main differences between actors and JC processes:
 | messages are held in an unordered bag | messages are held in an ordered queue and processed in the order received |
 | message data is statically typed | message data is untyped |
 
-In talking about `JoinRun` and `Chymyst`, I follow the “chemical machine” metaphor and terminology, which differs from the terminology usually employed in academic papers on JC.
+In talking about `JoinRun` and `Chymyst`, I follow the chemical machine metaphor and terminology, which differs from the terminology usually employed in academic papers on JC.
 Here is a dictionary:
 
 | Chemical machine  | Join Calculus | JoinRun |
@@ -62,17 +62,19 @@ Here is a dictionary:
 | emitting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
 | reaction site | join definition | `site(r1, r2, ...)` |
 
-## Comparison: JC vs. CSP
+## Comparison: chemical machine vs. CSP
+
+CSP (Communicating Sequential Processes) is another approach to declarative concurrency, used today in the Go programming language.
 
 Similarities:
 
-The channels of CSP are similar to JC's blocking molecules: sending a message will block until a process can be started that consumes the message and replies with a value.
+The channels of CSP are similar to blocking molecules: sending a message will block until a process can be started that consumes the message and replies with a value.
 
 Differences:
 
-JC admits only one reply to a blocking channel; CSP can open a channel and send many messages to it.
+The chemical machine admits only one reply to a blocking channel; CSP can open a channel and send many messages to it.
 
-JC will start processes automatically and concurrently whenever input molecules are available.
+The chemical machine will start processes automatically and concurrently whenever input molecules are available.
 In CSP, the user needs to create and manage new threads manually.
 
 JC has non-blocking channels as a primitive construct.
@@ -82,7 +84,7 @@ In CSP, non-blocking channels need to be simulated by [additional user code](htt
 
 Compared to [`ScalaJoin` (Jiansen He's 2011 implementation of JC)](https://github.com/Jiansen/ScalaJoin), `JoinRun` offers the following improvements:
 
-- Lighter syntax for join definitions. Compare:
+- Lighter syntax for reaction sites (join definitions). Compare:
 
 JoinRun:
 
@@ -129,10 +131,10 @@ Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` an
 
 - Molecule emitters (or “channels”) are not singleton objects as in `ScalaJoin` but locally scoped values. This is how the semantics of JC is implemented in JoCaml. In this way, we get more flexibility in defining molecules.
 - Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`). `JoinRun` uses macros to perform some static analysis of reactions at compile time and detect some errors.
-- Reactions and molecules are composable: we can begin constructing a join definition incrementally, until we have `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules. (However, a join definition is immutable once it is written.)
-- Join definitions are instances of class `ReactionSite` and are invisible to the user (as they should be according to the semantics of JC).
-- Some common cases of invalid join definitions are flagged (as run-time errors) before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply).
-- Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use Akka actor-based or thread-based pools.
+- Reactions and molecules are composable: we can begin constructing a reaction site incrementally, until we have `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one reaction site, and no limit on the number of different molecules. (However, a reaction site is immutable once it is written.)
+- Reaction sites are instances of class `ReactionSite` and are invisible to the user (as they should be according to the semantics of JC).
+- Some common cases of invalid chemistry are flagged (as run-time errors) before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply).
+- Fine-grained threading control: each reaction site and each reaction can be run on a different, separate thread pool; we can use Akka actor-based or thread-based pools.
 - Fair nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random.
 - Reactions marked as fault-tolerant will be automatically restarted if exceptions are thrown.
 - Tracing the execution via logging levels; automatic naming of molecules for debugging is available (via macro).
@@ -149,7 +151,7 @@ Performance tests indicate that the runtime can schedule about 300,000 reactions
 
 Known limitations:
 
-- `JoinRun` is about 3x slower than `ScalaJoin` on the blocking molecule benchmark.
+- `JoinRun` is about 3x slower than `ScalaJoin` on the blocking molecule benchmark (but faster on non-blocking molecules).
 - `JoinRun` has no fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random.
 - `JoinRun` has no distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`, and probably will not be).
 Distributed computation should be implemented in a better way than posting channel names on an HTTP server.
@@ -197,7 +199,7 @@ def makeCounter(initCount: Int)
   val decr = m[Unit] // empty non-blocking molecule
   val get = b[Unit, Int] // empty blocking molecule returning integer value
 
-  join {
+  site {
     go { counter(n) + incr(_) => counter(n+1) },
     go { counter(n) + decr(_) => counter(n-1) },
     go { counter(n) + get(_,res) => counter(n) + res(n) }
@@ -231,7 +233,7 @@ The library offers some debugging facilities:
 
 - each molecule is named
 - a macro is available to assign names automatically
-- the user can set a log level on each join definition
+- the user can set a log level on each reaction site
  
  Here are the typical results:
 
