@@ -2,7 +2,6 @@ package code.winitzki.test
 
 import code.winitzki.jc.FixedPool
 import code.winitzki.jc.JoinRun._
-import code.winitzki.jc.Macros.{go => &}
 import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.concurrent.TimeLimitedTests
@@ -28,10 +27,10 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(6)
 
     site(tp)(
-      &{ case f(_, r) => r(123) },
-      &{ case g(_, r) + a(x) => r(x) },
-      &{ case g(_, r) + d(x) => r(-x) },
-      &{ case c(x) => val y = f(); if (y>0) d(x) else a(x) }
+      go { case f(_, r) => r(123) },
+      go { case g(_, r) + a(x) => r(x) },
+      go { case g(_, r) + d(x) => r(-x) },
+      go { case c(x) => val y = f(); if (y>0) d(x) else a(x) }
     )
 
     c(-2)
@@ -47,7 +46,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(4)
 
     site(tp)(
-      & { case f(_, r) => val res = r(123); waiter { res shouldEqual true }; waiter.dismiss() }
+      go { case f(_, r) => val res = r(123); waiter { res shouldEqual true }; waiter.dismiss() }
     )
     f.timeout(10.seconds)() shouldEqual Some(123)
 
@@ -64,9 +63,9 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(6)
 
     site(tp)(
-      & { case f(_, reply) => a(reply(123)) },
-      & { case a(x) + collect(n) => collect(n + (if (x) 0 else 1))},
-      & { case collect(n) + get(_, reply) => reply(n) }
+      go { case f(_, reply) => a(reply(123)) },
+      go { case a(x) + collect(n) => collect(n + (if (x) 0 else 1))},
+      go { case collect(n) + get(_, reply) => reply(n) }
     )
     collect(0)
 
@@ -90,7 +89,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(20)
 
     site(tp)(
-      & { case f(_, r) + a(x) => r(x); a(0) }
+      go { case f(_, r) + a(x) => r(x); a(0) }
     )
     a.setLogLevel(4)
     a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
@@ -117,8 +116,8 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(20)
 
     site(tp)(
-      & { case f(_, r) => val x = g(); val res = r(x); waiter { res shouldEqual false }; waiter.dismiss() },
-      & { case g(_, r) + a(x) => r(x) }
+      go { case f(_, r) => val x = g(); val res = r(x); waiter { res shouldEqual false }; waiter.dismiss() },
+      go { case g(_, r) + a(x) => r(x) }
     )
 
     a.logSoup shouldEqual "Site{a + g/B => ...; f/B => ...}\nNo molecules"
@@ -139,8 +138,8 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(6)
     site(tp)(
-      & { case f(x, r) + a(y) => c(x); val s = f(x+y); r(s) },
-      & { case f(x, r) + c(y) => r(x*y) }
+      go { case f(x, r) + a(y) => c(x); val s = f(x+y); r(s) },
+      go { case f(x, r) + c(y) => r(x*y) }
     )
 
     a(10)
@@ -159,9 +158,9 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(6)
 
     site(tp)(
-      & { case get_d(_, r) + d(x) => r(x) },
-      & { case wait(_, r) + e(_) => r() },
-      & { case d(x) + incr(_, r) => r(); wait(); d(x+1) }
+      go { case get_d(_, r) + d(x) => r(x) },
+      go { case wait(_, r) + e(_) => r() },
+      go { case d(x) + incr(_, r) => r(); wait(); d(x+1) }
     )
     d(100)
     incr() // reaction 3 started and is waiting for e()
@@ -184,10 +183,10 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(6)
 
     site(tp)(
-      & { case get_f(_, r) + f(x) => r(x) },
-      & { case c(_) => incr(); e() },
-      & { case wait(_, r) + e(_) => r() },
-      & { case d(x) + incr(_, r) => r(); wait(); f(x+1) }
+      go { case get_f(_, r) + f(x) => r(x) },
+      go { case c(_) => incr(); e() },
+      go { case wait(_, r) + e(_) => r() },
+      go { case d(x) + incr(_, r) => r(); wait(); f(x+1) }
     )
     d(100)
     c() // update started and is waiting for e(), which should come after incr() gets its reply
@@ -208,10 +207,10 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(6)
 
     site(tp)(
-      & { case get_f(_, r) + f(x) => r(x) },
-      & { case c(_) => incr(); e() },
-      & { case wait(_, r) + e(_) => r() },
-      & { case d(x) + incr(_, r) => wait(); r(); f(x+1) }
+      go { case get_f(_, r) + f(x) => r(x) },
+      go { case c(_) => incr(); e() },
+      go { case wait(_, r) + e(_) => r() },
+      go { case d(x) + incr(_, r) => wait(); r(); f(x+1) }
     )
     d.setLogLevel(4)
     d(100)
