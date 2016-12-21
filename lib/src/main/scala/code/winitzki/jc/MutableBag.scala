@@ -1,7 +1,7 @@
 package code.winitzki.jc
-
-import collection.JavaConverters._
-import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
+//
+//import collection.JavaConverters._
+//import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
 import collection.mutable
 

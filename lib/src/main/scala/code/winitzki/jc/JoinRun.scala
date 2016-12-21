@@ -54,7 +54,7 @@ object JoinRun {
   /** Compile-time information about an input molecule pattern in a reaction.
     * This class is immutable.
     *
-    * @param molecule The molecule injector value that represents the input molecule.
+    * @param molecule The molecule emitter value that represents the input molecule.
     * @param flag     Type of the input pattern: wildcard, constant match, etc.
     * @param sha1     Hash sum of the source code (AST tree) of the input pattern.
     */
@@ -136,7 +136,7 @@ object JoinRun {
   /** Compile-time information about an output molecule pattern in a reaction.
     * This class is immutable.
     *
-    * @param molecule The molecule injector value that represents the output molecule.
+    * @param molecule The molecule emitter value that represents the output molecule.
     * @param flag     Type of the output pattern: either a constant value or other value.
     */
   final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType) {
@@ -207,7 +207,7 @@ object JoinRun {
   private[JoinRun] final class ExceptionNoReactionSite(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionMoleculeAlreadyBound(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionNoSitePool(message: String) extends ExceptionInJoinRun(message)
-  private[jc] final class ExceptionInjectingSingleton(message: String) extends ExceptionInJoinRun(message)
+  private[jc] final class ExceptionEmittingSingleton(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
   private final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
   private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
@@ -224,7 +224,7 @@ object JoinRun {
 
     /** Convenience method to specify thread pools per reaction.
       *
-      * Example: run { case a(x) => ... } onThreads threadPool24
+      * Example: go { case a(x) => ... } onThreads threadPool24
       *
       * @param newThreadPool A custom thread pool on which this reaction will be scheduled.
       * @return New reaction value with the thread pool set.
@@ -255,18 +255,18 @@ object JoinRun {
       "/R" else ""}"
   }
 
-  // Wait until the reaction site to which `molecule` is bound becomes quiescent, then inject `callback`.
+  // Wait until the reaction site to which `molecule` is bound becomes quiescent, then emit `callback`.
   // TODO: implement
   def wait_until_quiet[T](molecule: M[T], callback: M[Unit]): Unit = molecule.site.setQuiescenceCallback(callback)
 
   /**
-    * Convenience syntax: users can write a(x)+b(y) to inject several molecules at once.
-    * (However, the molecules are injected one by one in the present implementation.)
+    * Convenience syntax: users can write a(x)+b(y) to emit several molecules at once.
+    * (However, the molecules are emitted one by one in the present implementation.)
     *
-    * @param x the first injected molecule
+    * @param x the first emitted molecule
     * @return a class with a + operator
     */
-  implicit final class InjectMultiple(x: Unit) {
+  implicit final class EmitMultiple(x: Unit) {
     def +(n: Unit): Unit = ()
   }
 
@@ -293,7 +293,7 @@ object JoinRun {
     * @param body Body of the reaction. Should not contain any pattern-matching on molecule values, except possibly for the last molecule in the list of input molecules.
     * @return Reaction value. The [[ReactionInfo]] structure will be filled out in a minimal fashion (only has information about input molecules, and all patterns are "unknown").
     */
-  private[winitzki] def runSimple(body: ReactionBody): Reaction = {
+  private[winitzki] def goSimple(body: ReactionBody): Reaction = {
     val moleculesInThisReaction = UnapplyCheckSimple(mutable.MutableList.empty)
     body.isDefinedAt(moleculesInThisReaction)
     // detect nonlinear patterns
@@ -332,11 +332,11 @@ object JoinRun {
     override def getValue: T = v
   }
 
-  // Abstract molecule injector. This type is used in collections of molecules that do not require knowledge of molecule types.
+  // Abstract molecule emitter. This type is used in collections of molecules that do not require knowledge of molecule types.
   abstract sealed class Molecule extends PersistentHashCode {
 
     /** Check whether the molecule is already bound to a reaction site.
-      * Note that molecules can be injected only if they are bound.
+      * Note that molecules can be emitted only if they are bound.
       *
       * @return True if already bound, false otherwise.
       */
@@ -349,23 +349,23 @@ object JoinRun {
 
     /** The set of reactions that can consume this molecule.
       *
-      * @return {{{None}}} if the molecule injector is not yet bound to any reaction site.
+      * @return {{{None}}} if the molecule emitter is not yet bound to any reaction site.
       */
     private[jc] def consumingReactions: Option[Set[Reaction]] = reactionSiteOpt.map(_ => consumingReactionsSet)
 
     private lazy val consumingReactionsSet: Set[Reaction] = reactionSiteOpt.get.reactionInfos.keys.filter(_.inputMolecules contains this).toSet
 
-    /** The set of all reactions that *potentially* inject this molecule as output.
-      * Some of these reactions may evaluate a runtime condition to decide whether to inject the molecule; so injection is not guaranteed.
+    /** The set of all reactions that *potentially* emit this molecule as output.
+      * Some of these reactions may evaluate a runtime condition to decide whether to emit the molecule; so emission is not guaranteed.
       *
       * Note that these reactions may be defined in any reaction sites, not necessarily at the site to which this molecule is bound.
       * The set of these reactions may change at run time if new reaction sites are written that output this molecule.
       *
       * @return Empty set if the molecule is not yet bound to any reaction site.
       */
-    private[jc] def injectingReactions: Set[Reaction] = injectingReactionsSet.toSet
+    private[jc] def emittingReactions: Set[Reaction] = emittingReactionsSet.toSet
 
-    private[jc] val injectingReactionsSet: mutable.Set[Reaction] = mutable.Set()
+    private[jc] val emittingReactionsSet: mutable.Set[Reaction] = mutable.Set()
 
     def setLogLevel(logLevel: Int): Unit =
       site.logLevel = logLevel
@@ -383,17 +383,17 @@ object JoinRun {
     * @tparam T Type of the value carried by the molecule.
     */
   final class M[T](val name: String) extends Molecule with (T => Unit) {
-    /** Inject a non-blocking molecule.
+    /** Emit a non-blocking molecule.
       *
-      * @param v Value to be put onto the injected molecule.
+      * @param v Value to be put onto the emitted molecule.
       */
-    def apply(v: T): Unit = site.inject[T](this, MolValue(v))
+    def apply(v: T): Unit = site.emit[T](this, MolValue(v))
 
     override def toString: String = if (name.isEmpty) "<no name>" else name
 
     def unapply(arg: UnapplyArg): Option[T] = arg match {
 
-    case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by runSimple
+    case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by goSimple
       inputMoleculesProbe += this
       Some(null.asInstanceOf[T]) // hack for testing only. This value will not be used.
 
@@ -418,7 +418,7 @@ object JoinRun {
     /** Volatile reader for a molecule.
       * The molecule must be declared as a singleton.
       *
-      * @return The value carried by the singleton when it was last injected. Will throw exception if the singleton has not yet been injected.
+      * @return The value carried by the singleton when it was last emitted. Will throw exception if the singleton has not yet been emitted.
       */
     def volatileValue: T = site.getVolatileValue(this)
 
@@ -437,11 +437,11 @@ object JoinRun {
     * result Reply value as {{{Option[R]}}}. Initially this is None, and it may be assigned at most once by the
     *               "reply" action if the reply is "valid" (i.e. not timed out).
     * semaphore Mutable semaphore reference. This is initialized only once when creating an instance of this
-    *                  class. The semaphore will be acquired when injecting the molecule and released by the "reply"
+    *                  class. The semaphore will be acquired when emitting the molecule and released by the "reply"
     *                  action. The semaphore will be destroyed and never initialized again once a reply is received.
     * errorMessage Optional error message, to notify the caller or to raise an exception when the user made a
     *                     mistake in chemistry.
-    * replyTimeout Will be set to "true" if the molecule was injected with a timeout and the timeout was reached.
+    * replyTimeout Will be set to "true" if the molecule was emitted with a timeout and the timeout was reached.
     * replyRepeated Will be set to "true" if the molecule received a reply more than once.
     * @tparam T Type of the value carried by the molecule.
     * @tparam R Type of the value replied to the caller via the "reply" action.
@@ -504,31 +504,31 @@ object JoinRun {
     */
   final class B[T, R](val name: String) extends Molecule with (T => R) {
 
-    /** Inject a blocking molecule and receive a value when the reply action is performed.
+    /** Emit a blocking molecule and receive a value when the reply action is performed.
       *
-      * @param v Value to be put onto the injected molecule.
+      * @param v Value to be put onto the emitted molecule.
       * @return The "reply" value.
       */
     def apply(v: T): R =
-      site.injectAndReply[T,R](this, v, new ReplyValue[T,R](molecule = this))
+      site.emitAndReply[T,R](this, v, new ReplyValue[T,R](molecule = this))
 
-    /** Inject a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
+    /** Emit a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
       *
       * @param timeout Timeout in any time interval.
-      * @param v Value to be put onto the injected molecule.
+      * @param v Value to be put onto the emitted molecule.
       * @return Non-empty option if the reply was received; None on timeout.
       */
     def apply(timeout: Duration)(v: T): Option[R] =
-      site.injectAndReplyWithTimeout[T,R](timeout.toNanos, this, v, new ReplyValue[T,R](molecule = this))
+      site.emitAndReplyWithTimeout[T,R](timeout.toNanos, this, v, new ReplyValue[T,R](molecule = this))
 
     override def toString: String = name + "/B"
 
     def unapply(arg: UnapplyArg): Option[(T, ReplyValue[T,R])] = arg match {
 
-      case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by runSimple
+      case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by goSimple
         inputMoleculesProbe += this
         Some((null, null).asInstanceOf[(T, ReplyValue[T,R])]) // hack for testing purposes only:
-      // The null value will not be used in any production code since runSimple is private.
+      // The null value will not be used in any production code since goSimple is private.
 
       // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
       // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
@@ -556,7 +556,7 @@ object JoinRun {
   val defaultReactionPool = new FixedPool(4)
 
   private[jc] sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
-  private final case class UnapplyCheckSimple(inputMolecules: mutable.MutableList[Molecule]) extends UnapplyArg // used only for `runSimple` and in tests
+  private final case class UnapplyCheckSimple(inputMolecules: mutable.MutableList[Molecule]) extends UnapplyArg // used only for `goSimple` and in tests
   private[jc] final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg // used for checking that reaction values pass the pattern-matching, before running the reaction
   private[jc] final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg // used for running the reaction
 

@@ -16,15 +16,15 @@ object Benchmarks9 {
     val d = b[Unit, Unit]
 
     site(tp)(
-      run { case c(0) => done() },
-      run { case c(n) + d(_, r) if n > 0 => c(n - 1); r() }
+      go { case c(0) => done() },
+      go { case c(n) + d(_, r) if n > 0 => c(n - 1); r() }
     )
     (1 to counters).foreach(_ => c(init))
     // We return just one molecule.
     d
   }
 
-  // inject a blocking molecule many times
+  // emit a blocking molecule many times
   def benchmark9_1(count: Int, tp: Pool): Long = {
 
     val done = m[Unit]
@@ -33,8 +33,8 @@ object Benchmarks9 {
 
 
     site(tp)(
-      run { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
-      run { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
+      go { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
+      go { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
     )
     //    done.setLogLevel(2)
     val initialTime = LocalDateTime.now
@@ -53,7 +53,7 @@ object Benchmarks9 {
     val e = b[Int, Int]
 
     site(tp)(
-      run { case c(_) + d(n, reply) => if (n > 0) {
+      go { case c(_) + d(n, reply) => if (n > 0) {
         c()
         e(n-1)
       }
@@ -62,7 +62,7 @@ object Benchmarks9 {
       }
       reply(n)
       },
-      run { case c(_) + e(n, reply) => if (n > 0) {
+      go { case c(_) + e(n, reply) => if (n > 0) {
         c()
         d(n-1)
       }
@@ -73,7 +73,7 @@ object Benchmarks9 {
       }
     )
     c()
-    // We return just one molecule injector.
+    // We return just one molecule emitter.
     d
   }
 
@@ -89,8 +89,8 @@ object Benchmarks9 {
     val tp = new SmartPool(MainAppConfig.threads) // this benchmark will not work with a fixed pool
 
     site(tp)(
-      run { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
-      run { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
+      go { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
+      go { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
     )
     //    done.setLogLevel(2)
     val initialTime = LocalDateTime.now
@@ -116,9 +116,9 @@ object Benchmarks9 {
     val get = b[Unit, Int]
 
     site(tp)(
-      run { case f(_, reply) => a(reply(123)) },
-      run { case a(x) + collect(n) => collect(n + (if (x) 0 else 1)) },
-      run { case collect(n) + get(_, reply) => reply(n) }
+      go { case f(_, reply) => a(reply(123)) },
+      go { case a(x) + collect(n) => collect(n + (if (x) 0 else 1)) },
+      go { case collect(n) + get(_, reply) => reply(n) }
     )
     collect(0)
 
@@ -151,7 +151,7 @@ object Benchmarks9 {
     d
   }
 
-  // inject a blocking molecule many times
+  // emit a blocking molecule many times
   def benchmark9_1_Jiansen(count: Int, tp: Pool): Long = {
 
     object b9c1b extends Join {

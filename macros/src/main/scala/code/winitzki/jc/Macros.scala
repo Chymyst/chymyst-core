@@ -106,15 +106,15 @@ object Macros {
 
   /**
     * Users will define reactions using this function.
-    * Examples: {{{ run { a(_) => ... } }}}
-    * {{{ run { a (_) => ...} onThreads threadPool }}}
+    * Examples: {{{ go { a(_) => ... } }}}
+    * {{{ go { a (_) => ...} onThreads threadPool }}}
     *
     * The macro also obtains statically checkable information about input and output molecules in the reaction.
     *
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
     * @return A reaction value, to be used later in [[JoinRun#join]].
     */
-  def run(reactionBody: ReactionBody): Reaction = macro buildReactionImpl
+  def go(reactionBody: ReactionBody): Reaction = macro buildReactionImpl
 
   def buildReactionImpl(c: theContext)(reactionBody: c.Expr[ReactionBody]): c.universe.Tree = {
     import c.universe._
@@ -251,10 +251,10 @@ object Macros {
               inputMolecules.append((t.symbol, WrongReplyVarF, None, getSha1(t)))
             */
 
-          // possibly a molecule injection
+          // possibly a molecule emission
           case Apply(Select(t@Ident(TermName(_)), TermName("apply")), binder) =>
 
-            // In the output list, we do not include any molecule injectors defined in the inner scope of the reaction.
+            // In the output list, we do not include any molecule emitters defined in the inner scope of the reaction.
             val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
 
             val flag1 = getOutputFlag(binder)
@@ -308,8 +308,8 @@ object Macros {
     val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
 
     val (patternIn, patternOut, patternReply) = moleculeInfoMaker.from(pattern) // patternOut and patternReply should be empty
-    maybeError("input molecules", "injects output molecules", patternOut)
-    maybeError("input molecules", "injects reply molecules", patternReply)
+    maybeError("input molecules", "emits output molecules", patternOut)
+    maybeError("input molecules", "emits reply molecules", patternReply)
 
     val (guardIn, guardOut, guardReply) = moleculeInfoMaker.from(guard) // guardIn should be empty
     maybeError("input guard", "matches on additional input molecules", guardIn.map(_._1))
@@ -339,9 +339,9 @@ object Macros {
 
     val inputMolecules = patternIn.map { case (s, p, _, sha1) => q"InputMoleculeInfo(${s.asTerm}, $p, $sha1)" }
 
-    // Note: the output molecules could be sometimes not injected according to a runtime condition.
-    // We do not try to examine the reaction body to determine which output molecules are always injected.
-    // However, the order of output molecules corresponds to the order in which they might be injected.
+    // Note: the output molecules could be sometimes not emitted according to a runtime condition.
+    // We do not try to examine the reaction body to determine which output molecules are always emitted.
+    // However, the order of output molecules corresponds to the order in which they might be emitted.
     val allOutputInfo = guardOut ++ bodyOut
     val outputMolecules = allOutputInfo.map { case (m, p) => q"OutputMoleculeInfo(${m.asTerm}, $p)" }
 

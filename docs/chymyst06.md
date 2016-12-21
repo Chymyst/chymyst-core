@@ -56,10 +56,10 @@ Here is a dictionary:
 | Chemical machine  | Academic Join Calculus | `JoinRun` code |
 |---|---|---|
 | input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
-| molecule injector | channel (port) name | `val a :  M[Int]` |
-| blocking injector | synchronous channel | `val q :  B[Unit, Int]` |
-| reaction | process | `val r1 = run { case a(x) + ... => ... }` |
-| injecting an output molecule | sending a message | `a(123)` _// side effect_ |
-| injecting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
+| molecule emitter | channel (port) name | `val a :  M[Int]` |
+| blocking emitter | synchronous channel | `val q :  B[Unit, Int]` |
+| reaction | process | `val r1 = go { case a(x) + ... => ... }` |
+| emitting an output molecule | sending a message | `a(123)` _// side effect_ |
+| emitting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
 | reaction site | join definition | `site(r1, r2, ...)` |
 

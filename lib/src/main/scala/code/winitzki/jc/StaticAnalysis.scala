@@ -128,7 +128,7 @@ private object StaticAnalysis {
   }
 
   private def checkInputsForDeadlockWarning(reactions: Seq[Reaction]): Option[String] = {
-    // A "possible deadlock" means that an input blocking molecule is consumed together with other molecules that are injected later by the same reactions that inject the blocking molecule.
+    // A "possible deadlock" means that an input blocking molecule is consumed together with other molecules that are emitted later by the same reactions that emit the blocking molecule.
     val blockingInputsWithNonblockingInputs: Seq[(InputMoleculeInfo, List[InputMoleculeInfo])] =
       reactions.map(_.info.inputsSorted.partition(_.molecule.isBlocking)).filter(m => m._1.nonEmpty && m._2.nonEmpty)
         .flatMap { case (bInputs, mInputs) => bInputs.map(b => (b, mInputs)) }
@@ -137,12 +137,12 @@ private object StaticAnalysis {
       bmInputs <- blockingInputsWithNonblockingInputs
       (bInput, mInputInfos) = bmInputs
       mInput <- mInputInfos
-      possibleReactions = Set(bInput, mInput).flatMap(_.molecule.injectingReactions).toSeq
+      possibleReactions = Set(bInput, mInput).flatMap(_.molecule.emittingReactions).toSeq
       reaction <- possibleReactions
       outputs <- reaction.info.outputs
       outputMolecules = outputs.map(_.molecule)
       if outputMolecules.nonEmpty
-      // Find a reaction that first injects bInput and then injects mInput, with stronger matchers than bInput and mInput respectively.
+      // Find a reaction that first emits bInput and then emits mInput, with stronger matchers than bInput and mInput respectively.
       if outputMolecules.contains(bInput.molecule)
       bInputIndex = outputMolecules.indexOf(bInput.molecule)
       mInputIndex = outputMolecules.indexOf(mInput.molecule)
@@ -214,7 +214,7 @@ private object StaticAnalysis {
   }
 
   // Each singleton should occur in some reaction as an input. No singleton should be consumed twice by a reaction.
-  // Each singleton that is consumed by a reaction should also be injected by the same reaction.
+  // Each singleton that is consumed by a reaction should also be emitted by the same reaction.
   private def checkInputsForSingletons(singletons: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
     val singletonsConsumedMaxTimes: Map[Molecule, (Reaction, Int)] =
     if (reactions.isEmpty)
@@ -232,7 +232,7 @@ private object StaticAnalysis {
     val wrongOutput = singletons.map {
       case (m, _) => m -> reactions.find(r => r.inputMolecules.count(_ == m) == 1 && r.info.outputs.exists(!_.exists(_.molecule == m)))
     }.flatMap {
-      case (mol, Some(r)) => Some(s"singleton ($mol) consumed but not injected by reaction ${r.info}")
+      case (mol, Some(r)) => Some(s"singleton ($mol) consumed but not emitted by reaction ${r.info}")
       case _ => None
     }
 
@@ -252,9 +252,9 @@ private object StaticAnalysis {
           r =>
             val outputTimes = r.info.outputs.map(_.map(_.molecule).count(_ == m)).getOrElse(0)
             if (outputTimes > 1)
-              Some(s"singleton ($m) injected more than once by reaction ${r.info}")
+              Some(s"singleton ($m) emitted more than once by reaction ${r.info}")
             else if (outputTimes == 1 && !r.inputMolecules.contains(m))
-              Some(s"singleton ($m) injected but not consumed by reaction ${r.info}")
+              Some(s"singleton ($m) emitted but not consumed by reaction ${r.info}")
             else
               None
         }
@@ -283,26 +283,26 @@ private object StaticAnalysis {
     if (foundErrors.nonEmpty) foundErrors.map { info => s"Singleton reaction {$info} should not have a guard condition" } else Seq()
   }
 
-  // Inspect the singletons actually injected. Their multiplicities must be not less than the declared multiplicities.
-  private[jc] def findSingletonInjectionErrors(singletonsDeclared: Map[Molecule, Int], singletonsInjected: Map[Molecule, Int]): Seq[String] = {
+  // Inspect the singletons actually emitted. Their multiplicities must be not less than the declared multiplicities.
+  private[jc] def findSingletonEmissionErrors(singletonsDeclared: Map[Molecule, Int], singletonsEmitted: Map[Molecule, Int]): Seq[String] = {
     val foundErrors = singletonsDeclared
-      .filter { case (mol, count) => singletonsInjected.getOrElse(mol, 0) < count }
+      .filter { case (mol, count) => singletonsEmitted.getOrElse(mol, 0) < count }
       .map { case (mol, count) =>
-        val countInjected = singletonsInjected.getOrElse(mol, 0)
-        s"$mol injected $countInjected times instead of $count"
+        val countEmitted = singletonsEmitted.getOrElse(mol, 0)
+        s"$mol emitted $countEmitted times instead of $count"
       }
-    if (foundErrors.nonEmpty) Seq(s"Too few singletons injected: ${foundErrors.toList.sorted.mkString(", ")}") else Seq()
+    if (foundErrors.nonEmpty) Seq(s"Too few singletons emitted: ${foundErrors.toList.sorted.mkString(", ")}") else Seq()
   }
 
-  // Inspect the singletons actually injected. Their multiplicities must be not more than the declared multiplicities.
-  private[jc] def findSingletonInjectionWarnings(singletonsDeclared: Map[Molecule, Int], singletonsInjected: Map[Molecule, Int]) = {
+  // Inspect the singletons actually emitted. Their multiplicities must be not more than the declared multiplicities.
+  private[jc] def findSingletonEmissionWarnings(singletonsDeclared: Map[Molecule, Int], singletonsEmitted: Map[Molecule, Int]) = {
     val foundErrors = singletonsDeclared
-      .filter { case (mol, count) => singletonsInjected.getOrElse(mol, 0) > count }
+      .filter { case (mol, count) => singletonsEmitted.getOrElse(mol, 0) > count }
       .map { case (mol, count) =>
-        val countInjected = singletonsInjected.getOrElse(mol, 0)
-        s"$mol injected $countInjected times instead of $count"
+        val countEmitted = singletonsEmitted.getOrElse(mol, 0)
+        s"$mol emitted $countEmitted times instead of $count"
       }
-    if (foundErrors.nonEmpty) Seq(s"Possibly too many singletons injected: ${foundErrors.toList.sorted.mkString(", ")}") else Seq()
+    if (foundErrors.nonEmpty) Seq(s"Possibly too many singletons emitted: ${foundErrors.toList.sorted.mkString(", ")}") else Seq()
   }
 
 }
