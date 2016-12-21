@@ -123,7 +123,7 @@ object Benchmarks9 {
     collect(0)
 
     val numberOfFailures = (1 to count*counterMultiplier).map { _ =>
-      if (f(timeout = 1.seconds)().isEmpty) 1 else 0
+      if (f.timeout(1.seconds)().isEmpty) 1 else 0
     }.sum
 
     // In this benchmark, we used to have about 4% numberOfFailures and about 2 numberOfFalseReplies in 100,000

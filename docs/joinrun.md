@@ -81,7 +81,7 @@ import scala.concurrent.duration.DurationInt
 
 val f = b[Int, String]
 
-val result: Option[String] = f(timeout = 100 millis)(10)
+val result: Option[String] = f.timeout(100 millis)(10)
 
 ```
 

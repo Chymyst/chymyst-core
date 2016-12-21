@@ -166,10 +166,10 @@ private object StaticAnalysis {
     val possibleDeadlocks: Seq[(OutputMoleculeInfo, List[OutputMoleculeInfo])] =
       reactions.flatMap(_.info.outputs)
         .flatMap {
-          _.tails.map {
+          _.tails.flatMap {
             case t :: ts => if (t.molecule.isBlocking) Some((t, ts)) else None
             case Nil => None
-          }.flatten
+          }
         }
     // The chemistry is likely to be a deadlock if at least one the other output molecules are consumed together with the blocking molecule in the same reaction.
     val likelyDeadlocks = possibleDeadlocks.map {

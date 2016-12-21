@@ -10,7 +10,7 @@ and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
   * */
 
 import java.util.UUID
-import java.util.concurrent.{Semaphore, TimeUnit, ConcurrentLinkedQueue}
+import java.util.concurrent.{ConcurrentLinkedQueue, Semaphore, TimeUnit}
 
 import JoinRunUtils._
 
@@ -332,8 +332,11 @@ object JoinRun {
     override def getValue: T = v
   }
 
-  // Abstract molecule emitter. This type is used in collections of molecules that do not require knowledge of molecule types.
-  abstract sealed class Molecule extends PersistentHashCode {
+  /** Abstract molecule emitter class.
+    * This class is not parameterized b type and is used in collections of molecules that do not require knowledge of molecule types.
+    *
+    */
+  sealed trait Molecule extends PersistentHashCode {
 
     val name: String
 
@@ -386,7 +389,7 @@ object JoinRun {
     * @param name Name of the molecule, used for debugging only.
     * @tparam T Type of the value carried by the molecule.
     */
-  final class M[T](val name: String) extends Molecule with (T => Unit) {
+  final class M[T](val name: String) extends (T => Unit) with Molecule {
     /** Emit a non-blocking molecule.
       *
       * @param v Value to be put onto the emitted molecule.
@@ -504,7 +507,7 @@ object JoinRun {
     * @tparam T Type of the value carried by the molecule.
     * @tparam R Type of the value replied to the caller via the "reply" action.
     */
-  final class B[T, R](val name: String) extends Molecule with (T => R) {
+  final class B[T, R](val name: String) extends (T => R) with Molecule {
 
     /** Emit a blocking molecule and receive a value when the reply action is performed.
       *
@@ -520,10 +523,8 @@ object JoinRun {
       * @param v Value to be put onto the emitted molecule.
       * @return Non-empty option if the reply was received; None on timeout.
       */
-    def apply(timeout: Duration)(v: T): Option[R] =
+    def timeout(timeout: Duration)(v: T): Option[R] =
       site.emitAndReplyWithTimeout[T,R](timeout.toNanos, this, v, new ReplyValue[T,R](molecule = this))
-
-    override def toString: String = super.toString + "/B"
 
     def unapply(arg: UnapplyArg): Option[(T, ReplyValue[T,R])] = arg match {
 
