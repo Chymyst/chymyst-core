@@ -19,7 +19,7 @@ object Library {
     val p = Promise[T]()
 
     site(pool,pool)(
-      goSimple { case f(x) => p.success(x); () }
+      _go { case f(x) => p.success(x); () }
     )
     (f, p.future)
   }

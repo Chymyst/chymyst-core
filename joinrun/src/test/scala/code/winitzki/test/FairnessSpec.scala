@@ -1,7 +1,8 @@
-package code.winitzki.benchmark
+package code.winitzki.test
 
 import code.winitzki.jc.FixedPool
 import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
@@ -26,21 +27,21 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = new M[(Int, Array[Int])]("c")
     val done = new M[Array[Int]]("done")
     val getC = new B[Unit, Array[Int]]("getC")
-    val a0 = new M[Unit]("a0")
-    val a1 = new M[Unit]("a1")
-    val a2 = new M[Unit]("a2")
-    val a3 = new M[Unit]("a3")
+    val a0 = m[Unit]
+    val a1 = m[Unit]
+    val a2 = m[Unit]
+    val a3 = m[Unit]
     //n = 4
 
     val tp = new FixedPool(4)
     val tp1 = new FixedPool(1)
 
     site(tp, tp1)(
-      goSimple { case getC(_, r) + done(arr) => r(arr) },
-      goSimple { case a0(_) + c((n,arr)) => if (n > 0) { arr(0) += 1; c((n-1,arr)) + a0() } else done(arr) },
-      goSimple { case a1(_) + c((n,arr)) => if (n > 0) { arr(1) += 1; c((n-1,arr)) + a1() } else done(arr) },
-      goSimple { case a2(_) + c((n,arr)) => if (n > 0) { arr(2) += 1; c((n-1,arr)) + a2() } else done(arr) },
-      goSimple { case a3(_) + c((n,arr)) => if (n > 0) { arr(3) += 1; c((n-1,arr)) + a3() } else done(arr) }
+      go { case getC(_, r) + done(arr) => r(arr) },
+      go { case a0(_) + c((n,arr)) => if (n > 0) { arr(0) += 1; c((n-1,arr)) + a0() } else done(arr) },
+      go { case a1(_) + c((n,arr)) => if (n > 0) { arr(1) += 1; c((n-1,arr)) + a1() } else done(arr) },
+      go { case a2(_) + c((n,arr)) => if (n > 0) { arr(2) += 1; c((n-1,arr)) + a2() } else done(arr) },
+      go { case a3(_) + c((n,arr)) => if (n > 0) { arr(3) += 1; c((n-1,arr)) + a3() } else done(arr) }
     )
 
     a0() + a1() + a2() + a3()
@@ -68,18 +69,19 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val cycles = 1000
 
-    val c = new M[Int]("c")
-    val done = new M[List[Int]]("done")
-    val getC = new B[Unit, List[Int]]("getC")
-    val gather = new M[List[Int]]("gather")
-    val a = new M[Int]("a")
+    val c = m[Int]
+    val done = m[List[Int]]
+    val getC = b[Unit, List[Int]]
+    val gather = m[List[Int]]
+    val a = m[Int]
 
     val tp = new FixedPool(8)
 
     site(tp, tp)(
-      goSimple { case done(arr) + getC(_, r) => r(arr) },
-      goSimple { case c(n) + a(i) => if (n>0) { a(i+1) + c(n-1) } else a(i) + gather(List()) },
-      goSimple { case gather(arr) + a(i) =>
+      go { case done(arr) + getC(_, r) => r(arr) },
+      go { case c(n) + a(i) if n>0 => a(i+1) + c(n-1) },
+      go { case c(0) + a(i) => a(i) + gather(List()) },
+      go { case gather(arr) + a(i) =>
         val newArr = i :: arr
         if (newArr.size < counters) gather(newArr) else done(newArr) }
     )
@@ -103,29 +105,29 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     * Verify that both reactions proceed with probability roughly 1/2.
     */
   it should "schedule reactions fairly after multiple emission" in {
-    val a = new M[Unit]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
-    val d = new M[Unit]("d")
-    val e = new M[Unit]("e")
-    val f = new M[(Int,Int,Int)]("f")
-    val g = new B[Unit, (Int,Int)]("g")
+    val a = m[Unit]
+    val bb = m[Unit]
+    val c = m[Unit]
+    val d = m[Unit]
+    val e = m[Unit]
+    val f = m[(Int,Int,Int)]
+    val g = b[Unit, (Int,Int)]
 
     val tp = new FixedPool(8)
 
     site(tp, tp)(
-      goSimple { case a(_) + b(_) => d() },
-      goSimple { case b(_) + c(_) => e() },
-      goSimple { case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
-      goSimple { case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
-      goSimple { case g(_,r) + f((x,y,0)) => r((x,y)) }
+      go { case a(_) + bb(_) => d() },
+      go { case bb(_) + c(_) => e() },
+      go { case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
+      go { case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
+      go { case g(_,r) + f((x,y,0)) => r((x,y)) }
     )
 
     val n = 1000
 
     f((0,0, n))
 
-    (1 to n).foreach{ _ => a()+b()+c() }
+    (1 to n).foreach{ _ => a()+bb()+c() }
 
     val (ab, bc) = g()
     ab + bc shouldEqual n
@@ -141,26 +143,26 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(8)
 
     def makeRS(d1: M[Unit], d2: M[Unit]): (M[Unit],M[Unit],M[Unit]) = {
-      val a = new M[Unit]("a")
-      val b = new M[Unit]("b")
-      val c = new M[Unit]("c")
+      val a = m[Unit]
+      val b = m[Unit]
+      val c = m[Unit]
 
       site(tp, tp)(
-        goSimple { case a(_) + b(_) => d1() },
-        goSimple { case b(_) + c(_) => d2() }
+        go { case a(_) + b(_) => d1() },
+        go { case b(_) + c(_) => d2() }
       )
       (a,b,c)
     }
 
-    val d = new M[Unit]("d")
-    val e = new M[Unit]("e")
-    val f = new M[(Int,Int,Int)]("f")
-    val g = new B[Unit, (Int,Int)]("g")
+    val d = m[Unit]
+    val e = m[Unit]
+    val f = m[(Int,Int,Int)]
+    val g = b[Unit, (Int,Int)]
 
     site(tp, tp)(
-      goSimple { case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
-      goSimple { case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
-      goSimple { case g(_,r) + f((x,y,0)) => r((x,y)) }
+      go { case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
+      go { case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
+      go { case g(_,r) + f((x,y,0)) => r((x,y)) }
     )
 
     val n = 400

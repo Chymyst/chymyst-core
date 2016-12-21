@@ -30,7 +30,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(2)
     site(tp)(
-      goSimple { case c(_) + f(_, r) => r() }
+      _go { case c(_) + f(_, r) => r() }
     )
 
     Future { Thread.sleep(50) } & c    // insert a molecule from the end of the future
@@ -46,7 +46,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(2)
 
     site(tp)(
-      goSimple { case c(x) => waiter {x shouldEqual "send it off"}; waiter.dismiss() }
+      _go { case c(x) => waiter {x shouldEqual "send it off"}; waiter.dismiss() }
     )
 
     Future { Thread.sleep(50) } + c("send it off")    // insert a molecule from the end of the future
@@ -67,9 +67,9 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(4)
     site(tp)(
-      goSimple { case e(_) + c(_) => d() },
-      goSimple { case c(_) + f(_, r) => r("from c"); c() },
-      goSimple { case d(_) + f2(_, r) => r("from d") }
+      _go { case e(_) + c(_) => d() },
+      _go { case c(_) + f(_, r) => r("from c"); c() },
+      _go { case d(_) + f2(_, r) => r("from d") }
     )
 
     c()
@@ -100,7 +100,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val (c, fut) = moleculeFuture[String](tp)
 
     site(tp)(
-      goSimple { case b(_) => c("send it off") }
+      _go { case b(_) => c("send it off") }
     )
 
     val givenFuture = for {
