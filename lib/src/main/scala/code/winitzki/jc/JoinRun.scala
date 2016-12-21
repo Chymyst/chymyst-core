@@ -10,9 +10,9 @@ and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
   * */
 
 import java.util.UUID
-import java.util.concurrent.{Semaphore, TimeUnit, ConcurrentLinkedQueue}
+import java.util.concurrent.{ConcurrentLinkedQueue, Semaphore, TimeUnit}
 
-import code.winitzki.jc.JoinRunUtils.PersistentHashCode
+import JoinRunUtils._
 
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
@@ -68,12 +68,12 @@ object JoinRun {
       *         None if we cannot determine anything because information is insufficient.
       */
     private[jc] def matcherIsWeakerThan(info: InputMoleculeInfo): Option[Boolean] = {
-      if (molecule != info.molecule) Some(false)
+      if (molecule =!= info.molecule) Some(false)
       else flag match {
         case Wildcard | SimpleVar => Some(true)
         case OtherInputPattern(matcher1) => info.flag match {
           case SimpleConst(c) => Some(matcher1.isDefinedAt(c))
-          case OtherInputPattern(_) => if (sha1 == info.sha1) Some(true) else None // We can reliably determine identical matchers.
+          case OtherInputPattern(_) => if (sha1 === info.sha1) Some(true) else None // We can reliably determine identical matchers.
           case _ => Some(false) // Here we can reliably determine that this matcher is not weaker.
         }
         case SimpleConst(c) => Some(info.flag match {
@@ -85,7 +85,7 @@ object JoinRun {
     }
 
     private[jc] def matcherIsWeakerThanOutput(info: OutputMoleculeInfo): Option[Boolean] = {
-      if (molecule != info.molecule) Some(false)
+      if (molecule =!= info.molecule) Some(false)
       else flag match {
         case Wildcard | SimpleVar => Some(true)
         case OtherInputPattern(matcher1) => info.flag match {
@@ -103,7 +103,7 @@ object JoinRun {
 
     // Here "similar" means either it's definitely weaker or it could be weaker (but it is definitely not stronger).
     private[jc] def matcherIsSimilarToOutput(info: OutputMoleculeInfo): Option[Boolean] = {
-      if (molecule != info.molecule) Some(false)
+      if (molecule =!= info.molecule) Some(false)
       else flag match {
         case Wildcard | SimpleVar => Some(true)
         case OtherInputPattern(matcher1) => info.flag match {
@@ -309,7 +309,7 @@ object JoinRun {
   private[jc] sealed trait AbsMolValue[T] {
     def getValue: T
 
-    override def toString: String = getValue match { case () => ""; case v@_ => v.toString }
+    override def toString: String = getValue match { case () => ""; case v@_ => v.asInstanceOf[T].toString }
   }
 
   /** Container for the value of a non-blocking molecule.
@@ -332,8 +332,15 @@ object JoinRun {
     override def getValue: T = v
   }
 
-  // Abstract molecule emitter. This type is used in collections of molecules that do not require knowledge of molecule types.
-  abstract sealed class Molecule extends PersistentHashCode {
+  /** Abstract molecule emitter class.
+    * This class is not parameterized b type and is used in collections of molecules that do not require knowledge of molecule types.
+    *
+    */
+  sealed trait Molecule extends PersistentHashCode {
+
+    val name: String
+
+    override def toString: String = (if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "")
 
     /** Check whether the molecule is already bound to a reaction site.
       * Note that molecules can be emitted only if they are bound.
@@ -382,14 +389,12 @@ object JoinRun {
     * @param name Name of the molecule, used for debugging only.
     * @tparam T Type of the value carried by the molecule.
     */
-  final class M[T](val name: String) extends Molecule with (T => Unit) {
+  final class M[T](val name: String) extends (T => Unit) with Molecule {
     /** Emit a non-blocking molecule.
       *
       * @param v Value to be put onto the emitted molecule.
       */
     def apply(v: T): Unit = site.emit[T](this, MolValue(v))
-
-    override def toString: String = if (name.isEmpty) "<no name>" else name
 
     def unapply(arg: UnapplyArg): Option[T] = arg match {
 
@@ -461,7 +466,7 @@ object JoinRun {
     @volatile var replyRepeated: Boolean = false
 
     private[jc] def releaseSemaphore(): Unit = synchronized {
-      if (semaphore != null) semaphore.release()
+      if (Option(semaphore).isDefined) semaphore.release()
     }
 
     private[jc] def deleteSemaphore(): Unit = synchronized {
@@ -469,7 +474,7 @@ object JoinRun {
     }
 
     private[jc] def acquireSemaphore(timeoutNanos: Option[Long]): Boolean =
-      if (semaphore != null)
+      if (Option(semaphore).isDefined)
         timeoutNanos match {
           case Some(nanos) => semaphore.tryAcquire(nanos, TimeUnit.NANOSECONDS)
           case None => semaphore.acquire(); true
@@ -502,7 +507,7 @@ object JoinRun {
     * @tparam T Type of the value carried by the molecule.
     * @tparam R Type of the value replied to the caller via the "reply" action.
     */
-  final class B[T, R](val name: String) extends Molecule with (T => R) {
+  final class B[T, R](val name: String) extends (T => R) with Molecule {
 
     /** Emit a blocking molecule and receive a value when the reply action is performed.
       *
@@ -518,10 +523,8 @@ object JoinRun {
       * @param v Value to be put onto the emitted molecule.
       * @return Non-empty option if the reply was received; None on timeout.
       */
-    def apply(timeout: Duration)(v: T): Option[R] =
+    def timeout(timeout: Duration)(v: T): Option[R] =
       site.emitAndReplyWithTimeout[T,R](timeout.toNanos, this, v, new ReplyValue[T,R](molecule = this))
-
-    override def toString: String = name + "/B"
 
     def unapply(arg: UnapplyArg): Option[(T, ReplyValue[T,R])] = arg match {
 

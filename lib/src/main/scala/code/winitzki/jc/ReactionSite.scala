@@ -146,7 +146,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
 
     // We will report all errors to each blocking molecule.
     // However, if the reaction failed with retry, we don't yet need to release semaphores and don't need to report errors due to missing reply.
-    val notFailedWithRetry = exitStatus != ReactionExitRetryFailure
+    val notFailedWithRetry = exitStatus match { case ReactionExitRetryFailure => false; case _ => true }
     val errorMessage = Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
     val haveErrorsWithBlockingMolecules =
       (blockingMoleculesWithNoReply.nonEmpty && notFailedWithRetry)|| blockingMoleculesWithMultipleReply.nonEmpty
@@ -240,7 +240,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
         else if (!Thread.currentThread().isInterrupted)
           if (logLevel > 1) println(s"Debug: In $this: starting reaction {$reaction} on thread pool $poolForReaction while on thread pool $sitePool with inputs ${moleculeBagToString(usedInputs)}")
         if (logLevel > 2) println(
-          if (moleculesPresent.size == 0)
+          if (moleculesPresent.isEmpty)
             s"Debug: In $this: no molecules remaining"
           else
             s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
@@ -412,7 +412,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
   val (singletonsEmitted, diagnostics) = initializeJoinDef()
 }
 
-case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], joinDef: String) {
+final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], joinDef: String) {
   def checkWarningsAndErrors(): Unit = {
     if (warnings.nonEmpty) println(s"In $joinDef: ${warnings.mkString("; ")}")
     if (errors.nonEmpty) throw new Exception(s"In $joinDef: ${errors.mkString("; ")}")

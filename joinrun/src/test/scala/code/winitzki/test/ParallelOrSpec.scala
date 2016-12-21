@@ -85,8 +85,8 @@ class ParallelOrSpec extends FlatSpec with Matchers {
     parallelOr(slowFalse, fastFalse, tp)() shouldEqual false
     parallelOr(fastFalse, slowTrue, tp)() shouldEqual true
 
-    parallelOr(never, fastFalse, tp)(timeout = 200 millis)() shouldEqual None
-    parallelOr(never, slowFalse, tp)(timeout = 200 millis)() shouldEqual None
+    parallelOr(never, fastFalse, tp).timeout(200 millis)() shouldEqual None
+    parallelOr(never, slowFalse, tp).timeout(200 millis)() shouldEqual None
 
     tp.shutdownNow()
   }

@@ -15,7 +15,7 @@ object Macros {
 
   private[jc] def rawTree(x: Any): String = macro rawTreeImpl
 
-  def rawTreeImpl(c: theContext)(x: c.Expr[Any]) = {
+  def rawTreeImpl(c: theContext)(x: c.Expr[Any]): c.universe.Tree = {
     import c.universe._
     val result = showRaw(x.tree)
     q"$result"
@@ -199,7 +199,7 @@ object Macros {
         */
       @tailrec
       private def isOwnedBy(s: c.Symbol, owner: c.Symbol): Boolean = s.owner match {
-        case `owner` => owner != NoSymbol
+        case `owner` => owner =!= NoSymbol
         case `NoSymbol` => false
         case o@_ => isOwnedBy(o, owner)
       }
@@ -258,7 +258,9 @@ object Macros {
             val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
 
             val flag1 = getOutputFlag(binder)
-            if (flag1.notSimple && binder.nonEmpty) traverse(binder.head)
+            if (flag1.notSimple)
+              // traverse the tree of the first binder element (molecules should only have one binder element anyway)
+              binder match { case h :: _ => traverse(h); case _ => }
 
             if (includeThisSymbol) {
               if (t.tpe <:< typeOf[Molecule]) {
@@ -276,7 +278,7 @@ object Macros {
     }
 
     // this boilerplate is necessary for being able to use PatternType values in macro quasiquotes
-    implicit val liftablePatternFlag = Liftable[InputPatternFlag] {
+    implicit val liftablePatternFlag: c.universe.Liftable[InputPatternFlag] = Liftable[InputPatternFlag] {
       case WildcardF => q"_root_.code.winitzki.jc.JoinRun.Wildcard"
       case SimpleConstF(x) => q"_root_.code.winitzki.jc.JoinRun.SimpleConst(${x.asInstanceOf[c.Tree]})"
       case SimpleVarF => q"_root_.code.winitzki.jc.JoinRun.SimpleVar"
@@ -284,12 +286,12 @@ object Macros {
       case _ => q"_root_.code.winitzki.jc.JoinRun.UnknownInputPattern"
     }
 
-    implicit val liftableOutputPatternFlag = Liftable[OutputPatternFlag] {
+    implicit val liftableOutputPatternFlag: c.universe.Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
       case ConstOutputPattern(x) => q"_root_.code.winitzki.jc.JoinRun.ConstOutputValue(${x.asInstanceOf[c.Tree]})"
       case _ => q"_root_.code.winitzki.jc.JoinRun.OtherOutputPattern"
     }
 
-    implicit val liftableGuardFlag = Liftable[GuardPresenceType] {
+    implicit val liftableGuardFlag: c.universe.Liftable[GuardPresenceType] = Liftable[GuardPresenceType] {
       case GuardPresent => q"_root_.code.winitzki.jc.JoinRun.GuardPresent"
       case GuardAbsent => q"_root_.code.winitzki.jc.JoinRun.GuardAbsent"
       case GuardPresenceUnknown => q"_root_.code.winitzki.jc.JoinRun.GuardPresenceUnknown"
@@ -345,7 +347,7 @@ object Macros {
     val allOutputInfo = guardOut ++ bodyOut
     val outputMolecules = allOutputInfo.map { case (m, p) => q"OutputMoleculeInfo(${m.asTerm}, $p)" }
 
-    val isGuardAbsent = guard == EmptyTree
+    val isGuardAbsent = guard match { case EmptyTree => true; case _ => false }
     val hasGuardFlag = if (isGuardAbsent) q"GuardAbsent" else q"GuardPresent"
 
     // Detect whether this reaction has a simple livelock:
