@@ -43,9 +43,9 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
 
 tutSettings
 
-lazy val errorsForWartRemover = Seq(Wart.Any, Wart.EitherProjectionPartial, Wart.Enumeration, Wart.Equals, Wart.ExplicitImplicitTypes, Wart.FinalCaseClass, Wart.FinalVal, Wart.LeakingSealed, Wart.NoNeedForMonad, Wart.Nothing, Wart.Option2Iterable, Wart.Product, Wart.Return, Wart.Serializable, Wart.StringPlusAny, Wart.ToString, Wart.TraversableOps, Wart.TryPartial)
+lazy val errorsForWartRemover = Seq(Wart.EitherProjectionPartial, Wart.Enumeration, Wart.Equals, Wart.ExplicitImplicitTypes, Wart.FinalCaseClass, Wart.FinalVal, Wart.LeakingSealed, Wart.NoNeedForMonad, Wart.Return, Wart.StringPlusAny, Wart.TraversableOps, Wart.TryPartial)
 
-lazy val warningsForWartRemover = Seq(Wart.AsInstanceOf, Wart.ImplicitConversion, Wart.IsInstanceOf, Wart.JavaConversions, Wart.OptionPartial, Wart.While)
+lazy val warningsForWartRemover = Seq() //Seq(Wart.Any, Wart.AsInstanceOf, Wart.ImplicitConversion, Wart.IsInstanceOf, Wart.JavaConversions, Wart.Option2Iterable, Wart.OptionPartial, Wart.Nothing, Wart.Product, Wart.Serializable, Wart.ToString, Wart.While)
 
 lazy val joinrun = (project in file("joinrun"))
   .settings(commonSettings: _*)

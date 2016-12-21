@@ -6,8 +6,8 @@ private[jc] object JoinRunUtils {
 
   def getSha1(c: Any): String = sha1Digest.digest(c.toString.getBytes("UTF-8")).map("%02X".format(_)).mkString
 
-  def flatten[T](optionSet: Option[Set[T]]): Set[T] = optionSet.getOrElse(Set())
-  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
+//  def flatten[T](optionSet: Option[Set[T]]): Set[T] = optionSet.getOrElse(Set())
+//  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 
   trait PersistentHashCode {
     // Make hash code persistent across mutations with this simple trick.
@@ -29,5 +29,15 @@ private[jc] object JoinRunUtils {
   }
 
   def nonemptyOpt[S](s: Seq[S]): Option[Seq[S]] = if (s.isEmpty) None else Some(s)
+
+  @SuppressWarnings(Array("org.wartremover.warts.Equals"))
+  implicit final class AnyOpsEquals[A](self: A) {
+    def ===(other: A): Boolean = self == other
+  }
+
+  @SuppressWarnings(Array("org.wartremover.warts.Equals"))
+  implicit final class AnyOpsNotEquals[A](self: A) {
+    def =!=(other: A): Boolean = self != other
+  }
 
 }

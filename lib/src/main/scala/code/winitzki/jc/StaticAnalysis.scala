@@ -1,6 +1,7 @@
 package code.winitzki.jc
 
 import code.winitzki.jc.JoinRun._
+import JoinRunUtils._
 
 import scala.annotation.tailrec
 
@@ -8,7 +9,7 @@ import scala.annotation.tailrec
 private object StaticAnalysis {
 
   private val patternIsNotUnknown: InputMoleculeInfo => Boolean =
-    i => i.flag != UnknownInputPattern
+    _.flag match { case UnknownInputPattern => false; case _ => true }
 
   /** Check that every input molecule matcher of one reaction is weaker than a corresponding matcher in another reaction.
     * If true, it means that the first reaction can start whenever the second reaction can start, which is an instance of unavoidable nondeterminism.
@@ -89,7 +90,7 @@ private object StaticAnalysis {
     val suspiciousReactions = for {
       r1 <- reactions
       r2 <- reactions
-      if r1 != r2
+      if r1 =!= r2
       if r1.info.hasGuard.knownFalse
       if allMatchersAreWeakerThan(r1.info.inputsSorted, r2.info.inputsSorted)
     } yield {
@@ -165,10 +166,10 @@ private object StaticAnalysis {
     val possibleDeadlocks: Seq[(OutputMoleculeInfo, List[OutputMoleculeInfo])] =
       reactions.flatMap(_.info.outputs)
         .flatMap {
-          _.tails.filter {
-            case t :: ts => t.molecule.isBlocking
-            case Nil => false
-          }.map { l => (l.head, l.tail) } // The filter above guarantees that `l` is non-empty now.
+          _.tails.map {
+            case t :: ts => if (t.molecule.isBlocking) Some((t, ts)) else None
+            case Nil => None
+          }.flatten
         }
     // The chemistry is likely to be a deadlock if at least one the other output molecules are consumed together with the blocking molecule in the same reaction.
     val likelyDeadlocks = possibleDeadlocks.map {
@@ -178,7 +179,7 @@ private object StaticAnalysis {
             // For each reaction that consumes the molecule `info.molecule`, check whether this reaction also consumes any of the molecules from infos.map(_.molecule). If so, it's a likely deadlock.
             val uniqueInputsThatAreAmongOutputs = r.info.inputsSorted
               .filter(infos.map(_.molecule) contains _.molecule)
-              .groupBy(_.molecule).mapValues(_.last).values.toList // Among repeated input molecules, choose only one molecule with the weakest matcher.
+              .groupBy(_.molecule).mapValues(_.lastOption).values.toList.flatten // Among repeated input molecules, choose only one molecule with the weakest matcher.
 
             uniqueInputsThatAreAmongOutputs.exists(infoInput =>
               infos.exists(infoOutput =>
