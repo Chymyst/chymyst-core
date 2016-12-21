@@ -319,7 +319,7 @@ Whenever a reaction contains an idle blocking call, the corresponding thread wil
 If the thread pool does not increase the number of available threads in this case, it is possible that the blocking call is waiting for a molecule that is never going to be emitted since no free threads are available to run reactions.
 To prevent this kind of starvation, the user can surround the idle blocking calls with `BlockingIdle(...)`.
 
-Emitterss of blocking molecules already use `BlockingIdle` in their implementation.
+Emitters of blocking molecules already use `BlockingIdle` in their implementation.
 The user needs to employ `BlockingIdle` explicitly only when a reaction contains blocking idle calls, such as `Thread.sleep`, synchronous HTTP calls, database queries, and so on.
 
 Example:
