@@ -2,13 +2,14 @@
 
 # `JoinRun` library documentation
 
-`JoinRun` is an implementation of Join Calculus as an embedded DSL in Scala.
+`JoinRun` is an embedded DSL for declarative concurrency in Scala.
+It follows the **chemical machine** paradigm and provides high-level, purely functional concurrency primitives used by the `Chymyst` framework.
 
 Currently, it compiles with Scala 2.11 and Scala 2.12 on Oracle JDK 8.
 
 # Main structures
 
-Join Calculus is implemented using molecule emitters, reactions, and reaction sites.
+The main concepts of the chemical machine paradigm are molecule emitters, reactions, and reaction sites.
 
 There are only two primitive operations:
 
@@ -18,14 +19,15 @@ There are only two primitive operations:
 ## Molecule emitters
 
 Molecule emitters are instances of one of the two classes:
+
 - `M[T]` for non-blocking molecules carrying a value of type `T`
 - `B[T, R]` for blocking molecules carrying a value of type `T` and returning a value of type `R`
 
-Molecule emitters should be defined as local values, before these molecules can be used in reactions.
+Before molecules can be used in defining reactions, their molecule emitters must be defined as local values:
 
 ```scala
-val x = new M[Int]("x")
-val y = new B[Unit, String]("y")
+val x = new M[Int]("x") // define a non-blocking emitter with name "x" and integer value type
+val y = new B[Unit, String]("y") // define a blocking emitter with name "y", with empty value type, and String return type
 
 ```
 
@@ -41,7 +43,7 @@ val fetch = b[Unit, String] // same as new B[Unit, String]("fetch")
 
 ```
 
-These macros will read the enclosing `val` definition at compile time and substitute the name of the variable into the class constructor.
+These macros will read the enclosing `val` definition at compile time and substitute the name of the variable as a string into the class constructor.
 
 ## Emitting molecules
 
@@ -49,12 +51,12 @@ Molecule emitters inherit from `Function1` and can be used as functions with one
 Calling these functions will perform the side-effect of emitting the molecule into the soup that pertains to the reaction site to which the molecule is bound.
 
 ```scala
-... M[T] extends Function1[T, Unit]
-... B[T, R] extends Function1[T, R]
+... M[T] extends (T => Unit) ...
+... B[T, R] extends (T => R) ...
 
 val x = new M[Int]("x") // define emitter using class constructor
 
-// Need to define reactions - this is omitted here.
+// Need to define some reactions with "x" - that code is omitted here.
 
 x(123) // emit molecule with value 123
 
@@ -85,11 +87,11 @@ val result: Option[String] = f.timeout(100 millis)(10)
 
 ```
 
-Emission with timeout results in an `Option` value.
+Timed emission will result in an `Option` value.
 The value will be `None` if timeout is reached.
 
 Exceptions may be thrown as a result of emitting of a blocking molecule when it is unblocked:
-For instance, this happens when the reaction code attempts to execute the reply action more than once.
+For instance, this happens when the reaction body performs the reply action more than once, or the reaction body does not reply at all.
 
 ## Debugging
 
@@ -118,7 +120,7 @@ It is a runtime error to use `setLogLevel` or `logSoup` on molecules that are no
 ## Reactions
 
 A reaction is an instance of class `Reaction`.
-It is created using the `run` method with a partial function syntax that resembles pattern-matching on molecule values:
+Reactions are declared using the `go` method with a partial function syntax that resembles pattern-matching on molecule values:
 
 ```scala
 val reaction1 = go { case a(x) + b(y) => a(x+y) }
@@ -175,13 +177,12 @@ The reply action will unblock the calling process concurrently with the reaction
 
 This reply action must be performed as `r(...)` in the reaction body exactly once, and cannot be performed afterwards.
 
-It is a runtime error to write a reaction that either does not emit the reply action or uses it more than once.
+It is a compile-time error to write a reaction that either does not perform the reply action or does it more than once.
 
 Also, the reply action object `r` should not be used by any other reactions outside the reaction body where `r` was defined.
 (Using `r` after the reaction finishes will have no effect.)
 
-When a reaction is defined using the `run` macro, the compiler will detect some errors at compile time.
-For instance, it is a compile-time error to omit the reply matcher variable from the pattern:
+It is a compile-time error to omit the reply matcher variable from the pattern:
 
 ```scala
 val f = b[Int, Unit]
@@ -190,12 +191,13 @@ val f = b[Int, Unit]
 
 // this is incorrect usage because "r" is not being matched:
 go { case f(x, _) => ... } // Error: blocking input molecules should not contain a pattern that matches on anything other than a simple variable
+go { case f(_) = ... } // Same error message
 
 ```
 
 ## Reaction sites
 
-Writing a reaction site (RS) will at once activate molecules and reactions:
+Writing a reaction site (RS) will at once activate molecules and reactions.
 Until an RS is written, molecules cannot be emitted, and no reactions will start.
 
 Reaction sites are written with the `site` method:
@@ -212,6 +214,7 @@ All reactions listed in the RS will be activated at once.
 
 Whenever we emit any molecule that is used as input to one of these reactions, it is _this_ RS (and no other) that will decide which reactions to run.
 For this reason, we say that those molecules are "bound" to this RS, or that they are "consumed" at that RS, or that they are "input molecules" at this RS.
+To build intuition, we can imagine that each molecule must travel to its reaction site in order to start a reaction, or to wait there for other molecules, if a reaction requires several input molecules.
 
 Here is an example of an RS:
 
@@ -316,7 +319,7 @@ Whenever a reaction contains an idle blocking call, the corresponding thread wil
 If the thread pool does not increase the number of available threads in this case, it is possible that the blocking call is waiting for a molecule that is never going to be emitted since no free threads are available to run reactions.
 To prevent this kind of starvation, the user can surround the idle blocking calls with `BlockingIdle(...)`.
 
-Emitterss of blocking molecules already use `BlockingIdle` in their implementation.
+Emitters of blocking molecules already use `BlockingIdle` in their implementation.
 The user needs to employ `BlockingIdle` explicitly only when a reaction contains blocking idle calls, such as `Thread.sleep`, synchronous HTTP calls, database queries, and so on.
 
 Example:
@@ -346,17 +349,18 @@ site(pool, defaultReactionPool)(
 ## Fault tolerance and exceptions
 
 A reaction body could throw an exception of two kinds:
+
 - `ExceptionInJoinRun` due to incorrect usage of `JoinRun` - such as, failing to perform a reply action with a blocking molecule
 - any other `Exception` in user's reaction code 
 
-The first kind of exception leads to stopping the reaction and printing an error message.
+The first kind of exception is generated by `JoinRun`  and leads to stopping the reaction and printing an error message.
 
-The second kind of exception is handled specially for reactions marked as `withRetry`:
+The second kind of exception is assumed to be generated by the user and is handled specially for reactions marked `withRetry`.
 For these reactions, `JoinRun` assumes that the reaction has died due to some transient malfunction and should be retried.
 Then the input molecules for the reaction are emitted again.
 This will make it possible for the reaction to restart.
 
-By default, reactions are not marked as `withRetry`, and any exception thrown by the reaction body will lead to the 
+By default, reactions are not marked `withRetry`, and any exception thrown by the reaction body will lead to the 
 input molecules being consumed and lost.
 
 The following syntax is used to specify fault tolerance in reactions:
@@ -371,6 +375,9 @@ site(
 
 As a rule, the user cannot catch an exception thrown in a different thread.
 Therefore, it may be advisable not to use exceptions within reactions.
+If there is an operation that could intermittently throw an exception, and if it is useful to retry the reaction in that case, the best way is mark the reaction `withRetry` and to make sure that all output molecules are emitted at the end of the reaction body, after any exceptions were thrown.
+(Also, any other irreversible side effects should not happen before exceptions are thrown.)
+In this case, the retry mechanism will be able to restart the reaction without repeating any of its side effects.
 
 # Limitations in the current version of `JoinRun`
 
@@ -386,7 +393,7 @@ At the moment, this can happen with `scalatest` with code like this:
 
 ```scala
 val x = m[Int]
-site( & { case x(_) => } ) shouldEqual ()
+site( go { case x(_) => } ) shouldEqual ()
 
 ```
 
@@ -396,12 +403,16 @@ A workaround is to assign a separate value to the reaction site result, and appl
 
 ```scala
 val x = m[Int]
-val result = site( & { case x(_) => } )
+val result = site( go { case x(_) => } )
 result shouldEqual ()
 
 ```
 
 # Version history
+
+- 0.1.3 Major changes in the API ("site", "go" instead of "join", "run") and in the terminology used in the tutorial and in the code: we now use the chemical machine paradigm more consequently, and avoid using the vague term "join". The build system now checks test code coverage (currently at 96%) and uses Scala "wartremover" plugin to check for more possible errors.
+
+- 0.1.2 Bug fixes for singletons and for blocking molecules; benchmarks of blocking molecules.
 
 - 0.1.0 First alpha release of `JoinRun`. Changes: implementing singleton molecules and volatile readers; several important bugfixes.
 
