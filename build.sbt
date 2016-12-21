@@ -80,6 +80,7 @@ lazy val lib = (project in file("lib"))
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
     libraryDependencies ++= Seq(
       //        "com.typesafe.akka" %% "akka-actor" % "2.4.12",
+      "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
       "org.scalatest" %% "scalatest" % "3.0.0" % "test"
     )
   )
