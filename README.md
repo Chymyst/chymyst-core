@@ -1,6 +1,6 @@
-[![Build Status](https://travis-ci.org/winitzki/joinrun-scala.svg?branch=master)](https://travis-ci.org/winitzki/joinrun-scala)
-[![Coverage Status](https://codecov.io/gh/winitzki/joinrun-scala/coverage.svg?branch=master)](https://codecov.io/gh/winitzki/joinrun-scala?branch=master)
-[![Version](http://img.shields.io/badge/version-0.1.2-blue.svg?style=flat)](https://github.com/winitzki/joinrun-scala/releases)
+[![Build Status](https://travis-ci.org/Chymyst/joinrun-scala.svg?branch=master)](https://travis-ci.org/Chymyst/joinrun-scala)
+[![Coverage Status](https://codecov.io/gh/Chymyst/joinrun-scala/coverage.svg?branch=master)](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master)
+[![Version](http://img.shields.io/badge/version-0.1.2-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://opensource.org/licenses/MIT)
 
 [![Join the chat at https://gitter.im/joinrun-scala/Lobby](https://badges.gitter.im/joinrun-scala/Lobby.svg)](https://gitter.im/joinrun-scala/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
@@ -20,7 +20,7 @@ It also works with Scala 2.10 and with OpenJDK 7 (except for the new `LocalDateT
 
 # Overview of `JoinRun`
 
-To get started, begin with this [tutorial introduction](http://winitzki.github.io/joinrun-scala/chymyst00.html).
+To get started, begin with this [tutorial introduction](https://chymyst.github.io/joinrun-scala/chymyst00.html).
 
 I gave a presentation on an early version of `JoinRun` at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
@@ -130,7 +130,7 @@ Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` an
 - Molecule injectors (or “channels”) are not singleton objects as in `ScalaJoin` but locally scoped values. This is how the semantics of JC is implemented in JoCaml. In this way, we get more flexibility in defining molecules.
 - Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`). `JoinRun` uses macros to perform some static analysis of reactions at compile time and detect some errors.
 - Reactions and molecules are composable: we can begin constructing a join definition incrementally, until we have `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one join definition, and no limit on the number of different molecules. (However, a join definition is immutable once it is written.)
-- Join definitions are instances of class `JoinDefinition` and are invisible to the user (as they should be according to the semantics of JC).
+- Join definitions are instances of class `ReactionSite` and are invisible to the user (as they should be according to the semantics of JC).
 - Some common cases of invalid join definitions are flagged (as run-time errors) before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply).
 - Fine-grained threading control: each join definition and each reaction can be on a different, separate thread pool; we can use Akka actor-based or thread-based pools.
 - Fair nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random.
