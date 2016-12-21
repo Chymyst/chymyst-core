@@ -169,7 +169,7 @@ val f = b[Unit, Int]
 site(...)
 
 // call `f` with 200ms timeout:
-val x: Option[Int] = f(timeout = 200 millis)()
+val x: Option[Int] = f.timeout(200 millis)()
 
 ```
 
