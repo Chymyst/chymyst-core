@@ -1,7 +1,6 @@
 package code.winitzki.test
 
 import code.winitzki.jc.JoinRun._
-import code.winitzki.jc.Macros.{go => &}
 import code.winitzki.jc.Macros._
 import code.winitzki.jc.{FixedPool, Pool}
 import org.scalatest.{FlatSpec, Matchers}
@@ -14,14 +13,14 @@ import scala.reflect.ClassTag
 class ParallelOrSpec extends FlatSpec with Matchers {
 
   /** Given two blocking molecules f and g returning Boolean, construct a new blocking molecule {{{parallelOr}}}
-    *  that returns the Boolean Or value of whichever of f and g unblocks first.
+    * that returns the Boolean Or value of whichever of f and g unblocks first.
     * If one of `f` and `g` returns {{{true}}} then {{{parallelOr}}} also unblocks and returns {{{true}}}.
     * If both `f` and `g` return {{{false}}} then {{{parallelOr}}} also returns {{{false}}}.
     * Otherwise (if both `f` and `g` remain blocked or one of them returns {{{false}}} while the other emains blocked),
     * {{{parallelOr}}} will continue to be blocked.
     *
-    * @param f First blocking molecule emitter.
-    * @param g Second blocking molecule emitter.
+    * @param f  First blocking molecule emitter.
+    * @param g  Second blocking molecule emitter.
     * @param tp Thread pool on which to run this.
     * @return New blocking molecule emitter that will return the desired result or block.
     */
@@ -35,18 +34,18 @@ class ParallelOrSpec extends FlatSpec with Matchers {
     val parallelOr = b[Unit, Boolean]
 
     site(tp)(
-      & { case parallelOr(_, r) + finalResult(x) => r(x) }
+      go { case parallelOr(_, r) + finalResult(x) => r(x) }
     )
 
     site(tp)(
-      & { case result(_) + done(true) => finalResult(true) },
-      & { case result(1) + done(false) => finalResult(false) },
-      & { case result(0) + done(false) => result(1) }
+      go { case result(_) + done(true) => finalResult(true) },
+      go { case result(1) + done(false) => finalResult(false) },
+      go { case result(0) + done(false) => result(1) }
     )
 
     site(tp)(
-      & { case c(_) => val x = f(); done(x) },
-      & { case d(_) => val y = g(); done(y) }
+      go { case c(_) => val x = f(); done(x) },
+      go { case d(_) => val y = g(); done(y) }
     )
 
     c() + d() + result(0)
@@ -65,11 +64,11 @@ class ParallelOrSpec extends FlatSpec with Matchers {
     val tp = new FixedPool(30)
 
     site(tp)(
-      & {case never(_, r) => r(neverReturn[Boolean])},
-      & {case fastTrue(_, r) => Thread.sleep(10); r(true)},
-      & {case slowTrue(_, r) => Thread.sleep(200); r(true)},
-      & {case fastFalse(_, r) => Thread.sleep(10); r(false)},
-      & {case slowFalse(_, r) => Thread.sleep(200); r(false)}
+      go { case never(_, r) => r(neverReturn[Boolean]) },
+      go { case fastTrue(_, r) => Thread.sleep(10); r(true) },
+      go { case slowTrue(_, r) => Thread.sleep(200); r(true) },
+      go { case fastFalse(_, r) => Thread.sleep(10); r(false) },
+      go { case slowFalse(_, r) => Thread.sleep(200); r(false) }
     )
 
     implicit val stringClassTag = implicitly[ClassTag[String]]
@@ -107,20 +106,22 @@ class ParallelOrSpec extends FlatSpec with Matchers {
     val res2 = m[Unit]
     val done = m[T]
 
-    site(tp) (
-      & { case res1(_) => val x = b1(); done(x) }, // IntelliJ 2016.3 CE insists on `b1(())` here, but scalac is fine with `b1()`.
-      & { case res2(_) => val x = b2(); done(x) }
+    site(tp)(
+      go { case res1(_) => val x = b1(); done(x) }, // IntelliJ 2016.3 CE insists on `b1(())` here, but scalac is fine with `b1()`.
+      go { case res2(_) => val x = b2(); done(x) }
     )
 
-    site(tp)( & { case get(_, r) + done(x) => r(x) })
+    site(tp)(go { case get(_, r) + done(x) => r(x) })
 
-    site(tp)( & { case res(_, r) =>  res1() + res2(); val x = get(); r(x) })
+    site(tp)(go { case res(_, r) => res1() + res2(); val x = get(); r(x) })
 
     res
   }
 
   @tailrec
-  final def neverReturn[T]: T = { Thread.sleep(1000000); neverReturn[T] }
+  final def neverReturn[T]: T = {
+    Thread.sleep(1000000); neverReturn[T]
+  }
 
   it should "implement the First Result operation correctly" in {
 
@@ -131,9 +132,9 @@ class ParallelOrSpec extends FlatSpec with Matchers {
     val tp = new FixedPool(30)
 
     site(tp)(
-      & {case never(_, r) => r(neverReturn[String])},
-      & {case fast(_, r) => Thread.sleep(10); r("fast")},
-      & {case slow(_, r) => Thread.sleep(200); r("slow")}
+      go { case never(_, r) => r(neverReturn[String]) },
+      go { case fast(_, r) => Thread.sleep(10); r("fast") },
+      go { case slow(_, r) => Thread.sleep(200); r("slow") }
     )
 
     firstResult(fast, fast, tp)() shouldEqual "fast"
