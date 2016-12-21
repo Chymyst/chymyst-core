@@ -38,7 +38,7 @@ val carrier = m[A]
 
 ```
 
-We will inject a copy of the `carrier` molecule for each element of the initial array:
+We will emit a copy of the `carrier` molecule for each element of the initial array:
 
 ```scala
 val arr : Array[A] = ???
@@ -46,7 +46,7 @@ arr.foreach(i => carrier(i))
 
 ```
 
-Since the molecule injector inherits the functional type, we could equivalently write this as
+Since the molecule emitter inherits the functional type, we could equivalently write this as
 
 ```scala
 val arr : Array[A] = ???
@@ -64,7 +64,7 @@ val interm = m[B]
 Therefore, we need a reaction of this shape:
 
 ```scala
-run { case carrier(x) => val res = f(x); interm(res) }
+go { case carrier(x) => val res = f(x); interm(res) }
 
 ```
 
@@ -81,19 +81,19 @@ val fetch = b[Unit, B]
 At first we might write reactions for `accum` such as this one:
 
 ```scala
-run { case accum(b) + interm(res) => accum( reduceB(b, res) ) },
-run { case accum(b) + fetch(_, reply) => reply(b) }
+go { case accum(b) + interm(res) => accum( reduceB(b, res) ) },
+go { case accum(b) + fetch(_, reply) => reply(b) }
 
 ```
 
-Our plan is to inject an `accum(...)` molecule, so that this reaction will repeatedly consume every `interm(...)` molecule until all the intermediate results are processed.
-Then we will inject a blocking `fetch()` molecule and obtain the final accumulated result.
+Our plan is to emit an `accum(...)` molecule, so that this reaction will repeatedly consume every `interm(...)` molecule until all the intermediate results are processed.
+Then we will emit a blocking `fetch()` molecule and obtain the final accumulated result.
 
 However, there is a serious problem with this implementation: We will not actually find out when the work is finished.
 Our idea was that the processing will stop when there are no `interm` molecules left.
 However, the `interm` molecules are produced by previous reactions, which may take time.
-We do not know when each `interm` molecule will be injected: there may be prolonged periods of absence of any `interm` molecules in the soup (while some reactions are still busy evaluating `f`).
-The runtime engine cannot know which reactions will eventually inject some more `interm` molecules, and so there is no way to detect whether the entire map/reduce job is finished.
+We do not know when each `interm` molecule will be emitted: there may be prolonged periods of absence of any `interm` molecules in the soup (while some reactions are still busy evaluating `f`).
+The runtime engine cannot know which reactions will eventually emit some more `interm` molecules, and so there is no way to detect whether the entire map/reduce job is finished.
 
 It is the programmer's responsibility to organize the reactions such that the “end-of-job” situation can be detected.
 The simplest way of doing this is to count how many `accum` reactions have been run.
@@ -105,19 +105,19 @@ Reactions with `accum` will increment the counter; the reaction with `fetch` wil
 ```scala
 val accum = m[(Int, B)]
 
-run { case accum((n, b)) + interm(res) =>
+go { case accum((n, b)) + interm(res) =>
     accum((n+1, reduceB(b, res) ))
   },
-run { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
+go { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
 
 ```
 
-What value should we inject with `accum` initially?
+What value should we emit with `accum` initially?
 When the first `interm(res)` molecule arrives, we will need to call `reduceB(x, res)` with some value `x` of type `B`.
 Since we assume that `B` is a monoid, there must be a special value, say `bZero`, such that `reduceB(bZero, res)==res`.
-So `bZero` is the value we need to inject on the initial `accum` molecule.
+So `bZero` is the value we need to emit on the initial `accum` molecule.
 
-We can now inject all `carrier` molecules, a single `accum((0, bZero))` molecule, and a `fetch()` molecule.
+We can now emit all `carrier` molecules, a single `accum((0, bZero))` molecule, and a `fetch()` molecule.
 Because of the guard condition, the reaction with `fetch()` will not run until all intermediate results have been accumulated.
 
 Here is the complete code for this example (see also `MapReduceSpec.scala` in the unit tests).
@@ -143,19 +143,19 @@ object C extends App {
 
   // declare the reaction for "map"
   site(
-    run { case carrier(x) => val res = f(x); interm(res) }
+    go { case carrier(x) => val res = f(x); interm(res) }
   )
 
   // reactions for "reduce" must be together since they share "accum"
   site(
-      run { case accum((n, b)) + interm(res) if n > 0 =>
+      go { case accum((n, b)) + interm(res) if n > 0 =>
         accum((n+1, reduceB(b, res) ))
       },
-      run { case accum((0, _)) + interm(res) => accum((1, res)) },
-      run { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
+      go { case accum((0, _)) + interm(res) => accum((1, res)) },
+      go { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
   )
 
-  // inject molecules
+  // emit molecules
   accum((0, 0))
   arr.foreach(i => carrier(i))
   val result = fetch()
@@ -171,12 +171,12 @@ If we define molecules and reactions in the scope of an auxiliary function, or e
 
 To illustrate this feature of the chemical paradigm, let us implement a function that defines a “concurrent counter” and initializes it with a given value.
 
-Our previous implementation of the concurrent counter has a drawback: The molecule `counter(n)` must be injected by the user and remains globally visible.
-If the user injects two copies of `counter` with different values, the `counter + decr` and `counter + fetch` reactions will work unreliably, choosing between the two copies of `counter` at random.
-We would like to inject exactly one copy of `counter` and then prevent the user from injecting any further copies of that molecule.
+Our previous implementation of the concurrent counter has a drawback: The molecule `counter(n)` must be emitted by the user and remains globally visible.
+If the user emits two copies of `counter` with different values, the `counter + decr` and `counter + fetch` reactions will work unreliably, choosing between the two copies of `counter` at random.
+We would like to emit exactly one copy of `counter` and then prevent the user from emitting any further copies of that molecule.
 
 A solution is to define `counter` and its reactions within a function that returns the `decr` and `fetch` molecules to the outside scope.
-The `counter` injector will not be returned to the outside scope, and so the user will not be able to inject extra copies of that molecule.
+The `counter` emitter will not be returned to the outside scope, and so the user will not be able to emit extra copies of that molecule.
 
 ```scala
 def makeCounter(initCount: Int): (M[Unit], B[Unit, Int]) = {
@@ -185,30 +185,30 @@ def makeCounter(initCount: Int): (M[Unit], B[Unit, Int]) = {
   val fetch = m[Unit, Int]
 
   site(
-    run { counter(n) + fetch(_, r) => counter(n) + r(n)},
-    run { counter(n) + decr(_) => counter(n-1) }
+    go { counter(n) + fetch(_, r) => counter(n) + r(n)},
+    go { counter(n) + decr(_) => counter(n-1) }
   )
-  // inject exactly one copy of `counter`
+  // emit exactly one copy of `counter`
   counter(initCount)
 
-  // return these two injectors to the outside scope
+  // return these two emitters to the outside scope
   (decr, fetch)
 }
 
 ```
 
-The closure captures the injector for the `counter` molecule and injects a single copy of that molecule.
-Users from other scopes cannot inject another copy of `counter` since the injector is not visible outside the closure.
+The closure captures the emitter for the `counter` molecule and emits a single copy of that molecule.
+Users from other scopes cannot emit another copy of `counter` since the emitter is not visible outside the closure.
 In this way, it is guaranteed that one and only one copy of `counter` will be present in the soup.
 
-Nevertheless, the users receive the injectors `decr` and `fetch` from the closure.
-So the users can inject these molecules and start their reactions (despite the fact that these molecules are also locally defined, like `counter`).
+Nevertheless, the users receive the emitters `decr` and `fetch` from the closure.
+So the users can emit these molecules and start their reactions (despite the fact that these molecules are also locally defined, like `counter`).
 
 The function `makeCounter` can be called like this:
 
 ```scala
 val (d, f) = makeCounter(10000)
-d() + d() + d() // inject 3 decrement molecules
+d() + d() + d() // emit 3 decrement molecules
 val x = f() // fetch the current value
 
 ```
@@ -217,13 +217,13 @@ Also note that each invocation of `makeCounter` will create new, fresh molecules
 In this way, the user can create as many independent counters as desired.
 
 This example shows how we can encapsulate some molecules and yet use their reactions.
-A closure can define local reaction with several input molecules, inject some of these molecules initially, and return some (but not all) molecule injectors to 
+A closure can define local reaction with several input molecules, emit some of these molecules initially, and return some (but not all) molecule emitters to 
 the 
 global scope outside of the closure.
 
 # Example: Concurrent merge-sort
 
-Chemical laws can be recursive: a molecule can start a reaction whose reaction body defines further reactions and injects the same molecule.
+Chemical laws can be recursive: a molecule can start a reaction whose reaction body defines further reactions and emits the same molecule.
 Since each reaction body will have a fresh scope, new molecules and new reactions will be defined every time.
 This will create a recursive configuration of reactions, such as a linked list or a tree of reactions.
 
@@ -241,10 +241,10 @@ val sorted = m[Array[T]]
 The main idea of the merge-sort algorithm is to split the array in half, sort each half recursively, and then merge the two sorted halves into the resulting array.
 
 ```scala
-site ( run { case mergesort(arr) =>
+site ( go { case mergesort(arr) =>
     if (arr.length == 1) sorted(arr) else {
       val (part1, part2) = arr.splitAt(arr.length / 2)
-      // inject recursively
+      // emit recursively
       mergesort(part1) + mergesort(part2)
     }
   }
@@ -257,7 +257,7 @@ Let us assume that an array-merging function `arrayMerge(arr1, arr2)` is already
 We could then envision a reaction like this:
 
 ```scala
-... run { case sorted1(arr1) + sorted2(arr2) => sorted( arrayMerge(arr1, arr2) ) }
+... go { case sorted1(arr1) + sorted2(arr2) => sorted( arrayMerge(arr1, arr2) ) }
 
 ```
 
@@ -265,14 +265,14 @@ Actually, we need to return the upper-level `sorted` molecule from merging the r
 In order to achieve this, we need to define the merging reaction _within the scope_ of the `mergesort` reaction:
 
 ```scala
-site ( run { case mergesort(arr) =>
+site ( go { case mergesort(arr) =>
     if (arr.length == 1) sorted(arr) else {
       val (part1, part2) = arr.splitAt(arr.length / 2)
       // define lower-level "sorted" molecules
       val sorted1 = m[Array[T]]
       val sorted2 = m[Array[T]]
-      site( run { case sorted1(arr1) + sorted2(arr2) => sorted( arrayMerge(arr1, arr2) ) } )
-      // inject recursively
+      site( go { case sorted1(arr1) + sorted2(arr2) => sorted( arrayMerge(arr1, arr2) ) } )
+      // emit recursively
       mergesort(part1) + mergesort(part2)
     }
   }
@@ -280,15 +280,15 @@ site ( run { case mergesort(arr) =>
 
 ```
 
-This is still not right; we need to arrange the reactions such that the `sorted1`, `sorted2` molecules are injected by the lower-level recursive injections of `mergesort`.
-The way to achieve this is to pass the injectors for the `sorted` molecules as values carried by the `mergesort` molecule.
-We will then pass the lower-level `sorted` molecule injectors to the recursive calls of `mergesort`.
+This is still not right; we need to arrange the reactions such that the `sorted1`, `sorted2` molecules are emitted by the lower-level recursive emissions of `mergesort`.
+The way to achieve this is to pass the emitters for the `sorted` molecules as values carried by the `mergesort` molecule.
+We will then pass the lower-level `sorted` molecule emitters to the recursive calls of `mergesort`.
 
 ```scala
 val mergesort = new M[(Array[T], M[Array[T]])]
 
 site(
-  run {
+  go {
     case mergesort((arr, sorted)) =>
       if (arr.length <= 1) sorted(arr)
       else {
@@ -297,9 +297,9 @@ site(
         val sorted1 = new M[Array[T]]
         val sorted2 = new M[Array[T]]
         site(
-          run { case sorted1(arr1) + sorted2(arr2) => sorted(arrayMerge(arr1, arr2)) }
+          go { case sorted1(arr1) + sorted2(arr2) => sorted(arrayMerge(arr1, arr2)) }
         )
-        // inject lower-level mergesort
+        // emit lower-level mergesort
         mergesort(part1, sorted1) + mergesort(part2, sorted2)
       }
   }

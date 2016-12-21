@@ -35,10 +35,10 @@ But our chemistry is purely imaginary, and so the programmer is free to postulat
 
 To develop the chemical analogy further, we allow the chemical soup to hold many copies of each molecule.
 For example, the soup can contain five hundred copies of `a` and three hundred copies of `b`, and so on.
-We also assume that we can inject any molecule into the soup at any time.
+We also assume that we can emit any molecule into the soup at any time.
 
 It is not difficult to implement a simulator for the chemical behavior we just described.
-Having specified the list of chemical laws and injected some initial molecules into the soup, we start the simulation.
+Having specified the list of chemical laws and emitted some initial molecules into the soup, we start the simulation.
 The chemical machine will run all the reactions that are allowed by the chemical laws.
 
 We will say that in a reaction such as
@@ -48,7 +48,7 @@ We will say that in a reaction such as
 the **input molecules** are  `a`, `b`, and `c`, and the **output molecules** are `d` and `e`.
 A reaction can have one or more input molecules, and zero or more output molecules.
 
-Once a reaction starts, the input molecules instantaneously disappear from the soup (they are “consumed” by the reaction), and then the output molecules are injected into the soup.
+Once a reaction starts, the input molecules instantaneously disappear from the soup (they are “consumed” by the reaction), and then the output molecules are emitted into the soup.
 
 The simulator will start many reactions concurrently whenever their input molecules are available.
 
@@ -61,9 +61,9 @@ To this end, we are going to modify the chemical machine as follows:
 
 1. Each molecule in the soup is required to _carry a value_. Molecule values are strongly typed: A molecule of a given sort (such as `a` or `b`) can only carry values of some fixed type (such as `Boolean` or `String`).
 
-2. Since molecules must carry values, we now need to specify a value of the correct type when we inject a new molecule into the soup.
+2. Since molecules must carry values, we now need to specify a value of the correct type when we emit a new molecule into the soup.
 
-3. For the same reason, reactions that produce new molecules will now need to put values on each of the output molecules. These output values must be _functions of the input values_, -- that is, of the values carried by the input molecules consumed by this reaction. Therefore, each reaction will now need to carry a Scala expression (called the **reaction body**) that will compute the new output values and inject the output molecules.
+3. For the same reason, reactions that produce new molecules will now need to put values on each of the output molecules. These output values must be _functions of the input values_, -- that is, of the values carried by the input molecules consumed by this reaction. Therefore, each reaction will now need to carry a Scala expression (called the **reaction body**) that will compute the new output values and emit the output molecules.
 
 In this way, the chemical machine can be programmed to run arbitrary computations.
 
@@ -83,7 +83,7 @@ In this example, the reaction's input molecules are `a(x)` and `b(y)`; that is, 
 
 The reaction body is an expression that captures the values `x` and `y` from the input molecules.
 The reaction body computes a value `z` out of `x` and `y` using the function `computeZ` (or any other code as needed).
-The newly computed value `z` is placed onto the output molecule `a`, which is injected back into the soup.
+The newly computed value `z` is placed onto the output molecule `a`, which is emitted back into the soup.
 
 Another example of reaction is
 
@@ -92,7 +92,7 @@ a(x) + c(y) ⇒ println(x+y) // -- reaction body with no output molecules
 
 ```
 
-This reaction consumes the molecules `a` and `c` but does not inject any output molecules.
+This reaction consumes the molecules `a` and `c` but does not emit any output molecules.
 The only result of running the reaction is the side-effect of printing the number `x+y`.
 
 ![Reaction diagram a(x) + b(y) => a(z), a(x) + c(y) => ...](https://chymyst.github.io/joinrun-scala/reactions2.svg)
@@ -122,7 +122,7 @@ val b = m[Int] // ditto for b(...)
 
 // declare the reaction site and the available reaction(s)
 site(
-  run { case a(x) + b(y) =>
+  go { case a(x) + b(y) =>
     val z = computeZ(x,y)
     a(z)
   }
@@ -162,19 +162,19 @@ val decr = m[Unit]
 ```
 
 Now we need to define the chemical reactions.
-The reactions must be such that the counter's value is incremented when we inject the `incr` molecule, and decremented when we inject the `decr` molecule.
+The reactions must be such that the counter's value is incremented when we emit the `incr` molecule, and decremented when we emit the `decr` molecule.
 
 So, it looks like we will need two reactions. Let us write a reaction site:
 
 ```scala
 site(
-  run { case counter(n) + incr(_) => counter(n+1) },
-  run { case counter(n) + decr(_) => counter(n-1) }
+  go { case counter(n) + incr(_) => counter(n+1) },
+  go { case counter(n) + decr(_) => counter(n-1) }
 )
 
 ```
 
-Each reaction says that the new value of the counter (either `n+1` or `n-1`) will be carried by the new counter molecule injected by the reaction's body.
+Each reaction says that the new value of the counter (either `n+1` or `n-1`) will be carried by the new counter molecule emitted by the reaction's body.
 The previous counter molecule (with its old value `n`) will be consumed by the reactions.
 The `incr` and `decr` molecules will be likewise consumed.
 
@@ -188,7 +188,7 @@ In order for any of these reactions to start, the molecule `counter` needs to be
 and thus the `incr` and `decr` molecules must be present at the _same_ reaction site (otherwise they won't get together with `counter` to start a reaction).
 For this reason, both reactions need to be defined _together_ in a single reaction site.
 
-After defining the molecules and their reactions, we can start injecting new molecules into the soup:
+After defining the molecules and their reactions, we can start emitting new molecules into the soup:
 
 ```scala
 counter(100)
@@ -198,19 +198,19 @@ decr() + decr() // now the soup has counter(98)
 
 ```
 
-The syntax `decr() + decr()` is a shorthand for injecting several molecules at once.
+The syntax `decr() + decr()` is a shorthand for emitting several molecules at once.
 
-Note that `counter`, `incr` and `decr` are local values, which we are now calling as functions, e.g. `incr()` and `decr()`, to actually inject the molecules.
-For this reason, we call `counter`, `incr`, and `decr` **molecule injectors**. 
+Note that `counter`, `incr` and `decr` are local values, which we are now calling as functions, e.g. `incr()` and `decr()`, to actually emit the molecules.
+For this reason, we call `counter`, `incr`, and `decr` **molecule emitters**. 
 
-It could happen that we are injecting `incr()` and `decr()` molecules too quickly for reactions to start.
+It could happen that we are emitting `incr()` and `decr()` molecules too quickly for reactions to start.
 This will result in many instances of `incr()` or `decr()` molecules being present in the soup, waiting to be consumed.
 Is this a problem?
 
 Recall that when the chemical machine starts a reaction, all input molecules are consumed first, and only then the reaction body is evaluated.
 In our case, each reaction needs to consume a `counter` molecule, but only one instance of `counter` molecule is initially present in the soup.
 For this reason, the chemical machine will need to choose whether the single `counter` molecule will react with an `incr` or a `decr` molecule.
-Only when the incrementing or the decrementing calculation is finished, the new instance of the `counter` molecule (with the updated integer value) will be injected into the soup.
+Only when the incrementing or the decrementing calculation is finished, the new instance of the `counter` molecule (with the updated integer value) will be emitted into the soup.
 This automatically prevents race conditions with the counter: There is no possibility of updating the counter value simultaneously from different reactions.
 
 ## Tracing the output
@@ -221,21 +221,21 @@ The code shown above will not print any output, so it is perhaps instructive to 
 import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
 
-// declare the molecule injectors and the value types
+// declare the molecule emitters and the value types
 val counter = m[Int]
 val incr = m[Unit]
 val decr = m[Unit]
 
 // helper function to be used in reactions
-def printAndInject(x: Int) = {
+def printAndEmit(x: Int) = {
   println(s"new value is $x")
   counter(x)
 }
 
 // write the reaction site
 site(
-  run { case counter(n) + decr(_) => printAndInject(n-1) }
-  run { case counter(n) + incr(_) => printAndInject(n+1) },
+  go { case counter(n) + decr(_) => printAndEmit(n-1) }
+  go { case counter(n) + incr(_) => printAndEmit(n+1) },
 )
 
 counter(100)
@@ -252,11 +252,11 @@ decr() + decr() // prints “new value is 99” and then “new value is 98"
 ### Logging the contents of the soup
 
 For debugging purposes, it is useful to see what molecules are currently present in the soup and waiting to react with other molecules, at a given reaction site.
-This is achieved by calling the `logSoup` method on any of the molecule injectors.
+This is achieved by calling the `logSoup` method on any of the molecule emitters.
 This method will return a string showing the molecules that are currently present in the soup at that RS.
 The `logSoup` output will also show the values carried by each molecule.
 
-In our example, all three molecules `counter`, `incr`, and `decr` are declared as inputs at our reaction site, so we could use any of the injectors, say `decr`, to log the soup contents:
+In our example, all three molecules `counter`, `incr`, and `decr` are declared as inputs at our reaction site, so we could use any of the emitters, say `decr`, to log the soup contents:
 
 ```
 > println(decr.logSoup)
@@ -299,8 +299,8 @@ In this tutorial, we will always use macros to define molecules.
 
 ### Logging the flow of reactions and molecules
 
-To get asynchronous, real-time logging information about the molecules being consumed or injected and about the reactions being started, the user can set the logging level on the RS.
-This is done by calling `setLogLevel` on any molecule injector bound to that RS.
+To get asynchronous, real-time logging information about the molecules being consumed or emitted and about the reactions being started, the user can set the logging level on the RS.
+This is done by calling `setLogLevel` on any molecule emitter bound to that RS.
 
 ```scala
 counter.setLogLevel(2)
@@ -313,12 +313,12 @@ So this facility should be used only for debugging or testing.
 
 ## Common errors
 
-### Error: Injecting molecules without defined reactions
+### Error: Emitting molecules without defined reactions
 
 For each molecule, there must exist a single reaction site (RS) to which this molecule is bound -- that is, the RS where this molecule is consumed as input molecule by some reactions.
 (See [Reaction Sites](joinrun.md#reaction-sites) for a more detailed discussion.)
 
-It is an error to inject a molecule that is not yet defined as input molecule at any RS (i.e. not yet bound to any RS).
+It is an error to emit a molecule that is not yet defined as input molecule at any RS (i.e. not yet bound to any RS).
 
 ```scala
 val x = m[Int]
@@ -326,9 +326,9 @@ x(100) // java.lang.Exception: Molecule x is not bound to any reaction site
 
 ```
 
-The same error will occur if such injection is attempted inside a reaction body, or if we call `logSoup` on the molecule injector.
+The same error will occur if such emission is attempted inside a reaction body, or if we call `logSoup` on the molecule emitter.
 
-The correct way of using `JoinRun` is first to define molecules, then to create a RS where these molecules are used as inputs for reactions, and only then to start injecting these molecules.
+The correct way of using `JoinRun` is first to define molecules, then to create a RS where these molecules are used as inputs for reactions, and only then to start emitting these molecules.
 
 The method `isBound` can be used to determine at run time whether a molecule has been already bound to a reaction site:
 
@@ -336,7 +336,7 @@ The method `isBound` can be used to determine at run time whether a molecule has
 val x = m[Int]
 x.isBound // returns `false`
 
-site( run { case x(2) =>  } )
+site( go { case x(2) =>  } )
 
 x.isBound // returns `true`
 
@@ -351,9 +351,9 @@ val x = m[Int]
 val a = m[Unit]
 val b = m[Unit]
 
-site( run { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this RS.
+site( go { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this RS.
 
-site( run { case x(n) + b(_) => println(s"have x($n) + b") } )
+site( go { case x(n) + b(_) => println(s"have x($n) + b") } )
 // java.lang.Exception: Molecule x cannot be used as input since it is already bound to Site{a + x => ...}
 
 ```
@@ -366,8 +366,8 @@ val a = m[Unit]
 val b = m[Unit]
 
 site(
-  run { case x(n) + a(_) => println(s"have x($n) + a") },
-  run { case x(n) + b(_) => println(s"have x($n) + b") }
+  go { case x(n) + a(_) => println(s"have x($n) + a") },
+  go { case x(n) + b(_) => println(s"have x($n) + b") }
 ) // OK
 
 ``` 
@@ -379,12 +379,12 @@ Here is an example where we define one RS that computes a result and sends it on
 ```scala
 val show = m[Int]
 // reaction site where the “show” molecule is an input molecule
-site( run { case show(x) => println(s"") })
+site( go { case show(x) => println(s"") })
 
 val start = m[Unit]
 // reaction site where the “show” molecule is an output molecule (but not an input molecule)
 site(
-  run { case start(_) => val res = compute(...); show(res) }
+  go { case start(_) => val res = compute(...); show(res) }
 )
 
 ``` 
@@ -397,7 +397,7 @@ An input molecule pattern with a repeated molecule is called a “nonlinear patt
 
 ```scala
 val x = m[Int]
-site(run { case x(n1) + x(n2) =>  })
+site( go { case x(n1) + x(n2) =>  })
 // java.lang.Exception: Nonlinear pattern: x used twice
 
 ``` 
@@ -441,9 +441,9 @@ Here is an (incorrect) attempt to design the chemistry for this program:
 val data = m[Int]
 val sum = m[Int]
 site (
-  run { case data(x) + sum(y) => sum(x+y) }, // We really want the first reaction to be high priority
+  go { case data(x) + sum(y) => sum(x+y) }, // We really want the first reaction to be high priority
    
-  run { case sum(x) => println(s"sum = $x") }  // and run the second one only after all `data` molecules are gone.
+  go { case sum(x) => println(s"sum = $x") }  // and run the second one only after all `data` molecules are gone.
 )
 data(5) + data(10) + data(150)
 sum(0) // expect "sum = 165"
@@ -454,10 +454,10 @@ Our intention was to run only the first reaction and to ignore the second reacti
 The chemical machine does not actually allow us to assign a higher priority to the first reaction.
 But, if we were able to do that, what would be the result?
 
-In reality, the `data(...)` molecules are going to be injected concurrently at unpredictable times.
-(For instance, they could be injected by several other reactions that run concurrently.)
-Then it could happen that the `data(...)` molecules are injected somewhat more slowly than we are consuming them at our reaction site.
-If that happens, there will be a brief interval of time when no `data(...)` molecules are in the soup (although other reactions are perhaps about to inject some more of them).
+In reality, the `data(...)` molecules are going to be emitted concurrently at unpredictable times.
+(For instance, they could be emitted by several other reactions that run concurrently.)
+Then it could happen that the `data(...)` molecules are emitted somewhat more slowly than we are consuming them at our reaction site.
+If that happens, there will be a brief interval of time when no `data(...)` molecules are in the soup (although other reactions are perhaps about to emit some more of them).
 The chemical machine will then run the second reaction, consume the `sum(...)` molecule and print the result, signalling (incorrectly) that the computation is finished.
 Perhaps this failure will _rarely_ happen and will not show up in our unit tests, but at some point it is definitely going to happen in production.
 
@@ -469,8 +469,8 @@ This kind of nondeterminism is the prime reason concurrency is widely regarded a
 val data = m[Int]
 val sum = m[Int]
 site (
-  run { case data(x) + sum(y) => sum(x+y) },
-  run { case sum(x) => println(s"sum = $x") }
+  go { case data(x) + sum(y) => sum(x+y) },
+  go { case sum(x) => println(s"sum = $x") }
 )
 
 Exception: In Site{data + sum => ...; sum => ...}: Unavoidable nondeterminism: reaction data + sum => ... is shadowed by sum => ...
@@ -492,10 +492,10 @@ Otherwise, `sum(...)` should start its own reaction and print the final result.
 val data = m[Int]
 val sum = m[(Int, Int)]
 site (
-  run { case data(x) + sum((y, remaining)) if remaining > 0 => sum((x+y, remaining - 1)) },
-  run { case sum((x, 0)) => println(s"sum = $x") }
+  go { case data(x) + sum((y, remaining)) if remaining > 0 => sum((x+y, remaining - 1)) },
+  go { case sum((x, 0)) => println(s"sum = $x") }
 )
-data(5) + data(10) + data(150) // inject three `data` molecules
+data(5) + data(10) + data(150) // emit three `data` molecules
 sum((0, 3)) // expect "sum = 165" printed
 
 ```
@@ -512,13 +512,13 @@ Here is equivalent code with just one reaction:
 val data = m[Int]
 val sum = m[(Int, Int)]
 site (
-  run { case data(x) + sum((y, remaining)) =>
+  go { case data(x) + sum((y, remaining)) =>
       val newSum = x + y
       if (remaining == 1)  println(s"sum = $newSum")
       else  sum((newSum, remaining-1)) 
      }
 )
-data(5) + data(10) + data(150) // inject three `data` molecules
+data(5) + data(10) + data(150) // emit three `data` molecules
 sum((0, 3)) // expect "sum = 165" printed
 
 ```
@@ -542,8 +542,8 @@ Different reaction sites must have no input molecules in common.
 
 In this way, we can specify an arbitrarily complicated system of interacting concurrent processes by defining molecules, reaction sites, and the reactions at each site.
 
-After defining the molecules and specifying the reactions, the user can inject some initial molecules into the soup.
-The chemical machine will start running all the possible reactions and keeping track of the molecules consumed by reactions or injected into the soup.
+After defining the molecules and specifying the reactions, the user can emit some initial molecules into the soup.
+The chemical machine will start running all the possible reactions and keeping track of the molecules consumed by reactions or emitted into the soup.
 
 Let us recapitulate the core ideas of the chemical paradigm of concurrency:
 
@@ -554,13 +554,13 @@ The chemical machine will automatically make this data available, since a reacti
 
 Each reaction also specifies a reaction body, which is a Scala expression that evaluates to `Any`. (However, the result value of that expression is discarded.)
 The reaction body can perform arbitrary computations using the input molecule values.
-It can also inject new molecules into the soup.
-Injecting a molecule is a side effect of calling a molecule injector, which can be called at any time within a reaction body or in any other code.
+It can also emit new molecules into the soup.
+Emitting a molecule is a side effect of calling a molecule emitter, which can be called at any time within a reaction body or in any other code.
 
 Up to this side effect, the reaction body can be a pure function, if it only depends on the input data of the reaction.
 In this case, many copies of the reaction can be safely executed concurrently if many sets of input molecules are available.
 Also, the reaction can be safely and automatically restarted in the case of a transient failure
-by simply injecting the input molecules again.
+by simply emitting the input molecules again.
 
 The chemical laws fully specify which computations need to be performed for the data on the given molecules.
 Whenever multiple sets of data are available, the corresponding computations will be performed concurrently.
@@ -571,7 +571,7 @@ Each molecule has a specific chemical designation, such as `sum`, `counter`, and
 These chemical designations are not actually strings `"sum"` or `"counter"`.
 (The names of the local variables and the molecule names are chosen purely for convenience.)
 
-We could define a local alias for a molecule injector, for example like this:
+We could define a local alias for a molecule emitter, for example like this:
 
 ```scala
 val counter = m[Int]
@@ -579,9 +579,9 @@ val q = counter
 
 ```
 
-This code will copy the molecule injector `counter` into another local value `q`.
+This code will copy the molecule emitter `counter` into another local value `q`.
 However, this does not change the chemical designation of the molecule.
-The injector `q` will inject the same molecules as `counter`; that is, molecules injected with `q(...)` will react in the same way and in the same reactions as molecules injected with `counter(...)`.
+The emitter `q` will emit the same molecules as `counter`; that is, molecules emitted with `q(...)` will react in the same way and in the same reactions as molecules emitted with `counter(...)`.
 
 The chemical designation of the molecule specifies two aspects of the concurrent program:
 
@@ -597,8 +597,8 @@ Each philosopher needs two forks to start eating, and every pair of neighbor phi
 
 The simplest solution of the “dining philosophers” problem is achieved using a molecule for each fork and two molecules per philosopher: one representing a thinking philosopher and the other representing a hungry philosopher.
 
-A “thinking philosopher” molecule (`t1`, `t2`, ..., `t5`) causes a reaction in which the process is paused for a random time and then the “hungry philosopher” molecule is injected.
-A “hungry philosopher” molecule (`h1`, ..., `h5`) needs to react with _two_ neighbor “fork” molecules. The reaction process is paused for a random time, and then the “thinking philosopher” molecule is injected together with the two “fork” molecules.
+A “thinking philosopher” molecule (`t1`, `t2`, ..., `t5`) causes a reaction in which the process is paused for a random time and then the “hungry philosopher” molecule is emitted.
+A “hungry philosopher” molecule (`h1`, ..., `h5`) needs to react with _two_ neighbor “fork” molecules. The reaction process is paused for a random time, and then the “thinking philosopher” molecule is emitted together with the two “fork” molecules.
 
 The complete code is shown here:
 
@@ -628,19 +628,19 @@ val f45 = new M[Unit]("Fork between 4 and 5")
 val f51 = new M[Unit]("Fork between 5 and 1")
 
 site (
-  run { case t1(_) => rw(h1); h1() },
-  run { case t2(_) => rw(h2); h2() },
-  run { case t3(_) => rw(h3); h3() },
-  run { case t4(_) => rw(h4); h4() },
-  run { case t5(_) => rw(h5); h5() },
+  go { case t1(_) => rw(h1); h1() },
+  go { case t2(_) => rw(h2); h2() },
+  go { case t3(_) => rw(h3); h3() },
+  go { case t4(_) => rw(h4); h4() },
+  go { case t5(_) => rw(h5); h5() },
 
-  run { case h1(_) + f12(_) + f51(_) => rw(t1); t1(n) + f12() + f51() },
-  run { case h2(_) + f23(_) + f12(_) => rw(t2); t2(n) + f23() + f12() },
-  run { case h3(_) + f34(_) + f23(_) => rw(t3); t3(n) + f34() + f23() },
-  run { case h4(_) + f45(_) + f34(_) => rw(t4); t4(n) + f45() + f34() },
-  run { case h5(_) + f51(_) + f45(_) => rw(t5); t5(n) + f51() + f45() }
+  go { case h1(_) + f12(_) + f51(_) => rw(t1); t1(n) + f12() + f51() },
+  go { case h2(_) + f23(_) + f12(_) => rw(t2); t2(n) + f23() + f12() },
+  go { case h3(_) + f34(_) + f23(_) => rw(t3); t3(n) + f34() + f23() },
+  go { case h4(_) + f45(_) + f34(_) => rw(t4); t4(n) + f45() + f34() },
+  go { case h5(_) + f51(_) + f45(_) => rw(t5); t5(n) + f51() + f45() }
 )
-// inject molecules representing the initial state:
+// emit molecules representing the initial state:
 t1() + t2() + t3() + t4() + t5()
 f12() + f23() + f34() + f45() + f51()
 // Now reactions will start and print to the console.

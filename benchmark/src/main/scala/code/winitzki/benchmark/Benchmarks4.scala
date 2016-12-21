@@ -20,15 +20,15 @@ object Benchmarks4 {
       val g = b[LocalDateTime, Long]
       val as = is.map(i => new M[Int](s"a$i"))
       val jrs = IndexedSeq(
-        run { case f(_) + g(initTime, r) => r(elapsed(initTime)) }
+        go { case f(_) + g(initTime, r) => r(elapsed(initTime)) }
       ) ++ is.map(
         i => {
           val a = as(i)
           val b = if (i == differentReactions-1) as(0) else as(i + 1)
           if (i == differentReactions-1)
-            run { case a(m) => if (m == 0) f() else b(m - 1) }
+            go { case a(m) => if (m == 0) f() else b(m - 1) }
           else
-            run { case a(m) => b(m) }
+            go { case a(m) => b(m) }
         }
       )
       site(tp)(jrs: _*)

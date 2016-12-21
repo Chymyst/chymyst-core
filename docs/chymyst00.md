@@ -13,7 +13,7 @@ To understand this tutorial, the reader should have some familiarity with the `S
 
 [Chapter 2: Blocking and non-blocking molecules](chymyst02.md)
 
-[Chapter 3: Molecules and injectors, in depth](chymyst03.md)
+[Chapter 3: Molecules and emitters, in depth](chymyst03.md)
 
 [Chapter 4: Map/Reduce and Merge-Sort](chymyst04.md)
 

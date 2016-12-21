@@ -49,7 +49,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
       val a = new M[Unit]("a")
 
       site(tp)(
-        runSimple { case a(_) =>
+        _go { case a(_) =>
           val reactionInfo = Thread.currentThread match {
             case t: ThreadWithInfo => t.reactionInfo
             case _ => None

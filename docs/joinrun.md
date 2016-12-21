@@ -8,20 +8,20 @@ Currently, it compiles with Scala 2.11 and Scala 2.12 on Oracle JDK 8.
 
 # Main structures
 
-Join Calculus is implemented using molecule injectors, reactions, and reaction sites.
+Join Calculus is implemented using molecule emitters, reactions, and reaction sites.
 
 There are only two primitive operations:
 
 - define reactions by writing a reaction site
-- inject molecules by calling molecule injectors with argument values
+- emit molecules by calling molecule emitters with argument values
 
-## Molecule injectors
+## Molecule emitters
 
-Molecule injectors are instances of one of the two classes:
+Molecule emitters are instances of one of the two classes:
 - `M[T]` for non-blocking molecules carrying a value of type `T`
 - `B[T, R]` for blocking molecules carrying a value of type `T` and returning a value of type `R`
 
-Molecule injectors should be defined as local values, before these molecules can be used in reactions.
+Molecule emitters should be defined as local values, before these molecules can be used in reactions.
 
 ```scala
 val x = new M[Int]("x")
@@ -43,36 +43,36 @@ val fetch = b[Unit, String] // same as new B[Unit, String]("fetch")
 
 These macros will read the enclosing `val` definition at compile time and substitute the name of the variable into the class constructor.
 
-## Injecting molecules
+## Emitting molecules
 
-Molecule injectors inherit from `Function1` and can be used as functions with one argument.
-Calling these functions will perform the side-effect of injecting the molecule into the soup that pertains to the reaction site to which the molecule is bound.
+Molecule emitters inherit from `Function1` and can be used as functions with one argument.
+Calling these functions will perform the side-effect of emitting the molecule into the soup that pertains to the reaction site to which the molecule is bound.
 
 ```scala
 ... M[T] extends Function1[T, Unit]
 ... B[T, R] extends Function1[T, R]
 
-val x = new M[Int]("x") // define injector using class constructor
+val x = new M[Int]("x") // define emitter using class constructor
 
 // Need to define reactions - this is omitted here.
 
-x(123) // inject molecule with value 123
+x(123) // emit molecule with value 123
 
-val y = m[Unit] // define injector using macro
+val y = m[Unit] // define emitter using macro
 
-y() // inject molecule with unit value
+y() // emit molecule with unit value
 
-val f = b[Int, String] // define injector using macro
+val f = b[Int, String] // define emitter using macro
 
-val result = f(10) // injecting a blocking molecule: "result" is of type String
+val result = f(10) // emitting a blocking molecule: "result" is of type String
 
 ```
 
-It is a runtime error to inject molecules that is not yet bound to any reaction site.
+It is a runtime error to emit molecules that is not yet bound to any reaction site.
 
 ### Timeout for a blocking molecule
 
-The call to inject a blocking molecule will block until some reaction consumes that molecule and the molecule receives a "reply action" with a value.
+The call to emit a blocking molecule will block until some reaction consumes that molecule and the molecule receives a "reply action" with a value.
 
 A timeout can be imposed on that call by using this syntax:
 
@@ -85,15 +85,15 @@ val result: Option[String] = f(timeout = 100 millis)(10)
 
 ```
 
-Injection with timeout results in an `Option` value.
+Emission with timeout results in an `Option` value.
 The value will be `None` if timeout is reached.
 
-Exceptions may be thrown as a result of injecting of a blocking molecule when it is unblocked:
+Exceptions may be thrown as a result of emitting of a blocking molecule when it is unblocked:
 For instance, this happens when the reaction code attempts to execute the reply action more than once.
 
 ## Debugging
 
-Molecule injectors have the method `setLogLevel`, which is by default set to 0.
+Molecule emitters have the method `setLogLevel`, which is by default set to 0.
 Positive values will lead to more debugging output.
 
 The log level will affect the entire reaction site to which the molecule is bound.
@@ -121,17 +121,17 @@ A reaction is an instance of class `Reaction`.
 It is created using the `run` method with a partial function syntax that resembles pattern-matching on molecule values:
 
 ```scala
-val reaction1 = run { case a(x) + b(y) => a(x+y) }
+val reaction1 = go { case a(x) + b(y) => a(x+y) }
 
 ```
 
-Molecule injectors appearing within the pattern match (between `case` and  `=>`) are the **input molecules** of that reaction.
-Molecule injectors used in the reaction body (which is the Scala expression after `=>`) are the **output molecules** of that reaction.
+Molecule emitters appearing within the pattern match (between `case` and  `=>`) are the **input molecules** of that reaction.
+Molecule emitters used in the reaction body (which is the Scala expression after `=>`) are the **output molecules** of that reaction.
 
-All input and output molecule injectors involved in the reaction must be already defined and visible in the local scope.
+All input and output molecule emitters involved in the reaction must be already defined and visible in the local scope.
 (Otherwise, there will be a compile error.)
 
-Note: Although molecules with `Unit` type can be injected as `a()`, the pattern-matching syntax for those molecules must be `case a(_) + ... => ...` 
+Note: Although molecules with `Unit` type can be emitted as `a()`, the pattern-matching syntax for those molecules must be `case a(_) + ... => ...` 
 
 ### Pattern-matching in reactions
 
@@ -148,7 +148,7 @@ Here is an example with pattern-matching on non-blocking molecules `c` and `d` t
 val c = new M[Option[Int]]("c") // non-blocking molecule
 val d = new M[(Int, String, Boolean)]("d") // non-blocking molecule
 
-val reaction = run { case c(Some(x)) + d((y, "hello", true)) if x == y => c(Some(y)) }
+val reaction = go { case c(Some(x)) + d((y, "hello", true)) if x == y => c(Some(y)) }
 
 ```
 
@@ -160,22 +160,22 @@ The syntax for matching on blocking molecules requires a two-place matcher, such
 val c = new M[Option[Int]]("c") // non-blocking molecule
 val f = new B[Int, String]("f") // blocking molecule
 
-val reaction2 = run { case c(Some(x)) + f(y, r) => r(x.toString) + c(Some(y)) }
+val reaction2 = go { case c(Some(x)) + f(y, r) => r(x.toString) + c(Some(y)) }
 
-val result = f(123) // inject f(123), get reply value of type String
+val result = f(123) // emit f(123), get reply value of type String
 
 ```
 
 In this reaction, the pattern-match on `f(y, r)` involves two pattern variables:
 
-- The pattern variable `y` is of type `Int` and matches the value carried by the injected molecule `f(123)`
+- The pattern variable `y` is of type `Int` and matches the value carried by the emitted molecule `f(123)`
 - The pattern variable `r` is of type `Int => String` and matches a function object that performs the reply action aimed at the caller of `f(123)`.
-Calling `r` as `r(x.toString)` will perform the reply action, sending the value of `x.toString` back to the calling process, which has been blocked by injecting `f(123)`.
+Calling `r` as `r(x.toString)` will perform the reply action, sending the value of `x.toString` back to the calling process, which has been blocked by emitting `f(123)`.
 The reply action will unblock the calling process concurrently with the reaction body.
 
 This reply action must be performed as `r(...)` in the reaction body exactly once, and cannot be performed afterwards.
 
-It is a runtime error to write a reaction that either does not inject the reply action or uses it more than once.
+It is a runtime error to write a reaction that either does not emit the reply action or uses it more than once.
 
 Also, the reply action object `r` should not be used by any other reactions outside the reaction body where `r` was defined.
 (Using `r` after the reaction finishes will have no effect.)
@@ -189,14 +189,14 @@ val f = b[Int, Unit]
 // correct usage is case f(x, r) => ... r()
 
 // this is incorrect usage because "r" is not being matched:
-run { case f(x, _) => ... } // Error: blocking input molecules should not contain a pattern that matches on anything other than a simple variable
+go { case f(x, _) => ... } // Error: blocking input molecules should not contain a pattern that matches on anything other than a simple variable
 
 ```
 
 ## Reaction sites
 
 Writing a reaction site (RS) will at once activate molecules and reactions:
-Until an RS is written, molecules cannot be injected, and no reactions will start.
+Until an RS is written, molecules cannot be emitted, and no reactions will start.
 
 Reaction sites are written with the `site` method:
 
@@ -210,7 +210,7 @@ With Scala's `:_*` syntax, an RS can also take a sequence of reactions.
 
 All reactions listed in the RS will be activated at once.
 
-Whenever we inject any molecule that is used as input to one of these reactions, it is _this_ RS (and no other) that will decide which reactions to run.
+Whenever we emit any molecule that is used as input to one of these reactions, it is _this_ RS (and no other) that will decide which reactions to run.
 For this reason, we say that those molecules are "bound" to this RS, or that they are "consumed" at that RS, or that they are "input molecules" at this RS.
 
 Here is an example of an RS:
@@ -222,8 +222,8 @@ val i = new M[Unit]("increment")
 val f = new M[Unit]("finished")
 
 site(
-  run { case c(x) + d(_) => c(x-1); if (x==1) f() },
-  run { case c(x) + i(_) => c(x+1) }
+  go { case c(x) + d(_) => c(x-1); if (x==1) f() },
+  go { case c(x) + i(_) => c(x+1) }
 )
 
 ```
@@ -234,9 +234,9 @@ We say that the molecules `c`, `d`, and `i` are consumed in this RS, or that the
 Note that `f` is not an input molecule here; we will need to write another RS to which `f` will be bound.
 
 It is perfectly acceptable for a reaction to output a molecule such as `f` that is not consumed by any reaction in this RS.
-However, if we forget to write any other RS that consumes `f`, it will be a runtime error to inject `f`.
+However, if we forget to write any other RS that consumes `f`, it will be a runtime error to emit `f`.
 
-As a warning, note that in the present example the molecule `f` will be injected only if `x==1` (and it is impossible to determine at compile time whether `x==1` will be true at runtime).
+As a warning, note that in the present example the molecule `f` will be emitted only if `x==1` (and it is impossible to determine at compile time whether `x==1` will be true at runtime).
 So, if we forget to write an RS to which `f` is bound, it will be not necessarily easy to detect the error at runtime!
 
 An important requirement for reaction sites is that any given molecule must be bound to one and only one reaction site.
@@ -251,11 +251,11 @@ val i = new M[Unit]("increment")
 val f = new M[Unit]("finished")
 
 site(
-  run { case c(x) + d(_) => c(x-1); if (x==1) f() }
+  go { case c(x) + d(_) => c(x-1); if (x==1) f() }
 )
 
 site(
-  run { case c(x) + i(_) => c(x+1) }
+  go { case c(x) + i(_) => c(x+1) }
 ) // runtime error: "c" is already bound to another RS
 
 ```
@@ -273,7 +273,7 @@ The decisions about which reactions to start are local to each RS.
 
 There are two kinds of tasks that `JoinRun` performs concurrently:
 - running reactions
-- injecting new molecules and deciding which reactions will run next
+- emitting new molecules and deciding which reactions will run next
 
 Each RS is a local value and is separate from all other RSs.
 So, in principle all RSs can perform their tasks fully concurrently and independently from each other.
@@ -286,7 +286,7 @@ In particular, all screen updates (as well as all user event callbacks) must be 
 
 To facilitate this control, `JoinRun` implements the thread pool feature.
 
-Each RS uses two thread pools: a thread pool for running reactions (`reactionPool`) and a thread pool for injecting molecules and deciding new reactions (`sitePool`).
+Each RS uses two thread pools: a thread pool for running reactions (`reactionPool`) and a thread pool for emitting molecules and deciding new reactions (`sitePool`).
 
 By default, these two thread pools are statically allocated and shared by all RSs.
 
@@ -309,20 +309,20 @@ TODO
 ## Blocking calls and thread pools
 
 The `SmartPool` class is used to create thread pools for reactions that may generate a lot of blocking molecules.
-This thread pool will automatically increment the pool size when a blocking molecule is injected, and decrement it when the blocking molecule receives a reply and unblocks the calling process.
+This thread pool will automatically increment the pool size when a blocking molecule is emitted, and decrement it when the blocking molecule receives a reply and unblocks the calling process.
 
 This functionality is available with the `BlockingIdle` function.
 Whenever a reaction contains an idle blocking call, the corresponding thread will be blocked while doing no computations.
-If the thread pool does not increase the number of available threads in this case, it is possible that the blocking call is waiting for a molecule that is never going to be injected since no free threads are available to run reactions.
+If the thread pool does not increase the number of available threads in this case, it is possible that the blocking call is waiting for a molecule that is never going to be emitted since no free threads are available to run reactions.
 To prevent this kind of starvation, the user can surround the idle blocking calls with `BlockingIdle(...)`.
 
-Injectors of blocking molecules already use `BlockingIdle` in their implementation.
+Emitterss of blocking molecules already use `BlockingIdle` in their implementation.
 The user needs to employ `BlockingIdle` explicitly only when a reaction contains blocking idle calls, such as `Thread.sleep`, synchronous HTTP calls, database queries, and so on.
 
 Example:
 
 ```scala
-... run { case a(url) + b(_) =>
+... go { case a(url) + b(_) =>
       val result = BlockingIdle{ callSyncHttpApi(url) }
       c(result)
     }
@@ -338,7 +338,7 @@ Example:
 val pool = new SmartPool(8)
   ...
 site(pool, defaultReactionPool)(
-  run { case a(url) if BlockingIdle{ callSyncHttpApi(url).isSuccessful } => ...}
+  go { case a(url) if BlockingIdle{ callSyncHttpApi(url).isSuccessful } => ...}
 )
 
 ```
@@ -353,7 +353,7 @@ The first kind of exception leads to stopping the reaction and printing an error
 
 The second kind of exception is handled specially for reactions marked as `withRetry`:
 For these reactions, `JoinRun` assumes that the reaction has died due to some transient malfunction and should be retried.
-Then the input molecules for the reaction are injected again.
+Then the input molecules for the reaction are emitted again.
 This will make it possible for the reaction to restart.
 
 By default, reactions are not marked as `withRetry`, and any exception thrown by the reaction body will lead to the 
@@ -363,8 +363,8 @@ The following syntax is used to specify fault tolerance in reactions:
 
 ```scala
 site(
-  run { case a(x) + b(y) => ... }.withRetry, // will be retried
-  run { case c(z) => ...} // will not be retried - this is the default
+  go { case a(x) + b(y) => ... }.withRetry, // will be retried
+  go { case c(z) => ...} // will not be retried - this is the default
 )
 
 ```
@@ -381,7 +381,7 @@ Therefore, it may be advisable not to use exceptions within reactions.
 
 ## scalac: Error: Could not find proxy for value `x`
 
-This error occurs when the macro expansion tries to use wrong scope for molecule injectors.
+This error occurs when the macro expansion tries to use wrong scope for molecule emitters.
 At the moment, this can happen with `scalatest` with code like this:
 
 ```scala
@@ -427,7 +427,7 @@ This will allow us to implement interesting features such as:
 
 - fairness with respect to molecules (random choice of input molecules for reactions)
 - start many reactions at once when possible
-- inject many molecules at once, rather than one by one
+- emit many molecules at once, rather than one by one
 - allow nonlinear input patterns
 
 Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka streams.
@@ -444,7 +444,7 @@ Version 0.5: Investigate an implicit distributed execution of chemical reactions
 
  2 * 3 - support a fixed number of singleton copies; remove Molecule.isSingleton mutable field in favor of a function on getJoinDef 
 
- 2 * 3 - detect livelock due to singleton injection (at the moment, they are not considered as present inputs)
+ 2 * 3 - detect livelock due to singleton emission (at the moment, they are not considered as present inputs)
 
  3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
  Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.
@@ -456,7 +456,7 @@ Version 0.5: Investigate an implicit distributed execution of chemical reactions
 
  2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
 
- 4 * 5 - implement multiple injection construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. Implement starting many reactions concurrently at once, rather than one by one.
+ 4 * 5 - implement multiple emission construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. Implement starting many reactions concurrently at once, rather than one by one.
  
  4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same reaction site, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on reaction site information gleaned using a macro.
 
@@ -468,7 +468,7 @@ Version 0.5: Investigate an implicit distributed execution of chemical reactions
 
  2 * 2 - maybe remove default pools altogether? It seems that every pool needs to be stopped.
 
- 3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is injected from a thread T and the corresponding reaction site runs on the same thread T, do not schedule a task but simply run the reaction site synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a reaction site that runs on thread T and the reaction is configured to run on the same thread, do not schedule a task but simply run the reaction synchronously.
+ 3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is emitted from a thread T and the corresponding reaction site runs on the same thread T, do not schedule a task but simply run the reaction site synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a reaction site that runs on thread T and the reaction is configured to run on the same thread, do not schedule a task but simply run the reaction synchronously.
 
  5 * 5 - is it possible to implement distributed execution by sharing the join pool with another machine (but running the reaction sites only on the master node)?
 

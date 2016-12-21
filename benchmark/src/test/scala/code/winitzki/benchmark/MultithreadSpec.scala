@@ -1,11 +1,10 @@
 package code.winitzki.benchmark
 
-import code.winitzki.benchmark.Common._
 import code.winitzki.jc.FixedPool
-import code.winitzki.jc.Macros.{run => &}
-import code.winitzki.jc.Macros._
 import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
+import Common._
 
 class MultithreadSpec extends FlatSpec with Matchers {
 
@@ -27,9 +26,9 @@ class MultithreadSpec extends FlatSpec with Matchers {
       val tp = new FixedPool(threads)
       val tp2 = new FixedPool(2)
       site(tp,tp2)(
-        & { case work(_) => performWork(); finished() },
-        & { case counter(n) + finished(_) => counter(n-1) },
-        & { case allFinished(_, r) + counter(0) => r() }
+        go { case work(_) => performWork(); finished() },
+        go { case counter(n) + finished(_) => counter(n-1) },
+        go { case allFinished(_, r) + counter(0) => r() }
       )
       val total = 8
       (1 to total).foreach(_ => work())

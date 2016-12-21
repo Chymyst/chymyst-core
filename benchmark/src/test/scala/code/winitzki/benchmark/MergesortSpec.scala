@@ -1,15 +1,15 @@
 package code.winitzki.benchmark
 
-import Common._
 import code.winitzki.jc.FixedPool
-import code.winitzki.jc.Macros.{run => &}
-import code.winitzki.jc.Macros._
 import code.winitzki.jc.JoinRun._
+import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.reflect.ClassTag
+
+import Common._
 
 class MergesortSpec extends FlatSpec with Matchers {
 
@@ -59,7 +59,7 @@ class MergesortSpec extends FlatSpec with Matchers {
     val jp = new FixedPool(3)
 
     site(jp,jp)(
-      &{ case finalResult(arr) + getFinalResult(_, r) => r(arr) }
+      go { case finalResult(arr) + getFinalResult(_, r) => r(arr) }
     )
 
     // recursive molecule that will define the reactions at one level
@@ -67,7 +67,7 @@ class MergesortSpec extends FlatSpec with Matchers {
     val mergesort = m[(Array[T], M[Array[T]])]
 
     site(tp,jp)(
-      &{
+      go {
         case mergesort((arr, resultToYield)) =>
           if (arr.length <= 1) resultToYield(arr)
           else {
@@ -76,11 +76,11 @@ class MergesortSpec extends FlatSpec with Matchers {
             val sorted1 = m[Array[T]]
             val sorted2 = m[Array[T]]
             site(tp,jp)(
-              &{ case sorted1(x) + sorted2(y) =>
+              go { case sorted1(x) + sorted2(y) =>
                 resultToYield(arrayMerge(x,y)) }
             )
 
-            // inject lower-level mergesort
+            // emit lower-level mergesort
             mergesort((part1, sorted1)) + mergesort((part2, sorted2))
           }
       }
@@ -127,10 +127,10 @@ class MergesortSpec extends FlatSpec with Matchers {
 
     val arr = Array.fill[Int](count)(scala.util.Random.nextInt(count))
 
-    val result = timeWithPriming{ performMergeSort(arr, threads)}
+    val result = timeWithPriming{ performMergeSort(arr, threads); () }
     println(s"concurrent merge-sort test with count=$count and $threads threads took $result ms")
 
-    val result1 = timeWithPriming{ performMergeSort(arr, 1)}
+    val result1 = timeWithPriming{ performMergeSort(arr, 1); () }
     println(s"concurrent merge-sort test with count=$count and 1 threads took $result1 ms")
   }
 

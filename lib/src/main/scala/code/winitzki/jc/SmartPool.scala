@@ -15,7 +15,7 @@ object BlockingIdle {
     }
 }
 
-/** A cached pool that increases its thread count whenever a blocking molecule is injected, and decreases afterwards.
+/** A cached pool that increases its thread count whenever a blocking molecule is emitted, and decreases afterwards.
   * The {{{BlockingIdle}}} function, similar to {{{scala.concurrent.blocking}}}, is used to annotate expressions that should lead to an increase of thread count, and to a decrease of thread count once the idle blocking call returns.
   */
 class SmartPool(parallelism: Int) extends Pool {
