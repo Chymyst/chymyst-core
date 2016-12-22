@@ -1,7 +1,6 @@
 package code.winitzki.test
 
 import code.winitzki.jc._
-import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.annotation.tailrec

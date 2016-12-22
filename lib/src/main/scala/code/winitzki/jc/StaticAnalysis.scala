@@ -1,7 +1,8 @@
 package code.winitzki.jc
 
-import scala.annotation.tailrec
+import Core._
 
+import scala.annotation.tailrec
 
 private object StaticAnalysis {
 

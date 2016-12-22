@@ -1,4 +1,4 @@
-package code.winitzki
+package code.winitzki.jc
 
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -6,7 +6,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
-package object jc {
+object Core {
 
   /** A special value for {{{ReactionInfo}}} to signal that we are not running a reaction.
     *

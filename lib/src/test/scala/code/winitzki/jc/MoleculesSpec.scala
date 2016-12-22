@@ -1,5 +1,7 @@
 package code.winitzki.jc
 
+import Core._
+
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
@@ -160,7 +162,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val a = new M[Int]("a")
     val b = new M[Int]("b")
     val c = new M[Int]("c")
-    site(tp0)( _go { case a(x) + b(y) => c(x+y) }, _go { case c(z) => waiter { z shouldEqual 3 }; waiter.dismiss() })
+    site(tp0)( _go { case a(x) + b(y) => c(x+y) }, _go { case c(z) => waiter { z shouldEqual 3; () }; waiter.dismiss() })
     a(1)
     b(2)
     waiter.await()

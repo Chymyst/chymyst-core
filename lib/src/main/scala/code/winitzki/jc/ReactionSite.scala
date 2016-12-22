@@ -1,5 +1,6 @@
 package code.winitzki.jc
 
+import Core._
 
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
