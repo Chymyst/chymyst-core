@@ -34,6 +34,26 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     s.toString shouldEqual "s/B"
   }
 
+  it should "create an emitter of class E for m[Unit]" in {
+    val a = m[Unit]
+    a.isInstanceOf[E] shouldEqual true
+  }
+
+  it should "create an emitter of class BE[Int] for b[Int, Unit]" in {
+    val a = b[Int, Unit]
+    a.isInstanceOf[BE[Int]] shouldEqual true
+  }
+
+  it should "create an emitter of class EB[Int] for b[Unit, Int]" in {
+    val a = b[Unit, Int]
+    a.isInstanceOf[EB[Int]] shouldEqual true
+  }
+
+  it should "create an emitter of class EE for b[Unit, Unit]" in {
+    val a = b[Unit, Unit]
+    a.isInstanceOf[EE] shouldEqual true
+  }
+
   behavior of "macros for inspecting a reaction body"
 
 
