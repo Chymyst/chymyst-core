@@ -23,9 +23,9 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val reactions = 4
     val N = 1000
 
-    val c = new M[(Int, Array[Int])]("c")
-    val done = new M[Array[Int]]("done")
-    val getC = new B[Unit, Array[Int]]("getC")
+    val c = m[(Int, Array[Int])]
+    val done = m[Array[Int]]
+    val getC = b[Unit, Array[Int]]
     val a0 = m[Unit]
     val a1 = m[Unit]
     val a2 = m[Unit]
