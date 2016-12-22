@@ -124,7 +124,7 @@ Here is the complete code for this example (see also `MapReduceSpec.scala` in th
 We will apply the function `f(x) = x*x` to elements of an integer array, and then compute the sum of the resulting array of squares.
 
 ```scala
-import code.winitzki.jc.JoinRun._
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
 
 object C extends App {

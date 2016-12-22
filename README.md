@@ -188,7 +188,7 @@ There is an integer counter value, to which we have non-blocking access via `inc
 We can also fetch the current counter value via the `get` molecule, which is blocking.
 The counter is initialized to the number we specify.
 ```scala
-import code.winitzki.jc.JoinRun._
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
 
 // Define the logic of the “non-blocking counter”.
@@ -238,7 +238,7 @@ The library offers some debugging facilities:
  Here are the typical results:
 
 ```scala
-import code.winitzki.jc.JoinRun._
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
 
 val counter = b[Int] // the name of this molecule is "counter"

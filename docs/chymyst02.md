@@ -115,7 +115,7 @@ go { case counter(0) + fetch(_, reply)  => reply() }
 Here is the complete code:
 
 ```scala
-import code.winitzki.jc.JoinRun._
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
 
 import java.time.LocalDateTime.now

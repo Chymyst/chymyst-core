@@ -141,8 +141,6 @@ object Macros {
   def buildReactionImpl(c: theContext)(reactionBody: c.Expr[ReactionBody]): c.universe.Tree = {
     import c.universe._
 
-//    val reactionBodyReset = c.untypecheck(reactionBody.tree)
-
     /** Obtain the owner of the current macro call site.
       *
       * @return The owner symbol of the current macro call site.
