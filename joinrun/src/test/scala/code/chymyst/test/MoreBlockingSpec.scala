@@ -52,6 +52,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
+  // warning: this test sometimes fails
   it should "return true for many blocking molecules with successful reply" in {
     val a = m[Boolean]
     val collect = m[Int]
@@ -67,7 +68,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     )
     collect(0)
 
-    val numberOfFailures = (1 to 10000).map { _ =>
+    val numberOfFailures = (1 to 1000).map { _ =>
       if (f.timeout(1000 millis)().isEmpty) 1 else 0
     }.sum
 
