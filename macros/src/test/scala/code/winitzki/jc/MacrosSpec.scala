@@ -62,7 +62,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val reaction =
       go { case a(x) =>
         val q = new M[Int]("q")
-        val s = new M[Unit]("s")
+        val s = new E("s")
         val reaction1 = go { case q(_) + s(()) => }
         q(0)
       }
@@ -254,8 +254,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
     val a = new M[Option[Int]]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
+    val b = new E("b")
+    val c = new E("c")
 
     site(tp0)(_go { case b(_) + a(Some(x)) + c(_) => })
 
@@ -265,8 +265,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "define a reaction with correct inputs with default pattern-matching in the middle of reaction" in {
     val a = new M[Option[Int]]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
+    val b = new E("b")
+    val c = new E("c")
 
     site(tp0)(go { case b(_) + a(None) + c(_) => })
 
@@ -275,8 +275,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "define a reaction with correct inputs with non-simple default pattern-matching in the middle of reaction" in {
     val a = new M[Seq[Int]]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
+    val b = new E("b")
+    val c = new E("c")
 
     site(go { case b(_) + a(List()) + c(_) => })
 
@@ -285,8 +285,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "fail to define a simple reaction with correct inputs with empty option pattern-matching at start of reaction" in {
     val a = new M[Option[Int]]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
+    val b = new E("b")
+    val c = new E("c")
 
     site(tp0)(_go { case a(None) + b(_) + c(_) => })
 
@@ -295,8 +295,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "define a reaction with correct inputs with empty option pattern-matching at start of reaction" in {
     val a = new M[Option[Int]]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
+    val b = new E("b")
+    val c = new E("c")
 
     site(tp0)(go { case a(None) + b(_) + c(_) => })
 
@@ -305,8 +305,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "define a reaction with correct inputs with non-default pattern-matching at start of reaction" in {
     val a = new M[Option[Int]]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
+    val b = new E("b")
+    val c = new E("c")
 
     site(tp0)(go { case a(Some(x)) + b(_) + c(_) => })
 
@@ -315,7 +315,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "run reactions correctly with non-default pattern-matching at start of reaction" in {
     val a = new M[Option[Int]]("a")
-    val b = new M[Unit]("b")
+    val b = new E("b")
 
     site(tp0)(go { case a(Some(x)) + b(_) => })
 
@@ -329,8 +329,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "define a reaction with correct inputs with constant non-default pattern-matching at start of reaction" in {
     val a = new M[Int]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
+    val b = new E("b")
+    val c = new E("c")
 
     site(tp0)(go { case a(1) + b(_) + c(_) => })
 
@@ -339,8 +339,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "define a reaction with correct inputs with constant default option pattern-matching at start of reaction" in {
     val a = new M[Option[Int]]("a")
-    val b = new M[Unit]("b")
-    val c = new M[Unit]("c")
+    val b = new E("b")
+    val c = new E("c")
 
     site(tp0)(go { case a(None) + b(_) + c(_) => })
 
@@ -351,7 +351,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val a = new M[Option[Int]]("a")
     val b = new M[String]("b")
     val c = new M[(Int, Int)]("c")
-    val d = new M[Unit]("d")
+    val d = new E("d")
 
     val r = go { case a(Some(1)) + b("xyz") + d(()) + c((2, 3)) => a(Some(2)) }
 

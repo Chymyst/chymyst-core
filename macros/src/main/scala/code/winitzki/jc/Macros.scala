@@ -32,7 +32,7 @@ object Macros {
     c.Expr[String](q"$s")
   }
 
-  def m[T]: NonblockingMolecule[T] = macro mImpl[T]
+  def m[T]: M[T] = macro mImpl[T]
 
   def mImpl[T: c.WeakTypeTag](c: theContext): c.universe.Tree = {
     import c.universe._
@@ -45,9 +45,9 @@ object Macros {
       q"new M[$moleculeValueType]($moleculeName)"
   }
 
-  def b[T, R]: BlockingMolecule[T, R] = macro bImpl[T, R]
+  def b[T, R]: B[T,R] = macro bImpl[T, R]
 
-  def bImpl[T: c.WeakTypeTag, R: c.WeakTypeTag](c: theContext): c.Expr[BlockingMolecule[T, R]] = {
+  def bImpl[T: c.WeakTypeTag, R: c.WeakTypeTag](c: theContext): c.Expr[B[T, R]] = {
     import c.universe._
     val moleculeName = getEnclosingName(c)
 
@@ -55,7 +55,7 @@ object Macros {
     val replyValueType = c.weakTypeOf[R]
 
     if (moleculeValueType =:= typeOf[Unit])
-      c.Expr[BlockingMolecule[T,R]](q"new F[$replyValueType]($moleculeName)")
+      c.Expr[B[T,R]](q"new F[$replyValueType]($moleculeName)")
     else
       c.Expr[B[T, R]](q"new B[$moleculeValueType,$replyValueType]($moleculeName)")
   }

@@ -33,14 +33,14 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
     val t3 = new M[Int]("Marx is thinking")
     val t4 = new M[Int]("Russell is thinking")
     val t5 = new M[Int]("Spinoza is thinking")
-    val f12 = new M[Unit]("f12")
-    val f23 = new M[Unit]("f23")
-    val f34 = new M[Unit]("f34")
-    val f45 = new M[Unit]("f45")
-    val f51 = new M[Unit]("f51")
+    val f12 = new E("f12")
+    val f23 = new E("f23")
+    val f34 = new E("f34")
+    val f45 = new E("f45")
+    val f51 = new E("f51")
 
-    val done = new M[Unit]("done")
-    val check = new B[Unit, Unit]("check")
+    val done = new E("done")
+    val check = new F[Unit]("check")
 
     site(tp, tp) (
       go { case t1(n) => rw(h1); h1(n - 1) },
