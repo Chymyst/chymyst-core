@@ -280,46 +280,46 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   // Remove a blocking molecule if it is present.
-  private def removeBlockingMolecule[T,R](m: B[T,R], blockingMolValue: BlockingMolValue[T,R], hadTimeout: Boolean): Unit = {
+  private def removeBlockingMolecule[T,R](bm: BlockingMolecule[T,R], blockingMolValue: BlockingMolValue[T,R], hadTimeout: Boolean): Unit = {
     moleculesPresent.synchronized {
-      moleculesPresent.removeFromBag(m, blockingMolValue)
-      if (logLevel > 0) println(s"Debug: $this removed $m($blockingMolValue) on thread pool $sitePool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+      moleculesPresent.removeFromBag(bm, blockingMolValue)
+      if (logLevel > 0) println(s"Debug: $this removed $bm($blockingMolValue) on thread pool $sitePool, now have molecules ${moleculeBagToString(moleculesPresent)}")
     }
     blockingMolValue.synchronized {
       blockingMolValue.replyValue.replyTimeout = hadTimeout
     }
   }
 
-  private def emitAndReplyInternal[T,R](timeoutOpt: Option[Long], m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): Boolean = {
+  private def emitAndReplyInternal[T,R](timeoutOpt: Option[Long], bm: BlockingMolecule[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): Boolean = {
     val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
-    emit(m, blockingMolValue)
+    emit(bm, blockingMolValue)
     val success =
       BlockingIdle {
         replyValueWrapper.acquireSemaphore(timeoutNanos = timeoutOpt)
       }
     replyValueWrapper.deleteSemaphore()
     // We might have timed out, in which case we need to forcibly remove the blocking molecule from the soup.
-    removeBlockingMolecule(m, blockingMolValue, !success)
+    removeBlockingMolecule(bm, blockingMolValue, !success)
 
     success
   }
 
   // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
   // We must make this a blocking call, so we acquire a semaphore (with or without timeout).
-  private[jc] def emitAndReply[T,R](m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): R = {
-    emitAndReplyInternal(timeoutOpt = None, m, v, replyValueWrapper)
+  private[jc] def emitAndReply[T,R](bm: BlockingMolecule[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): R = {
+    emitAndReplyInternal(timeoutOpt = None, bm, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value
     replyValueWrapper.errorMessage match {
       case Some(message) => throw new Exception(message)
       case None => replyValueWrapper.result.getOrElse(
-        throw new ExceptionEmptyReply(s"Internal error: In $this: $m received an empty reply without an error message"
+        throw new ExceptionEmptyReply(s"Internal error: In $this: $bm received an empty reply without an error message"
         )
       )
     }
   }
 
   // This is a separate method because it has a different return type than emitAndReply.
-  private[jc] def emitAndReplyWithTimeout[T,R](timeout: Long, m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]):
+  private[jc] def emitAndReplyWithTimeout[T,R](timeout: Long, m: BlockingMolecule[T,R], v: T, replyValueWrapper: ReplyValue[T,R]):
   Option[R] = {
     val haveReply = emitAndReplyInternal(timeoutOpt = Some(timeout), m, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value

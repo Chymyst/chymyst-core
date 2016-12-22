@@ -4,12 +4,11 @@ import scala.collection.mutable
 import scala.language.experimental.macros
 import scala.reflect.macros._
 import scala.reflect.NameTransformer.LOCAL_SUFFIX_STRING
-
 import scala.annotation.tailrec
 
 object Macros {
 
-  type theContext = blackbox.Context
+  type theContext = whitebox.Context
 
   private[jc] def rawTree(x: Any): String = macro rawTreeImpl
 
@@ -33,27 +32,32 @@ object Macros {
     c.Expr[String](q"$s")
   }
 
-  def m[T]: M[T] = macro mImpl[T]
+  def m[T]: NonblockingMolecule[T] = macro mImpl[T]
 
-  def mImpl[T: c.WeakTypeTag](c: theContext): c.Expr[M[T]] = {
+  def mImpl[T: c.WeakTypeTag](c: theContext): c.universe.Tree = {
     import c.universe._
-    val s = getEnclosingName(c)
+    val moleculeName = getEnclosingName(c)
 
-    val t = c.weakTypeOf[T]
-
-    c.Expr[M[T]](q"new M[$t]($s)")
+    val moleculeValueType = c.weakTypeOf[T]
+    if (moleculeValueType =:= typeOf[Unit])
+      q"new E($moleculeName)"
+    else
+      q"new M[$moleculeValueType]($moleculeName)"
   }
 
-  def b[T, R]: B[T, R] = macro bImpl[T, R]
+  def b[T, R]: BlockingMolecule[T, R] = macro bImpl[T, R]
 
-  def bImpl[T: c.WeakTypeTag, R: c.WeakTypeTag](c: blackbox.Context): c.Expr[B[T, R]] = {
+  def bImpl[T: c.WeakTypeTag, R: c.WeakTypeTag](c: theContext): c.Expr[BlockingMolecule[T, R]] = {
     import c.universe._
-    val s = c.internal.enclosingOwner.name.decodedName.toString.stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
+    val moleculeName = getEnclosingName(c)
 
-    val t = c.weakTypeOf[T]
-    val r = c.weakTypeOf[R]
+    val moleculeValueType = c.weakTypeOf[T]
+    val replyValueType = c.weakTypeOf[R]
 
-    c.Expr[B[T, R]](q"new B[$t,$r]($s)")
+    if (moleculeValueType =:= typeOf[Unit])
+      c.Expr[BlockingMolecule[T,R]](q"new F[$replyValueType]($moleculeName)")
+    else
+      c.Expr[B[T, R]](q"new B[$moleculeValueType,$replyValueType]($moleculeName)")
   }
 
   /** Describes the pattern matcher for input molecules.
@@ -90,17 +94,19 @@ object Macros {
 
   /** Describes the pattern matcher for output molecules.
     * Possible values:
-    * ConstOutputPattern: a(1)
-    * OtherOutputPattern: a(x) or anything else
+    * ConstOutputPatternF(x): a(x)
+    * EmptyOutputPatternF: a()
+    * OtherOutputPatternF: a(x+y) or anything else
     */
   private sealed trait OutputPatternFlag {
     def notSimple: Boolean = this match {
-      case ConstOutputPattern(_) => false
+      case ConstOutputPatternF(_) | EmptyOutputPatternF => false
       case _ => true
     }
   }
   private case object OtherOutputPatternF extends OutputPatternFlag
-  private final case class ConstOutputPattern(v: Any) extends OutputPatternFlag
+  private case object EmptyOutputPatternF extends OutputPatternFlag
+  private final case class ConstOutputPatternF(v: Any) extends OutputPatternFlag
 
   /**
     * Users will define reactions using this function.
@@ -212,7 +218,8 @@ object Macros {
       }
 
       private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag = binderTerms match {
-        case List(t@Literal(_)) => ConstOutputPattern(t)
+        case List(t@Literal(_)) => ConstOutputPatternF(t)
+        case Nil => EmptyOutputPatternF
         case _ => OtherOutputPatternF
       }
 
@@ -265,7 +272,7 @@ object Macros {
                 outputMolecules.append((t.symbol, flag1))
               }
             }
-            if (t.tpe <:< weakTypeOf[ReplyValue[_,_]]) {
+            if (t.tpe <:< weakTypeOf[AbsReplyValue[_,_]]) {
               replyActions.append((t.symbol, flag1))
             }
 
@@ -285,7 +292,8 @@ object Macros {
     }
 
     implicit val liftableOutputPatternFlag: c.universe.Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
-      case ConstOutputPattern(x) => q"_root_.code.winitzki.jc.ConstOutputValue(${x.asInstanceOf[c.Tree]})"
+      case ConstOutputPatternF(x) => q"_root_.code.winitzki.jc.ConstOutputValue(${x.asInstanceOf[c.Tree]})"
+      case EmptyOutputPatternF => q"_root_.code.winitzki.jc.ConstOutputValue(())"
       case _ => q"_root_.code.winitzki.jc.OtherOutputPattern"
     }
 
