@@ -26,7 +26,6 @@ This code is completely equivalent to the shorter code written using macros:
 
 ```scala
 import code.winitzki.jc._
-import code.winitzki.jc.Macros._
 
 val counter = m[Int]
 val fetch = b[Unit, Int]

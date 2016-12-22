@@ -116,7 +116,6 @@ Here is the complete code:
 
 ```scala
 import code.winitzki.jc._
-import code.winitzki.jc.Macros._
 
 import java.time.LocalDateTime.now
 import java.time.temporal.ChronoUnit.MILLIS

@@ -31,28 +31,28 @@ There is some [technical documentation for `JoinRun` library](docs/joinrun.md).
 
 Chemical machine programming is similar in some aspects to the well-known Actor Model (e.g. the [Akka framework](https://github.com/akka/akka)).
 
-The chemical machine has these features that are similar to actors:
-
-- the user's code does not explicitly work with threads / mutexes / semaphores / locks / monitors
-- concurrent processes interact by message-passing
-- messages carry immutable data
-- chemical reactions (i.e. threads / processes) start automatically when messages of certain type become available, just as actors run automatically when a message is received
-
-Main differences between actors and the chemical machine:
-
-| Chemical machine | Actors |
+| Chemical machine | Actor model |
 |---|---|
-| concurrent processes start automatically whenever several input data sets are available | a desired number of concurrent actors must be created manually|
+| molecules carry values | messages carry data | 
+| reactions wait to receive certain molecules | actors wait to receive certain messages | 
+| synchronization is implicit in molecule emission | synchronization is implicit in message-passing | 
+| reactions start when molecules are available | actors start running when a message is received |
+
+Main differences between the chemical machine and the Actor model:
+
+| Chemical machine | Actor model |
+|---|---|
+| concurrent processes start automatically whenever several input data sets are available | a desired number of concurrent actors must be created and managed manually|
 | processes are implicit, the user's code only manipulates messages | the user's code must manipulate explicit references to actors as well as messages |
 | processes typically wait for (and consume) several input messages at once | actors wait for (and consume) only one input message at a time |
 | processes are immutable and stateless, all data is stored on messages (which are also immutable) | actors can mutate (“become another actor”); actors can hold mutable state |
-| messages are held in an unordered bag | messages are held in an ordered queue and processed in the order received |
+| messages are held in an unordered bag and processed in random order | messages are held in an ordered queue and processed in the order received |
 | message data is statically typed | message data is untyped |
 
-In talking about `JoinRun` and `Chymyst`, I follow the chemical machine metaphor and terminology, which differs from the terminology usually employed in academic papers on JC.
+In talking about `Chymyst`, I follow the chemical machine metaphor and terminology, which differs from the terminology usually employed in academic papers on JC.
 Here is a dictionary:
 
-| Chemical machine  | Join Calculus | JoinRun |
+| Chemical machine  | Academic Join Calculus | `Chymyst` code |
 |---|---|---|
 | input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
 | molecule emitter | channel (port) name | `val a :  M[Int]` |
@@ -189,7 +189,6 @@ We can also fetch the current counter value via the `get` molecule, which is blo
 The counter is initialized to the number we specify.
 ```scala
 import code.winitzki.jc._
-import code.winitzki.jc.Macros._
 
 // Define the logic of the “non-blocking counter”.
 def makeCounter(initCount: Int)
@@ -239,7 +238,6 @@ The library offers some debugging facilities:
 
 ```scala
 import code.winitzki.jc._
-import code.winitzki.jc.Macros._
 
 val counter = b[Int] // the name of this molecule is "counter"
 val decr = b[Unit] // the name is "decr"

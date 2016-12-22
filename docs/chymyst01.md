@@ -117,7 +117,6 @@ This pseudocode was designed to prepare us for the actual syntax of `JoinRun`, w
 
 ```scala
 import code.winitzki.jc._
-import code.winitzki.jc.Macros._
 
 // declare the molecule types
 val a = m[Int] // a(...) will be a molecule with an integer value
@@ -222,7 +221,6 @@ The code shown above will not print any output, so it is perhaps instructive to 
 
 ```scala
 import code.winitzki.jc._
-import code.winitzki.jc.Macros._
 
 // declare the molecule emitters and the value types
 val counter = m[Int]
