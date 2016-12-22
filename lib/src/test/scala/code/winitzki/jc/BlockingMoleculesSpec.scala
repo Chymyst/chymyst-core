@@ -84,16 +84,40 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   behavior of "syntax of blocking molecules with unit values / replies"
 
+  it should "allow non-unit values and non-unit replies" in {
+    val f = new B[Int,Int]("f")
+    site(tp0)( _go { case f(x, r) if x == 123 => r(456) })
+    f(123) shouldEqual 456
+  }
+
+  it should "allow non-unit values and non-unit replies with timeout" in {
+    val f = new B[Int,Int]("f")
+    site(tp0)( _go { case f(x, r) if x != 123 => r(456) })
+    f.timeout(200 millis)(123) shouldEqual None
+  }
+
   it should "allow non-unit values and unit replies" in {
     val f = new BE[Int]("f")
     site(tp0)( _go { case f(x, r) if x == 123 => r() })
     f(123) shouldEqual (())
   }
 
+  it should "allow non-unit values and unit replies with timeout" in {
+    val f = new BE[Int]("f")
+    site(tp0)( _go { case f(x, r) if x != 123 => r() })
+    f.timeout(200 millis)(123) shouldEqual None
+  }
+
   it should "allow unit values and unit replies" in {
     val f = new EE("f")
     site(tp0)( _go { case f(x, r) if x == (()) => r() })
     f() shouldEqual (())
+  }
+
+  it should "allow unit values and unit replies with timeout" in {
+    val f = new EE("f")
+    site(tp0)( _go { case f(x, r) if x != (()) => r() })
+    f.timeout(200 millis)() shouldEqual None
   }
 
   behavior of "reaction sites with invalid replies"
