@@ -1,7 +1,6 @@
 package code.winitzki.test
 
 import code.winitzki.jc._
-import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.Waiter
@@ -45,7 +44,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(4)
 
     site(tp)(
-      go { case f(_, r) => val res = r(123); waiter { res shouldEqual true }; waiter.dismiss() }
+      go { case f(_, r) => val res = r(123); waiter { res shouldEqual true; ()}; waiter.dismiss() }
     )
     f.timeout(10.seconds)() shouldEqual Some(123)
 
@@ -115,7 +114,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(20)
 
     site(tp)(
-      go { case f(_, r) => val x = g(); val res = r(x); waiter { res shouldEqual false }; waiter.dismiss() },
+      go { case f(_, r) => val x = g(); val res = r(x); waiter { res shouldEqual false; () }; waiter.dismiss() },
       go { case g(_, r) + a(x) => r(x) }
     )
 

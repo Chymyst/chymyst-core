@@ -1,5 +1,6 @@
 package code.winitzki.jc
 
+import Core._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
@@ -22,7 +23,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
         case t : ThreadWithInfo => Some(t.reactionInfo)
         case _ => None
       }
-      waiter { threadInfoOptOpt shouldEqual Some(Some(emptyReactionInfo)) }
+      waiter { threadInfoOptOpt shouldEqual Some(Some(emptyReactionInfo)); () }
       waiter.dismiss()
 
     }, emptyReactionInfo)
@@ -58,7 +59,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
             (reactionInfo match {
               case Some(ReactionInfo(List(InputMoleculeInfo(a, UnknownInputPattern, _)), None, GuardPresenceUnknown, _)) => true
               case _ => false
-            }) shouldEqual true
+            }) shouldEqual true; ()
           }
           waiter.dismiss()
         }
@@ -105,7 +106,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
         case e: InterruptedException => waiter.dismiss()
         case other: Exception =>
           other.printStackTrace()
-          waiter { false shouldEqual true }
+          waiter { false shouldEqual true ; () }
       }
     }, emptyReactionInfo)
     Thread.sleep(20)

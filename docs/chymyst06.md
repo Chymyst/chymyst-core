@@ -49,10 +49,10 @@ This text is impossible to understand unless you are already well-versed in the 
 
 Research literature on Join Calculus typically uses terms such as "channel" or "message", which are not very helpful for understanding how to write concurrent program.
 
-Instead of using the academic terminology, I always follow the chemical machine metaphor and terminology when talking about `JoinRun` and `Chymyst` programming.
+Instead of using academic terminology, I always follow the chemical machine metaphor and terminology when talking about `Chymyst` programming.
 Here is a dictionary:
 
-| Chemical machine  | Academic Join Calculus | `JoinRun` code |
+| Chemical machine  | Academic Join Calculus | `Chymyst` code |
 |---|---|---|
 | input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
 | molecule emitter | channel (port) name | `val a :  M[Int]` |

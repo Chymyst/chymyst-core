@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/Chymyst/joinrun-scala.svg?branch=master)](https://travis-ci.org/Chymyst/joinrun-scala)
 [![Coverage Status](https://codecov.io/gh/Chymyst/joinrun-scala/coverage.svg?branch=master)](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master)
-[![Version](http://img.shields.io/badge/version-0.1.2-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
+[![Version](http://img.shields.io/badge/version-0.1.3-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://opensource.org/licenses/MIT)
 
 [![Join the chat at https://gitter.im/joinrun-scala/Lobby](https://badges.gitter.im/joinrun-scala/Lobby.svg)](https://gitter.im/joinrun-scala/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
@@ -31,28 +31,28 @@ There is some [technical documentation for `JoinRun` library](docs/joinrun.md).
 
 Chemical machine programming is similar in some aspects to the well-known Actor Model (e.g. the [Akka framework](https://github.com/akka/akka)).
 
-The chemical machine has these features that are similar to actors:
-
-- the user's code does not explicitly work with threads / mutexes / semaphores / locks / monitors
-- concurrent processes interact by message-passing
-- messages carry immutable data
-- chemical reactions (i.e. threads / processes) start automatically when messages of certain type become available, just as actors run automatically when a message is received
-
-Main differences between actors and the chemical machine:
-
-| Chemical machine | Actors |
+| Chemical machine | Actor model |
 |---|---|
-| concurrent processes start automatically whenever several input data sets are available | a desired number of concurrent actors must be created manually|
+| molecules carry values | messages carry data | 
+| reactions wait to receive certain molecules | actors wait to receive certain messages | 
+| synchronization is implicit in molecule emission | synchronization is implicit in message-passing | 
+| reactions start when molecules are available | actors start running when a message is received |
+
+Main differences between the chemical machine and the Actor model:
+
+| Chemical machine | Actor model |
+|---|---|
+| concurrent processes start automatically whenever several input data sets are available | a desired number of concurrent actors must be created and managed manually|
 | processes are implicit, the user's code only manipulates messages | the user's code must manipulate explicit references to actors as well as messages |
 | processes typically wait for (and consume) several input messages at once | actors wait for (and consume) only one input message at a time |
 | processes are immutable and stateless, all data is stored on messages (which are also immutable) | actors can mutate (“become another actor”); actors can hold mutable state |
-| messages are held in an unordered bag | messages are held in an ordered queue and processed in the order received |
+| messages are held in an unordered bag and processed in random order | messages are held in an ordered queue and processed in the order received |
 | message data is statically typed | message data is untyped |
 
-In talking about `JoinRun` and `Chymyst`, I follow the chemical machine metaphor and terminology, which differs from the terminology usually employed in academic papers on JC.
+In talking about `Chymyst`, I follow the chemical machine metaphor and terminology, which differs from the terminology usually employed in academic papers on JC.
 Here is a dictionary:
 
-| Chemical machine  | Join Calculus | JoinRun |
+| Chemical machine  | Academic Join Calculus | `Chymyst` code |
 |---|---|---|
 | input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
 | molecule emitter | channel (port) name | `val a :  M[Int]` |
@@ -141,8 +141,8 @@ Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` an
 
 # Status
 
-Current version is `0.1.2`.
-The semantics of JC (restricted to single machine) is fully implemented and tested.
+Current version is `0.1.3`.
+The semantics of the chemical machine (restricted to single-host, multicore computations) is fully implemented and tested.
 
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
 `JoinRun` is about 50% faster than `ScalaJoin` on certain benchmarks that exercise a very large number of very short reactions.
@@ -175,10 +175,12 @@ To build all JARs:
 
 ```
 sbt assembly
-```
-will prepare a `joinrun`, `benchmark`, `lib`, and `macros` JAR assemblies.
 
-The main library is in the `joinrun` JAR assembly.
+```
+
+This will prepare a `joinrun`, `benchmark`, `lib`, and `macros` JAR assemblies.
+
+The main library is in the `joinrun` JAR assembly (`joinrun/target/scala-2.11/joinrun-assembly-*.jar`).
 User code should depend on that JAR only.
 
 # Basic usage of `JoinRun`
@@ -189,13 +191,12 @@ We can also fetch the current counter value via the `get` molecule, which is blo
 The counter is initialized to the number we specify.
 ```scala
 import code.winitzki.jc._
-import code.winitzki.jc.Macros._
 
 // Define the logic of the “non-blocking counter”.
 def makeCounter(initCount: Int)
               : (M[Unit], M[Unit], B[Unit, Int]) = {
   val counter = m[Int] // non-blocking molecule with integer value
-  val incr = m[Unit] // non-blocking molecule with empty value
+  val incr = m[Unit] // non-blocking molecule with empty (i.e. Unit) value
   val decr = m[Unit] // empty non-blocking molecule
   val get = b[Unit, Int] // empty blocking molecule returning integer value
 
@@ -239,7 +240,6 @@ The library offers some debugging facilities:
 
 ```scala
 import code.winitzki.jc._
-import code.winitzki.jc.Macros._
 
 val counter = b[Int] // the name of this molecule is "counter"
 val decr = b[Unit] // the name is "decr"

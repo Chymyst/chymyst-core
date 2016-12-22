@@ -1,6 +1,7 @@
 package code.winitzki.jc
 
 import Chymyst.withPool
+import Core._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
@@ -23,7 +24,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp0.shutdownNow()
   }
 
-  val timeLimit = Span(3000, Millis)
+  val timeLimit = Span(6000, Millis)
 
   val warmupTimeMs = 50L
 

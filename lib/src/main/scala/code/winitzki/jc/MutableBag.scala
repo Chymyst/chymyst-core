@@ -44,7 +44,7 @@ class MutableBag[K,V] {
 
   private val bag: mutable.Map[K, mutable.Map[V, Int]] = mutable.Map.empty
 
-  override def toString = bag.toString
+  override def toString: String = bag.toString
 
   def getMap: Map[K, Map[V, Int]] = bag.mapValues(_.toMap).toMap
 

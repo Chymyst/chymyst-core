@@ -3,7 +3,6 @@ package code.winitzki.benchmark
 import java.time.LocalDateTime
 import code.winitzki.benchmark.Common._
 import code.winitzki.jc._
-import code.winitzki.jc.Macros._
 import scala.concurrent.duration._
 
 object Benchmarks9 {
