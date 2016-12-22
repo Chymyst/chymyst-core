@@ -2,8 +2,6 @@ package code.winitzki.jc
 
 import java.util.concurrent._
 
-import code.winitzki.jc.JoinRun.ReactionInfo
-
 /** This is similar to scala.concurrent.blocking and is used to annotate expressions that should lead to a possible increase of thread count.
   * Multiple nested calls to {{{BlockingIdle}}} are equivalent to one call.
   */
@@ -45,7 +43,7 @@ class SmartPool(parallelism: Int) extends Pool {
 
   val maxQueueCapacity: Int = parallelism*1000 + 100
 
-  private val queue = new LinkedBlockingQueue[Runnable](maxQueueCapacity)
+  private val queue = new ArrayBlockingQueue[Runnable](maxQueueCapacity)
 
   val initialThreads: Int = parallelism
   val secondsToRecycleThread = 1L

@@ -1,6 +1,5 @@
 package code.winitzki.jc
 
-import JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
@@ -9,7 +8,7 @@ import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
+class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
   var tp0: Pool = _
 
@@ -374,12 +373,12 @@ class JoinRunSpec extends FlatSpec with Matchers with TimeLimitedTests with Befo
     c(n)
     (1 to n).foreach { _ =>
       if (d.timeout(1500 millis)().isEmpty) {
-        println(JoinRun.errors.toList) // this should not happen, but will be helpful for debugging
+        println(globalErrorLog.toList) // this should not happen, but will be helpful for debugging
       }
     }
 
     val result = g.timeout(1500 millis)()
-    JoinRun.errors.exists(_.contains("Message: crash! (it's OK, ignore this)"))
+    globalErrorLog.exists(_.contains("Message: crash! (it's OK, ignore this)"))
     tp.shutdownNow()
     result shouldEqual Some(())
   }

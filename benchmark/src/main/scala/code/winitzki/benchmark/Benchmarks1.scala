@@ -3,9 +3,8 @@ package code.winitzki.benchmark
 import java.time.LocalDateTime
 
 import code.winitzki.benchmark.Common._
-import code.winitzki.jc.Pool
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
-import code.winitzki.jc.JoinRun._
 
 object Benchmarks1 {
 

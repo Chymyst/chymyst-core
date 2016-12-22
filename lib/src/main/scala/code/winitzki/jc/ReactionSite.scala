@@ -1,7 +1,5 @@
 package code.winitzki.jc
 
-import code.winitzki.jc.JoinRun._
-import code.winitzki.jc.JoinRunUtils._
 
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
@@ -16,7 +14,7 @@ import collection.mutable
   * @param reactionPool The thread pool on which reactions will be scheduled.
   * @param sitePool The thread pool on which the reaction site will decide reactions and manage the molecule bag.
   */
-private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, sitePool: Pool) {
+private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, sitePool: Pool) {
 
   private val (nonSingletonReactions, singletonReactions) = reactions.partition(_.inputMolecules.nonEmpty)
 
@@ -423,3 +421,15 @@ final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], j
   def ++(other: WarningsAndErrors): WarningsAndErrors =
     WarningsAndErrors(warnings ++ other.warnings, errors ++ other.errors, joinDef)
 }
+
+
+private[jc] sealed class ExceptionInJoinRun(message: String) extends Exception(message)
+private[jc] final class ExceptionNoReactionSite(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionMoleculeAlreadyBound(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionNoSitePool(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionEmittingSingleton(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionNoSingleton(message: String) extends ExceptionInJoinRun(message)
