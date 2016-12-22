@@ -18,19 +18,28 @@ object Macros {
     q"$result"
   }
 
+  /** This macro is not actually used by Chymyst.
+    * It serves only for testing the mechanism by which we detect the name of the enclosing value.
+    * For example, `val myVal = { 1; 2; 3; getName }` returns the string "myVal".
+    *
+    * @return The name of the enclosing value as string.
+    */
   private[jc] def getName: String = macro getNameImpl
-
-  private def getEnclosingName(c: theContext): String =
-    c.internal.enclosingOwner.name.decodedName.toString
-      .stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
 
   def getNameImpl(c: theContext): c.Expr[String] = {
     import c.universe._
-
     val s = getEnclosingName(c)
-
     c.Expr[String](q"$s")
   }
+
+  /** This is how the enclosing name is detected.
+    *
+    * @param c The macro context.
+    * @return String that represents the name of the enclosing value.
+    */
+  private def getEnclosingName(c: theContext): String =
+    c.internal.enclosingOwner.name.decodedName.toString
+      .stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
 
   def m[T]: M[T] = macro mImpl[T]
 
