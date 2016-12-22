@@ -290,7 +290,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
   }
 
-  private def emitAndReplyInternal[T,R](timeoutOpt: Option[Long], bm: BlockingMolecule[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): Boolean = {
+  private def emitAndReplyInternal[T,R](timeoutOpt: Option[Long], bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): Boolean = {
     val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
     emit(bm, blockingMolValue)
     val success =
@@ -306,7 +306,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
   // We must make this a blocking call, so we acquire a semaphore (with or without timeout).
-  private[jc] def emitAndReply[T,R](bm: BlockingMolecule[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): R = {
+  private[jc] def emitAndReply[T,R](bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): R = {
     emitAndReplyInternal(timeoutOpt = None, bm, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value
     replyValueWrapper.errorMessage match {
@@ -319,7 +319,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   // This is a separate method because it has a different return type than emitAndReply.
-  private[jc] def emitAndReplyWithTimeout[T,R](timeout: Long, m: BlockingMolecule[T,R], v: T, replyValueWrapper: ReplyValue[T,R]):
+  private[jc] def emitAndReplyWithTimeout[T,R](timeout: Long, m: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]):
   Option[R] = {
     val haveReply = emitAndReplyInternal(timeoutOpt = Some(timeout), m, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value

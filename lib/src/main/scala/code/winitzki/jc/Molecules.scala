@@ -245,7 +245,7 @@ private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
   * @tparam T The type of the value carried by the molecule.
   * @tparam R The type of the reply value.
   */
-private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: ReplyValue[T,R]) extends AbsMolValue[T] with PersistentHashCode {
+private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: AbsReplyValue[T,R]) extends AbsMolValue[T] with PersistentHashCode {
   override def getValue: T = v
 }
 
@@ -387,11 +387,19 @@ final class E(name: String) extends M[Unit](name) {
   def apply(): Unit = site.emit[Unit](this, MolValue(()))
 }
 
-final class F[R](name: String) extends B[Unit, R](name) {
+class F[R](name: String) extends B[Unit, R](name) {
   def apply(): R = site.emitAndReply[Unit, R](this, (), new ReplyValue[Unit, R](molecule = this))
 
   def timeout(duration: Duration)(): Option[R] =
     site.emitAndReplyWithTimeout[Unit, R](duration.toNanos, this, (), new ReplyValue[Unit, R](molecule = this))
+}
+
+class FE(name: String) extends F[Unit](name) {
+  override def apply(): Unit = site.emitAndReply[Unit, Unit](this, (), new EmptyReplyValue[Unit](this))
+
+  override def timeout(duration: Duration)(): Option[Unit] =
+    site.emitAndReplyWithTimeout[Unit, Unit](duration.toNanos, this, (), new ReplyValue[Unit, Unit](molecule = this))
+
 }
 
 /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
