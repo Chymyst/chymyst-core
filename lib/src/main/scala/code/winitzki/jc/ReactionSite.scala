@@ -1,7 +1,5 @@
 package code.winitzki.jc
 
-import code.winitzki.jc.JoinRun._
-import code.winitzki.jc.JoinRunUtils._
 
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
@@ -16,7 +14,7 @@ import collection.mutable
   * @param reactionPool The thread pool on which reactions will be scheduled.
   * @param sitePool The thread pool on which the reaction site will decide reactions and manage the molecule bag.
   */
-private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, sitePool: Pool) {
+private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, sitePool: Pool) {
 
   private val (nonSingletonReactions, singletonReactions) = reactions.partition(_.inputMolecules.nonEmpty)
 
@@ -46,7 +44,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
   private[jc] val reactionInfos: Map[Reaction, List[InputMoleculeInfo]] = nonSingletonReactions.map { r => (r, r.info.inputs) }.toMap
 
   // TODO: implement
-  private val quiescenceCallbacks: mutable.Set[M[Unit]] = mutable.Set.empty
+  private val quiescenceCallbacks: mutable.Set[E] = mutable.Set.empty
 
   private lazy val knownReactions: Seq[Reaction] = reactionInfos.keys.toSeq
 
@@ -66,7 +64,7 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
     s"${this.toString}\n$moleculesPrettyPrinted"
   }
 
-  private[jc] def setQuiescenceCallback(callback: M[Unit]): Unit = {
+  private[jc] def setQuiescenceCallback(callback: E): Unit = {
     quiescenceCallbacks.add(callback)
     ()
   }
@@ -282,46 +280,46 @@ private final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, s
   }
 
   // Remove a blocking molecule if it is present.
-  private def removeBlockingMolecule[T,R](m: B[T,R], blockingMolValue: BlockingMolValue[T,R], hadTimeout: Boolean): Unit = {
+  private def removeBlockingMolecule[T,R](bm: BlockingMolecule[T,R], blockingMolValue: BlockingMolValue[T,R], hadTimeout: Boolean): Unit = {
     moleculesPresent.synchronized {
-      moleculesPresent.removeFromBag(m, blockingMolValue)
-      if (logLevel > 0) println(s"Debug: $this removed $m($blockingMolValue) on thread pool $sitePool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+      moleculesPresent.removeFromBag(bm, blockingMolValue)
+      if (logLevel > 0) println(s"Debug: $this removed $bm($blockingMolValue) on thread pool $sitePool, now have molecules ${moleculeBagToString(moleculesPresent)}")
     }
     blockingMolValue.synchronized {
       blockingMolValue.replyValue.replyTimeout = hadTimeout
     }
   }
 
-  private def emitAndReplyInternal[T,R](timeoutOpt: Option[Long], m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): Boolean = {
+  private def emitAndReplyInternal[T,R](timeoutOpt: Option[Long], bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): Boolean = {
     val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
-    emit(m, blockingMolValue)
+    emit(bm, blockingMolValue)
     val success =
       BlockingIdle {
         replyValueWrapper.acquireSemaphore(timeoutNanos = timeoutOpt)
       }
     replyValueWrapper.deleteSemaphore()
     // We might have timed out, in which case we need to forcibly remove the blocking molecule from the soup.
-    removeBlockingMolecule(m, blockingMolValue, !success)
+    removeBlockingMolecule(bm, blockingMolValue, !success)
 
     success
   }
 
   // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
   // We must make this a blocking call, so we acquire a semaphore (with or without timeout).
-  private[jc] def emitAndReply[T,R](m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]): R = {
-    emitAndReplyInternal(timeoutOpt = None, m, v, replyValueWrapper)
+  private[jc] def emitAndReply[T,R](bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): R = {
+    emitAndReplyInternal(timeoutOpt = None, bm, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value
     replyValueWrapper.errorMessage match {
       case Some(message) => throw new Exception(message)
       case None => replyValueWrapper.result.getOrElse(
-        throw new ExceptionEmptyReply(s"Internal error: In $this: $m received an empty reply without an error message"
+        throw new ExceptionEmptyReply(s"Internal error: In $this: $bm received an empty reply without an error message"
         )
       )
     }
   }
 
   // This is a separate method because it has a different return type than emitAndReply.
-  private[jc] def emitAndReplyWithTimeout[T,R](timeout: Long, m: B[T,R], v: T, replyValueWrapper: ReplyValue[T,R]):
+  private[jc] def emitAndReplyWithTimeout[T,R](timeout: Long, m: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]):
   Option[R] = {
     val haveReply = emitAndReplyInternal(timeoutOpt = Some(timeout), m, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value
@@ -423,3 +421,15 @@ final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], j
   def ++(other: WarningsAndErrors): WarningsAndErrors =
     WarningsAndErrors(warnings ++ other.warnings, errors ++ other.errors, joinDef)
 }
+
+
+private[jc] sealed class ExceptionInJoinRun(message: String) extends Exception(message)
+private[jc] final class ExceptionNoReactionSite(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionMoleculeAlreadyBound(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionNoSitePool(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionEmittingSingleton(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
+private[jc] final class ExceptionNoSingleton(message: String) extends ExceptionInJoinRun(message)

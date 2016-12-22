@@ -1,7 +1,6 @@
 package code.winitzki.test
 
-import code.winitzki.jc.FixedPool
-import code.winitzki.jc.JoinRun._
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
@@ -20,7 +19,7 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
     diningPhilosophers(50)
   }
 
-  def diningPhilosophers(cycles: Int) = {
+  private def diningPhilosophers(cycles: Int) = {
 
     val tp = new FixedPool(8)
 
@@ -34,14 +33,14 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
     val t3 = new M[Int]("Marx is thinking")
     val t4 = new M[Int]("Russell is thinking")
     val t5 = new M[Int]("Spinoza is thinking")
-    val f12 = new M[Unit]("f12")
-    val f23 = new M[Unit]("f23")
-    val f34 = new M[Unit]("f34")
-    val f45 = new M[Unit]("f45")
-    val f51 = new M[Unit]("f51")
+    val f12 = new E("f12")
+    val f23 = new E("f23")
+    val f34 = new E("f34")
+    val f45 = new E("f45")
+    val f51 = new E("f51")
 
-    val done = new M[Unit]("done")
-    val check = new B[Unit, Unit]("check")
+    val done = new E("done")
+    val check = new EE("check")
 
     site(tp, tp) (
       go { case t1(n) => rw(h1); h1(n - 1) },
@@ -62,13 +61,13 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
     t1(cycles) + t2(cycles) + t3(cycles) + t4(cycles) + t5(cycles)
     f12() + f23() + f34() + f45() + f51()
 
-    check() shouldEqual ()
+    check() shouldEqual (())
 
     // stop the simulation: this should be in unit tests, not here
     // not yet implemented
 /*
-    val stop = ja[Unit]
-    val wait_for_stop = js[Unit,Unit]
+    val stop = m[Unit]
+    val wait_for_stop = b[Unit,Unit]
     site( go { case stop(_) + wait_for_stop(_,r) => r() } )
     wait_until_quiet(t1, stop)
     wait_for_stop()

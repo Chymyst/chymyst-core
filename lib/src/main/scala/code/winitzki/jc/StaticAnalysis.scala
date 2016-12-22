@@ -1,8 +1,5 @@
 package code.winitzki.jc
 
-import code.winitzki.jc.JoinRun._
-import JoinRunUtils._
-
 import scala.annotation.tailrec
 
 

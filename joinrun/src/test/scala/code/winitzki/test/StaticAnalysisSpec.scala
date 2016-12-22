@@ -1,8 +1,7 @@
 package code.winitzki.test
 
-import code.winitzki.jc.JoinRun._
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
-import code.winitzki.jc.WarningsAndErrors
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}

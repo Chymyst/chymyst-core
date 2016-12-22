@@ -1,7 +1,6 @@
 package code.winitzki.test
 
-import code.winitzki.jc.FixedPool
-import code.winitzki.jc.JoinRun._
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
@@ -24,9 +23,9 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val reactions = 4
     val N = 1000
 
-    val c = new M[(Int, Array[Int])]("c")
-    val done = new M[Array[Int]]("done")
-    val getC = new B[Unit, Array[Int]]("getC")
+    val c = m[(Int, Array[Int])]
+    val done = m[Array[Int]]
+    val getC = b[Unit, Array[Int]]
     val a0 = m[Unit]
     val a1 = m[Unit]
     val a2 = m[Unit]
@@ -142,7 +141,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(8)
 
-    def makeRS(d1: M[Unit], d2: M[Unit]): (M[Unit],M[Unit],M[Unit]) = {
+    def makeRS(d1: E, d2: E): (E,E,E) = {
       val a = m[Unit]
       val b = m[Unit]
       val c = m[Unit]

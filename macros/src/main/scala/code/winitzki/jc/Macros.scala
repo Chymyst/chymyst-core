@@ -4,14 +4,11 @@ import scala.collection.mutable
 import scala.language.experimental.macros
 import scala.reflect.macros._
 import scala.reflect.NameTransformer.LOCAL_SUFFIX_STRING
-import JoinRun._
-import JoinRunUtils._
-
 import scala.annotation.tailrec
 
 object Macros {
 
-  type theContext = blackbox.Context
+  type theContext = whitebox.Context
 
   private[jc] def rawTree(x: Any): String = macro rawTreeImpl
 
@@ -21,41 +18,64 @@ object Macros {
     q"$result"
   }
 
+  /** This macro is not actually used by Chymyst.
+    * It serves only for testing the mechanism by which we detect the name of the enclosing value.
+    * For example, `val myVal = { 1; 2; 3; getName }` returns the string "myVal".
+    *
+    * @return The name of the enclosing value as string.
+    */
   private[jc] def getName: String = macro getNameImpl
 
+  def getNameImpl(c: theContext): c.Expr[String] = {
+    import c.universe._
+    val s = getEnclosingName(c)
+    c.Expr[String](q"$s")
+  }
+
+  /** This is how the enclosing name is detected.
+    *
+    * @param c The macro context.
+    * @return String that represents the name of the enclosing value.
+    */
   private def getEnclosingName(c: theContext): String =
     c.internal.enclosingOwner.name.decodedName.toString
       .stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
 
-  def getNameImpl(c: theContext): c.Expr[String] = {
-    import c.universe._
-
-    val s = getEnclosingName(c)
-
-    c.Expr[String](q"$s")
-  }
-
   def m[T]: M[T] = macro mImpl[T]
 
-  def mImpl[T: c.WeakTypeTag](c: theContext): c.Expr[M[T]] = {
+  def mImpl[T: c.WeakTypeTag](c: theContext): c.universe.Tree = {
     import c.universe._
-    val s = getEnclosingName(c)
+    val moleculeName = getEnclosingName(c)
 
-    val t = c.weakTypeOf[T]
-
-    c.Expr[M[T]](q"new M[$t]($s)")
+    val moleculeValueType = c.weakTypeOf[T]
+    if (moleculeValueType =:= typeOf[Unit])
+      q"new E($moleculeName)"
+    else
+      q"new M[$moleculeValueType]($moleculeName)"
   }
 
-  def b[T, R]: B[T, R] = macro bImpl[T, R]
+  def b[T, R]: B[T,R] = macro bImpl[T, R]
 
-  def bImpl[T: c.WeakTypeTag, R: c.WeakTypeTag](c: blackbox.Context): c.Expr[B[T, R]] = {
+  // Does providing an explicit return type here as c.Expr[...] helps anything? Looks like it doesn't, so far.
+  def bImpl[T: c.WeakTypeTag, R: c.WeakTypeTag](c: theContext): c.universe.Tree = {
     import c.universe._
-    val s = c.internal.enclosingOwner.name.decodedName.toString.stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
+    val moleculeName = getEnclosingName(c)
 
-    val t = c.weakTypeOf[T]
-    val r = c.weakTypeOf[R]
+    val moleculeValueType = c.weakTypeOf[T]
+    val replyValueType = c.weakTypeOf[R]
 
-    c.Expr[B[T, R]](q"new B[$t,$r]($s)")
+    if (replyValueType =:= typeOf[Unit]) {
+      if (moleculeValueType =:= typeOf[Unit])
+        q"new EE($moleculeName)"
+      else
+        q"new BE[$moleculeValueType]($moleculeName)"
+    } else {
+      // reply type is not Unit
+      if (moleculeValueType =:= typeOf[Unit])
+        q"new EB[$replyValueType]($moleculeName)"
+      else
+        q"new B[$moleculeValueType,$replyValueType]($moleculeName)"
+    }
   }
 
   /** Describes the pattern matcher for input molecules.
@@ -92,34 +112,34 @@ object Macros {
 
   /** Describes the pattern matcher for output molecules.
     * Possible values:
-    * ConstOutputPattern: a(1)
-    * OtherOutputPattern: a(x) or anything else
+    * ConstOutputPatternF(x): a(x)
+    * EmptyOutputPatternF: a()
+    * OtherOutputPatternF: a(x+y) or anything else
     */
   private sealed trait OutputPatternFlag {
     def notSimple: Boolean = this match {
-      case ConstOutputPattern(_) => false
+      case ConstOutputPatternF(_) | EmptyOutputPatternF => false
       case _ => true
     }
   }
   private case object OtherOutputPatternF extends OutputPatternFlag
-  private final case class ConstOutputPattern(v: Any) extends OutputPatternFlag
+  private case object EmptyOutputPatternF extends OutputPatternFlag
+  private final case class ConstOutputPatternF(v: Any) extends OutputPatternFlag
 
   /**
     * Users will define reactions using this function.
     * Examples: {{{ go { a(_) => ... } }}}
-    * {{{ go { a (_) => ...} onThreads threadPool }}}
+    * {{{ go { a (_) => ...}.withRetry onThreads threadPool }}}
     *
     * The macro also obtains statically checkable information about input and output molecules in the reaction.
     *
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
-    * @return A reaction value, to be used later in [[JoinRun#join]].
+    * @return A reaction value, to be used later in [[site]].
     */
   def go(reactionBody: ReactionBody): Reaction = macro buildReactionImpl
 
   def buildReactionImpl(c: theContext)(reactionBody: c.Expr[ReactionBody]): c.universe.Tree = {
     import c.universe._
-
-//    val reactionBodyReset = c.untypecheck(reactionBody.tree)
 
     /** Obtain the owner of the current macro call site.
       *
@@ -214,15 +234,16 @@ object Macros {
       }
 
       private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag = binderTerms match {
-        case List(t@Literal(_)) => ConstOutputPattern(t)
+        case List(t@Literal(_)) => ConstOutputPatternF(t)
+        case Nil => EmptyOutputPatternF
         case _ => OtherOutputPatternF
       }
 
       override def traverse(tree: Tree): Unit = {
         tree match {
           // avoid traversing nested reactions: check whether this subtree is a Reaction() value
-          case q"code.winitzki.jc.JoinRun.Reaction.apply($_,$_,$_,$_)" => ()
-          case q"JoinRun.Reaction.apply($_,$_,$_,$_)" => ()
+          case q"code.winitzki.jc.Reaction.apply($_,$_,$_,$_)" => ()
+          case q"Reaction.apply($_,$_,$_,$_)" => ()
 
           // matcher with a single argument: a(x)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
@@ -267,7 +288,7 @@ object Macros {
                 outputMolecules.append((t.symbol, flag1))
               }
             }
-            if (t.tpe <:< weakTypeOf[ReplyValue[_,_]]) {
+            if (t.tpe <:< weakTypeOf[AbsReplyValue[_,_]]) {
               replyActions.append((t.symbol, flag1))
             }
 
@@ -279,22 +300,23 @@ object Macros {
 
     // this boilerplate is necessary for being able to use PatternType values in macro quasiquotes
     implicit val liftablePatternFlag: c.universe.Liftable[InputPatternFlag] = Liftable[InputPatternFlag] {
-      case WildcardF => q"_root_.code.winitzki.jc.JoinRun.Wildcard"
-      case SimpleConstF(x) => q"_root_.code.winitzki.jc.JoinRun.SimpleConst(${x.asInstanceOf[c.Tree]})"
-      case SimpleVarF => q"_root_.code.winitzki.jc.JoinRun.SimpleVar"
-      case OtherPatternF(matcherTree) => q"_root_.code.winitzki.jc.JoinRun.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]})"
-      case _ => q"_root_.code.winitzki.jc.JoinRun.UnknownInputPattern"
+      case WildcardF => q"_root_.code.winitzki.jc.Wildcard"
+      case SimpleConstF(x) => q"_root_.code.winitzki.jc.SimpleConst(${x.asInstanceOf[c.Tree]})"
+      case SimpleVarF => q"_root_.code.winitzki.jc.SimpleVar"
+      case OtherPatternF(matcherTree) => q"_root_.code.winitzki.jc.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]})"
+      case _ => q"_root_.code.winitzki.jc.UnknownInputPattern"
     }
 
     implicit val liftableOutputPatternFlag: c.universe.Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
-      case ConstOutputPattern(x) => q"_root_.code.winitzki.jc.JoinRun.ConstOutputValue(${x.asInstanceOf[c.Tree]})"
-      case _ => q"_root_.code.winitzki.jc.JoinRun.OtherOutputPattern"
+      case ConstOutputPatternF(x) => q"_root_.code.winitzki.jc.ConstOutputValue(${x.asInstanceOf[c.Tree]})"
+      case EmptyOutputPatternF => q"_root_.code.winitzki.jc.ConstOutputValue(())"
+      case _ => q"_root_.code.winitzki.jc.OtherOutputPattern"
     }
 
     implicit val liftableGuardFlag: c.universe.Liftable[GuardPresenceType] = Liftable[GuardPresenceType] {
-      case GuardPresent => q"_root_.code.winitzki.jc.JoinRun.GuardPresent"
-      case GuardAbsent => q"_root_.code.winitzki.jc.JoinRun.GuardAbsent"
-      case GuardPresenceUnknown => q"_root_.code.winitzki.jc.JoinRun.GuardPresenceUnknown"
+      case GuardPresent => q"_root_.code.winitzki.jc.GuardPresent"
+      case GuardAbsent => q"_root_.code.winitzki.jc.GuardAbsent"
+      case GuardPresenceUnknown => q"_root_.code.winitzki.jc.GuardPresenceUnknown"
     }
 
     def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error) = {
@@ -339,7 +361,7 @@ object Macros {
     if (patternIn.isEmpty && !isSingletonReaction(pattern, guard, body))
       c.error(c.enclosingPosition, "Reaction should not have an empty list of input molecules")
 
-    val inputMolecules = patternIn.map { case (s, p, _, sha1) => q"InputMoleculeInfo(${s.asTerm}, $p, $sha1)" }
+    val inputMolecules = patternIn.map { case (s, p, _, patternSha1) => q"InputMoleculeInfo(${s.asTerm}, $p, $patternSha1)" }
 
     // Note: the output molecules could be sometimes not emitted according to a runtime condition.
     // We do not try to examine the reaction body to determine which output molecules are always emitted.

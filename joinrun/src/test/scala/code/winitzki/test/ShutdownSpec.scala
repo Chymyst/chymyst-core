@@ -1,7 +1,6 @@
 package code.winitzki.test
 
-import code.winitzki.jc.FixedPool
-import code.winitzki.jc.JoinRun._
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -38,7 +37,7 @@ class ShutdownSpec extends FlatSpec with Matchers {
 
     x()
 
-    pool2.shutdownNow() shouldEqual ()
+    pool2.shutdownNow() shouldEqual (())
   }
 
   it should "fail to schedule reactions after shutdown of default thread pools" in {
@@ -47,7 +46,7 @@ class ShutdownSpec extends FlatSpec with Matchers {
     defaultReactionPool.shutdownNow()
 
     val x = m[Unit]
-    site(go{ case x(()) => })
+    site(go{ case x(_) => })
 
     val thrown = intercept[Exception] {
       x()

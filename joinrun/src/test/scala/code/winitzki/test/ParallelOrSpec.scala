@@ -1,8 +1,7 @@
 package code.winitzki.test
 
-import code.winitzki.jc.JoinRun._
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
-import code.winitzki.jc.{FixedPool, Pool}
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.annotation.tailrec
@@ -24,7 +23,7 @@ class ParallelOrSpec extends FlatSpec with Matchers {
     * @param tp Thread pool on which to run this.
     * @return New blocking molecule emitter that will return the desired result or block.
     */
-  def parallelOr(f: B[Unit, Boolean], g: B[Unit, Boolean], tp: Pool): B[Unit, Boolean] = {
+  def parallelOr(f: EB[Boolean], g: EB[Boolean], tp: Pool): EB[Boolean] = {
     val c = m[Unit]
     val d = m[Unit]
     val done = m[Boolean]
@@ -99,7 +98,7 @@ class ParallelOrSpec extends FlatSpec with Matchers {
     * @tparam T Type of the return value.
     * @return New blocking molecule emitter that will return the desired result.
     */
-  def firstResult[T](b1: B[Unit, T], b2: B[Unit, T], tp: Pool): B[Unit, T] = {
+  def firstResult[T](b1: EB[T], b2: EB[T], tp: Pool): EB[T] = {
     val get = b[Unit, T]
     val res = b[Unit, T]
     val res1 = m[Unit]

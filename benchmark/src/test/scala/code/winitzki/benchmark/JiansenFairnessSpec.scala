@@ -31,17 +31,20 @@ class JiansenFairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
       join {
         case getC(_) and done(arr) => getC.reply(arr)
-        case a0(_) and c((n, arr)) => if (n > 0) { arr(0) += 1; c((n-1,arr)); a0() } else done(arr)
-        case a1(_) and c((n, arr)) => if (n > 0) { arr(1) += 1; c((n-1,arr)); a1() } else done(arr)
-        case a2(_) and c((n, arr)) => if (n > 0) { arr(2) += 1; c((n-1,arr)); a2() } else done(arr)
-        case a3(_) and c((n, arr)) => if (n > 0) { arr(3) += 1; c((n-1,arr)); a3() } else done(arr)
+        case a0(_) and c((n, arr)) => if (n > 0) { arr(0) += 1; c((n-1,arr)); a0(()) } else done(arr)
+        case a1(_) and c((n, arr)) => if (n > 0) { arr(1) += 1; c((n-1,arr)); a1(()) } else done(arr)
+        case a2(_) and c((n, arr)) => if (n > 0) { arr(2) += 1; c((n-1,arr)); a2(()) } else done(arr)
+        case a3(_) and c((n, arr)) => if (n > 0) { arr(3) += 1; c((n-1,arr)); a3(()) } else done(arr)
       }
 
     }
-    j3.a0(); j3.a1(); j3.a2(); j3.a3()
+    j3.a0(())
+    j3.a1(())
+    j3.a2(())
+    j3.a3(())
     j3.c((N, Array.fill[Int](reactions)(0)))
 
-    val result = j3.getC()
+    val result = j3.getC(())
 
 //    println(result.mkString(", "))
 
@@ -81,7 +84,7 @@ class JiansenFairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     Thread.sleep(200)
     j4.c(cycles)
 
-    val result = j4.getC()
+    val result = j4.getC(())
 
 //    println(result.mkString(", "))
 

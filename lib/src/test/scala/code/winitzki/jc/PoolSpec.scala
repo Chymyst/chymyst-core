@@ -1,6 +1,5 @@
 package code.winitzki.jc
 
-import code.winitzki.jc.JoinRun._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
@@ -32,21 +31,21 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "run tasks on a thread with info, in fixed pool" in {
-    Library.withPool(new FixedPool(2))(checkPool).get shouldEqual ()
+    Chymyst.withPool(new FixedPool(2))(checkPool).get shouldEqual (())
   }
 
   it should "run tasks on a thread with info, in cached pool" in {
-    Library.withPool(new CachedPool(2))(checkPool).get shouldEqual ()
+    Chymyst.withPool(new CachedPool(2))(checkPool).get shouldEqual (())
   }
 
   it should "run tasks on a thread with info, in smart pool" in {
-    Library.withPool(new SmartPool(2))(checkPool).get shouldEqual ()
+    Chymyst.withPool(new SmartPool(2))(checkPool).get shouldEqual (())
   }
 
   it should "run reactions on a thread with reaction info" in {
-    Library.withPool(new FixedPool(2)){ tp =>
+    Chymyst.withPool(new FixedPool(2)){ tp =>
       val waiter = new Waiter
-      val a = new M[Unit]("a")
+      val a = new E("a")
 
       site(tp)(
         _go { case a(_) =>
@@ -67,7 +66,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
       a()
       waiter.await()(patienceConfig, implicitly[Position])
-    }.get shouldEqual()
+    }.get shouldEqual (())
   }
 
   behavior of "fixed thread pool"
