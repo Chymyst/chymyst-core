@@ -141,7 +141,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(8)
 
-    def makeRS(d1: M[Unit], d2: M[Unit]): (M[Unit],M[Unit],M[Unit]) = {
+    def makeRS(d1: E, d2: E): (E,E,E) = {
       val a = m[Unit]
       val b = m[Unit]
       val c = m[Unit]

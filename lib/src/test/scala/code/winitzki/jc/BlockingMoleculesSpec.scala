@@ -33,8 +33,8 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   it should "block for a blocking molecule" in {
 
-    val a = new M[Unit]("a")
-    val f = new B[Unit,Int]("f")
+    val a = new E("a")
+    val f = new F[Int]("f")
     site(tp0)( _go { case a(_) + f(_, r) => r(3) })
     a()
     a()
@@ -47,7 +47,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
   it should "not timeout when a blocking molecule is responding" in {
 
     (1 to 1000).map { _ =>
-      val f = new B[Unit,Int]("f")
+      val f = new F[Int]("f")
       site(tp0)( _go { case f(_, r) => r(0) })
 
       f.timeout(300 millis)().getOrElse(1)
@@ -56,8 +56,8 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   it should "timeout when a blocking molecule is not responding at all" in {
 
-    val a = new M[Unit]("a")
-    val f = new B[Unit,Int]("f")
+    val a = new E("a")
+    val f = new F[Int]("f")
     site(tp0)( _go { case a(_) + f(_, r) => r(3) })
     a()
     f() shouldEqual 3 // now the a() molecule is gone
@@ -66,8 +66,8 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   it should "not timeout when a blocking molecule is responding quickly enough" in {
 
-    val a = new M[Unit]("a")
-    val f = new B[Unit,Int]("f")
+    val a = new E("a")
+    val f = new F[Int]("f")
     site(tp0)( _go { case a(_) + f(_, r) => Thread.sleep(100); r(3) })
     a()
     f.timeout(500 millis)() shouldEqual Some(3)
@@ -75,8 +75,8 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   it should "timeout when a blocking molecule is not responding quickly enough" in {
 
-    val a = new M[Unit]("a")
-    val f = new B[Unit,Int]("f")
+    val a = new E("a")
+    val f = new F[Int]("f")
     site(tp0)( _go { case a(_) + f(_, r) => Thread.sleep(500); r(3) })
     a()
     f.timeout(200 millis)() shouldEqual None
@@ -86,9 +86,9 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   it should "use the first reply when a reaction attempts to reply twice" in {
     val c = new M[Int]("c")
-    val d = new M[Unit]("d")
-    val f = new B[Unit,Unit]("f")
-    val g = new B[Unit,Int]("g")
+    val d = new E("d")
+    val f = new F[Unit]("f")
+    val g = new F[Int]("g")
     site(tp0)(
       _go { case c(n) + g(_,r) => c(n); r(n); r(n+1); d() },
       _go { case d(_) + f(_,r) => r() }
@@ -100,11 +100,11 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   it should "use the first replies when a reaction attempts to reply twice to more than one molecule" in {
     val c = new M[Int]("c")
-    val d = new M[Unit]("d")
+    val d = new E("d")
     val d2 = new M[Int]("d2")
-    val e = new B[Unit,Int]("e")
-    val g = new B[Unit,Int]("g")
-    val g2 = new B[Unit,Int]("g2")
+    val e = new F[Int]("e")
+    val g = new F[Int]("g")
+    val g2 = new F[Int]("g2")
     site(tp0)(
       _go { case d(_)  => d2(g2()) },
       _go { case d2(x) + e(_, r) => r(x) },
@@ -117,8 +117,8 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
   }
 
   it should "throw exception when a reaction does not reply to one blocking molecule" in {
-    val c = new M[Unit]("c")
-    val g = new B[Unit,Int]("g")
+    val c = new E("c")
+    val g = new F[Int]("g")
     site(tp0)(
       _go { case c(_) + g(_,r) => c() }
     )
@@ -132,10 +132,10 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
   }
 
   it should "throw exception when a reaction does not reply to two blocking molecules)" in {
-    val c = new M[Unit]("c")
-    val d = new M[Unit]("d")
-    val g = new B[Unit,Int]("g")
-    val g2 = new B[Unit,Int]("g2")
+    val c = new E("c")
+    val d = new E("d")
+    val g = new F[Int]("g")
+    val g2 = new F[Int]("g2")
     val tp = new FixedPool(4)
     site(tp)(
       _go { case d(_) => g2() } onThreads tp,
@@ -153,10 +153,10 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
   }
 
   it should "get a reply when a reaction does not reply to one blocking molecule but does reply to another" in {
-    val c = new M[Unit]("c")
-    val d = new M[Unit]("d")
-    val g = new B[Unit,Int]("g")
-    val g2 = new B[Unit,Int]("g2")
+    val c = new E("c")
+    val d = new E("d")
+    val g = new F[Int]("g")
+    val g2 = new F[Int]("g2")
     val tp = new FixedPool(4)
     site(tp)(
       _go { case d(_) => g() } onThreads tp,
@@ -176,13 +176,13 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
   behavior of "deadlocked threads with blocking molecules"
 
   it should "not produce deadlock when two blocking molecules are emitted from different threads" in {
-    val c = new M[Unit]("c")
-    val d = new M[Unit]("d")
+    val c = new E("c")
+    val d = new E("d")
     val e = new M[Int]("e")
-    val f = new M[Unit]("f")
-    val g = new B[Unit,Int]("g")
-    val g2 = new B[Unit,Int]("g2")
-    val h = new B[Unit,Int]("h")
+    val f = new E("f")
+    val g = new F[Int]("g")
+    val g2 = new F[Int]("g2")
+    val h = new F[Int]("h")
     val tp = new FixedPool(4)
     site(tp)(
       _go { case c(_) => e(g2()) }, // e(0) should be emitted now
@@ -200,13 +200,13 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
   }
 
   it should "produce deadlock when two blocking molecules are emitted from the same thread" in {
-    val c = new M[Unit]("c")
-    val d = new M[Unit]("d")
+    val c = new E("c")
+    val d = new E("d")
     val e = new M[Int]("e")
-    val f = new M[Unit]("f")
-    val g = new B[Unit,Int]("g")
-    val g2 = new B[Unit,Int]("g2")
-    val h = new B[Unit,Int]("h")
+    val f = new E("f")
+    val g = new F[Int]("g")
+    val g2 = new F[Int]("g2")
+    val h = new F[Int]("h")
     val tp = new FixedPool(4)
     site(tp)(
       _go { case c(_) => val x = g(); g2(); e(x) }, // e(0) should never be emitted because this thread is deadlocked
@@ -231,10 +231,10 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
   }
 
   it should "not block the 2-thread threadpool when one thread is blocked" in {
-    val c = new M[Unit]("c")
-    val d = new M[Unit]("d")
-    val g = new B[Unit,Int]("g")
-    val g2 = new B[Unit,Int]("g2")
+    val c = new E("c")
+    val d = new E("d")
+    val g = new F[Int]("g")
+    val g2 = new F[Int]("g2")
     val tp = new FixedPool(4)
     site(tp)(
       _go { case d(_) => g() }, // this will be used to emit g() and blocked
@@ -248,10 +248,10 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
   }
 
   it should "block the 1-thread threadpool when one thread is blocked" in {
-    val c = new M[Unit]("c")
-    val d = new M[Unit]("d")
-    val g = new B[Unit,Int]("g")
-    val g2 = new B[Unit,Int]("g2")
+    val c = new E("c")
+    val d = new E("d")
+    val g = new F[Int]("g")
+    val g2 = new F[Int]("g2")
     val tp = new FixedPool(1)
     val tp1 = new FixedPool(1)
     site(tp,tp1)(
@@ -266,11 +266,11 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp1.shutdownNow()
   }
 
-  def makeBlockingCheck(sleeping: => Unit, tp1: Pool): (B[Unit,Unit], B[Unit,Int]) = {
-    val c = new M[Unit]("c")
-    val d = new M[Unit]("d")
-    val g = new B[Unit,Unit]("g")
-    val g2 = new B[Unit,Int]("g2")
+  def makeBlockingCheck(sleeping: => Unit, tp1: Pool): (F[Unit], F[Int]) = {
+    val c = new E("c")
+    val d = new E("d")
+    val g = new F[Unit]("g")
+    val g2 = new F[Int]("g2")
 
     site(tp0)( _go { case c(_) + g(_, r) => r() } ) // we will use this to monitor the d() reaction
 
@@ -334,14 +334,14 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   behavior of "thread starvation with different threadpools"
 
-  def blockThreadsDueToBlockingMolecule(tp1: Pool): B[Unit, Unit] = {
-    val c = new M[Unit]("c")
-    val cStarted = new M[Unit]("cStarted")
-    val never = new M[Unit]("never")
-    val f = new B[Unit,Int]("forever")
-    val f2 = new B[Unit,Int]("forever2")
-    val g = new B[Unit,Unit]("g")
-    val started = new B[Unit,Unit]("started")
+  def blockThreadsDueToBlockingMolecule(tp1: Pool): F[Unit] = {
+    val c = new E("c")
+    val cStarted = new E("cStarted")
+    val never = new E("never")
+    val f = new F[Int]("forever")
+    val f2 = new F[Int]("forever2")
+    val g = new F[Unit]("g")
+    val started = new F[Unit]("started")
 
     site(tp1,tp0)(
       _go { case g(_, r) => r() }, // and so this reaction will be blocked forever
