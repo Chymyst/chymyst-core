@@ -190,7 +190,7 @@ There is an integer counter value, to which we have non-blocking access via `inc
 We can also fetch the current counter value via the `get` molecule, which is blocking.
 The counter is initialized to the number we specify.
 ```scala
-import code.winitzki.jc._
+import code.chymyst.jc._
 
 // Define the logic of the “non-blocking counter”.
 def makeCounter(initCount: Int)
@@ -239,7 +239,7 @@ The library offers some debugging facilities:
  Here are the typical results:
 
 ```scala
-import code.winitzki.jc._
+import code.chymyst.jc._
 
 val counter = b[Int] // the name of this molecule is "counter"
 val decr = b[Unit] // the name is "decr"
@@ -260,18 +260,18 @@ counter.toString // returns the string "counter"
 
 decr() + decr() + decr()
 /* This prints:
-Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.winitzki.jc.SitePool@36ce2e5d, now have molecules counter(5), decr()
-Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.winitzki.jc.SitePool@36ce2e5d, now have molecules decr()
-Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.ReactionPool@57efee08 while on thread pool code.winitzki.jc.SitePool@36ce2e5d with inputs decr(), counter(5)
-Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.winitzki.jc.SitePool@36ce2e5d, now have molecules decr() * 2
-Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.SitePool@36ce2e5d with thread id 547
-Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(4) on thread pool code.winitzki.jc.SitePool@36ce2e5d, now have molecules counter(4), decr() * 2
-Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.ReactionPool@57efee08 while on thread pool code.winitzki.jc.SitePool@36ce2e5d with inputs decr(), counter(4)
-Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.SitePool@36ce2e5d with thread id 548
-Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(3) on thread pool code.winitzki.jc.SitePool@36ce2e5d, now have molecules counter(3), decr()
-Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.ReactionPool@57efee08 while on thread pool code.winitzki.jc.SitePool@36ce2e5d with inputs decr(), counter(3)
-Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.SitePool@36ce2e5d with thread id 549
-Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(2) on thread pool code.winitzki.jc.SitePool@36ce2e5d, now have molecules counter(2)
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(5), decr()
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules decr()
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.chymyst.jc.ReactionPool@57efee08 while on thread pool code.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(5)
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules decr() * 2
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.chymyst.jc.SitePool@36ce2e5d with thread id 547
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(4) on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(4), decr() * 2
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.chymyst.jc.ReactionPool@57efee08 while on thread pool code.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(4)
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.chymyst.jc.SitePool@36ce2e5d with thread id 548
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(3) on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(3), decr()
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.chymyst.jc.ReactionPool@57efee08 while on thread pool code.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(3)
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.chymyst.jc.SitePool@36ce2e5d with thread id 549
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(2) on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(2)
 
 */
 println(counter.logSoup)
@@ -281,15 +281,15 @@ println(counter.logSoup)
  */
 decr() + decr() + decr()
 /* This prints:
-Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.winitzki.jc.SitePool@36ce2e5d, now have molecules counter(2), decr()
-Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.ReactionPool@57efee08 while on thread pool code.winitzki.jc.SitePool@36ce2e5d with inputs decr(), counter(2)
-Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.winitzki.jc.SitePool@36ce2e5d, now have molecules decr()
-Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.winitzki.jc.SitePool@36ce2e5d, now have molecules decr() * 2
-Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.SitePool@36ce2e5d with thread id 613
-Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(1) on thread pool code.winitzki.jc.SitePool@36ce2e5d, now have molecules counter(1), decr() * 2
-Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.winitzki.jc.ReactionPool@57efee08 while on thread pool code.winitzki.jc.SitePool@36ce2e5d with inputs decr(), counter(1)
-Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.winitzki.jc.SitePool@36ce2e5d with thread id 548
-Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(0) on thread pool code.winitzki.jc.SitePool@36ce2e5d, now have molecules counter(0), decr()
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(2), decr()
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.chymyst.jc.ReactionPool@57efee08 while on thread pool code.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(2)
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules decr()
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules decr() * 2
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.chymyst.jc.SitePool@36ce2e5d with thread id 613
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(1) on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(1), decr() * 2
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.chymyst.jc.ReactionPool@57efee08 while on thread pool code.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(1)
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.chymyst.jc.SitePool@36ce2e5d with thread id 548
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(0) on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(0), decr()
 */
 println(counter.logSoup)
 /* This prints:
@@ -299,9 +299,9 @@ println(counter.logSoup)
 
 val x = get()
 /* This results in x = 0 and prints:
-Debug: Site{counter + decr => ...; counter + get/S => ...} emitting get/S() on thread pool code.winitzki.jc.SitePool@36ce2e5d, now have molecules counter(0), decr(), get/S()
-Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + get/S => ...} on thread pool code.winitzki.jc.ReactionPool@57efee08 while on thread pool code.winitzki.jc.SitePool@36ce2e5d with inputs counter(0), get/S()
-Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + get/S => ...} started on thread pool code.winitzki.jc.SitePool@36ce2e5d with thread id 549
-Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(0) on thread pool code.winitzki.jc.SitePool@36ce2e5d, now have molecules counter(0), decr()
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting get/S() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(0), decr(), get/S()
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + get/S => ...} on thread pool code.chymyst.jc.ReactionPool@57efee08 while on thread pool code.chymyst.jc.SitePool@36ce2e5d with inputs counter(0), get/S()
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + get/S => ...} started on thread pool code.chymyst.jc.SitePool@36ce2e5d with thread id 549
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(0) on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(0), decr()
 */
 ```

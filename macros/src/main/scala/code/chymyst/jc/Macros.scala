@@ -249,7 +249,7 @@ object Macros {
       override def traverse(tree: Tree): Unit = {
         tree match {
           // avoid traversing nested reactions: check whether this subtree is a Reaction() value
-          case q"code.winitzki.jc.Reaction.apply($_,$_,$_,$_)" => ()
+          case q"code.chymyst.jc.Reaction.apply($_,$_,$_,$_)" => ()
           case q"Reaction.apply($_,$_,$_,$_)" => ()
 
           // matcher with a single argument: a(x)
@@ -307,23 +307,23 @@ object Macros {
 
     // this boilerplate is necessary for being able to use PatternType values in macro quasiquotes
     implicit val liftablePatternFlag: c.universe.Liftable[InputPatternFlag] = Liftable[InputPatternFlag] {
-      case WildcardF => q"_root_.code.winitzki.jc.Wildcard"
-      case SimpleConstF(x) => q"_root_.code.winitzki.jc.SimpleConst(${x.asInstanceOf[c.Tree]})"
-      case SimpleVarF => q"_root_.code.winitzki.jc.SimpleVar"
-      case OtherPatternF(matcherTree) => q"_root_.code.winitzki.jc.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]})"
-      case _ => q"_root_.code.winitzki.jc.UnknownInputPattern"
+      case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
+      case SimpleConstF(x) => q"_root_.code.chymyst.jc.SimpleConst(${x.asInstanceOf[c.Tree]})"
+      case SimpleVarF => q"_root_.code.chymyst.jc.SimpleVar"
+      case OtherPatternF(matcherTree) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]})"
+      case _ => q"_root_.code.chymyst.jc.UnknownInputPattern"
     }
 
     implicit val liftableOutputPatternFlag: c.universe.Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
-      case ConstOutputPatternF(x) => q"_root_.code.winitzki.jc.ConstOutputValue(${x.asInstanceOf[c.Tree]})"
-      case EmptyOutputPatternF => q"_root_.code.winitzki.jc.ConstOutputValue(())"
-      case _ => q"_root_.code.winitzki.jc.OtherOutputPattern"
+      case ConstOutputPatternF(x) => q"_root_.code.chymyst.jc.ConstOutputValue(${x.asInstanceOf[c.Tree]})"
+      case EmptyOutputPatternF => q"_root_.code.chymyst.jc.ConstOutputValue(())"
+      case _ => q"_root_.code.chymyst.jc.OtherOutputPattern"
     }
 
     implicit val liftableGuardFlag: c.universe.Liftable[GuardPresenceType] = Liftable[GuardPresenceType] {
-      case GuardPresent => q"_root_.code.winitzki.jc.GuardPresent"
-      case GuardAbsent => q"_root_.code.winitzki.jc.GuardAbsent"
-      case GuardPresenceUnknown => q"_root_.code.winitzki.jc.GuardPresenceUnknown"
+      case GuardPresent => q"_root_.code.chymyst.jc.GuardPresent"
+      case GuardAbsent => q"_root_.code.chymyst.jc.GuardAbsent"
+      case GuardPresenceUnknown => q"_root_.code.chymyst.jc.GuardPresenceUnknown"
     }
 
     def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error) = {
