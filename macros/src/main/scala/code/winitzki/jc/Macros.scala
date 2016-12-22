@@ -47,6 +47,7 @@ object Macros {
 
   def b[T, R]: B[T,R] = macro bImpl[T, R]
 
+  // Does providing an explicit return type here as c.Expr[...] helps anything? Looks like it doesn't, so far.
   def bImpl[T: c.WeakTypeTag, R: c.WeakTypeTag](c: theContext): c.Expr[B[T, R]] = {
     import c.universe._
     val moleculeName = getEnclosingName(c)

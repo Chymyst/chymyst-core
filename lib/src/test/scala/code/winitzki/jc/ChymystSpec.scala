@@ -16,7 +16,7 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val warmupTimeMs = 50L
 
-  val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
+  val patienceConfig = PatienceConfig(timeout = Span(1000, Millis))
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
