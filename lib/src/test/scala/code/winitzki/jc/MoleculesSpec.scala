@@ -72,7 +72,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val a = new E("a")
     val b = new E("b")
     val c = new E("c")
-    val f = new F[Unit]("f")
+    val f = new FE("f")
 
     site(tp0)(
       _go { case a(_) + b(_) + c(_) + f(_, r) => r() }
@@ -177,7 +177,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   it should "throw exception when join pattern is nonlinear, with blocking molecule" in {
     val thrown = intercept[Exception] {
-      val a = new F[Unit]("a")
+      val a = new FE("a")
       site( _go { case a(_,r) + a(_,s) => () })
     }
     thrown.getMessage shouldEqual "Nonlinear pattern: a/B used twice"
@@ -185,7 +185,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   it should "throw exception when join pattern attempts to redefine a blocking molecule" in {
     val thrown = intercept[Exception] {
-      val a = new F[Unit]("a")
+      val a = new FE("a")
       site( _go { case a(_,_) => () })
       site( _go { case a(_,_) => () })
     }
@@ -204,7 +204,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   it should "throw exception when trying to emit a blocking molecule that has no join" in {
     val thrown = intercept[Exception] {
-      val a = new F[Unit]("x")
+      val a = new FE("x")
       a()
     }
     thrown.getMessage shouldEqual "Molecule x/B is not bound to any reaction site"
@@ -220,7 +220,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   it should "throw exception when trying to log soup of a blocking molecule that has no join" in {
     val thrown = intercept[Exception] {
-      val a = new F[Unit]("x")
+      val a = new FE("x")
       a.logSoup
     }
     thrown.getMessage shouldEqual "Molecule x/B is not bound to any reaction site"
@@ -313,7 +313,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     val c = new M[Int]("counter")
     val d = new E("decrement")
-    val g = new F[Unit]("getValue")
+    val g = new FE("getValue")
     val tp = new FixedPool(2)
 
     site(tp0)(
@@ -337,7 +337,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     val c = new M[Int]("counter")
     val d = new E("decrement")
-    val g = new F[Unit]("getValue")
+    val g = new FE("getValue")
     val tp = new FixedPool(2)
 
     site(tp0)(
@@ -360,8 +360,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val probabilityOfCrash = 0.5
 
     val c = new M[Int]("counter")
-    val d = new F[Unit]("decrement")
-    val g = new F[Unit]("getValue")
+    val d = new FE("decrement")
+    val g = new FE("getValue")
     val tp = new FixedPool(2)
 
     site(tp0)(

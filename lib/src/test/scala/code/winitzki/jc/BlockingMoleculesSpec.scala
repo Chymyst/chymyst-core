@@ -87,7 +87,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
   it should "use the first reply when a reaction attempts to reply twice" in {
     val c = new M[Int]("c")
     val d = new E("d")
-    val f = new F[Unit]("f")
+    val f = new FE("f")
     val g = new F[Int]("g")
     site(tp0)(
       _go { case c(n) + g(_,r) => c(n); r(n); r(n+1); d() },
@@ -266,10 +266,10 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp1.shutdownNow()
   }
 
-  def makeBlockingCheck(sleeping: => Unit, tp1: Pool): (F[Unit], F[Int]) = {
+  def makeBlockingCheck(sleeping: => Unit, tp1: Pool): (FE, F[Int]) = {
     val c = new E("c")
     val d = new E("d")
-    val g = new F[Unit]("g")
+    val g = new FE("g")
     val g2 = new F[Int]("g2")
 
     site(tp0)( _go { case c(_) + g(_, r) => r() } ) // we will use this to monitor the d() reaction
@@ -334,14 +334,14 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   behavior of "thread starvation with different threadpools"
 
-  def blockThreadsDueToBlockingMolecule(tp1: Pool): F[Unit] = {
+  def blockThreadsDueToBlockingMolecule(tp1: Pool): FE = {
     val c = new E("c")
     val cStarted = new E("cStarted")
     val never = new E("never")
     val f = new F[Int]("forever")
     val f2 = new F[Int]("forever2")
-    val g = new F[Unit]("g")
-    val started = new F[Unit]("started")
+    val g = new FE("g")
+    val started = new FE("started")
 
     site(tp1,tp0)(
       _go { case g(_, r) => r() }, // and so this reaction will be blocked forever

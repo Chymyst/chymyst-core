@@ -383,10 +383,23 @@ private[jc] trait BlockingMolecule[T, R] extends Molecule {
 
 }
 
+/** Specialized class for non-blocking molecule emitters with empty value.
+  * These molecules can be emitted with syntax a() without a deprecation warning.
+  * Macro call m[Unit] returns this type.
+  *
+  * @param name Name of the molecule, used for debugging only.
+  */
 final class E(name: String) extends M[Unit](name) {
   def apply(): Unit = site.emit[Unit](this, MolValue(()))
 }
 
+/** Specialized class for blocking molecule emitters with empty value (but non-empty reply).
+  * These molecules can be emitted with syntax f() without a deprecation warning.
+  * Macro call b[Unit, T] returns this type when T is not Unit.
+  *
+  * @param name Name of the molecule, used for debugging only.
+  * @tparam R Type of the value replied to the caller via the "reply" action.
+  */
 class F[R](name: String) extends B[Unit, R](name) {
   def apply(): R = site.emitAndReply[Unit, R](this, (), new ReplyValue[Unit, R](molecule = this))
 
@@ -394,12 +407,36 @@ class F[R](name: String) extends B[Unit, R](name) {
     site.emitAndReplyWithTimeout[Unit, R](duration.toNanos, this, (), new ReplyValue[Unit, R](molecule = this))
 }
 
-class FE(name: String) extends F[Unit](name) {
-  override def apply(): Unit = site.emitAndReply[Unit, Unit](this, (), new EmptyReplyValue[Unit](this))
+/** Specialized class for blocking molecule emitters with non-empty value and empty reply.
+  * The reply action for these molecules can be performed with syntax r() without a deprecation warning.
+  * Example: go { case ef(x, r) => r() }
+  *
+  * Macro call b[T, Unit] returns this type when T is not Unit.
+  *
+  * @param name Name of the molecule, used for debugging only.
+  * @tparam T Type of the value carried by the molecule.
+  */
+final class EF[T](name: String) extends B[T, Unit](name) {
+  override def apply(v: T): Unit = site.emitAndReply[T, Unit](this, v, new EmptyReplyValue[T](molecule = this))
+
+  override def timeout(duration: Duration)(v: T): Option[Unit] =
+    site.emitAndReplyWithTimeout[T, Unit](duration.toNanos, this, v, new EmptyReplyValue[T](molecule = this))
+}
+
+/**Specialized class for blocking molecule emitters with empty value and empty reply.
+  * These molecules can be emitted with syntax fe() without a deprecation warning.
+  * The reply action for these molecules can be performed with syntax r() without a deprecation warning.
+  * Example: go { case ef(x, r) => r() }
+  *
+  * Macro call b[Unit, Unit] returns this type.
+  *
+  * @param name Name of the molecule, used for debugging only.
+  */
+final class FE(name: String) extends F[Unit](name) {
+  override def apply(): Unit = site.emitAndReply[Unit, Unit](this, (), new EmptyReplyValue[Unit](molecule = this))
 
   override def timeout(duration: Duration)(): Option[Unit] =
-    site.emitAndReplyWithTimeout[Unit, Unit](duration.toNanos, this, (), new ReplyValue[Unit, Unit](molecule = this))
-
+    site.emitAndReplyWithTimeout[Unit, Unit](duration.toNanos, this, (), new EmptyReplyValue[Unit](molecule = this))
 }
 
 /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.

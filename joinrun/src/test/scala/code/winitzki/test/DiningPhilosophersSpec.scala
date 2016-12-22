@@ -19,7 +19,7 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
     diningPhilosophers(50)
   }
 
-  def diningPhilosophers(cycles: Int) = {
+  private def diningPhilosophers(cycles: Int) = {
 
     val tp = new FixedPool(8)
 
@@ -40,7 +40,7 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
     val f51 = new E("f51")
 
     val done = new E("done")
-    val check = new F[Unit]("check")
+    val check = new FE("check")
 
     site(tp, tp) (
       go { case t1(n) => rw(h1); h1(n - 1) },
