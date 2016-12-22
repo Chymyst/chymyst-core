@@ -116,7 +116,7 @@ So far, we have been using a kind of chemistry-resembling pseudocode to illustra
 This pseudocode was designed to prepare us for the actual syntax of `JoinRun`, which is only a little more verbose:
 
 ```scala
-import code.winitzki.jc._
+import code.chymyst.jc._
 
 // declare the molecule types
 val a = m[Int] // a(...) will be a molecule with an integer value
@@ -220,7 +220,7 @@ This automatically prevents race conditions with the counter: There is no possib
 The code shown above will not print any output, so it is perhaps instructive to put some print statements into the reaction bodies.
 
 ```scala
-import code.winitzki.jc._
+import code.chymyst.jc._
 
 // declare the molecule emitters and the value types
 val counter = m[Int]

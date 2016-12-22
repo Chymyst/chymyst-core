@@ -1,20 +1,22 @@
 /*
-Main project: joinrun (not executable)
-Depends on: lib, macros
-Aggregates: lib, macros, benchmarks
+Root project: buildAll (not executable)
+Depends on: lib, macros, joinrun, benchmark
+Aggregates: lib, macros, joinrun
 
-Benchmarks: executable
+Benchmark: executable (sbt benchmark/run)
+
+Main JAR of the library: sbt joinrun/assembly
  */
 
-/* To compile with unchecked and deprecation warnings:
+/* To compile with printed names and types:
 $ sbt
-> set scalacOptions in ThisBuild ++= Seq("-unchecked", "-deprecation", "-Xprint:namer", "-Xprint:typer")
+> set scalacOptions in ThisBuild ++= Seq("-Xprint:namer", "-Xprint:typer")
 > compile
 > exit
 */
 
 val commonSettings = Defaults.coreDefaultSettings ++ Seq(
-  organization := "code.winitzki",
+  organization := "code.chymyst",
   version := "0.1.3",
   scalaVersion := "2.11.8",
   crossScalaVersions := Seq("2.11.0", "2.11.1", "2.11.2", "2.11.3", "2.11.4", "2.11.5", "2.11.6", "2.11.7", "2.11.8", "2.12.0", "2.12.1"),
@@ -27,7 +29,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     "-unchecked",
     "-encoding", "UTF-8", // yes, this is 2 args
     "-feature",
-    "-language:existentials",
+//    "-language:existentials",
     "-language:higherKinds",
     "-language:implicitConversions",
     // "-Xfatal-warnings",
@@ -47,6 +49,8 @@ lazy val errorsForWartRemover = Seq(Wart.EitherProjectionPartial, Wart.Enumerati
 
 lazy val warningsForWartRemover = Seq() //Seq(Wart.Any, Wart.AsInstanceOf, Wart.ImplicitConversion, Wart.IsInstanceOf, Wart.JavaConversions, Wart.Option2Iterable, Wart.OptionPartial, Wart.Nothing, Wart.Product, Wart.Serializable, Wart.ToString, Wart.While)
 
+val rootProject = Some(buildAll)
+
 lazy val buildAll = (project in file("."))
   .settings(commonSettings: _*)
   .settings(
@@ -65,7 +69,7 @@ lazy val joinrun = (project in file("joinrun"))
     parallelExecution in Test := false,
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
   )
-  .aggregate(lib, macros).dependsOn(lib, macros)
+  .dependsOn(lib, macros)
 
 // Macros for the JoinRun library.
 lazy val macros = (project in file("macros"))
@@ -105,6 +109,7 @@ lazy val benchmark = (project in file("benchmark"))
   .settings(commonSettings: _*)
   .settings(
     name := "benchmark",
+    aggregate in assembly := false,
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
     parallelExecution in Test := false,
     libraryDependencies ++= Seq(
