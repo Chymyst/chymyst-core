@@ -55,10 +55,17 @@ object Macros {
     val moleculeValueType = c.weakTypeOf[T]
     val replyValueType = c.weakTypeOf[R]
 
-    if (moleculeValueType =:= typeOf[Unit])
-      c.Expr[B[T,R]](q"new F[$replyValueType]($moleculeName)")
-    else
-      c.Expr[B[T, R]](q"new B[$moleculeValueType,$replyValueType]($moleculeName)")
+    if (replyValueType =:= typeOf[Unit]) {
+      if (moleculeValueType =:= typeOf[Unit])
+        c.Expr[B[T, R]](q"new FE[$replyValueType]($moleculeName)")
+      else
+        c.Expr[B[T, R]](q"new EF[$moleculeValueType]($moleculeName)")
+    } else {
+      if (moleculeValueType =:= typeOf[Unit])
+        c.Expr[B[T, R]](q"new F[$replyValueType]($moleculeName)")
+      else
+        c.Expr[B[T, R]](q"new B[$moleculeValueType,$replyValueType]($moleculeName)")
+    }
   }
 
   /** Describes the pattern matcher for input molecules.
