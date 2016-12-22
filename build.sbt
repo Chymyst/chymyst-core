@@ -14,7 +14,7 @@ $ sbt
 */
 
 val commonSettings = Defaults.coreDefaultSettings ++ Seq(
-  organization := "code.winitzki",
+  organization := "code.chymyst",
   version := "0.1.3",
   scalaVersion := "2.11.8",
   crossScalaVersions := Seq("2.11.0", "2.11.1", "2.11.2", "2.11.3", "2.11.4", "2.11.5", "2.11.6", "2.11.7", "2.11.8", "2.12.0", "2.12.1"),
@@ -27,7 +27,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     "-unchecked",
     "-encoding", "UTF-8", // yes, this is 2 args
     "-feature",
-    "-language:existentials",
+//    "-language:existentials",
     "-language:higherKinds",
     "-language:implicitConversions",
     // "-Xfatal-warnings",
