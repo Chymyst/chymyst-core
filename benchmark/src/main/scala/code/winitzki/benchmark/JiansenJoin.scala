@@ -132,7 +132,7 @@ class AsyName[Arg](implicit owner: Join, argT:ClassTag[Arg]) extends NameBase{
   *  @param argT   the descriptor the argument type
   *  @param resT   the descriptor the return type
   */
-class SynName[Arg, R](implicit owner: Join, argT:ClassManifest[Arg], resT:ClassManifest[R]) extends NameBase{
+class SynName[Arg, R](implicit owner: Join, argT:ClassTag[Arg], resT:ClassTag[R]) extends NameBase{
   // does not support subtyping
 
   override def argTypeEqual(t:Any) :Boolean = t match {

@@ -1,7 +1,6 @@
 package code.winitzki.jc
 
-import JoinRun._
-import Library._
+import Chymyst._
 import org.scalactic.source.Position
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.{FlatSpec, Matchers}
@@ -11,13 +10,13 @@ import org.scalatest.time.{Millis, Span}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
+class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(2000, Millis)
 
   val warmupTimeMs = 50L
 
-  val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
+  val patienceConfig = PatienceConfig(timeout = Span(1000, Millis))
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
@@ -25,8 +24,8 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   it should "emit a molecule from a future computed out of a given future" in {
 
-    val c = new M[Unit]("c")
-    val f = new B[Unit, Unit]("f")
+    val c = new E("c")
+    val f = new EE("f")
 
     val tp = new FixedPool(2)
     site(tp)(
@@ -35,7 +34,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     Future { Thread.sleep(50) } & c    // insert a molecule from the end of the future
 
-    f() shouldEqual ()
+    f() shouldEqual (())
     tp.shutdownNow()
   }
 
@@ -59,11 +58,11 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "not emit a molecule from a future prematurely" in {
     val waiter = new Waiter
 
-    val c = new M[Unit]("c")
-    val d = new M[Unit]("d")
-    val e = new M[Unit]("e")
-    val f = new B[Unit, String]("f")
-    val f2 = new B[Unit, String]("f2")
+    val c = new E("c")
+    val d = new E("d")
+    val e = new E("e")
+    val f = new EB[String]("f")
+    val f2 = new EB[String]("f2")
 
     val tp = new FixedPool(4)
     site(tp)(
@@ -94,7 +93,7 @@ class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
     val waiter = new Waiter
     val tp = new FixedPool(4)
 
-    val b = new M[Unit]("b")
+    val b = new E("b")
 
     // "fut" will succeed when "c" is emitted
     val (c, fut) = moleculeFuture[String](tp)

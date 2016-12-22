@@ -1,12 +1,10 @@
 package code.winitzki.jc
 
-import code.winitzki.jc.JoinRun._
-
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.reflect.ClassTag
 import scala.util.{Try, Success, Failure}
 
-object Library {
+object Chymyst {
   /** Create a non-blocking molecule that, when emitted, will resolve the future.
     * Example usage: val (m, fut) = moleculeFuture[String](pool)
     *

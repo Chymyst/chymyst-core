@@ -1,11 +1,10 @@
 package code.winitzki.benchmark
 
-import code.winitzki.benchmark.Benchmarks1._
-import code.winitzki.benchmark.Benchmarks4._
-import code.winitzki.benchmark.Benchmarks7._
-import code.winitzki.benchmark.Benchmarks9._
-import code.winitzki.jc.{FixedPool, Pool}
-import code.winitzki.jc.JoinRun.{defaultSitePool, defaultReactionPool}
+import Benchmarks1._
+import Benchmarks4._
+import Benchmarks7._
+import Benchmarks9._
+import code.winitzki.jc._
 
 object MainAppConfig {
 

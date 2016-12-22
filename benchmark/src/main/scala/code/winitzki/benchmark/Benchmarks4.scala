@@ -3,9 +3,8 @@ package code.winitzki.benchmark
 import java.time.LocalDateTime
 
 import code.winitzki.benchmark.Common._
-import code.winitzki.jc.JoinRun._
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
-import code.winitzki.jc.Pool
 
 object Benchmarks4 {
   val differentReactions = 100
@@ -57,7 +56,7 @@ object Benchmarks4 {
         case a2(n) => a3(n)
         case a3(n) => a4(n)
         case a4(n) => a5(n)
-        case a5(m) => if (m==0) f() else a0(m-1)
+        case a5(m) => if (m==0) f(()) else a0(m-1)
       }
       a0(count)
 
@@ -281,7 +280,7 @@ object Benchmarks4 {
 //        case a97(n) => a98(n)
 //        case a98(n) => a99(n)
 
-        case a99(m) => if (m==0) f() else a0(m-1)
+        case a99(m) => if (m==0) f(()) else a0(m-1)
       }
       a0(count)
 

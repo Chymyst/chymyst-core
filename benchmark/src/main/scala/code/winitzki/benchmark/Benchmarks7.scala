@@ -3,7 +3,6 @@ package code.winitzki.benchmark
 import java.time.LocalDateTime
 import code.winitzki.benchmark.Common._
 import code.winitzki.jc._
-import code.winitzki.jc.JoinRun._
 import code.winitzki.jc.Macros._
 
 object Benchmarks7 {
@@ -54,11 +53,11 @@ object Benchmarks7 {
     val initialTime = LocalDateTime.now
     j8.all_done(count)
     val d = make_counters8a(j8.done, numberOfCounters, count)
-    (1 to (count*numberOfCounters)).foreach{ _ => d() }
+    (1 to (count*numberOfCounters)).foreach{ _ => d(()) }
     j8.f(initialTime)
   }
 
-  def make_counters(done: M[Unit], counters: Int, init: Int, tp: Pool) = {
+  private def make_counters(done: E, counters: Int, init: Int, tp: Pool) = {
     val c = m[Int]
     val d = m[Unit]
 
@@ -71,13 +70,13 @@ object Benchmarks7 {
     d
   }
 
-  def make_counters8a(done: AsyName[Unit], counters: Int, init: Int): AsyName[Unit] = {
+  private def make_counters8a(done: AsyName[Unit], counters: Int, init: Int): AsyName[Unit] = {
     object j8a extends Join {
       object c extends AsyName[Int]
       object d extends AsyName[Unit]
 
       join {
-        case c(0) => done()
+        case c(0) => done(())
         case c(n) and d(_) if n > 0 => c(n-1)
       }
 

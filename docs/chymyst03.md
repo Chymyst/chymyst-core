@@ -25,7 +25,7 @@ val fetch = new B[Unit, Int]("fetch")
 This code is completely equivalent to the shorter code written using macros:
 
 ```scala
-import code.winitzki.jc.JoinRun._
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
 
 val counter = m[Int]

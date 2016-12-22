@@ -3,9 +3,8 @@ package code.winitzki.benchmark
 import java.time.LocalDateTime
 
 import code.winitzki.benchmark.Common._
-import code.winitzki.jc.Pool
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
-import code.winitzki.jc.JoinRun._
 
 object Benchmarks1 {
 
@@ -96,7 +95,7 @@ object Benchmarks1 {
     }
     j2.c(count)
 
-    (1 to count).foreach{ _ => j2.d() }
+    (1 to count).foreach{ _ => j2.d(()) }
     j2.f(initialTime)
   }
 
@@ -105,7 +104,7 @@ object Benchmarks1 {
     val initialTime = LocalDateTime.now
 
     val (d,_,f,_) = make_counter2a(count)
-    (1 to count).foreach{ _ => d() }
+    (1 to count).foreach{ _ => d(()) }
     f(initialTime)
   }
 

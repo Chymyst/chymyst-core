@@ -116,7 +116,7 @@ So far, we have been using a kind of chemistry-resembling pseudocode to illustra
 This pseudocode was designed to prepare us for the actual syntax of `JoinRun`, which is only a little more verbose:
 
 ```scala
-import code.winitzki.jc.JoinRun._
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
 
 // declare the molecule types
@@ -221,7 +221,7 @@ This automatically prevents race conditions with the counter: There is no possib
 The code shown above will not print any output, so it is perhaps instructive to put some print statements into the reaction bodies.
 
 ```scala
-import code.winitzki.jc.JoinRun._
+import code.winitzki.jc._
 import code.winitzki.jc.Macros._
 
 // declare the molecule emitters and the value types

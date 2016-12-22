@@ -2,9 +2,6 @@ package code.winitzki.jc
 
 import java.util.concurrent.ThreadFactory
 
-import code.winitzki.jc.JoinRun.ReactionInfo
-
-
 class SmartThread(runnable: Runnable, pool: SmartPool) extends ThreadWithInfo(runnable) {
   private var inBlockingCall: Boolean = false
 
