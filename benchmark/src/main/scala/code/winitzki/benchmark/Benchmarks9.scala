@@ -10,12 +10,12 @@ object Benchmarks9 {
 
   val numberOfCounters = 5
 
-  def make_counter_1(done: M[Unit], counters: Int, init: Int, tp: Pool): B[Unit,Unit] = {
+  def make_counter_1(done: M[Unit], counters: Int, init: Int, tp: Pool): EE = {
     val c = m[Int]
     val d = b[Unit, Unit]
 
     site(tp)(
-      go { case c(0) => done() },
+      go { case c(0) => done(()) },
       go { case c(n) + d(_, r) if n > 0 => c(n - 1); r() }
     )
     (1 to counters).foreach(_ => c(init))
@@ -46,7 +46,7 @@ object Benchmarks9 {
   }
 
 
-  def make_ping_pong_stack(done: M[Unit], tp: Pool): B[Int,Int] = {
+  def make_ping_pong_stack(done: E, tp: Pool): B[Int,Int] = {
     val c = m[Unit]
     val d = b[Int, Int]
     val e = b[Int, Int]
@@ -140,8 +140,8 @@ object Benchmarks9 {
       object d extends SynName[Unit, Unit]
 
       join {
-        case c(0) => done()
-        case c(n) and d(_) if n > 0 => c(n-1); d.reply()
+        case c(0) => done(())
+        case c(n) and d(_) if n > 0 => c(n-1); d.reply(())
       }
     }
     import b9c1._
@@ -170,7 +170,7 @@ object Benchmarks9 {
     all_done(numberOfCounters)
 
     val d = make_counter_1_Jiansen(done, numberOfCounters, count)
-    (1 to (count*numberOfCounters)).foreach{ _ => d() }
+    (1 to (count*numberOfCounters)).foreach{ _ => d(()) }
 
     var result = f(initialTime)
     result

@@ -119,8 +119,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     (result.info.inputs match {
       case List(
-      InputMoleculeInfo(a, SimpleVar, simpleVarXSha1),
-      InputMoleculeInfo(bb, OtherInputPattern(_), "4B93FCEF4617B49161D3D2F83E34012391D5A883")
+      InputMoleculeInfo(`a`, SimpleVar, `simpleVarXSha1`),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_), "4B93FCEF4617B49161D3D2F83E34012391D5A883")
       ) => true
       case _ => false
     }) shouldEqual true

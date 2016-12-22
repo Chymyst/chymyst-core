@@ -44,7 +44,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private[jc] val reactionInfos: Map[Reaction, List[InputMoleculeInfo]] = nonSingletonReactions.map { r => (r, r.info.inputs) }.toMap
 
   // TODO: implement
-  private val quiescenceCallbacks: mutable.Set[M[Unit]] = mutable.Set.empty
+  private val quiescenceCallbacks: mutable.Set[E] = mutable.Set.empty
 
   private lazy val knownReactions: Seq[Reaction] = reactionInfos.keys.toSeq
 
@@ -64,7 +64,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     s"${this.toString}\n$moleculesPrettyPrinted"
   }
 
-  private[jc] def setQuiescenceCallback(callback: M[Unit]): Unit = {
+  private[jc] def setQuiescenceCallback(callback: E): Unit = {
     quiescenceCallbacks.add(callback)
     ()
   }

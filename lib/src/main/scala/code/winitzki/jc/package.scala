@@ -53,7 +53,7 @@ package object jc {
 
   // Wait until the reaction site to which `molecule` is bound becomes quiescent, then emit `callback`.
   // TODO: implement
-  def waitUntilQuiet[T](molecule: M[T], callback: M[Unit]): Unit = molecule.site.setQuiescenceCallback(callback)
+  def waitUntilQuiet[T](molecule: M[T], callback: E): Unit = molecule.site.setQuiescenceCallback(callback)
 
   /** Create a reaction value out of a simple reaction body. Used only for testing.
     * The reaction body must be "simple" in the sense that it allows very limited pattern-matching with molecule values:
