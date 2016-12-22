@@ -115,7 +115,7 @@ go { case counter(0) + fetch(_, reply)  => reply() }
 Here is the complete code:
 
 ```scala
-import code.winitzki.jc._
+import code.chymyst.jc._
 
 import java.time.LocalDateTime.now
 import java.time.temporal.ChronoUnit.MILLIS
