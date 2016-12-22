@@ -1,7 +1,6 @@
 package code.winitzki.jc
 
-import JoinRun._
-import Library._
+import Chymyst._
 import org.scalactic.source.Position
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.{FlatSpec, Matchers}
@@ -11,7 +10,7 @@ import org.scalatest.time.{Millis, Span}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-class LibrarySpec extends FlatSpec with Matchers with TimeLimitedTests {
+class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(2000, Millis)
 

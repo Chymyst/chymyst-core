@@ -4,8 +4,6 @@ import scala.collection.mutable
 import scala.language.experimental.macros
 import scala.reflect.macros._
 import scala.reflect.NameTransformer.LOCAL_SUFFIX_STRING
-import JoinRun._
-import JoinRunUtils._
 
 import scala.annotation.tailrec
 
@@ -107,12 +105,12 @@ object Macros {
   /**
     * Users will define reactions using this function.
     * Examples: {{{ go { a(_) => ... } }}}
-    * {{{ go { a (_) => ...} onThreads threadPool }}}
+    * {{{ go { a (_) => ...}.withRetry onThreads threadPool }}}
     *
     * The macro also obtains statically checkable information about input and output molecules in the reaction.
     *
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
-    * @return A reaction value, to be used later in [[JoinRun#join]].
+    * @return A reaction value, to be used later in [[site]].
     */
   def go(reactionBody: ReactionBody): Reaction = macro buildReactionImpl
 
@@ -221,8 +219,8 @@ object Macros {
       override def traverse(tree: Tree): Unit = {
         tree match {
           // avoid traversing nested reactions: check whether this subtree is a Reaction() value
-          case q"code.winitzki.jc.JoinRun.Reaction.apply($_,$_,$_,$_)" => ()
-          case q"JoinRun.Reaction.apply($_,$_,$_,$_)" => ()
+          case q"code.winitzki.jc.Reaction.apply($_,$_,$_,$_)" => ()
+          case q"Reaction.apply($_,$_,$_,$_)" => ()
 
           // matcher with a single argument: a(x)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
@@ -279,22 +277,22 @@ object Macros {
 
     // this boilerplate is necessary for being able to use PatternType values in macro quasiquotes
     implicit val liftablePatternFlag: c.universe.Liftable[InputPatternFlag] = Liftable[InputPatternFlag] {
-      case WildcardF => q"_root_.code.winitzki.jc.JoinRun.Wildcard"
-      case SimpleConstF(x) => q"_root_.code.winitzki.jc.JoinRun.SimpleConst(${x.asInstanceOf[c.Tree]})"
-      case SimpleVarF => q"_root_.code.winitzki.jc.JoinRun.SimpleVar"
-      case OtherPatternF(matcherTree) => q"_root_.code.winitzki.jc.JoinRun.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]})"
-      case _ => q"_root_.code.winitzki.jc.JoinRun.UnknownInputPattern"
+      case WildcardF => q"_root_.code.winitzki.jc.Wildcard"
+      case SimpleConstF(x) => q"_root_.code.winitzki.jc.SimpleConst(${x.asInstanceOf[c.Tree]})"
+      case SimpleVarF => q"_root_.code.winitzki.jc.SimpleVar"
+      case OtherPatternF(matcherTree) => q"_root_.code.winitzki.jc.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]})"
+      case _ => q"_root_.code.winitzki.jc.UnknownInputPattern"
     }
 
     implicit val liftableOutputPatternFlag: c.universe.Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
-      case ConstOutputPattern(x) => q"_root_.code.winitzki.jc.JoinRun.ConstOutputValue(${x.asInstanceOf[c.Tree]})"
-      case _ => q"_root_.code.winitzki.jc.JoinRun.OtherOutputPattern"
+      case ConstOutputPattern(x) => q"_root_.code.winitzki.jc.ConstOutputValue(${x.asInstanceOf[c.Tree]})"
+      case _ => q"_root_.code.winitzki.jc.OtherOutputPattern"
     }
 
     implicit val liftableGuardFlag: c.universe.Liftable[GuardPresenceType] = Liftable[GuardPresenceType] {
-      case GuardPresent => q"_root_.code.winitzki.jc.JoinRun.GuardPresent"
-      case GuardAbsent => q"_root_.code.winitzki.jc.JoinRun.GuardAbsent"
-      case GuardPresenceUnknown => q"_root_.code.winitzki.jc.JoinRun.GuardPresenceUnknown"
+      case GuardPresent => q"_root_.code.winitzki.jc.GuardPresent"
+      case GuardAbsent => q"_root_.code.winitzki.jc.GuardAbsent"
+      case GuardPresenceUnknown => q"_root_.code.winitzki.jc.GuardPresenceUnknown"
     }
 
     def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error) = {
@@ -339,7 +337,7 @@ object Macros {
     if (patternIn.isEmpty && !isSingletonReaction(pattern, guard, body))
       c.error(c.enclosingPosition, "Reaction should not have an empty list of input molecules")
 
-    val inputMolecules = patternIn.map { case (s, p, _, sha1) => q"InputMoleculeInfo(${s.asTerm}, $p, $sha1)" }
+    val inputMolecules = patternIn.map { case (s, p, _, patternSha1) => q"InputMoleculeInfo(${s.asTerm}, $p, $patternSha1)" }
 
     // Note: the output molecules could be sometimes not emitted according to a runtime condition.
     // We do not try to examine the reaction body to determine which output molecules are always emitted.

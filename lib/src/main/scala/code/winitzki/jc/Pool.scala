@@ -3,8 +3,6 @@ package code.winitzki.jc
 
 import java.util.concurrent._
 
-import code.winitzki.jc.JoinRun.ReactionInfo
-
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.reflectiveCalls
 
@@ -29,7 +27,7 @@ trait Pool {
 }
 
 private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorService) extends Pool {
-  protected val execService = execFactory(threads)
+  protected val execService: ExecutorService = execFactory(threads)
 
   val sleepTime = 200L
 

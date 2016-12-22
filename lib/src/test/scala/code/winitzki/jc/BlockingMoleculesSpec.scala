@@ -1,7 +1,6 @@
 package code.winitzki.jc
 
-import JoinRun._
-import Library.withPool
+import Chymyst.withPool
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
@@ -12,7 +11,7 @@ import scala.concurrent.duration.DurationInt
 /** More unit tests for blocking molecule functionality.
   *
   */
-class JoinRunBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
+class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
   var tp0: Pool = _
 
