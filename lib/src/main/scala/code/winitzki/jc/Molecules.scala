@@ -309,9 +309,9 @@ private[jc] trait NonblockingMolecule[T] extends Molecule {
 
   override def isSingleton: Boolean = isSingletonBoolean
 
-  def unapply(arg: UnapplyArg): Option[T] = arg match {
+  def unapplyInternal(arg: UnapplyArg): Option[T] = arg match {
 
-    case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by _go
+    case UnapplyCheckSimple(inputMoleculesProbe) =>   // This is used only by `_go`.
       inputMoleculesProbe += this
       Some(null.asInstanceOf[T]) // hack for testing only. This value will not be used.
 
@@ -476,6 +476,7 @@ class M[T](val name: String) extends (T => Unit) with NonblockingMolecule[T] {
 
   def hasVolatileValue: Boolean = site.hasVolatileValue(this)
 
+  def unapply(arg: UnapplyArg): Option[T] = unapplyInternal(arg)
 }
 
 /** This trait contains implementations of most methods for the [[ReplyValue]] and [[EmptyReplyValue]] classes.
