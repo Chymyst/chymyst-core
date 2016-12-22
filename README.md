@@ -175,10 +175,12 @@ To build all JARs:
 
 ```
 sbt assembly
-```
-will prepare a `joinrun`, `benchmark`, `lib`, and `macros` JAR assemblies.
 
-The main library is in the `joinrun` JAR assembly.
+```
+
+This will prepare a `joinrun`, `benchmark`, `lib`, and `macros` JAR assemblies.
+
+The main library is in the `joinrun` JAR assembly (`joinrun/target/scala-2.11/joinrun-assembly-*.jar`).
 User code should depend on that JAR only.
 
 # Basic usage of `JoinRun`
@@ -194,7 +196,7 @@ import code.winitzki.jc._
 def makeCounter(initCount: Int)
               : (M[Unit], M[Unit], B[Unit, Int]) = {
   val counter = m[Int] // non-blocking molecule with integer value
-  val incr = m[Unit] // non-blocking molecule with empty value
+  val incr = m[Unit] // non-blocking molecule with empty (i.e. Unit) value
   val decr = m[Unit] // empty non-blocking molecule
   val get = b[Unit, Int] // empty blocking molecule returning integer value
 
