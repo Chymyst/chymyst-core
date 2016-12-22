@@ -82,6 +82,20 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     f.timeout(200 millis)() shouldEqual None
   }
 
+  behavior of "syntax of blocking molecules with unit values / replies"
+
+  it should "allow non-unit values and unit replies" in {
+    val f = new BE[Int]("f")
+    site(tp0)( _go { case f(x, r) if x == 123 => r() })
+    f(123) shouldEqual (())
+  }
+
+  it should "allow unit values and unit replies" in {
+    val f = new EE("f")
+    site(tp0)( _go { case f(x, r) if x == (()) => r() })
+    f() shouldEqual (())
+  }
+
   behavior of "reaction sites with invalid replies"
 
   it should "use the first reply when a reaction attempts to reply twice" in {
