@@ -1,5 +1,6 @@
 package code.winitzki.jc
 
+import Core._
 import Macros.{getName, rawTree, m, b, go}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 

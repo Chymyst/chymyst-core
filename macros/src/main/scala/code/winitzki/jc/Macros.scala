@@ -1,5 +1,7 @@
 package code.winitzki.jc
 
+import Core._
+
 import scala.collection.mutable
 import scala.language.experimental.macros
 import scala.reflect.macros._
@@ -10,6 +12,11 @@ object Macros {
 
   type theContext = whitebox.Context
 
+  /** This macro is used only for testing.
+    *
+    * @param x Any scala expression (will not be evaluated).
+    * @return The raw syntax tree object (after typer) corresponding to the expression.
+    */
   private[jc] def rawTree(x: Any): String = macro rawTreeImpl
 
   def rawTreeImpl(c: theContext)(x: c.Expr[Any]): c.universe.Tree = {

@@ -1,5 +1,8 @@
 package code.winitzki.jc
 
+
+import Core._
+
 import org.scalacheck.Properties
 import org.scalacheck.Prop.forAll
 

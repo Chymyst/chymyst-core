@@ -125,7 +125,6 @@ We will apply the function `f(x) = x*x` to elements of an integer array, and the
 
 ```scala
 import code.winitzki.jc._
-import code.winitzki.jc.Macros._
 
 object C extends App {
 

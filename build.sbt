@@ -15,7 +15,7 @@ $ sbt
 
 val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   organization := "code.winitzki",
-  version := "0.1.0",
+  version := "0.1.3",
   scalaVersion := "2.11.8",
   crossScalaVersions := Seq("2.11.0", "2.11.1", "2.11.2", "2.11.3", "2.11.4", "2.11.5", "2.11.6", "2.11.7", "2.11.8", "2.12.0", "2.12.1"),
   resolvers += Resolver.sonatypeRepo("snapshots"),
@@ -32,7 +32,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     "-language:implicitConversions",
     // "-Xfatal-warnings",
     "-Xlint",
-//    "-Yno-adapted-args", // Makes calling a() fail to substitute a Unit argument into a.apply(x: Unit)
+    "-Yno-adapted-args", // Makes calling a() fail to substitute a Unit argument into a.apply(x: Unit)
     "-Ywarn-dead-code", // N.B. doesn't work well with the ??? hole
     "-Ywarn-numeric-widen",
     "-Ywarn-value-discard",
@@ -47,6 +47,13 @@ lazy val errorsForWartRemover = Seq(Wart.EitherProjectionPartial, Wart.Enumerati
 
 lazy val warningsForWartRemover = Seq() //Seq(Wart.Any, Wart.AsInstanceOf, Wart.ImplicitConversion, Wart.IsInstanceOf, Wart.JavaConversions, Wart.Option2Iterable, Wart.OptionPartial, Wart.Nothing, Wart.Product, Wart.Serializable, Wart.ToString, Wart.While)
 
+lazy val buildAll = (project in file("."))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "buildAll"
+  )
+  .aggregate(lib, macros, joinrun, benchmark)
+
 lazy val joinrun = (project in file("joinrun"))
   .settings(commonSettings: _*)
   .settings(
@@ -58,7 +65,7 @@ lazy val joinrun = (project in file("joinrun"))
     parallelExecution in Test := false,
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
   )
-  .aggregate(lib, macros, benchmark).dependsOn(lib, macros)
+  .aggregate(lib, macros).dependsOn(lib, macros)
 
 // Macros for the JoinRun library.
 lazy val macros = (project in file("macros"))
@@ -103,5 +110,5 @@ lazy val benchmark = (project in file("benchmark"))
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.0" % "test"
     )
-  ).dependsOn(lib, macros)
+  ).dependsOn(joinrun)
 

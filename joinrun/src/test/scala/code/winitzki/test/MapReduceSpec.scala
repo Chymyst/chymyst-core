@@ -4,7 +4,6 @@ import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
 import code.winitzki.jc._
-import code.winitzki.jc.Macros._
 import org.scalatest.{FlatSpec, Matchers}
 
 class MapReduceSpec extends FlatSpec with Matchers {

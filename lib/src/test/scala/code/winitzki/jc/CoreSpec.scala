@@ -1,10 +1,12 @@
 package code.winitzki.jc
 
+import Core._
+
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.time.{Millis, Span}
 
-class PackageSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(500, Millis)
 

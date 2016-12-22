@@ -100,7 +100,7 @@ class AsyName[Arg](implicit owner: Join, argT:ClassTag[Arg]) extends NameBase{
           else { //   pattern cannot be fired without the presence of current channel
             //&& pattern can be fired when m is bound to the current channel
             checkedMsg += m
-            (!(pattern.isDefinedAt(nameset, pattern, fixedMsg+((this, m)), tag+1, this))
+            (!(pattern.isDefinedAt((nameset, pattern, fixedMsg+((this, m)), tag+1, this)))
               && (pattern.isDefinedAt((nameset, pattern, fixedMsg+((this, m)), tag+1, banedName))))
           }
         }
@@ -239,7 +239,7 @@ class SynName[Arg, R](implicit owner: Join, argT:ClassTag[Arg], resT:ClassTag[R]
           else { //   pattern cannot be fired without the presence of current channel
             //&& pattern can be fired when m is bound to the current channel
             checkedMsg += m._2
-            (!(pattern.isDefinedAt(nameset, pattern, fixedMsg+((this, m)), dp+1, this))
+            (!(pattern.isDefinedAt((nameset, pattern, fixedMsg+((this, m)), dp+1, this)))
               && (pattern.isDefinedAt((nameset, pattern, fixedMsg+((this, m)), dp+1, banedName))))
           }
         }
