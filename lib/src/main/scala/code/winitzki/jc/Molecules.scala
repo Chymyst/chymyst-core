@@ -1,13 +1,6 @@
 package code.winitzki.jc
 
-/*
-Join Calculus (JC) is a micro-framework for declarative concurrency.
-
-JC is basically “Actors” made type-safe, stateless, and more high-level.
-
-The code is inspired by previous implementations by He Jiansen (https://github.com/Jiansen/ScalaJoin, 2011)
-and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
-  * */
+import Core._
 
 import java.util.concurrent.{Semaphore, TimeUnit}
 

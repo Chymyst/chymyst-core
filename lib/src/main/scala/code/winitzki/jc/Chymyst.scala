@@ -1,5 +1,7 @@
 package code.winitzki.jc
 
+import Core._
+
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.reflect.ClassTag
 import scala.util.{Try, Success, Failure}

@@ -1,6 +1,7 @@
 package code.winitzki.jc
 
 import Chymyst._
+import Core._
 import org.scalactic.source.Position
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.{FlatSpec, Matchers}
@@ -45,7 +46,7 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(2)
 
     site(tp)(
-      _go { case c(x) => waiter {x shouldEqual "send it off"}; waiter.dismiss() }
+      _go { case c(x) => waiter { x shouldEqual "send it off"; () }; waiter.dismiss() }
     )
 
     Future { Thread.sleep(50) } + c("send it off")    // insert a molecule from the end of the future
@@ -109,7 +110,7 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
       s <- fut
     } yield {
       waiter {
-        s shouldEqual "send it off"
+        s shouldEqual "send it off"; ()
       }
       waiter.dismiss()
     }
