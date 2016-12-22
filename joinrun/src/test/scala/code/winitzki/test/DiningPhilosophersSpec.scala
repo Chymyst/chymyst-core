@@ -40,7 +40,7 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
     val f51 = new E("f51")
 
     val done = new E("done")
-    val check = new FE("check")
+    val check = new EE("check")
 
     site(tp, tp) (
       go { case t1(n) => rw(h1); h1(n - 1) },
@@ -61,13 +61,13 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
     t1(cycles) + t2(cycles) + t3(cycles) + t4(cycles) + t5(cycles)
     f12() + f23() + f34() + f45() + f51()
 
-    check() shouldEqual ()
+    check() shouldEqual (())
 
     // stop the simulation: this should be in unit tests, not here
     // not yet implemented
 /*
-    val stop = ja[Unit]
-    val wait_for_stop = js[Unit,Unit]
+    val stop = m[Unit]
+    val wait_for_stop = b[Unit,Unit]
     site( go { case stop(_) + wait_for_stop(_,r) => r() } )
     wait_until_quiet(t1, stop)
     wait_for_stop()
