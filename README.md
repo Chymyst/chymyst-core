@@ -141,7 +141,7 @@ Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` an
 
 # Status
 
-Current version is `0.1.3`.
+Current released version is `0.1.3`.
 The semantics of the chemical machine (restricted to single-host, multicore computations) is fully implemented and tested.
 
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
