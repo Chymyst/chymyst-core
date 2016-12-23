@@ -6,10 +6,6 @@ import java.util.concurrent._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.reflectiveCalls
 
-class CachedPool(threads: Int) extends PoolExecutor(threads,
-  t => new ThreadPoolExecutor(1, t, 1L, TimeUnit.SECONDS, new SynchronousQueue[Runnable], new ThreadFactoryWithInfo)
-)
-
 class FixedPool(threads: Int) extends PoolExecutor(threads,
   t => new ThreadPoolExecutor(t, t, 0L, TimeUnit.SECONDS, new LinkedBlockingQueue[Runnable], new ThreadFactoryWithInfo)
 )
