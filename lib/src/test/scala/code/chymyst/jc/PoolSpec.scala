@@ -35,10 +35,6 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
     Chymyst.withPool(new FixedPool(2))(checkPool).get shouldEqual (())
   }
 
-  it should "run tasks on a thread with info, in cached pool" in {
-    Chymyst.withPool(new CachedPool(2))(checkPool).get shouldEqual (())
-  }
-
   it should "run tasks on a thread with info, in smart pool" in {
     Chymyst.withPool(new SmartPool(2))(checkPool).get shouldEqual (())
   }
@@ -107,52 +103,6 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
         case other: Exception =>
           other.printStackTrace()
           waiter { false shouldEqual true ; () }
-      }
-    }, emptyReactionInfo)
-    Thread.sleep(20)
-
-    tp.shutdownNow()
-
-    waiter.await()(patienceConfig, implicitly[Position])
-  }
-
-  behavior of "cached thread pool"
-
-  it should "run a task on a separate thread" in {
-    val waiter = new Waiter
-
-    val tp = new CachedPool(2)
-
-    tp.runClosure({
-      waiter.dismiss()
-
-      try {
-        Thread.sleep(10000000)  // this should not time out
-
-      } catch {
-        case e: InterruptedException => ()
-      }
-    }, emptyReactionInfo)
-
-    waiter.await()(patienceConfig, implicitly[Position])
-
-    tp.shutdownNow()
-  }
-
-  it should "interrupt a thread when shutting down" in {
-    val waiter = new Waiter
-
-    val tp = new CachedPool(2)
-
-    tp.runClosure({
-      try {
-        Thread.sleep(10000000)  // this should not time out
-
-      } catch {
-        case e: InterruptedException => waiter.dismiss()
-        case other: Exception =>
-          other.printStackTrace()
-          waiter.dismiss()
       }
     }, emptyReactionInfo)
     Thread.sleep(20)

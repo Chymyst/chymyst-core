@@ -110,12 +110,12 @@ object Core {
           case (mv, 1) => s"$m($mv)"
           case (mv, i) => s"$m($mv) * $i"
         }
-      }.mkString(", ")
+      }.sorted.mkString(", ")
 
   private[jc] def moleculeBagToString(mb: LinearMoleculeBag): String =
     mb.map {
       case (m, jmv) => s"$m($jmv)"
-    }.mkString(", ")
+    }.toSeq.sorted.mkString(", ")
 
   def site(reactions: Reaction*): WarningsAndErrors = site(defaultReactionPool, defaultSitePool)(reactions: _*)
   def site(reactionPool: Pool)(reactions: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(reactions: _*)

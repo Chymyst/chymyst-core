@@ -45,8 +45,22 @@ package object jc {
     def +(n: Unit): Unit = ()
   }
 
+  /** Declare a new non-blocking molecule emitter.
+    * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
+    *
+    * @tparam T Type of the value carried by the molecule.
+    * @return A new instance of class [[M]]{{{[T]}}} if {{{T}}} is not {{{Unit}}}, or of class [[E]] if {{{T}}} is {{{Unit}}}.
+    */
   def m[T]: M[T] = macro mImpl[T]
 
+  /** Declare a new blocking molecule emitter.
+    * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
+    *
+    * @tparam T Type of the value carried by the molecule.
+    * @tparam R Type of the reply value.
+    * @return A new instance of class [[B]]{{{[T,R]}}} if both {{{T}}} and {{{R}}} are not {{{Unit}}}.
+    *         Otherwise will return a new instance of one of the subclasses: [[EF]]{[R]}, [[FE]]{{{[T]}}, or [[EE]].
+    */
   def b[T, R]: B[T,R] = macro bImpl[T, R]
 
   val defaultSitePool: Pool = Core.defaultSitePool

@@ -7,162 +7,6 @@ import java.util.concurrent.{Semaphore, TimeUnit}
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 
-sealed trait InputPatternType
-
-case object Wildcard extends InputPatternType
-
-case object SimpleVar extends InputPatternType
-
-final case class SimpleConst(v: Any) extends InputPatternType
-
-final case class OtherInputPattern(matcher: PartialFunction[Any, Unit]) extends InputPatternType
-
-case object UnknownInputPattern extends InputPatternType
-
-sealed trait OutputPatternType
-
-final case class ConstOutputValue(v: Any) extends OutputPatternType
-
-case object OtherOutputPattern extends OutputPatternType
-
-sealed trait GuardPresenceType {
-  def knownFalse: Boolean = this match {
-    case GuardAbsent => true
-    case _ => false
-  }
-}
-
-case object GuardPresent extends GuardPresenceType
-
-case object GuardAbsent extends GuardPresenceType
-
-case object GuardPresenceUnknown extends GuardPresenceType
-
-/** Compile-time information about an input molecule pattern in a reaction.
-  * This class is immutable.
-  *
-  * @param molecule The molecule emitter value that represents the input molecule.
-  * @param flag     Type of the input pattern: wildcard, constant match, etc.
-  * @param sha1     Hash sum of the source code (AST tree) of the input pattern.
-  */
-final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, sha1: String) {
-  /** Determine whether this input molecule pattern is weaker than another pattern.
-    * Pattern a(xxx) is weaker than b(yyy) if a==b and if anything matched by yyy will also be matched by xxx.
-    *
-    * @param info The input molecule info for another input molecule.
-    * @return Some(true) if we can surely determine that this matcher is weaker than another;
-    *         Some(false) if we can surely determine that this matcher is not weaker than another;
-    *         None if we cannot determine anything because information is insufficient.
-    */
-  private[jc] def matcherIsWeakerThan(info: InputMoleculeInfo): Option[Boolean] = {
-    if (molecule =!= info.molecule) Some(false)
-    else flag match {
-      case Wildcard | SimpleVar => Some(true)
-      case OtherInputPattern(matcher1) => info.flag match {
-        case SimpleConst(c) => Some(matcher1.isDefinedAt(c))
-        case OtherInputPattern(_) => if (sha1 === info.sha1) Some(true) else None // We can reliably determine identical matchers.
-        case _ => Some(false) // Here we can reliably determine that this matcher is not weaker.
-      }
-      case SimpleConst(c) => Some(info.flag match {
-        case SimpleConst(`c`) => true
-        case _ => false
-      })
-      case _ => Some(false)
-    }
-  }
-
-  private[jc] def matcherIsWeakerThanOutput(info: OutputMoleculeInfo): Option[Boolean] = {
-    if (molecule =!= info.molecule) Some(false)
-    else flag match {
-      case Wildcard | SimpleVar => Some(true)
-      case OtherInputPattern(matcher1) => info.flag match {
-        case ConstOutputValue(c) => Some(matcher1.isDefinedAt(c))
-        case _ => None // Here we can't reliably determine whether this matcher is weaker.
-      }
-      case SimpleConst(c) => info.flag match {
-        case ConstOutputValue(`c`) => Some(true)
-        case ConstOutputValue(_) => Some(false) // definitely not the same constant
-        case _ => None // Otherwise, it could be this constant but we can't determine.
-      }
-      case _ => Some(false)
-    }
-  }
-
-  // Here "similar" means either it's definitely weaker or it could be weaker (but it is definitely not stronger).
-  private[jc] def matcherIsSimilarToOutput(info: OutputMoleculeInfo): Option[Boolean] = {
-    if (molecule =!= info.molecule) Some(false)
-    else flag match {
-      case Wildcard | SimpleVar => Some(true)
-      case OtherInputPattern(matcher1) => info.flag match {
-        case ConstOutputValue(c) => Some(matcher1.isDefinedAt(c))
-        case _ => Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
-      }
-      case SimpleConst(c) => Some(info.flag match {
-        case ConstOutputValue(`c`) => true
-        case ConstOutputValue(_) => false // definitely not the same constant
-        case _ => true // Otherwise, it could be this constant.
-      })
-      case UnknownInputPattern => Some(true) // pattern unknown - could be weaker.
-    }
-  }
-
-  override def toString: String = {
-    val printedPattern = flag match {
-      case Wildcard => "_"
-      case SimpleVar => "."
-      case SimpleConst(c) => c.toString
-      case OtherInputPattern(_) => s"<${sha1.substring(0, 4)}...>"
-      case UnknownInputPattern => s"?"
-    }
-
-    s"$molecule($printedPattern)"
-  }
-
-}
-
-/** Compile-time information about an output molecule pattern in a reaction.
-  * This class is immutable.
-  *
-  * @param molecule The molecule emitter value that represents the output molecule.
-  * @param flag     Type of the output pattern: either a constant value or other value.
-  */
-final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType) {
-  override def toString: String = {
-    val printedPattern = flag match {
-      case ConstOutputValue(()) => ""
-      case ConstOutputValue(c) => c.toString
-      case OtherOutputPattern => "?"
-    }
-
-    s"$molecule($printedPattern)"
-  }
-}
-
-// This class is immutable.
-final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) {
-
-  // The input pattern sequence is pre-sorted for further use.
-  private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
-    // wildcard and simplevars are sorted together; more specific matchers must precede less specific matchers
-    val patternPrecedence = flag match {
-      case Wildcard | SimpleVar => 3
-      case OtherInputPattern(_) => 2
-      case SimpleConst(_) => 1
-      case _ => 0
-    }
-    (mol.toString, patternPrecedence, sha)
-  }
-
-  override val toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")}${hasGuard match {
-    case GuardAbsent => ""
-    case GuardPresent => " if(...)"
-    case GuardPresenceUnknown => " ?"
-  }} => ${outputs match {
-    case Some(outputMoleculeInfos) => outputMoleculeInfos.map(_.toString).mkString(" + ")
-    case None => "?"
-  }}"
-}
-
 /**
   * Convenience syntax: users can write a(x)+b(y) in reaction patterns.
   * Pattern-matching can be extended to molecule values as well, for example
@@ -174,52 +18,14 @@ object + {
   def unapply(attr:Any): Option[(Any, Any)] = Some((attr,attr))
 }
 
-/** Represents a reaction body. This class is immutable.
-  *
-  * @param body Partial function of type {{{ UnapplyArg => Unit }}}
-  * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
-  * @param retry Whether the reaction should be run again when an exception occurs in its body. Default is false.
-  */
-final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Option[Pool] = None, retry: Boolean) {
-
-  /** Convenience method to specify thread pools per reaction.
-    *
-    * Example: go { case a(x) => ... } onThreads threadPool24
-    *
-    * @param newThreadPool A custom thread pool on which this reaction will be scheduled.
-    * @return New reaction value with the thread pool set.
-    */
-  def onThreads(newThreadPool: Pool): Reaction = Reaction(info, body, Some(newThreadPool), retry)
-
-  /** Convenience method to specify the "retry" option for a reaction.
-    *
-    * @return New reaction value with the "retry" flag set.
-    */
-  def withRetry: Reaction = Reaction(info, body, threadPool, retry = true)
-
-  /** Convenience method to specify the "no retry" option for a reaction.
-    * (This option is the default.)
-    *
-    * @return New reaction value with the "retry" flag unset.
-    */
-  def noRetry: Reaction = Reaction(info, body, threadPool, retry = false)
-
-  // Optimization: this is used often.
-  val inputMolecules: Seq[Molecule] = info.inputs.map(_.molecule).sortBy(_.toString)
-
-  /** Convenience method for debugging.
-    *
-    * @return String representation of input molecules of the reaction.
-    */
-  override val toString: String = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${if (retry)
-    "/R" else ""}"
-}
-
 // Abstract container for molecule values.
 private[jc] sealed trait AbsMolValue[T] {
   def getValue: T
 
   override def toString: String = getValue match { case () => ""; case v@_ => v.asInstanceOf[T].toString }
+
+  def replyWasNotSentDueToError: Boolean = false
+  def replyWasSentRepeatedly: Boolean = false
 }
 
 /** Container for the value of a non-blocking molecule.
@@ -240,6 +46,10 @@ private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
   */
 private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: AbsReplyValue[T,R]) extends AbsMolValue[T] with PersistentHashCode {
   override def getValue: T = v
+
+  override def replyWasNotSentDueToError: Boolean = replyValue.result.isEmpty && !replyValue.replyTimedOut
+
+  override def replyWasSentRepeatedly: Boolean = replyValue.replyWasRepeated
 }
 
 /** Abstract molecule emitter class.
@@ -344,7 +154,7 @@ private[jc] trait BlockingMolecule[T, R] extends Molecule {
     * @return Non-empty option if the reply was received; None on timeout.
     */
   def timeout(duration: Duration)(v: T): Option[R] =
-    site.emitAndReplyWithTimeout[T,R](duration.toNanos, this, v, new ReplyValue[T,R](molecule = this))
+    site.emitAndAwaitReplyWithTimeout[T,R](duration.toNanos, this, v, new ReplyValue[T,R])
 
   /** Perform the unapply matching and return a generic ReplyValue.
     * The specific implementation of unapply will possibly downcast this to EmptyReplyValue.
@@ -400,10 +210,10 @@ final class E(name: String) extends M[Unit](name) {
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
 final class EB[R](name: String) extends B[Unit, R](name) {
-  def apply(): R = site.emitAndReply[Unit, R](this, (), new ReplyValue[Unit, R](molecule = this))
+  def apply(): R = site.emitAndAwaitReply[Unit, R](this, (), new ReplyValue[Unit, R])
 
   def timeout(duration: Duration)(): Option[R] =
-    site.emitAndReplyWithTimeout[Unit, R](duration.toNanos, this, (), new ReplyValue[Unit, R](molecule = this))
+    site.emitAndAwaitReplyWithTimeout[Unit, R](duration.toNanos, this, (), new ReplyValue[Unit, R])
 }
 
 /** Specialized class for blocking molecule emitters with non-empty value and empty reply.
@@ -419,10 +229,10 @@ final class BE[T](name: String) extends B[T, Unit](name) {
 
   override type Reply = EmptyReplyValue[T]
 
-  override def apply(v: T): Unit = site.emitAndReply[T, Unit](this, v, new EmptyReplyValue[T](molecule = this))
+  override def apply(v: T): Unit = site.emitAndAwaitReply[T, Unit](this, v, new EmptyReplyValue[T])
 
   override def timeout(duration: Duration)(v: T): Option[Unit] =
-    site.emitAndReplyWithTimeout[T, Unit](duration.toNanos, this, v, new EmptyReplyValue[T](molecule = this))
+    site.emitAndAwaitReplyWithTimeout[T, Unit](duration.toNanos, this, v, new EmptyReplyValue[T])
 
   override def unapply(arg: UnapplyArg): Option[(T, EmptyReplyValue[T])] = unapplyInternal(arg)
 }
@@ -440,10 +250,10 @@ final class EE(name: String) extends B[Unit, Unit](name) {
 
   type Reply = EmptyReplyValue[Unit]
 
-  def apply(): Unit = site.emitAndReply[Unit, Unit](this, (), new EmptyReplyValue[Unit](molecule = this))
+  def apply(): Unit = site.emitAndAwaitReply[Unit, Unit](this, (), new EmptyReplyValue[Unit])
 
   def timeout(duration: Duration)(): Option[Unit] =
-    site.emitAndReplyWithTimeout[Unit, Unit](duration.toNanos, this, (), new EmptyReplyValue[Unit](molecule = this))
+    site.emitAndAwaitReplyWithTimeout[Unit, Unit](duration.toNanos, this, (), new EmptyReplyValue[Unit])
 
   override def unapply(arg: UnapplyArg): Option[(Unit, EmptyReplyValue[Unit])] = unapplyInternal(arg)
 }
@@ -498,9 +308,9 @@ private[jc] trait AbsReplyValue[T, R] {
 
   @volatile var errorMessage: Option[String] = None
 
-  @volatile var replyTimeout: Boolean = false
+  @volatile var replyTimedOut: Boolean = false
 
-  @volatile var replyRepeated: Boolean = false
+  @volatile var replyWasRepeated: Boolean = false
 
   private[jc] def releaseSemaphore(): Unit = synchronized {
     if (Option(semaphore).isDefined) semaphore.release()
@@ -518,41 +328,47 @@ private[jc] trait AbsReplyValue[T, R] {
       }
     else false
 
-  protected def applyInternal(x: R): Boolean = synchronized {
+  /** Perform the reply action for a blocking molecule.
+    * This is called by a reaction that consumed the blocking molecule.
+    * The reply value will be received by the process that emitted the blocking molecule, and will unblock that process.
+    * The reply value will not be received if the emitting process timed out on the blocking call, or if the reply was already made (then it is an error to reply again).
+    *
+    * @param x Value to reply with.
+    * @return {{{true}}} if the reply was received normally, {{{false}}} if it was not received due to one of the above conditions.
+    */
+  protected def performReplyAction(x: R): Boolean = synchronized {
     // The reply value will be assigned only if there was no timeout and no previous reply action.
-    if (!replyTimeout && !replyRepeated && result.isEmpty) {
+    if (!replyTimedOut && !replyWasRepeated && result.isEmpty) {
       result = Some(x)
-    } else if (!replyTimeout && result.nonEmpty) {
-      replyRepeated = true
+    } else if (!replyTimedOut && result.nonEmpty) {
+      replyWasRepeated = true
     }
 
     releaseSemaphore()
 
-    !replyTimeout && !replyRepeated
+    !replyTimedOut && !replyWasRepeated
   }
 }
 
 /** Specialized reply-value wrapper for blocking molecules with Unit reply values. This is a mutable class.
   *
-  * @param molecule The blocking molecule whose reply value this wrapper represents.
   * @tparam T Type of the value carried by the molecule.
   */
-private[jc] class EmptyReplyValue[T](molecule: BlockingMolecule[T, Unit]) extends ReplyValue[T, Unit](molecule) with (()=>Boolean) {
+private[jc] class EmptyReplyValue[T] extends ReplyValue[T, Unit] with (()=>Boolean) {
   /** Perform a reply action for blocking molecules with Unit reply values. The reply action can use the syntax `r()` without deprecation warnings.
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
     *
     * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
     */
-  override def apply(): Boolean = applyInternal(())
+  override def apply(): Boolean = performReplyAction(())
 }
 
 /** Reply-value wrapper for blocking molecules. This is a mutable class.
   *
-  * @param molecule The blocking molecule whose reply value this wrapper represents.
   * @tparam T Type of the value carried by the molecule.
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
-private[jc] class ReplyValue[T, R](molecule: BlockingMolecule[T, R]) extends (R => Boolean) with AbsReplyValue[T, R] {
+private[jc] class ReplyValue[T, R] extends (R => Boolean) with AbsReplyValue[T, R] {
 
   /** Perform a reply action for a blocking molecule.
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
@@ -560,7 +376,7 @@ private[jc] class ReplyValue[T, R](molecule: BlockingMolecule[T, R]) extends (R 
     * @param x Value to reply with.
     * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
     */
-  def apply(x: R): Boolean = applyInternal(x)
+  def apply(x: R): Boolean = performReplyAction(x)
 }
 
 /** Blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -579,12 +395,12 @@ class B[T, R](val name: String) extends (T => R) with BlockingMolecule[T, R] {
     * @return The "reply" value.
     */
   def apply(v: T): R =
-    site.emitAndReply[T,R](this, v, new ReplyValue[T,R](molecule = this))
+    site.emitAndAwaitReply[T,R](this, v, new ReplyValue[T,R])
 
   def unapply(arg: UnapplyArg): Option[(T, Reply)] = unapplyInternal(arg)
 }
 
-private[jc] sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
+sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
 private[jc] final case class UnapplyCheckSimple(inputMolecules: mutable.MutableList[Molecule]) extends UnapplyArg // used only for `_go` and in tests
 private[jc] final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg // used for checking that reaction values pass the pattern-matching, before running the reaction
 private[jc] final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg // used for running the reaction
