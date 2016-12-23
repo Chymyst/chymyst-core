@@ -105,7 +105,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // Running the reaction body produced an exception that is internal to JoinRun.
         // We should not try to recover from this; it is most either an error on user's part
         // or a bug in JoinRun.
-        reportError(s"In $this: Reaction {${reaction.info}} produced an exception that is internal to JoinRun. Input molecules ${moleculeBagToString(usedInputs)} were not emitted again. Message: ${e.getMessage}")
+        reportError(s"In $this: Reaction {${reaction.info}} produced an exception that is internal to JoinRun. Input molecules [${moleculeBagToString(usedInputs)}] were not emitted again. Message: ${e.getMessage}")
         // Let's not print it, and let's not throw it again, since it's our internal exception.
         //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
         //        throw e
@@ -120,7 +120,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         }
         else (ReactionExitFailure, "were consumed and not emitted again")
 
-        reportError(s"In $this: Reaction {${reaction.info}} produced an exception. Input molecules ${moleculeBagToString(usedInputs)} $aboutMolecules. Message: ${e.getMessage}")
+        reportError(s"In $this: Reaction {${reaction.info}} produced an exception. Input molecules [${moleculeBagToString(usedInputs)}] $aboutMolecules. Message: ${e.getMessage}")
         //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message. Let's not print this.
         status
     }
@@ -132,16 +132,16 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // Compute error messages here in case we will need them later.
     val blockingMoleculesWithNoReply = nonemptyOpt(usedInputs
-      .filter { case (_, BlockingMolValue(_, replyValue)) => replyValue.result.isEmpty && !replyValue.replyTimeout; case _ => false }
+      .filter(_._2.replyWasNotSentDueToError)
       .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
 
-    val messageNoReply = blockingMoleculesWithNoReply map { s => s"Error: In $this: Reaction {${reaction.info}} with inputs ${moleculeBagToString(usedInputs)} finished without replying to $s" }
+    val messageNoReply = blockingMoleculesWithNoReply map { s => s"Error: In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] finished without replying to $s" }
 
     val blockingMoleculesWithMultipleReply = nonemptyOpt(usedInputs
-      .filter { case (_, BlockingMolValue(_, replyValue)) => replyValue.replyRepeated; case _ => false }
+      .filter(_._2.replyWasSentRepeatedly)
       .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
 
-    val messageMultipleReply = blockingMoleculesWithMultipleReply map { s => s"Error: In $this: Reaction {${reaction.info}} with inputs ${moleculeBagToString(usedInputs)} replied to $s more than once" }
+    val messageMultipleReply = blockingMoleculesWithMultipleReply map { s => s"Error: In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] replied to $s more than once" }
 
     // We will report all errors to each blocking molecule.
     // However, if the reaction failed with retry, we don't yet need to release semaphores and don't need to report errors due to missing reply.
@@ -229,7 +229,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       case Some(reaction) =>
         // A basic check that we are using our mutable structures safely. We should never see this error.
         if (!reaction.inputMolecules.toSet.equals(usedInputs.keySet)) {
-          val message = s"Internal error: In $this: attempt to start reaction {${reaction.info}} with incorrect inputs ${moleculeBagToString(usedInputs)}"
+          val message = s"Internal error: In $this: attempt to start reaction {${reaction.info}} with incorrect inputs [${moleculeBagToString(usedInputs)}]"
           throw new ExceptionWrongInputs(message)
         }
         // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
@@ -237,12 +237,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         if (poolForReaction.isInactive)
           throw new ExceptionNoReactionPool(s"In $this: cannot run reaction {${reaction.info}} since reaction pool is not active")
         else if (!Thread.currentThread().isInterrupted)
-          if (logLevel > 1) println(s"Debug: In $this: starting reaction {${reaction.info}} on thread pool $poolForReaction while on thread pool $sitePool with inputs ${moleculeBagToString(usedInputs)}")
+          if (logLevel > 1) println(s"Debug: In $this: starting reaction {${reaction.info}} on thread pool $poolForReaction while on thread pool $sitePool with inputs [${moleculeBagToString(usedInputs)}]")
         if (logLevel > 2) println(
           if (moleculesPresent.isEmpty)
             s"Debug: In $this: no molecules remaining"
           else
-            s"Debug: In $this: remaining molecules ${moleculeBagToString(moleculesPresent)}"
+            s"Debug: In $this: remaining molecules [${moleculeBagToString(moleculesPresent)}]"
         )
           // Schedule the reaction now. Provide reaction info to the thread.
           poolForReaction.runClosure(buildReactionClosure(reaction, usedInputs), reaction.info)
@@ -284,14 +284,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def removeBlockingMolecule[T,R](bm: BlockingMolecule[T,R], blockingMolValue: BlockingMolValue[T,R], hadTimeout: Boolean): Unit = {
     moleculesPresent.synchronized {
       moleculesPresent.removeFromBag(bm, blockingMolValue)
-      if (logLevel > 0) println(s"Debug: $this removed $bm($blockingMolValue) on thread pool $sitePool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+      if (logLevel > 0) println(s"Debug: $this removed $bm($blockingMolValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]")
     }
     blockingMolValue.synchronized {
-      blockingMolValue.replyValue.replyTimeout = hadTimeout
+      blockingMolValue.replyValue.replyTimedOut = hadTimeout
     }
   }
 
-  private def emitAndReplyInternal[T,R](timeoutOpt: Option[Long], bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): Boolean = {
+  private def emitAndAwaitReplyInternal[T,R](timeoutOpt: Option[Long], bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): Boolean = {
     val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
     emit(bm, blockingMolValue)
     val success =
@@ -307,8 +307,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
   // We must make this a blocking call, so we acquire a semaphore (with or without timeout).
-  private[jc] def emitAndReply[T,R](bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): R = {
-    emitAndReplyInternal(timeoutOpt = None, bm, v, replyValueWrapper)
+  private[jc] def emitAndAwaitReply[T,R](bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): R = {
+    emitAndAwaitReplyInternal(timeoutOpt = None, bm, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value
     replyValueWrapper.errorMessage match {
       case Some(message) => throw new Exception(message)
@@ -320,9 +320,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   // This is a separate method because it has a different return type than emitAndReply.
-  private[jc] def emitAndReplyWithTimeout[T,R](timeout: Long, m: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]):
+  private[jc] def emitAndAwaitReplyWithTimeout[T,R](timeout: Long, m: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]):
   Option[R] = {
-    val haveReply = emitAndReplyInternal(timeoutOpt = Some(timeout), m, v, replyValueWrapper)
+    val haveReply = emitAndAwaitReplyInternal(timeoutOpt = Some(timeout), m, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value
     replyValueWrapper.errorMessage match {
       case Some(message) => throw new Exception(message)
