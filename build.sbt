@@ -38,7 +38,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     "-Ywarn-dead-code", // N.B. doesn't work well with the ??? hole
     "-Ywarn-numeric-widen",
     "-Ywarn-value-discard",
-    // "-Xfuture", // Makes Benchmarks code fail
+     "-Xfuture",
     "-Ywarn-unused-import" // 2.11 only
   )
 )

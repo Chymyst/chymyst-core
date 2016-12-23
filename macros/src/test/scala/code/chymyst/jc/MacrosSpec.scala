@@ -25,13 +25,19 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "macros for defining new molecule emitters"
 
-  it should "compute invocation names for molecule emitters" in {
-    val a = m[Int]
+  it should "compute correct names and classes for molecule emitters" in {
+    val a = m[Option[(Int,Int,Map[String,Boolean])]] // complicated type
 
+    a.isInstanceOf[M[_]] shouldEqual true
+    a.isInstanceOf[E] shouldEqual false
     a.toString shouldEqual "a"
 
     val s = b[Map[(Boolean, Unit), Seq[Int]], Option[List[(Int, Option[Map[Int, String]])]]] // complicated type
 
+    s.isInstanceOf[B[_,_]] shouldEqual true
+    s.isInstanceOf[EB[_]] shouldEqual false
+    s.isInstanceOf[BE[_]] shouldEqual false
+    s.isInstanceOf[EE] shouldEqual false
     s.toString shouldEqual "s/B"
   }
 
