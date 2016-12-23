@@ -272,6 +272,86 @@ This feature of the chemical machine allows us to create a library of reactions 
 Also, because of this rule, different reaction sites do not contend on input molecules.
 The decisions about which reactions to start are local to each RS.
 
+
+# Debugging the flow of reactions
+
+It is sometimes not easy to make sure that the reactions are correctly designed.
+The library offers some debugging facilities:
+
+- each molecule is named
+- a macro is available to assign names automatically
+- the user can set a log level on each reaction site
+ 
+ Here are the typical results:
+
+```scala
+import code.chymyst.jc._
+
+val counter = b[Int] // the name of this molecule is "counter"
+val decr = b[Unit] // the name is "decr"
+val get = b[Unit,Int] // the name is "get"
+
+site (
+  go { case counter(n) + decr(_) if n > 0 => counter(n-1) },
+  go { case counter(n) + get(_, res) => res(n) + counter(n) }
+)
+
+counter(5)
+
+/* Let's start debugging... */
+counter.setLogLevel(2)
+
+/* Each molecule is automatically named: */
+counter.toString // returns the string "counter"
+
+decr() + decr() + decr()
+/* This prints:
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(5), decr()
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules decr()
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.chymyst.jc.ReactionPool@57efee08 while on thread pool code.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(5)
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules decr() * 2
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.chymyst.jc.SitePool@36ce2e5d with thread id 547
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(4) on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(4), decr() * 2
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.chymyst.jc.ReactionPool@57efee08 while on thread pool code.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(4)
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.chymyst.jc.SitePool@36ce2e5d with thread id 548
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(3) on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(3), decr()
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.chymyst.jc.ReactionPool@57efee08 while on thread pool code.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(3)
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.chymyst.jc.SitePool@36ce2e5d with thread id 549
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(2) on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(2)
+
+*/
+println(counter.logSoup)
+/* This prints:
+ Site{counter + decr => ...; counter + get/S => ...}
+ Molecules: counter(2)
+ */
+decr() + decr() + decr()
+/* This prints:
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(2), decr()
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.chymyst.jc.ReactionPool@57efee08 while on thread pool code.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(2)
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules decr()
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting decr() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules decr() * 2
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.chymyst.jc.SitePool@36ce2e5d with thread id 613
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(1) on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(1), decr() * 2
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + decr => ...} on thread pool code.chymyst.jc.ReactionPool@57efee08 while on thread pool code.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(1)
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + decr => ...} started on thread pool code.chymyst.jc.SitePool@36ce2e5d with thread id 548
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(0) on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(0), decr()
+*/
+println(counter.logSoup)
+/* This prints:
+ Site{counter + decr => ...; counter + get/S => ...}
+ Molecules: counter(0), decr()
+ */
+
+val x = get()
+/* This results in x = 0 and prints:
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting get/S() on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(0), decr(), get/S()
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: starting reaction {counter + get/S => ...} on thread pool code.chymyst.jc.ReactionPool@57efee08 while on thread pool code.chymyst.jc.SitePool@36ce2e5d with inputs counter(0), get/S()
+Debug: In Site{counter + decr => ...; counter + get/S => ...}: reaction {counter + get/S => ...} started on thread pool code.chymyst.jc.SitePool@36ce2e5d with thread id 549
+Debug: Site{counter + decr => ...; counter + get/S => ...} emitting counter(0) on thread pool code.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(0), decr()
+*/
+```
+
 # Thread pools
 
 There are two kinds of tasks that `JoinRun` performs concurrently:
@@ -393,7 +473,7 @@ At the moment, this can happen with `scalatest` with code like this:
 
 ```scala
 val x = m[Int]
-site( go { case x(_) => } ) shouldEqual ()
+site( go { case x(_) => } ) shouldEqual (())
 
 ```
 
@@ -404,7 +484,7 @@ A workaround is to assign a separate value to the reaction site result, and appl
 ```scala
 val x = m[Int]
 val result = site( go { case x(_) => } )
-result shouldEqual ()
+result shouldEqual (())
 
 ```
 

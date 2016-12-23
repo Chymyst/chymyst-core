@@ -328,7 +328,15 @@ private[jc] trait AbsReplyValue[T, R] {
       }
     else false
 
-  protected def applyInternal(x: R): Boolean = synchronized {
+  /** Perform the reply action for a blocking molecule.
+    * This is called by a reaction that consumed the blocking molecule.
+    * The reply value will be received by the process that emitted the blocking molecule, and will unblock that process.
+    * The reply value will not be received if the emitting process timed out on the blocking call, or if the reply was already made (then it is an error to reply again).
+    *
+    * @param x Value to reply with.
+    * @return {{{true}}} if the reply was received normally, {{{false}}} if it was not received due to one of the above conditions.
+    */
+  protected def performReplyAction(x: R): Boolean = synchronized {
     // The reply value will be assigned only if there was no timeout and no previous reply action.
     if (!replyTimedOut && !replyWasRepeated && result.isEmpty) {
       result = Some(x)
@@ -352,7 +360,7 @@ private[jc] class EmptyReplyValue[T] extends ReplyValue[T, Unit] with (()=>Boole
     *
     * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
     */
-  override def apply(): Boolean = applyInternal(())
+  override def apply(): Boolean = performReplyAction(())
 }
 
 /** Reply-value wrapper for blocking molecules. This is a mutable class.
@@ -368,7 +376,7 @@ private[jc] class ReplyValue[T, R] extends (R => Boolean) with AbsReplyValue[T, 
     * @param x Value to reply with.
     * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
     */
-  def apply(x: R): Boolean = applyInternal(x)
+  def apply(x: R): Boolean = performReplyAction(x)
 }
 
 /** Blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
