@@ -500,7 +500,7 @@ result shouldEqual (())
 
 - 0.0.9 Macros for static analysis of reactions; unrestricted pattern-matching now available for molecule values.
 
-- 0.0.8 Add a timeout option for blocking molecules. Add `CachedPool` option. Tutorial text and ScalaDocs are almost finished. Minor cleanups and simplifications in the API.
+- 0.0.8 Add a timeout option for blocking molecules. Tutorial text and ScalaDocs are almost finished. Minor cleanups and simplifications in the API.
 
 - 0.0.7 Refactor into proper library structure. Add tutorial text and start adding documentation. Minor cleanups. Add `Future`/molecule interface.
 
