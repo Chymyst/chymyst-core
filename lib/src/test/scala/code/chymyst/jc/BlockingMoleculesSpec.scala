@@ -167,7 +167,22 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val thrown = intercept[Exception] {
       println(s"got result: ${g()} but should not have printed this!")
     }
-    thrown.getMessage shouldEqual "Error: In Site{c + g/B => ...}: Reaction {c + g/B => ...} finished without replying to g/B"
+    thrown.getMessage shouldEqual "Error: In Site{c + g/B => ...}: Reaction {c(?) + g/B(?) ? => ?} with inputs [c(), g/B()] finished without replying to g/B"
+  }
+
+  it should "throw exception when a reaction does not reply to one blocking molecule, with timeout" in {
+    val c = new E("c")
+    val g = new EB[Int]("g")
+    site(tp0)(
+      _go { case c(_) + g(_,r) => c() }
+    )
+    c()
+    waitSome()
+
+    val thrown = intercept[Exception] {
+      println(s"got result: ${g.timeout(1 second)()} but should not have printed this!")
+    }
+    thrown.getMessage shouldEqual "Error: In Site{c + g/B => ...}: Reaction {c(?) + g/B(?) ? => ?} with inputs [c(), g/B()] finished without replying to g/B"
   }
 
   it should "throw exception when a reaction does not reply to two blocking molecules)" in {
@@ -186,7 +201,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val thrown = intercept[Exception] {
       println(s"got result2: ${g()} but should not have printed this!")
     }
-    thrown.getMessage shouldEqual "Error: In Site{c + g/B + g2/B => ...; d => ...}: Reaction {c + g/B + g2/B => ...} finished without replying to g/B, g2/B"
+    thrown.getMessage shouldEqual "Error: In Site{c + g/B + g2/B => ...; d => ...}: Reaction {c(?) + g/B(?) + g2/B(?) ? => ?} with inputs [c(), g/B(), g2/B()] finished without replying to g/B, g2/B"
 
     tp.shutdownNow()
   }
@@ -207,7 +222,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val thrown = intercept[Exception] {
       println(s"got result2: ${g2()} but should not have printed this!")
     }
-    thrown.getMessage shouldEqual "Error: In Site{c + g/B + g2/B => ...; d => ...}: Reaction {c + g/B + g2/B => ...} finished without replying to g2/B"
+    thrown.getMessage shouldEqual "Error: In Site{c + g/B + g2/B => ...; d => ...}: Reaction {c(?) + g/B(?) + g2/B(?) ? => ?} with inputs [c(), g/B(), g2/B()] finished without replying to g2/B"
 
     tp.shutdownNow()
   }
@@ -337,20 +352,6 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
-  it should "block the cached threadpool when one thread is sleeping with Thread.sleep" in {
-    withPool(new CachedPool(1)){ tp =>
-      val (g, g2) = makeBlockingCheck(Thread.sleep(500), tp)
-      g2.timeout(150 millis)() shouldEqual None // this should be blocked
-    }
-  }
-
-  it should "block the cached threadpool with BlockingIdle(Thread.sleep)" in {
-    withPool(new CachedPool(1)) { tp =>
-      val (g, g2) = makeBlockingCheck(BlockingIdle {Thread.sleep(500)}, tp)
-      g2.timeout(150 millis)() shouldEqual None // this should be blocked
-    }
-  }
-
   it should "not block the smart threadpool with BlockingIdle(Thread.sleep)" in {
     val tp = new SmartPool(1)
     val (g, g2) = makeBlockingCheck(BlockingIdle{Thread.sleep(500)}, tp)
@@ -407,20 +408,6 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
       val g = blockThreadsDueToBlockingMolecule(tp)
       g.timeout(200 millis)() shouldEqual Some(())
     }
-  }
-
-  it should "block the cached threadpool when all threads are waiting for new reactions" in {
-    val tp = new CachedPool(2)
-    val g = blockThreadsDueToBlockingMolecule(tp)
-    g.timeout(100 millis)() shouldEqual None
-    tp.shutdownNow()
-  }
-
-  it should "not block the cached threadpool when more threads are available" in {
-    val tp = new CachedPool(3)
-    val g = blockThreadsDueToBlockingMolecule(tp)
-    g.timeout(200 millis)() shouldEqual Some(())
-    tp.shutdownNow()
   }
 
   it should "not block the smart threadpool when all threads are waiting for new reactions" in {
