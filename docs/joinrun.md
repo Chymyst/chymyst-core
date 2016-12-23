@@ -490,9 +490,13 @@ result shouldEqual (())
 
 # Version history
 
-- 0.1.3 Major changes in the API ("site", "go" instead of "join", "run") and in the terminology used in the tutorial and in the code: we now use the chemical machine paradigm more consequently, and avoid using the vague term "join". The build system now checks test code coverage (currently at 96%) and uses Scala "wartremover" plugin to check for more possible errors.
+- 0.1.4 Simplify API: now users need only one package import. Many more tutorial examples of chemical machine concurrency. Test code coverage is 97%. More compiler warnings enabled (including deprecation warnings). There are now more intelligent "whitebox" macros that generate different subclasses of `M[T]` and `B[T,R]` when `T` or `R` are the `Unit` type, to avoid deprecation warnings with the syntax `f()`.
 
-- 0.1.2 Bug fixes for singletons and for blocking molecules; benchmarks of blocking molecules.
+- 0.1.3 Major changes in the API ("site", "go" instead of "join", "run") and in the terminology used in the tutorial and in the code: we now use the chemical machine paradigm more consequently, and avoid using the vague term "join". The build system now uses the "wartremover" SBT plugin to check for more possible errors. Test code coverage is at 96%.
+
+- 0.1.2 Bug fixes for singletons and for blocking molecules. Documentation revised with help of Philippe Derome. Started to track test code coverage (currently at 95%). New PR builds will not pass if code coverage decreases.
+
+- 0.1.1 Bug fixes for blocking replies; new benchmarks for blocking molecules.
 
 - 0.1.0 First alpha release of `JoinRun`. Changes: implementing singleton molecules and volatile readers; several important bugfixes.
 
