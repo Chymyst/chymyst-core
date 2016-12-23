@@ -207,10 +207,12 @@ begin1() + begin2() // emit both molecules to enable starting the two reactions
 
 At this point, the molecules `barrier1` and `barrier2` are not yet consumed by any reactions.
 We now need to define some reaction that consumes these molecules.
-It is clear that what we need is a reaction that exchanges the values these two molecules carry:
+It is clear that what we need is a reaction that exchanges the values these two molecules carry.
+The easiest solution is to just let these two molecules react with each other.
+The reaction will then reply to both of them, passing the values as required. 
 
 ```scala
-go { case barrier1(x1, r1) + barrier2(x2, r2) => r1(x2); r2(x1) }
+go { case barrier1(x1, reply1) + barrier2(x2, reply2) => reply1(x2); reply2(x1) }
 
 ```
 
@@ -234,9 +236,11 @@ site(
     val y2 = barrier2(x2) // receive value from Process 2
     val z = further_computation_2(y2)
    },
-   go { case barrier1(x1, r1) + barrier2(x2, r2) => r1(x2); r2(x1) }
+   go { case barrier1(x1, reply1) + barrier2(x2, reply2) => reply1(x2); reply2(x1) }
 )
 begin1() + begin2() // emit both molecules to enable starting the two reactions
 
 ```
+
+This functionality is essentially that of `java.concurrent.Exchanger`.
 
