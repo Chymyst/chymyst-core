@@ -3,7 +3,6 @@ package code.chymyst.jc
 import Core._
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.reflect.ClassTag
 import scala.util.{Try, Success, Failure}
 
 object Chymyst {
@@ -14,7 +13,7 @@ object Chymyst {
     * @tparam T Type of value carried by the molecule and by the future.
     * @return Tuple consisting of new molecule emitter and the new future.
     */
-  def moleculeFuture[T : ClassTag](pool: Pool = defaultReactionPool): (M[T], Future[T]) = {
+  def moleculeFuture[T](pool: Pool = defaultReactionPool): (M[T], Future[T]) = {
     val f = new M[T]("future")
     val p = Promise[T]()
 
