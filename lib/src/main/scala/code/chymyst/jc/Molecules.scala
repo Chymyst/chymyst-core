@@ -584,7 +584,7 @@ class B[T, R](val name: String) extends (T => R) with BlockingMolecule[T, R] {
   def unapply(arg: UnapplyArg): Option[(T, Reply)] = unapplyInternal(arg)
 }
 
-private[jc] sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
+sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
 private[jc] final case class UnapplyCheckSimple(inputMolecules: mutable.MutableList[Molecule]) extends UnapplyArg // used only for `_go` and in tests
 private[jc] final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg // used for checking that reaction values pass the pattern-matching, before running the reaction
 private[jc] final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg // used for running the reaction
