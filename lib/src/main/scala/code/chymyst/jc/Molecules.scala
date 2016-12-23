@@ -23,6 +23,9 @@ private[jc] sealed trait AbsMolValue[T] {
   def getValue: T
 
   override def toString: String = getValue match { case () => ""; case v@_ => v.asInstanceOf[T].toString }
+
+  def replyWasNotSentDueToError: Boolean = false
+  def replyWasSentRepeatedly: Boolean = false
 }
 
 /** Container for the value of a non-blocking molecule.
@@ -43,6 +46,10 @@ private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
   */
 private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: AbsReplyValue[T,R]) extends AbsMolValue[T] with PersistentHashCode {
   override def getValue: T = v
+
+  override def replyWasNotSentDueToError: Boolean = replyValue.result.isEmpty && !replyValue.replyTimedOut
+
+  override def replyWasSentRepeatedly: Boolean = replyValue.replyWasRepeated
 }
 
 /** Abstract molecule emitter class.
@@ -147,7 +154,7 @@ private[jc] trait BlockingMolecule[T, R] extends Molecule {
     * @return Non-empty option if the reply was received; None on timeout.
     */
   def timeout(duration: Duration)(v: T): Option[R] =
-    site.emitAndReplyWithTimeout[T,R](duration.toNanos, this, v, new ReplyValue[T,R])
+    site.emitAndAwaitReplyWithTimeout[T,R](duration.toNanos, this, v, new ReplyValue[T,R])
 
   /** Perform the unapply matching and return a generic ReplyValue.
     * The specific implementation of unapply will possibly downcast this to EmptyReplyValue.
@@ -203,10 +210,10 @@ final class E(name: String) extends M[Unit](name) {
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
 final class EB[R](name: String) extends B[Unit, R](name) {
-  def apply(): R = site.emitAndReply[Unit, R](this, (), new ReplyValue[Unit, R])
+  def apply(): R = site.emitAndAwaitReply[Unit, R](this, (), new ReplyValue[Unit, R])
 
   def timeout(duration: Duration)(): Option[R] =
-    site.emitAndReplyWithTimeout[Unit, R](duration.toNanos, this, (), new ReplyValue[Unit, R])
+    site.emitAndAwaitReplyWithTimeout[Unit, R](duration.toNanos, this, (), new ReplyValue[Unit, R])
 }
 
 /** Specialized class for blocking molecule emitters with non-empty value and empty reply.
@@ -222,10 +229,10 @@ final class BE[T](name: String) extends B[T, Unit](name) {
 
   override type Reply = EmptyReplyValue[T]
 
-  override def apply(v: T): Unit = site.emitAndReply[T, Unit](this, v, new EmptyReplyValue[T])
+  override def apply(v: T): Unit = site.emitAndAwaitReply[T, Unit](this, v, new EmptyReplyValue[T])
 
   override def timeout(duration: Duration)(v: T): Option[Unit] =
-    site.emitAndReplyWithTimeout[T, Unit](duration.toNanos, this, v, new EmptyReplyValue[T])
+    site.emitAndAwaitReplyWithTimeout[T, Unit](duration.toNanos, this, v, new EmptyReplyValue[T])
 
   override def unapply(arg: UnapplyArg): Option[(T, EmptyReplyValue[T])] = unapplyInternal(arg)
 }
@@ -243,10 +250,10 @@ final class EE(name: String) extends B[Unit, Unit](name) {
 
   type Reply = EmptyReplyValue[Unit]
 
-  def apply(): Unit = site.emitAndReply[Unit, Unit](this, (), new EmptyReplyValue[Unit])
+  def apply(): Unit = site.emitAndAwaitReply[Unit, Unit](this, (), new EmptyReplyValue[Unit])
 
   def timeout(duration: Duration)(): Option[Unit] =
-    site.emitAndReplyWithTimeout[Unit, Unit](duration.toNanos, this, (), new EmptyReplyValue[Unit])
+    site.emitAndAwaitReplyWithTimeout[Unit, Unit](duration.toNanos, this, (), new EmptyReplyValue[Unit])
 
   override def unapply(arg: UnapplyArg): Option[(Unit, EmptyReplyValue[Unit])] = unapplyInternal(arg)
 }
@@ -301,9 +308,9 @@ private[jc] trait AbsReplyValue[T, R] {
 
   @volatile var errorMessage: Option[String] = None
 
-  @volatile var replyTimeout: Boolean = false
+  @volatile var replyTimedOut: Boolean = false
 
-  @volatile var replyRepeated: Boolean = false
+  @volatile var replyWasRepeated: Boolean = false
 
   private[jc] def releaseSemaphore(): Unit = synchronized {
     if (Option(semaphore).isDefined) semaphore.release()
@@ -323,15 +330,15 @@ private[jc] trait AbsReplyValue[T, R] {
 
   protected def applyInternal(x: R): Boolean = synchronized {
     // The reply value will be assigned only if there was no timeout and no previous reply action.
-    if (!replyTimeout && !replyRepeated && result.isEmpty) {
+    if (!replyTimedOut && !replyWasRepeated && result.isEmpty) {
       result = Some(x)
-    } else if (!replyTimeout && result.nonEmpty) {
-      replyRepeated = true
+    } else if (!replyTimedOut && result.nonEmpty) {
+      replyWasRepeated = true
     }
 
     releaseSemaphore()
 
-    !replyTimeout && !replyRepeated
+    !replyTimedOut && !replyWasRepeated
   }
 }
 
@@ -380,7 +387,7 @@ class B[T, R](val name: String) extends (T => R) with BlockingMolecule[T, R] {
     * @return The "reply" value.
     */
   def apply(v: T): R =
-    site.emitAndReply[T,R](this, v, new ReplyValue[T,R])
+    site.emitAndAwaitReply[T,R](this, v, new ReplyValue[T,R])
 
   def unapply(arg: UnapplyArg): Option[(T, Reply)] = unapplyInternal(arg)
 }
