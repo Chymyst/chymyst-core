@@ -76,11 +76,11 @@ class AsyName[Arg](implicit owner: Join, argT:ClassTag[Arg]) extends NameBase{
   def apply(a:Arg) :Unit = {
     new Thread {
       synchronized {
-      }
-      if (argQ.contains(a)) {
-        argQ += a
-      } else {
-        owner.trymatch(AsyName.this, a) // see if the new message will trigger any pattern
+        if (argQ.contains(a)) {
+          argQ += a
+        } else {
+          owner.trymatch(AsyName.this, a) // see if the new message will trigger any pattern
+        }
       }
     }
     ()
@@ -213,10 +213,10 @@ class SynName[Arg, R](implicit owner: Join, argT:ClassTag[Arg], resT:ClassTag[R]
   def reply(r:R):Unit = {
     new Thread {
       resultQ.synchronized {
+        //    println("reply "+r)
+        resultQ.enqueue((msgTags.pop, r))
+        resultQ.notifyAll()
       }
-      //    println("reply "+r)
-      resultQ.enqueue((msgTags.pop, r))
-      resultQ.notifyAll()
     }
     ()
   }
@@ -326,7 +326,7 @@ class Join {
       }
     }catch{
       case e:MatchError => {// no pattern is matched
-        if(ch.isInstanceOf[SynName[Any, Any]]) {ch.asInstanceOf[SynName[Any,Any]].popMsgTag}
+        if(ch.isInstanceOf[SynName[_, _]]) {ch.asInstanceOf[SynName[_,_]].popMsgTag}
         ch.pendArg(arg)
       }
     }
