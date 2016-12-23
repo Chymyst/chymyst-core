@@ -344,7 +344,7 @@ private[jc] trait BlockingMolecule[T, R] extends Molecule {
     * @return Non-empty option if the reply was received; None on timeout.
     */
   def timeout(duration: Duration)(v: T): Option[R] =
-    site.emitAndReplyWithTimeout[T,R](duration.toNanos, this, v, new ReplyValue[T,R](molecule = this))
+    site.emitAndReplyWithTimeout[T,R](duration.toNanos, this, v, new ReplyValue[T,R])
 
   /** Perform the unapply matching and return a generic ReplyValue.
     * The specific implementation of unapply will possibly downcast this to EmptyReplyValue.
@@ -400,10 +400,10 @@ final class E(name: String) extends M[Unit](name) {
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
 final class EB[R](name: String) extends B[Unit, R](name) {
-  def apply(): R = site.emitAndReply[Unit, R](this, (), new ReplyValue[Unit, R](molecule = this))
+  def apply(): R = site.emitAndReply[Unit, R](this, (), new ReplyValue[Unit, R])
 
   def timeout(duration: Duration)(): Option[R] =
-    site.emitAndReplyWithTimeout[Unit, R](duration.toNanos, this, (), new ReplyValue[Unit, R](molecule = this))
+    site.emitAndReplyWithTimeout[Unit, R](duration.toNanos, this, (), new ReplyValue[Unit, R])
 }
 
 /** Specialized class for blocking molecule emitters with non-empty value and empty reply.
@@ -419,10 +419,10 @@ final class BE[T](name: String) extends B[T, Unit](name) {
 
   override type Reply = EmptyReplyValue[T]
 
-  override def apply(v: T): Unit = site.emitAndReply[T, Unit](this, v, new EmptyReplyValue[T](molecule = this))
+  override def apply(v: T): Unit = site.emitAndReply[T, Unit](this, v, new EmptyReplyValue[T])
 
   override def timeout(duration: Duration)(v: T): Option[Unit] =
-    site.emitAndReplyWithTimeout[T, Unit](duration.toNanos, this, v, new EmptyReplyValue[T](molecule = this))
+    site.emitAndReplyWithTimeout[T, Unit](duration.toNanos, this, v, new EmptyReplyValue[T])
 
   override def unapply(arg: UnapplyArg): Option[(T, EmptyReplyValue[T])] = unapplyInternal(arg)
 }
@@ -440,10 +440,10 @@ final class EE(name: String) extends B[Unit, Unit](name) {
 
   type Reply = EmptyReplyValue[Unit]
 
-  def apply(): Unit = site.emitAndReply[Unit, Unit](this, (), new EmptyReplyValue[Unit](molecule = this))
+  def apply(): Unit = site.emitAndReply[Unit, Unit](this, (), new EmptyReplyValue[Unit])
 
   def timeout(duration: Duration)(): Option[Unit] =
-    site.emitAndReplyWithTimeout[Unit, Unit](duration.toNanos, this, (), new EmptyReplyValue[Unit](molecule = this))
+    site.emitAndReplyWithTimeout[Unit, Unit](duration.toNanos, this, (), new EmptyReplyValue[Unit])
 
   override def unapply(arg: UnapplyArg): Option[(Unit, EmptyReplyValue[Unit])] = unapplyInternal(arg)
 }
@@ -534,10 +534,9 @@ private[jc] trait AbsReplyValue[T, R] {
 
 /** Specialized reply-value wrapper for blocking molecules with Unit reply values. This is a mutable class.
   *
-  * @param molecule The blocking molecule whose reply value this wrapper represents.
   * @tparam T Type of the value carried by the molecule.
   */
-private[jc] class EmptyReplyValue[T](molecule: BlockingMolecule[T, Unit]) extends ReplyValue[T, Unit](molecule) with (()=>Boolean) {
+private[jc] class EmptyReplyValue[T] extends ReplyValue[T, Unit] with (()=>Boolean) {
   /** Perform a reply action for blocking molecules with Unit reply values. The reply action can use the syntax `r()` without deprecation warnings.
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
     *
@@ -548,11 +547,10 @@ private[jc] class EmptyReplyValue[T](molecule: BlockingMolecule[T, Unit]) extend
 
 /** Reply-value wrapper for blocking molecules. This is a mutable class.
   *
-  * @param molecule The blocking molecule whose reply value this wrapper represents.
   * @tparam T Type of the value carried by the molecule.
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
-private[jc] class ReplyValue[T, R](molecule: BlockingMolecule[T, R]) extends (R => Boolean) with AbsReplyValue[T, R] {
+private[jc] class ReplyValue[T, R] extends (R => Boolean) with AbsReplyValue[T, R] {
 
   /** Perform a reply action for a blocking molecule.
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
@@ -579,7 +577,7 @@ class B[T, R](val name: String) extends (T => R) with BlockingMolecule[T, R] {
     * @return The "reply" value.
     */
   def apply(v: T): R =
-    site.emitAndReply[T,R](this, v, new ReplyValue[T,R](molecule = this))
+    site.emitAndReply[T,R](this, v, new ReplyValue[T,R])
 
   def unapply(arg: UnapplyArg): Option[(T, Reply)] = unapplyInternal(arg)
 }
