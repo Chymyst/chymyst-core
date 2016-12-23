@@ -170,6 +170,21 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     thrown.getMessage shouldEqual "Error: In Site{c + g/B => ...}: Reaction {c(?) + g/B(?) ? => ?} with inputs [c(), g/B()] finished without replying to g/B"
   }
 
+  it should "throw exception when a reaction does not reply to one blocking molecule, with timeout" in {
+    val c = new E("c")
+    val g = new EB[Int]("g")
+    site(tp0)(
+      _go { case c(_) + g(_,r) => c() }
+    )
+    c()
+    waitSome()
+
+    val thrown = intercept[Exception] {
+      println(s"got result: ${g.timeout(1 second)()} but should not have printed this!")
+    }
+    thrown.getMessage shouldEqual "Error: In Site{c + g/B => ...}: Reaction {c(?) + g/B(?) ? => ?} with inputs [c(), g/B()] finished without replying to g/B"
+  }
+
   it should "throw exception when a reaction does not reply to two blocking molecules)" in {
     val c = new E("c")
     val d = new E("d")
