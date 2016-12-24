@@ -1,21 +1,18 @@
 package code.chymyst.test
 
 import code.chymyst.jc._
-import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
-class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTests {
-
-  val timeLimit = Span(10000, Millis)
+class DiningPhilosophersSpec extends FlatSpec with Matchers {
 
   def rw(m: Molecule): Unit = {
     println(m.toString)
     Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
   }
 
-  it should "run 5 dining philosophers for 50 cycles without deadlock" in {
-    diningPhilosophers(50)
+  val cycles: Int = 50
+  it should s"run 5 dining philosophers for ${cycles} cycles without deadlock" in {
+    diningPhilosophers(cycles)
   }
 
   private def diningPhilosophers(cycles: Int) = {
@@ -61,16 +58,6 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers with TimeLimitedTest
     f12() + f23() + f34() + f45() + f51()
 
     check() shouldEqual (())
-
-    // stop the simulation: this should be in unit tests, not here
-    // not yet implemented
-/*
-    val stop = m[Unit]
-    val wait_for_stop = b[Unit,Unit]
-    site( go { case stop(_) + wait_for_stop(_,r) => r() } )
-    wait_until_quiet(t1, stop)
-    wait_for_stop()
-*/
     tp.shutdownNow()
   }
 
