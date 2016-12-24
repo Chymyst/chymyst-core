@@ -216,6 +216,10 @@ go { case barrier1(x1, reply1) + barrier2(x2, reply2) => reply1(x2); reply2(x1) 
 
 ```
 
+This reaction could be defined at its own reaction site, since it is the only reaction that will consume `barrier1` and `barrier2`.
+The same is true for the two `begin1` and `begin2` reactions.
+For the purposes of this example, we will keep them all in one reaction site.
+
 The final code looks like this:
 
 ```scala
