@@ -51,7 +51,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val result: Seq[String] = logFile.iterator().asScala.toSeq
     // now, there must be f1 and f2 (in any order) before g1 and g2 (also in any order)
     result.size shouldEqual 4
-    Set(result.head, result(1)) shouldEqual Set("f1", "f2")
+    Set(result(0), result(1)) shouldEqual Set("f1", "f2")
     Set(result(2), result(3)) shouldEqual Set("g1", "g2")
   }
 
