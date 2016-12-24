@@ -9,7 +9,7 @@ In this and following chapter, we will use the chemical machine to solve Downey'
 Our approach will be deductive: we start with the problem and reason logically about the molecules and reactions that are necessary to solve it.
 Eventually we deduce the required chemistry and implement it declaratively in `JoinRun`/`Chymyst`.
 
-## Background jobs
+## Background job
 
 A basic asynchronous task is to start a long background job and get notified when it is done.
 
@@ -116,6 +116,109 @@ never.timeout(1 second)() // this will time out in 1 seconds
 never() // this will never return
 
 ```
+
+## Waiting until `n` jobs are finished
+
+A frequently used pattern is to start `n` concurrent jobs and wait until all of them are finished.
+
+Suppose that we have started `n` jobs and each job, when done, will emit a non-blocking molecule `done()`.
+We would like to implement a blocking molecule `all_done()` that will block until `n` molecules `done()` are emitted.
+
+To begin reasoning about the necessary molecules and reactions, consider that `done()` must react with some other molecule that keeps track of how many `done()` molecules remain to be seen.
+Call this other molecule `remaining(k)` where `k` is an integer value showing how many `done()` molecules were already seen.
+The reaction should have the form `done() + remaining(k) => ...`, and it is clear that the reaction should consume `done()`, otherwise the reaction will start with it again.
+So the reaction will look like this:
+
+```scala
+val done = m[Unit]
+val remaining = m[Int]
+
+site(
+  go { done() + remaining(k) => remaining(k-1) }
+)
+
+remaining(n) // Emit the molecule with value `n`,
+// which is the initial number of remaining `done()` molecules.
+
+```
+
+Now, it remains to implement waiting until all is done.
+The blocking molecule `all_done()` should start its reaction only when we have `remaining(0)` in the soup.
+Therefore, the reaction is
+
+```scala
+val all_done = b[Unit,Unit]
+
+go { all_done(_, reply) + remaining(0) => reply() }
+
+```
+
+Since this reaction consumes `remaining`, it should be declared at the same reaction site as the `done + remaining => ...` reaction.
+
+The complete code is
+
+```scala
+val done = m[Unit]
+val remaining = m[Int]
+val all_done = b[Unit,Unit]
+
+site(
+  go { done() + remaining(k) if k>0 => remaining(k-1) }, // Adding a guard to be safe.
+  go { all_done(_, reply) + remaining(0) => reply() }
+)
+
+remaining(n) // Emit the molecule with value `n`,
+// which is the initial number of remaining `done()` molecules.
+
+```
+
+Adding a guard `if k>0` will prevent the first reaction from running once we consume the expected number of `done()` molecules.
+This allows the user to emit more `done()` molecules than expected without disrupting the logic.
+
+### Refactoring into a library
+
+Consider what is required in order to refactor this functionality into a library.
+We would like to have a library function call such as `make_all_done()` that creates the `all_done()` molecule for us.
+
+The library function will need to declare a new reaction site.
+The `done()` molecule is an input molecule at the new reaction site.
+Therefore, this molecule cannot be already defined before we use the library call.
+The call to `make_all_done()` will have to return _both_ a new `done()` molecule and a new `all_done()` molecule.
+The user of the library will then need to emit the `done()` molecule at the end of each job.
+
+Refactoring a piece of chemistry into a library call is done by declaring the same molecules and reactions as we did above,
+all within the scope of a function.
+The function should then return just the new molecule emitters that the library user will need to use, but no other molecule emitters:
+
+```scala
+def make_all_done(n: Int): (E, EE) = {
+  val done = m[Unit]
+  val remaining = m[Int]
+  val all_done = b[Unit,Unit]
+  
+  site(
+    go { done() + remaining(k) if k>0 => remaining(k-1) }, // Adding a guard to be safe.
+    go { all_done(_, reply) + remaining(0) => reply() }
+  )
+  
+  remaining(n)
+  
+  (done, all_done)
+}
+
+```
+
+Note that we declared the molecule types to be `E` and `EE`.
+These are the types created by the `m[Unit]` and `m[Unit,Unit]` macro calls.
+The class `E` is a refinement of the class `M[Unit]`, and `EE` is a refinement `M[Unit,Unit]`.
+The refinements are pure syntactic sugar: they are needed in order to permit the syntax `done()` and `all_done()` without a compiler warning about the missing `Unit` arguments.
+Without them, we would have to write `done(())` and `all_done(())`.
+
+## Waiting until `n` jobs are finished: blocking calls
+
+A variation on the same theme is to detect when `n` jobs are finished, given that each job will emit a _blocking_ molecule `done()` at the end.
+
+TODO
 
 ## Control over a shared resource (mutex, multiplex)
 
