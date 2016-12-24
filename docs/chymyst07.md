@@ -609,16 +609,20 @@ After that, all `n` waiting processes become unblocked and proceed concurrently.
 This problem is similar to the rendezvous with two participants that we considered before.
 To simplify the problem, we assume that no data is exchanged -- this is a pure synchronization task.
 
-If we try to generalize the implementation of the rendezvous from 2 participants to `n`, we notice a problem in
-the reaction that performs the rendezvous:
+Let us try to generalize the implementation of the rendezvous from 2 participants to `n`.
+Since emitters are values, we could define `n` different emitters `begin1`, ..., `begin_n`, `barrier1`, ..., `barrier_n` and so on.
+We could store these emitters in an array and also define an array of corresponding reactions.
+
+However, we notice a problem in the reaction that performs the rendezvous:
+
 ```scala
 go { case barrier1(x1, reply1) + barrier2(x2, reply2) => ... }
 
 ```
 
-Generalizing this reaction straightforwardly to `n` participants would now require `n` input molecules `barrier1`, ..., `barrier_n`.
-Since `n` is a run-time parameter while input molecules must be defined statically, we cannot generalize to `n` in this way.
+Generalizing this reaction straightforwardly to `n` participants would now require a reaction with `n` input molecules `barrier1`, ..., `barrier_n`.
+In the chemical machine, input molecules to each reaction must be defined statically.
+Since `n` is a run-time parameter, we cannot generalize to `n` in this way.
 
-TODO
 
 ### Refactoring into a library
