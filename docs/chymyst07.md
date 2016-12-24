@@ -107,6 +107,8 @@ The "rendezvous" problem is to implement two concurrent processes that perform s
 | `val y1 =` what Process 2 computed as its `x2` | | `val y2 =` what Process 1 computed as its `x1` |
 | `val z = further_computations_1(y1)` | | `val z = further_computations_2(y2)` |
 
+(This functionality is essentially that of `java.concurrent.Exchanger`.)
+
 Let us now figure out the chemistry that will solve this problem.
 
 The two processes must be reactions (since any computation that runs in the chemical machine is a reaction).
@@ -127,7 +129,7 @@ site(
   go { case begin2(_) =>
     val x2 = 456 // some computation
     ??? // send x2 to Process 1 somehow
-    val y2 = ??? // receive value from Process 2
+    val y2 = ??? // receive value from Process 1
     val z = further_computation_2(y2)
    }
 )
@@ -169,7 +171,7 @@ site(
     val x2 = 456 // some computation
     barrier2(x2)
     ??? // send x2 to Process 1 somehow
-    val y2 = ??? // receive value from Process 2
+    val y2 = ??? // receive value from Process 1
     val z = further_computation_2(y2)
    }
 )
@@ -197,7 +199,7 @@ site(
    },
   go { case begin2(_) =>
     val x2 = 456 // some computation
-    val y2 = barrier2(x2) // receive value from Process 2
+    val y2 = barrier2(x2) // receive value from Process 1
     val z = further_computation_2(y2)
    }
 )
@@ -209,7 +211,7 @@ At this point, the molecules `barrier1` and `barrier2` are not yet consumed by a
 We now need to define some reaction that consumes these molecules.
 It is clear that what we need is a reaction that exchanges the values these two molecules carry.
 The easiest solution is to just let these two molecules react with each other.
-The reaction will then reply to both of them, passing the values as required. 
+The reaction will then reply to both of them, exchanging the reply values. 
 
 ```scala
 go { case barrier1(x1, reply1) + barrier2(x2, reply2) => reply1(x2); reply2(x1) }
@@ -217,8 +219,8 @@ go { case barrier1(x1, reply1) + barrier2(x2, reply2) => reply1(x2); reply2(x1) 
 ```
 
 This reaction could be defined at its own reaction site, since it is the only reaction that will consume `barrier1` and `barrier2`.
-The same is true for the two `begin1` and `begin2` reactions.
-For the purposes of this example, we will keep them all in one reaction site.
+(The same is true for the two `begin1` and `begin2` reactions.)
+For simplicity, we will keep all reactions in one reaction site.
 
 The final code looks like this:
 
@@ -246,5 +248,5 @@ begin1() + begin2() // emit both molecules to enable starting the two reactions
 
 ```
 
-This functionality is essentially that of `java.concurrent.Exchanger`.
+Working test code for the rendezvous problem is in `Patterns01Spec.scala`.
 
