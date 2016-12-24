@@ -150,10 +150,10 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "implement barrier (rendezvous without data exchange) with n processes" in {
 
-    val n = 100 // The number of rendezvous participants needs to be known in advance, or else we don't know how long still to wait for rendezvous.
+    val n = 20 // The number of rendezvous participants needs to be known in advance, or else we don't know how long still to wait for rendezvous.
 
-    // There will be n blocked threads. We need one more thread to run the reaction site and one more thread to count down.
-    val pool = new FixedPool(n+2)
+    // There will be 2*n blocked threads. We need one more thread to run the reaction site and one more thread to count the rendezvous participants.
+    val pool = new FixedPool(2*n+2)
 
     val barrier = b[Unit,Unit]
     val counterInit = m[Unit]
@@ -169,9 +169,16 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     def g(n: Int)(): Unit = { logFile.add(s"g$n"); () }
 
     site(pool)(
-      go { case begin((f,g)) => f(); barrier(); g(); end() },
-      go { case barrier(_, replyB) + counterInit(_) => if (n > 1) counter(n-1); replyB() },
-      go { case barrier(_, replyB) + counter(k, replyC) => replyC(); if (k > 1) counter(k-1); replyB() },
+      go { case begin((f,g)) => f(); barrier(); g(); end() }, // this reaction will be run n times because we emit n molecules `begin` with various `f` and `g`
+      go { case barrier(_, replyB) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
+        counter(1) // one reaction has reached the rendezvous point
+        replyB()
+      },
+      go { case barrier(_, replyB) + counter(k, replyC) => // the `counter` molecule holds the number (k) of the reactions that have reached the rendezvous before this reaction started.
+        if (k + 1 < n) counter(k+1); else println(s"rendezvous passed by $n reactions")
+        replyC() // `replyC()` must be here. Doing `replyC()` before emitting `counter(k+1)` would have unblocked some reactions and allowed them to proceed beyond the rendezvous point without waiting for all others.
+        replyB()
+      },
       go { case end(_) + endCounter(k) => endCounter(k-1) },
       go { case endCounter(0) + done(_, r) => r()}
     )
@@ -195,8 +202,8 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     setF diff expectedSetF shouldEqual Set()
     setG diff expectedSetG shouldEqual Set()
 
-    setF shouldEqual expectedSetF
-    setG shouldEqual expectedSetG
+    expectedSetF diff setF shouldEqual Set()
+    expectedSetG diff setG shouldEqual Set()
 
     pool.shutdownNow()
   }
