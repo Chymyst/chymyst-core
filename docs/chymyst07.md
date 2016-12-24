@@ -6,7 +6,7 @@ These programs are somewhat abstract and are chosen to illustrate various patter
 Allen B. Downey's [The little book of semaphores](http://greenteapress.com/semaphores/LittleBookOfSemaphores.pdf) lists many concurrency "puzzles" that he solves in Python using semaphores.
 In this and following chapter, we will use the chemical machine to solve Downey's concurrency puzzles as well as some other problems.
 
-Our approach will be deductive: we start with the problem and reason about the molecules and reactions that are necessary to solve it.
+Our approach will be deductive: we start with the problem and reason logically about the molecules and reactions that are necessary to solve it.
 Eventually we deduce the required chemistry and implement it declaratively in `JoinRun`/`Chymyst`.
 
 ## Background jobs
@@ -29,14 +29,16 @@ A convenient implementation is to define a function that will return an emitter 
 * @return A new non-blocking molecule that will start the job
 */
 def submitJob[R](closure: Unit => R, finished: M[R]): M[R] = {
-  val startJobMolecule = new M[Unit]
+  val startJobMolecule = m[Unit]
 
-  site( go { case startJobMolecule(_) =>
-    val result = closure()
-    finished(result) }
-   )
+  site (
+    go { case startJobMolecule(_) =>
+      val result = closure()
+      finished(result) 
+    }
+  )
 
-   startJobMolecule
+  startJobMolecule // Return the new emitter.
 }
 
 ```
@@ -51,7 +53,7 @@ The `startJobMolecule` cannot have type parameters and has to accept `Any` as a 
 ```scala
 val startJobMolecule = new M[(Unit => Any, M[Any])]
 
-site(
+site (
   go {
     case startJobMolecule(closure, finished) =>
       val result = closure()
@@ -65,9 +67,9 @@ A solution to this difficulty is to create a method that is parameterized by typ
 
 ```scala
 def makeStartJobMolecule[R]: M[(Unit => R, M[R])] = {
-  val startJobMolecule = new M[(Unit => R, M[R])]
+  val startJobMolecule = m[(Unit => R, M[R])]
 
-  site(
+  site (
     go {
       case startJobMolecule(closure, finished) =>
         val result = closure()
@@ -83,30 +85,32 @@ def makeStartJobMolecule[R]: M[(Unit => R, M[R])] = {
 
 Suppose we want to implement a function `wait_forever()` that blocks indefinitely, never returning.
 
-The chemical model is that a blocking molecule `waiting_for` reacts with another, non-blocking molecule `godot`; but `godot` never appears in the soup.
+The chemical machine can block something indefinitely only when we emit a blocking molecule whose consuming reaction never starts.
+We can prevent a reaction from starting only if some input molecule for that reaction is not present in the soup.
+Therefore we wil make a blocking molecule `waiting_for` that reacts with another, non-blocking molecule `godot`; but `godot` never appears.
 
 We also need to make sure that the molecule `godot()` is never emitted into the soup.
-So we declare `godot` locally within the scope of `wait_forever`, where we'll emit nothing into the soup.
+To achieve this, we will declare `godot` locally within the scope of `wait_forever()`, where we _emit nothing_ into the soup.
 
 ```scala
-def wait_forever: B[Unit, Unit] = {
+def wait_forever(): B[Unit, Unit] = {
   val godot = m[Unit]
   val waiting_for = b[Unit, Unit]
 
-  site( go { case  waiting_for(_, r) + godot(_) => r() } )
+  site ( go { case  waiting_for(_, r) + godot(_) => r() } )
   
   // We do not emit `godot` here, which is the key to preventing this reaction from starting.
   
-  waiting_for
+  waiting_for // Return the emitter.
 }
 
 ```
 
-The function `wait_forever` will create and return a new blocking molecule emitter that, when called, will block forever, never returning any value.
+The function `wait_forever()` will create and return a new blocking molecule emitter that, when called, will block forever, never returning any value.
 Here is example usage:
 
 ```scala
-val never = wait_forever // Declare a new blocking molecule of type B[Unit, Unit].
+val never = wait_forever() // Declare a new blocking emitter of type B[Unit, Unit].
 
 never.timeout(1 second)() // this will time out in 1 seconds
 never() // this will never return
@@ -158,7 +162,7 @@ We should also emit the `access()` molecule back into the soup, so that another 
 After these considerations, the worker reaction becomes
 
 ```scala
-site(
+site (
   go { case access(_) + request(_, reply) => reply(doWork()); access() }
 )
 access() // Emit just one copy of `access`.
@@ -185,7 +189,7 @@ def wrapWithAccess[T](allowed: Int, doWork: () => T): () => T = {
   val access = m[Unit]
   val request = b[Unit, T]
 
-  site(
+  site (
     go { case access(_) + request(_, reply) => reply(doWork()); access() }
   )
 
@@ -194,7 +198,6 @@ def wrapWithAccess[T](allowed: Int, doWork: () => T): () => T = {
   result
 }
 // Example usage:
-
 val doWorkWithTwoAccesses = wrapWithAccess(2, () => println("do work"))
 // Now `doWork()` will be called by at most 2 processes at a time.
 
@@ -203,10 +206,246 @@ doWorkWithTwoAccesses()
 
 ```
 
-## Critical section, or `synchronized`
+### Providing access tokens
 
+It is often needed to regulate access to resource _R_ by tokens.
+We will now suppose that `doWork()` requires a token, and that we only have a limited set of tokens.
+Therefore, we need to make sure that
 
+- each process that wants to call `doWork()` receives a token from the token set;
+- if all tokens are taken, calls to `doWork()` by other processes are blocked until more tokens become available.
 
+To implement this, we can use the `n`-access restriction on the worker reaction.
+We just need to make sure that every worker reaction receives a token that enables it to `doWork()`, and that it returns the token when the access is no longer needed. 
+
+Since the worker reaction already consumes the `access()` molecule, it is clear that we can easily pass the token as the value carried by `access()`.
+We just need to change the type of `access` from `M[Unit]` to `M[TokenType]`, where `TokenType` is the type of the value that we need (which could be a string, a thread, a resource handle, etc.). 
+
+Here is the modified code:
+
+```scala
+def wrapWithAccessTokens[T, TokenType](tokens: Set[TokenType], doWork: TokenType => T): () => T = {
+  val access = m[TokenType]
+  val request = b[Unit, T]
+
+  site (
+    go { case access(token) + request(_, reply) => reply(doWork(token)); access(token) }
+  )
+
+  tokens.foreach(access) // Emit `tokens.size` copies of `access(...)`, putting a token on each molecule.
+  val result: () => T = () => request()
+  result
+}
+// Example usage:
+val doWorkWithTwoAccesses = wrapWithAccessTokens(Set("token1", "token2"), t => println(s"do work with token $t"))
+// Now `doWork()` will be called by at most 2 processes at a time.
+
+// ... start a new process, in which:
+doWorkWithTwoAccesses()
+
+```
+
+When concurrent processes emit `request()` molecules, only at most `n` processes will actually do work on the resource at any one time.
+Each process will be assigned a token out of the available set of tokens.
+
+## Concurrent critical sections, or `Object.synchronized`
+
+A "critical section" is a portion of code that cannot be safely called from different processes at the same time.
+We will now implement the following requirements:
+
+- The calls `beginCritical()` and `endCritical()` can be made in any reaction, in this order.
+- The code between these two calls can be executed only by one reaction at a time, among all reactions that call these functions.
+- A reaction that calls `beginCritical()` will be blocked if another reaction already called `beginCritical()` but did not yet call `endCritical()`, and will be unblocked only when that other reaction calls `endCritical`. 
+
+This functionality is similar to `Object.synchronized`, which provides synchronized access to a block of reentrant code.
+In our case, the critical section is delimited by two function calls `beginCritical()` and `endCritical()` are separate function calls that can be made at any two points in the code -- including `if` expressions or inside closures -- which is impossible with `synchronized` blocks.
+Also, the `Object.synchronized` construction identifies the synchronized blocks by an `Object` reference: different objects will be responsible for synchronizing different blocks of reentrant code.
+What we would like to allow is _any_ code anywhere to contain any number of critical sections identified by the same `beginCritical()` call.
+We need to be able to create new, unique `beginCritical()` calls as necessary.
+
+How can we implement this functionality using the chemical machine?
+Since the only way to communicate between reactions is to emit molecules, `beginCritical()` and `endCritical()` must be molecules.
+Clearly, `beginCritical` must be blocking while `endCritical` does not have to be; so let us make `endCritical` a non-blocking molecule.
+
+What should happen when a process emits `beginCritical()`?
+We must enforce a single-process access to the critical section.
+In other words, a reaction that consumes `beginCritical()` should only start once, not concurrently.
+Therefore, this reaction must consume another molecule, say `access()`, of which we will only have a single copy emitted into the soup:
+
+```scala
+val beginCritical = b[Unit, Unit]
+val access = m[Unit]
+
+site(
+  go { case beginCritical(_, reply) + access(_) => ???; reply(); ??? }
+)
+access() // Emit only one copy.
+
+```
+
+Just as in the case of single-access resource, we have guaranteed that `beginCritical()` blocks if called more than once.
+All we need to do is insure that there is initially a single copy of `access()` in the soup, and that no further copies of `access()` are ever emitted.
+
+Another requirement is that emitting `endCritical()` must end whatever `beginCritical()` began, but only if `endCritical()` is emitted by the _same reaction_.
+If a different reaction emits `endCritical()`, access to the critical section should not be granted.
+Somehow, the `endCritical()` molecules must be different when emitted by different reactions (however, `beginCritical()` must be the same for all reactions, or else there can't be any contention between them).
+Additionally, we would like it to be impossible for any reaction to call `endCritical()` without first calling `beginCritical()`.
+
+One way of achieving this is to make `beginCritical()`, which is a blocking call, return a value that enables us to call `endCritical()`.
+For instance, `beginCritical()` could actually create a new, unique emitter for `endCritical`, and return that emitter:
+
+```scala
+val beginCritical = b[Unit, M[Unit]]
+val access = m[Unit]
+
+site (
+  go { case beginCritical(_, reply) + access(_) =>
+    val endCritical = m[Unit] // Declare a new emitter.
+    site (
+      go { case endCritical(_) => ??? }
+    )
+    reply(endCritical) // beginCritical() returns the new emitter.
+  }
+)
+access() // Emit only one copy.
+
+```
+
+Since `endCritical` and its reaction site are defined within the local scope of the reaction that consumes `beginCritical()`, each such reaction will create a _chemically_ new molecule that other reactions cannot emit.
+This will guarantee that reactions cannot end the critical section for other reactions.
+
+Also, since the `endCritical` emitter is created by `beginCritical()`, we cannot possibly call `endCritical()` before calling `beginCritical()`!
+So far, so good.
+
+It remains to make `endCritical()` do something useful when called.
+The obvious thing is to make it emit `access()`.
+The presence of `access()` in the soup will restore the ability of other reactions to enter the critical section.
+
+The code then looks like this:
+
+```scala
+val beginCritical = b[Unit, M[Unit]]
+val access = m[Unit]
+
+site (
+  go { case beginCritical(_, reply) + access(_) =>
+    val endCritical = m[Unit] // Declare a new emitter.
+    site (
+      go { case endCritical(_) => access() }
+    )
+    reply(endCritical) // beginCritical() returns the new emitter.
+  }
+)
+access() // Emit only one copy.
+
+// Example usage:
+val endCritical = beginCritical()
+
+???... // The code of the critical section.
+
+endCritical() // End of the critical section.
+
+```
+
+This implementation works but has a drawback: the user can call `endCritical()` multiple times.
+This will emit multiple `access()` molecules and break the logic of the critical section functionality.
+
+To fix this problem, let is think about how we could prevent `endCritical()` from starting its reaction after the first time it did so.
+The only way to prevent a reaction from starting is to omit an input molecule.
+Therefore, we need to introduce another molecule (say, `beganOnce`) as input into that reaction.
+The reaction will consume that molecule and never emit it again.
+
+```scala
+val beginCritical = b[Unit, M[Unit]]
+val access = m[Unit]
+
+site (
+  go { case beginCritical(_, reply) + access(_) =>
+    val endCritical = m[Unit] // Declare a new emitter.
+    val beganOnce = m[Unit]
+    site (
+      go { case endCritical(_) + beganOnce(_) => access() }
+    )
+    beganOnce() // Emit only one copy.
+    reply(endCritical) // beginCritical() returns the new emitter.
+  }
+)
+access() // Emit only one copy.
+
+// Example usage:
+val endCritical = beginCritical()
+
+???... // The code of the critical section.
+
+endCritical() // End of the critical section.
+
+endCritical() // This has no effect because `beganOnce()` is not available any more.
+
+```
+
+As before, we can easily modify this code to support multiple (but limited) concurrent entry into critical sections or token-based access. 
+
+### Refactoring into a library
+
+We would like to be able to create new, unique `beginCritical()` molecules on demand, so that we could have multiple distinct critical sections in our code.
+
+For instance, we could declare two critical sections and use them in three reactions that could run concurrently like this: 
+
+```scala
+val beginCritical1 = newCriticalSectionMarker()
+val beginCritical2 = newCriticalSectionMarker()
+
+```
+
+| Reaction 1 | |  Reaction 2 | | Reaction 3 |
+|---|---|---|---|---|
+| `beginCritical1()` | | ... | | `beginCritical2()` |
+| `beginCritical2()` | | ... | | ... |
+| (blocked by 3) | | `beginCritical1()` | | ... |
+| (starts running) | | (blocked by 1) | | `endCritical2()` |
+| ... | |  (still blocked)| | `beginCritical2()` |
+| `endCritical1()` | | (starts running) | | (blocked by 1) |
+| `endCritical2()` | | ... | | (starts running) |
+| ... | | ... | | ... |
+| ... | | `endCritical1()` | | `endCritical2()` |
+
+The result should be that we can create any number of critical sections that work independently of each other.
+
+In order to package the implementation of the critical section into a library function `newCriticalSectionMarker`, we simply declare the chemistry in the local scope of that function and return the molecule emitter:
+
+```scala
+def newCriticalSectionMarker(): B[Unit, M[Unit]] = {
+
+  val beginCritical = b[Unit, M[Unit]]
+  val access = m[Unit]
+
+  site (
+    go { case beginCritical(_, reply) + access(_) =>
+      val endCritical = m[Unit] // Declare a new emitter.
+      val beganOnce = m[Unit]
+      site (
+        go { case endCritical(_) + beganOnce(_) => access() }
+      )
+      beganOnce() // Emit only one copy.
+      reply(endCritical) // beginCritical() returns the new emitter.
+    }  
+  )
+  access() // Emit only one copy.
+
+  beginCritical // Return the new emitter.  
+}
+
+// Example usage:
+val beginCritical1 = newCriticalSectionMarker()
+
+val endCritical = beginCritical1()
+
+???... // The code of the critical section 1.
+
+endCritical() // End of the critical section.
+
+```
+ 
 ## Rendezvous, or `java.concurrent.Exchanger`
 
 The "rendezvous" problem is to implement two concurrent processes that perform some computations and wait for each other like this:
@@ -365,3 +604,7 @@ Working test code for the rendezvous problem is in `Patterns01Spec.scala`.
 
 Suppose we need a rendezvous with `n` participants: there are `n` processes (where `n` is a run-time value, not known in advance), and each process would like to wait until all other processes reach the rendezvous point.
 Ultimately we would like to refactor the code into a library, so that it is easy to use.
+
+TODO complete
+
+The test code is in `Patterns01Spec.scala`.
