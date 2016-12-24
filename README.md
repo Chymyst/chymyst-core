@@ -18,7 +18,7 @@ The initial code of `JoinRun` was based on previous work by Jiansen He (https://
 The current implementation is tested under Oracle JDK 8 with Scala 2.11 and 2.12.
 It also works with Scala 2.10 and with OpenJDK 7 (except for the new `LocalDateTime` functions used in tests, and some performance issues).
 
-# Overview of `JoinRun`
+# Overview of `JoinRun`/`Chymyst`
 
 To get started, begin with this [tutorial introduction](https://chymyst.github.io/joinrun-scala/chymyst00.html).
 

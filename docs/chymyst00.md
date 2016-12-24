@@ -26,3 +26,7 @@ The source code repository for `JoinRun` is at [https://github.com/winitzki/join
 Although this tutorial focuses on using `JoinRun`/`Chymyst` in Scala, one can similarly embed the chemical machine as a library on top of any programming language that has threads and semaphores.
 The main concepts and techniques of the chemical machine paradigm are independent of the base programming language.
 
+[![Robert Boyle's self-flowing flask](Boyle_Self-Flowing_Flask.png)](https://en.wikipedia.org/wiki/Robert_Boyle#/media/File:Boyle%27sSelfFlowingFlask.png)
+
+This drawing is by [Robert Boyle](https://en.wikipedia.org/wiki/Robert_Boyle), one of the founders of the science of chemistry.
+In 1661 he published a treatise titled [The Sceptical Chymyst](https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Sceptical_chymist_1661_Boyle_Title_page_AQ18_%283%29.jpg/220px-Sceptical_chymist_1661_Boyle_Title_page_AQ18_%283%29.jpg), from which the `Chymyst` framework borrows its name.
