@@ -29,7 +29,7 @@ A convenient implementation is to define a function that will return an emitter 
 * @return A new non-blocking molecule that will start the job
 */
 def submitJob[R](closure: Unit => R, finished: M[R]): M[R] = {
-  val startJobMolecule = m[Unit]
+  val startJobMolecule = m[Unit] // Declare a new emitter.
 
   site (
     go { case startJobMolecule(_) =>
@@ -261,7 +261,6 @@ This functionality is similar to `Object.synchronized`, which provides synchroni
 In our case, the critical section is delimited by two function calls `beginCritical()` and `endCritical()` are separate function calls that can be made at any two points in the code -- including `if` expressions or inside closures -- which is impossible with `synchronized` blocks.
 Also, the `Object.synchronized` construction identifies the synchronized blocks by an `Object` reference: different objects will be responsible for synchronizing different blocks of reentrant code.
 What we would like to allow is _any_ code anywhere to contain any number of critical sections identified by the same `beginCritical()` call.
-We need to be able to create new, unique `beginCritical()` calls as necessary.
 
 How can we implement this functionality using the chemical machine?
 Since the only way to communicate between reactions is to emit molecules, `beginCritical()` and `endCritical()` must be molecules.
@@ -269,8 +268,8 @@ Clearly, `beginCritical` must be blocking while `endCritical` does not have to b
 
 What should happen when a process emits `beginCritical()`?
 We must enforce a single-process access to the critical section.
-In other words, a reaction that consumes `beginCritical()` should only start once, not concurrently.
-Therefore, this reaction must consume another molecule, say `access()`, of which we will only have a single copy emitted into the soup:
+In other words, a reaction that consumes `beginCritical()` should only start one at a time even if several `beginCritical` molecules are available.
+Therefore, this reaction must also require another input molecule, say `access()`, of which we will only have a single copy emitted into the soup:
 
 ```scala
 val beginCritical = b[Unit, Unit]
@@ -289,10 +288,11 @@ All we need to do is insure that there is initially a single copy of `access()` 
 Another requirement is that emitting `endCritical()` must end whatever `beginCritical()` began, but only if `endCritical()` is emitted by the _same reaction_.
 If a different reaction emits `endCritical()`, access to the critical section should not be granted.
 Somehow, the `endCritical()` molecules must be different when emitted by different reactions (however, `beginCritical()` must be the same for all reactions, or else there can't be any contention between them).
+
 Additionally, we would like it to be impossible for any reaction to call `endCritical()` without first calling `beginCritical()`.
 
-One way of achieving this is to make `beginCritical()`, which is a blocking call, return a value that enables us to call `endCritical()`.
-For instance, `beginCritical()` could actually create a new, unique emitter for `endCritical`, and return that emitter:
+One way of achieving this is to make `beginCritical()` return a value that enables us to call `endCritical()`.
+For instance, `beginCritical()` could actually create a new, unique emitter for `endCritical()`, and return that emitter:
 
 ```scala
 val beginCritical = b[Unit, M[Unit]]
@@ -311,7 +311,7 @@ access() // Emit only one copy.
 
 ```
 
-Since `endCritical` and its reaction site are defined within the local scope of the reaction that consumes `beginCritical()`, each such reaction will create a _chemically_ new molecule that other reactions cannot emit.
+Since `endCritical` and its reaction site are defined within the local scope of the reaction that consumes `beginCritical()`, each such reaction will create a _chemically unique_ new molecule that no other reactions can emit.
 This will guarantee that reactions cannot end the critical section for other reactions.
 
 Also, since the `endCritical` emitter is created by `beginCritical()`, we cannot possibly call `endCritical()` before calling `beginCritical()`!
@@ -437,7 +437,8 @@ def newCriticalSectionMarker(): B[Unit, M[Unit]] = {
 
 // Example usage:
 val beginCritical1 = newCriticalSectionMarker()
-
+// Now we can pass the `beginCritical1` emitter value to several reactions.
+// Suppose we are in one of those reactions:
 val endCritical = beginCritical1()
 
 ???... // The code of the critical section 1.
