@@ -1,7 +1,13 @@
 # Patterns of concurrency
 
 To get more familiar with programming the chemical machine, let us now implement a number of simple concurrent programs.
-These programs are 
+These programs are somewhat abstract and are chosen to illustrate various patterns of concurrency that are found in real software.
+
+Allen B. Downey's [The little book of semaphores](http://greenteapress.com/semaphores/LittleBookOfSemaphores.pdf) lists many concurrency "puzzles" that he solves in Python using semaphores.
+In this and following chapter, we will use the chemical machine to solve Downey's concurrency puzzles as well as some other problems.
+
+Our approach will be deductive: we start with the problem and reason about the molecules and reactions that are necessary to solve it.
+Eventually we deduce the required chemistry and implement it declaratively in `JoinRun`/`Chymyst`.
 
 ## Background jobs
 
@@ -77,7 +83,7 @@ def makeStartJobMolecule[R]: M[(Unit => R, M[R])] = {
 
 Suppose we want to implement a function `wait_forever()` that blocks indefinitely, never returning.
 
-The chemical model is that a blocking molecule `wait` reacts with another, non-blocking molecule `godot`; but `godot` never appears in the soup.
+The chemical model is that a blocking molecule `waiting_for` reacts with another, non-blocking molecule `godot`; but `godot` never appears in the soup.
 
 We also need to make sure that the molecule `godot()` is never emitted into the soup.
 So we declare `godot` locally within the scope of `wait_forever`, where we'll emit nothing into the soup.
@@ -88,13 +94,118 @@ def wait_forever: B[Unit, Unit] = {
   val waiting_for = b[Unit, Unit]
 
   site( go { case  waiting_for(_, r) + godot(_) => r() } )
-  // forgot to emit `godot` here, which is key to starve this reaction.
+  
+  // We do not emit `godot` here, which is the key to preventing this reaction from starting.
+  
   waiting_for
 }
 
 ```
 
-The function `wait_forever` will return a blocking molecule emitter that, when called, will block forever, never returning any value.
+The function `wait_forever` will create and return a new blocking molecule emitter that, when called, will block forever, never returning any value.
+Here is example usage:
+
+```scala
+val never = wait_forever // Declare a new blocking molecule of type B[Unit, Unit].
+
+never.timeout(1 second)() // this will time out in 1 seconds
+never() // this will never return
+
+```
+
+## Control over a shared resource (mutex, multiplex)
+
+### Single access
+
+Suppose we have an application with many concurrent processes and a shared resource _R_ (say, a database server) that should be only used by one process at a time.
+Let us assume that there is a certain function `doWork()` that will use the resource _R_ when called.
+Our goal is to make sure that `doWork()` is only called by at most one concurrent process at any time.
+While `doWork()` is being evaluated, we consider that the resource _R_ is not available.
+If `doWork()` is already being called by one process, all other processes trying to call `doWork()` should be blocked until the first `doWork()` is finished and the resource _R_ is again available.
+
+How would we solve this problem using the chemical machine?
+Since our only way to control concurrency is by manipulating molecules, we need to organize the chemistry such that `doWork()` is only called when certain molecules are available.
+In other words, `doWork()` must be called by a _reaction_ that consumes certain molecules whose presence or absence we will control.
+The reaction must be of the form `case [some molecules] => ... doWork() ...`.
+Let us call it the "worker reaction".
+There must be no other way to call `doWork()` except by starting this reaction.
+
+Processes that need to call `doWork()` will therefore need to emit a certain molecule that the worker reaction consumes.
+Let us call that molecule `request`.
+The `request` molecule must be a _blocking_ molecule because `doWork()` should be able to block the caller when the resource _R_ is not available.
+
+If the `request` molecule is the only input molecule of the worker reaction, we will be unable to prevent the reaction from starting whenever some process emits a `request` molecule.
+Therefore, we need a second input molecule in the worker reaction.
+Let us call that molecule `access`.
+The worker reaction will then look like this:
+
+```scala
+go { case access(_) + request(_, r) => ... doWork() ... }
+
+```
+
+Suppose some process emits a `request` molecule, and suppose this is the only process that does so at the moment.
+We should then allow the worker reaction to start and to complete `doWork()`.
+Therefore, `access()` must be present at the reaction site: we should have emitted it beforehand.
+
+While `doWork()` is evaluated, the `access()` molecule is absent, so no other copy of the worker reaction can start.
+This is precisely the exclusion behavior we need.
+
+When the `doWork()` function finishes, we need to unblock the calling process by replying to the `request` molecule.
+Perhaps `doWork()` will return a result value: in that case, we should pass this value as the reply value.
+We should also emit the `access()` molecule back into the soup, so that another process will be able to run `doWork`.
+
+After these considerations, the worker reaction becomes
+
+```scala
+site(
+  go { case access(_) + request(_, reply) => reply(doWork()); access() }
+)
+access() // Emit just one copy of `access`.
+
+```
+
+As long as we emit just one copy of the `access` molecule, and as long as `doWork()` is not used elsewhere in the code, we will guarantee that at most one process will call `doWork()` at any time.
+
+### Multiple access
+
+What if we now relax the requirement of single access for the resource _R_?
+Suppose that now, at most `n` concurrent processes should be able to call `doWork()`.
+
+This can be achieved simply by emitting `n` copies of the `access()` molecule.
+The worker reaction remains unchanged.
+
+### Refactoring into a library function
+
+The following code defines a convenience function that wraps `doWork()` and provides single-access or multiple-access restrictions.
+This illustrates how we can easily and safely package chemistry into a reusable library.
+
+```scala
+def wrapWithAccess[T](allowed: Int, doWork: () => T): () => T = {
+  val access = m[Unit]
+  val request = b[Unit, T]
+
+  site(
+    go { case access(_) + request(_, reply) => reply(doWork()); access() }
+  )
+
+  (1 to n).foreach(_ => access()) // Emit `n` copies of `access`.
+  val result: () => T = () => request()
+  result
+}
+// Example usage:
+
+val doWorkWithTwoAccesses = wrapWithAccess(2, () => println("do work"))
+// Now `doWork()` will be called by at most 2 processes at a time.
+
+// ... start a new process, in which:
+doWorkWithTwoAccesses()
+
+```
+
+## Critical section, or `synchronized`
+
+
 
 ## Rendezvous, or `java.concurrent.Exchanger`
 
@@ -250,3 +361,7 @@ begin1() + begin2() // emit both molecules to enable starting the two reactions
 
 Working test code for the rendezvous problem is in `Patterns01Spec.scala`.
 
+## Rendezvous with `n` participants
+
+Suppose we need a rendezvous with `n` participants: there are `n` processes (where `n` is a run-time value, not known in advance), and each process would like to wait until all other processes reach the rendezvous point.
+Ultimately we would like to refactor the code into a library, so that it is easy to use.

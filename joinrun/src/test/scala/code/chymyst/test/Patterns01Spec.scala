@@ -150,10 +150,10 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "implement barrier (rendezvous without data exchange) with n processes" in {
 
-    val n = 20 // The number of rendezvous participants needs to be known in advance, or else we don't know how long still to wait for rendezvous.
+    val n = 100 // The number of rendezvous participants needs to be known in advance, or else we don't know how long still to wait for rendezvous.
 
-    // There will be 2*n blocked threads. We need one more thread to run the reaction site and one more thread to count the rendezvous participants.
-    val pool = new FixedPool(2*n+2)
+    // There will be 2*n blocked threads; the test will fail with FixedPool(2*n-1).
+    val pool = new FixedPool(2*n)
 
     val barrier = b[Unit,Unit]
     val counterInit = m[Unit]
