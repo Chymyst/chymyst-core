@@ -233,7 +233,7 @@ site(
    },
   go { case begin2(_) =>
     val x2 = 456 // some computation
-    val y2 = barrier2(x2) // receive value from Process 2
+    val y2 = barrier2(x2) // receive value from Process 1
     val z = further_computation_2(y2)
    },
    go { case barrier1(x1, reply1) + barrier2(x2, reply2) => reply1(x2); reply2(x1) }

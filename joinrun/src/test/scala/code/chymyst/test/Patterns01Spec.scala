@@ -78,7 +78,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     site(tp)(
       go { case begin2(_) =>
         val x2 = 456 // some computation
-        val y2 = barrier2(x2) // receive value from Process 2
+        val y2 = barrier2(x2) // receive value from Process 1
         val z = y2 * y2 // further computation
         end2(z)
       }
