@@ -604,8 +604,21 @@ Working test code for the rendezvous problem is in `Patterns01Spec.scala`.
 ## Rendezvous with `n` participants
 
 Suppose we need a rendezvous with `n` participants: there are `n` processes (where `n` is a run-time value, not known in advance), and each process would like to wait until all other processes reach the rendezvous point.
-Ultimately we would like to refactor the code into a library, so that it is easy to use.
+After that, all `n` waiting processes become unblocked and proceed concurrently.
 
-TODO complete
+This problem is similar to the rendezvous with two participants that we considered before.
+To simplify the problem, we assume that no data is exchanged -- this is a pure synchronization task.
 
-The test code is in `Patterns01Spec.scala`.
+If we try to generalize the implementation of the rendezvous from 2 participants to `n`, we notice a problem in
+the reaction that performs the rendezvous:
+```scala
+go { case barrier1(x1, reply1) + barrier2(x2, reply2) => ... }
+
+```
+
+Generalizing this reaction straightforwardly to `n` participants would now require `n` input molecules `barrier1`, ..., `barrier_n`.
+Since `n` is a run-time parameter while input molecules must be defined statically, we cannot generalize to `n` in this way.
+
+TODO
+
+### Refactoring into a library
