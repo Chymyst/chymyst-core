@@ -100,7 +100,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "implement smokers" in {
     val supplyLineSize = 10
-    def waitSome(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
+    def smoke(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
 
     case class ShippedInventory(tobacco: Int, paper: Int, matches: Int)
     case class SupplyChainState(inventory: Int, shipped: ShippedInventory)
@@ -148,13 +148,13 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case pusherDone(_) + check(_, r) => r() },
 
       go { case KeithInNeed(_) + tobaccoShipment(s) + matchesShipment(_) =>
-        KeithsFix(); waitSome(); pusher(s)
+        KeithsFix(); smoke(); pusher(s)
       },
       go { case SlashInNeed(_) + tobaccoShipment(s) + paperShipment(_) =>
-        SlashsFix(); waitSome(); pusher(s)
+        SlashsFix(); smoke(); pusher(s)
       },
       go { case JimiInNeed(_) + matchesShipment(s) + paperShipment(_) =>
-        JimisFix(); waitSome(); pusher(s)
+        JimisFix(); smoke(); pusher(s)
       }
     )
 

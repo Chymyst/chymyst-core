@@ -244,3 +244,110 @@ begin1() + begin2() // emit both molecules to enable starting the two reactions
 
 This functionality is essentially that of `java.concurrent.Exchanger`.
 
+## Cigarette smokers
+
+The "Cigarette smokers" problem is to implement four concurrent processes that coordinate assembly line operations to manufacture cigarettes with the 
+workers smoking the individual cigarettes they manufacture. One process represents a supplier of ingredients on the assembly line, which we may call the 
+pusher. The other processes are three smokers, each having an infinite supply of only one of the three required ingredients, which are matches, paper, and 
+tobacco. We may give names to the smokers/workers as Keith, Slash, and Jimi. 
+
+The pusher provides at random time intervals one unit each of two required ingredients (for example matches and paper, or paper and tobacco). The pusher is not allowed to coordinate with the smokers to use knowledge of which smoker 
+needs which ingredients, he just supplies two ingredients at a time on a conveyor belt. We assume that the pusher has an infinite stream of the three 
+ingredients available to him. The real life example is that of a core operating systems service having to schedule and provide limited distinct resources to 
+other services where coordination of scarce resources is required.
+ 
+Each smoker selects two ingredients, rolls up a cigarette using the third ingredient that complements the list, lits it up and smokes it. It is necessary
+ for the smoker to finish his cigarette before the pusher supplies the next two ingredients (a timer can simulate the smoking activity).
+
+
+We model the processes as follows:
+
+| Supplier   | | Smoker 1   | |  Smoker 2    | |  Smoker 3 |
+| --- | --- | --- | --- | --- | --- |  --- |
+| select 2 random ingredients | | pick tobacco and paper | | pick tobacco and matches | | pick matches and paper |
+
+
+Let us now figure out the chemistry that will solve this problem. We can think of the problem as a concurrent producer consumer queue with three competing 
+consumers and the supplier simply produces random pairs of ingredients into the queue. For simplicity, we assume the queue has capacity 1.
+
+It also helps to draw parallels with the Dining Philosophers problem realizing that we can think of three philosophers as consumers and the constraint on 
+matching up the three ingredients differently for the three smokers is a bit analog to the contention of selecting the forks for the Dining Philosophers.
+
+As for the philosophers, we will need to keep track of a pair of states (molecules) for each consumer or smoker, when one is waiting for ingredients (in need
+ of a fix) and when one when the smoker's requirement is fulfilled (having his fix). This parallels the eating-thinking dual state.
+ 
+It is important to think of a suitable data model to capture the state of the world for the problem, so we need to know when to stop and count how many 
+cycles we go through, if we want to stop the computation. It may be useful to keep track of how many ingredients have been shipped or consumed but this does 
+not look to be important for a minimal solution (it is included for readers interested in inventory cost tracking and to represent that the state is carried 
+across the reactions and is not stored as mutable data anywhere).
+
+It is important to represent the ingredients as individual molecules and not as pairs of molecules to properly represent the 3-way dependence of the smokers 
+on the pairs of ingredients. We will represent the ingredients dynamically by representing the producer consumer queue, so we call the molecules shipments.
+
+One must ensure that we satisfy the chemistry laws, notably avoid unavoidable nondeterminism, which can occur if two distinct reactions in the same site 
+contain the same input molecules. This guides towards a solution where the pusher is presented in a single reaction, not three. We capture that with the 
+first reaction in the solution.
+
+The final code looks like this:
+
+```scala
+val supplyLineSize = 10
+    def smoke(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
+
+    case class ShippedInventory(tobacco: Int, paper: Int, matches: Int)
+    case class SupplyChainState(inventory: Int, shipped: ShippedInventory)
+
+    val pusher = new M[SupplyChainState]("Pusher has delivered some unit")
+    val KeithsFix = new E("Keith is smoking having obtained tobacco and matches and rolled a cigarette")
+    val SlashsFix = new E("Slash is smoking having obtained tobacco and paper and rolled a cigarette")
+    val JimisFix = new E("Jimi is smoking having obtained matches and paper and rolled a cigarette")
+
+    val KeithInNeed = new E("Keith is in need of tobacco and matches")
+    val SlashInNeed = new E("Slash is in need of tobacco and paper")
+    val JimiInNeed = new E("Jimi is in need of matches and paper")
+
+    val tobaccoShipment = new M[SupplyChainState]("tobacco shipment")
+    val matchesShipment = new M[SupplyChainState]("matches shipment")
+    val paperShipment = new M[SupplyChainState]("paper shipment")
+
+    val pusherDone = new E("done")
+    val check = new EE("check") // blocking Unit, only blocking molecule of the example.
+
+    site(tp) (
+      go { case pusher(SupplyChainState(n, ShippedInventory(t, p, m))) =>
+        scala.util.Random.nextInt(3) match { // select the 2 ingredients randomly
+          case 0 =>
+            val s = SupplyChainState(n-1, ShippedInventory(t+1, p, m+1))
+            tobaccoShipment(s)
+            matchesShipment(s)
+          case 1 =>
+            val s = SupplyChainState(n-1, ShippedInventory(t+1, p+1, m))
+            tobaccoShipment(s)
+            paperShipment(s)
+          case _ =>
+            val s = SupplyChainState(n-1, ShippedInventory(t, p+1, m+1))
+            matchesShipment(s)
+            paperShipment(s)
+        }
+        if (n == 1) pusherDone()
+      },
+      go { case KeithsFix(_) => KeithInNeed() },
+      go { case SlashsFix(_) => SlashInNeed() },
+      go { case JimisFix(_) => JimiInNeed() },
+      go { case pusherDone(_) + check(_, r) => r() },
+
+      go { case KeithInNeed(_) + tobaccoShipment(s) + matchesShipment(_) =>
+        KeithsFix(); smoke(); pusher(s)
+      },
+      go { case SlashInNeed(_) + tobaccoShipment(s) + paperShipment(_) =>
+        SlashsFix(); smoke(); pusher(s)
+      },
+      go { case JimiInNeed(_) + matchesShipment(s) + paperShipment(_) =>
+        JimisFix(); smoke(); pusher(s)
+      }
+    )
+
+    KeithInNeed(()) + SlashInNeed(()) + JimiInNeed(())
+    pusher(SupplyChainState(supplyLineSize, ShippedInventory(0,0,0)))
+    check()
+```
