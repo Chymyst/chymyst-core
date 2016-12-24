@@ -22,7 +22,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "Chymyst"
 
-  it should "implement rendezvous" in {
+  it should "implement barrier (rendezvous without data exchange) for two processes" in {
     val barrier1 = b[Unit,Unit]
     val barrier2 = b[Unit,Unit]
 
@@ -57,7 +57,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     Set(result(2), result(3)) shouldEqual Set("g1", "g2")
   }
 
-  it should "implement exchanger" in {
+  it should "implement exchanger (rendezvous with data exchange) for two processes" in {
     val barrier1 = b[Int,Int]
     val barrier2 = b[Int,Int]
 
@@ -87,6 +87,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     )
 
     site(tp)(
+      // The values are exchanged in this reaction.
       go { case barrier1(x1, r1) + barrier2(x2, r2) => r1(x2); r2(x1) }
     )
 
@@ -100,7 +101,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     result shouldEqual ((456*456,123*123))
   }
 
-  it should "implement rendezvous with 4 threads" in {
+  it should "implement barrier (rendezvous without data exchange) with 4 processes" in {
     val barrier1 = b[Unit,Unit]
     val barrier2 = b[Unit,Unit]
     val barrier3 = b[Unit,Unit]
@@ -147,7 +148,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     (4 to 7).map(result).toSet shouldEqual Set("g1", "g2", "g3", "g4")
   }
 
-  it should "implement rendezvous with n threads" in {
+  it should "implement barrier (rendezvous without data exchange) with n processes" in {
 
     val n = 100 // The number of rendezvous participants needs to be known in advance, or else we don't know how long still to wait for rendezvous.
 
