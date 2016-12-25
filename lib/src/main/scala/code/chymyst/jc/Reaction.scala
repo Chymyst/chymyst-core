@@ -150,7 +150,7 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[L
 
   override val toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")}${hasGuard match {
     case GuardAbsent => ""
-    case GuardPresent => " if(...)"
+    case GuardPresent => " if(?)"
     case GuardPresenceUnknown => " ?"
   }} => ${outputs match {
     case Some(outputMoleculeInfos) => outputMoleculeInfos.map(_.toString).mkString(" + ")

@@ -9,7 +9,7 @@ import scala.language.postfixOps
 
 class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
-  val warmupTimeMs = 50L
+  val warmupTimeMs = 200L
 
   var tp0: Pool = _
 
@@ -57,16 +57,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "macros for inspecting a reaction body"
 
-
-  it should "correctly recognize nested emissions of blocking molecules and reply values" in {
-    val a = b[Int, Int]
-    val d = m[Boolean]
-
-    site(
-      go { case a(x, r) => d(r(x)) }
-    )
-  }
-
   it should "inspect reaction body with default clause that declares a singleton" in {
     val a = m[Int]
 
@@ -104,8 +94,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
     )
     a(1)
-    waitSome()
-    f.timeout(100 millis)() shouldEqual Some(2)
+    f.timeout(500 millis)() shouldEqual Some(2)
   }
 
   it should "inspect reaction body with embedded join and _go" in {
@@ -121,8 +110,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
     )
     a(1)
-    waitSome()
-    f.timeout(100 millis)() shouldEqual Some(2)
+    f.timeout(500 millis)() shouldEqual Some(2)
   }
 
   val simpleVarXSha1 = "8227489534FBEA1F404CAAEC9F4CCAEEB9EF2DC1"
@@ -220,7 +208,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     result.info.hasGuard == GuardAbsent
   }
 
-  it should "inspect a very complicated reaction body" in {
+  it should "inspect a very complicated reaction input pattern" in {
     val a = m[Int]
     val c = m[Unit]
     val qq = m[Unit]
