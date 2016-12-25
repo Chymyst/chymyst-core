@@ -512,7 +512,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       )
       a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
     }
-    thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction a => ..."
+    thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction {a(1) => a(1)}"
   }
 
   it should "compute inputs and outputs correctly for an inline nested reaction" in {
@@ -545,7 +545,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction a => ..."
+    thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction {a(1) => a(1)}"
   }
 
   it should "compute outputs in the correct order for a reaction with no livelock" in {
