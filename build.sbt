@@ -25,6 +25,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   resolvers += "Typesafe releases" at "http://repo.typesafe.com/typesafe/releases",
 
   scalacOptions ++= Seq( // https://tpolecat.github.io/2014/04/11/scalac-flags.html
+    "-target:jvm-1.8",
     "-deprecation",
     "-unchecked",
     "-encoding", "UTF-8", // yes, this is 2 args
@@ -38,7 +39,8 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     "-Ywarn-dead-code", // N.B. doesn't work well with the ??? hole
     "-Ywarn-numeric-widen",
     "-Ywarn-value-discard",
-    // "-Xfuture", // Makes Benchmarks code fail
+    "-Xfuture",
+    "-Ywarn-unused",
     "-Ywarn-unused-import" // 2.11 only
   )
 )
