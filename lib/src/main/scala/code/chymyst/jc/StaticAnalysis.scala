@@ -4,7 +4,7 @@ import Core._
 
 import scala.annotation.tailrec
 
-private object StaticAnalysis {
+private[jc] object StaticAnalysis {
 
   private val patternIsNotUnknown: InputMoleculeInfo => Boolean =
     _.flag match { case UnknownInputPattern => false; case _ => true }
@@ -86,10 +86,8 @@ private object StaticAnalysis {
   // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
   private def checkReactionShadowing(reactions: Seq[Reaction]): Option[String] = {
     val suspiciousReactions = for {
-      r1 <- reactions
-      r2 <- reactions
-      if r1 =!= r2
-      if r1.info.hasGuard.knownFalse
+      r1 <- reactions.withFilter(_.info.hasGuard.knownFalse)
+      r2 <- reactions.withFilter(_ =!= r1)
       if allMatchersAreWeakerThan(r1.info.inputsSorted, r2.info.inputsSorted)
     } yield {
       (r1, r2)
@@ -134,8 +132,8 @@ private object StaticAnalysis {
 
     val likelyDeadlocks: Seq[(InputMoleculeInfo, InputMoleculeInfo, Reaction)] = for {
       bmInputs <- blockingInputsWithNonblockingInputs
-      (bInput, mInputInfos) = bmInputs
-      mInput <- mInputInfos
+      bInput = bmInputs._1
+      mInput <- bmInputs._2
       possibleReactions = Set(bInput, mInput).flatMap(_.molecule.emittingReactions).toSeq
       reaction <- possibleReactions
       outputs <- reaction.info.outputs

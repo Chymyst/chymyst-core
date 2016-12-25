@@ -1,6 +1,7 @@
 package code.chymyst.jc
 
 import Core._
+import StaticAnalysis._
 
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
@@ -377,11 +378,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
 
     // Perform static analysis.
-    val foundWarnings = StaticAnalysis.findSingletonWarnings(singletonsDeclared, nonSingletonReactions) ++ StaticAnalysis.findStaticWarnings(nonSingletonReactions)
+    val foundWarnings = findSingletonWarnings(singletonsDeclared, nonSingletonReactions) ++ findStaticWarnings(nonSingletonReactions)
 
-    val foundErrors = StaticAnalysis.findSingletonDeclarationErrors(singletonReactions) ++
-      StaticAnalysis.findSingletonErrors(singletonsDeclared, nonSingletonReactions) ++
-      StaticAnalysis.findStaticErrors(nonSingletonReactions)
+    val foundErrors = findSingletonDeclarationErrors(singletonReactions) ++
+      findSingletonErrors(singletonsDeclared, nonSingletonReactions) ++
+      findStaticErrors(nonSingletonReactions)
 
     val staticDiagnostics = WarningsAndErrors(foundWarnings, foundErrors, s"$this")
 
@@ -396,8 +397,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     val singletonsActuallyEmitted = moleculesPresent.getCountMap
 
-    val singletonEmissionWarnings = StaticAnalysis.findSingletonEmissionWarnings(singletonsDeclared, singletonsActuallyEmitted)
-    val singletonEmissionErrors = StaticAnalysis.findSingletonEmissionErrors(singletonsDeclared, singletonsActuallyEmitted)
+    val singletonEmissionWarnings = findSingletonEmissionWarnings(singletonsDeclared, singletonsActuallyEmitted)
+    val singletonEmissionErrors = findSingletonEmissionErrors(singletonsDeclared, singletonsActuallyEmitted)
 
     val singletonDiagnostics = WarningsAndErrors(singletonEmissionWarnings, singletonEmissionErrors, s"$this")
     val diagnostics = staticDiagnostics ++ singletonDiagnostics

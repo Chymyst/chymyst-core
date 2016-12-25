@@ -93,7 +93,7 @@ class AsyName[Arg](implicit owner: Join, argT:ClassTag[Arg]) extends NameBase{
       if(fixedMsg.contains(this)){
         Some(fixedMsg(this).asInstanceOf[Arg])
       }else{
-        var checkedMsg = new HashSet[Arg]
+        val checkedMsg = new HashSet[Arg]
 
         def matched(m:Arg):Boolean = {
           if (checkedMsg(m)) {false} // the message has been checked
@@ -146,7 +146,9 @@ class SynName[Arg, R](implicit owner: Join, argT:ClassTag[Arg], resT:ClassTag[R]
   }
 
   override def popArg():Unit = synchronized {
-    val arg = argQ.dequeue()
+    //    val arg =
+    argQ.dequeue()
+    ()
     //pushMsgTag(arg)
   }
 
@@ -232,7 +234,7 @@ class SynName[Arg, R](implicit owner: Join, argT:ClassTag[Arg], resT:ClassTag[R]
       if(fixedMsg.contains(this)){
         Some(fixedMsg(this).asInstanceOf[(Int,Arg)]._2)
       }else{
-        var checkedMsg = new HashSet[Arg]
+        val checkedMsg = new HashSet[Arg]
 
         def matched(m:(Int,Arg)):Boolean = {
           if (checkedMsg(m._2)) {false} // the message has been checked
@@ -292,7 +294,7 @@ class Join {
   }
 
   def trymatch(ch:NameBase, arg:Any) = synchronized {
-    var names: Set[NameBase] = new HashSet
+    val names: Set[NameBase] = new HashSet
     //println(ch +"   "+ arg)
     try{
       if(ch.isInstanceOf[SynName[Any, Any]]) {ch.asInstanceOf[SynName[Any,Any]].pushMsgTag(arg)}

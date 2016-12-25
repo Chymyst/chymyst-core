@@ -320,11 +320,11 @@ object Macros {
       case _ => q"_root_.code.chymyst.jc.OtherOutputPattern"
     }
 
-    implicit val liftableGuardFlag: c.universe.Liftable[GuardPresenceType] = Liftable[GuardPresenceType] {
-      case GuardPresent => q"_root_.code.chymyst.jc.GuardPresent"
-      case GuardAbsent => q"_root_.code.chymyst.jc.GuardAbsent"
-      case GuardPresenceUnknown => q"_root_.code.chymyst.jc.GuardPresenceUnknown"
-    }
+//    implicit val liftableGuardFlag: c.universe.Liftable[GuardPresenceType] = Liftable[GuardPresenceType] {
+//      case GuardPresent => q"_root_.code.chymyst.jc.GuardPresent"
+//      case GuardAbsent => q"_root_.code.chymyst.jc.GuardAbsent"
+//      case GuardPresenceUnknown => q"_root_.code.chymyst.jc.GuardPresenceUnknown"
+//    }
 
     def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error) = {
       if (molecules.nonEmpty)
