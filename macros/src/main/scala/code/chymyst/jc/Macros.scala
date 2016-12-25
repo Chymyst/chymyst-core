@@ -320,12 +320,6 @@ object Macros {
       case _ => q"_root_.code.chymyst.jc.OtherOutputPattern"
     }
 
-//    implicit val liftableGuardFlag: c.universe.Liftable[GuardPresenceType] = Liftable[GuardPresenceType] {
-//      case GuardPresent => q"_root_.code.chymyst.jc.GuardPresent"
-//      case GuardAbsent => q"_root_.code.chymyst.jc.GuardAbsent"
-//      case GuardPresenceUnknown => q"_root_.code.chymyst.jc.GuardPresenceUnknown"
-//    }
-
     def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error) = {
       if (molecules.nonEmpty)
         method(c.enclosingPosition, s"$what should $connector $patternWhat (${molecules.mkString(", ")})")
@@ -339,11 +333,13 @@ object Macros {
     val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
 
     val (patternIn, patternOut, patternReply) = moleculeInfoMaker.from(pattern) // patternOut and patternReply should be empty
-    maybeError("input molecules", "emits output molecules", patternOut)
-    maybeError("input molecules", "emits reply molecules", patternReply)
+    maybeError("input molecule patterns", "emits output molecules", patternOut)
+    maybeError("input molecule patterns", "perform any reply actions", patternReply, "not")
 
-    val (guardIn, guardOut, guardReply) = moleculeInfoMaker.from(guard) // guardIn should be empty
+    val (guardIn, guardOut, guardReply) = moleculeInfoMaker.from(guard) // guard lists should be all empty
     maybeError("input guard", "matches on additional input molecules", guardIn.map(_._1))
+    maybeError("input guard", "emit any output molecules", guardOut.map(_._1), "not")
+    maybeError("input guard", "perform any reply actions", guardReply.map(_._1), "not")
 
     val (bodyIn, bodyOut, bodyReply) = moleculeInfoMaker.from(body) // bodyIn should be empty
     maybeError("reaction body", "matches on additional input molecules", bodyIn.map(_._1))
@@ -377,7 +373,7 @@ object Macros {
     val outputMolecules = allOutputInfo.map { case (m, p) => q"OutputMoleculeInfo(${m.asTerm}, $p)" }
 
     val isGuardAbsent = guard match { case EmptyTree => true; case _ => false }
-    val hasGuardFlag = if (isGuardAbsent) q"GuardAbsent" else q"GuardPresent"
+    val hasGuardFlag = if (isGuardAbsent) q"GuardAbsent" else q"GuardPresent" // We lift these values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
 
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of output molecules.
