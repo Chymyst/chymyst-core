@@ -101,6 +101,18 @@ private[jc] object StaticAnalysis {
     } else None
   }
 
+  // There should not be any two reactions whose source code is identical to each other.
+  private def findIdenticalReactions(reactions: Seq[Reaction]): Option[String] = {
+    val reactionsSha1 = reactions.map(_.info.sha1)
+    val repeatedReactionSha1 = (reactionsSha1 diff reactionsSha1.distinct).distinct
+    val repeatedReactions = repeatedReactionSha1.flatMap(sha1 => reactions.find(_.info.sha1 == sha1) )
+
+    if (repeatedReactions.nonEmpty) {
+      val errorList = repeatedReactions.map{ r => s"{${r.info}}" }.mkString(", ")
+      Some(s"Identical repeated reactions: $errorList")
+    } else None
+  }
+
   private def checkSingleReactionLivelock(reactions: Seq[Reaction]): Option[String] = {
     val errorList = reactions
       .filter { r => r.info.hasGuard.knownFalse && inputMatchersWeakerThanOutput(r.info.inputsSorted, r.info.outputs)}
@@ -195,6 +207,7 @@ private[jc] object StaticAnalysis {
 
   private[jc] def findStaticErrors(reactions: Seq[Reaction]) = {
     Seq(
+      findIdenticalReactions _,
       checkReactionShadowing _,
       checkSingleReactionLivelock _,
       checkMultiReactionLivelock _

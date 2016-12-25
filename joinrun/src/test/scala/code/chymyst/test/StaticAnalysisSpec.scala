@@ -305,4 +305,28 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     warnings2 shouldEqual WarningsAndErrors(List("Possible deadlock: molecule f/B may deadlock due to outputs of {a(_) + f/B(_) => a(1)}"),List(),"Site{c => ...}")
   }
 
+  behavior of "repeated reaction detection"
+
+  it should "detect several repeated reactions" in {
+
+    val a = m[Int]
+    val c = m[Int]
+    val f = b[Unit, Int]
+
+    val thrown = intercept[Exception] {
+      site(
+        go { case f(_, r) + a(_) => r(0) },
+        go { case f(_, r) + a(_) => r(0) },
+        go { case f(_, r) + a(_) => r(0) },
+        go { case f(_, r) + a(_) => r(0) },
+        go { case f(_, r) + c(_) => r(0) },
+        go { case c(_) + a(_) => f(); a(1) },
+        go { case c(_) + a(_) => f(); a(1) }
+      )
+
+    }
+
+    thrown.getMessage shouldEqual "In Site{a + c => ...; a + c => ...; a + f/B => ...; a + f/B => ...; a + f/B => ...; a + f/B => ...; c + f/B => ...}: Identical repeated reactions: {a(_) + f/B(_) => }, {a(_) + c(_) => f/B() + a(1)}; Unavoidable nondeterminism: reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + c(_) => f/B() + a(1)} is shadowed by {a(_) + c(_) => f/B() + a(1)}, reaction {a(_) + c(_) => f/B() + a(1)} is shadowed by {a(_) + c(_) => f/B() + a(1)}"
+  }
+
 }
