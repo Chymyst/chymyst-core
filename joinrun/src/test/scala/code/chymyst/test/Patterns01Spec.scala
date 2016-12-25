@@ -2,8 +2,9 @@ package code.chymyst.test
 
 import java.util.concurrent.ConcurrentLinkedQueue
 
-import code.chymyst.jc._
+import code.chymyst.jc.{M, _}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -165,6 +166,86 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
         val current: Array[String] = result(i).split(',')
         List(current(1).toInt, current(2).toInt, current(3).toInt).sum shouldEqual(2*i) // # ingredients handed out at each cycle is twice number of cycles
         current(0).toInt + i shouldEqual supplyLineSize // # cycles outstanding + cycles ran should be 10.
+    }
+  }
+
+  it should "implement generalized smokers" in {
+    val supplyLineSize = 10
+    def waitSome(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
+    def smoke(): Unit = waitSome()
+
+    case class ShippedInventory(tobacco: Int, paper: Int, matches: Int)
+    // case class SupplyChainState(inventory: Int, shipped: ShippedInventory)
+    // this data is only to demonstrate effects of randomization on the supply chain and make content of logFile more interesting.
+    // strictly speaking all we need to keep track of is inventory.
+
+    val pusher = m[ShippedInventory]
+    val count = m[Int]
+    val done = new E("count is done")
+    val KeithInNeed = new E("Keith is in need of tobacco and matches")
+    val SlashInNeed = new E("Slash is in need of tobacco and paper")
+    val JimiInNeed = new E("Jimi is in need of matches and paper")
+
+    val tobaccoShipment = m[Unit]
+    val matchesShipment = m[Unit]
+    val paperShipment = m[Unit]
+
+    val check = new EE("check") // blocking Unit, only blocking molecule of the example.
+
+    val logFile = new ConcurrentLinkedQueue[String]
+
+    site(tp) (
+      go { case pusher(ShippedInventory(t, p, m)) + count(n) if n >= 1  =>
+        logFile.add(s"$n,$t,$p,$m")
+        var s = ShippedInventory(t, p, m)
+        println(s"${ShippedInventory(t, p, m)}")
+
+        scala.util.Random.nextInt(3) match { // select the 2 ingredients randomly
+          case 0 =>
+            s = ShippedInventory(t+1, p, m+1)
+            tobaccoShipment()
+            matchesShipment()
+          case 1 =>
+            s = ShippedInventory(t+1, p+1, m)
+            tobaccoShipment()
+            paperShipment()
+          case _ =>
+            s = ShippedInventory(t, p+1, m+1)
+            matchesShipment()
+            paperShipment()
+        }
+        if (n == 1) {
+          done()
+        } else {
+          waitSome()
+          pusher(s)
+          count(n-1)
+        }
+
+      },
+      go { case done(_) + check(_, r) => r() },
+
+      go { case KeithInNeed(_) + tobaccoShipment(_) + matchesShipment(_) =>
+        println(KeithInNeed); smoke(); KeithInNeed()
+      },
+      go { case SlashInNeed(_) + tobaccoShipment(_) + paperShipment(_) =>
+        println(SlashInNeed); smoke(); SlashInNeed()
+      },
+      go { case JimiInNeed(_) + matchesShipment(_) + paperShipment(_) =>
+        println(JimiInNeed); smoke(); JimiInNeed()
+      }
+    )
+
+    KeithInNeed(()) + SlashInNeed(()) + JimiInNeed(())
+    pusher(ShippedInventory(0,0,0))
+    count(supplyLineSize)
+
+    check()
+    val result = logFile.iterator().asScala.toSeq
+    (0 until supplyLineSize).foreach { i =>
+      val current: Array[String] = result(i).split(',')
+      List(current(1).toInt, current(2).toInt, current(3).toInt).sum shouldEqual(2*i) // # ingredients handed out at each cycle is twice number of cycles
+      current(0).toInt + i shouldEqual supplyLineSize // # cycles outstanding + cycles ran should be 10.
     }
   }
 
