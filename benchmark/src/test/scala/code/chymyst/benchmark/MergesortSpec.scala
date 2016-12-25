@@ -5,7 +5,6 @@ import org.scalatest.{FlatSpec, Matchers}
 
 import scala.annotation.tailrec
 import scala.collection.mutable
-import scala.reflect.ClassTag
 
 import Common._
 
@@ -23,7 +22,9 @@ class MergesortSpec extends FlatSpec with Matchers {
     }
   }
 
-  def arrayMerge[T : Ordering : ClassTag](arr1: Array[T], arr2: Array[T]): Array[T] = {
+  type Coll[T] = IndexedSeq[T]
+
+  def arrayMerge[T : Ordering](arr1: Coll[T], arr2: Coll[T]): Coll[T] = {
     val id = amCounter.c
     //      amCounter.inc() // avoid this for now - this is a debugging tool
     val wantToLog = false // (arr1.length > 20000 && arr1.length < 41000)
@@ -46,54 +47,54 @@ class MergesortSpec extends FlatSpec with Matchers {
     }
     mergeRec(0,0,0)
     if (wantToLog) println(s"${System.currentTimeMillis} finished merging #$id")
-    result.toArray
+    result.toIndexedSeq
   }
 
-  def performMergeSort[T : Ordering : ClassTag](array: Array[T], threads: Int = 8): Array[T] = {
+  def performMergeSort[T : Ordering](array: Coll[T], threads: Int = 8): Coll[T] = {
 
-    val finalResult = m[Array[T]]
-    val getFinalResult = b[Unit, Array[T]]
-    val tp = new FixedPool(threads)
-    val jp = new FixedPool(3)
+    val finalResult = m[Coll[T]]
+    val getFinalResult = b[Unit, Coll[T]]
+    val reactionPool = new FixedPool(threads)
+    val sitePool = new FixedPool(3)
 
-    site(jp,jp)(
+    site(sitePool,sitePool)(
       go { case finalResult(arr) + getFinalResult(_, r) => r(arr) }
     )
 
-    // recursive molecule that will define the reactions at one level
+    // recursive molecule that will define the reactions at one level lower
 
-    val mergesort = m[(Array[T], M[Array[T]])]
+    val mergesort = m[(Coll[T], M[Coll[T]])]
 
-    site(tp,jp)(
+    site(reactionPool, sitePool)(
       go {
         case mergesort((arr, resultToYield)) =>
           if (arr.length <= 1) resultToYield(arr)
           else {
             val (part1, part2) = arr.splitAt(arr.length/2)
-            // "sorted1" and "sorted2" will be the sorted results from lower level
-            val sorted1 = m[Array[T]]
-            val sorted2 = m[Array[T]]
-            site(tp,jp)(
+            // "sorted1" and "sorted2" will be the sorted results from the lower level
+            val sorted1 = m[Coll[T]]
+            val sorted2 = m[Coll[T]]
+            site(reactionPool, sitePool)(
               go { case sorted1(x) + sorted2(y) =>
                 resultToYield(arrayMerge(x,y)) }
             )
 
-            // emit lower-level mergesort
+            // emit `mergesort` with the lower-level `sorted` result molecules
             mergesort((part1, sorted1)) + mergesort((part2, sorted2))
           }
       }
     )
-    // sort our array at top level
+    // sort our array: emit `mergesort` at top level
     mergesort((array, finalResult))
 
     val result = getFinalResult()
-    tp.shutdownNow()
-    jp.shutdownNow()
+    reactionPool.shutdownNow()
+    sitePool.shutdownNow()
     result
   }
 
   it should "merge arrays correctly" in {
-    arrayMerge(Array(1,2,5), Array(3,6)) shouldEqual Array(1,2,3,5,6)
+    arrayMerge(IndexedSeq(1,2,5), IndexedSeq(3,6)) shouldEqual IndexedSeq(1,2,3,5,6)
   }
 
   it should "sort an array using concurrent merge-sort correctly with one thread" in {

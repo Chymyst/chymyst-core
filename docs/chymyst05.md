@@ -2,7 +2,7 @@
 
 # Limitations of the Chemical Machine (and how to overcome them)
 
-While designing the “abstract chemistry” for our application, we need to keep in mind certain limitations of the chemical paradigm.
+While designing the chemical laws for our application, we need to keep in mind that the chemical paradigm limits what we can do (for our own good).
 
 1. We cannot detect the _absence_ of a given non-blocking molecule, say `a(1)`, in the soup.
 This seems to be a genuine limitation of the chemical machine paradigm.
@@ -22,11 +22,16 @@ It could happen that `a()` was present but got involved in some other reactions 
 
 Another feature would be to introduce “inhibiting” conditions on reactions: a certain reaction can start when molecules `a` and `b` are present but no molecule `c` is present.
 However, it is not clear that this extension of the chemical paradigm would be useful.
-The solution based on a “timeout” appears to be sufficient in practice.
+The solution based on a timeout appears to be sufficient in practice.
 
-2. “Chemical soups” running as different processes (either on the same computer or on different computers) are completely separate and cannot be “pooled”.
+It appears plausible that the chemical machine cannot detect the absence of a molecule.
+Since we can expect molecules to be emitted at random and unpredictable times by concurrently running processes, it is always possible that a certain molecule is, at a given time, not present in the soup but is about to be emitted by some reaction because the emitter has already been called and its task is already waiting in the queue.
 
-What we would like to do is to connect many chemical machines together, running perhaps on different computers, and to pool their individual “soups” into one large “common soup”.
+The chemical machine forces the programmer to design the chemical laws in such a way that the result of the execution of the program is the same even if random delays were inserted at any point when a molecule is emitted or a reaction needs to be started.
+
+2. Chemical soups running as different processes (either on the same computer or on different computers) are completely separate and cannot be pooled.
+
+What we would like to do is to connect many chemical machines together, running perhaps on different computers, and to pool their individual soups into one large “common soup”.
 Our program should then be able to emit lots of molecules into the common pool and thus organize a massively parallel, distributed computation, without worrying about which CPU computes what reaction.
 However, in order to organize a distributed computation, we would need to split the tasks explicitly between the participating soups.
 The organization and supervision of distributed computations, the maintenance of connections between machines, the handling of disconnections - all this remains the responsibility of the programmer and is not handled automatically by the chemical machine.
@@ -35,13 +40,13 @@ In principle, a sufficiently sophisticated runtime engine could organize a distr
 It remains to be seen whether it is feasible and/or useful to implement such a runtime engine.
 
 3. Reactions are immutable: it is impossible to add more reactions at run time to an existing reaction site.
-(This limitation is enforced in `JoinRun` by making reaction sites immutable and invisible to the user.)
+(This limitation is enforced in `Chymyst` by making reaction sites immutable and invisible to the user.)
 
 Once a reaction site declares a certain molecule as an input molecule for some reactions, it is impossible to add further reactions that consume this molecule.
 
-However, `JoinRun` gives users a different mechanism for writing a reaction site with reactions computed at run time.
-Since reactions are local values (as are molecule emitters), users can first create any number of reactions and store these reactions in an array, before writing a reaction site with these reactions.
-Once all desired reactions have been assembled, users can write a reaction site that uses all the reactions from the array.
+However, it is possible to declare a reaction site with reactions computed at run time.
+Since reactions are local values (as are molecule emitters), users can first create any number of reactions and store these reactions in an array, before declaring a reaction site with these reactions.
+Once all desired reactions have been assembled, users can declare a reaction site that uses all the reactions from the array.
 
 As an (artificial) example, consider the following pattern of reactions:
 
@@ -63,11 +68,11 @@ a(10)
 
 ```
 
-When this is run, the reactions will cycle through the four molecules `a`, `b`, `c`, `d` while incrementing the value each time, until the value 100 is reached.
+When this is run, the reactions will cycle through the four molecules `a`, `b`, `c`, `d` while incrementing the value each time, until the value 100 or higher is reached by the molecule `d`.
 
 Now, suppose we need to write a reaction site where we have `n` molecules and `n` reactions, instead of just four.
 Suppose that `n` is a runtime parameter.
-Since reactions and molecule emitters are local values, we can simply create them and store in a data structure:
+Since molecule emitters and reactions are local values, we can simply create them and store in a data structure:
 
 
 ```scala
@@ -104,102 +109,7 @@ emitters(0)(10)
 ```
 
 
-# Some useful concurrency patterns
-
-## Background jobs
-
-A basic asynchronous task is to start a long background job and get notified when it is done.
-
-A chemical model is easy to invent: the reaction needs no data to start (the calculation can be inserted directly in the reaction body).
-So we define a reaction with a single non-blocking input molecule that carries a `Unit` value.
-The reaction will consume the molecule, do the long calculation, and then emit a `finished(...)` molecule that carries the result value on it.
-
-A convenient implementation is to define a function that will return an emitter that starts the job.
-
-```scala
-/**
-* Prepare reactions that will run a closure and emit a result upon its completion.
-*
-* @tparam R The type of result value
-* @param closure The closure to be run
-* @param finished A previously bound non-blocking molecule to be emitted when the calculation is done
-* @return A new non-blocking molecule that will start the job
-*/
-def submitJob[R](closure: Unit => R, finished: M[R]): M[R] = {
-  val startJobMolecule = new M[Unit]
-
-  site( go { case startJobMolecule(_) =>
-    val result = closure()
-    finished(result) }
-   )
-
-   startJobMolecule
-}
-
-```
-
-The `finished` molecule should be bound to another reaction site.
-
-Another implementation of the same idea will put the `finished` emitter into the molecule value, together with the closure that needs to be run.
-
-However, we lose some polymorphism since Scala values cannot be parameterized by types.
-The `startJobMolecule` cannot have type parameters and has to accept `Any` as a type:
-
-```scala
-val startJobMolecule = new M[(Unit => Any, M[Any])]
-
-site(
-  go {
-    case startJobMolecule(closure, finished) =>
-      val result = closure()
-      finished(result)
-  }
-)
-
-```
-
-A solution to this difficulty is to create a method that is parameterized by type and returns a `startJobMolecule`:
-
-```scala
-def makeStartJobMolecule[R]: M[(Unit => R, M[R])] = {
-  val startJobMolecule = new M[(Unit => R, M[R])]
-
-  site(
-    go {
-      case startJobMolecule(closure, finished) =>
-        val result = closure()
-        finished(result)
-   }
-  )
-  startJobMolecule
-}
-
-```
-
-## Waiting forever
-
-Suppose we want to implement a function `wait_forever()` that blocks indefinitely, never returning.
-
-The chemical model is that a blocking molecule `wait` reacts with another, non-blocking molecule `godot`; but `godot` never appears in the soup.
-
-We also need to make sure that the molecule `godot()` is never emitted into the soup.
-So we declare `godot` locally within the scope of `wait_forever`, where we'll emit nothing into the soup.
-
-```scala
-def wait_forever: B[Unit, Unit] = {
-  val godot = m[Unit]
-  val wait = b[Unit, Unit]
-
-  site( go { case godot(_) + wait(_, r) => r() } )
-  // forgot to emit `godot` here, which is key to starve this reaction.
-  wait
-}
-
-```
-
-The function `wait_forever` will return a blocking molecule emitter that will block forever, never returning any value.
-
-## Reaction constructors
+# Reaction constructors
 
 Chemical reactions are static - they must be specified at compile time and cannot be modified at runtime.
 `JoinRun` goes beyond this limitation, since reactions in `JoinRun` are values created at run time.

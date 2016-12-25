@@ -3,7 +3,7 @@ package code.chymyst.jc
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 
-import scala.collection.JavaConverters._
+import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.collection.mutable
 
 object Core {
@@ -137,7 +137,7 @@ object Core {
 
   }
 
-  private val errorLog: ConcurrentLinkedQueue[String] = new ConcurrentLinkedQueue[String]()
+  private val errorLog = new ConcurrentLinkedQueue[String]
 
   private[jc] def reportError(message: String): Unit = {
     errorLog.add(message)
