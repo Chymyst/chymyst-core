@@ -112,18 +112,22 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val pusher = m[ShippedInventory] // pusher means drug dealer, in classic Comp Sci, we'd call this producer or publisher.
     val count = m[Int]
-    val KeithInNeed = new E("Keith obtained tobacco and matches to get his fix") // makes for more vivid tracing, could be plainly m[Unit]
-    val SlashInNeed = new E("Slash obtained tobacco and matches to get his fix") // same
-    val JimiInNeed = new E("Jimi obtained tobacco and matches to get his fix") // same
+    val Keith = new E("Keith obtained tobacco and matches to get his fix") // makes for more vivid tracing, could be plainly m[Unit]
+    val Slash = new E("Slash obtained tobacco and matches to get his fix") // same
+    val Jimi = new E("Jimi obtained tobacco and matches to get his fix") // same
 
-    val tobaccoShipment = m[ShippedInventory] // this is not particularly elegant, ideally this should carry Unit but pusher needs to obtain current state
-    val matchesShipment = m[ShippedInventory] // same
-    val paperShipment = m[ShippedInventory] // same
+    val tobacco = m[ShippedInventory] // this is not particularly elegant, ideally this should carry Unit but pusher needs to obtain current state
+    val matches = m[ShippedInventory] // same
+    val paper = m[ShippedInventory] // same
 
-    val pusherDone = m[Unit]
     val check = new EE("check") // blocking Unit, only blocking molecule of the example.
 
     val logFile = new ConcurrentLinkedQueue[String]
+
+    def enjoyAndResume(s: ShippedInventory) = {
+      smokingBreak()
+      pusher(s)
+    }
 
     site(tp) (
       go { case pusher(ShippedInventory(t, p, m)) + count(n) if n >= 1 =>
@@ -131,33 +135,24 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
         scala.util.Random.nextInt(3) match { // select the 2 ingredients randomly
           case 0 =>
             val s = ShippedInventory(t+1, p, m+1)
-            tobaccoShipment(s)
-            matchesShipment(s)
+            tobacco(s); matches(s)
           case 1 =>
             val s =  ShippedInventory(t+1, p+1, m)
-            tobaccoShipment(s)
-            paperShipment(s)
+            tobacco(s); paper(s)
           case _ =>
             val s = ShippedInventory(t, p+1, m+1)
-            matchesShipment(s)
-            paperShipment(s)
+            matches(s); paper(s)
         }
         count(n-1)
       },
       go { case count(0) + check(_, r) => r() },
 
-      go { case KeithInNeed(_) + tobaccoShipment(s) + matchesShipment(_) =>
-        smokingBreak(); pusher(s); KeithInNeed()
-      },
-      go { case SlashInNeed(_) + tobaccoShipment(s) + paperShipment(_) =>
-        smokingBreak(); pusher(s); SlashInNeed()
-      },
-      go { case JimiInNeed(_) + matchesShipment(s) + paperShipment(_) =>
-        smokingBreak(); pusher(s); JimiInNeed()
-      }
+      go { case Keith(_) + tobacco(s) + matches(_) => enjoyAndResume(s); Keith() },
+      go { case Slash(_) + tobacco(s) + paper(_) => enjoyAndResume(s); Slash() },
+      go { case Jimi(_) + matches(s) + paper(_) => enjoyAndResume(s); Jimi()}
     )
 
-    KeithInNeed(()) + SlashInNeed(()) + JimiInNeed(())
+    Keith(()) + Slash(()) + Jimi(())
     pusher(ShippedInventory(0,0,0))
     count(supplyLineSize) // if running as a daemon, we would not use count and let the example/application run for ever.
 
@@ -182,14 +177,13 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val pusher = m[ShippedInventory]
     val count = m[Int]
-    val done = new E("count is done")
-    val KeithInNeed = new E("Keith obtained tobacco and matches to get his fix")
-    val SlashInNeed = new E("Slash obtained tobacco and paper to get his fix")
-    val JimiInNeed = new E("Jimi obtained matches and paper to get his fix")
+    val Keith = new E("Keith obtained tobacco and matches to get his fix")
+    val Slash = new E("Slash obtained tobacco and paper to get his fix")
+    val Jimi = new E("Jimi obtained matches and paper to get his fix")
 
-    val tobaccoShipment = m[Unit]
-    val matchesShipment = m[Unit]
-    val paperShipment = m[Unit]
+    val tobacco = m[Unit]
+    val matches = m[Unit]
+    val paper = m[Unit]
 
     val check = new EE("check") // blocking Unit, only blocking molecule of the example.
 
@@ -202,40 +196,32 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
         scala.util.Random.nextInt(3) match { // select the 2 ingredients randomly
           case 0 =>
             s = ShippedInventory(t+1, p, m+1)
-            tobaccoShipment()
-            matchesShipment()
+            tobacco(); matches()
           case 1 =>
             s = ShippedInventory(t+1, p+1, m)
-            tobaccoShipment()
-            paperShipment()
+            tobacco(); paper()
           case _ =>
             s = ShippedInventory(t, p+1, m+1)
-            matchesShipment()
-            paperShipment()
+            matches(); paper()
         }
-        if (n == 1) {
-          done()
-        } else {
-          waitSome()
-          pusher(s)
-          count(n-1)
-        }
+        waitSome()
+        pusher(s)
+        count(n-1)
+      },
+      go { case count(0) + check(_, r) => r() },
 
+      go { case Keith(_) + tobacco(_) + matches(_) =>
+        println(Keith); smokingBreak(); Keith() // for tidy output, may suppress the println here.
       },
-      go { case done(_) + check(_, r) => r() },
-
-      go { case KeithInNeed(_) + tobaccoShipment(_) + matchesShipment(_) =>
-        println(KeithInNeed); smokingBreak(); KeithInNeed() // for tidy output, may suppress the println here.
+      go { case Slash(_) + tobacco(_) + paper(_) =>
+        println(Slash); smokingBreak(); Slash()
       },
-      go { case SlashInNeed(_) + tobaccoShipment(_) + paperShipment(_) =>
-        println(SlashInNeed); smokingBreak(); SlashInNeed()
-      },
-      go { case JimiInNeed(_) + matchesShipment(_) + paperShipment(_) =>
-        println(JimiInNeed); smokingBreak(); JimiInNeed()
+      go { case Jimi(_) + matches(_) + paper(_) =>
+        println(Jimi); smokingBreak(); Jimi()
       }
     )
 
-    KeithInNeed(()) + SlashInNeed(()) + JimiInNeed(())
+    Keith(()) + Slash(()) + Jimi(())
     pusher(ShippedInventory(0,0,0))
     count(supplyLineSize)
 
