@@ -760,8 +760,9 @@ matching up the three ingredients differently for the three smokers is a bit ana
  
 It is important to think of a suitable data model to capture the state of the world for the problem, so we need to know when to stop and count how many 
 cycles we go through, if we want to stop the computation. It may be useful to keep track of how many ingredients have been shipped or consumed but this does 
-not look to be important for a minimal solution (it is included for readers interested in inventory cost tracking and to represent that the state is carried 
-across the reactions and is not stored as mutable data anywhere).
+not look to be important for a minimal solution (it is included for readers interested in inventory cost tracking and to represent that the state is 
+carried across the reactions and is not stored as mutable data anywhere). The logging we do seems to require transferring information about consumed 
+inventory between the smokers and the pusher and it's not entirely clear that it is really necessary.
 
 It is important to represent the ingredients as individual molecules and not as pairs of molecules to properly represent the 3-way dependence of the smokers 
 on the pairs of ingredients. We will represent the ingredients dynamically by representing the producer consumer queue, so we call the molecules shipments.
@@ -770,62 +771,69 @@ One must ensure that we satisfy the chemistry laws, notably avoid unavoidable no
 contain the same input molecules. This guides towards a solution where the pusher is presented in a single reaction, not three. We capture that with the 
 first reaction in the solution.
 
+Finally, it seems useful to encapsulate the number of cycles left to execute (count) as a separate molecule from the pusher one.
+
 The final code looks like this:
 
 ```scala
-val supplyLineSize = 10
-    def smoke(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
+   val supplyLineSize = 10
+    def smokingBreak(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
 
     case class ShippedInventory(tobacco: Int, paper: Int, matches: Int)
-    case class SupplyChainState(inventory: Int, shipped: ShippedInventory)
-    // this data is only to demonstrate effects of randomization on the supply chain and make content of potential logging more interesting.
-    // strictly speaking all we need to keep track of is inventory.
-    
-    val pusher = new M[SupplyChainState]("Pusher has delivered some unit")
-    val KeithInNeed = new E("Keith is in need of tobacco and matches")
-    val SlashInNeed = new E("Slash is in need of tobacco and paper")
-    val JimiInNeed = new E("Jimi is in need of matches and paper")
+    // this data is only to demonstrate effects of randomization on the supply chain and make content of logFile more interesting.
+    // strictly speaking all we need to keep track of is inventory. Example would work if pusher molecule value would carry Unit values instead.
 
-    val tobaccoShipment = new M[SupplyChainState]("tobacco shipment")
-    val matchesShipment = new M[SupplyChainState]("matches shipment")
-    val paperShipment = new M[SupplyChainState]("paper shipment")
+    val pusher = m[ShippedInventory] // pusher means drug dealer, in classic Comp Sci, we'd call this producer or publisher.
+    val count = m[Int]
+    val KeithInNeed = new E("Keith obtained tobacco and matches to get his fix") // makes for more vivid tracing, could be plainly m[Unit]
+    val SlashInNeed = new E("Slash obtained tobacco and matches to get his fix") // same
+    val JimiInNeed = new E("Jimi obtained tobacco and matches to get his fix") // same
 
-    val pusherDone = new E("done")
+    val tobaccoShipment = m[ShippedInventory] // this is not particularly elegant, ideally this should carry Unit but pusher needs to obtain current state
+    val matchesShipment = m[ShippedInventory] // same
+    val paperShipment = m[ShippedInventory] // same
+
+    val pusherDone = m[Unit]
     val check = new EE("check") // blocking Unit, only blocking molecule of the example.
 
+    val logFile = new ConcurrentLinkedQueue[String]
+
     site(tp) (
-      go { case pusher(SupplyChainState(n, ShippedInventory(t, p, m))) =>
+      go { case pusher(ShippedInventory(t, p, m)) + count(n) if n >= 1 =>
+        logFile.add(s"$n,$t,$p,$m") // logging the state makes it easier to see what's going on, curious user may put println here instead.
         scala.util.Random.nextInt(3) match { // select the 2 ingredients randomly
           case 0 =>
-            val s = SupplyChainState(n-1, ShippedInventory(t+1, p, m+1))
+            val s = ShippedInventory(t+1, p, m+1)
             tobaccoShipment(s)
             matchesShipment(s)
           case 1 =>
-            val s = SupplyChainState(n-1, ShippedInventory(t+1, p+1, m))
+            val s =  ShippedInventory(t+1, p+1, m)
             tobaccoShipment(s)
             paperShipment(s)
           case _ =>
-            val s = SupplyChainState(n-1, ShippedInventory(t, p+1, m+1))
+            val s = ShippedInventory(t, p+1, m+1)
             matchesShipment(s)
             paperShipment(s)
         }
-        if (n == 1) pusherDone()
+        count(n-1)
       },
-      go { case pusherDone(_) + check(_, r) => r() },
+      go { case count(0) + check(_, r) => r() },
 
       go { case KeithInNeed(_) + tobaccoShipment(s) + matchesShipment(_) =>
-        smoke(); pusher(s); KeithInNeed()
+        smokingBreak(); pusher(s); KeithInNeed()
       },
       go { case SlashInNeed(_) + tobaccoShipment(s) + paperShipment(_) =>
-        smoke(); pusher(s); SlashInNeed()
+        smokingBreak(); pusher(s); SlashInNeed()
       },
       go { case JimiInNeed(_) + matchesShipment(s) + paperShipment(_) =>
-        smoke(); pusher(s); JimiInNeed()
+        smokingBreak(); pusher(s); JimiInNeed()
       }
     )
 
     KeithInNeed(()) + SlashInNeed(()) + JimiInNeed(())
-    pusher(SupplyChainState(supplyLineSize, ShippedInventory(0,0,0)))
+    pusher(ShippedInventory(0,0,0))
+    count(supplyLineSize) // if running as a daemon, we would not use count and let the example/application run for ever.
+
     check()
 ```
 ### Refactoring into a library
