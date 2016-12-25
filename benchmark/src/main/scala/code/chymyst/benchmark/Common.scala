@@ -15,17 +15,15 @@ object Common {
   }
 
   def timeWithPriming(task: => Unit): Long = {
-    val prime1 = timeThis {
+    task // this is just priming, no measurement
+
+    val result1 = timeThis {
       task
     }
-    val prime2 = timeThis {
+    val result2 = timeThis {
       task
     }
-    val result = timeThis {
-      task
-    }
-    //    println(s"timing with priming: prime1 = $prime1, prime2 = $prime2, result = $result")
-    (result + prime2 + 1) / 2
+    (result1 + result2 + 1) / 2
   }
 
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)

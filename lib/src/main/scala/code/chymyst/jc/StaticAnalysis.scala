@@ -4,7 +4,7 @@ import Core._
 
 import scala.annotation.tailrec
 
-private object StaticAnalysis {
+private[jc] object StaticAnalysis {
 
   private val patternIsNotUnknown: InputMoleculeInfo => Boolean =
     _.flag match { case UnknownInputPattern => false; case _ => true }
@@ -86,23 +86,35 @@ private object StaticAnalysis {
   // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
   private def checkReactionShadowing(reactions: Seq[Reaction]): Option[String] = {
     val suspiciousReactions = for {
-      r1 <- reactions.filter(_.info.hasGuard.knownFalse)
-      r2 <- reactions.filter(_ =!= r1)
+      r1 <- reactions.withFilter(_.info.hasGuard.knownFalse)
+      r2 <- reactions.withFilter(_ =!= r1)
       if allMatchersAreWeakerThan(r1.info.inputsSorted, r2.info.inputsSorted)
     } yield (r1, r2)
 
     if (suspiciousReactions.nonEmpty) {
       val errorList = suspiciousReactions.map{ case (r1, r2) =>
-        s"reaction $r2 is shadowed by $r1"
+        s"reaction {${r2.info}} is shadowed by {${r1.info}}"
       }.mkString(", ")
       Some(s"Unavoidable nondeterminism: $errorList")
+    } else None
+  }
+
+  // There should not be any two reactions whose source code is identical to each other.
+  private def findIdenticalReactions(reactions: Seq[Reaction]): Option[String] = {
+    val reactionsSha1 = reactions.map(_.info.sha1)
+    val repeatedReactionSha1 = (reactionsSha1 diff reactionsSha1.distinct).distinct
+    val repeatedReactions = repeatedReactionSha1.flatMap(sha1 => reactions.find(_.info.sha1 == sha1) )
+
+    if (repeatedReactions.nonEmpty) {
+      val errorList = repeatedReactions.map{ r => s"{${r.info}}" }.mkString(", ")
+      Some(s"Identical repeated reactions: $errorList")
     } else None
   }
 
   private def checkSingleReactionLivelock(reactions: Seq[Reaction]): Option[String] = {
     val errorList = reactions
       .filter { r => r.info.hasGuard.knownFalse && inputMatchersWeakerThanOutput(r.info.inputsSorted, r.info.outputs)}
-      .map(_.toString)
+      .map(r => s"{${r.info.toString}}")
     if (errorList.nonEmpty)
       Some(s"Unavoidable livelock: reaction${if (errorList.size == 1) "" else "s"} ${errorList.mkString(", ")}")
     else None
@@ -116,7 +128,7 @@ private object StaticAnalysis {
   private def checkSingleReactionLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
     val warningList = reactions
       .filter { r => inputMatchersSimilarToOutput(r.info.inputsSorted, r.info.outputs)}
-      .map(_.info.toString)
+      .map(r => s"{${r.info.toString}}")
     if (warningList.nonEmpty)
       Some(s"Possible livelock: reaction${if (warningList.size == 1) "" else "s"} ${warningList.mkString(", ")}")
     else None
@@ -130,8 +142,8 @@ private object StaticAnalysis {
 
     val likelyDeadlocks: Seq[(InputMoleculeInfo, InputMoleculeInfo, Reaction)] = for {
       bmInputs <- blockingInputsWithNonblockingInputs
-      (bInput, mInputInfos) = bmInputs
-      mInput <- mInputInfos
+      bInput = bmInputs._1
+      mInput <- bmInputs._2
       possibleReactions = Set(bInput, mInput).flatMap(_.molecule.emittingReactions).toSeq
       reaction <- possibleReactions
       outputs <- reaction.info.outputs
@@ -149,7 +161,7 @@ private object StaticAnalysis {
     }
 
     val warningList = likelyDeadlocks
-      .map { case (bInput, mInput, reaction) => s"molecule (${bInput.molecule}) may deadlock due to (${mInput.molecule}) among the outputs of ${reaction.info}"}
+      .map { case (bInput, mInput, reaction) => s"molecule (${bInput.molecule}) may deadlock due to (${mInput.molecule}) among the outputs of {${reaction.info}}"}
     if (warningList.nonEmpty)
       Some(s"Possible deadlock${if (warningList.size == 1) "" else "s"}: ${warningList.mkString("; ")}")
     else None
@@ -185,8 +197,7 @@ private object StaticAnalysis {
     }
 
     val warningList = likelyDeadlocks
-      .filter{ _._2.nonEmpty }
-      .map { case (info, reactionOpt) => s"molecule ${info.molecule} may deadlock due to outputs of ${reactionOpt.get.info}"}
+      .flatMap { case (info, reactionOpt) => reactionOpt.map(r => s"molecule ${info.molecule} may deadlock due to outputs of {${r.info}}") }
     if (warningList.nonEmpty)
       Some(s"Possible deadlock${if (warningList.size == 1) "" else "s"}: ${warningList.mkString("; ")}")
     else None
@@ -194,6 +205,7 @@ private object StaticAnalysis {
 
   private[jc] def findStaticErrors(reactions: Seq[Reaction]) = {
     Seq(
+      findIdenticalReactions _,
       checkReactionShadowing _,
       checkSingleReactionLivelock _,
       checkMultiReactionLivelock _
@@ -234,7 +246,7 @@ private object StaticAnalysis {
     val errorList = wrongConsumed ++ wrongOutput
 
     if (errorList.nonEmpty)
-      Some(s"Incorrect chemistry: ${errorList.mkString("; ")}")
+      Some(s"Incorrect singleton declaration: ${errorList.mkString("; ")}")
     else None
   }
 
@@ -256,7 +268,7 @@ private object StaticAnalysis {
     }
 
     if (errorList.nonEmpty)
-      Some(s"Incorrect chemistry: ${errorList.mkString("; ")}")
+      Some(s"Incorrect singleton declaration: ${errorList.mkString("; ")}")
     else None
   }
 

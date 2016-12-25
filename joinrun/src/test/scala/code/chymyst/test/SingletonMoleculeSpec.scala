@@ -72,7 +72,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         go { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect chemistry: singleton (d) consumed but not emitted by reaction c/B(_) + d(_) => "
+    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect singleton declaration: singleton (d) consumed but not emitted by reaction c/B(_) + d(_) => "
 
     tp.shutdownNow()
   }
@@ -90,7 +90,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         go { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect chemistry: singleton (d) emitted more than once by reaction c/B(_) + d(_) => d() + d()"
+    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect singleton declaration: singleton (d) emitted more than once by reaction c/B(_) + d(_) => d() + d()"
 
     tp.shutdownNow()
   }
@@ -110,7 +110,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         go { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B => ...; e => ...}: Incorrect chemistry: singleton (d) emitted but not consumed by reaction c/B(_) => d(); singleton (d) emitted but not consumed by reaction e(_) => d(); Incorrect chemistry: singleton (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B => ...; e => ...}: Incorrect singleton declaration: singleton (d) emitted but not consumed by reaction c/B(_) => d(); singleton (d) emitted but not consumed by reaction e(_) => d(); Incorrect singleton declaration: singleton (d) not consumed by any reactions"
 
     tp.shutdownNow()
   }
@@ -128,7 +128,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         go { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Site{d + d + e => ...}: Incorrect chemistry: singleton (d) consumed 2 times by reaction d(_) + d(_) + e(_) => d()"
+    thrown.getMessage shouldEqual "In Site{d + d + e => ...}: Incorrect singleton declaration: singleton (d) consumed 2 times by reaction d(_) + d(_) + e(_) => d()"
 
     tp.shutdownNow()
   }
@@ -166,7 +166,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         go { case _ => d() } // singleton
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B => ...}: Incorrect chemistry: singleton (d) emitted but not consumed by reaction c/B(_) => d(); Incorrect chemistry: singleton (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B => ...}: Incorrect singleton declaration: singleton (d) emitted but not consumed by reaction c/B(_) => d(); Incorrect singleton declaration: singleton (d) not consumed by any reactions"
 
     tp.shutdownNow()
   }
