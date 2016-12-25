@@ -117,11 +117,11 @@ never() // this will never return
 
 ```
 
-## Waiting until `n` jobs are finished
+## Waiting until `n` jobs are finished: non-blocking calls
 
 A frequently used pattern is to start `n` concurrent jobs and wait until all of them are finished.
 
-Suppose that we have started `n` jobs and each job, when done, will emit a non-blocking molecule `done()`.
+Suppose that we have started `n` jobs and each job, when done, will emit a _non-blocking_ molecule `done()`.
 We would like to implement a blocking molecule `all_done()` that will block until `n` molecules `done()` are emitted.
 
 To begin reasoning about the necessary molecules and reactions, consider that `done()` must react with some other molecule that keeps track of how many `done()` molecules remain to be seen.
