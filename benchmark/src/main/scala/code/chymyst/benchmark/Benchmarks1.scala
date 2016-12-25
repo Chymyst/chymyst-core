@@ -18,7 +18,6 @@ object Benchmarks1 {
 
     site(tp)(
       go { case c(0) + f(tInit, r) =>
-        val t = LocalDateTime.now
         r(elapsed(tInit))
       },
       go { case g(_,reply) + c(n) => c(n); reply(n) },

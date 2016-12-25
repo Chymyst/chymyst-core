@@ -6,7 +6,6 @@ import org.scalatest.{FlatSpec, Matchers}
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.reflect.ClassTag
 
 class ParallelOrSpec extends FlatSpec with Matchers {
 
@@ -68,8 +67,6 @@ class ParallelOrSpec extends FlatSpec with Matchers {
       go { case fastFalse(_, r) => Thread.sleep(10); r(false) },
       go { case slowFalse(_, r) => Thread.sleep(200); r(false) }
     )
-
-    implicit val stringClassTag = implicitly[ClassTag[String]]
 
     parallelOr(fastTrue, fastFalse, tp)() shouldEqual true
     parallelOr(fastTrue, slowFalse, tp)() shouldEqual true

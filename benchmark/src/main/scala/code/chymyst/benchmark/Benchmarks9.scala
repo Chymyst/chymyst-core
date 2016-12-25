@@ -97,7 +97,7 @@ object Benchmarks9 {
     val d = make_ping_pong_stack(done, tp)
     d(pingPongCalls)
 
-    var result = f(initialTime)
+    val result = f(initialTime)
     tp.shutdownNow()
     result
   }
@@ -171,7 +171,7 @@ object Benchmarks9 {
     val d = make_counter_1_Jiansen(done, numberOfCounters, count)
     (1 to (count*numberOfCounters)).foreach{ _ => d(()) }
 
-    var result = f(initialTime)
+    val result = f(initialTime)
     result
   }
 

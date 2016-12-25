@@ -233,7 +233,6 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val c = new E("c")
     val d = new E("d")
     val e = new M[Int]("e")
-    val f = new E("f")
     val g = new EB[Int]("g")
     val g2 = new EB[Int]("g2")
     val h = new EB[Int]("h")

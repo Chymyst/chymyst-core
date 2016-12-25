@@ -103,7 +103,7 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
       _go { case b(_) => c("send it off") }
     )
 
-    val givenFuture = for {
+    for {
       _ <- Future {
         Thread.sleep(20)
       } // waiter has 150 ms timeout
