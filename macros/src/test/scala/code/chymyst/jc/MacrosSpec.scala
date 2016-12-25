@@ -231,7 +231,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val result = go {
     // This generates a compiler warning "class M expects 2 patterns to hold (Int, Option[Int]) but crushing into 2-tuple to fit single pattern (SI-6675)".
     // Ignore this warning - this case is what we are testing right now, among other cases, so we cannot remove this warning.
-      case a(p) + a(y) + a(1) + c(()) + c(_) + bb(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) if y > 0 && s() > 0 => a(p + 1); qq(); r(p)
+      case a(p) + a(y) + a(1) + c(()) + c(_) + bb(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) if y > 0 => s(); a(p + 1); qq(); r(p)
     }
 
     (result.info.inputs match {
@@ -411,6 +411,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     "val r = go { case a(_, r) => }" shouldNot compile // no reply is performed with r
     "val r = go { case a(_, r) + a(_) + c(_) => r()  }" shouldNot compile // invalid patterns for "a" and "c"
     "val r = go { case a(_, r) + a(_) + c(_) => r(); r() }" shouldNot compile // two replies are performed with r, and invalid patterns for "a" and "c"
+
+    "val r = go { case e(_) if false => c() }" should compile // input guard does not emit molecules
+    "val r = go { case e(_) if c() => }" shouldNot compile // input guard emits molecules
+    "val r = go { case a(_,r) if r() => }" shouldNot compile // input guard performs reply actions
+
+    "val r = go { case e(_) => { case e(_) => } }" shouldNot compile // reaction body matches on input molecules
   }
 
   it should "fail to compile reactions with no input molecules" in {
