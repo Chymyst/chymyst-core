@@ -296,12 +296,10 @@ val supplyLineSize = 10
 
     case class ShippedInventory(tobacco: Int, paper: Int, matches: Int)
     case class SupplyChainState(inventory: Int, shipped: ShippedInventory)
-
+    // this data is only to demonstrate effects of randomization on the supply chain and make content of potential logging more interesting.
+    // strictly speaking all we need to keep track of is inventory.
+    
     val pusher = new M[SupplyChainState]("Pusher has delivered some unit")
-    val KeithsFix = new E("Keith is smoking having obtained tobacco and matches and rolled a cigarette")
-    val SlashsFix = new E("Slash is smoking having obtained tobacco and paper and rolled a cigarette")
-    val JimisFix = new E("Jimi is smoking having obtained matches and paper and rolled a cigarette")
-
     val KeithInNeed = new E("Keith is in need of tobacco and matches")
     val SlashInNeed = new E("Slash is in need of tobacco and paper")
     val JimiInNeed = new E("Jimi is in need of matches and paper")
@@ -331,19 +329,16 @@ val supplyLineSize = 10
         }
         if (n == 1) pusherDone()
       },
-      go { case KeithsFix(_) => KeithInNeed() },
-      go { case SlashsFix(_) => SlashInNeed() },
-      go { case JimisFix(_) => JimiInNeed() },
       go { case pusherDone(_) + check(_, r) => r() },
 
       go { case KeithInNeed(_) + tobaccoShipment(s) + matchesShipment(_) =>
-        KeithsFix(); smoke(); pusher(s)
+        smoke(); pusher(s); KeithInNeed()
       },
       go { case SlashInNeed(_) + tobaccoShipment(s) + paperShipment(_) =>
-        SlashsFix(); smoke(); pusher(s)
+        smoke(); pusher(s); SlashInNeed()
       },
       go { case JimiInNeed(_) + matchesShipment(s) + paperShipment(_) =>
-        JimisFix(); smoke(); pusher(s)
+        smoke(); pusher(s); JimiInNeed()
       }
     )
 
