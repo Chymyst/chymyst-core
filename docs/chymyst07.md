@@ -134,7 +134,7 @@ val done = m[Unit]
 val remaining = m[Int]
 
 site(
-  go { done() + remaining(k) => remaining(k-1) }
+  go { done(_) + remaining(k) => remaining(k-1) }
 )
 
 remaining(n) // Emit the molecule with value `n`,
@@ -163,7 +163,7 @@ val remaining = m[Int]
 val all_done = b[Unit,Unit]
 
 site(
-  go { done() + remaining(k) if k>0 => remaining(k-1) }, // Adding a guard to be safe.
+  go { done(_) + remaining(k) if k>0 => remaining(k-1) }, // Adding a guard to be safe.
   go { all_done(_, reply) + remaining(0) => reply() }
 )
 
@@ -175,16 +175,39 @@ remaining(n) // Emit the molecule with value `n`,
 Adding a guard `if k>0` will prevent the first reaction from running once we consume the expected number of `done()` molecules.
 This allows the user to emit more `done()` molecules than expected without disrupting the logic.
 
+### Example usage
+
+How would we use this code?
+Suppose we have `n` copies of a reaction whose completion we need to wait for.
+At the end of that reaction, we will now emit a `done()` molecule.
+After emitting the input molecules for these reactions to start, we call `all_done()` and wait for the completion of all jobs:
+
+```scala
+val begin = m[Int]
+
+site(
+  go { begin(x) => long_calculation(x); done() )}
+)
+val n = 10000
+(1 to n).foreach(begin) // Emit begin(1), begin(2), ..., begin(10000) now.
+
+all_done() // This will block until all reactions are finished.
+
+```
+
 ### Refactoring into a library
 
 Consider what is required in order to refactor this functionality into a library.
 We would like to have a library function call such as `make_all_done()` that creates the `all_done()` molecule for us.
 
-The library function will need to declare a new reaction site.
+The library function `make_all_done()` will need to declare a new reaction site.
 The `done()` molecule is an input molecule at the new reaction site.
-Therefore, this molecule cannot be already defined before we use the library call.
-The call to `make_all_done()` will have to return _both_ a new `done()` molecule and a new `all_done()` molecule.
-The user of the library will then need to emit the `done()` molecule at the end of each job.
+Therefore, this molecule cannot be already defined before we perform the library call.
+
+We see that the result of the library call must be the creation of _two_ new molecules: a new `done()` molecule and a new `all_done()` molecule.
+
+The user of the library will then need to make sure that every job emits the `done()` molecule at the end of the job.
+The user can then arrange for all the jobs to start (in whatever way necessary) and emit the `all_done()` blocking molecule in order to wait for the completion of all jobs.
 
 Refactoring a piece of chemistry into a library call is done by declaring the same molecules and reactions as we did above,
 all within the scope of a function.
@@ -197,7 +220,7 @@ def make_all_done(n: Int): (E, EE) = {
   val all_done = b[Unit,Unit]
   
   site(
-    go { done() + remaining(k) if k>0 => remaining(k-1) }, // Adding a guard to be safe.
+    go { done(_) + remaining(k) if k>0 => remaining(k-1) }, // Adding a guard to be safe.
     go { all_done(_, reply) + remaining(0) => reply() }
   )
   
@@ -210,15 +233,50 @@ def make_all_done(n: Int): (E, EE) = {
 
 Note that we declared the molecule types to be `E` and `EE`.
 These are the types created by the `m[Unit]` and `m[Unit,Unit]` macro calls.
-The class `E` is a refinement of the class `M[Unit]`, and `EE` is a refinement `M[Unit,Unit]`.
+The class `E` is a refinement of the class `M[Unit]`, and `EE` is a refinement of `M[Unit,Unit]`.
 The refinements are pure syntactic sugar: they are needed in order to permit the syntax `done()` and `all_done()` without a compiler warning about the missing `Unit` arguments.
 Without them, we would have to write `done(())` and `all_done(())`.
 
-## Waiting until `n` jobs are finished: blocking calls
+Let us now use the method `make_all_done()` to simplify the example usage code we had in the previous section:
+
+```scala
+val begin = m[Int]
+val n = 10000
+
+val (done, all_done) = make_all_done(n)
+
+site(
+  go { begin(x) => long_calculation(x); done() )}
+)
+
+(1 to n).foreach(begin) // Emit begin(1), begin(2), ..., begin(10000) now.
+
+all_done() // This will block until all reactions are finished.
+
+```
+
+### Waiting until `n` jobs are finished: blocking calls
 
 A variation on the same theme is to detect when `n` jobs are finished, given that each job will emit a _blocking_ molecule `done()` at the end.
 
-TODO
+In the previous section, we implemented waiting for `n` non-blocking molecules as a library call `make_all_done()`.
+Let us take the code we just saw for `make_all_done()` and try to modify it for the case when `done()` is a blocking molecule.
+The key reaction
+
+```scala
+go { done(_) + remaining(k) if k>0 => remaining(k-1) }
+
+```
+
+now needs to be modified because we must reply to the `done()` molecule at some point in that reaction:
+
+```scala
+go { done(_, r) + remaining(k) if k>0 => r(); remaining(k-1) }
+
+```
+
+In this way, we unblock whatever final cleanup the job needs to do after it signals `done()`.
+All other code in `make_all_done()` remains unchanged.
 
 ## Control over a shared resource (mutex, multiplex)
 
@@ -728,4 +786,7 @@ In the chemical machine, input molecules to each reaction must be defined static
 Since `n` is a run-time parameter, we cannot generalize to `n` in this way.
 
 
+
 ### Refactoring into a library
+
+## Reusable `n`-rendezvous
