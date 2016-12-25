@@ -51,7 +51,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
       val f = new EB[Int]("f")
       site(tp0)( _go { case f(_, r) => r(0) })
 
-      f.timeout(300 millis)().getOrElse(1)
+      f.timeout(500 millis)().getOrElse(1)
     }.sum shouldEqual 0 // we used to have about 4% failure rate here!
   }
 
@@ -62,7 +62,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     site(tp0)( _go { case a(_) + f(_, r) => r(3) })
     a()
     f() shouldEqual 3 // now the a() molecule is gone
-    f.timeout(300 millis)() shouldEqual None
+    f.timeout(500 millis)() shouldEqual None
   }
 
   it should "not timeout when a blocking molecule is responding quickly enough" in {

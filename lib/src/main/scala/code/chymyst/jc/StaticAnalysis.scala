@@ -95,7 +95,7 @@ private[jc] object StaticAnalysis {
 
     if (suspiciousReactions.nonEmpty) {
       val errorList = suspiciousReactions.map{ case (r1, r2) =>
-        s"reaction $r2 is shadowed by $r1"
+        s"reaction {${r2.info}} is shadowed by {${r1.info}}"
       }.mkString(", ")
       Some(s"Unavoidable nondeterminism: $errorList")
     } else None
@@ -104,7 +104,7 @@ private[jc] object StaticAnalysis {
   private def checkSingleReactionLivelock(reactions: Seq[Reaction]): Option[String] = {
     val errorList = reactions
       .filter { r => r.info.hasGuard.knownFalse && inputMatchersWeakerThanOutput(r.info.inputsSorted, r.info.outputs)}
-      .map(_.toString)
+      .map(r => s"{${r.info.toString}}")
     if (errorList.nonEmpty)
       Some(s"Unavoidable livelock: reaction${if (errorList.size == 1) "" else "s"} ${errorList.mkString(", ")}")
     else None
@@ -118,7 +118,7 @@ private[jc] object StaticAnalysis {
   private def checkSingleReactionLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
     val warningList = reactions
       .filter { r => inputMatchersSimilarToOutput(r.info.inputsSorted, r.info.outputs)}
-      .map(_.info.toString)
+      .map(r => s"{${r.info.toString}}")
     if (warningList.nonEmpty)
       Some(s"Possible livelock: reaction${if (warningList.size == 1) "" else "s"} ${warningList.mkString(", ")}")
     else None
@@ -151,7 +151,7 @@ private[jc] object StaticAnalysis {
     }
 
     val warningList = likelyDeadlocks
-      .map { case (bInput, mInput, reaction) => s"molecule (${bInput.molecule}) may deadlock due to (${mInput.molecule}) among the outputs of ${reaction.info}"}
+      .map { case (bInput, mInput, reaction) => s"molecule (${bInput.molecule}) may deadlock due to (${mInput.molecule}) among the outputs of {${reaction.info}}"}
     if (warningList.nonEmpty)
       Some(s"Possible deadlock${if (warningList.size == 1) "" else "s"}: ${warningList.mkString("; ")}")
     else None
@@ -187,8 +187,7 @@ private[jc] object StaticAnalysis {
     }
 
     val warningList = likelyDeadlocks
-      .filter{ _._2.nonEmpty }
-      .map { case (info, reactionOpt) => s"molecule ${info.molecule} may deadlock due to outputs of ${reactionOpt.get.info}"}
+      .flatMap { case (info, reactionOpt) => reactionOpt.map(r => s"molecule ${info.molecule} may deadlock due to outputs of {${r.info}}") }
     if (warningList.nonEmpty)
       Some(s"Possible deadlock${if (warningList.size == 1) "" else "s"}: ${warningList.mkString("; ")}")
     else None
@@ -236,7 +235,7 @@ private[jc] object StaticAnalysis {
     val errorList = wrongConsumed ++ wrongOutput
 
     if (errorList.nonEmpty)
-      Some(s"Incorrect chemistry: ${errorList.mkString("; ")}")
+      Some(s"Incorrect singleton declaration: ${errorList.mkString("; ")}")
     else None
   }
 
@@ -258,7 +257,7 @@ private[jc] object StaticAnalysis {
     }
 
     if (errorList.nonEmpty)
-      Some(s"Incorrect chemistry: ${errorList.mkString("; ")}")
+      Some(s"Incorrect singleton declaration: ${errorList.mkString("; ")}")
     else None
   }
 
