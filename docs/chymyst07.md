@@ -752,13 +752,11 @@ We model the processes as follows:
 
 
 Let us now figure out the chemistry that will solve this problem. We can think of the problem as a concurrent producer consumer queue with three competing 
-consumers and the supplier simply produces random pairs of ingredients into the queue. For simplicity, we assume the queue has capacity 1.
+consumers and the supplier simply produces random pairs of ingredients into the queue. For simplicity, we assume the queue has capacity 1, which is an 
+assumption in the statement of the problem.
 
 It also helps to draw parallels with the Dining Philosophers problem realizing that we can think of three philosophers as consumers and the constraint on 
-matching up the three ingredients differently for the three smokers is a bit analog to the contention of selecting the forks for the Dining Philosophers.
-
-As for the philosophers, we will need to keep track of a pair of states (molecules) for each consumer or smoker, when one is waiting for ingredients (in need
- of a fix) and when one when the smoker's requirement is fulfilled (having his fix). This parallels the eating-thinking dual state.
+matching up the three ingredients differently for the three smokers is a bit analog to the 
  
 It is important to think of a suitable data model to capture the state of the world for the problem, so we need to know when to stop and count how many 
 cycles we go through, if we want to stop the computation. It may be useful to keep track of how many ingredients have been shipped or consumed but this does 
