@@ -18,17 +18,14 @@ object MainApp extends App {
   val version = "0.0.5"
 
   def run3times(task: => Long): Long = {
-    val prime1 = {
+    task // just priming, no measurement
+    val result1 = {
       task
     }
-    val prime2 = {
+    val result2 = {
       task
     }
-    val result = {
-      task
-    }
-    //    println(s"timing with priming: prime1 = $prime1, prime2 = $prime2, result = $result")
-    (result + prime2 + 1) / 2
+    (result1 + result2 + 1) / 2
   }
 
   println(s"Benchmark parameters: count to $n, threads = $threads")
