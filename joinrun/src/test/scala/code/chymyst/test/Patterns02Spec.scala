@@ -34,11 +34,10 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val pusher = m[ShippedInventory]
     // pusher means drug dealer, in classic Comp Sci, we'd call this producer or publisher.
     val count = m[Int]
+    // giving description to the three E smokers molecules below makes for more vivid tracing, could be plainly m[Unit] instead.
     val Keith = new E("Keith obtained tobacco and matches to get his fix")
-    // makes for more vivid tracing, could be plainly m[Unit]
     val Slash = new E("Slash obtained tobacco and matches to get his fix")
-    // same
-    val Jimi = new E("Jimi obtained tobacco and matches to get his fix") // same
+    val Jimi = new E("Jimi obtained tobacco and matches to get his fix")
 
     val tobacco = m[ShippedInventory] // this is not particularly elegant, ideally this should carry Unit but pusher needs to obtain current state
     val matches = m[ShippedInventory]
