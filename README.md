@@ -18,7 +18,7 @@ The initial code of `JoinRun` was based on previous work by Jiansen He (https://
 The current implementation is tested under Oracle JDK 8 with Scala 2.11 and 2.12.
 It also works with Scala 2.10 and with OpenJDK 7 (except for the new `LocalDateTime` functions used in tests, and some performance issues).
 
-# Overview of `JoinRun`
+# Overview of `JoinRun`/`Chymyst`
 
 To get started, begin with this [tutorial introduction](https://chymyst.github.io/joinrun-scala/chymyst00.html).
 
@@ -141,7 +141,7 @@ Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` an
 
 # Status
 
-Current version is `0.1.3`.
+Current released version is `0.1.3`.
 The semantics of the chemical machine (restricted to single-host, multicore computations) is fully implemented and tested.
 
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.

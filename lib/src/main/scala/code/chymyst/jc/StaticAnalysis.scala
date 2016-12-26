@@ -89,9 +89,7 @@ private[jc] object StaticAnalysis {
       r1 <- reactions.withFilter(_.info.hasGuard.knownFalse)
       r2 <- reactions.withFilter(_ =!= r1)
       if allMatchersAreWeakerThan(r1.info.inputsSorted, r2.info.inputsSorted)
-    } yield {
-      (r1, r2)
-    }
+    } yield (r1, r2)
 
     if (suspiciousReactions.nonEmpty) {
       val errorList = suspiciousReactions.map{ case (r1, r2) =>

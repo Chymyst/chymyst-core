@@ -17,12 +17,22 @@ To understand this tutorial, the reader should have some familiarity with the `S
 
 [Chapter 4: Map/Reduce and Merge-Sort](chymyst04.md)
 
-[Chapter 5: Further concurrency patterns](chymyst05.md)
+[Chapter 5: Reaction constructors](chymyst05.md)
 
 [Previous work and other tutorials on Join Calculus](chymyst06.md)
+
+[Chapter 7: Concurrency patterns](chymyst07.md)
+
+[Chapter 8: Advanced examples](chymyst08.md)
+
+[Version history and roadmap](roadmap.md)
 
 The source code repository for `JoinRun` is at [https://github.com/winitzki/joinrun-scala](https://github.com/winitzki/joinrun-scala).
 
 Although this tutorial focuses on using `JoinRun`/`Chymyst` in Scala, one can similarly embed the chemical machine as a library on top of any programming language that has threads and semaphores.
 The main concepts and techniques of the chemical machine paradigm are independent of the base programming language.
 
+[![Robert Boyle's self-flowing flask](Boyle_Self-Flowing_Flask.png)](https://en.wikipedia.org/wiki/Robert_Boyle#/media/File:Boyle%27sSelfFlowingFlask.png)
+
+This drawing is by [Robert Boyle](https://en.wikipedia.org/wiki/Robert_Boyle), one of the founders of the science of chemistry.
+In 1661 he published a treatise titled [The Sceptical Chymyst](https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Sceptical_chymist_1661_Boyle_Title_page_AQ18_%283%29.jpg/220px-Sceptical_chymist_1661_Boyle_Title_page_AQ18_%283%29.jpg), from which the `Chymyst` framework borrows its name.
