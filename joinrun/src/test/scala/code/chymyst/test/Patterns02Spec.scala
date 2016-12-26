@@ -6,7 +6,6 @@ import code.chymyst.jc._
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 import scala.collection.JavaConverters.asScalaIteratorConverter
-import scala.language.postfixOps
 
 class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
