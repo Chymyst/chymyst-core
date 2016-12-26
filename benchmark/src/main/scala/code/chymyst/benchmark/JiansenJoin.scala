@@ -59,10 +59,12 @@ class AsyName[Arg](implicit owner: Join, argT:ClassTag[Arg]) extends NameBase{
 
   override def pendArg(arg:Any):Unit = {
     argQ += arg.asInstanceOf[Arg]
+    ()
   }
 
   override def popArg():Unit = {
     argQ.dequeue()
+    ()
   }
 
   var argQ = new Queue[Arg] //queue of arguments pending on this name
@@ -71,13 +73,18 @@ class AsyName[Arg](implicit owner: Join, argT:ClassTag[Arg]) extends NameBase{
     *
     *  @param  a  the message pending on this channel
     */
-  def apply(a:Arg) :Unit = new Thread {synchronized{
-    if(argQ.contains(a)){
-      argQ += a
-    }else {
-      owner.trymatch(AsyName.this, a)// see if the new message will trigger any pattern
+  def apply(a:Arg) :Unit = {
+    new Thread {
+      synchronized {
+        if (argQ.contains(a)) {
+          argQ += a
+        } else {
+          owner.trymatch(AsyName.this, a) // see if the new message will trigger any pattern
+        }
+      }
     }
-  }}
+    ()
+  }
 
   def unapply(attr:Any) : Option[Arg]= attr match { // for pattern matching
     case (ch:NameBase, arg:Any) => {
@@ -143,6 +150,7 @@ class SynName[Arg, R](implicit owner: Join, argT:ClassTag[Arg], resT:ClassTag[R]
 
   override def pendArg(arg:Any):Unit = {
     argQ += arg.asInstanceOf[(Int,Arg)]
+    ()
   }
 
   override def popArg():Unit = synchronized {
@@ -202,11 +210,16 @@ class SynName[Arg, R](implicit owner: Join, argT:ClassTag[Arg], resT:ClassTag[R]
     *
     *  @param r the reply value
     */
-  def reply(r:R):Unit = new Thread {resultQ.synchronized {
-    //    println("reply "+r)
-    resultQ.enqueue((msgTags.pop, r))
-    resultQ.notifyAll()
-  }}
+  def reply(r:R):Unit = {
+    new Thread {
+      resultQ.synchronized {
+        //    println("reply "+r)
+        resultQ.enqueue((msgTags.pop, r))
+        resultQ.notifyAll()
+      }
+    }
+    ()
+  }
 
   private def fetch(a:(Int,Arg)):R = resultQ.synchronized {
     if (resultQ.isEmpty || resultQ.front._1 != a){
@@ -284,7 +297,7 @@ class Join {
   private var joinPat: PartialFunction[Any, Any] = _
   //  private var joinPat: PartialFunction[(Set[NameBase], Queue[(NameBase, Any)], PartialFunction[Any, Any], Int), Unit] = _
   //  def join(joinPat: PartialFunction[(Set[NameBase], Queue[(NameBase, Any)], PartialFunction[Any, Any], Int), Unit]) {
-  def join(joinPat: PartialFunction[Any, Any]) {
+  def join(joinPat: PartialFunction[Any, Any]): Unit = {
     if(!hasDefined){
       this.joinPat = joinPat
       hasDefined = true
@@ -297,13 +310,13 @@ class Join {
     val names: Set[NameBase] = new HashSet
     //println(ch +"   "+ arg)
     try{
-      if(ch.isInstanceOf[SynName[Any, Any]]) {ch.asInstanceOf[SynName[Any,Any]].pushMsgTag(arg)}
+      if(ch.isInstanceOf[SynName[_, _]]) {ch.asInstanceOf[SynName[_,_]].pushMsgTag(arg)}
       if(joinPat.isDefinedAt((ch, arg))){// optimization for singleton pattern
         joinPat((ch,arg))
       }else{
-        if(ch.isInstanceOf[SynName[Any, Any]]){
+        if(ch.isInstanceOf[SynName[_, _]]){
           joinPat((names, this.joinPat, (new HashMap[NameBase, Any]+((ch, arg))), 1, new SynName))
-          ch.asInstanceOf[SynName[Any,Any]].pushMsgTag(arg)
+          ch.asInstanceOf[SynName[_,_]].pushMsgTag(arg)
         }else{
           joinPat((names, this.joinPat, (new HashMap[NameBase, Any]+((ch, arg))), 1, new AsyName))
         }
@@ -313,7 +326,7 @@ class Join {
       }
     }catch{
       case e:MatchError => {// no pattern is matched
-        if(ch.isInstanceOf[SynName[Any, Any]]) {ch.asInstanceOf[SynName[Any,Any]].popMsgTag}
+        if(ch.isInstanceOf[SynName[_, _]]) {ch.asInstanceOf[SynName[_,_]].popMsgTag}
         ch.pendArg(arg)
       }
     }

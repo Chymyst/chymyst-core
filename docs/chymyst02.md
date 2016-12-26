@@ -253,7 +253,7 @@ val result = firstResult()
 
 ### How to encapsulate the new chemistry
 
-The code as written works but is not encapsulated - we are defining new molecules and new chemistry inline.
+The code as written works but is not encapsulated -- in this code, we define new molecules and new chemistry inline.
 There are two ways we could encapsulate this chemistry:
 
 - create a function that will return the `firstResult` emitter, given the emitters `f` and `g`
@@ -291,11 +291,11 @@ def makeFirstResult[T](f: B[Unit, T], g: B[Unit, T]): B[Unit, T] = {
 
 ```
 
-The main advantage of this code is to encapsulate all the auxiliary molecule emitters within the local scope of the method `makeFirstResult`.
+The main advantage of this code is to encapsulate all the auxiliary molecule emitters within the local scope of the method `makeFirstResult()`.
 Only the `firstResult` emitter is returned:
-This is the only emitter that the user of this library needs.
+This is the only emitter that the user of `makeFirstResult()` will need.
 The other emitters (`c`, `d`, and `done`) are invisible to the user since they are local variables in the scope of `makeFirstResult`.
-The user of the library cannot break the chemistry by inadvertently emitting some further copies of `c`, `d`, or `done`.
+The user of `makeFirstResult()` cannot break the chemistry by inadvertently emitting some further copies of `c`, `d`, or `done`.
 
 
 #### Refactoring as a molecule
@@ -426,7 +426,7 @@ site(
 c() + d() + result(0)
 ```
 
-As an exercise, the reader should now try to encapsulate the `parallelOr` operation into a library function.
+As an exercise, the reader should now try to encapsulate the `parallelOr` operation into a function.
 (This is done in the tests in `ParallelOrSpec.scala`.)
 
 As another exercise: Revise these reactions to incorporate more than two blocking emitters (say, `f`, `g`, `h`, `i`, `j`).
