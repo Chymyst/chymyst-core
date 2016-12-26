@@ -17,9 +17,15 @@ To understand this tutorial, the reader should have some familiarity with the `S
 
 [Chapter 4: Map/Reduce and Merge-Sort](chymyst04.md)
 
-[Chapter 5: Further concurrency patterns](chymyst05.md)
+[Chapter 5: Reaction constructors](chymyst05.md)
 
 [Previous work and other tutorials on Join Calculus](chymyst06.md)
+
+[Chapter 7: Concurrency patterns](chymyst07.md)
+
+[Chapter 8: Advanced examples](chymyst08.md)
+
+[Version history and roadmap](roadmap.md)
 
 The source code repository for `JoinRun` is at [https://github.com/winitzki/joinrun-scala](https://github.com/winitzki/joinrun-scala).
 
