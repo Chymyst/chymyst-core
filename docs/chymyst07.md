@@ -198,22 +198,22 @@ all_done() // This will block until all reactions are finished.
 ### Refactoring into a function
 
 Consider what is required in order to refactor this functionality into a reusable library function.
-We would like to have a library function call such as `make_all_done()` that creates the `all_done()` molecule for us.
+We would like to have a function call such as `make_all_done()` that creates the `all_done()` molecule for us.
 
-The library function `make_all_done()` will need to declare a new reaction site.
+The function `make_all_done()` will need to declare a new reaction site.
 The `done()` molecule is an input molecule at the new reaction site.
-Therefore, this molecule cannot be already defined before we perform the library call.
+Therefore, this molecule cannot be already defined before we perform the call to `make_all_done()`.
 
-We see that the result of the library call `make_all_done()` must be the creation of _two_ new molecules: a new `done()` molecule and a new `all_done()` molecule.
+We see that the result of the call `make_all_done()` must be the creation of _two_ new molecules: a new `done()` molecule and a new `all_done()` molecule.
 
-The user of the library will then need to make sure that every job emits the `done()` molecule at the end of the job.
-The user can then arrange for all the jobs to start (in whatever way necessary).
+The user will then need to make sure that every job emits the `done()` molecule at the end of the job,
+and arrange for all the jobs to start (in whatever way necessary).
 When it becomes necessary to wait until the completion of all jobs, the user code will simply emit the `all_done()` blocking molecule and wait until it returns.
 
-Refactoring an inline piece of chemistry into a reusable library function is generally done in two steps:
+Refactoring an inline piece of chemistry into a reusablefunction is generally done in two steps:
 
 - declare the same molecules and reactions as in the previous code, but now everything is within the scope of a function
-- the function should then return just the new molecule emitters that the library user will need to use, but no other molecule emitters
+- the function should then return just the new molecule emitters that the user will need to call, but no other molecule emitters
 
 Here is the result of this procedure for our previous code:
 
@@ -263,7 +263,7 @@ all_done() // This will block until all reactions are finished.
 
 A variation on the same theme is to detect when `n` jobs are finished, given that each job will emit a _blocking_ molecule `done()` at the end.
 
-In the previous section, we implemented waiting for `n` non-blocking molecules as a library call `make_all_done()`.
+In the previous section, we encapsulated the functionality of waiting for `n` non-blocking molecules into a function `make_all_done()`.
 Let us take the code we just saw for `make_all_done()` and try to modify it for the case when `done()` is a blocking molecule.
 The key reaction
 
@@ -582,7 +582,8 @@ val beginCritical2 = newCriticalSectionMarker()
 
 The result should be that we can create any number of critical sections that work independently of each other.
 
-In order to package the implementation of the critical section into a library function `newCriticalSectionMarker`, we simply declare the chemistry in the local scope of that function and return the molecule emitter:
+In order to package the implementation of the critical section into a function `newCriticalSectionMarker()`,
+we simply declare the chemistry in the local scope of that function and return the molecule emitter:
 
 ```scala
 def newCriticalSectionMarker(): B[Unit, M[Unit]] = {
@@ -802,12 +803,12 @@ The count value (showing the number of `barrier()` molecules already consumed) m
 Therefore, we need a reaction like this:
 
 ```scala
-go { case barrier(_, reply) + counter(k) => ???; if (k+1<n) counter(k+1); ???; reply() }
+go { case barrier(_, reply) + counter(k) => ???; if (k + 1 < n) counter(k + 1); ???; reply() }
 
 ```
 
 This reaction should reply to the `barrier()` molecule (as should any reaction that consumes a blocking molecule).
-It is clear that `replyB()` should come last: this is the reply to the `barrier()` molecule, which should be performed only after we counted up to `n`.
+It is clear that `reply()` should come last: this is the reply to the `barrier()` molecule, which should be performed only after we counted up to `n`.
 Until then, this reaction must be blocked.
 
 The only way to block in the middle of a reaction is to emit a blocking molecule there.
@@ -815,17 +816,17 @@ Therefore, some blocking molecule must be emitted in the reaction before replyin
 Let us make `counter()` a blocking molecule:
 
 ```scala
-go { case barrier(_, replyB) + counter(k, replyC) => ???; if (k+1<n) counter(k+1); ???; replyB() }
+go { case barrier(_, reply) + counter(k, replyCounter) => ???; if (k + 1 < n) counter(k + 1); ???; reply() }
 
 ```
 
 What is still missing is the reply to the `counter(k)` molecule.
-Now we are faced with a question: at what point should we perform that reply, before emitting `counter(k+1)` or after?
+Now we are faced with a question: at what point should we perform that reply, before emitting `counter(k + 1)` or after?
 We could write one of the two reactions:
 
 ```scala
-val reaction1 = go { case barrier(_, replyB) + counter(k, replyC) => replyC(); if (k+1<n) counter(k+1); replyB() }
-val reaction2 = go { case barrier(_, replyB) + counter(k, replyC) => if (k+1<n) counter(k+1); replyC(); replyB() }
+val reaction1 = go { case barrier(_, reply) + counter(k, replyCounter) => replyCounter(); if (k + 1 < n) counter(k + 1); reply() }
+val reaction2 = go { case barrier(_, reply) + counter(k, replyCounter) => if (k + 1 < n) counter(k + 1); replyCounter(); reply() }
 
 ```
 
@@ -850,33 +851,33 @@ However, in `reaction1` the reply is already sent to `counter(7)` before emittin
 This will unblock the previous reaction,
  
 ```scala
-{ case barrier(_, replyB) + counter(6, replyC) => replyC(); counter(7); replyB() }
+{ case barrier(_, reply) + counter(6, replyCounter) => replyCounter(); counter(7); reply() }
 
 ```
 
 which was blocked at the call to `counter(7)`.
-Now this reaction can proceed to reply to `barrier()` using `replyB()`.
+Now this reaction can proceed to reply to `barrier()` using `reply()`.
 However, at this point it is too early to send a reply to `barrier()`, because we still have two `barrier()` molecules that we have not yet consumed!
 
 Therefore, `reaction1` is incorrect.
 On the other hand, `reaction2` works correctly.
-It will block at each emission of `counter(k+1)` and unblock only when `k=n-1`.
-At that time, `reaction2` will reply to the `counter(n-1)` molecule and to the last consumed `barrier()` molecule.
+It will block at each emission of `counter(k + 1)` and unblock only when `k=n-1`.
+At that time, `reaction2` will reply to the `counter(n-1)` molecule and to the just consumed `barrier()` molecule.
 The reply to the `counter(n-1)` molecule will unblock the copy of `reaction2` that emitted it, which will unblock the next molecules.
 
 In this way, the `n`-rendezvous will require all `n` reactions to wait at the "barrier" until all participants reach the barrier, and then unblock all of them.
 
 It remains to see how the first reaction will start.
 We could emit a `counter(0)` molecule at the initial time.
-This molecule is blocking, so emitting it will block a thread until the very end of the `n`-rendezvous.
-We could avoid blocking a thread by writing a special initial reaction such as
+This molecule is blocking, so emitting it will block a reaction until the very end of the `n`-rendezvous.
+Alternatively, we can write a special initial reaction such as
 
 ```scala
-go { case barrier(_, replyB) + counterInit(_) => counter(1); replyB() }
+go { case barrier(_, reply) + counterInit(_) => counter(1); reply() }
 
 ```
 
-The complete code looks like this:
+Then the complete code looks like this:
 
 ```scala
 val barrier = b[Unit,Unit]
@@ -884,49 +885,67 @@ val counterInit = m[Unit]
 val counter = b[Int,Unit]
 
 site(
-  go { case barrier(_, replyB) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
+  go { case barrier(_, reply) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
     counter(1) // one reaction has reached the rendezvous point
-    replyB()
+    reply()
   },
-  go { case barrier(_, replyB) + counter(k, replyC) =>
-    if (k + 1 < n) counter(k+1)
-    replyC()
-    replyB()
+  go { case barrier(_, reply) + counter(k, replyCounter) =>
+    if (k + 1 < n) counter(k + 1)
+    replyCounter()
+    reply()
   }
 )
 counterInit() // This needs to be emitted initially.
 
 ```
 
-Note that this chemistry will block `n` threads that emit `barrier()` and another set of `n` threads that run `reaction2`.
-Unless (in a future version of `JoinRun`) the blocking is optimized away, the current implementation of the `n`-rendezvous will require `2*n` threads and block them until the rendezvous is passed.
+Note that this chemistry will block `n` reactions that emit `barrier()` and another set of `n` copies of `reaction2`.
+In the current implementation of `JoinRun`, a blocked reaction will block a thread, so the`n`-rendezvous will require `2*n` new threads that remain blocked until the rendezvous is passed.
+(A future implementation of `JoinRun` might be able to perform a code transformation that never blocks any threads.)
+
+How do we use this `n`-rendezvous?
+Suppose we have a reaction where a certain processing step needs to wait for all other reactions to reach the same step.
+Then we emit the `barrier()` molecule at that step:
+
+```scala
+site (
+  go { case begin(_) =>
+    work()
+    barrier() // need to wait here for other reactions
+    more_work()
+  }
+)
+
+(1 to 1000).foreach (begin) // start 1000 copies of this reaction
+
+```
 
 ### Refactoring into a function
 
-As usual when encapsulating some piece of chemistry into a reusable library function, we first figure out what new molecule emitters are necessary for the users of the library to be able to use the encapsulated chemistry.
-These new emitters will be returned by the library function; all the other chemistry will remain encapsulated within the local scope of the library function.
+As usual when encapsulating some piece of chemistry into a reusable function, we first figure out what new molecule emitters are necessary for the users of the function to be able to run the encapsulated chemistry.
+These new emitters will be returned (say, as a tuple) by the function; all the other chemistry will remain encapsulated within the local scope of the function.
 
-In our case, the users of the library only need the `barrier()` molecule emitter.
-In fact, users should _not_ have access to `counter` or `counterInit` emitters: if users emit some more of these molecules, the logic of the reactions will be disrupted.
+In our case, the users of the function will only need the `barrier()` molecule emitter.
+In fact, users should _not_ have access to `counter` or `counterInit` emitters: if users emit more copies of these molecules, the encapsulated reactions will work incorrectly.
 
 We also note that the number `n` needs to be given in advance, before creating the reaction site for the `barrier` molecule.
-Therefore, we write the library function with an integer argument `n`:
+Therefore, we write a function with an integer argument `n`:
 
 ```scala
-def makeRendezvous(n: Int): EE = { // returning EE <: B[Unit,Unit]
+def makeRendezvous(n: Int): EE = { // We are returning EE, which is a subclass of B[Unit,Unit]
   val barrier = b[Unit,Unit]
   val counterInit = m[Unit]
   val counter = b[Int,Unit]
   
   site(
-    go { case barrier(_, replyB) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
+    go { case barrier(_, reply) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
       counter(1) // one reaction has reached the rendezvous point
-      replyB()
+      reply()
     },
-    go { case barrier(_, replyB) + counter(k, replyC) =>
-      if (k + 1 < n) counter(k+1)
-      replyC()
-      replyB()
+    go { case barrier(_, reply) + counter(k, replyCounter) =>
+      if (k + 1 < n) counter(k + 1)
+      replyCounter()
+      reply()
     }
   )
   counterInit() // This needs to be emitted initially.
@@ -936,10 +955,34 @@ def makeRendezvous(n: Int): EE = { // returning EE <: B[Unit,Unit]
 
 ```
 
+The usage example will then look like this:
+
+```scala
+val barrier = makeRendezvous(1000)
+
+site (
+  go { case begin(_) =>
+    work()
+    barrier() // need to wait here for other reactions
+    more_work()
+  }
+)
+
+(1 to 1000).foreach (begin) // start 1000 copies of this reaction
+
+```
+
+
 ### Reusable `n`-rendezvous
 
-Reusable `n`-rendezvous is a small variation on the previous pattern:
-Namely, once `n` participant reactions have passed the rendezvous point, the `barrier` molecule should automatically become ready to be used again by some other `n` reactions.
+The `n`-rendezvous as implemented in the previous section has a drawback:
+After `n` reactions have passed the rendezvous point, emitting more `barrier()` molecules will have no effect.
+If another set of `n` reactions needs to participate in an `n`-rendezvous, a new call to `makeRendezvous()` needs to be made in order to produce a whole new reaction site with a new `barrier()` molecule.
+
+In a _reusable_ `n`-rendezvous,
+once a set of `n` participant reactions have passed the rendezvous point, the same `barrier` molecule should automatically become ready to be used again by another set of `n` reactions.
+This can be seen as a batching functionality:
+If reactions emit a large number of `barrier()` molecules, these molecules are split into batches of `n` and an `n`-rendezvous procedure is automatically performed for one batch after another. 
 
 Let us see how we can revise the code of `makeRendezvous()` to implement this new requirement.
 We need to consider what molecules will be present after one rendezvous is complete.
@@ -950,7 +993,7 @@ In order to allow starting the `n`-rendezvous again, we need to make sure that `
 Therefore, the only needed change is to emit `counterInit()` when the `n`-rendezvous is complete:
 
 ```scala
-if (k + 1 < n) counter(k+1) else counterInit()
+if (k + 1 < n) counter(k + 1) else counterInit()
 
 ```
 
@@ -958,7 +1001,7 @@ After this single change, the `n`-rendezvous function becomes a reusable `n`-ren
 
 ## Pair up for dance
 
-There are two doors that open to the dance floor where men must pair up with women to dance.
+In the 18th century Paris, there are two doors that open to the dance floor where men must pair up with women to dance.
 At random intervals, men and women arrive to the dancing place.
 Men queue up at door A, women at door B.
 
@@ -981,14 +1024,15 @@ go { case man(_) + woman(_) => begin_dancing() }
 
 To simplify this example, let us assume that some other reactions will randomly emit `man()` and `woman()` molecules.
 
-The problem with the above reaction is that it does not respect the order of the queue.
-If processes emit several `man()` and `woman()` molecules, they will be paired up in random order, rather than in the order of arrival in the queue.
+The problem with the above reaction is that it does not respect the linear nature of the queue.
+If processes emit several `man()` and `woman()` molecules quickly enough, they will be paired up in random order, rather than in the order of arrival in the queue.
+Also, nothing prevents several pairs to begin dancing at once, regardless of the dancer's positions in the queues.
 
-
+TODO: expand
 
 ## Choose and reply to one of many blocking calls (Unix `select`, Actor Model's `receive`)
 
-The task is to organize the processing of several blocking calls emitted at the same time.
+The task is to organize the processing of several blocking calls emitted by different concurrent reactions.
 One receiver is available to process one of these calls at a time.
 
 TODO
