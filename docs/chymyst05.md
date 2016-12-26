@@ -220,6 +220,7 @@ val (result: M[String], fut: Future[String]) = moleculeFuture[String]
 site( go { case a(x) => result(s"finished: $x") } ) // we define our reaction that will eventually emit "result(...)"
 
 ExternalLibrary.consumeUserFuture(fut) // the external library takes our value "fut" and does something with it
-//  Some chemistry code that eventually emits _a_ to resolve the result.
+
+// Here should be some chemistry code that eventually emits `a` to start the reaction above.
 ```
 

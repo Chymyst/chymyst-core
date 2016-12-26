@@ -253,7 +253,7 @@ val result = firstResult()
 
 ### How to encapsulate the new chemistry
 
-The code as written works but is not encapsulated - we are defining new molecules and new chemistry inline.
+The code as written works but is not encapsulated -- in this code, we define new molecules and new chemistry inline.
 There are two ways we could encapsulate this chemistry:
 
 - create a function that will return the `firstResult` emitter, given the emitters `f` and `g`
