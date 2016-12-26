@@ -411,11 +411,27 @@ This limitation could be lifted in a later version of `JoinRun` if it proves use
 
 When a reaction site has enough waiting molecules for several different reactions to start, the runtime engine will choose the reaction at random, giving each candidate reaction an equal chance of starting.
 
-TODO: Drawing of several possible reactions at a reaction site
+The next drawing shows a possibility of different reactions starting at a reaction site.
+In this example, the soup contains one copy of the `counter` molecule, one copy of `incr`, and one copy of `decr`.
+The `counter` molecule could either react with the `incr` molecule or with the `decr` molecule.
+One of these reactions (shown in solid lines) have been chosen to actually start, which leaves the second reaction (shown with a dashed line) without the input molecule `counter` and, therefore, the second reaction cannot start.
+
+![Reaction diagram counter + incr, counter + decr](https://chymyst.github.io/joinrun-scala/counter-multiple-reactions.svg)
 
 Similarly, when there are several copies of the same molecule that can be consumed as input by a reaction, the runtime engine will make a choice of which copy of the molecule to consume.
 
-TODO: Drawing of several possible input molecules for a reaction
+The next drawing shows the choice of input molecules among the ones present at a reaction site.
+In this example, the soup contains one copy of the `counter` molecule and four copies of the `incr` molecule.
+Each of the four `incr` molecules can react with the one `counter` molecule.
+The runtime engine will choose which molecules actually react.
+One reaction (shown in solid lines) will start, consuming the `counter` and `incr` molecules, while other possible reactions (shown in dashed lines) will not start.
+
+![Reaction diagram counter + incr, counter + incr](https://chymyst.github.io/joinrun-scala/counter-multiple-molecules.svg)
+
+After this reaction, the contents of the soup is one copy of the `counter` molecule (with the updated value) and the three remaining `incr` molecules.
+At the next step, another one of the `incr` molecules will be chosen to start a reaction.
+
+![Reaction diagram counter + incr, counter + decr after reaction](https://chymyst.github.io/joinrun-scala/counter-multiple-reactions-after-reaction.svg)
 
 Currently, `JoinRun` will _not_ fully randomize the input molecules but make an implementation-dependent choice.
 A truly random selection of input molecules may be implemented in the future.

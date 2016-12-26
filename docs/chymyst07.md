@@ -954,12 +954,46 @@ if (k + 1 < n) counter(k+1) else counterInit()
 
 ```
 
-After this single change, the `n`-rendezvous function becomes a reusable one.
+After this single change, the `n`-rendezvous function becomes a reusable `n`-rendezvous.
+
+## Pair up for dance
+
+There are two doors that open to the dance floor where men must pair up with women to dance.
+At random intervals, men and women arrive to the dancing place.
+Men queue up at door A, women at door B.
+
+The first man waiting at door A and the first woman waiting at door B will then form a dance pair and go off to dance.
+If a man is first in the queue at door A but no woman is waiting at door B (that is, the other queue is empty), the man needs to wait until a woman arrives and goes off to dance with her.
+Similarly, when a woman is first in the queue at door B and no man is waiting, she needs to wait for the next man to arrive, and then go off to dance with him.
+
+(This problem is sometimes called "Leaders and Followers", but this name is misleading since the roles of the two dance partners are completely symmetric.)
+
+Let us implement a simulation of this problem in the chemical machine.
+
+The problem is about controlling the starting of a reaction (the "dancing" computation).
+The reaction can start when a man and a woman are present.
+It is clear that we can simulate this via two molecules, `man` and `woman`, whose presence is required to start the reaction.
+
+```scala
+go { case man(_) + woman(_) => begin_dancing() }
+
+```
+
+To simplify this example, let us assume that some other reactions will randomly emit `man()` and `woman()` molecules.
+
+The problem with the above reaction is that it does not respect the order of the queue.
+If processes emit several `man()` and `woman()` molecules, they will be paired up in random order, rather than in the order of arrival in the queue.
+
+
 
 ## Choose and reply to one of many blocking calls (Unix `select`, Actor Model's `receive`)
 
+The task is to organize the processing of several blocking calls emitted at the same time.
+One receiver is available to process one of these calls at a time.
 
+TODO
 
 ## Concurrent recursive traversal
 
+TODO
 

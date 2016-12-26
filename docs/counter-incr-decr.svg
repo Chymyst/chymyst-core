@@ -46,5 +46,6 @@
   <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="24" id="svg_55" y="67.348185" x="306.320641" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">counter</text>
   <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="24" id="svg_56" y="67.912553" x="455.906452" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">decr</text>
   <text style="cursor: move;" font-style="italic" xml:space="preserve" text-anchor="start" font-family="'Times New Roman', Times, serif" font-size="24" id="svg_57" y="329.658681" x="391.212568" stroke-width="0" stroke="#000" fill="#000000">n–1</text>
+  <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="24" id="svg_58" y="373.857826" x="360.512429" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">counter</text>
  </g>
 </svg>
