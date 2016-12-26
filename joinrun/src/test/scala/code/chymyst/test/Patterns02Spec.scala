@@ -40,11 +40,9 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     // same
     val Jimi = new E("Jimi obtained tobacco and matches to get his fix") // same
 
-    val tobacco = m[ShippedInventory]
-    // this is not particularly elegant, ideally this should carry Unit but pusher needs to obtain current state
+    val tobacco = m[ShippedInventory] // this is not particularly elegant, ideally this should carry Unit but pusher needs to obtain current state
     val matches = m[ShippedInventory]
-    // same
-    val paper = m[ShippedInventory] // same
+    val paper = m[ShippedInventory]
 
     val check = new EE("check") // blocking Unit, only blocking molecule of the example.
 
@@ -103,7 +101,6 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     def smokingBreak(): Unit = waitSome()
 
     case class ShippedInventory(tobacco: Int, paper: Int, matches: Int)
-    // case class SupplyChainState(inventory: Int, shipped: ShippedInventory)
     // this data is only to demonstrate effects of randomization on the supply chain and make content of logFile more interesting.
     // strictly speaking all we need to keep track of is inventory.
 
