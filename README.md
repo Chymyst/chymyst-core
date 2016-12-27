@@ -12,11 +12,14 @@
 
 `JoinRun`/`Chymyst` are based on the **chemical machine** paradigm, known in the academic world as Join Calculus (JC).
 JC has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) and [the Actor model](https://en.wikipedia.org/wiki/Actor_model), but is easier to use.
+(See also [Conceptual overview of concurrency](https://chymyst.github.io/joinrun-scala/concurrency.html).)
 
 The initial code of `JoinRun` was based on previous work by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
 The current implementation is tested under Oracle JDK 8 with Scala 2.11 and 2.12.
 It also works with Scala 2.10 and with OpenJDK 7 (except for the new `LocalDateTime` functions used in tests, and some performance issues).
+
+[Version history and roadmap](https://chymyst.github.io/joinrun-scala/roadmap.html)
 
 # Overview of `JoinRun`/`Chymyst`
 
@@ -25,6 +28,104 @@ To get started, begin with this [tutorial introduction](https://chymyst.github.i
 I gave a presentation on an early version of `JoinRun` at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
 There is some [technical documentation for `JoinRun` library](docs/joinrun.md).
+
+# Example: "dining philosophers"
+
+This is a complete runnable example.
+
+```scala
+import code.chymyst.jc._
+
+object Main extends App {
+     /**
+     * Print message and wait for a random time interval.
+     */
+    def randomWait(message: String): Unit = {
+      println(message)
+      Thread.sleep(scala.util.Random.nextInt(20))
+    }
+    
+    val hungry1 = m[Int]
+    val hungry2 = m[Int]
+    val hungry3 = m[Int]
+    val hungry4 = m[Int]
+    val hungry5 = m[Int]
+    val thinking1 = m[Int]
+    val thinking2 = m[Int]
+    val thinking3 = m[Int]
+    val thinking4 = m[Int]
+    val thinking5 = m[Int]
+    val fork12 = m[Unit]
+    val fork23 = m[Unit]
+    val fork34 = m[Unit]
+    val fork45 = m[Unit]
+    val fork51 = m[Unit]
+    
+    site (
+      go { case thinking1(_) => randomWait("Socrates is eating");  hungry1() },
+      go { case thinking2(_) => randomWait("Confucius is eating"); hungry2() },
+      go { case thinking3(_) => randomWait("Descartes is eating"); hungry3() },
+      go { case thinking4(_) => randomWait("Plato is eating");     hungry4() },
+      go { case thinking5(_) => randomWait("Voltaire is eating");  hungry5() },
+    
+      go { case hungry1(_) + fork12(_) + fork51(_) => randomWait("Socrates is thinking");  thinking1() + fork12() + fork51() },
+      go { case hungry2(_) + fork23(_) + fork12(_) => randomWait("Confucius is thinking"); thinking2() + fork23() + fork12() },
+      go { case hungry3(_) + fork34(_) + fork23(_) => randomWait("Descartes is thinking"); thinking3() + fork34() + fork23() },
+      go { case hungry4(_) + fork45(_) + fork34(_) => randomWait("Plato is thinking");     thinking4() + fork45() + fork34() },
+      go { case hungry5(_) + fork51(_) + fork45(_) => randomWait("Voltaire is thinking");  thinking5() + fork51() + fork45() }
+    )
+    // Emit molecules representing the initial state:
+    thinking1() + thinking2() + thinking3() + thinking4() + thinking5()
+    fork12() + fork23() + fork34() + fork45() + fork51()
+    // Now reactions will start and print to the console.
+
+}
+
+```
+
+# Example: Basic usage of `JoinRun`
+
+Here is an example of “single-access non-blocking counter”.
+There is an integer counter value, to which we have non-blocking access via `incr` and `decr` molecules.
+We can also fetch the current counter value via the `get` molecule, which is blocking.
+The counter is initialized to the number we specify.
+```scala
+import code.chymyst.jc._
+
+// Define the logic of the “non-blocking counter”.
+def makeCounter(initCount: Int)
+              : (M[Unit], M[Unit], B[Unit, Int]) = {
+  val counter = m[Int] // non-blocking molecule with integer value
+  val incr = m[Unit] // non-blocking molecule with empty (i.e. Unit) value
+  val decr = m[Unit] // empty non-blocking molecule
+  val get = b[Unit, Int] // empty blocking molecule returning integer value
+
+  site {
+    go { counter(n) + incr(_) => counter(n+1) },
+    go { counter(n) + decr(_) => counter(n-1) },
+    go { counter(n) + get(_,res) => counter(n) + res(n) }
+  }
+
+  counter(initCount) // emit a single “counter(initCount)” molecule
+
+  (incr, decr, get) // return the molecule emitters
+}
+
+// make a new counter: get the emitters
+val (inc, dec, get) = makeCounter(100)
+
+// use the counter: we can be on any thread,
+// we can increment and decrement multiple times,
+// and there will be no race conditions
+
+inc() // non-blocking increment
+      // more code
+
+dec() // non-blocking decrement
+      // more code
+
+val x = get() // blocking call, returns the current value of the counter
+```
 
 
 ## Comparison: chemical machine vs. actor model
@@ -183,46 +284,3 @@ This will prepare a `joinrun`, `benchmark`, `lib`, and `macros` JAR assemblies.
 The main library is in the `joinrun` JAR assembly (`joinrun/target/scala-2.11/joinrun-assembly-*.jar`).
 User code should depend on that JAR only.
 
-# Basic usage of `JoinRun`
-
-Here is an example of “single-access non-blocking counter”.
-There is an integer counter value, to which we have non-blocking access via `incr` and `decr` molecules.
-We can also fetch the current counter value via the `get` molecule, which is blocking.
-The counter is initialized to the number we specify.
-```scala
-import code.chymyst.jc._
-
-// Define the logic of the “non-blocking counter”.
-def makeCounter(initCount: Int)
-              : (M[Unit], M[Unit], B[Unit, Int]) = {
-  val counter = m[Int] // non-blocking molecule with integer value
-  val incr = m[Unit] // non-blocking molecule with empty (i.e. Unit) value
-  val decr = m[Unit] // empty non-blocking molecule
-  val get = b[Unit, Int] // empty blocking molecule returning integer value
-
-  site {
-    go { counter(n) + incr(_) => counter(n+1) },
-    go { counter(n) + decr(_) => counter(n-1) },
-    go { counter(n) + get(_,res) => counter(n) + res(n) }
-  }
-
-  counter(initCount) // emit a single “counter(initCount)” molecule
-
-  (incr, decr, get) // return the molecule emitters
-}
-
-// make a new counter: get the emitters
-val (inc, dec, get) = makeCounter(100)
-
-// use the counter: we can be on any thread,
-// we can increment and decrement multiple times,
-// and there will be no race conditions
-
-inc() // non-blocking increment
-      // more code
-
-dec() // non-blocking decrement
-      // more code
-
-val x = get() // blocking call, returns the current value of the counter
-```
