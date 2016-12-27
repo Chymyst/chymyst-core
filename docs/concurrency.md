@@ -12,8 +12,8 @@ As we will see, each level is a strict subset of the next.
 
 The main task here is to process a large volume of data more quickly, by splitting the data in smaller subsets and processing all subsets in parallel (on different CPU cores and/or on different machines).
 
-The computation is sequential, and we could have computed the same results on a single CPU core without any splitting.
-Typically, the fully sequential, single-CPU computation would be too slow, and thus we are trying to speed it up by using multiple CPUs.
+The computation is sequential, and we could have computed the same results on a single processing thread, without any splitting.
+Typically, the fully sequential, single-thread computation would be too slow, and thus we are trying to speed it up by using multiple threads.
 
 The typical task of this class is to produce a table of word counts in 10,000 different text files.
 This class of problems is solved by technologies such as Scala's parallel collections, Hadoop, and Spark.
@@ -52,7 +52,7 @@ The typical task here is to implement a high-throughput asynchronous Web server 
 This class of problems can be solved by using `Future[T]`, by asynchronous streaming frameworks such as Akka Streaming, scala/async, or FS2, and by various functional reactive programming (FRP) frameworks. 
 The main difficulty for the implementers of these frameworks is to interleave the wait times on each thread as much as possible and to avoid blocking any threads.
 
-As in the case of data-parallel computations, the acyclic dataflow computation is still a sequential computation, in that we could have computed the same results on a single CPU core without using any asynchronous calls.
+As in the case of data-parallel computations, the acyclic dataflow computation is still a sequential computation, in that we could have computed the same results on a single thread and without using any asynchronous calls.
 However, this would be too slow, and thus we are trying to speed it up by interleaving the wait times and optimizing thread usage.
 
 ### Acyclic dataflow = monadic stream
@@ -81,7 +81,7 @@ However, user input events will depend on what is shown on the screen (such as, 
 This mutual dependency creates an asynchronous loop in the dataflow graph.
 
 This class of problems can be solved by functional reactive programming (FRP) frameworks, Akka Streams, and some other asynchronous streaming systems.
-Despite the fact that the general dataflow is strictly more powerful than the acyclic dataflow, the entire computation is _still_ possible to perform on a single-CPU machine without any concurrency.
+Despite the fact that the general dataflow is strictly more powerful than the acyclic dataflow, the entire computation is _still_ possible to perform on a single thread without any concurrency.
 
 ### Cyclic dataflow = recursive monadic stream
 
@@ -113,10 +113,10 @@ The "dining philosophers" problem is also an example of a concurrency task that 
 How do we know that Level 4 is truly more powerful than Level 3?
 
 I can give the following argument.
-Concurrency at Level 3 (and below) can be simulated on a single-CPU machine (although inefficiently).
-In other words, any program at Level 3 or below will give the same results when run on a parallel machine and on a single-CPU machine.
+Concurrency at Level 3 (and below) can be simulated on a single thread (although inefficiently).
+In other words, any program at Level 3 or below will give the same results when run on multiple threads and on a single thread.
 
-Now we will find an example of a program that cannot give the same results on a multi-CPU machine and on a single-CPU machine.
+Now we will find an example of a program that cannot be implemented on a single thread.
 Consider the following task:
 
 Two processes, A and B, run concurrently and produce result values `x` and `y`.
@@ -125,12 +125,13 @@ It is known that, when run together, _at most one_ of A and B can go into an inf
 We need to implement a function `firstResult()` that will run A and B concurrently and wait for the first result that is returned by either of them.
 The function needs to return this first result.
 
-It is clear that this task cannot be simulated on a single-CPU machine that cannot actually run two processes concurrently and wait for the first result.
-Regardless of how we implement `firstResult()`, a single-CPU machine will have to run at least one of the processes A and B.
-Sometimes, a process will go into an infinite loop; in that case, the single-CPU machine will never finish computing `firstResult()`.
+Now, we claim that this task cannot be simulated on a single thread, because no program running on a single thread can actually run two processes concurrently and wait for the first result.
+Here is why:
+Regardless of how we implement `firstResult()`, a single-thread program will have to run at least one of the processes A and B on that single thread.
+Sometimes, that process will go into an infinite loop; in that case, the single thread will be infinitely blocked, and our program will never finish computing `firstResult()`.
 
-So, when implemented on a single-CPU machine, `firstResult()` must be a _partial function_ (it will sometimes fail to return a value).
-However, on a multi-CPU machine, we can implement `firstResult()` as a _total function_ (it will always return a result),
+So, when implemented on a single thread, `firstResult()` is a _partial function_ (it will sometimes fail to return a value).
+However, on a multi-thread machine, we can implement `firstResult()` as a _total function_ (it will always return a result),
 since on that machine we can run the processes A and B simultaneously,
 and we are guaranteed that at least one of the processes will return a result.
 
