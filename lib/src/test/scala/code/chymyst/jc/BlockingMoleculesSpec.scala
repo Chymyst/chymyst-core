@@ -4,9 +4,9 @@ import Chymyst.withPool
 import Core._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
-import scala.language.postfixOps
+import org.scalatest._
 
+import scala.language.postfixOps
 import scala.concurrent.duration.DurationInt
 
 /** More unit tests for blocking molecule functionality.
@@ -14,10 +14,19 @@ import scala.concurrent.duration.DurationInt
   */
 class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
+  var testNumber = 0
+
+  override def runTest(testName: String, args: Args): Status = {
+    testNumber += 1
+    println(s"Starting test $testNumber: $testName")
+    super.runTest(testName, args)
+    //(1 to 100).map {i => println(s"Iteration $i"); super.runTest(testName, args)}.reduce{ (s1, s2) => if (s1.succeeds) s2 else s1 }
+  }
+
   var tp0: Pool = _
 
   override def beforeEach(): Unit = {
-    tp0 = new SmartPool(50)
+    tp0 = new SmartPool(12)
   }
 
   override def afterEach(): Unit = {
@@ -152,7 +161,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
         _go { case c(_) => h() },
         _go { case d(_) => d2(g()) },
         _go { case d2(x) + e(_, r) => r(x) },
-        _go { case g(_, r) + g2(_, r2) + h(_, r3) => r(123); r3(123); r(0); r3(0) } // no answer to g2, two answers to g and h
+        _go { case g(_, r) + g2(_, r2) + h(_, r3) => r(123); r3(); r(0); r3() } // no answer to g2, two answers to g and h
       )
       c() + d()
 
