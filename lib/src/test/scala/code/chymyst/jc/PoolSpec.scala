@@ -23,7 +23,10 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
         case t : ThreadWithInfo => Some(t.reactionInfo)
         case _ => None
       }
-      waiter { threadInfoOptOpt shouldEqual Some(Some(emptyReactionInfo)); () }
+      waiter {
+        threadInfoOptOpt shouldEqual Some(Some(emptyReactionInfo))
+        ()
+      }
       waiter.dismiss()
 
     }, emptyReactionInfo)
@@ -129,6 +132,9 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val runnable = new RunnableWithInfo({
       x = 1; waiter.dismiss()
     }, emptyReactionInfo)
+
+    runnable.toString shouldEqual emptyReactionInfo.toString
+
     val smartThread = new ThreadWithInfo(runnable)
     smartThread.reactionInfo shouldEqual None // too early now, the runnable has not yet started
     smartThread.start()
