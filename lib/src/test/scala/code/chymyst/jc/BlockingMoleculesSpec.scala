@@ -126,33 +126,51 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
   it should "use the first reply when a reaction attempts to reply twice" in {
     val c = new M[Int]("c")
     val d = new E("d")
+    val e = new E("e")
     val f = new EE("f")
     val g = new EB[Int]("g")
+    val g2 = new EB[Int]("g")
     site(tp0)(
-      _go { case c(n) + g(_,r) => c(n); r(n); r(n+1); d() },
+      _go { case e(_) => c(g()) },
+      _go { case g(_,r) => r(123); r(0); d() },
+      _go { case g2(_,r) + c(x) => r(x) },
       _go { case d(_) + f(_,r) => r() }
     )
-    c(2) + d()
-    f() // make sure "r(n+1)" was called
-    g() shouldEqual 2
+    e()
+    f() // make sure "r(0)" was called
+    g2() shouldEqual 123
   }
 
-  it should "use the first replies when a reaction attempts to reply twice to more than one molecule" in {
-    val c = new M[Int]("c")
-    val d = new E("d")
-    val d2 = new M[Int]("d2")
-    val e = new EB[Int]("e")
-    val g = new EB[Int]("g")
-    val g2 = new EB[Int]("g2")
-    site(tp0)(
-      _go { case d(_)  => d2(g2()) },
-      _go { case d2(x) + e(_, r) => r(x) },
-      _go { case c(n) + g(_,r) + g2(_, r2) => c(n); r(n); r2(n); Thread.sleep(100); r(n+1); r2(n+1) }
-    )
-    c(2) + d()
-    g() shouldEqual 2
-    e() shouldEqual 2
+  it should "get all errors when a reaction attempts to reply twice to more than one molecule" in {
 
+    def check(i: Int) = {
+      val c = new E("c")
+      val d = new E("d")
+      val d2 = new M[Int]("d2")
+      val e = new EB[Int]("e")
+      val g = new EB[Int]("g")
+      val g2 = new EB[Int]("g2")
+      val h = new EE("h")
+      val tp1 = new FixedPool(4)
+      site(tp1)(
+        _go { case c(_) => h() },
+        _go { case d(_) => d2(g()) },
+        _go { case d2(x) + e(_, r) => r(x) },
+        _go { case g(_, r) + g2(_, r2) + h(_, r3) => r(123); r3(123); r(0); r3(0) } // no answer to g2, two answers to g and h
+      )
+      c() + d()
+
+      val thrown = intercept[Exception] {
+        val res = g2()
+        println(s"Iteration $i: got result $res but should not have printed this!")
+      }
+      thrown.getMessage shouldEqual "Error: In Site{c => ...; d => ...; d2 + e/B => ...; g/B + g2/B + h/B => ...}: Reaction {g/B(?) + g2/B(?) + h/B(?) ? => ?} with inputs [g/B(), g2/B(), h/B()] finished without replying to g2/B; Error: In Site{c => ...; d => ...; d2 + e/B => ...; g/B + g2/B + h/B => ...}: Reaction {g/B(?) + g2/B(?) + h/B(?) ? => ?} with inputs [g/B(), g2/B(), h/B()] replied to g/B, h/B more than once"
+
+      e() shouldEqual 123
+      tp1.shutdownNow()
+    }
+
+    (1 to 100).foreach(check) // Make sure there is no race condition.
   }
 
   it should "throw exception when a reaction does not reply to one blocking molecule" in {
@@ -162,7 +180,6 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
       _go { case c(_) + g(_,r) => c() }
     )
     c()
-    waitSome()
 
     val thrown = intercept[Exception] {
       println(s"got result: ${g()} but should not have printed this!")
@@ -177,7 +194,6 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
       _go { case c(_) + g(_,r) => c() }
     )
     c()
-    waitSome()
 
     val thrown = intercept[Exception] {
       println(s"got result: ${g.timeout(1 second)()} but should not have printed this!")
@@ -196,7 +212,6 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
       _go { case c(_) + g(_,_) + g2(_,_) => c() }
     )
     c() + d()
-    waitSome()
 
     val thrown = intercept[Exception] {
       println(s"got result2: ${g()} but should not have printed this!")
@@ -217,7 +232,6 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
       _go { case c(_) + g(_,r) + g2(_,_) => c(); r(0) }
     )
     c() + d()
-    waitSome()
 
     val thrown = intercept[Exception] {
       println(s"got result2: ${g2()} but should not have printed this!")
@@ -339,15 +353,15 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   it should "block the fixed threadpool when one thread is sleeping with Thread.sleep" in {
     val tp = new FixedPool(1)
-    val (g, g2) = makeBlockingCheck(Thread.sleep(500), tp)
-    g2.timeout(150 millis)() shouldEqual None // this should be blocked
+    val res = makeBlockingCheck(Thread.sleep(500), tp)
+    res._2.timeout(150 millis)() shouldEqual None // this should be blocked
     tp.shutdownNow()
   }
 
   it should "block the fixed threadpool when one thread is sleeping with BlockingIdle(Thread.sleep)" in {
     val tp = new FixedPool(1)
-    val (g, g2) = makeBlockingCheck(BlockingIdle{Thread.sleep(500)}, tp)
-    g2.timeout(150 millis)() shouldEqual None // this should be blocked
+    val res = makeBlockingCheck(BlockingIdle{Thread.sleep(500)}, tp)
+    res._2.timeout(150 millis)() shouldEqual None // this should be blocked
     tp.shutdownNow()
   }
 
