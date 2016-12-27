@@ -12,6 +12,7 @@
 
 `JoinRun`/`Chymyst` are based on the **chemical machine** paradigm, known in the academic world as Join Calculus (JC).
 JC has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) and [the Actor model](https://en.wikipedia.org/wiki/Actor_model), but is easier to use.
+(See also [Conceptual overview of concurrency](https://chymyst.github.io/joinrun-scala/concurrency.html).)
 
 The initial code of `JoinRun` was based on previous work by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 

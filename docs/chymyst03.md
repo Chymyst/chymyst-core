@@ -149,8 +149,8 @@ This code will copy the molecule emitter `counter` into another local value `q`.
 However, this does not change the chemical designation of the molecule.
 The emitter `q` will emit the same molecules as `counter`; that is, molecules emitted with `q(...)` will react in the same way and in the same reactions as molecules emitted with `counter(...)`.
 
-This is similar to how chemical substances are named in ordinary language.
-For example, `NaCl`, "salt" and "sodium hydrochloride" are alias names for the same chemical substance.
+(This is similar to how chemical substances are named in ordinary language.
+For example, `NaCl`, "salt" and "sodium hydrochloride" are alias names for the same chemical substance.)
 
 The chemical designation of the molecule specifies two aspects of the concurrent program:
 
@@ -158,9 +158,10 @@ The chemical designation of the molecule specifies two aspects of the concurrent
 - what computation will be performed when all the required input molecules are available.
 
 When a new reaction site is defined, new molecules bound to that site are defined as well.
-These molecules are inputs to reactions defined at the new site.
+(These molecules are inputs to reactions defined at the new site.)
 If a reaction site is defined within a local scope of a function, a new reaction site will be created every time the function is called.
-The molecules bound to this site will be _chemically unique_ each time, in the sense that they will react only with other molecules defined in the same instance of calling the function.
+Since molecules internally hold a reference to their reaction site, each function call will create _chemically unique_ new molecules,
+in the sense that these molecules will react only with other molecules defined in the same function call.
 
 As an example, consider a function that defines a simple reaction like this:
 
@@ -214,13 +215,28 @@ The chemical designations are independent of molecule names and of the local var
 For instance, we could (for whatever reason) create aliases for `label2` and `begin2` and write code like this:
 
 ```scala
-val (x, y) = makeLabeledReaction() // first call
-val (p, q) = makeLabeledReaction() // second call
+val (begin1, label1) = makeLabeledReaction() // first call
+val (begin2, label2) = makeLabeledReaction() // second call
+val (x, y, p, q) = (begin1, label1, begin2, label2) // make aliases
+
 y("abc") + p() // Same as label1("abc") + begin2() - no reaction started!
 q("abc") // Same as label2("abc") - reaction starts and prints "abc"
 
 ```
 
+In this example, the values `x` and `begin1` are equal to the same molecule emitter, thus they have the same chemical designation.
+For this reason, the calls to `x()` and `begin1()` will emit copies of the same molecule.
+As we already discussed, the molecule emitted by `x()` will have a different chemical designation from that emitted by `begin2()`.
+
+In practice, it is of course advisable to choose meaningful local variable names.
+However, it is important to keep in mind that:
+
+- each molecule has a chemical designation, a reaction site to which the molecule is bound, a name, and a molecule emitter (usually assigned to a local variable)
+- the chemical reactions started by molecules depend only on their chemical designations, not on names
+- the molecule's name is only used in debugging messages
+- the names of local variables are only for the programmer's convenience
+- reaction sites defined in a local scope are new and unique for each time a new local scope is created
+- molecules defined in a new local scope will have a new, unique chemical designation and will be bound to the new unique reaction site  
 
 ## The type matrix of molecule emission
 
