@@ -29,4 +29,4 @@ safe_move build.sbt.new build.sbt
 
 # Check whether the version history has been updated, warn otherwise.
 
-grep -q "^- $VERSION " docs/joinrun.md || echo "Warning: docs/joinrun.md does not seem to have information about the current version $VERSION."
+grep -q "^- $VERSION " docs/roadmap.md || echo "Warning: docs/roadmap.md does not seem to have information about the current version $VERSION."
