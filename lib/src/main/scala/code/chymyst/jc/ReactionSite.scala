@@ -153,8 +153,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // Insert error messages into the reply wrappers and release all semaphores.
     usedInputs.foreach {
-      case (_, BlockingMolValue(_, replyValue)) =>
-        if (haveErrorsWithBlockingMolecules) {
+      case (_, bm@BlockingMolValue(_, replyValue)) =>
+        if (haveErrorsWithBlockingMolecules && bm.replyWasNotSentDueToError) { // Do not send error messages to molecules that already got a reply - this is pointless and may lead to errors.
           replyValue.errorMessage = Some(errorMessage)
         }
         if (notFailedWithRetry) replyValue.releaseSemaphore()
@@ -214,7 +214,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           singletonValues.put(m, molValue)
         }
         moleculesPresent.addToBag(m, molValue)
-        if (logLevel > 0) println(s"Debug: $this emitting $m($molValue) on thread pool $sitePool, now have molecules ${moleculeBagToString(moleculesPresent)}")
+        if (logLevel > 0) println(s"Debug: $this emitting $m($molValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]")
         val usedInputs: MutableLinearMoleculeBag = mutable.Map.empty
         val reaction = possibleReactions.get(m)
           .flatMap(_.shuffle.find(r => {
