@@ -26,10 +26,6 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   val timeLimit = Span(6000, Millis)
 
-  val warmupTimeMs = 50L
-
-  def waitSome(): Unit = Thread.sleep(warmupTimeMs)
-
   behavior of "blocking molecule"
 
   it should "block for a blocking molecule" in {
@@ -251,13 +247,12 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val g2 = new EB[Int]("g2")
     val h = new EB[Int]("h")
     val tp = new FixedPool(4)
-    site(tp)(
+    site(tp0)(
       _go { case c(_) => e(g2()) }, // e(0) should be emitted now
       _go { case d(_) + g(_,r) + g2(_,r2) => r(0); r2(0) } onThreads tp,
       _go { case e(x) + h(_,r) =>  r(x) }
     )
     c()+d()
-    waitSome()
     g() shouldEqual 0
     // now we should also have e(0)
     h() shouldEqual 0
@@ -275,23 +270,20 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val g2 = new EB[Int]("g2")
     val h = new EB[Int]("h")
     val tp = new FixedPool(4)
-    site(tp)(
+    site(tp0)(
       _go { case c(_) => val x = g(); g2(); e(x) }, // e(0) should never be emitted because this thread is deadlocked
-      _go { case d(_) + g(_,r) + g2(_,r2) => r(0); r2(0) } onThreads tp,
+      _go { case g(_,r) + g2(_,r2) => r(0); r2(0) } onThreads tp,
       _go { case e(x) + h(_,r) =>  r(x) },
       _go { case d(_) + f(_) => e(2) },
       _go { case f(_) + e(_) => e(1) }
     )
-    d()
-    waitSome()
+
     c()
-    waitSome()
     // if e(0) exists now, it will react with f() and produce e(1)
     f()
-    waitSome()
+    h.timeout(200 millis)() shouldEqual None   // make sure we still have neither e(0) nor e(1)
     // if e(0) did not appear, f() is still available and will now react with d and produce e(2)
     d()
-    waitSome()
     h() shouldEqual 2
 
     tp.shutdownNow()
