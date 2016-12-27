@@ -5,6 +5,8 @@ import code.chymyst.benchmark.Common._
 import code.chymyst.jc._
 import scala.concurrent.duration._
 
+import code.jiansen.scalajoin._ // Use precompiled classes from Jiansen's Join.scala, which are in that package.
+
 object Benchmarks9 {
 
   val numberOfCounters = 5
