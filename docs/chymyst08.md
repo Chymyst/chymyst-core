@@ -1,3 +1,4 @@
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
 
 ## Cigarette smokers
 

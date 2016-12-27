@@ -1,3 +1,5 @@
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
+
 # Patterns of concurrency
 
 To get more familiar with programming the chemical machine, let us now implement a number of simple concurrent programs.
