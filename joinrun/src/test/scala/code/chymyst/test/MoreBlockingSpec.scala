@@ -1,7 +1,7 @@
 package code.chymyst.test
 
 import code.chymyst.jc._
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{Args, FlatSpec, Matchers, Status}
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.Waiter
 import org.scalatest.time.{Millis, Span}
@@ -12,6 +12,14 @@ import scala.language.postfixOps
 class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(3000, Millis)
+  var testNumber = 0
+
+  override def runTest(testName: String, args: Args): Status = {
+    testNumber += 1
+    println(s"Starting test $testNumber: $testName")
+    super.runTest(testName, args)
+    //(1 to 100).map {i => println(s"Iteration $i"); super.runTest(testName, args)}.reduce{ (s1, s2) => if (s1.succeeds) s2 else s1 }
+  }
 
   behavior of "blocking molecules"
 
