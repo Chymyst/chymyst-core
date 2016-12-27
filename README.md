@@ -1,6 +1,6 @@
 [![Build Status](https://travis-ci.org/Chymyst/joinrun-scala.svg?branch=master)](https://travis-ci.org/Chymyst/joinrun-scala)
 [![Coverage Status](https://codecov.io/gh/Chymyst/joinrun-scala/coverage.svg?branch=master)](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master)
-[![Version](http://img.shields.io/badge/version-0.1.3-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
+[![Version](http://img.shields.io/badge/version-0.1.4-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
 [![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://opensource.org/licenses/MIT)
 
 [![Join the chat at https://gitter.im/joinrun-scala/Lobby](https://badges.gitter.im/joinrun-scala/Lobby.svg)](https://gitter.im/joinrun-scala/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
@@ -242,7 +242,7 @@ Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` an
 
 # Status
 
-Current released version is `0.1.3`.
+Current released version is `0.1.4`.
 The semantics of the chemical machine (restricted to single-host, multicore computations) is fully implemented and tested.
 
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.

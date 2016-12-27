@@ -1,3 +1,5 @@
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
+
 # The four levels of concurrency
 
 The words "concurrent programming", "asynchronous programming", and "parallel programming" are used in many ways and sometimes interchangeably.
