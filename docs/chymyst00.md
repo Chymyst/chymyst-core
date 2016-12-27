@@ -27,6 +27,8 @@ To understand this tutorial, the reader should have some familiarity with the `S
 
 [Version history and roadmap](roadmap.md)
 
+[Conceptual overview of concurrency](https://chymyst.github.io/joinrun-scala/concurrency.html)
+
 The source code repository for `JoinRun` is at [https://github.com/winitzki/joinrun-scala](https://github.com/winitzki/joinrun-scala).
 
 Although this tutorial focuses on using `JoinRun`/`Chymyst` in Scala, one can similarly embed the chemical machine as a library on top of any programming language that has threads and semaphores.

@@ -5,13 +5,13 @@ import org.scalatest.{FlatSpec, Matchers}
 
 class DiningPhilosophersSpec extends FlatSpec with Matchers {
 
-  def rw(m: Molecule): Unit = {
+  def randomWait(m: Molecule): Unit = {
     println(m.toString)
     Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
   }
 
   val cycles: Int = 50
-  it should s"run 5 dining philosophers for ${cycles} cycles without deadlock" in {
+  it should s"run 5 dining philosophers for $cycles cycles without deadlock" in {
     diningPhilosophers(cycles)
   }
 
@@ -19,43 +19,43 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers {
 
     val tp = new FixedPool(8)
 
-    val h1 = new M[Int]("Aristotle is eating")
-    val h2 = new M[Int]("Kant is eating")
-    val h3 = new M[Int]("Marx is eating")
-    val h4 = new M[Int]("Russell is eating")
-    val h5 = new M[Int]("Spinoza is eating")
-    val t1 = new M[Int]("Aristotle is thinking")
-    val t2 = new M[Int]("Kant is thinking")
-    val t3 = new M[Int]("Marx is thinking")
-    val t4 = new M[Int]("Russell is thinking")
-    val t5 = new M[Int]("Spinoza is thinking")
-    val f12 = new E("f12")
-    val f23 = new E("f23")
-    val f34 = new E("f34")
-    val f45 = new E("f45")
-    val f51 = new E("f51")
+    val hungry1 = new M[Int]("Socrates is eating")
+    val hungry2 = new M[Int]("Confucius is eating")
+    val hungry3 = new M[Int]("Descartes is eating")
+    val hungry4 = new M[Int]("Plato is eating")
+    val hungry5 = new M[Int]("Voltaire is eating")
+    val thinking1 = new M[Int]("Socrates is thinking")
+    val thinking2 = new M[Int]("Confucius is thinking")
+    val thinking3 = new M[Int]("Descartes is thinking")
+    val thinking4 = new M[Int]("Plato is thinking")
+    val thinking5 = new M[Int]("Voltaire is thinking")
+    val fork12 = new E("fork12")
+    val fork23 = new E("fork23")
+    val fork34 = new E("fork34")
+    val fork45 = new E("fork45")
+    val fork51 = new E("fork51")
 
     val done = new E("done")
     val check = new EE("check")
 
-    site(tp, tp) (
-      go { case t1(n) => rw(h1); h1(n - 1) },
-      go { case t2(n) => rw(h2); h2(n - 1) },
-      go { case t3(n) => rw(h3); h3(n - 1) },
-      go { case t4(n) => rw(h4); h4(n - 1) },
-      go { case t5(n) => rw(h5); h5(n - 1) },
+    site(tp) (
+      go { case thinking1(n) => randomWait(hungry1); hungry1(n - 1) },
+      go { case thinking2(n) => randomWait(hungry2); hungry2(n - 1) },
+      go { case thinking3(n) => randomWait(hungry3); hungry3(n - 1) },
+      go { case thinking4(n) => randomWait(hungry4); hungry4(n - 1) },
+      go { case thinking5(n) => randomWait(hungry5); hungry5(n - 1) },
 
       go { case done(_) + check(_, r) => r() },
 
-      go { case h1(n) + f12(_) + f51(_) => rw(t1); t1(n) + f12() + f51(); if (n == 0) done() },
-      go { case h2(n) + f23(_) + f12(_) => rw(t2); t2(n) + f23() + f12() },
-      go { case h3(n) + f34(_) + f23(_) => rw(t3); t3(n) + f34() + f23() },
-      go { case h4(n) + f45(_) + f34(_) => rw(t4); t4(n) + f45() + f34() },
-      go { case h5(n) + f51(_) + f45(_) => rw(t5); t5(n) + f51() + f45() }
+      go { case hungry1(n) + fork12(_) + fork51(_) => randomWait(thinking1); thinking1(n) + fork12() + fork51(); if (n == 0) done() },
+      go { case hungry2(n) + fork23(_) + fork12(_) => randomWait(thinking2); thinking2(n) + fork23() + fork12() },
+      go { case hungry3(n) + fork34(_) + fork23(_) => randomWait(thinking3); thinking3(n) + fork34() + fork23() },
+      go { case hungry4(n) + fork45(_) + fork34(_) => randomWait(thinking4); thinking4(n) + fork45() + fork34() },
+      go { case hungry5(n) + fork51(_) + fork45(_) => randomWait(thinking5); thinking5(n) + fork51() + fork45() }
     )
 
-    t1(cycles) + t2(cycles) + t3(cycles) + t4(cycles) + t5(cycles)
-    f12() + f23() + f34() + f45() + f51()
+    thinking1(cycles) + thinking2(cycles) + thinking3(cycles) + thinking4(cycles) + thinking5(cycles)
+    fork12() + fork23() + fork34() + fork45() + fork51()
 
     check() shouldEqual (())
     tp.shutdownNow()

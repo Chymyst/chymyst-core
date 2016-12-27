@@ -65,7 +65,6 @@ Blocking molecule emitters are of class `B`, non-blocking of class `M`.
 Typically, the reaction body will emit new molecules into the soup.
 - We can emit new molecules into the soup at any time and from any code (not only inside a reaction body).
 - It is not possible to decide which reactions will proceed first, or which molecules will be consumed first, when the chemistry allows several possibilities. It is also not possible to know at what time reactions will start. Reactions and molecules do not have priorities and are not ordered in the soup. It is the responsibility of the programmer to define the chemical laws appropriately so that the behavior of the program is deterministic when determinism is required. (This is always possible!)
-
 - All reactions that share some _input_ molecule must be defined in the same reaction site.
 Reactions that share no input molecules can (and should) be defined in separate reaction sites.
 
@@ -132,6 +131,113 @@ go { case c(x) + f(y, r) => r((x+y).toString) }
 
 Only after the reaction body executes the reply action, the `result` will be assigned to that string value, and the calling process will become unblocked and will continue its computations.
 
+## Chemical designations of molecules vs. molecule names vs. local variable names 
+
+Each molecule has a specific chemical designation, such as `sum`, `counter`, and so on.
+These chemical designations are not actually strings `"sum"` or `"counter"`.
+(The names of the local variables and the molecule names are chosen purely for convenience.)
+
+We could define a local alias for a molecule emitter, for example like this:
+
+```scala
+val counter = m[Int]
+val q = counter
+
+```
+
+This code will copy the molecule emitter `counter` into another local value `q`.
+However, this does not change the chemical designation of the molecule.
+The emitter `q` will emit the same molecules as `counter`; that is, molecules emitted with `q(...)` will react in the same way and in the same reactions as molecules emitted with `counter(...)`.
+
+(This is similar to how chemical substances are named in ordinary language.
+For example, `NaCl`, "salt" and "sodium hydrochloride" are alias names for the same chemical substance.)
+
+The chemical designation of the molecule specifies two aspects of the concurrent program:
+
+- what other molecules (i.e. what other chemical designations) are required to start a reaction with this molecule, and at which reaction site;
+- what computation will be performed when all the required input molecules are available.
+
+When a new reaction site is defined, new molecules bound to that site are defined as well.
+(These molecules are inputs to reactions defined at the new site.)
+If a reaction site is defined within a local scope of a function, a new reaction site will be created every time the function is called.
+Since molecules internally hold a reference to their reaction site, each function call will create _chemically unique_ new molecules,
+in the sense that these molecules will react only with other molecules defined in the same function call.
+
+As an example, consider a function that defines a simple reaction like this:
+
+```scala
+def makeLabeledReaction() = {
+  val begin = m[Unit]
+  val label = m[String]
+  
+  site(
+    go { case begin(_) + label(labelString) => println(labelString) }
+  )
+  
+  (begin, label)
+}
+
+// Let's use this function now.
+
+val (begin1, label1) = makeLabeledReaction() // first call
+val (begin2, label2) = makeLabeledReaction() // second call
+
+```
+
+What is the difference between the new molecule injectors `begin1` and `begin2`?
+Both `begin1` and `begin2` have the name `"begin"`, and they are of the same type.
+However, they are _chemically_ different: `begin1` will react only with `label1`, and `begin2` only with `label2`.
+The molecules `begin1` and `label1` are bound to the reaction site created by the first call to `makeLabeledReaction()`, and this reaction site is different from that created by the second call to `makeLabeledReaction()`.
+
+For instance, suppose we call `label1("abc")` and `begin2()`.
+We have injected a molecule named `"label"` and a molecule named `"begin"`.
+However, these molecules will not start any reactions, because they are bound to different reaction sites.
+
+```scala
+label1("abc") + begin2() // no reaction started!
+
+```
+
+After running this code, 
+the molecule `label1("abc")` will be waiting at the first reaction site for its reaction partner, `begin1()`,
+while the molecule `begin2()` will be waiting at the second reaction site for its reaction partner, `label2(...)`,
+If we now emit, say `label2("abc")`, the reaction with `begin2()` will start and print `"abc"`.
+
+```scala
+label1("abc") + begin2() // no reaction started!
+label2("abc") // reaction with begin2() starts!
+
+```
+
+We see that `begin1` and `begin2` have different chemical designations (because they enter different reactions), even though they are both defined by the same code inside the function `makeLabeledReaction`.
+
+The chemical designations are independent of molecule names and of the local variable names we use in the code.
+For instance, we could (for whatever reason) create aliases for `label2` and `begin2` and write code like this:
+
+```scala
+val (begin1, label1) = makeLabeledReaction() // first call
+val (begin2, label2) = makeLabeledReaction() // second call
+val (x, y, p, q) = (begin1, label1, begin2, label2) // make aliases
+
+y("abc") + p() // Same as label1("abc") + begin2() - no reaction started!
+q("abc") // Same as label2("abc") - reaction starts and prints "abc"
+
+```
+
+In this example, the values `x` and `begin1` are equal to the same molecule emitter, thus they have the same chemical designation.
+For this reason, the calls to `x()` and `begin1()` will emit copies of the same molecule.
+As we already discussed, the molecule emitted by `x()` will have a different chemical designation from that emitted by `begin2()`.
+
+In practice, it is of course advisable to choose meaningful local variable names.
+However, it is important to keep in mind that:
+
+- each molecule has a chemical designation, a reaction site to which the molecule is bound, a name, and a molecule emitter (usually assigned to a local variable)
+- the chemical reactions started by molecules depend only on their chemical designations, not on names
+- the molecule's name is only used in debugging messages
+- the names of local variables are only for the programmer's convenience
+- reaction sites defined in a local scope are new and unique for each time a new local scope is created
+- molecules defined in a new local scope will have a new, unique chemical designation and will be bound to the new unique reaction site  
+
 ## The type matrix of molecule emission
 
 Let us consider what _could_ theoretically happen when we call an emitter function.
@@ -162,6 +268,8 @@ With these additional features, the type matrix of emission is complete:
 |---|---|---|
 | value is returned: | `val x: Int = f()` | `val x: Int = c.volatileValue` |
 | no value returned: | timeout was reached | `c(123)` // side effect |
+
+We will now talk about these features in more detail.
 
 ### Timeouts for blocking emitters
 
