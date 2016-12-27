@@ -431,7 +431,7 @@ One reaction (shown in solid lines) will start, consuming the `counter` and `inc
 After this reaction, the contents of the soup is one copy of the `counter` molecule (with the updated value) and the three remaining `incr` molecules.
 At the next step, another one of the `incr` molecules will be chosen to start a reaction.
 
-![Reaction diagram counter + incr, counter + decr after reaction](https://chymyst.github.io/joinrun-scala/counter-multiple-reactions-after-reaction.svg)
+![Reaction diagram counter + incr, counter + decr after reaction](https://chymyst.github.io/joinrun-scala/counter-multiple-molecules-after-reaction.svg)
 
 Currently, `JoinRun` will _not_ fully randomize the input molecules but make an implementation-dependent choice.
 A truly random selection of input molecules may be implemented in the future.
@@ -582,29 +582,6 @@ by simply emitting the input molecules again.
 The chemical laws fully specify which computations need to be performed for the data on the given molecules.
 Whenever multiple sets of data are available, the corresponding computations will be performed concurrently.
 
-### Chemical designations of molecules vs. molecule names vs. local variable names 
-
-Each molecule has a specific chemical designation, such as `sum`, `counter`, and so on.
-These chemical designations are not actually strings `"sum"` or `"counter"`.
-(The names of the local variables and the molecule names are chosen purely for convenience.)
-
-We could define a local alias for a molecule emitter, for example like this:
-
-```scala
-val counter = m[Int]
-val q = counter
-
-```
-
-This code will copy the molecule emitter `counter` into another local value `q`.
-However, this does not change the chemical designation of the molecule.
-The emitter `q` will emit the same molecules as `counter`; that is, molecules emitted with `q(...)` will react in the same way and in the same reactions as molecules emitted with `counter(...)`.
-
-The chemical designation of the molecule specifies two aspects of the concurrent program:
-
-- the chemical designations of other input molecules (besides this one) required to start a reaction;
-- the computation to be performed when all the required input molecules are available.
-
 # Example: Declarative solution for “dining philosophers"
 
 The ["dining philosophers problem"](https://en.wikipedia.org/wiki/Dining_philosophers_problem) is to run a simulation of five philosophers who take turns eating and thinking.
@@ -614,83 +591,83 @@ Each philosopher needs two forks to start eating, and every pair of neighbor phi
 
 The simplest solution of the “dining philosophers” problem is achieved using a molecule for each fork and two molecules per philosopher: one representing a thinking philosopher and the other representing a hungry philosopher.
 
-A “thinking philosopher” molecule (`t1`, `t2`, ..., `t5`) causes a reaction in which the process is paused for a random time and then the “hungry philosopher” molecule is emitted.
-A “hungry philosopher” molecule (`h1`, ..., `h5`) needs to react with _two_ neighbor “fork” molecules. The reaction process is paused for a random time, and then the “thinking philosopher” molecule is emitted together with the two “fork” molecules.
+A “thinking philosopher” molecule (`thinking1`, `thinking2`, ..., `thinking5`) causes a reaction in which the process is paused for a random time and then the “hungry philosopher” molecule is emitted.
+A “hungry philosopher” molecule (`hungry1`, ..., `hungry5`) needs to react with _two_ neighbor “fork” molecules. The reaction process is paused for a random time, and then the “thinking philosopher” molecule is emitted together with the two “fork” molecules.
 
 The complete code is shown here:
 
 ```scala
  /**
- * Random wait. Also, print the name of the molecule.
+ * Print message and wait for a random time interval.
  */
-def rw(m: Molecule): Unit = {
-  println(m.toString)
+def randomWait(message: String): Unit = {
+  println(message)
   Thread.sleep(scala.util.Random.nextInt(20))
 }
 
-val h1 = new M[Int]("Aristotle is eating")
-val h2 = new M[Int]("Kant is eating")
-val h3 = new M[Int]("Marx is eating")
-val h4 = new M[Int]("Russell is eating")
-val h5 = new M[Int]("Spinoza is eating")
-val t1 = new M[Int]("Aristotle is thinking")
-val t2 = new M[Int]("Kant is thinking")
-val t3 = new M[Int]("Marx is thinking")
-val t4 = new M[Int]("Russell is thinking")
-val t5 = new M[Int]("Spinoza is thinking")
-val f12 = new M[Unit]("Fork between 1 and 2")
-val f23 = new M[Unit]("Fork between 2 and 3")
-val f34 = new M[Unit]("Fork between 3 and 4")
-val f45 = new M[Unit]("Fork between 4 and 5")
-val f51 = new M[Unit]("Fork between 5 and 1")
+val hungry1 = m[Int]
+val hungry2 = m[Int]
+val hungry3 = m[Int]
+val hungry4 = m[Int]
+val hungry5 = m[Int]
+val thinking1 = m[Int]
+val thinking2 = m[Int]
+val thinking3 = m[Int]
+val thinking4 = m[Int]
+val thinking5 = m[Int]
+val fork12 = m[Unit]
+val fork23 = m[Unit]
+val fork34 = m[Unit]
+val fork45 = m[Unit]
+val fork51 = m[Unit]
 
 site (
-  go { case t1(_) => rw(h1); h1() },
-  go { case t2(_) => rw(h2); h2() },
-  go { case t3(_) => rw(h3); h3() },
-  go { case t4(_) => rw(h4); h4() },
-  go { case t5(_) => rw(h5); h5() },
+  go { case thinking1(_) => randomWait("Socrates is eating");  hungry1() },
+  go { case thinking2(_) => randomWait("Confucius is eating"); hungry2() },
+  go { case thinking3(_) => randomWait("Descartes is eating"); hungry3() },
+  go { case thinking4(_) => randomWait("Plato is eating");     hungry4() },
+  go { case thinking5(_) => randomWait("Voltaire is eating");  hungry5() },
 
-  go { case h1(_) + f12(_) + f51(_) => rw(t1); t1(n) + f12() + f51() },
-  go { case h2(_) + f23(_) + f12(_) => rw(t2); t2(n) + f23() + f12() },
-  go { case h3(_) + f34(_) + f23(_) => rw(t3); t3(n) + f34() + f23() },
-  go { case h4(_) + f45(_) + f34(_) => rw(t4); t4(n) + f45() + f34() },
-  go { case h5(_) + f51(_) + f45(_) => rw(t5); t5(n) + f51() + f45() }
+  go { case hungry1(_) + fork12(_) + fork51(_) => randomWait("Socrates is thinking");  thinking1() + fork12() + fork51() },
+  go { case hungry2(_) + fork23(_) + fork12(_) => randomWait("Confucius is thinking"); thinking2() + fork23() + fork12() },
+  go { case hungry3(_) + fork34(_) + fork23(_) => randomWait("Descartes is thinking"); thinking3() + fork34() + fork23() },
+  go { case hungry4(_) + fork45(_) + fork34(_) => randomWait("Plato is thinking");     thinking4() + fork45() + fork34() },
+  go { case hungry5(_) + fork51(_) + fork45(_) => randomWait("Voltaire is thinking");  thinking5() + fork51() + fork45() }
 )
-// emit molecules representing the initial state:
-t1() + t2() + t3() + t4() + t5()
-f12() + f23() + f34() + f45() + f51()
+// Emit molecules representing the initial state:
+thinking1() + thinking2() + thinking3() + thinking4() + thinking5()
+fork12() + fork23() + fork34() + fork45() + fork51()
 // Now reactions will start and print to the console.
 
 ```
 
-Note that an `h + f + f` reaction will consume a “hungry philosopher” molecule and two “fork” molecules, so these three molecules will not be present in the soup during the time interval taken by the `h + f + f` reaction.
+Note that an `hungry + fork + fork` reaction will consume a “hungry philosopher” molecule and two “fork” molecules, so these three molecules will not be present in the soup during the time interval taken by the `hungry + fork + fork` reaction.
 Thus, neighbor philosophers will not be able to start eating until the two “fork” molecules are returned to the soup by that reaction.
 The decision of which philosophers start eating will be made randomly, and there will never be a deadlock.
 
 The result of running this program is the output such as
 
 ```
-Russell is thinking
-Aristotle is thinking
-Spinoza is thinking
-Marx is thinking
-Kant is thinking
-Russell is eating
-Aristotle is eating
-Russell is thinking
-Marx is eating
-Aristotle is thinking
-Spinoza is eating
-Marx is thinking
-Kant is eating
-Spinoza is thinking
-Russell is eating
-Kant is thinking
-Aristotle is eating
-Aristotle is thinking
-Russell is thinking
-Spinoza is eating
+Plato is thinking
+Socrates is thinking
+Voltaire is thinking
+Descartes is thinking
+Confucius is thinking
+Plato is eating
+Socrates is eating
+Plato is thinking
+Descartes is eating
+Socrates is thinking
+Voltaire is eating
+Descartes is thinking
+Confucius is eating
+Voltaire is thinking
+Plato is eating
+Confucius is thinking
+Socrates is eating
+Socrates is thinking
+Plato is thinking
+Voltaire is eating
 
 ```
 
