@@ -124,7 +124,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     a.logSoup shouldEqual "Site{a + g/B => ...; f/B => ...}\nMolecules: g/B()" // f() should have been removed but g() remains
     a(123) // Now g() starts reacting with a() and unblocks the "f" reaction, which should try to reply to "f" after "f" timed out.
     // The attempt to reply to "f" should fail, which is indicated by returning "false" from "r(x)". This is verified by the "waiter".
-    Thread.sleep(50)
+    Thread.sleep(150)
     waiter.await()
     tp.shutdownNow()
     a.logSoup shouldEqual "Site{a + g/B => ...; f/B => ...}\nNo molecules"
