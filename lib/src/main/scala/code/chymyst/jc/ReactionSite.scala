@@ -22,10 +22,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   /** The table of statically declared singleton molecules and their multiplicities.
     * Only non-blocking molecules can be singletons.
-    * This list may be incorrect if the singleton reaction code emits molecules conditionally.
-    * So, at the moment (1 to 10).foreach (_ => singleton() ) will not recognize that there are 10 singletons emitted.
+    * This list may be incorrect if the singleton reaction code emits molecules conditionally or emits many copies.
+    * So, the code (1 to 10).foreach (_ => singleton() ) will put (singleton -> 1) into `singletonsDeclared` but (singleton -> 10) into `singletonsEmitted`.
     */
-  private val singletonsDeclared: Map[Molecule, Int] =
+  private[jc] val singletonsDeclared: Map[Molecule, Int] =
     singletonReactions.flatMap(_.info.outputs)
       .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
       .groupBy(identity)
@@ -56,7 +56,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * The sha1 hash of each reaction is computed from the Scala syntax tree of the reaction's source code.
     * The result is implementation-dependent and is guaranteed to be the same only for reaction sites compiled from exactly the same source code with the same version of Scala compiler.
     */
-  private lazy val sha1 = getSha1(knownReactions.map(_.info.sha1).sorted.mkString(","))
+//  private lazy val sha1 = getSha1(knownReactions.map(_.info.sha1).sorted.mkString(","))
 
   private[jc] var logLevel = 0
 
@@ -79,10 +79,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   // Initially, there are no molecules present.
   private val moleculesPresent: MoleculeBag = new MutableBag[Molecule, AbsMolValue[_]]
 
-  private[jc] def emitMulti(moleculesAndValues: Seq[(M[_], Any)]): Unit = {
+//  private[jc] def emitMulti(moleculesAndValues: Seq[(M[_], Any)]): Unit = {
     // TODO: implement correct semantics
 //    moleculesAndValues.foreach{ case (m, v) => m(v) }
-  }
+//  }
 
   private sealed trait ReactionExitStatus
   private case object ReactionExitSuccess extends ReactionExitStatus
@@ -258,15 +258,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   /** This variable is true only at the initial stage of building the reaction site,
-    * when singleton reactions are run in order to emit the initial singletons.
+    * when singleton reactions are run (on the same thread as the `site()` call) in order to emit the initial singletons.
     */
-  private var emittingSingletons = false
+  private var emittingSingletonsNow = false
 
   private[jc] def emit[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
     if (sitePool.isInactive)
       throw new ExceptionNoSitePool(s"In $this: Cannot emit molecule $m($molValue) because join pool is not active")
     else if (!Thread.currentThread().isInterrupted) {
-      if (emittingSingletons) {
+      if (emittingSingletonsNow) {
         // Emit them on the same thread, and do not start any reactions.
         if (m.isSingleton) {
           moleculesPresent.addToBag(m, molValue)
@@ -347,15 +347,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       throw new ExceptionNoSingleton(s"In $this: volatile reader requested for non-singleton ($m)")
   }
 
-  private def initializeJoinDef(): (Map[Molecule, Int], WarningsAndErrors) = {
-
+  private def initializeReactionSite(): (Map[Molecule, Int], WarningsAndErrors) = {
     // Set the owner on all input molecules in this reaction site.
     nonSingletonReactions
       .flatMap(_.inputMolecules)
       .toSet // We only need to assign the owner on each distinct input molecule once.
       .foreach { m: Molecule =>
       m.reactionSiteOpt match {
-        case Some(owner) => throw new ExceptionMoleculeAlreadyBound(s"Molecule $m cannot be used as input since it is already bound to $owner")
+        case Some(owner) => if (owner =!= this) throw new ExceptionMoleculeAlreadyBound(s"Molecule $m cannot be used as input in $this since it is already bound to $owner")
         case None => m.reactionSiteOpt = Some(this)
       }
     }
@@ -367,15 +366,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           _.foreach { info => info.molecule.emittingReactionsSet += r }
         }
       }
-
-    // Mark the outputs of singleton reactions as singleton molecules.
-    singletonReactions.foreach {
-      reaction =>
-        reaction.info.outputs.foreach(_.foreach {
-          case OutputMoleculeInfo(m: M[_], _) => m.isSingletonBoolean = true;
-          case _ =>
-        })
-    }
 
     // Perform static analysis.
     val foundWarnings = findSingletonWarnings(singletonsDeclared, nonSingletonReactions) ++ findStaticWarnings(nonSingletonReactions)
@@ -391,9 +381,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // Emit singleton molecules (note: this is on the same thread as the call to `site`!).
     // This must be done without starting any reactions.
     // It is OK that the argument is `null` because singleton reactions match on the wildcard: { case _ => ... }
-    emittingSingletons = true
+    emittingSingletonsNow = true
     singletonReactions.foreach { reaction => reaction.body.apply(null.asInstanceOf[UnapplyArg]) }
-    emittingSingletons = false
+    emittingSingletonsNow = false
 
     val singletonsActuallyEmitted = moleculesPresent.getCountMap
 
@@ -407,16 +397,20 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   // This is run when this ReactionSite is first created.
-  val (singletonsEmitted, diagnostics) = initializeJoinDef()
+  private val (singletonsEmitted: Map[Molecule, Int], diagnostics: WarningsAndErrors) = initializeReactionSite()
 
-  diagnostics.checkWarningsAndErrors()
-
+  /** Print warnings messages and throw exception if the initialization of this reaction site caused errors.
+    *
+    * @return Warnings and errors as a [[WarningsAndErrors]] value. If errors were found, throws an exception and returns nothing.
+    */
+  def checkWarningsAndErrors(): WarningsAndErrors = diagnostics.checkWarningsAndErrors()
 }
 
 final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], joinDef: String) {
-  def checkWarningsAndErrors(): Unit = {
+  def checkWarningsAndErrors(): WarningsAndErrors = {
     if (warnings.nonEmpty) println(s"In $joinDef: ${warnings.mkString("; ")}")
     if (errors.nonEmpty) throw new Exception(s"In $joinDef: ${errors.mkString("; ")}")
+    this
   }
 
   def hasErrorsOrWarnings: Boolean = warnings.nonEmpty || errors.nonEmpty

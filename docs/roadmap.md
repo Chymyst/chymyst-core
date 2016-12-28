@@ -37,19 +37,21 @@ This will allow us to implement interesting features such as:
 - emit many molecules at once, rather than one by one
 - allow nonlinear input patterns
 
-Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka streams.
+Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka Streaming, Kafka, Heron.
 
 Version 0.4: Enterprise readiness: fault tolerance, monitoring, flexible logging, assertions on singleton molecules and perhaps on some other situations, thread fusing for singleton molecule reactions.
 
-Version 0.5: Investigate an implicit distributed execution of chemical reactions ("soup pools").
+Version 0.5: Application framework `Chymyst`, converting between molecules and various external APIs such as HTTP, GUI toolkits, Unix files and processes.
+
+Version 0.6: Automatic distributed and fault-tolerant execution of chemical reactions ("soup pools").
+
+Version 0.7: Static optimizations: use macros and code transformations to completely eliminate all blocking and all inessential pattern-matching overhead.
 
 # Current To-Do List
 
  value * difficulty - description
 
- 2 * 3 - investigate using wait/notify instead of semaphore; does it give better performance? This depends on benchmarking of blocking molecules.
-
- 2 * 3 - support a fixed number of singleton copies; remove Molecule.isSingleton mutable field in favor of a function on getJoinDef 
+ 2 * 3 - investigate using wait/notify instead of semaphore; does it give better performance? This depends on benchmarking of blocking molecules. - So far, attempts to do this failed.
 
  2 * 3 - detect livelock due to singleton emission (at the moment, they are not considered as present inputs)
 
@@ -59,7 +61,7 @@ Version 0.5: Investigate an implicit distributed execution of chemical reactions
  5 * 5 - implement fairness with respect to molecules
  * - go through possible values when matching (can do?) Important: reactions can get stuck when molecules are in different order. Or need to shuffle.
 
- 3 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping?
+ 3 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping? This should help fetch random molecules out of the soup.
 
  2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
 
@@ -70,6 +72,8 @@ Version 0.5: Investigate an implicit distributed execution of chemical reactions
  4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
 
  3 * 3 - add logging of reactions currently in progress at a given RS. (Need a custom thread class, or a registry of reactions?)
+ 
+ 3 * 4 - use java.monitoring to get statistics over how much time is spent running reactions, waiting while BlockingIdle(), etc. 
 
  2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
 
