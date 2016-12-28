@@ -4,6 +4,8 @@ import java.time.LocalDateTime
 import code.chymyst.benchmark.Common._
 import code.chymyst.jc._
 
+import code.jiansen.scalajoin._ // Use precompiled classes from Jiansen's Join.scala, which are in that package.
+
 object Benchmarks7 {
 
   /// Concurrent decrement of `n` counters, each going from `count` to 0 concurrently.

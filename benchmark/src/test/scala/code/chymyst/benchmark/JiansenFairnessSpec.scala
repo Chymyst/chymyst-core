@@ -4,6 +4,7 @@ import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
+import code.jiansen.scalajoin._ // Use precompiled classes from Jiansen's Join.scala, which are in that package.
 
 class JiansenFairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 

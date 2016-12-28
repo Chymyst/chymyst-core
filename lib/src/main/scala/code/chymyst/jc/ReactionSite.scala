@@ -403,13 +403,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val singletonDiagnostics = WarningsAndErrors(singletonEmissionWarnings, singletonEmissionErrors, s"$this")
     val diagnostics = staticDiagnostics ++ singletonDiagnostics
 
-    diagnostics.checkWarningsAndErrors()
-
     (singletonsActuallyEmitted, diagnostics)
   }
 
   // This is run when this ReactionSite is first created.
   val (singletonsEmitted, diagnostics) = initializeJoinDef()
+
+  diagnostics.checkWarningsAndErrors()
+
 }
 
 final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], joinDef: String) {
