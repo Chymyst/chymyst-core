@@ -133,8 +133,9 @@ object Core {
 
     // Create a reaction site object holding the given local chemistry.
     // The constructor of ReactionSite will perform static analysis of all given reactions.
-    new ReactionSite(reactions, reactionPool, sitePool).diagnostics
+    val reactionSite = new ReactionSite(reactions, reactionPool, sitePool)
 
+    reactionSite.checkWarningsAndErrors()
   }
 
   private val errorLog = new ConcurrentLinkedQueue[String]
