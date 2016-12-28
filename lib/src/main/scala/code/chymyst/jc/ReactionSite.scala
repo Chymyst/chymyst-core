@@ -406,17 +406,17 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   def checkWarningsAndErrors(): WarningsAndErrors = diagnostics.checkWarningsAndErrors()
 }
 
-final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], joinDef: String) {
+final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], reactionSite: String) {
   def checkWarningsAndErrors(): WarningsAndErrors = {
-    if (warnings.nonEmpty) println(s"In $joinDef: ${warnings.mkString("; ")}")
-    if (errors.nonEmpty) throw new Exception(s"In $joinDef: ${errors.mkString("; ")}")
+    if (warnings.nonEmpty) println(s"In $reactionSite: ${warnings.mkString("; ")}")
+    if (errors.nonEmpty) throw new Exception(s"In $reactionSite: ${errors.mkString("; ")}")
     this
   }
 
   def hasErrorsOrWarnings: Boolean = warnings.nonEmpty || errors.nonEmpty
 
   def ++(other: WarningsAndErrors): WarningsAndErrors =
-    WarningsAndErrors(warnings ++ other.warnings, errors ++ other.errors, joinDef)
+    WarningsAndErrors(warnings ++ other.warnings, errors ++ other.errors, reactionSite)
 }
 
 
