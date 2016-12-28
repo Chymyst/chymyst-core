@@ -53,7 +53,7 @@ private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: AbsReplyVal
 }
 
 /** Abstract molecule emitter class.
-  * This class is not parameterized b type and is used in collections of molecules that do not require knowledge of molecule types.
+  * This class is not parameterized by type and is used in collections of molecules that do not require knowledge of molecule types.
   *
   */
 trait Molecule extends PersistentHashCode {
