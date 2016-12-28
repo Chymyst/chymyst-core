@@ -108,9 +108,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // or a bug in JoinRun.
         // reportError(s"In $this: Reaction {${reaction.info}} produced an exception that is internal to JoinRun. Input molecules [${moleculeBagToString
          // (usedInputs)}] were not emitted again. Message: ${e.getMessage}")
-        val format = "In %s: Reaction {%s} produced an exception that is internal to JoinRun. Input molecules [%s] were not emitted again. Message: %s"
-        val fArgs = List(this.toString , reaction.info.toString, moleculeBagToString(usedInputs), e.getMessage)
-        reportError(ErrorReport(severity = ErrorSeverity, format = format, fArgs = fArgs))
+
+        val error = JoinRunInternalMessage(reactionInfo = reaction.info,
+          rs = this,
+          moleculesAsString = moleculeBagToString(usedInputs),
+          exceptionMessage = e.getMessage)
+        reportError(error)
+
 
         // Let's not print it, and let's not throw it again, since it's our internal exception.
         //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
@@ -128,9 +132,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
      //   reportError(s"In $this: Reaction {${reaction.info}} produced an exception. Input molecules [${moleculeBagToString(usedInputs)}] $aboutMolecules. " +
      //  s"Message: ${e.getMessage}")
-        val format = "In %s: Reaction {%s} produced an exception. Input molecules [%s] %s. Message: %s"
-        val fArgs = List(this.toString , reaction.info.toString, moleculeBagToString(usedInputs), aboutMolecules, e.getMessage)
-        reportError(ErrorReport(severity = ErrorSeverity, format = format, fArgs = fArgs))
+        val error = JoinRunInternalAboutMessage(reactionInfo = reaction.info,
+          rs = this,
+          moleculesAsString = moleculeBagToString(usedInputs),
+          aboutMolecules = aboutMolecules,
+          exceptionMessage = e.getMessage)
+        reportError(error)
         //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message. Let's not print this.
         status
     }
@@ -156,6 +163,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // We will report all errors to each blocking molecule.
     // However, if the reaction failed with retry, we don't yet need to release semaphores and don't need to report errors due to missing reply.
     val notFailedWithRetry = exitStatus match { case ReactionExitRetryFailure => false; case _ => true }
+    // Requires more refactoring work as this errorMessage is computed twice, here and when logging.
     val errorMessage = Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
     val haveErrorsWithBlockingMolecules =
       (blockingMoleculesWithNoReply.nonEmpty && notFailedWithRetry)|| blockingMoleculesWithMultipleReply.nonEmpty
@@ -172,7 +180,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
 
     // not exactly good, considering complexity of this errorMessage construction
-    if (haveErrorsWithBlockingMolecules) reportError(ErrorReport(severity = ErrorSeverity, format = errorMessage, fArgs = Nil))
+    if (haveErrorsWithBlockingMolecules) {
+      val error = JoinRunComboOfTwoMessages(
+        reactionInfo = reaction.info,
+        rs = this,
+        blockingMoleculesWithNoReply =  blockingMoleculesWithNoReply,
+        blockingMoleculesWithMultipleReply = blockingMoleculesWithMultipleReply,
+        moleculesAsString = moleculeBagToString(usedInputs))
+        reportError(error)
+    }
 
   }
 
@@ -264,8 +280,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
 
   } catch {
-    case e: ExceptionInJoinRun =>
-      reportError(ErrorReport(severity = ErrorSeverity, format = e.getMessage, fArgs = Nil))
+    case e: ExceptionInJoinRun => reportError(ExceptionInJoinRunMessage(e))
   }
 
   /** This variable is true only at the initial stage of building the reaction site,

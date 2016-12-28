@@ -7,18 +7,52 @@ import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.collection.mutable
 
 
-sealed trait Severity
+trait Severity
 trait WarningSeverity extends Severity
 trait ErrorSeverity extends Severity
 
-case class Message1(m: Molecule, rs: ReactionSite) extends ErrorSeverity {
-  def show: String = ???  // the actual name of show is unimportant here and not required, provided message1Show
+final case class LogEntry(context: Product, message: String)
+
+final case class JoinRunInternalMessage(reactionInfo: ReactionInfo,
+                                        rs: ReactionSite,
+                                        moleculesAsString: String,
+                                        exceptionMessage: String) extends ErrorSeverity {
+  def show: String = s"""In ${rs.toString}: Reaction ${reactionInfo.toString} produced an exception that is internal to JoinRun. Input molecules "
+                        | "[$moleculesAsString] were not emitted again. Message: $exceptionMessage"""
+  // the actual name of show is unimportant here and not required, provided message1Show
   // makes use of Messsage1 meaningfully and can obtain a String.
 }
 
-case class Message2(rs: ReactionSite, r1: ReactionInfo, r2: ReactionInfo, m: Molecule) extends WarningSeverity {
-  def show: String = ???  // the actual name of show is unimportant here and not required, provided message2Show
-  // makes use of Messsage2 meaningfully and can obtain a String.
+
+final case class JoinRunInternalAboutMessage(reactionInfo: ReactionInfo,
+                                             rs: ReactionSite,
+                                             moleculesAsString: String,
+                                             aboutMolecules: String,
+                                             exceptionMessage: String) extends ErrorSeverity {
+  def show: String = s"""In ${rs.toString}: Reaction ${reactionInfo.toString} produced an exception. Input molecules "
+                       | [$moleculesAsString] $aboutMolecules. Message: $exceptionMessage"""
+}
+
+final case class JoinRunComboOfTwoMessages(reactionInfo: ReactionInfo,
+                                          rs: ReactionSite,
+                                          blockingMoleculesWithNoReply: Option[String],
+                                          blockingMoleculesWithMultipleReply: Option[String],
+                                          moleculesAsString: String) extends ErrorSeverity {
+  def show: String = {
+    val messageNoReply: Option[String] = blockingMoleculesWithNoReply map { s =>
+      s"Error: In $this: Reaction {${reactionInfo}} with inputs [$moleculesAsString] finished without replying to $s"
+    }
+    val messageMultipleReply: Option[String] = blockingMoleculesWithMultipleReply map { s =>
+      s"Error: In $this: Reaction {$reactionInfo} with inputs [$moleculesAsString] replied to $s more than once" }
+
+    Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
+
+  }
+
+}
+
+final case class ExceptionInJoinRunMessage(e: ExceptionInJoinRun) extends ErrorSeverity {
+  def show: String = e.getMessage
 }
 
 trait Show[A] {
@@ -29,34 +63,11 @@ object Show {
   def apply[A](f: A => String): Show[A] = new Show[A] {
     def show(a: A): String = f(a)
   }
-  implicit def message1Show: Show[Message1] = Show(_.show)
-  implicit def message2Show: Show[Message2] = Show(_.show)
-}
-
-sealed trait ReportSeverity
-case object ErrorSeverity extends ReportSeverity
-case object WarningSeverity extends ReportSeverity
-object ReportSeverity {
-  implicit def toString(s: ReportSeverity): String =
-    s match {
-      case ErrorSeverity => "ERROR"
-      case WarningSeverity => "WARNING"
-      case _ => "UNKNOWN SEVERITY"
-    }
-  // unclear as to what numbers are most useful or convey better normal usage convention (normally higher numbers represent worse
-  // conditions)
-  implicit def toInt(s: ReportSeverity): Int =
-  s match {
-    case WarningSeverity => 1
-    case ErrorSeverity => 2
-    case _ => 0
-  }
-}
-
-// possible consideration for a unique error code, which would be possible if error messages were not dynamically built
-// (or could use a top level error code as representative). Report consumers assumed to be English speakers (format and fArgs is not international).
-final case class ErrorReport(severity: ReportSeverity, format: String, fArgs: Seq[String]) {
-  lazy val formatted: String = format.format(fArgs:_*)
+  // names of methods below need not convey a useful name, they must simply exist with proper return type and implementation.
+  implicit def joinRunInternalMessageShow: Show[JoinRunInternalMessage] = Show(m => m.show)
+  implicit def joinRunInternalAboutMessageShow: Show[JoinRunInternalAboutMessage] = Show(m => m.show)
+  implicit def joinRunComboOfTwoMessagesShow: Show[JoinRunComboOfTwoMessages] = Show(m => m.show)
+  implicit def exceptionInJoinRunMessageShow: Show[ExceptionInJoinRunMessage] = Show(m => m.show)
 }
 
 object Core {
@@ -190,12 +201,12 @@ object Core {
 
   }
 
-  private val errorLog = new ConcurrentLinkedQueue[ErrorReport]
-  private[jc] def reportError(report: ErrorReport): Unit = {
-    errorLog.add(report)
+  private val errorLog = new ConcurrentLinkedQueue[LogEntry] // case class extends Product and we're willing to add case classes into the queue.
+  private[jc] def reportError[A <: Product](m: A)(implicit ev: Show[A]): Unit = {
+    errorLog.add(LogEntry(m, ev.show(m)))
     ()
   }
 
-  def globalErrorLog: Iterable[ErrorReport] = errorLog.iterator().asScala.toIterable
+  def globalErrorLog: Iterable[LogEntry] = errorLog.iterator().asScala.toIterable
 }
 
