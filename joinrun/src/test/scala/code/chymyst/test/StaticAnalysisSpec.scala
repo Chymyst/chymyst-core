@@ -118,7 +118,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   object IsEven {
-    def unapply(x: Int): Option[Int] = if (x % 2 == 0) Some(x/2) else None
+    def unapply(x: Int): Option[Int] = if (x % 2 == 0) Some(x / 2) else None
   }
 
   it should "detect shadowing of reactions with non-identical matchers that are nontrivially weaker" in {
@@ -195,7 +195,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val result = site(
       go { case a(IsEven(x)) => a(x) }
     )
-    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(<A854...>) => a(?)}"),List(),"Site{a => ...}")
+    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(<A854...>) => a(?)}"), List(), "Site{a => ...}")
   }
 
   it should "detect possible livelock in a single reaction due to guard" in {
@@ -203,7 +203,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val result = site(
       go { case a(x) if x > 0 => a(x) }
     )
-    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(.) if(?) => a(?)}"),List(),"Site{a => ...}")
+    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(.) if(?) => a(?)}"), List(), "Site{a => ...}")
   }
 
   it should "detect livelock in a single reaction due to constant output values with nontrivial matchers" in {
@@ -248,7 +248,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       go { case p(x) + q(1) => q(x) + q(2) + p(1) } // Will have livelock when x==1, but not otherwise.
     )
 
-    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {p(.) + q(1) => q(?) + q(2) + p(1)}"),List(),"Site{p + q => ...}")
+    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {p(.) + q(1) => q(?) + q(2) + p(1)}"), List(), "Site{p + q => ...}")
   }
 
   it should "detect shadowing together with livelock" in {
@@ -286,7 +286,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val warnings = site(
       go { case f(_, r) + a(_) + c(_) => f(); r(0); a(1) }
     )
-    warnings shouldEqual WarningsAndErrors(List("Possible deadlock: molecule f/B may deadlock due to outputs of {a(_) + c(_) + f/B(_) => f/B() + a(1)}", "Possible deadlock: molecule (f/B) may deadlock due to (a) among the outputs of {a(_) + c(_) + f/B(_) => f/B() + a(1)}"),List(),"Site{a + c + f/B => ...}")
+    warnings shouldEqual WarningsAndErrors(List("Possible deadlock: molecule f/B may deadlock due to outputs of {a(_) + c(_) + f/B(_) => f/B() + a(1)}", "Possible deadlock: molecule (f/B) may deadlock due to (a) among the outputs of {a(_) + c(_) + f/B(_) => f/B() + a(1)}"), List(), "Site{a + c + f/B => ...}")
   }
 
   it should "warn about likely deadlock for a reaction that emits molecules for another reaction" in {
@@ -302,31 +302,69 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       go { case c(_) => f(); a(1) }
     )
     warnings1 shouldEqual WarningsAndErrors(Nil, Nil, "Site{a + f/B => ...}")
-    warnings2 shouldEqual WarningsAndErrors(List("Possible deadlock: molecule f/B may deadlock due to outputs of {a(_) + f/B(_) => a(1)}"),List(),"Site{c => ...}")
+    warnings2 shouldEqual WarningsAndErrors(List("Possible deadlock: molecule f/B may deadlock due to outputs of {a(_) + f/B(_) => a(1)}"), List(), "Site{c => ...}")
   }
 
   behavior of "repeated reaction detection"
 
-  it should "detect several repeated reactions" in {
-
+  it should "detect a repeated reaction as a warning in the presence of other errors" in {
     val a = m[Int]
-    val c = m[Int]
+    val c = m[Unit]
     val f = b[Unit, Int]
 
     val thrown = intercept[Exception] {
-      site(
-        go { case f(_, r) + a(_) => r(0) },
-        go { case f(_, r) + a(_) => r(0) },
-        go { case f(_, r) + a(_) => r(0) },
-        go { case f(_, r) + a(_) => r(0) },
-        go { case f(_, r) + c(_) => r(0) },
-        go { case c(_) + a(_) => f(); a(1) },
-        go { case c(_) + a(_) => f(); a(1) }
+      val warnings = site(
+        go { case c(_) + a(x) => a(x) },
+        go { case c(_) + a(x) => a(x) },
+        go { case a(x) + f(_, r) => r(x) },
+        go { case a(x) + f(_, r) => r(x) }
       )
+      warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a(.) + c(_) => a(?)}, {a(.) + f/B(_) => }"), List(), "Site{a + c => ...; a + c => ...; a + f/B => ...; a + f/B => ...}") // this is probably unreachable; later we could rewrite this test when logging is better handled
+    }
+    thrown.getMessage shouldEqual "In Site{a + c => ...; a + c => ...; a + f/B => ...; a + f/B => ...}: Unavoidable nondeterminism: reaction {a(.) + c(_) => a(?)} is shadowed by {a(.) + c(_) => a(?)}, reaction {a(.) + c(_) => a(?)} is shadowed by {a(.) + c(_) => a(?)}, reaction {a(.) + f/B(_) => } is shadowed by {a(.) + f/B(_) => }, reaction {a(.) + f/B(_) => } is shadowed by {a(.) + f/B(_) => }"
+  }
 
+  it should "detect several repeated reactions" in {
+
+    val a1 = m[Int]
+    val a2 = m[Int]
+    val a3 = m[Int]
+    val c1 = m[Unit]
+    val c2 = m[Unit]
+    val c3 = m[Unit]
+    val f = b[Unit, Int]
+
+    val reaction1 = {
+      val a = a1
+      val c = c1
+      go { case a(x) + c(_) => a(x) }
     }
 
-    thrown.getMessage shouldEqual "In Site{a + c => ...; a + c => ...; a + f/B => ...; a + f/B => ...; a + f/B => ...; a + f/B => ...; c + f/B => ...}: Identical repeated reactions: {a(_) + f/B(_) => }, {a(_) + c(_) => f/B() + a(1)}; Unavoidable nondeterminism: reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + f/B(_) => } is shadowed by {a(_) + f/B(_) => }, reaction {a(_) + c(_) => f/B() + a(1)} is shadowed by {a(_) + c(_) => f/B() + a(1)}, reaction {a(_) + c(_) => f/B() + a(1)} is shadowed by {a(_) + c(_) => f/B() + a(1)}"
+    val reaction2 = {
+      val a = a2
+      val c = c2
+      go { case a(x) + c(_) => a(x) }
+    }
+
+    val reaction3 = {
+      val a = a3
+      val c = c3
+      go { case a(x) + c(_) => a(x) }
+    }
+
+    val reaction4 = {
+      val c = c1
+      go { case f(_, r) + c(_) => r(0) }
+    }
+
+    val reaction5 = {
+      val c = c2
+      go { case f(_, r) + c(_) => r(0) }
+    }
+
+    val warnings = site(reaction1, reaction2, reaction3, reaction4, reaction5)
+
+    warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a1(.) + c1(_) => a1(?)}, {c1(_) + f/B(_) => }"), List(), "Site{a1 + c1 => ...; a2 + c2 => ...; a3 + c3 => ...; c1 + f/B => ...; c2 + f/B => ...}")
   }
 
 }
