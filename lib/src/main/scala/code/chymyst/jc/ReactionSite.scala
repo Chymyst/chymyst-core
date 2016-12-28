@@ -363,7 +363,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     nonSingletonReactions
       .foreach { r =>
         r.info.outputs.foreach {
-          _.foreach { info => info.molecule.emittingReactionsSet += r }
+          _.foreach { _.molecule.addEmittingReaction(r) }
         }
       }
 
