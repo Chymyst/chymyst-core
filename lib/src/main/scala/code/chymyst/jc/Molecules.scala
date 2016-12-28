@@ -71,8 +71,13 @@ trait Molecule extends PersistentHashCode {
 
   @volatile private[jc] var reactionSiteOpt: Option[ReactionSite] = None
 
+  /** A shorthand method to get the reaction site to which this molecule is bound.
+    * This method should be used only when we are sure that the molecule is already bound.
+    *
+    * @return The reaction site to which the molecule is bound. If not yet bound, throws an exception.
+    */
   private[jc] def site: ReactionSite =
-    reactionSiteOpt.getOrElse(throw new ExceptionNoReactionSite(s"Molecule ${this} is not bound to any reaction site"))
+    reactionSiteOpt.getOrElse(throw new ExceptionNoReactionSite(s"Molecule $this is not bound to any reaction site"))
 
   /** The set of reactions that can consume this molecule.
     *
@@ -101,16 +106,12 @@ trait Molecule extends PersistentHashCode {
 
   val isBlocking: Boolean
 
-  def isSingleton: Boolean
+  def isSingleton: Boolean = reactionSiteOpt.exists(_.singletonsDeclared.contains(this))
 }
 
 private[jc] trait NonblockingMolecule[T] extends Molecule {
 
   val isBlocking = false
-
-  @volatile private[jc] var isSingletonBoolean = false
-
-  override def isSingleton: Boolean = isSingletonBoolean
 
   def unapplyInternal(arg: UnapplyArg): Option[T] = arg match {
 
@@ -145,7 +146,7 @@ private[jc] trait BlockingMolecule[T, R] extends Molecule {
 
   val isBlocking = true
 
-  val isSingleton = false
+  override def isSingleton = false
 
   /** Emit a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
     *
