@@ -97,7 +97,12 @@ trait Molecule extends PersistentHashCode {
     */
   private[jc] def emittingReactions: Set[Reaction] = emittingReactionsSet.toSet
 
-  private[jc] val emittingReactionsSet: mutable.Set[Reaction] = mutable.Set()
+  private val emittingReactionsSet: mutable.Set[Reaction] = mutable.Set()
+
+  private[jc] def addEmittingReaction(r: Reaction): Unit = {
+    emittingReactionsSet += r
+    ()
+  }
 
   def setLogLevel(logLevel: Int): Unit =
     site.logLevel = logLevel
@@ -106,7 +111,7 @@ trait Molecule extends PersistentHashCode {
 
   val isBlocking: Boolean
 
-  def isSingleton: Boolean = reactionSiteOpt.exists(_.singletonsDeclared.contains(this))
+  lazy val isSingleton: Boolean = reactionSiteOpt.exists(_.singletonsDeclared.contains(this))
 }
 
 private[jc] trait NonblockingMolecule[T] extends Molecule {
@@ -146,7 +151,7 @@ private[jc] trait BlockingMolecule[T, R] extends Molecule {
 
   val isBlocking = true
 
-  override def isSingleton = false
+  override lazy val isSingleton = false
 
   /** Emit a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
     *
