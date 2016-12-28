@@ -191,7 +191,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       site( _go { case a(_,_) => () })
       site( _go { case a(_,_) => () })
     }
-    thrown.getMessage shouldEqual "Molecule a/B cannot be used as input since it is already bound to Site{a/B => ...}"
+    thrown.getMessage shouldEqual "Molecule a/B cannot be used as input in Site{a/B => ...} since it is already bound to Site{a/B => ...}"
   }
 
   it should "throw exception when join pattern attempts to redefine a non-blocking molecule" in {
@@ -201,7 +201,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       site( _go { case a(_) + b(_) => () })
       site( _go { case a(_) => () })
     }
-    thrown.getMessage shouldEqual "Molecule x cannot be used as input since it is already bound to Site{x + y => ...}"
+    thrown.getMessage shouldEqual "Molecule x cannot be used as input in Site{x => ...} since it is already bound to Site{x + y => ...}"
   }
 
   it should "throw exception when trying to emit a blocking molecule that has no join" in {
