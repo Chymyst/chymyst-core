@@ -380,7 +380,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     }
 
     val result = g.timeout(1500 millis)()
-    globalErrorLog.exists(_.contains("Message: crash! (it's OK, ignore this)"))
+    globalErrorLog.exists(_.formatted.contains("Message: crash! (it's OK, ignore this)"))
     tp.shutdownNow()
     result shouldEqual Some(())
   }

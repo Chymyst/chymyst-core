@@ -6,6 +6,32 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.collection.mutable
 
+sealed trait ReportSeverity
+case object ErrorSeverity extends ReportSeverity
+case object WarningSeverity extends ReportSeverity
+object ReportSeverity {
+  implicit def toString(s: ReportSeverity): String =
+    s match {
+      case ErrorSeverity => "ERROR"
+      case WarningSeverity => "WARNING"
+      case _ => "UNKNOWN SEVERITY"
+    }
+  // unclear as to what numbers are most useful or convey better normal usage convention (normally higher numbers represent worse
+  // conditions)
+  implicit def toInt(s: ReportSeverity): Int =
+  s match {
+    case WarningSeverity => 1
+    case ErrorSeverity => 2
+    case _ => 0
+  }
+}
+
+// possible consideration for a unique error code, which would be possible if error messages were not dynamically built
+// (or could use a top level error code as representative). Report consumers assumed to be English speakers (format and fArgs is not international).
+final case class ErrorReport(severity: ReportSeverity, format: String, fArgs: Seq[String]) {
+  lazy val formatted: String = format.format(fArgs:_*)
+}
+
 object Core {
 
   /** A special value for {{{ReactionInfo}}} to signal that we are not running a reaction.
@@ -137,13 +163,12 @@ object Core {
 
   }
 
-  private val errorLog = new ConcurrentLinkedQueue[String]
-
-  private[jc] def reportError(message: String): Unit = {
-    errorLog.add(message)
+  private val errorLog = new ConcurrentLinkedQueue[ErrorReport]
+  private[jc] def reportError(report: ErrorReport): Unit = {
+    errorLog.add(report)
     ()
   }
 
-  def globalErrorLog: Iterable[String] = errorLog.iterator().asScala.toIterable
-
+  def globalErrorLog: Iterable[ErrorReport] = errorLog.iterator().asScala.toIterable
 }
+

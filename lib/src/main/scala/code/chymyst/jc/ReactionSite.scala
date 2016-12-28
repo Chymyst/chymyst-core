@@ -106,7 +106,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // Running the reaction body produced an exception that is internal to JoinRun.
         // We should not try to recover from this; it is most either an error on user's part
         // or a bug in JoinRun.
-        reportError(s"In $this: Reaction {${reaction.info}} produced an exception that is internal to JoinRun. Input molecules [${moleculeBagToString(usedInputs)}] were not emitted again. Message: ${e.getMessage}")
+        // reportError(s"In $this: Reaction {${reaction.info}} produced an exception that is internal to JoinRun. Input molecules [${moleculeBagToString
+         // (usedInputs)}] were not emitted again. Message: ${e.getMessage}")
+        val format = "In %s: Reaction {%s} produced an exception that is internal to JoinRun. Input molecules [%s] were not emitted again. Message: %s"
+        val fArgs = List(this.toString , reaction.info.toString, moleculeBagToString(usedInputs), e.getMessage)
+        reportError(ErrorReport(severity = ErrorSeverity, format = format, fArgs = fArgs))
+
         // Let's not print it, and let's not throw it again, since it's our internal exception.
         //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
         //        throw e
@@ -121,7 +126,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         }
         else (ReactionExitFailure, "were consumed and not emitted again")
 
-        reportError(s"In $this: Reaction {${reaction.info}} produced an exception. Input molecules [${moleculeBagToString(usedInputs)}] $aboutMolecules. Message: ${e.getMessage}")
+     //   reportError(s"In $this: Reaction {${reaction.info}} produced an exception. Input molecules [${moleculeBagToString(usedInputs)}] $aboutMolecules. " +
+     //  s"Message: ${e.getMessage}")
+        val format = "In %s: Reaction {%s} produced an exception. Input molecules [%s] %s. Message: %s"
+        val fArgs = List(this.toString , reaction.info.toString, moleculeBagToString(usedInputs), aboutMolecules, e.getMessage)
+        reportError(ErrorReport(severity = ErrorSeverity, format = format, fArgs = fArgs))
         //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message. Let's not print this.
         status
     }
@@ -162,7 +171,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       case _ => ()
     }
 
-    if (haveErrorsWithBlockingMolecules) reportError(errorMessage)
+    // not exactly good, considering complexity of this errorMessage construction
+    if (haveErrorsWithBlockingMolecules) reportError(ErrorReport(severity = ErrorSeverity, format = errorMessage, fArgs = Nil))
 
   }
 
@@ -254,7 +264,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
 
   } catch {
-    case e: ExceptionInJoinRun => reportError(e.getMessage)
+    case e: ExceptionInJoinRun =>
+      reportError(ErrorReport(severity = ErrorSeverity, format = e.getMessage, fArgs = Nil))
   }
 
   /** This variable is true only at the initial stage of building the reaction site,
