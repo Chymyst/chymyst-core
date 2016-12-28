@@ -106,8 +106,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // Running the reaction body produced an exception that is internal to JoinRun.
         // We should not try to recover from this; it is most either an error on user's part
         // or a bug in JoinRun.
-        // reportError(s"In $this: Reaction {${reaction.info}} produced an exception that is internal to JoinRun. Input molecules [${moleculeBagToString
-         // (usedInputs)}] were not emitted again. Message: ${e.getMessage}")
 
         val error = JoinRunInternalMessage(reactionInfo = reaction.info,
           rs = this,
@@ -130,9 +128,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         }
         else (ReactionExitFailure, "were consumed and not emitted again")
 
-     //   reportError(s"In $this: Reaction {${reaction.info}} produced an exception. Input molecules [${moleculeBagToString(usedInputs)}] $aboutMolecules. " +
-     //  s"Message: ${e.getMessage}")
-        val error = JoinRunInternalAboutMessage(reactionInfo = reaction.info,
+        val error = JoinRunAboutMoleculesMessage(reactionInfo = reaction.info,
           rs = this,
           moleculesAsString = moleculeBagToString(usedInputs),
           aboutMolecules = aboutMolecules,

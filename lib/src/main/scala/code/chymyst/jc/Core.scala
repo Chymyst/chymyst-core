@@ -6,70 +6,6 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.collection.mutable
 
-
-trait Severity
-trait WarningSeverity extends Severity
-trait ErrorSeverity extends Severity
-
-final case class LogEntry(context: Product, message: String)
-
-final case class JoinRunInternalMessage(reactionInfo: ReactionInfo,
-                                        rs: ReactionSite,
-                                        moleculesAsString: String,
-                                        exceptionMessage: String) extends ErrorSeverity {
-  def show: String = s"""In ${rs.toString}: Reaction ${reactionInfo.toString} produced an exception that is internal to JoinRun. Input molecules "
-                        | "[$moleculesAsString] were not emitted again. Message: $exceptionMessage"""
-  // the actual name of show is unimportant here and not required, provided message1Show
-  // makes use of Messsage1 meaningfully and can obtain a String.
-}
-
-
-final case class JoinRunInternalAboutMessage(reactionInfo: ReactionInfo,
-                                             rs: ReactionSite,
-                                             moleculesAsString: String,
-                                             aboutMolecules: String,
-                                             exceptionMessage: String) extends ErrorSeverity {
-  def show: String = s"""In ${rs.toString}: Reaction ${reactionInfo.toString} produced an exception. Input molecules "
-                       | [$moleculesAsString] $aboutMolecules. Message: $exceptionMessage"""
-}
-
-final case class JoinRunComboOfTwoMessages(reactionInfo: ReactionInfo,
-                                          rs: ReactionSite,
-                                          blockingMoleculesWithNoReply: Option[String],
-                                          blockingMoleculesWithMultipleReply: Option[String],
-                                          moleculesAsString: String) extends ErrorSeverity {
-  def show: String = {
-    val messageNoReply: Option[String] = blockingMoleculesWithNoReply map { s =>
-      s"Error: In $this: Reaction {${reactionInfo}} with inputs [$moleculesAsString] finished without replying to $s"
-    }
-    val messageMultipleReply: Option[String] = blockingMoleculesWithMultipleReply map { s =>
-      s"Error: In $this: Reaction {$reactionInfo} with inputs [$moleculesAsString] replied to $s more than once" }
-
-    Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
-
-  }
-
-}
-
-final case class ExceptionInJoinRunMessage(e: ExceptionInJoinRun) extends ErrorSeverity {
-  def show: String = e.getMessage
-}
-
-trait Show[A] {
-  def show(a: A): String
-}
-
-object Show {
-  def apply[A](f: A => String): Show[A] = new Show[A] {
-    def show(a: A): String = f(a)
-  }
-  // names of methods below need not convey a useful name, they must simply exist with proper return type and implementation.
-  implicit def joinRunInternalMessageShow: Show[JoinRunInternalMessage] = Show(m => m.show)
-  implicit def joinRunInternalAboutMessageShow: Show[JoinRunInternalAboutMessage] = Show(m => m.show)
-  implicit def joinRunComboOfTwoMessagesShow: Show[JoinRunComboOfTwoMessages] = Show(m => m.show)
-  implicit def exceptionInJoinRunMessageShow: Show[ExceptionInJoinRunMessage] = Show(m => m.show)
-}
-
 object Core {
 
   /** A special value for {{{ReactionInfo}}} to signal that we are not running a reaction.
@@ -201,12 +137,12 @@ object Core {
 
   }
 
-  private val errorLog = new ConcurrentLinkedQueue[LogEntry] // case class extends Product and we're willing to add case classes into the queue.
-  private[jc] def reportError[A <: Product](m: A)(implicit ev: Show[A]): Unit = {
-    errorLog.add(LogEntry(m, ev.show(m)))
+  private val errorLog = new ConcurrentLinkedQueue[LogMessage]
+  private[jc] def reportError(report: LogMessage): Unit = {
+    errorLog.add(report)
     ()
   }
 
-  def globalErrorLog: Iterable[LogEntry] = errorLog.iterator().asScala.toIterable
+  def globalErrorLog: Iterable[LogMessage] = errorLog.iterator().asScala.toIterable
 }
 
