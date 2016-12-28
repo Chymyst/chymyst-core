@@ -6,6 +6,33 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.collection.mutable
 
+
+sealed trait Severity
+trait WarningSeverity extends Severity
+trait ErrorSeverity extends Severity
+
+case class Message1(m: Molecule, rs: ReactionSite) extends ErrorSeverity {
+  def show: String = ???  // the actual name of show is unimportant here and not required, provided message1Show
+  // makes use of Messsage1 meaningfully and can obtain a String.
+}
+
+case class Message2(rs: ReactionSite, r1: ReactionInfo, r2: ReactionInfo, m: Molecule) extends WarningSeverity {
+  def show: String = ???  // the actual name of show is unimportant here and not required, provided message2Show
+  // makes use of Messsage2 meaningfully and can obtain a String.
+}
+
+trait Show[A] {
+  def show(a: A): String
+}
+
+object Show {
+  def apply[A](f: A => String): Show[A] = new Show[A] {
+    def show(a: A): String = f(a)
+  }
+  implicit def message1Show: Show[Message1] = Show(_.show)
+  implicit def message2Show: Show[Message2] = Show(_.show)
+}
+
 sealed trait ReportSeverity
 case object ErrorSeverity extends ReportSeverity
 case object WarningSeverity extends ReportSeverity
