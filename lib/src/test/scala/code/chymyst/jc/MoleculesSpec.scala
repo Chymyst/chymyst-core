@@ -380,9 +380,20 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     }
 
     val result = g.timeout(1500 millis)()
-    globalErrorLog.exists(_.format.contains("Message: crash! (it's OK, ignore this)"))
+
+    // count number of JoinRunAboutMoleculesMessage with aboutMolecules set to "were consumed and not emitted again"
+    val expectedJoinRunAboutMoleculesMessageCount = globalErrorLog.map {
+      case JoinRunAboutMoleculesMessage(_, _, _, _, _) => 1
+      case _ => 0
+    }.sum
+
+    val messagePatternMatch = globalErrorLog.exists(_.format.contains("Message: crash! (it's OK, ignore this)"))
     tp.shutdownNow()
+
     result shouldEqual Some(())
+    messagePatternMatch shouldBe true
+    expectedJoinRunAboutMoleculesMessageCount shouldBe globalErrorLog.size // a moderately strong statement, no other error gets logged
+    globalErrorLog.size should be > 0 // there are errors
   }
 
 }

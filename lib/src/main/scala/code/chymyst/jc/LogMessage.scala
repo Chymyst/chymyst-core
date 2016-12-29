@@ -1,34 +1,34 @@
 package code.chymyst.jc
 
-trait WarningMessage { val isError = false }
-trait ErrorMessage { val isError = true }
-
-sealed trait LogMessage { def format: String }
+sealed trait LogMessage {
+  val reactionSite: ReactionSite
+  def format: String
+}
 
 final case class JoinRunInternalMessage(reactionInfo: ReactionInfo,
-                                        rs: ReactionSite,
+                                        override val reactionSite: ReactionSite,
                                         moleculesAsString: String,
-                                        exceptionMessage: String) extends LogMessage with ErrorMessage {
+                                        exceptionMessage: String) extends LogMessage {
   override def format: String =
-    s"""In ${rs.toString}: Reaction ${reactionInfo.toString} produced an exception that is internal to JoinRun. Input molecules "
+    s"""In ${reactionSite.toString}: Reaction ${reactionInfo.toString} produced an exception that is internal to JoinRun. Input molecules "
       | "[$moleculesAsString] were not emitted again. Message: $exceptionMessage"""
 }
 
 
 final case class JoinRunAboutMoleculesMessage(reactionInfo: ReactionInfo,
-                                              rs: ReactionSite,
+                                              override val reactionSite: ReactionSite,
                                               moleculesAsString: String,
                                               aboutMolecules: String,
-                                              exceptionMessage: String) extends LogMessage with ErrorMessage {
-  override def format: String = s"""In ${rs.toString}: Reaction ${reactionInfo.toString} produced an exception. Input molecules "
+                                              exceptionMessage: String) extends LogMessage {
+  override def format: String = s"""In ${reactionSite.toString}: Reaction ${reactionInfo.toString} produced an exception. Input molecules "
                                    | [$moleculesAsString] $aboutMolecules. Message: $exceptionMessage"""
 }
 
 final case class JoinRunComboOfTwoMessages(reactionInfo: ReactionInfo,
-                                           rs: ReactionSite,
+                                           override val reactionSite: ReactionSite,
                                            blockingMoleculesWithNoReply: Option[String],
                                            blockingMoleculesWithMultipleReply: Option[String],
-                                           moleculesAsString: String) extends LogMessage with ErrorMessage {
+                                           moleculesAsString: String) extends LogMessage {
   override def format: String = {
     val messageNoReply: Option[String] = blockingMoleculesWithNoReply map { s =>
       s"Error: In $this: Reaction {${reactionInfo}} with inputs [$moleculesAsString] finished without replying to $s"
@@ -42,6 +42,7 @@ final case class JoinRunComboOfTwoMessages(reactionInfo: ReactionInfo,
 
 }
 
-final case class ExceptionInJoinRunMessage(e: ExceptionInJoinRun) extends LogMessage with ErrorMessage {
+final case class ExceptionInJoinRunMessage(override val reactionSite: ReactionSite,
+                                           e: ExceptionInJoinRun) extends LogMessage {
   override def format: String = e.getMessage
 }

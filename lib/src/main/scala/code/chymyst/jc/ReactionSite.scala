@@ -108,7 +108,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // or a bug in JoinRun.
 
         val error = JoinRunInternalMessage(reactionInfo = reaction.info,
-          rs = this,
+          reactionSite = this,
           moleculesAsString = moleculeBagToString(usedInputs),
           exceptionMessage = e.getMessage)
         reportError(error)
@@ -129,7 +129,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         else (ReactionExitFailure, "were consumed and not emitted again")
 
         val error = JoinRunAboutMoleculesMessage(reactionInfo = reaction.info,
-          rs = this,
+          reactionSite = this,
           moleculesAsString = moleculeBagToString(usedInputs),
           aboutMolecules = aboutMolecules,
           exceptionMessage = e.getMessage)
@@ -179,7 +179,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     if (haveErrorsWithBlockingMolecules) {
       val error = JoinRunComboOfTwoMessages(
         reactionInfo = reaction.info,
-        rs = this,
+        reactionSite = this,
         blockingMoleculesWithNoReply =  blockingMoleculesWithNoReply,
         blockingMoleculesWithMultipleReply = blockingMoleculesWithMultipleReply,
         moleculesAsString = moleculeBagToString(usedInputs))
@@ -276,7 +276,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
 
   } catch {
-    case e: ExceptionInJoinRun => reportError(ExceptionInJoinRunMessage(e))
+    case e: ExceptionInJoinRun => reportError(ExceptionInJoinRunMessage(reactionSite = this, e))
   }
 
   /** This variable is true only at the initial stage of building the reaction site,
