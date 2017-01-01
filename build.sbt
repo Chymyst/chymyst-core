@@ -55,7 +55,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
         else Nil
     )
     ++ (
-        if (scalaVersion.value startsWith "2.12") Seq("-target:jvm-1.8") // what about "-Ypartial-unification" (SI-2712)?
+        if (scalaVersion.value startsWith "2.12") Seq("-target:jvm-1.8","-Ypartial-unification") // (SI-2712 pertains to partial-unification)
         else Nil
     )
 )
