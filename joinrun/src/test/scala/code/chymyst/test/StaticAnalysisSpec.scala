@@ -15,6 +15,9 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   behavior of "analysis of reaction shadowing"
 
+  val hash211 = "4BE5"
+  val hash212 = "B07E"
+
   it should "detect shadowing of simplest reactions" in {
     val thrown = intercept[Exception] {
       val a = m[Unit]
@@ -92,7 +95,14 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         go { case a(Some(1)) + b(2) => }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction {a(<4BE5...>) + b(2) => } is shadowed by {a(<4BE5...>) => }"
+
+    def expectsFromHash(hash: String) =
+      s"In Site{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction {a(<$hash...>) + b(2) => } is " +
+      s"shadowed by {a(<$hash...>) => }"
+    val expected211 = expectsFromHash(hash211)
+    val expected212 = expectsFromHash(hash212)
+
+    Set(expected211, expected212) should contain oneElementOf List(thrown.getMessage)
   }
 
   it should "fail to detect shadowing of reactions with non-identical non-constant matchers" in {
@@ -114,7 +124,12 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         go { case a(Some(1)) + b(2) => }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a + b => ...; a + b => ...}: Unavoidable nondeterminism: reaction {a(<4BE5...>) + b(2) => } is shadowed by {a(<4BE5...>) + b(_) => }"
+    def expectsFromHash(hash: String) =
+      s"In Site{a + b => ...; a + b => ...}: Unavoidable nondeterminism: reaction {a(<$hash...>) + b(2) => } is shadowed by {a(<$hash...>) + b(_) => }"
+    val expected211 = expectsFromHash(hash211)
+    val expected212 = expectsFromHash(hash212)
+
+    Set(expected211, expected212) should contain oneElementOf List(thrown.getMessage)
   }
 
   object IsEven {
@@ -153,7 +168,14 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         go { case a(Some(1)) + b(2) + a(Some(2)) + a(Some(3)) + b(1) + b(_) + b(1) => }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a + a + a + b + b + b + b => ...; a + a + a + b + b + b => ...}: Unavoidable nondeterminism: reaction {a(<45EA...>) + a(<465D...>) + a(<4BE5...>) + b(1) + b(1) + b(2) + b(_) => } is shadowed by {a(<465D...>) + a(_) + a(.) + b(1) + b(1) + b(_) => }"
+    def expectsFromHash(hashA: String, hashB: String, hashC: String, hashD: String) =
+      s"In Site{a + a + a + b + b + b + b => ...; a + a + a + b + b + b => ...}: Unavoidable nondeterminism: reaction"+
+        s" {a(<$hashA...>) + a(<$hashB...>) + a(<$hashC...>) + b(1) + b(1) + b(2) + b(_) => }" +
+        s" is shadowed by {a(<$hashD...>) + a(_) + a(.) + b(1) + b(1) + b(_) => }"
+    val expected211 = expectsFromHash("45EA", "465D", "4BE5", "465D")  // note 4th arg is 2nd
+    val expected212 = expectsFromHash("4AEA", "A89F", "B07E", "4AEA") // note 4th arg is first
+
+    Set(expected211, expected212) should contain oneElementOf List(thrown.getMessage)
   }
 
   it should "detect shadowing of reactions with several wildcards" in {
@@ -165,7 +187,14 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         go { case a(Some(1)) + b(2) + a(Some(2)) + a(Some(3)) + b(1) + b(_) + b(1) + a(x) => }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a + a + a + a + b + b + b + b => ...; a + a + a + a + b => ...}: Unavoidable nondeterminism: reaction {a(<45EA...>) + a(<465D...>) + a(<4BE5...>) + a(.) + b(1) + b(1) + b(2) + b(_) => } is shadowed by {a(<465D...>) + a(_) + a(_) + a(.) + b(1) => }"
+    def expectsFromHash(hashA: String, hashB: String, hashC: String, hashD: String) =
+      s"In Site{a + a + a + a + b + b + b + b => ...; a + a + a + a + b => ...}: Unavoidable nondeterminism: reaction"+
+        s" {a(<$hashA...>) + a(<$hashB...>) + a(<$hashC...>) + a(.) + b(1) + b(1) + b(2) + b(_) => }" +
+        s" is shadowed by {a(<$hashD...>) + a(_) + a(_) + a(.) + b(1) => }"
+    val expected211 = expectsFromHash("45EA", "465D", "4BE5", "465D")  // note 4th arg is 2nd
+    val expected212 = expectsFromHash("4AEA", "A89F", "B07E", "4AEA") // note 4th arg is first
+
+    Set(expected211, expected212) should contain oneElementOf List(thrown.getMessage)
   }
 
   behavior of "analysis of livelock"

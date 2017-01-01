@@ -25,10 +25,9 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   resolvers += "Typesafe releases" at "http://repo.typesafe.com/typesafe/releases",
 
   scalacOptions ++= Seq( // https://tpolecat.github.io/2014/04/11/scalac-flags.html
-    "-target:jvm-1.8",
     "-deprecation",
     "-unchecked",
-    "-encoding", "UTF-8", // yes, this is 2 args
+    "-encoding", "UTF-8",
     "-feature",
 //    "-language:existentials",
     "-language:higherKinds",
@@ -40,9 +39,24 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     "-Ywarn-numeric-widen",
     "-Ywarn-value-discard",
     "-Xfuture",
-    "-Ywarn-unused",
-    "-Ywarn-unused-import" // 2.11 only
-  )
+    "-Ywarn-unused"
+  ) ++ ( //target:jvm-1.8 supported from 2.11.5, warn-unused-import deprecated in 2.12
+        if (scalaVersion.value startsWith "2.11") {
+          val revision = scalaVersion.value.split('.').last.toInt
+          Seq("-Ywarn-unused-import") ++ (
+            if (revision >= 5) {
+              Seq("-target:jvm-1.8")
+            }
+            else {
+              Nil
+            })
+        }
+        else Nil
+    )
+    ++ (
+        if (scalaVersion.value startsWith "2.12") Seq("-target:jvm-1.8") // what about "-Ypartial-unification" (SI-2712)?
+        else Nil
+    )
 )
 
 tutSettings
