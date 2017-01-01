@@ -20,15 +20,15 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   version := "0.1.4",
   scalaVersion := "2.11.8",
   crossScalaVersions := Seq("2.11.0", "2.11.1", "2.11.2", "2.11.3", "2.11.4", "2.11.5", "2.11.6", "2.11.7", "2.11.8", "2.12.0", "2.12.1"),
-  resolvers += Resolver.sonatypeRepo("snapshots"),
-  resolvers += Resolver.sonatypeRepo("releases"),
-  resolvers += "Typesafe releases" at "http://repo.typesafe.com/typesafe/releases",
+  resolvers ++= Seq(
+    Resolver.sonatypeRepo("snapshots"),
+    Resolver.sonatypeRepo("releases"),
+    "Typesafe releases" at "http://repo.typesafe.com/typesafe/releases"),
 
   scalacOptions ++= Seq( // https://tpolecat.github.io/2014/04/11/scalac-flags.html
-    "-target:jvm-1.8",
     "-deprecation",
     "-unchecked",
-    "-encoding", "UTF-8", // yes, this is 2 args
+    "-encoding", "UTF-8",
     "-feature",
 //    "-language:existentials",
     "-language:higherKinds",
@@ -40,9 +40,24 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     "-Ywarn-numeric-widen",
     "-Ywarn-value-discard",
     "-Xfuture",
-    "-Ywarn-unused",
-    "-Ywarn-unused-import" // 2.11 only
-  )
+    "-Ywarn-unused"
+  ) ++ ( //target:jvm-1.8 supported from 2.11.5, warn-unused-import deprecated in 2.12
+        if (scalaVersion.value startsWith "2.11") {
+          val revision = scalaVersion.value.split('.').last.toInt
+          Seq("-Ywarn-unused-import") ++ (
+            if (revision >= 5) {
+              Seq("-target:jvm-1.8")
+            }
+            else {
+              Nil
+            })
+        }
+        else Nil
+    )
+    ++ (
+        if (scalaVersion.value startsWith "2.12") Seq("-target:jvm-1.8","-Ypartial-unification") // (SI-2712 pertains to partial-unification)
+        else Nil
+    )
 )
 
 tutSettings
