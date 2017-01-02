@@ -67,7 +67,6 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
         count(n - 1)
         readerCount(0)
         leaveCriticalSection(name)
-        waitForUserRequest() // gives a chance to readers to do some work
       },
       go { case count(0) + readerCount(0) + check(_, r) => r() }, // readerCount(0) condition ensures we end when all locks are released.
 
