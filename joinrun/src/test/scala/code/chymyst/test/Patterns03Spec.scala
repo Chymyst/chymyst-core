@@ -41,6 +41,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val logFile = new ConcurrentLinkedQueue[LockEvent]
 
     def useResource(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+    def waitForUserRequest(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
     def visitCriticalSection(l: Lock): Unit = {
       logFile.add(LockAcquisition(l.name))
       useResource()
@@ -51,12 +52,13 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }
 
     val count = m[Int]
-    val readerToken = m[Unit]
     val readerCount = m[Int]
-    val readerExit = m[String]
 
     val check = b[Unit, Unit] // blocking Unit, only blocking molecule of the example.
 
+    val readers = List("A", "B", "C", "D" ).toIndexedSeq
+    val readerExit = m[String]
+    val reader = m[String]
     val writer = m[Unit]
 
     site(tp)(
@@ -67,27 +69,24 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
         count(n - 1)
         readerCount(0)
         leaveCriticalSection(WriterLock(id))
+        waitForUserRequest() // gives a chance to readers to do some work
       },
       go { case count(0) + check(_, r) => r() },
 
       go { case readerCount(n) + readerExit(name)  =>
-        readerToken()
         readerCount(n - 1)
         leaveCriticalSection(ReaderLock(name, 0)) // undefined count
+        waitForUserRequest() // gives a chance to writer to do some work
+        reader(name)
       },
-      go { case readerCount(n) + readerToken(_)  =>
+      go { case readerCount(n) + reader(name)  =>
         readerCount(n+1)
-        val id = scala.util.Random.nextInt(2) match { // simulate n readers with a single reaction using 2 values
-          case 0 => "A"
-          case _ => "B"
-        }
-        visitCriticalSection(ReaderLock(id, n))
-        readerExit(id)
+        visitCriticalSection(ReaderLock(name, n))
+        readerExit(name)
       }
-
     )
     readerCount(0)
-    readerToken()
+    readers.foreach(n => reader(n))
     writer()
     count(supplyLineSize)
 
