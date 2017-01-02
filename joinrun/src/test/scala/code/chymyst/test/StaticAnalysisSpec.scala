@@ -15,6 +15,9 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   behavior of "analysis of reaction shadowing"
 
+  val hash211 = "4BE5"
+  val hash212 = "B07E"
+
   it should "detect shadowing of simplest reactions" in {
     val thrown = intercept[Exception] {
       val a = m[Unit]
@@ -92,7 +95,12 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         go { case a(Some(1)) + b(2) => }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction {a(<4BE5...>) + b(2) => } is shadowed by {a(<4BE5...>) => }"
+
+    val possibleErrors = Set(hash211, hash212).map(h =>
+      s"In Site{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction {a(<$h...>) + b(2) => } is " +
+        s"shadowed by {a(<$h...>) => }"
+    )
+    possibleErrors should contain oneElementOf List(thrown.getMessage)
   }
 
   it should "fail to detect shadowing of reactions with non-identical non-constant matchers" in {
@@ -114,7 +122,11 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         go { case a(Some(1)) + b(2) => }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a + b => ...; a + b => ...}: Unavoidable nondeterminism: reaction {a(<4BE5...>) + b(2) => } is shadowed by {a(<4BE5...>) + b(_) => }"
+
+    val possibleErrors = Set(hash211, hash212).map(h =>
+      s"In Site{a + b => ...; a + b => ...}: Unavoidable nondeterminism: reaction {a(<$h...>) + b(2) => } is shadowed by {a(<$h...>) + b(_) => }"
+    )
+    possibleErrors should contain oneElementOf List(thrown.getMessage)
   }
 
   object IsEven {
@@ -153,7 +165,12 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         go { case a(Some(1)) + b(2) + a(Some(2)) + a(Some(3)) + b(1) + b(_) + b(1) => }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a + a + a + b + b + b + b => ...; a + a + a + b + b + b => ...}: Unavoidable nondeterminism: reaction {a(<45EA...>) + a(<465D...>) + a(<4BE5...>) + b(1) + b(1) + b(2) + b(_) => } is shadowed by {a(<465D...>) + a(_) + a(.) + b(1) + b(1) + b(_) => }"
+
+    val possibleErrors = Set(("45EA", "465D", "4BE5", "465D"), ("4AEA", "A89F", "B07E", "4AEA")).map(tup4 =>
+      s"In Site{a + a + a + b + b + b + b => ...; a + a + a + b + b + b => ...}: Unavoidable nondeterminism: reaction"+
+        s" {a(<${tup4._1}...>) + a(<${tup4._2}...>) + a(<${tup4._3}...>) + b(1) + b(1) + b(2) + b(_) => }" +
+        s" is shadowed by {a(<${tup4._4}...>) + a(_) + a(.) + b(1) + b(1) + b(_) => }")
+    possibleErrors should contain oneElementOf List(thrown.getMessage)
   }
 
   it should "detect shadowing of reactions with several wildcards" in {
@@ -165,7 +182,12 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         go { case a(Some(1)) + b(2) + a(Some(2)) + a(Some(3)) + b(1) + b(_) + b(1) + a(x) => }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a + a + a + a + b + b + b + b => ...; a + a + a + a + b => ...}: Unavoidable nondeterminism: reaction {a(<45EA...>) + a(<465D...>) + a(<4BE5...>) + a(.) + b(1) + b(1) + b(2) + b(_) => } is shadowed by {a(<465D...>) + a(_) + a(_) + a(.) + b(1) => }"
+
+    val possibleErrors = Set(("45EA", "465D", "4BE5", "465D"), ("4AEA", "A89F", "B07E", "4AEA")).map(tup4 =>
+      s"In Site{a + a + a + a + b + b + b + b => ...; a + a + a + a + b => ...}: Unavoidable nondeterminism: reaction"+
+        s" {a(<${tup4._1}...>) + a(<${tup4._2}...>) + a(<${tup4._3}...>) + a(.) + b(1) + b(1) + b(2) + b(_) => }" +
+        s" is shadowed by {a(<${tup4._4}...>) + a(_) + a(_) + a(.) + b(1) => }")
+    possibleErrors should contain oneElementOf List(thrown.getMessage)
   }
 
   behavior of "analysis of livelock"

@@ -378,7 +378,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     // Note: Scala 2.11 and Scala 2.12 have different syntax trees for Some(1)?
     val shaScala211 = "9F8D8B42C1DB096EEFC80052E603562ECAD0FA29"
-    Set(shaScala211) should contain oneElementOf List(r.info.sha1)
+    val shaScala212 = "03F87012279F4B6170E04DB7EBE0816CE1F48FFA"
+    Set(shaScala211, shaScala212) should contain oneElementOf List(r.info.sha1)
   }
 
   it should "fail to compile reactions with detectable compile-time errors" in {
