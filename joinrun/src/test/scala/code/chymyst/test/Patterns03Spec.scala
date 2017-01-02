@@ -59,19 +59,19 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val readers = List("A", "B", "C", "D" ).toIndexedSeq
     val readerExit = m[String]
     val reader = m[String]
+    val writerName = "exclusive-writer"
     val writer = m[Unit]
 
     site(tp)(
       go { case writer(_) + readerCount(0) + count(n) if n > 0 =>
-        val id = "exclusive-writer"
-        visitCriticalSection(WriterLock(id))
+        visitCriticalSection(WriterLock(writerName))
         writer()
         count(n - 1)
         readerCount(0)
-        leaveCriticalSection(WriterLock(id))
+        leaveCriticalSection(WriterLock(writerName))
         waitForUserRequest() // gives a chance to readers to do some work
       },
-      go { case count(0) + check(_, r) => r() },
+      go { case count(0) + readerCount(0) + check(_, r) => r() }, // readerCount(0) condition ensures we end when all locks are released.
 
       go { case readerCount(n) + readerExit(name)  =>
         readerCount(n - 1)
@@ -91,7 +91,19 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     count(supplyLineSize)
 
     check()
-    val result = logFile.iterator().asScala.toSeq
-    result.foreach(println)
+    val result: IndexedSeq[LockEvent] = logFile.iterator().asScala.toIndexedSeq
+    // result.foreach(println) // comment out to see what's going on.
+    val resultWithIndices: IndexedSeq[(LockEvent, Int)] = result.zipWithIndex
+
+    // each lock writer acquisition is followed by a writer release.
+    resultWithIndices.foreach {
+      case (event: LockAcquisition, i: Int) if event.name == writerName => resultWithIndices(i+1)._1 shouldBe LockRelease(writerName)
+      case _ =>
+    }
+    // Number of locks being acquired is same as number being released (the other ones as there are only two types of events)
+    val acquiredLocks = result.collect{case (event: LockAcquisition) => 1}.sum
+    acquiredLocks * 2 shouldBe result.size
+
+    // TODO: could finesse a test that a reader lock is never acquired twice before being released.
   }
 }
