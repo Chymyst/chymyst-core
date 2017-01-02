@@ -184,3 +184,161 @@ having to wait for smokers, which the reader may think of using a producer-consu
 solution is provided in code. Let us say that the change is very simple, we just need
  to have pusher emit the pusher molecule instead
  of the smokers doing so.  The pausing in the assembly line needs to be done within the `pusher` reaction, otherwise it is the same solution.
+ 
+ ## Readers Writer Locks
+ 
+ The problem here is to give access to a shared resource where only one thread can write to a resource at any time and multiple threads can read data from 
+ the same resource concurrently, provided that the writer thread and the reader threads are not in contention for the same resource. In other words, the 
+ writer thread can get access to the resource only if no reader thread has access to the resource and a reader thread can get access only if the writer 
+ thread has no access. This concurrency scenario has applicability in memory/disk pages in operating systems or databases; standard terminology use exclusive
+  write lock and shared read locks.
+  
+  The main idea is to use a single writer molecule and a collection of reader molecules, each of which is distinguished by a distinct name or key. 
+  Accordingly, we need molecules `val reader = m[String]` and `val writer = m[String]`; we then need to inject these molecules as follows `readers.foreach(n => 
+  reader(n))` with `readers` being an arbitrary collection of distinct names and  `writer("exclusive-writer")`. So we emit multiple `reader` molecules and a 
+  single `writer` molecule into the soup. The reactions will have to re-emit any of these molecules each time the reaction consumes one.
+  
+  We need to log events as we go along. What needs to be captured is the identity of the molecule, its name, and the action taken by the molecule acquiring a
+   lock or releasing a lock. _We ensure that there is no name collision among the `reader` molecules and the `writer` molecule._ The `LockEvent` will have a 
+   `toString` method to enable debugging or troubleshooting. We also need to block a current thread and simulate access to a critical section of code, which 
+   we do with methods `visitCriticalSection` and `leaveCriticalSection` tracking such events in a `logFile = new ConcurrentLinkedQueue[LockEvent]` for debugging or unit testing.
+  
+  ```scala
+   sealed trait LockEvent {
+        val name: String
+        def toString: String
+      }
+      case class LockAcquisition(override val name: String) extends LockEvent {
+        override def toString: String = s"$name enters critical section"
+      }
+      case class LockRelease(override val name: String) extends LockEvent {
+        override def toString: String = s"$name leaves critical section"
+      }
+      val logFile = new ConcurrentLinkedQueue[LockEvent]
+  
+      def useResource(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
+      def visitCriticalSection(name: String): Unit = {
+        logFile.add(LockAcquisition(name))
+        useResource()
+      }
+      def leaveCriticalSection(name: String): Unit = {
+        logFile.add(LockRelease(name))
+        ()
+      }
+  ```
+  
+  We need to consider the ending of the simulation, which we do with a `count = m[Int]` non-blocking molecule and a `check = b[Unit, Unit]` molecule as is 
+  often done here. We make the arbitrary decision that we will count down number of lock acquisitions by the `writer` molecule in way similar to the supplier
+   or pusher for the cigarettes problem.
+   
+  Now, the fun begins: we need to model how many readers are using the resource concurrently, which we do with molecule `readerCount[Int]`. So let us start 
+  with a draft, ignoring helper functions and case classes we introduced already:
+   
+   ```scala
+       val count = m[Int]
+       val readerCount = m[Int]
+       val check = b[Unit, Unit]
+       val readers = "ABCDEFGH".toCharArray.map(_.toString).toVector // vector of letters as Strings.
+   
+       val reader = m[String]
+       val writer = m[String]
+   
+       site(tp)(
+         go { case writer(name) + readerCount(0) + count(n) if n > 0 =>
+           visitCriticalSection(name)
+           writer(name)
+           count(n - 1)
+           readerCount(0)
+           leaveCriticalSection(name)
+         },
+         go { case count(0) + readerCount(0) + check(_, r) => r() }, // readerCount(0) condition ensures we end when all locks are released.
+   
+         go { case readerCount(n) + reader(name)  =>
+           readerCount(n+1)
+           visitCriticalSection(name)
+           readerCount(n - 1)
+           leaveCriticalSection(name) // undefined count
+           reader(name) 
+         }
+       )
+       readerCount(0)
+       readers.foreach(n => reader(n))
+       val writerName = "exclusive-writer"
+       writer(writerName)
+       count(supplyLineSize)
+   
+       check()
+   ```
+  
+  The complete solution is below; the supplied code provides unit code in addition to the below.
+  
+  ```scala
+   val supplyLineSize = 25 // make it high enough to try to provoke race conditions, but not so high that sleeps make the test run too slow.
+
+    sealed trait LockEvent {
+      val name: String
+      def toString: String
+    }
+    case class LockAcquisition(override val name: String) extends LockEvent {
+      override def toString: String = s"$name enters critical section"
+    }
+    case class LockRelease(override val name: String) extends LockEvent {
+      override def toString: String = s"$name leaves critical section"
+    }
+    val logFile = new ConcurrentLinkedQueue[LockEvent]
+
+    def useResource(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
+    def waitForUserRequest(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
+    def visitCriticalSection(name: String): Unit = {
+      logFile.add(LockAcquisition(name))
+      useResource()
+    }
+    def leaveCriticalSection(name: String): Unit = {
+      logFile.add(LockRelease(name))
+      ()
+    }
+
+    val count = m[Int]
+    val readerCount = m[Int]
+
+    val check = b[Unit, Unit] // blocking Unit, only blocking molecule of the example.
+
+    val readers = "ABCDEFGH".toCharArray.map(_.toString).toVector // vector of letters as Strings.
+    // Making readers a large collection introduces lots of sleeps since we count number of writer locks for simulation and the more readers we have
+    // the more total locks and total sleeps simulation will have.
+
+    val readerExit = m[String]
+    val reader = m[String]
+    val writer = m[String]
+
+    site(tp)(
+      go { case writer(name) + readerCount(0) + count(n) if n > 0 =>
+        visitCriticalSection(name)
+        writer(name)
+        count(n - 1)
+        readerCount(0)
+        leaveCriticalSection(name)
+        waitForUserRequest() // gives a chance to readers to do some work
+      },
+      go { case count(0) + readerCount(0) + check(_, r) => r() }, // readerCount(0) condition ensures we end when all locks are released.
+
+      go { case readerCount(n) + readerExit(name)  =>
+        readerCount(n - 1)
+        leaveCriticalSection(name) // undefined count
+        waitForUserRequest() // gives a chance to writer to do some work
+        reader(name)
+      },
+      go { case readerCount(n) + reader(name)  =>
+        readerCount(n+1)
+        visitCriticalSection(name)
+        readerExit(name)
+      }
+    )
+    readerCount(0)
+    readers.foreach(n => reader(n))
+    val writerName = "exclusive-writer"
+    writer(writerName)
+    count(supplyLineSize)
+
+    check()
+  ```

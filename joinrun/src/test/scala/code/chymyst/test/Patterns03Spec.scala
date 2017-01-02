@@ -24,10 +24,6 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
   it should "implement n shared readers 1 exclusive writer" in {
     val supplyLineSize = 25 // make it high enough to try to provoke race conditions, but not so high that sleeps make the test run too slow.
 
-    sealed trait Lock { val name: String }
-    case class ReaderLock(override val name: String, count: Int) extends Lock
-    case class WriterLock(override val name: String) extends Lock // a singleton actually, though not enforced here
-
     sealed trait LockEvent {
       val name: String
       def toString: String
@@ -42,12 +38,12 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     def useResource(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
     def waitForUserRequest(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
-    def visitCriticalSection(l: Lock): Unit = {
-      logFile.add(LockAcquisition(l.name))
+    def visitCriticalSection(name: String): Unit = {
+      logFile.add(LockAcquisition(name))
       useResource()
     }
-    def leaveCriticalSection(l: Lock): Unit = {
-      logFile.add(LockRelease(l.name))
+    def leaveCriticalSection(name: String): Unit = {
+      logFile.add(LockRelease(name))
       ()
     }
 
@@ -62,35 +58,35 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val readerExit = m[String]
     val reader = m[String]
-    val writerName = "exclusive-writer"
-    val writer = m[Unit]
+    val writer = m[String]
 
     site(tp)(
-      go { case writer(_) + readerCount(0) + count(n) if n > 0 =>
-        visitCriticalSection(WriterLock(writerName))
-        writer()
+      go { case writer(name) + readerCount(0) + count(n) if n > 0 =>
+        visitCriticalSection(name)
+        writer(name)
         count(n - 1)
         readerCount(0)
-        leaveCriticalSection(WriterLock(writerName))
+        leaveCriticalSection(name)
         waitForUserRequest() // gives a chance to readers to do some work
       },
       go { case count(0) + readerCount(0) + check(_, r) => r() }, // readerCount(0) condition ensures we end when all locks are released.
 
       go { case readerCount(n) + readerExit(name)  =>
         readerCount(n - 1)
-        leaveCriticalSection(ReaderLock(name, 0)) // undefined count
+        leaveCriticalSection(name) // undefined count
         waitForUserRequest() // gives a chance to writer to do some work
         reader(name)
       },
       go { case readerCount(n) + reader(name)  =>
         readerCount(n+1)
-        visitCriticalSection(ReaderLock(name, n))
+        visitCriticalSection(name)
         readerExit(name)
       }
     )
     readerCount(0)
     readers.foreach(n => reader(n))
-    writer()
+    val writerName = "exclusive-writer"
+    writer(writerName)
     count(supplyLineSize)
 
     check()
