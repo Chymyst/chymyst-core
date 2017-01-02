@@ -155,7 +155,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     usedInputs.foreach {
       case (_, bm@BlockingMolValue(_, replyValue)) =>
         if (haveErrorsWithBlockingMolecules && bm.replyWasNotSentDueToError) { // Do not send error messages to molecules that already got a reply - this is pointless and may lead to errors.
-          replyValue.errorMessage = Some(errorMessage)
+          replyValue.result = Left(errorMessage)
         }
         if (notFailedWithRetry) replyValue.releaseSemaphore()
 
@@ -311,12 +311,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private[jc] def emitAndAwaitReply[T,R](bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): R = {
     emitAndAwaitReplyInternal(timeoutOpt = None, bm, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value
-    replyValueWrapper.errorMessage match {
-      case Some(message) => throw new Exception(message)
-      case None => replyValueWrapper.result.getOrElse(
-        throw new ExceptionEmptyReply(s"Internal error: In $this: $bm received an empty reply without an error message"
-        )
-      )
+    replyValueWrapper.result match {
+      case Left(message) => throw new Exception(message)
+      case Right(value) => value
     }
   }
 
@@ -325,12 +322,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   Option[R] = {
     val haveReply = emitAndAwaitReplyInternal(timeoutOpt = Some(timeout), m, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value
-    replyValueWrapper.errorMessage match {
-      case Some(message) => throw new Exception(message)
-      case None => if (haveReply) Some(replyValueWrapper.result.getOrElse(
-        throw new ExceptionEmptyReply(s"Internal error: In $this: $m received an empty reply without an error message"))
-      )
-      else None
+    replyValueWrapper.result match {
+      case Left(AbsReplyValue.uninitialized) => None
+      case Left(message) => throw new Exception(message)
+      case Right(value) => if (haveReply) Some(value) else None
     }
   }
 
@@ -428,5 +423,4 @@ private[jc] final class ExceptionEmittingSingleton(message: String) extends Exce
 private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
 private[jc] final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
 private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
-private[jc] final class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
 private[jc] final class ExceptionNoSingleton(message: String) extends ExceptionInJoinRun(message)

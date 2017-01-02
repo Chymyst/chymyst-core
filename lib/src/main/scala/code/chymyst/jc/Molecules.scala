@@ -47,7 +47,7 @@ private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
 private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: AbsReplyValue[T,R]) extends AbsMolValue[T] with PersistentHashCode {
   override def getValue: T = v
 
-  override def replyWasNotSentDueToError: Boolean = replyValue.result.isEmpty && !replyValue.replyTimedOut
+  override def replyWasNotSentDueToError: Boolean = replyValue.result.isLeft && !replyValue.replyTimedOut
 
   override def replyWasSentRepeatedly: Boolean = replyValue.replyWasRepeated
 }
@@ -288,6 +288,10 @@ class M[T](val name: String) extends (T => Unit) with NonblockingMolecule[T] {
   def unapply(arg: UnapplyArg): Option[T] = unapplyInternal(arg)
 }
 
+object AbsReplyValue {
+  val uninitialized = "not yet defined"
+}
+
 /** This trait contains implementations of most methods for the [[ReplyValue]] and [[EmptyReplyValue]] classes.
   *
   * result Reply value as {{{Option[R]}}}. Initially this is None, and it may be assigned at most once by the
@@ -306,13 +310,11 @@ class M[T](val name: String) extends (T => Unit) with NonblockingMolecule[T] {
   */
 private[jc] trait AbsReplyValue[T, R] {
 
-  @volatile var result: Option[R] = None
+  @volatile var result: Either[String, R] = Left(AbsReplyValue.uninitialized)
 
   @volatile private var semaphore: Semaphore = {
     val s = new Semaphore(0, false); s.drainPermits(); s
   }
-
-  @volatile var errorMessage: Option[String] = None
 
   @volatile var replyTimedOut: Boolean = false
 
@@ -344,9 +346,9 @@ private[jc] trait AbsReplyValue[T, R] {
     */
   protected def performReplyAction(x: R): Boolean = synchronized {
     // The reply value will be assigned only if there was no timeout and no previous reply action.
-    if (!replyTimedOut && !replyWasRepeated && result.isEmpty) {
-      result = Some(x)
-    } else if (!replyTimedOut && result.nonEmpty) {
+    if (!replyTimedOut && !replyWasRepeated && result.isLeft) {
+      result = Right(x)
+    } else if (!replyTimedOut && result.isRight) {
       replyWasRepeated = true
     }
 
