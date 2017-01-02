@@ -385,7 +385,7 @@ solution is provided in code. Let us say that the change is very simple, we just
 
       go { case readerCount(n) + readerExit(name)  =>
         readerCount(n - 1)
-        leaveCriticalSection(name) // undefined count
+        leaveCriticalSection(name)
         waitForUserRequest() // gives a chance to writer to do some work
         reader(name)
       },

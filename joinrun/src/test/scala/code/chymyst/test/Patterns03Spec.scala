@@ -72,7 +72,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
       go { case readerCount(n) + readerExit(name)  =>
         readerCount(n - 1)
-        leaveCriticalSection(name) // undefined count
+        leaveCriticalSection(name)
         waitForUserRequest() // gives a chance to writer to do some work
         reader(name)
       },
