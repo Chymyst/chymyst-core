@@ -232,7 +232,7 @@ solution is provided in code. Let us say that the change is very simple, we just
    or pusher for the cigarettes problem.
    
   Now, the fun begins: we need to model how many readers are using the resource concurrently, which we do with molecule `readerCount[Int]`. So let us start 
-  with a draft, ignoring helper functions and case classes we introduced already:
+  with a draft, using some count down logic with a `writer` molecule reaction, ignoring helper functions and case classes we introduced already:
    
    ```scala
        val count = m[Int]
@@ -269,8 +269,70 @@ solution is provided in code. Let us say that the change is very simple, we just
    
        check()
    ```
+  It does not even compile! Macros code tell us _Unconditional livelock: Input molecules should not be a subset of output molecules, with all trivial 
+  matchers for_ `(readerCount, reader) go { case readerCount(n) + reader(name)`. What went wrong? Well, yes, sure enough, we consume two molecules and emit 
+  three! `readerCount(n+1)` and `readerCount(n - 1)` with `reader(name)` count as three. Let us introduce an intermediate molecule in between the emission of
+   the two `readerCount` emissions as `readerExit = m[String]`, which we do not emit into soup on start up:
+   
+```scala
+    val count = m[Int]
+    val readerCount = m[Int]
+
+    val check = b[Unit, Unit]
+
+    val readers = "ABCDEFGH".toCharArray.map(_.toString).toVector // vector of letters as Strings.
+
+    val readerExit = m[String]
+    val reader = m[String]
+    val writer = m[String]
+
+    site(tp)(
+      go { case writer(name) + readerCount(0) + count(n) if n > 0 =>
+        visitCriticalSection(name)
+        writer(name)
+        count(n - 1)
+        readerCount(0)
+        leaveCriticalSection(name)
+      },
+      go { case count(0) + readerCount(0) + check(_, r) => r() }, // readerCount(0) condition ensures we end when all locks are released.
+
+      go { case readerCount(n) + readerExit(name)  =>
+        readerCount(n - 1)
+        leaveCriticalSection(name) // undefined count
+        reader(name)
+      },
+      go { case readerCount(n) + reader(name)  =>
+        readerCount(n+1)
+        visitCriticalSection(name)
+        readerExit(name)
+      }
+    )
+    readerCount(0)
+    readers.foreach(n => reader(n))
+    val writerName = "exclusive-writer"
+    writer(writerName)
+    count(supplyLineSize)
+
+    check()
+```
   
-  The complete solution is below; the supplied code provides unit code in addition to the below.
+  The simulation does not stop... We could replace `visitCriticalSection` and `leaveCriticalSection` with some tracing. What we see is that the `reader` 
+  molecules are reacting all the time continuously but the `writer` molecule never does. This is a starvation problem, the site is always consuming the 
+  `reader` molecule reactions as it gets data all the time and the readerCount might not reach a value of 0.
+  
+  Let us have an exiting reader molecule yield by waiting for more incoming work to arrive before getting itself to read again, so we introduce 
+  `waitForUserRequest()` before emitting `reader(name)`:
+  ```scala
+  go { case readerCount(n) + readerExit(name)  =>
+          readerCount(n - 1)
+          leaveCriticalSection(name) // undefined count
+          waitForUserRequest() // gives a chance to writer to do some work
+          reader(name)
+        }
+  ```
+  
+  It now works, so let's assemble the complete solution ignoring unit testing, which can be found in code. Unit test verifies no reader lock acquisition 
+  while a writer lock is active and no double locking by any lock prior to releasing.
   
   ```scala
    val supplyLineSize = 25 // make it high enough to try to provoke race conditions, but not so high that sleeps make the test run too slow.
@@ -318,7 +380,6 @@ solution is provided in code. Let us say that the change is very simple, we just
         count(n - 1)
         readerCount(0)
         leaveCriticalSection(name)
-        waitForUserRequest() // gives a chance to readers to do some work
       },
       go { case count(0) + readerCount(0) + check(_, r) => r() }, // readerCount(0) condition ensures we end when all locks are released.
 
