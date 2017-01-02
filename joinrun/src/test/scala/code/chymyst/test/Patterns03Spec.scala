@@ -22,7 +22,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
   behavior of "readersWriter"
 
   it should "implement n shared readers 1 exclusive writer" in {
-    val supplyLineSize = 20
+    val supplyLineSize = 25 // make it high enough to try to provoke race conditions, but not so high that sleeps make the test run too slow.
 
     sealed trait Lock { val name: String }
     case class ReaderLock(override val name: String, count: Int) extends Lock
@@ -40,8 +40,8 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }
     val logFile = new ConcurrentLinkedQueue[LockEvent]
 
-    def useResource(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
-    def waitForUserRequest(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+    def useResource(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
+    def waitForUserRequest(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
     def visitCriticalSection(l: Lock): Unit = {
       logFile.add(LockAcquisition(l.name))
       useResource()
@@ -56,7 +56,10 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val check = b[Unit, Unit] // blocking Unit, only blocking molecule of the example.
 
-    val readers = List("A", "B", "C", "D" ).toIndexedSeq
+    val readers = "ABCDEFGH".toCharArray.map(_.toString).toVector // vector of letters as Strings.
+    // Making readers a large collection introduces lots of sleeps since we count number of writer locks for simulation and the more readers we have
+    // the more total locks and total sleeps simulation will have.
+
     val readerExit = m[String]
     val reader = m[String]
     val writerName = "exclusive-writer"
@@ -91,19 +94,51 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     count(supplyLineSize)
 
     check()
-    val result: IndexedSeq[LockEvent] = logFile.iterator().asScala.toIndexedSeq
-    // result.foreach(println) // comment out to see what's going on.
-    val resultWithIndices: IndexedSeq[(LockEvent, Int)] = result.zipWithIndex
 
-    // each lock writer acquisition is followed by a writer release.
-    resultWithIndices.foreach {
-      case (event: LockAcquisition, i: Int) if event.name == writerName => resultWithIndices(i+1)._1 shouldBe LockRelease(writerName)
-      case _ =>
+    val events: IndexedSeq[LockEvent] = logFile.iterator().asScala.toIndexedSeq
+    // events.foreach(println) // comment out to see what's going on.
+    val eventsWithIndices: IndexedSeq[(LockEvent, Int)] = events.zipWithIndex
+
+    case class LockEventPair(lock: LockAcquisition, unlock: LockRelease) {
+      // this validates that there is never double locking by same lock with assumption that all events
+      // pertain to the same lock and consequently that the position of the event increases by 1 all the time
+      // (no holes). So events should contain [(..., 0), (..., 1), ..., (..., k), (..., k+1), ...]
+      def validateLockUsage(events: IndexedSeq[(LockEvent, Int)]): Unit = {
+        events.foreach {
+          case (event: LockAcquisition, i: Int) =>
+            i + 1 should be < events.size // for additional safety when accessing i+1 below and avoid unplanned exceptions on errors
+            events(i + 1)._1 shouldBe LockRelease(event.name)
+          case _ => // don't care about LockRelease as it's handled above
+        }
+      }
     }
-    // Number of locks being acquired is same as number being released (the other ones as there are only two types of events)
-    val acquiredLocks = result.collect{case (event: LockAcquisition) => 1}.sum
-    acquiredLocks * 2 shouldBe result.size
 
-    // TODO: could finesse a test that a reader lock is never acquired twice before being released.
+    // 1) Number of locks being acquired is same as number being released (the other ones as there are only two types of events)
+    val acquiredLocks = events.collect{case (event: LockAcquisition) => 1}.sum
+    acquiredLocks * 2 shouldBe events.size
+
+    val (writersByName, readersPart) = eventsWithIndices.partition(_._1.name == writerName) // binary split by predicate
+
+    // 2) Each lock writer acquisition is followed by a writer release before acquiring a new writer (ignoring for now interference of readers)
+    // we'll reindex the collection by discarding original indices and introducing new ones with zipWithIndex, intentionally discarding spots
+    // occupied by readers. This satisfies the limited functionality and strong assumption of validateLockUsage.
+    LockEventPair(LockAcquisition(writerName), LockRelease(writerName)).validateLockUsage(writersByName.map(_._1).zipWithIndex)
+
+    // 3) Similarly, a reader lock is never acquired twice before being released.
+    val readersByName = readersPart.groupBy(_._1.name).mapValues(x => x.map(_._1)) // general split into map, dropping the original zipIndex (._2)
+    readersByName.foreach {
+      case ((name, eventsByName)) =>
+        LockEventPair(LockAcquisition(name), LockRelease(name)).validateLockUsage(eventsByName.zipWithIndex)
+      // add a new index specific to each new reader collection to facilitate comparison of consecutive lock events.
+    }
+    // 4) no read lock acquisition while a writer has a lock (we cannot use validateLockUsage here as it's too limiting for this purpose,
+    // so we don't remap the indices and keep them as is using eventsWithIndices)
+    writersByName.foreach {
+      case (event: LockAcquisition, i: Int) =>
+        i + 1 should be < events.size // for additional safety when accessing i+1 below and avoid unplanned exceptions on errors
+        eventsWithIndices(i + 1)._1 shouldBe LockRelease(event.name)
+      case _ => // don't care about LockRelease as it's handled above
+    }
+
   }
 }
