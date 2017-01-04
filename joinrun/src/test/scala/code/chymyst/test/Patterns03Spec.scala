@@ -5,18 +5,21 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import code.chymyst.jc._
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
+import scala.concurrent.duration._
 import scala.collection.JavaConverters.asScalaIteratorConverter
+import scala.collection.immutable.IndexedSeq
+import scala.language.postfixOps
 
 class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
-  var tp: Pool = _
+  var sp: Pool = _
 
   override def beforeEach(): Unit = {
-    tp = new SmartPool(4)
+    sp = new SmartPool(4)
   }
 
   override def afterEach(): Unit = {
-    tp.shutdownNow()
+    sp.shutdownNow()
   }
 
   behavior of "readersWriter"
@@ -60,7 +63,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val reader = m[String]
     val writer = m[String]
 
-    site(tp)(
+    site(sp)(
       go { case writer(name) + readerCount(0) + count(n) if n > 0 =>
         visitCriticalSection(name)
         writer(name)
@@ -134,6 +137,121 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
         eventsWithIndices(i + 1)._1 shouldBe LockRelease(event.name)
       case _ => // don't care about LockRelease as it's handled above
     }
+
+  }
+
+  it should "compute saddle points" in {
+    val n = 4 // The number of rendezvous participants needs to be known in advance, or else we don't know how long still to wait for rendezvous.
+
+    val dim = 0 until n
+
+    // There will be 2*n blocked threads; the test will fail with FixedPool(2*n-1).
+    val sp = new SmartPool(n)
+
+    val matrix = Array.ofDim[Int](n, n)
+    val output = Array.ofDim[Int](n, n)
+    for (i <- dim; j <- dim) { output(i)(j) = 0 }
+
+    type Point = (Int, Int)
+    case class PointAndValue(value: Int, point: Point) extends Ordered[PointAndValue] {
+      def compare(that: PointAndValue): Int = this.value compare that.value
+    }
+
+    // could be used to generate multiple distinct inputs and compare expectations with result of Chymyst.
+    def getRandomArray(sparseParam: Int, rows: Int): Array[Int] = {
+      // the higher it is the more sparse our matrix will be (less likelihood that some elements are the same)
+      val dimension = rows * rows
+      Array.fill[Int](dimension)(scala.util.Random.nextInt(sparseParam * dimension))
+    }
+    def arrayToMatrix(rows: Int, a: Array[Int], m: Array[Array[Int]]): Unit = {
+      val r = 0 until rows
+      for (i <- r; j <- r)
+      { m(i)(j) = a(i * rows + j) }
+    }
+
+    def seqMinR(i: Int, ran: Range, pointsWithValues: Array[PointAndValue]): PointAndValue =
+       pointsWithValues.filter { case PointAndValue(v, (r, c)) => r == i }.min
+
+    def seqMaxC(i: Int, ran: Range, pointsWithValues: Array[PointAndValue]): PointAndValue =
+      pointsWithValues.filter { case PointAndValue(v, (r, c)) => c == i }.max
+
+
+    def getSaddlePointsSequentially(ran: Range, pointsWithValues: Array[PointAndValue]): IndexedSeq[PointAndValue] = {
+      val minOfRows = for { i <- ran } yield seqMinR(i, ran, pointsWithValues)
+      val maxOfCols = for { i <- ran } yield seqMaxC(i, ran, pointsWithValues)
+      minOfRows.foreach(y => println(s"min at ${y.point._1} is ${y.value} or $y"))
+      maxOfCols.foreach(y => println(s"max at ${y.point._2} is ${y.value} or $y"))
+
+      // now intersect minOfRows with maxOfCols using the positions we keep track of.
+      minOfRows.filter(minElem => maxOfCols(minElem.point._2).point._1 == minElem.point._1)
+    }
+
+    val sample =
+      Array(12, 3, 11, 21,
+        14, 7, 57, 26,
+        61, 37, 53, 59,
+        55, 6, 12, 12)
+    arrayToMatrix(n, sample, matrix)
+    val pointsWithValues = matrix.flatten.zipWithIndex.map{ case(x: Int, y: Int) => PointAndValue(x, (y/n, y % n) )}
+
+    matrix.foreach(x => x.foreach(println))
+
+    val barrier = b[Unit,Unit]
+    val counterInit = m[Unit]
+    val counter = b[Int,Unit]
+    val interpret = m[()=>Unit]
+    val end = m[Unit]
+    val done = b[Unit, Unit]
+
+    sealed trait ComputeRequest
+    case class MinOfRow( row: Int) extends ComputeRequest
+    case class MaxOfColumn(column: Int) extends ComputeRequest
+
+    val logFile = new ConcurrentLinkedQueue[ComputeRequest]
+
+    def minC(row: Int)(): Unit = { logFile.add(MinOfRow(row)); println(s"par min is ${seqMinR(row, dim, pointsWithValues)}" )/* compute it! */  }
+    def maxC(col: Int)(): Unit = { logFile.add(MaxOfColumn(col)); println(s"par max is ${seqMaxC(col, dim, pointsWithValues)}" )/* compute it! */ }
+    // def minC(row: Int)(): Unit = { logFile.add(MinOfRow(row)); println(s"par min is seqMinR(row, dim, pointsWithValues)" )/* compute it! */  }
+    // def maxC(col: Int)(): Unit = { logFile.add(MaxOfColumn(col)); println(s"par max is seqMaxC(col, dim, pointsWithValues)" )/* compute it! */ }
+    val results = getSaddlePointsSequentially(dim, pointsWithValues)
+    results.foreach(y => println(s"saddle point at $y"))
+
+    site(sp)(
+      go { case interpret(work) => work(); barrier(); end() }, // this reaction will be run n times because we emit n molecules `interpret` with various
+      // computation tasks
+      go { case barrier(_, r) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
+        counter(1)
+        r() // one reaction has reached the rendezvous point
+      },
+      go { case barrier(_, r1) + counter(k, r2) => // the `counter` molecule holds the number (k) of the reactions that have reached the rendezvous before
+        // this reaction started.
+        if (k + 1 < 2*n) { // 2*n is amount of preliminary tasks of computation (interpret)
+          counter(k+1)
+          r2()
+          r1() // `r2()` must be here. Doing `r2()` before emitting `counter(k+1)` would have unblocked some reactions and allowed them to
+          // proceed beyond the rendezvous point without waiting for all others.
+        }
+        else {
+          println(s"mins-maxs executed through ${2*n} reactions")
+          // now we should have enough to report immediately the results!
+          // We could have n*n blocking molecules representing the n*n saddle candidates, have them carry a value of 0, a min and a max increment by 1
+          // and ultimately a value of 2 represents a saddle. Here we can unblock all these n*n molecules at once...!?
+          end() + counterInit()
+        }
+      },
+      go { case end(_) + done(_, r) => r() }
+    )
+
+    dim.foreach(i => interpret(minC(i)) + interpret(maxC(i)))
+    counterInit()
+    done.timeout(1000 millis)() shouldEqual Some(())
+
+    val events: IndexedSeq[ComputeRequest] = logFile.iterator().asScala.toIndexedSeq
+    println("\nLogFile START")
+    events.foreach(println) // comment out to see what's going on.
+    println("LogFile END")
+
+    sp.shutdownNow()
 
   }
 }
