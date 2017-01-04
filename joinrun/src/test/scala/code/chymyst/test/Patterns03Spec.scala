@@ -145,7 +145,6 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val dim = 0 until n
 
-    // There will be 2*n blocked threads; the test will fail with FixedPool(2*n-1).
     val sp = new SmartPool(n)
 
     val matrix = Array.ofDim[Int](n, n)
@@ -207,12 +206,20 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     case class MinOfRow( row: Int) extends ComputeRequest
     case class MaxOfColumn(column: Int) extends ComputeRequest
 
-    val logFile = new ConcurrentLinkedQueue[ComputeRequest]
+    val logFile = new ConcurrentLinkedQueue[(ComputeRequest, PointAndValue)]
 
-    def minC(row: Int)(): Unit = { logFile.add(MinOfRow(row)); println(s"par min is ${seqMinR(row, dim, pointsWithValues)}" )/* compute it! */  }
-    def maxC(col: Int)(): Unit = { logFile.add(MaxOfColumn(col)); println(s"par max is ${seqMaxC(col, dim, pointsWithValues)}" )/* compute it! */ }
-    // def minC(row: Int)(): Unit = { logFile.add(MinOfRow(row)); println(s"par min is seqMinR(row, dim, pointsWithValues)" )/* compute it! */  }
-    // def maxC(col: Int)(): Unit = { logFile.add(MaxOfColumn(col)); println(s"par max is seqMaxC(col, dim, pointsWithValues)" )/* compute it! */ }
+    def minC(row: Int)(): Unit = {
+      val pv = seqMinR(row, dim, pointsWithValues)
+      // should emit molecule to increment by 1 at pv (if both min max then it'll be 2)
+      logFile.add((MinOfRow(row), pv))
+      ()
+    }
+    def maxC(col: Int)(): Unit = {
+      val pv = seqMaxC(col, dim, pointsWithValues)
+      logFile.add((MaxOfColumn(col), pv))
+      // should emit molecule to increment by 1 at pv (if both min max then it'll be 2)
+      ()
+    }
     val results = getSaddlePointsSequentially(dim, pointsWithValues)
     results.foreach(y => println(s"saddle point at $y"))
 
@@ -246,10 +253,8 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     counterInit()
     done.timeout(1000 millis)() shouldEqual Some(())
 
-    val events: IndexedSeq[ComputeRequest] = logFile.iterator().asScala.toIndexedSeq
-    println("\nLogFile START")
-    events.foreach(println) // comment out to see what's going on.
-    println("LogFile END")
+    val events: IndexedSeq[(ComputeRequest, PointAndValue)] = logFile.iterator().asScala.toIndexedSeq
+    println("\nLogFile START"); events.foreach { case(c, pv) => println(s"$c  $pv") }; println("LogFile END") // comment out to see what's going on.
 
     sp.shutdownNow()
 
