@@ -155,7 +155,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     usedInputs.foreach {
       case (_, bm@BlockingMolValue(_, replyValue)) =>
         if (haveErrorsWithBlockingMolecules && bm.reactionSentNoReply) { // Do not send error messages to molecules that already got a reply - this is pointless and may lead to errors.
-          replyValue.result = ErrorNoReply(errorMessage)
+          replyValue.replyStatus = ErrorNoReply(errorMessage)
         }
         if (notFailedWithRetry) replyValue.releaseSemaphore()
 
@@ -287,7 +287,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       moleculesPresent.removeFromBag(bm, blockingMolValue)
       if (logLevel > 0) println(s"Debug: $this removed $bm($blockingMolValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]")
     }
-    if (hadTimeout) blockingMolValue.replyValue.result = ReplyTimedOut
+    if (hadTimeout) blockingMolValue.replyValue.replyStatus = ReplyTimedOut
 
   }
 
@@ -313,7 +313,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // We might have timed out, in which case we need to forcibly remove the blocking molecule from the soup.
     removeBlockingMolecule(bm, blockingMolValue, !success)
 
-    val result = replyValueWrapper.result
+    val result = replyValueWrapper.replyStatus
     replyValueWrapper.releaseSemaphoreForReply()
 
     result

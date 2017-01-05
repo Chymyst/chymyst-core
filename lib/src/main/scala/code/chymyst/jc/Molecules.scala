@@ -54,9 +54,9 @@ private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
 private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: AbsReplyValue[T,R]) extends AbsMolValue[T] with PersistentHashCode {
   override def getValue: T = v
 
-  override def reactionSentNoReply: Boolean = replyValue.result.isWaiting // no value, no error, and no timeout
+  override def reactionSentNoReply: Boolean = replyValue.replyStatus.isWaiting // no value, no error, and no timeout
 
-  override def reactionSentRepeatedReply: Boolean = replyValue.result.isRepeated
+  override def reactionSentRepeatedReply: Boolean = replyValue.replyStatus.isRepeated
 }
 
 /** Abstract molecule emitter class.
@@ -342,7 +342,7 @@ private[jc] final case class HaveReply[R](result: R) extends ReplyStatus {
   */
 private[jc] trait AbsReplyValue[T, R] {
 
-  @volatile var result: ReplyStatus = WaitingForReply
+  @volatile var replyStatus: ReplyStatus = WaitingForReply
 
   /** This is initialized only once when creating an instance of this
     * class. The semaphore will be acquired when emitting the molecule and released by the "reply"
@@ -375,27 +375,30 @@ private[jc] trait AbsReplyValue[T, R] {
     * @return {{{true}}} if the reply was received normally, {{{false}}} if it was not received due to one of the above conditions.
     */
   protected def performReplyAction(x: R): Boolean = {
-    semaphoreForReplyStatus.acquire()
-    // Make sure the emitting reaction already started the blocking wait.
+    // This semaphore was released by the emitting reaction as it starts the blocking wait.
+    semaphoreForReplyStatus.acquire() // We need to make sure the emitting reaction already started the blocking wait.
+    // After acquiring this semaphore, it is safe to read and modify `replyStatus`.
     // The reply value will be assigned only if there was no timeout and no previous reply action.
     val replyWasNotRepeated =
-    if (result.isWaiting) {
-      result = HaveReply(x)
+    if (replyStatus.isWaiting) {
+      replyStatus = HaveReply(x)
       true
-    } else if (result.haveReply) {
-      result = ReplyWasRepeated
+    } else if (replyStatus.haveReply) {
+      replyStatus = ReplyWasRepeated
       false
     } else true
 
-    releaseSemaphore() // Unblock the reaction that emitted this blocking molecule. That reaction will now set reply status and release semaphoreForReplyStatus.
+    releaseSemaphore() // Unblock the reaction that emitted this blocking molecule.
+    // That reaction will now set reply status and release semaphoreForReplyStatus again.
 
     // If the reply was repeated, we do not need to check anything.
     val status = replyWasNotRepeated && {
       semaphoreForReplyStatus.acquire() // Wait until the emitting reaction has set the timeout status.
-      !result.isTimedOut
+      // After acquiring this semaphore, it is safe to read the reply status.
+      !replyStatus.isTimedOut
     }
     resetSemaphoreForReply()
-    releaseSemaphoreForReply() // The second reply, while erroneous, should not deadlock. So we release the semaphore here.
+    releaseSemaphoreForReply() // If a reaction tries to send a second reply, that is an error but it should not deadlock. So we release this semaphore here.
     status
   }
 }
