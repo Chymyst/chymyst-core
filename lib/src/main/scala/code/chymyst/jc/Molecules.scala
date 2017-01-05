@@ -296,7 +296,12 @@ class M[T](val name: String) extends (T => Unit) with NonblockingMolecule[T] {
 }
 
 /** Represent the different states of the reply process.
-  * Initially, the status is {{{WaitingForReply}}}.
+  * Initially, the status is [[WaitingForReply]].
+  * Reply is successful if the emitting call does not time out. In this case, we have a reply value.
+  * This is represented by [[HaveReply]].
+  * If the reply times out, there is no reply value. This is represented by [[ReplyTimedOut]].
+  * If the reaction finished but did not reply, it is an error condition. If the reaction finished and replied more than once, it is also an error condition.
+  * After a reaction fails to reply
   */
 private[jc] sealed trait ReplyStatus {
   def isWaiting: Boolean = false
@@ -365,6 +370,7 @@ private[jc] trait AbsReplyValue[T, R] {
   private[jc] def releaseSemaphore(): Unit = semaphore.release()
   private[jc] def releaseSemaphoreForReply(): Unit = semaphoreForReplyStatus.release()
   private[jc] def resetSemaphoreForReply() = semaphoreForReplyStatus.drainPermits()
+  private[jc] def acquireSemaphoreForReply() = semaphoreForReplyStatus.acquire()
 
   /** Perform the reply action for a blocking molecule.
     * This is called by a reaction that consumed the blocking molecule.
@@ -376,7 +382,7 @@ private[jc] trait AbsReplyValue[T, R] {
     */
   protected def performReplyAction(x: R): Boolean = {
     // This semaphore was released by the emitting reaction as it starts the blocking wait.
-    semaphoreForReplyStatus.acquire() // We need to make sure the emitting reaction already started the blocking wait.
+    acquireSemaphoreForReply() // We need to make sure the emitting reaction already started the blocking wait.
     // After acquiring this semaphore, it is safe to read and modify `replyStatus`.
     // The reply value will be assigned only if there was no timeout and no previous reply action.
     val replyWasNotRepeated =
@@ -393,7 +399,7 @@ private[jc] trait AbsReplyValue[T, R] {
 
     // If the reply was repeated, we do not need to check anything.
     val status = replyWasNotRepeated && {
-      semaphoreForReplyStatus.acquire() // Wait until the emitting reaction has set the timeout status.
+      acquireSemaphoreForReply() // Wait until the emitting reaction has set the timeout status.
       // After acquiring this semaphore, it is safe to read the reply status.
       !replyStatus.isTimedOut
     }
