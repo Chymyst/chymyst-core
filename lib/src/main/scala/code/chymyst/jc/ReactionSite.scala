@@ -438,5 +438,4 @@ private[jc] final class ExceptionEmittingSingleton(message: String) extends Exce
 private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
 private[jc] final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
 private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
-private[jc] final class ExceptionEmptyReply(message: String) extends ExceptionInJoinRun(message)
 private[jc] final class ExceptionNoSingleton(message: String) extends ExceptionInJoinRun(message)
