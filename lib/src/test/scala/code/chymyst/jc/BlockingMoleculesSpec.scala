@@ -303,7 +303,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val d = new E("d")
     val g = new EB[Int]("g")
     val g2 = new EB[Int]("g2")
-    val tp = new FixedPool(4)
+    val tp = new FixedPool(2)
     site(tp)(
       _go { case d(_) => g() }, // this will be used to emit g() and blocked
       _go { case c(_) + g(_,r) => r(0) }, // this will not start because we have no c()
