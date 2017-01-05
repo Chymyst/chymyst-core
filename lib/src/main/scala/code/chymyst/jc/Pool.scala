@@ -3,9 +3,6 @@ package code.chymyst.jc
 
 import java.util.concurrent._
 
-import scala.concurrent.{ExecutionContext, Future}
-import scala.language.reflectiveCalls
-
 class FixedPool(threads: Int) extends PoolExecutor(threads,
   t => new ThreadPoolExecutor(t, t, 0L, TimeUnit.SECONDS, new LinkedBlockingQueue[Runnable], new ThreadFactoryWithInfo)
 )
@@ -48,7 +45,10 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorSer
 /** Create a pool from a Handler interface. The pool will submit tasks using a Handler.post() method.
   *
   * This is useful for Android and JavaFX environments. Not yet tested. Behavior with singletons will be probably wrong.
+  *
+  * Note: the structural type for `handler` should not be used. Here it is used only as an illustration.
   */
+/*
 class HandlerPool(handler: { def post(r: Runnable): Unit }) extends Pool {
   override def shutdownNow(): Unit = ()
 
@@ -57,3 +57,4 @@ class HandlerPool(handler: { def post(r: Runnable): Unit }) extends Pool {
 
   override def isInactive: Boolean = false
 }
+*/
