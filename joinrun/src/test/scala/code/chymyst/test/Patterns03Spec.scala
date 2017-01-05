@@ -164,8 +164,8 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }
     def arrayToMatrix(rows: Int, a: Array[Int], m: Array[Array[Int]]): Unit = {
       val r = 0 until rows
-      for (i <- r; j <- r)
-      { m(i)(j) = a(i * rows + j) }
+      for (i <- r)
+      { r.foreach( j => m(i)(j) = a(i * rows + j)) }
     }
 
     def seqMinR(i: Int, ran: Range, pointsWithValues: Array[PointAndValue]): PointAndValue =
@@ -199,6 +199,10 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val counterInit = m[Unit]
     val counter = b[Int,Unit]
     val interpret = m[()=>Unit]
+
+    val minFoundAt = m[PointAndValue]
+    val maxFoundAt = m[PointAndValue]
+
     val end = m[Unit]
     val done = b[Unit, Unit]
 
@@ -208,16 +212,16 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val logFile = new ConcurrentLinkedQueue[(ComputeRequest, PointAndValue)]
 
-    def minC(row: Int)(): Unit = {
+    def minR(row: Int)(): Unit = {
       val pv = seqMinR(row, dim, pointsWithValues)
-      // should emit molecule to increment by 1 at pv (if both min max then it'll be 2)
+      minFoundAt(pv)
       logFile.add((MinOfRow(row), pv))
       ()
     }
     def maxC(col: Int)(): Unit = {
       val pv = seqMaxC(col, dim, pointsWithValues)
+      maxFoundAt(pv)
       logFile.add((MaxOfColumn(col), pv))
-      // should emit molecule to increment by 1 at pv (if both min max then it'll be 2)
       ()
     }
     val results = getSaddlePointsSequentially(dim, pointsWithValues)
@@ -228,7 +232,10 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       // computation tasks
       go { case barrier(_, r) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
         counter(1)
-        r() // one reaction has reached the rendezvous point
+        r()
+      },
+      go { case minFoundAt(pv1) + maxFoundAt(pv2) if pv1 == pv2 =>
+        println(s"Chymyst saddle found at $pv1")
       },
       go { case barrier(_, r1) + counter(k, r2) => // the `counter` molecule holds the number (k) of the reactions that have reached the rendezvous before
         // this reaction started.
@@ -249,7 +256,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case end(_) + done(_, r) => r() }
     )
 
-    dim.foreach(i => interpret(minC(i)) + interpret(maxC(i)))
+    dim.foreach(i => interpret(minR(i)) + interpret(maxC(i)))
     counterInit()
     done.timeout(1000 millis)() shouldEqual Some(())
 
