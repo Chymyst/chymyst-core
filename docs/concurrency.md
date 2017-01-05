@@ -2,6 +2,8 @@
 
 # The four levels of concurrency
 
+_Written by Sergei Winitzki_
+
 The words "concurrent programming", "asynchronous programming", and "parallel programming" are used in many ways and sometimes interchangeably.
 However, there do in fact exist different, inequivalent levels of complexity that we encounter when programming applications that run multiple tasks simultaneously.
 I will call these levels "parallel data", "acyclic dataflow", "cyclic dataflow", and "general concurrency".
@@ -89,8 +91,8 @@ To formalize the difference between general and acyclic dataflow, we note that a
 In other words, we need the `Stream[T]` type to be a monad with a `monadFix` operation.
 
 For instance, in a typical GUI application implemented in the FRP paradigm, one defines three streams: `Stream[Model]`, `Stream[View]`, and `Stream[Input]`.
-The types `Model`, `View`, and `Input` stand for data that represent the type of the data model of the application; the type of the entire view (all windows) shown on the screen, and the possible input event that the user might create (including keyboard and mouse).
-The three streams are defined recursively: the `View` is a function of the `Model`; the `Stream[Model]` is a function of `Stream[Input]` (user input events update the model); and `Input` also depends on `View` since the `View` determines what control elements are shown on the screen at the time, and thus what input events the user can create.
+The types `Model`, `View`, and `Input` stand for data that represent the type of the data model of the application; the type of the entire view (all windows) shown on the screen; and all the possible input events that the user might create (including keyboard and mouse).
+The three streams are defined recursively: the `View` is a function of the `Model`; the `Stream[Model]` is a function of `Stream[Input]` (some input events will update the model); and `Input` also depends on `View` since the `View` determines which control elements are shown on the screen at any time, and thus determines what input events the user can create at that time.
 
 The streaming frameworks that do not support a recursive definition of streams fall into the acyclic dataflow class.
 
@@ -98,15 +100,17 @@ The streaming frameworks that do not support a recursive definition of streams f
 
 Finally, we consider the general concurrency problems.
 The main task in this class of problems is to manage several computations that run concurrently in unknown order and interact in arbitrary ways.
-For instance, one computation may at some point stop and wait until another computation computes a certain result, and then examine that result to decide whether to continue its own thread of computation or wait further.
+For instance, one computation may at some point stop and wait until another computation computes a certain result, and then examine that result to decide whether to continue its own thread of computation, or wait further, or create new computation threads.
 
 The main difficulty here is to ensure that different processes are synchronized in the desired manner.
 
 Frameworks such as Akka Actors, Go coroutines/channels, and the Java concurrency primitives (`Thread`, `wait/notify`, `synchronized`) are all Level 4 concurrency frameworks.
 The chemical machine (known in the academic world as "join calculus") is also a Level 4 framework.
 
-The typical task that requires this level of concurrency is implementing an operating system.
-The "dining philosophers" problem is also an example of a concurrency task that cannot be implemented by any concurrency framework other than a Level 4 framework.
+The typical task that requires this level of concurrency is implementing an operating system where many running processes can synchronize and communicate with each other in arbitrary ways.
+
+It seems to me that the "dining philosophers" problem is also an example of a concurrency task that cannot be implemented by any concurrency framework other than a Level 4 framework.
+However, I do not know how to prove that this is so.
 
 ### Why is Level 4 higher than Level 3
 
@@ -121,33 +125,33 @@ Consider the following task:
 
 Two processes, A and B, run concurrently and produce result values `x` and `y`.
 However, sometimes one of these processes will go into an infinite loop, never producing a result.
-It is known that, when run together, _at most one_ of A and B can go into an infinite loop (but it could be a different process every time).
+It is known that _at most one_ of A and B can go into an infinite loop (but it could be a different process every time).
 We need to implement a function `firstResult()` that will run A and B concurrently and wait for the first result that is returned by either of them.
-The function needs to return this first result.
+The function needs to return that first result.
 
-Now, we claim that this task cannot be simulated on a single thread, because no program running on a single thread can actually run two processes concurrently and wait for the first result.
+Now, we claim that this task cannot be simulated on a single thread, because no program running on a single thread can decide correctly which of the two processes returns first.
 Here is why:
-Regardless of how we implement `firstResult()`, a single-thread program will have to run at least one of the processes A and B on that single thread.
+Regardless of how we implement `firstResult()`, a single-threaded program will have to run at least one of the processes A and B on that single thread.
 Sometimes, that process will go into an infinite loop; in that case, the single thread will be infinitely blocked, and our program will never finish computing `firstResult()`.
 
-So, when implemented on a single thread, `firstResult()` is a _partial function_ (it will sometimes fail to return a value).
-However, on a multi-thread machine, we can implement `firstResult()` as a _total function_ (it will always return a result),
-since on that machine we can run the processes A and B simultaneously,
+So, if implemented on a single thread, `firstResult()` is a _partial function_ (it will sometimes fail to return a value).
+However, if we are allowed to use many threads, we can implement `firstResult()` as a _total function_ (it will always return a value),
+since now we can run the processes A and B simultaneously on two different threads,
 and we are guaranteed that at least one of the processes will return a result.
 
 ## Are there other levels?
 
-How can we be sure that there are no other levels of power in concurrency frameworks?
+How can we be sure that there are no other levels of expressive power in concurrency?
 
 Some assurance comes from the mathematical description of these levels:
 
 - We need at least an applicative functor to be able to parallelize computations. This is Level 1.
 - Adding `flatMap` to an applicative functor makes it into a monad, and we don't know any intermediate-power functors. Monadic streams is Level 2.
 - Adding recursion raises Level 2 to Level 3. There doesn't seem to be anything in between "non-recursive" and "recursive" powers.
-- Level 4 supports arbitrary concurrency. In computer science, several concurrency formalisms have been developed (Petri nets, CSP, pi-calculus, Actor model, join calculus), which are all equivalent in power to each other. I do not know of a concurrency language that is strictly less powerful.
+- Level 4 supports arbitrary concurrency. In computer science, several concurrency formalisms have been developed (Petri nets, CSP, pi-calculus, Actor model, join calculus), which are all equivalent in power to each other. I do not know of a concurrency language that is strictly less powerful than Level 4 but more powerful than Level 3.
 
 
-# What level to use?
+# Which level to use?
 
 It is best to use the level of concurrency that is no higher than what is required to solve the task at hand.
 
@@ -157,4 +161,4 @@ For a streaming pipeline for data processing, Scala standard streams (Level 2) a
 
 For implementing a GUI, a good recursive FRP (Level 3) framework is a must. Raw Akka actors are not necessary but could be used instead of FRP.
 
-If your task is to _implement_ an alternative to Spark (Level 1) or to Scala streams (Level 2), you need a higher-powered framework, and possibly a Level 4 if you need fine-grained control over resources. 
+If your task is to _implement_ an alternative to Spark (Level 1) or to Scala streams (Level 2), you need a higher-powered framework, and possibly a Level 4 if you need fine-grained control over threads. 
