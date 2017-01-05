@@ -84,10 +84,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 //    moleculesAndValues.foreach{ case (m, v) => m(v) }
 //  }
 
-  private sealed trait ReactionExitStatus
+  private sealed trait ReactionExitStatus {
+    def notFailedWithRetry: Boolean = true
+  }
   private case object ReactionExitSuccess extends ReactionExitStatus
   private case object ReactionExitFailure extends ReactionExitStatus
-  private case object ReactionExitRetryFailure extends ReactionExitStatus
+  private case object ReactionExitRetryFailure extends ReactionExitStatus {
+    override def notFailedWithRetry: Boolean = false
+  }
 
   /** This closure will be run on the reaction thread pool to start a new reaction.
     *
@@ -96,7 +100,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private def buildReactionClosure(reaction: Reaction, usedInputs: LinearMoleculeBag): Unit = {
     if (logLevel > 1) println(s"Debug: In $this: reaction {${reaction.info}} started on thread pool $reactionPool with thread id ${Thread.currentThread().getId}")
-    val exitStatus : ReactionExitStatus = try {
+    val exitStatus: ReactionExitStatus = try {
       // Here we actually apply the reaction body to its input molecules.
       reaction.body.apply(UnapplyRun(usedInputs))
       ReactionExitSuccess
@@ -146,19 +150,22 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // We will report all errors to each blocking molecule.
     // However, if the reaction failed with retry, we don't yet need to release semaphores and don't need to report errors due to missing reply.
-    val notFailedWithRetry = exitStatus match { case ReactionExitRetryFailure => false; case _ => true }
+    val notFailedWithRetry = exitStatus.notFailedWithRetry
     val errorMessage = Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
     val haveErrorsWithBlockingMolecules =
-      (blockingMoleculesWithNoReply.nonEmpty && notFailedWithRetry)|| blockingMoleculesWithMultipleReply.nonEmpty
+      (blockingMoleculesWithNoReply.nonEmpty && notFailedWithRetry) || blockingMoleculesWithMultipleReply.nonEmpty
 
     // Insert error messages into the reply wrappers and release all semaphores.
     usedInputs.foreach {
       case (_, bm@BlockingMolValue(_, replyValue)) =>
-        if (haveErrorsWithBlockingMolecules && bm.reactionSentNoReply) { // Do not send error messages to molecules that already got a reply - this is pointless and may lead to errors.
-          replyValue.replyStatus = ErrorNoReply(errorMessage)
+        if (haveErrorsWithBlockingMolecules && notFailedWithRetry) {
+          replyValue.acquireSemaphoreForReply()
+          // Do not send error messages to molecules that already got a reply - this is pointless and may lead to errors.
+          if (bm.reactionSentNoReply) {
+            replyValue.replyStatus = ErrorNoReply(errorMessage)
+            replyValue.releaseSemaphore()
+          }
         }
-        if (notFailedWithRetry) replyValue.releaseSemaphore()
-
       case _ => ()
     }
 
