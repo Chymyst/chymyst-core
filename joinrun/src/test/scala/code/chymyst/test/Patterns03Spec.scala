@@ -142,14 +142,12 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "compute saddle points" in {
     val n = 4 // The number of rendezvous participants needs to be known in advance, or else we don't know how long still to wait for rendezvous.
-
+    val nSquare = n*n
     val dim = 0 until n
 
     val sp = new SmartPool(n)
 
     val matrix = Array.ofDim[Int](n, n)
-    val output = Array.ofDim[Int](n, n)
-    for (i <- dim; j <- dim) { output(i)(j) = 0 }
 
     type Point = (Int, Int)
     case class PointAndValue(value: Int, point: Point) extends Ordered[PointAndValue] {
@@ -157,27 +155,22 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }
 
     // could be used to generate multiple distinct inputs and compare expectations with result of Chymyst.
-    def getRandomArray(sparseParam: Int, rows: Int): Array[Int] = {
+    def getRandomArray(sparseParam: Int): Array[Int] =
       // the higher it is the more sparse our matrix will be (less likelihood that some elements are the same)
-      val dimension = rows * rows
-      Array.fill[Int](dimension)(scala.util.Random.nextInt(sparseParam * dimension))
-    }
-    def arrayToMatrix(rows: Int, a: Array[Int], m: Array[Array[Int]]): Unit = {
-      val r = 0 until rows
-      for (i <- r)
-      { r.foreach( j => m(i)(j) = a(i * rows + j)) }
-    }
+      Array.fill[Int](nSquare)(scala.util.Random.nextInt(sparseParam * nSquare))
 
-    def seqMinR(i: Int, ran: Range, pointsWithValues: Array[PointAndValue]): PointAndValue =
+    def arrayToMatrix(a: Array[Int], m: Array[Array[Int]]): Unit =
+      for (i <- dim) { dim.foreach( j => m(i)(j) = a(i * n + j)) }
+
+    def seqMinR(i: Int, pointsWithValues: Array[PointAndValue]): PointAndValue =
        pointsWithValues.filter { case PointAndValue(v, (r, c)) => r == i }.min
 
-    def seqMaxC(i: Int, ran: Range, pointsWithValues: Array[PointAndValue]): PointAndValue =
+    def seqMaxC(i: Int, pointsWithValues: Array[PointAndValue]): PointAndValue =
       pointsWithValues.filter { case PointAndValue(v, (r, c)) => c == i }.max
 
-
-    def getSaddlePointsSequentially(ran: Range, pointsWithValues: Array[PointAndValue]): IndexedSeq[PointAndValue] = {
-      val minOfRows = for { i <- ran } yield seqMinR(i, ran, pointsWithValues)
-      val maxOfCols = for { i <- ran } yield seqMaxC(i, ran, pointsWithValues)
+    def getSaddlePointsSequentially(pointsWithValues: Array[PointAndValue]): IndexedSeq[PointAndValue] = {
+      val minOfRows = for { i <- dim } yield seqMinR(i, pointsWithValues)
+      val maxOfCols = for { i <- dim } yield seqMaxC(i, pointsWithValues)
     //  minOfRows.foreach(y => println(s"min at ${y.point._1} is ${y.value} or $y"))
     //  maxOfCols.foreach(y => println(s"max at ${y.point._2} is ${y.value} or $y"))
 
@@ -190,10 +183,10 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
         14, 7, 57, 26,
         61, 37, 53, 59,
         55, 6, 12, 12)
-    arrayToMatrix(n, sample, matrix)
+    arrayToMatrix(sample, matrix)
     val pointsWithValues = matrix.flatten.zipWithIndex.map{ case(x: Int, y: Int) => PointAndValue(x, (y/n, y % n) )}
-
-    // TODO improve format to represent two dimensions (done as one element per line, vertical vector). matrix.foreach(x => x.foreach(println))
+    // print input matrix
+    for (i <- dim) { println(dim.map(j => sample(i * n + j)).mkString(" "))}
 
     val barrier = b[Unit,Unit]
     val counterInit = m[Unit]
@@ -211,43 +204,43 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     case class MinOfRow( row: Int) extends ComputeRequest
     case class MaxOfColumn(column: Int) extends ComputeRequest
 
-    val logFile = new ConcurrentLinkedQueue[(ComputeRequest, PointAndValue)]
+    case class LogData (c: ComputeRequest, pv: PointAndValue)
+    val logFile = new ConcurrentLinkedQueue[LogData]
 
     def minR(row: Int)(): Unit = {
-      val pv = seqMinR(row, dim, pointsWithValues)
+      val pv = seqMinR(row, pointsWithValues)
       minFoundAt(pv)
-      logFile.add((MinOfRow(row), pv))
+      logFile.add(LogData(MinOfRow(row), pv))
       ()
     }
     def maxC(col: Int)(): Unit = {
-      val pv = seqMaxC(col, dim, pointsWithValues)
+      val pv = seqMaxC(col, pointsWithValues)
       maxFoundAt(pv)
-      logFile.add((MaxOfColumn(col), pv))
+      logFile.add(LogData(MaxOfColumn(col), pv))
       ()
     }
-    val results = getSaddlePointsSequentially(dim, pointsWithValues)
+    val results = getSaddlePointsSequentially(pointsWithValues)
     // results.foreach(y => println(s"saddle point at $y"))
 
     site(sp)(
-      go { case interpret(work) => work(); barrier(); end() }, // this reaction will be run n times because we emit n molecules `interpret` with various
-      // computation tasks
+      go { case interpret(work) => work(); barrier(); end() },
+      // this reaction will be run n times because we emit n molecules `interpret` with various computation tasks
+
       go { case barrier(_, r) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
         counter(1)
         r()
       },
-      go { case saddlePoints(sps) + minFoundAt(pv1) + maxFoundAt(pv2) if pv1 == pv2 =>
+      go { case saddlePoints(sps) + minFoundAt(pv1) + maxFoundAt(pv2) if pv1 == pv2 => // the key matching happens here.
         saddlePoints(pv1::sps)
       },
-      go { case barrier(_, r1) + counter(k, r2) => // the `counter` molecule holds the number (k) of the reactions that have reached the rendezvous before
-        // this reaction started.
-        if (k + 1 < 2*n) { // 2*n is amount of preliminary tasks of computation (interpret)
+      go { case barrier(_, r1) + counter(k, r2) => // the `counter` molecule holds the number (`k`) of the reactions/computations triggered by interpret
+        // that have executed so far
+        if (k + 1 < 2*n) { // 2*n is amount of preliminary tasks of computation (emitted originally by interpret)
           counter(k+1)
           r2()
-          r1() // `r2()` must be here. Doing `r2()` before emitting `counter(k+1)` would have unblocked some reactions and allowed them to
-          // proceed beyond the rendezvous point without waiting for all others.
+          r1()
         }
         else {
-          // println(s"mins-maxs executed through ${2*n} reactions")
           Thread.sleep(500.toLong) // Can we avoid this sleep? Should we?
           // now we have enough to report immediately the results!
           end() + counterInit()
@@ -261,8 +254,8 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     saddlePoints(Nil)
     done.timeout(1000 millis)().toList.flatten.toSet shouldBe results.toSet
 
-    val events: IndexedSeq[(ComputeRequest, PointAndValue)] = logFile.iterator().asScala.toIndexedSeq
-    println("\nLogFile START"); events.foreach { case(c, pv) => println(s"$c  $pv") }; println("LogFile END") // comment out to see what's going on.
+    val events: IndexedSeq[LogData] = logFile.iterator().asScala.toIndexedSeq
+    println("\nLogFile START"); events.foreach { case(LogData(c, pv)) => println(s"$c  $pv") }; println("LogFile END") // comment out to see what's going on.
 
     sp.shutdownNow()
 
