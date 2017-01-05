@@ -178,8 +178,8 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     def getSaddlePointsSequentially(ran: Range, pointsWithValues: Array[PointAndValue]): IndexedSeq[PointAndValue] = {
       val minOfRows = for { i <- ran } yield seqMinR(i, ran, pointsWithValues)
       val maxOfCols = for { i <- ran } yield seqMaxC(i, ran, pointsWithValues)
-      minOfRows.foreach(y => println(s"min at ${y.point._1} is ${y.value} or $y"))
-      maxOfCols.foreach(y => println(s"max at ${y.point._2} is ${y.value} or $y"))
+    //  minOfRows.foreach(y => println(s"min at ${y.point._1} is ${y.value} or $y"))
+    //  maxOfCols.foreach(y => println(s"max at ${y.point._2} is ${y.value} or $y"))
 
       // now intersect minOfRows with maxOfCols using the positions we keep track of.
       minOfRows.filter(minElem => maxOfCols(minElem.point._2).point._1 == minElem.point._1)
@@ -193,7 +193,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     arrayToMatrix(n, sample, matrix)
     val pointsWithValues = matrix.flatten.zipWithIndex.map{ case(x: Int, y: Int) => PointAndValue(x, (y/n, y % n) )}
 
-    matrix.foreach(x => x.foreach(println))
+    // TODO improve format to represent two dimensions (done as one element per line, vertical vector). matrix.foreach(x => x.foreach(println))
 
     val barrier = b[Unit,Unit]
     val counterInit = m[Unit]
@@ -202,9 +202,10 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val minFoundAt = m[PointAndValue]
     val maxFoundAt = m[PointAndValue]
+    val saddlePoints = m[List[PointAndValue]]
 
     val end = m[Unit]
-    val done = b[Unit, Unit]
+    val done = b[Unit, List[PointAndValue]]
 
     sealed trait ComputeRequest
     case class MinOfRow( row: Int) extends ComputeRequest
@@ -225,7 +226,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       ()
     }
     val results = getSaddlePointsSequentially(dim, pointsWithValues)
-    results.foreach(y => println(s"saddle point at $y"))
+    // results.foreach(y => println(s"saddle point at $y"))
 
     site(sp)(
       go { case interpret(work) => work(); barrier(); end() }, // this reaction will be run n times because we emit n molecules `interpret` with various
@@ -234,8 +235,8 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
         counter(1)
         r()
       },
-      go { case minFoundAt(pv1) + maxFoundAt(pv2) if pv1 == pv2 =>
-        println(s"Chymyst saddle found at $pv1")
+      go { case saddlePoints(sps) + minFoundAt(pv1) + maxFoundAt(pv2) if pv1 == pv2 =>
+        saddlePoints(pv1::sps)
       },
       go { case barrier(_, r1) + counter(k, r2) => // the `counter` molecule holds the number (k) of the reactions that have reached the rendezvous before
         // this reaction started.
@@ -246,19 +247,19 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
           // proceed beyond the rendezvous point without waiting for all others.
         }
         else {
-          println(s"mins-maxs executed through ${2*n} reactions")
-          // now we should have enough to report immediately the results!
-          // We could have n*n blocking molecules representing the n*n saddle candidates, have them carry a value of 0, a min and a max increment by 1
-          // and ultimately a value of 2 represents a saddle. Here we can unblock all these n*n molecules at once...!?
+          // println(s"mins-maxs executed through ${2*n} reactions")
+          Thread.sleep(500.toLong) // Can we avoid this sleep? Should we?
+          // now we have enough to report immediately the results!
           end() + counterInit()
         }
       },
-      go { case end(_) + done(_, r) => r() }
+      go { case end(_) + done(_, r) + saddlePoints(sps)  => r(sps) }
     )
 
     dim.foreach(i => interpret(minR(i)) + interpret(maxC(i)))
     counterInit()
-    done.timeout(1000 millis)() shouldEqual Some(())
+    saddlePoints(Nil)
+    done.timeout(1000 millis)().toList.flatten.toSet shouldBe results.toSet
 
     val events: IndexedSeq[(ComputeRequest, PointAndValue)] = logFile.iterator().asScala.toIndexedSeq
     println("\nLogFile START"); events.foreach { case(c, pv) => println(s"$c  $pv") }; println("LogFile END") // comment out to see what's going on.
