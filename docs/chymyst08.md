@@ -252,13 +252,29 @@ What is truly distinct from the rendezvous problem is the final computation or r
    potentially distinct point `pv2` which we actually need to be the same, we just discovered a saddle point! So we use a guard to ensure we compute the mins
     and maxs **only** if they represent the same coordinate to force the chemistry to try out all required pair combinations and do the hard matching work 
     for us (like molecules in the soup that are compatible must match each other). We then need to collect the results in a reduce style (map-reduce) as per 
-    MapReduceSpec.scala. For this we use a list of saddle points `sps`, which we can extend with our new saddle point `pv1` (`pv2` would do as well).
+    MapReduceSpec.scala. For this we use a list of saddle points `sps`, which we can extend with our new saddle point `pv1` (`pv2`) would do as well).
     
   Now we need to generate our `2*n` tasks and identify when we're all done executing them. With a change of variable `m=2*n`, we have the problem of 
   scheduling `m` tasks and identify when we are done and that is the `m` rendezvous problem once we remove the matching. The interpretation is to schedule 
   `n` single ladies going into a dance floor and start dancing all alone by themselves when they are all together, so we reuse the `n` rendezvous and 
-  removing an element of the pairs (the men). We also distinguish the `m` ladies into two categories some executing a dance called `max` and some executing a
-   dance (job/task) called `min`. We are now all set, except that introduced some timers to gather the final results, which is suboptimal:
+  removing an element of the pairs (the men); joking aside, this is simply a way to reuse another problem's solution to arrive at this solution by exploiting
+   similar pattern. We also distinguish the `m` ladies into two categories some executing a dance (job/task) called `max` and some executing a
+   dance (job/task) called `min`. The jobs or tasks to execute `max` and `min` will be carried with molecule `interpret` taking a function to execute as a 
+   value (the actual value we designate `work` in the reactions). 
+   
+   Here is how we emit the initial molecules. We emit for each value in range `dim` `[0, n-1]` a molecule that will interpret a job `interpret` and assign 
+   two types of task to them one for min row computation `minR(i)` and one for max column computation `maxC(i)`. We also need to accumulate the results using
+    a list of values, that's `saddlePoints` and we also need molecules to initiate the jobs and identify their end in rendezvous scheduling style with 
+    `counterInit` and `done`. We convert the lists from chemistry (`done().toList`) and sequential `results`, adjust them to sets and compare them.
+   
+   ```scala
+      dim.foreach(i => interpret(minR(i)) + interpret(maxC(i)))
+          counterInit()
+          saddlePoints(Nil)
+          done.timeout(1000 millis)().toList.flatten.toSet shouldBe results.toSet
+   ```
+   
+   We are now all set, except that we introduced some timers to gather the final results, which is suboptimal:
      
 ```scala
     val n = 4 
