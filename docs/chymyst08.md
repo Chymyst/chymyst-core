@@ -184,3 +184,192 @@ having to wait for smokers, which the reader may think of using a producer-consu
 solution is provided in code. Let us say that the change is very simple, we just need
  to have pusher emit the pusher molecule instead
  of the smokers doing so.  The pausing in the assembly line needs to be done within the `pusher` reaction, otherwise it is the same solution.
+ 
+ ## Saddle Points
+ 
+ A saddle point represents a point three dimensions that is a local maximum according to one dimension and a local minimum to the other. We think either of 
+ the sitting point of a horse saddle or the highest point of a mountain pass. Mathematicians also think of calculus but that is not the topic here at all. 
+ What we have is a matrix of data with an ordering relation, we will assume here integers, and are interested in finding an element of the matrix that is the
+  minimum of a row and the maximum of a column. In the solution presented here, we implicitly assume that the numbers of the matrix are distinct, i.e. there 
+  is a unique minimum in each row and a unique maximum in each column. We also work with a matrix of size 4x4, logic assumes the matrix is square. We are 
+  more interested here in contrasting the difference of the solution between the sequential computation and the parallel computation using chemistry than the
+   exact assumptions of the problem.
+ 
+ A few observations are helpful:
+   - there can be no saddle point, one saddle point, or several ones. Think of nature to picture this. Imagine a cone for the no saddle point case, where 
+   values of the matrix represent elevation on a map. One saddle point can be a mountain pass in an area that consists of two peaks and multiple saddle 
+   points could be found in a larger area.
+   - computing the minimum (maximum) of `n` numbers requires `n-1` comparisons sequentially and we make an assumption that parallelism does not help 
+   (actually a divide and conquer that is recursive should help using parallelism but we ignore that, this can only help a better parallel algorithm)
+   - we can identify location of the minima of `n` rows as `n` jobs or tasks and similarly for the maxima of `n` columns.
+   - we can match the minima with the maxima in sequential fashion as follows: if `i`-th row contains a min at `j` inquire whether max of `j`-th column is 
+   also `i`. We can filter each row to see whether that condition holds and retains the saddle points as a solution.
+   
+   The unit test for Saddle Points uses a matrix with a single saddle point at `(2,1)` with value 37 using indices 0 to 3 for the 4 rows and columns. 
+   ```scala
+   val sample =
+         Array(12, 3, 11, 21,
+           14, 7, 57, 26,
+           61, 37, 53, 59,
+           55, 6, 12, 12)
+   ```
+   It requires a sequential computation to validate that the chemistry evaluation is the same. We will afford some intentionally suboptimal bookkeeping of 
+   positions in matrix and value for simplicity of computation using `case class PointAndValue` below with `Point` representing a coordinate or entry of the 
+   matrix. The key sequential method is `getSaddlePointsSequentially` below, which uses the last 2 items of our above observations (with `dim` being a range 
+   of `[0, 3]`). Helper methods `seqMinR` and `seqMaxC` compute sequentially the min of a single row and the max of a single column respectively. We use these 
+   helper methods for the parallel chemistry solution as well (assuming probably incorrectly that it's optimal in parallel). The return type effectively 
+   assumes uniqueness of min and max within the sequence, so we assume here the elements are distinct.
+   
+   ```scala
+   type Point = (Int, Int)
+   case class PointAndValue(value: Int, point: Point) extends Ordered[PointAndValue] {
+     def compare(that: PointAndValue): Int = this.value compare that.value
+   }
+   def seqMinR(i: Int, pointsWithValues: Array[PointAndValue]): PointAndValue =
+     pointsWithValues.filter { case PointAndValue(v, (r, c)) => r == i }.min
+   
+   def seqMaxC(i: Int, pointsWithValues: Array[PointAndValue]): PointAndValue =
+     pointsWithValues.filter { case PointAndValue(v, (r, c)) => c == i }.max
+
+   def getSaddlePointsSequentially(pointsWithValues: Array[PointAndValue]): IndexedSeq[PointAndValue] = {
+     val minOfRows = for { i <- dim } yield seqMinR(i, pointsWithValues)
+     val maxOfCols = for { i <- dim } yield seqMaxC(i, pointsWithValues)
+
+     // now intersect minOfRows with maxOfCols using the positions we keep track of.
+     minOfRows.filter(minElem => maxOfCols(minElem.point._2).point._1 == minElem.point._1)
+   }
+   ```
+   
+Our task now is to find a chemistry solution to compute the above efficiently in parallel. First we need to launch `2*n` jobs to compute the mins and maxs 
+for all rows and columns in parallel. We realize that this is essentially structurally equivalent to the `n` rendezvous problem and reuse that chemistry. 
+What is truly distinct from the rendezvous problem is the final computation or reaction that identifies the saddle points. Here it is:
+  ```scala
+  go { case saddlePoints(sps) + minFoundAt(pv1) + maxFoundAt(pv2) if pv1 == pv2 => // the key matching happens here.
+          saddlePoints(pv1::sps)
+        }
+   ```
+   Assuming we have a molecule `minFountAt` with the context of coordinate and value as PointValue `pv1` and a corresponding molecule `maxFoundAt` for a 
+   potentially distinct point `pv2` which we actually need to be the same, we just discovered a saddle point! So we use a guard to ensure we compute the mins
+    and maxs **only** if they represent the same coordinate to force the chemistry to try out all required pair combinations and do the hard matching work 
+    for us (like molecules in the soup that are compatible must match each other). We then need to collect the results in a reduce style (map-reduce) as per 
+    MapReduceSpec.scala. For this we use a list of saddle points `sps`, which we can extend with our new saddle point `pv1` (`pv2` would do as well).
+    
+  Now we need to generate our `2*n` tasks and identify when we're all done executing them. With a change of variable `m=2*n`, we have the problem of 
+  scheduling `m` tasks and identify when we are done and that is the `m` rendezvous problem once we remove the matching. The interpretation is to schedule 
+  `n` single ladies going into a dance floor and start dancing all alone by themselves when they are all together, so we reuse the `n` rendezvous and 
+  removing an element of the pairs (the men). We also distinguish the `m` ladies into two categories some executing a dance called `max` and some executing a
+   dance (job/task) called `min`. We are now all set, except that introduced some timers to gather the final results, which is suboptimal:
+     
+```scala
+    val n = 4 
+    val nSquare = n*n
+    val dim = 0 until n
+
+    val sp = new SmartPool(n)
+
+    val matrix = Array.ofDim[Int](n, n)
+
+    type Point = (Int, Int)
+    case class PointAndValue(value: Int, point: Point) extends Ordered[PointAndValue] {
+      def compare(that: PointAndValue): Int = this.value compare that.value
+    }
+
+    def arrayToMatrix(a: Array[Int], m: Array[Array[Int]]): Unit =
+      for (i <- dim) { dim.foreach( j => m(i)(j) = a(i * n + j)) }
+
+    def seqMinR(i: Int, pointsWithValues: Array[PointAndValue]): PointAndValue =
+       pointsWithValues.filter { case PointAndValue(v, (r, c)) => r == i }.min
+
+    def seqMaxC(i: Int, pointsWithValues: Array[PointAndValue]): PointAndValue =
+      pointsWithValues.filter { case PointAndValue(v, (r, c)) => c == i }.max
+
+    def getSaddlePointsSequentially(pointsWithValues: Array[PointAndValue]): IndexedSeq[PointAndValue] = {
+      val minOfRows = for { i <- dim } yield seqMinR(i, pointsWithValues)
+      val maxOfCols = for { i <- dim } yield seqMaxC(i, pointsWithValues)
+
+      // now intersect minOfRows with maxOfCols using the positions we keep track of.
+      minOfRows.filter(minElem => maxOfCols(minElem.point._2).point._1 == minElem.point._1)
+    }
+
+    val sample =
+      Array(12, 3, 11, 21,
+        14, 7, 57, 26,
+        61, 37, 53, 59,
+        55, 6, 12, 12)
+    arrayToMatrix(sample, matrix)
+    val pointsWithValues = matrix.flatten.zipWithIndex.map{ case(x: Int, y: Int) => PointAndValue(x, (y/n, y % n) )}
+    // print input matrix
+    for (i <- dim) { println(dim.map(j => sample(i * n + j)).mkString(" "))}
+
+    val barrier = b[Unit,Unit]
+    val counterInit = m[Unit]
+    val counter = b[Int,Unit]
+    val interpret = m[()=>Unit]
+
+    val minFoundAt = m[PointAndValue]
+    val maxFoundAt = m[PointAndValue]
+    val saddlePoints = m[List[PointAndValue]]
+
+    val end = m[Unit]
+    val done = b[Unit, List[PointAndValue]]
+
+    sealed trait ComputeRequest // just for logging, not really necessary
+    case class MinOfRow( row: Int) extends ComputeRequest
+    case class MaxOfColumn(column: Int) extends ComputeRequest
+
+    case class LogData (c: ComputeRequest, pv: PointAndValue)
+    val logFile = new ConcurrentLinkedQueue[LogData]  // just for logging, not really necessary
+
+    def minR(row: Int)(): Unit = {
+      val pv = seqMinR(row, pointsWithValues)
+      minFoundAt(pv)
+      logFile.add(LogData(MinOfRow(row), pv))
+      ()
+    }
+    def maxC(col: Int)(): Unit = {
+      val pv = seqMaxC(col, pointsWithValues)
+      maxFoundAt(pv)
+      logFile.add(LogData(MaxOfColumn(col), pv))
+      ()
+    }
+    val results = getSaddlePointsSequentially(pointsWithValues)
+    // results.foreach(y => println(s"saddle point at $y"))
+
+    site(sp)(
+      go { case interpret(work) => work(); barrier(); end() },
+      // this reaction will be run n times because we emit n molecules `interpret` with various computation tasks
+
+      go { case barrier(_, r) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
+        counter(1)
+        r()
+      },
+      go { case saddlePoints(sps) + minFoundAt(pv1) + maxFoundAt(pv2) if pv1 == pv2 => // the key matching happens here.
+        saddlePoints(pv1::sps)
+      },
+      go { case barrier(_, r1) + counter(k, r2) => // the `counter` molecule holds the number (`k`) of the reactions/computations triggered by interpret
+        // that have executed so far
+        if (k + 1 < 2*n) { // 2*n is amount of preliminary tasks of computation (emitted originally by interpret)
+          counter(k+1)
+          r2()
+          r1()
+        }
+        else {
+          Thread.sleep(500.toLong) // Can we avoid this sleep? Should we?
+          // now we have enough to report immediately the results!
+          end() + counterInit()
+        }
+      },
+      go { case end(_) + done(_, r) + saddlePoints(sps)  => r(sps) }
+    )
+
+    dim.foreach(i => interpret(minR(i)) + interpret(maxC(i)))
+    counterInit()
+    saddlePoints(Nil)
+    done.timeout(1000 millis)().toList.flatten.toSet shouldBe results.toSet
+
+    val events: IndexedSeq[LogData] = logFile.iterator().asScala.toIndexedSeq
+    println("\nLogFile START"); events.foreach { case(LogData(c, pv)) => println(s"$c  $pv") }; println("LogFile END") // comment out to see what's going on.
+
+    sp.shutdownNow()
+
+```     

@@ -25,7 +25,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
   behavior of "saddle points"
 
   it should "compute saddle points" in {
-    val n = 4 // The number of rendezvous participants needs to be known in advance, or else we don't know how long still to wait for rendezvous.
+    val n = 4
     val nSquare = n*n
     val dim = 0 until n
 
