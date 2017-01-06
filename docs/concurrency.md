@@ -67,7 +67,8 @@ Arbitrary acyclic dataflow can be implemented only if `Stream[T]` is a monadic f
 Accordingly, most streaming frameworks provide a `flatMap` operation for streams.
 
 A monadic functor is strictly more powerful than an applicative functor, and accordingly the user has more power in implementing the processing pipeline,
-in which the next steps can depend in arbitrary ways on other steps.
+in which the next steps can depend in arbitrary ways on other steps
+and on previous data chunks in the stream.
 However, a monadic computation is difficult to parallelize automatically.
 Therefore, it is the user who now needs to specify which steps of the pipeline should be parallelized, and which should be separated by an asynchronous "boundary" from other steps.
 
