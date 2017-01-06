@@ -85,12 +85,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 //  }
 
   private sealed trait ReactionExitStatus {
-    def notFailedWithRetry: Boolean = true
+    def failedWithRetry: Boolean = false
   }
   private case object ReactionExitSuccess extends ReactionExitStatus
   private case object ReactionExitFailure extends ReactionExitStatus
   private case object ReactionExitRetryFailure extends ReactionExitStatus {
-    override def notFailedWithRetry: Boolean = false
+    override def failedWithRetry: Boolean = true
   }
 
   /** This closure will be run on the reaction thread pool to start a new reaction.
@@ -150,15 +150,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // We will report all errors to each blocking molecule.
     // However, if the reaction failed with retry, we don't yet need to release semaphores and don't need to report errors due to missing reply.
-    val notFailedWithRetry = exitStatus.notFailedWithRetry
+    val reactionSucceededOrFailedWithoutRetry = !exitStatus.failedWithRetry
     val errorMessage = Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
     val haveErrorsWithBlockingMolecules =
-      (blockingMoleculesWithNoReply.nonEmpty && notFailedWithRetry) || blockingMoleculesWithMultipleReply.nonEmpty
+      (blockingMoleculesWithNoReply.nonEmpty && reactionSucceededOrFailedWithoutRetry) || blockingMoleculesWithMultipleReply.nonEmpty
 
     // Insert error messages into the reply wrappers and release all semaphores.
     usedInputs.foreach {
       case (_, bm@BlockingMolValue(_, replyValue)) =>
-        if (haveErrorsWithBlockingMolecules && notFailedWithRetry) {
+        if (haveErrorsWithBlockingMolecules && reactionSucceededOrFailedWithoutRetry) {
           replyValue.acquireSemaphoreForReply()
           // Do not send error messages to molecules that already got a reply - this is pointless and may lead to errors.
           if (bm.reactionSentNoReply) {
@@ -313,10 +313,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     replyValueWrapper.releaseSemaphoreForReply()
     val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
     emit(bm, blockingMolValue)
-    val success =
-      BlockingIdle {
-        replyValueWrapper.acquireSemaphore(timeoutNanos = timeoutOpt)
-      }
+    val success = BlockingIdle {
+      replyValueWrapper.acquireSemaphore(timeoutNanos = timeoutOpt)
+    }
     // We might have timed out, in which case we need to forcibly remove the blocking molecule from the soup.
     removeBlockingMolecule(bm, blockingMolValue, !success)
 
@@ -334,6 +333,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     result match {
       case ErrorNoReply(message) => throw new Exception(message)
       case HaveReply(res) => res.asInstanceOf[R]
+      // TODO: refactor the reply logic so that this "internal error" cannot happen. Right now, the following line cannot be covered by tests.
       case _ => throw new Exception(s"In $this: Internal error: reply status for $bm is $result")
     }
   }
@@ -347,6 +347,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       case ErrorNoReply(message) => throw new Exception(message)
       case HaveReply(res) => Some(res.asInstanceOf[R])
       case ReplyTimedOut => None
+      // TODO: refactor the reply logic so that this "internal error" cannot happen. Right now, the following line cannot be covered by tests.
       case _ => throw new Exception(s"In $this: Internal error: reply status for $bm is $result")
     }
   }
