@@ -17,16 +17,18 @@ The main task here is to process a large volume of data more quickly, by splitti
 The computation is sequential, and we could have computed the same results on a single processing thread, without any splitting.
 Typically, the fully sequential, single-thread computation would be too slow, and thus we are trying to speed it up by using multiple threads.
 
-The typical task of this class is to produce a table of word counts in 10,000 different text files.
-This class of problems is solved by technologies such as Scala's parallel collections, Hadoop, and Spark.
-The main difficulty for the implementers of these frameworks is to "parallelize" the task, that is, to split the task correctly into subtasks that are as independent as possible.
+A typical data-parallel task is to produce a table of word counts in 10,000 different text files.
+This class of problems is solved by such frameworks as Scala's parallel collections, Hadoop, and Spark.
+The main difficulty for the implementers of these frameworks is to "parallelize" the task, that is, to split the task correctly into subtasks that are as independent as possible,
+and to run these subtasks in parallel as efficiently as possible.
 
 ### Parallel data = applicative stream
 
-From the type-theoretic point of view, the splitting of the large data set into smaller subsets is equivalent to replacing the whole data set by a parameterized container type `Stream[T]` where `T` is the type of the smallest chunk of data that can be split off.
-(For example, in Spark this is the `RDD[T]` type.)
+From the type-theoretic point of view, the splitting of the large data set into small chunks is equivalent to replacing the whole data set by a parameterized container type `Stream[T]`,
+ where `T` is the type of one chunk of data.
+For example, in Spark this parameterized container type is the `RDD[T]` type.
 
-A parallel data framework will provide a number of operations on the `Stream[T]` type, such as `map` or `filter`.
+A parallel data framework provides a number of operations on the `Stream[T]` type, such as `map` or `filter`.
 These operations make this type into a functor.
 Usually, there is also an operation such as `map2` that applies a function of several arguments to several containers at once.
 This operation makes `Stream[T]` into an applicative functor.
@@ -34,8 +36,8 @@ This operation makes `Stream[T]` into an applicative functor.
 However, importantly, there is no `flatMap` operation that would make `Stream[T]` into a monad.
 A data-parallel framework limits its expressive power to that of an applicative functor.
 
-It is well known in the functional programming folklore that applicative functors are easily and efficiently parallelized.
 It is this limitation that makes data-parallel frameworks so effective in their domain of applicability.
+As is well known in the functional programming folklore, applicative functor operations are easily and efficiently parallelized, but the monadic `flatMap` operation is not easily parallelized.
 
 ## Level 2: Acyclic dataflow
 
@@ -43,27 +45,28 @@ The main task here is to process a large volume of data that is organized as one
 Each element of a stream is a chunk of data that can be processed independently from other chunks.
 The streams form an acyclic graph that starts "upstream" at "source" vertices and flows "downstream", finally ending at "sink" vertices.
 Other vertices of the graph are processing steps that transform the chunks of data in some way.
+Usually, programmers want to achieve the maximum throughput (number of chunks consumed at "sources" and delivered to "sinks" per unit time).
 
-Our goal is to achieve the maximum throughput (number of chunks consumed at "sources" per unit time).
-The dataflow is _asynchronous_ -- each vertex of the graph waits until the previous vertices finish computing their data.
-Since the processing could take different amounts of time, certain processing steps will have lower throughput and incur longer wait times on subsequent steps.
+The dataflow is _asynchronous_ -- each vertex of the graph can perform its computation and deliver a result to a next vertex, even though that vertex might be still busy with its own processing. 
+Since the computations could take different amounts of time at different vertices, certain processing steps will have lower throughput and incur longer wait times on subsequent steps.
 To compensate for this, we could run the slower processing steps in parallel on several data chunks at once, while other steps may run sequentially.
 Therefore, acyclic dataflow systems can be also called "asynchronous parallel streaming systems".
 
-The typical task here is to implement a high-throughput asynchronous Web server that can start responding to the next request long before the previous request is answered.
+A typical use case of acyclic dataflow is to implement a high-throughput asynchronous Web server that can start responding to the next request long before the previous request is answered.
 This class of problems can be solved by using `Future[T]`, by asynchronous streaming frameworks such as Akka Streaming, scala/async, or FS2, and by various functional reactive programming (FRP) frameworks. 
-The main difficulty for the implementers of these frameworks is to interleave the wait times on each thread as much as possible and to avoid blocking any threads.
+The main difficulty for the implementers of these frameworks is to interleave the wait times on each thread as much as possible and to avoid wasting CPU cycles when some threads are blocked.
 
-As in the case of data-parallel computations, the acyclic dataflow computation is still a sequential computation, in that we could have computed the same results on a single thread and without using any asynchronous calls.
+As in the case of data-parallel computations, the acyclic dataflow computation is still a sequential computation, in the following sense:
+We could have computed the same results on a single thread and without using any asynchronous computations.
 However, this would be too slow, and thus we are trying to speed it up by interleaving the wait times and optimizing thread usage.
 
 ### Acyclic dataflow = monadic stream
 
 A stream that carries values of type `T` is naturally represented by a parameterized container type `Stream[T]`.
 Arbitrary acyclic dataflow can be implemented only if `Stream[T]` is a monadic functor: in particular, processing a single chunk of type `T` could yield another `Stream[T]` as a result.
-Accordingly, all streaming frameworks provide a `flatMap` operation.
+Accordingly, most streaming frameworks provide a `flatMap` operation for streams.
 
-A monadic functor is more powerful than an applicative functor, and accordingly the user has more power in implementing the processing pipeline,
+A monadic functor is strictly more powerful than an applicative functor, and accordingly the user has more power in implementing the processing pipeline,
 in which the next steps can depend in arbitrary ways on other steps.
 However, a monadic computation is difficult to parallelize automatically.
 Therefore, it is the user who now needs to specify which steps of the pipeline should be parallelized, and which should be separated by an asynchronous "boundary" from other steps.
@@ -74,16 +77,18 @@ The class of problems I call "general dataflow" is very similar to "acyclic data
 
 The main task of general dataflow remains the same - to process data that comes as a stream, chunk after chunk.
 However, now we allow any step of the processing pipeline to use a "downstream" step as _input_, thus creating a loop in the dataflow graph.
-This loop, of course, must be broken somewhere by an asynchronous boundary (otherwise we will have an actual, synchronous infinite loop in the program).
+This loop, of course, must be broken somewhere by an asynchronous boundary: otherwise we will have an actual, synchronous infinite loop in the program.
 An "asynchronous infinite loop" means that the output of some downstream processing step will be _later_ fed into the input of some upstream step.  
 
-A typical task that requires an asynchronous loop in the graph is implementing an event-driven graphical user interface (GUI).
+A typical task that requires a dataflow graph with an asynchronous loop is implementing an event-driven graphical user interface (GUI).
 For example, an interactive Excel table with auto-updating cells will have to recompute a number of cells depending on user input events.
-However, user input events will depend on what is shown on the screen (such as, which buttons are shown where); and the contents of the screen depends on data in the cells.
-This mutual dependency creates an asynchronous loop in the dataflow graph.
+However, user input events will depend on what is shown on the screen at a given time; and the contents of the screen depends on data in the cells.
+This mutual dependency creates a loop in the dataflow graph:
+When the user creates an input event, sending a chunk of data to the computation engine, it updates the table cells on the screen, which allows the user to create further input events that will depend on the new contents of the cells.
+The loop in the graph is asynchronous because the user creates new input events _at a later time_ than the cells are updated on the screen. 
 
 This class of problems can be solved by functional reactive programming (FRP) frameworks, Akka Streams, and some other asynchronous streaming systems.
-Despite the fact that the general dataflow is strictly more powerful than the acyclic dataflow, the entire computation is _still_ possible to perform on a single thread without any concurrency.
+Despite the fact that the general dataflow is strictly more powerful than the acyclic dataflow, the entire computation is _still_ possible to perform synchronously on a single thread without any concurrency.
 
 ### Cyclic dataflow = recursive monadic stream
 
@@ -91,8 +96,20 @@ To formalize the difference between general and acyclic dataflow, we note that a
 In other words, we need the `Stream[T]` type to be a monad with a `monadFix` operation.
 
 For instance, in a typical GUI application implemented in the FRP paradigm, one defines three streams: `Stream[Model]`, `Stream[View]`, and `Stream[Input]`.
-The types `Model`, `View`, and `Input` stand for data that represent the type of the data model of the application; the type of the entire view (all windows) shown on the screen; and all the possible input events that the user might create (including keyboard and mouse).
-The three streams are defined recursively: the `View` is a function of the `Model`; the `Stream[Model]` is a function of `Stream[Input]` (some input events will update the model); and `Input` also depends on `View` since the `View` determines which control elements are shown on the screen at any time, and thus determines what input events the user can create at that time.
+The following table illustrates the meaning of these types and the way the three streams depend on each other.
+
+| `Stream[T]` | A value of type `T` represents: | Stream depends on: |
+|---|---|---|
+|`Stream[Model]` | the data model of the application at a given time| `Stream[Input]` | 
+|`Stream[View]` | all windows and UI elements shown on the screen at a given time | `Stream[Model]`  |
+|`Stream[Input]` | any of the possible input events that the user might create | `Stream[View]` |
+
+- The model stream depends of the input stream because some input events will update the model.
+- The view stream is a function of the model stream because the view shows data from the model.
+- The input stream depends on the view stream because the `View` value determines which control elements are visible, and thus determines what input events the user can create while that view is shown on the screen.
+
+Note that the last dependency is _asynchronous_ because the user can create input events only _after_ the view is shown.
+Therefore, the three streams are defined mutually recursively, and the stream graph contains an asynchronous loop.
 
 The streaming frameworks that do not support a recursive definition of streams fall into the acyclic dataflow class.
 
