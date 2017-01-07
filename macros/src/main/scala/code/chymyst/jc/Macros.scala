@@ -254,7 +254,7 @@ object Macros {
 
           // matcher with a single argument: a(x)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
-            val flag2Opt = if (t.tpe <:< weakTypeOf[B[_,_]]) Some(WrongReplyVarF) else None
+            val flag2Opt = if (t.tpe <:< weakTypeOf[B[_, _]]) Some(WrongReplyVarF) else None
             val flag1 = getFlag(binder)
             if (flag1.notSimple) traverse(binder)
             inputMolecules.append((t.symbol, flag1, flag2Opt, getSha1(binder)))
@@ -272,30 +272,31 @@ object Macros {
             // After traversing the subtrees, we append this molecule information.
             inputMolecules.append((t.symbol, flag1, Some(flag2), getSha1(binder1)))
 
-          // matcher with wrong number of arguments - neither 1 nor 2. This seems to be never called.
-            /*
+          // Matcher with wrong number of arguments - neither 1 nor 2. This seems to never be called, so let's comment it out.
+          /*
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), _)
             if t.tpe <:< typeOf[Molecule] =>
               inputMolecules.append((t.symbol, WrongReplyVarF, None, getSha1(t)))
             */
 
           // possibly a molecule emission
-          case Apply(Select(t@Ident(TermName(_)), TermName("apply")), binder) =>
+          case Apply(Select(t@Ident(TermName(_)), TermName(f)), binder)
+            if f === "apply" || f === "checkTimeout" =>
 
             // In the output list, we do not include any molecule emitters defined in the inner scope of the reaction.
             val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
 
             val flag1 = getOutputFlag(binder)
             if (flag1.notSimple)
-              // traverse the tree of the first binder element (molecules should only have one binder element anyway)
-              binder match { case h :: _ => traverse(h); case _ => }
+            // Traverse the tree of the first binder element (molecules should only have one binder element anyway).
+              binder.headOption.foreach(traverse)
 
             if (includeThisSymbol) {
               if (t.tpe <:< typeOf[Molecule]) {
                 outputMolecules.append((t.symbol, flag1))
               }
             }
-            if (t.tpe <:< weakTypeOf[AbsReplyValue[_,_]]) {
+            if (t.tpe <:< weakTypeOf[AbsReplyValue[_, _]]) {
               replyActions.append((t.symbol, flag1))
             }
 

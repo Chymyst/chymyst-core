@@ -76,7 +76,7 @@ It is a runtime error to emit molecules that is not yet bound to any reaction si
 
 The call to emit a blocking molecule will block until some reaction consumes that molecule and the molecule receives a "reply action" with a value.
 
-A timeout can be imposed on that call by using this syntax:
+A timeout can be imposed on that call by using the `timeout` method:
 
 ```scala
 import scala.concurrent.duration.DurationInt
@@ -87,11 +87,34 @@ val result: Option[String] = f.timeout(100 millis)(10)
 
 ```
 
-Timed emission will result in an `Option` value.
-The value will be `None` if timeout is reached.
+Timed-out emission will result in an `Option` value.
+The value will be `None` if timeout is reached before a reaction replies to the molecule.
 
-Exceptions may be thrown as a result of emitting of a blocking molecule when it is unblocked:
+Exceptions may be thrown as a result of emitting of a blocking molecule when it is unblocked.
 For instance, this happens when the reaction body performs the reply action more than once, or the reaction body does not reply at all.
+
+### Detecting the time-out status
+
+If a blocking molecule was emitted with a timeout, but no reaction has started within the timeout, the molecule will be removed from the soup after timeout.
+
+It can also happen that a reaction started but the timeout was reached before the reaction performed the reply.
+In that case, the reaction that replies to a blocking molecule can detect whether the reply was not received due to timeout.
+This is achieved with the `checkTimeout` method:
+
+```scala
+import scala.concurrent.duration.DurationInt
+val a = m[Unit]
+val b = m[Boolean]
+val f = b[Int, String]
+
+site ( go { case f(x, r) + a(_) => val status = r.checkTimeout(x); b(status) } )
+
+val result: Option[String] = f.timeout(100 millis)(10)
+
+```
+
+In this example, the call `r.checkTimeout(x)` performs the same reply action as `r(x)`, and additionally a `Boolean` status value is returned.
+The status value will be `true` only if the caller has actually received the reply and did not time out.
 
 ## Debugging
 
