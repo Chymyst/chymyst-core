@@ -137,7 +137,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val g2 = new EB[Int]("g")
     site(tp0)(
       _go { case e(_) => c(g()) },
-      _go { case g(_,r) => r(123); r(0); d() },
+      _go { case g(_,r) => r.checkTimeout(123); r.checkTimeout(0); d() },
       _go { case g2(_,r) + c(x) => r(x) },
       _go { case d(_) + f(_,r) => r() }
     )
@@ -163,7 +163,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
         _go { case c(_) => h() },
         _go { case d(_) => d2(g()) },
         _go { case d2(x) + e(_, r) => r(x) },
-        _go { case g(_, r) + g2(_, r2) + h(_, r3) => r(123); r3(); r(0); r3() } // no answer to g2, two answers to g and h
+        _go { case g(_, r) + g2(_, r2) + h(_, r3) => r(123)+ r3() + r(0) + r3() } // no answer to g2, two answers to g and h
       )
       c() + d()
 
@@ -295,7 +295,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val tp = new FixedPool(4)
     site(tp0)(
       _go { case c(_) => e(g2()) }, // e(0) should be emitted now
-      _go { case d(_) + g(_,r) + g2(_,r2) => r(0); r2(0) } onThreads tp,
+      _go { case d(_) + g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
       _go { case e(x) + h(_,r) =>  r(x) }
     )
     c()+d()
@@ -318,7 +318,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val tp = new FixedPool(4)
     site(tp0)(
       _go { case c(_) => val x = g(); g2(); e(x) }, // e(0) should never be emitted because this thread is deadlocked
-      _go { case g(_,r) + g2(_,r2) => r(0); r2(0) } onThreads tp,
+      _go { case g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
       _go { case e(x) + h(_,r) =>  r(x) },
       _go { case d(_) + f(_) => e(2) },
       _go { case f(_) + e(_) => e(1) }

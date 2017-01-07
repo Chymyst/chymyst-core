@@ -25,6 +25,13 @@ object Macros {
     q"$result"
   }
 
+  def replaceScala211Quirk(s: String): String = {
+    val string211 = "AppliedTypeTree(Select(This(TypeName(\"scala\")), scala.Function1), "
+    val string212 = "AppliedTypeTree(Select(Ident(scala), scala.Function1), "
+    
+    s.replace(string211, string212)
+  }
+
   /** This macro is not actually used by Chymyst.
     * It serves only for testing the mechanism by which we detect the name of the enclosing value.
     * For example, `val myVal = { 1; 2; 3; getName }` returns the string "myVal".
@@ -183,7 +190,7 @@ object Macros {
         info.filter { // PartialFunction automatically adds a default case; we ignore that CaseDef.
             case CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, _) => false
             case _ => true
-          }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody, getSha1(c)) }
+          }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody, getSha1String(replaceScala211Quirk(showRaw(c)))) }
       }
     }
 
@@ -254,7 +261,7 @@ object Macros {
 
           // matcher with a single argument: a(x)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
-            val flag2Opt = if (t.tpe <:< weakTypeOf[B[_,_]]) Some(WrongReplyVarF) else None
+            val flag2Opt = if (t.tpe <:< weakTypeOf[B[_, _]]) Some(WrongReplyVarF) else None
             val flag1 = getFlag(binder)
             if (flag1.notSimple) traverse(binder)
             inputMolecules.append((t.symbol, flag1, flag2Opt, getSha1(binder)))
@@ -272,30 +279,31 @@ object Macros {
             // After traversing the subtrees, we append this molecule information.
             inputMolecules.append((t.symbol, flag1, Some(flag2), getSha1(binder1)))
 
-          // matcher with wrong number of arguments - neither 1 nor 2. This seems to be never called.
-            /*
+          // Matcher with wrong number of arguments - neither 1 nor 2. This seems to never be called, so let's comment it out.
+          /*
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), _)
             if t.tpe <:< typeOf[Molecule] =>
               inputMolecules.append((t.symbol, WrongReplyVarF, None, getSha1(t)))
             */
 
           // possibly a molecule emission
-          case Apply(Select(t@Ident(TermName(_)), TermName("apply")), binder) =>
+          case Apply(Select(t@Ident(TermName(_)), TermName(f)), binder)
+            if f === "apply" || f === "checkTimeout" =>
 
             // In the output list, we do not include any molecule emitters defined in the inner scope of the reaction.
             val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
 
             val flag1 = getOutputFlag(binder)
             if (flag1.notSimple)
-              // traverse the tree of the first binder element (molecules should only have one binder element anyway)
-              binder match { case h :: _ => traverse(h); case _ => }
+            // Traverse the tree of the first binder element (molecules should only have one binder element anyway).
+              binder.headOption.foreach(traverse)
 
             if (includeThisSymbol) {
               if (t.tpe <:< typeOf[Molecule]) {
                 outputMolecules.append((t.symbol, flag1))
               }
             }
-            if (t.tpe <:< weakTypeOf[AbsReplyValue[_,_]]) {
+            if (t.tpe <:< weakTypeOf[AbsReplyValue[_, _]]) {
               replyActions.append((t.symbol, flag1))
             }
 
@@ -328,6 +336,12 @@ object Macros {
     val caseDefs = ReactionCases.from(reactionBody.tree)
     // TODO: check other CaseDef's if any; check that all CaseDef's have the same input molecules.
     // - for now, we only look at the first case.
+
+    // Note: `caseDefs` should not be an empty list because that's a typecheck error (`go` only accepts a partial function, so at least one `case` needs to be given).
+    if (caseDefs.isEmpty) c.error(c.enclosingPosition, "Reactions should be defined inline with the `go { case ... => ... }` syntax")
+
+    if (caseDefs.length > 1) c.error(c.enclosingPosition, "Reactions should contain only one `case` clause")
+
     val Some((pattern, guard, body, sha1)) = caseDefs.headOption
 
     val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
@@ -361,8 +375,11 @@ object Macros {
     maybeError("blocking input molecules", "but no reply found for", blockingMoleculesWithoutReply, "receive a reply")
     maybeError("blocking input molecules", "but multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
 
-    if (patternIn.isEmpty && !isSingletonReaction(pattern, guard, body))
+    if (patternIn.isEmpty && !isSingletonReaction(pattern, guard, body)) // go { case x => ... }
       c.error(c.enclosingPosition, "Reaction should not have an empty list of input molecules")
+
+    if (isSingletonReaction(pattern, guard, body) && bodyOut.isEmpty)
+      c.error(c.enclosingPosition, "Reaction should not have an empty list of input molecules and no output molecules")
 
     val inputMolecules = patternIn.map { case (s, p, _, patternSha1) => q"InputMoleculeInfo(${s.asTerm}, $p, $patternSha1)" }
 

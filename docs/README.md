@@ -1,3 +1,5 @@
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
+
 # JoinRun/Chymyst: declarative concurrency in Scala
 
 `JoinRun`/`Chymyst` is a framework for concurrency in functional programming.

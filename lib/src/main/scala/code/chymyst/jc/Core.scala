@@ -15,14 +15,14 @@ object Core {
 
   private lazy val sha1Digest = java.security.MessageDigest.getInstance("SHA-1")
 
-  def getSha1(c: Any): String = sha1Digest.digest(c.toString.getBytes("UTF-8")).map("%02X".format(_)).mkString
+  def getSha1String(c: String): String = sha1Digest.digest(c.getBytes("UTF-8")).map("%02X".format(_)).mkString
+
+  def getSha1(c: Any): String = getSha1String(c.toString)
 
   //  def flatten[T](optionSet: Option[Set[T]]): Set[T] = optionSet.getOrElse(Set())
   //  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 
-
   def nonemptyOpt[S](s: Seq[S]): Option[Seq[S]] = if (s.isEmpty) None else Some(s)
-
 
   /** Add a random shuffle method to sequences.
     *
