@@ -1,4 +1,4 @@
-<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
 
 # Patterns of concurrency
 
