@@ -1,8 +1,8 @@
 package code.chymyst.jc
 
 import Core._
-
 import java.util.concurrent.{Semaphore, TimeUnit}
+import java.util.concurrent.atomic.AtomicInteger
 
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
@@ -23,16 +23,20 @@ object + {
   * @tparam T Type of the molecule value.
   */
 private[jc] sealed trait AbsMolValue[T] {
-  def getValue: T
+  private[jc] def getValue: T
 
-  /** String representation of molecule values will omit printing the empty {{{Unit}}} values but print all other types normally.
+  /** String representation of molecule values will omit printing the {{{Unit}}} values but print all other types normally.
     *
     * @return String representation of molecule value of type T.
     */
-  override def toString: String = getValue match { case () => ""; case v@_ => v.asInstanceOf[T].toString }
+  override def toString: String = getValue match {
+    case () => ""
+    case v@_ => v.asInstanceOf[T].toString
+  }
 
-  def reactionSentNoReply: Boolean = false
-  def reactionSentRepeatedReply: Boolean = false
+  private[jc] def reactionSentNoReply: Boolean = false
+
+  private[jc] def reactionSentRepeatedReply: Boolean = false
 }
 
 /** Container for the value of a non-blocking molecule.
@@ -41,7 +45,7 @@ private[jc] sealed trait AbsMolValue[T] {
   * @tparam T The type of the value.
   */
 private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
-  override def getValue: T = v
+  override private[jc] def getValue: T = v
 }
 
 /** Container for the value of a blocking molecule.
@@ -52,11 +56,11 @@ private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
   * @tparam R The type of the reply value.
   */
 private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: AbsReplyValue[T,R]) extends AbsMolValue[T] with PersistentHashCode {
-  override def getValue: T = v
+  override private[jc] def getValue: T = v
 
-  override def reactionSentNoReply: Boolean = replyValue.replyStatus.isWaiting // no value, no error, and no timeout
+  override private[jc] def reactionSentNoReply: Boolean = replyValue.noReplyAttemptedYet // no value, no error, and no timeout
 
-  override def reactionSentRepeatedReply: Boolean = replyValue.replyStatus.isRepeated
+  override private[jc] def reactionSentRepeatedReply: Boolean = replyValue.replyWasRepeated
 }
 
 /** Abstract molecule emitter class.
@@ -76,6 +80,7 @@ trait Molecule extends PersistentHashCode {
     */
   def isBound: Boolean = reactionSiteOpt.nonEmpty
 
+  // This is @volatile because the reaction site will assign this variable possibly from another thread.
   @volatile private[jc] var reactionSiteOpt: Option[ReactionSite] = None
 
   /** A shorthand method to get the reaction site to which this molecule is bound.
@@ -301,17 +306,16 @@ class M[T](val name: String) extends (T => Unit) with NonblockingMolecule[T] {
   * This is represented by [[HaveReply]].
   * If the reply times out, there is no reply value. This is represented by [[ReplyTimedOut]].
   * If the reaction finished but did not reply, it is an error condition. If the reaction finished and replied more than once, it is also an error condition.
-  * After a reaction fails to reply
+  * After a reaction fails to reply, the emitting closure will put an error message into the status for that molecule. This is represented by [[ErrorNoReply]].
+  * When a reaction replies more than once, it is too late to put an error message into the status for that molecule. So we do not have a status value for this situation.
   */
 private[jc] sealed trait ReplyStatus {
-  def isWaiting: Boolean = false
-  def haveReply: Boolean = false
+//  def isWaiting: Boolean = false
   def isTimedOut: Boolean = false
-  def isRepeated: Boolean = false
 }
 
 private[jc] case object WaitingForReply extends ReplyStatus {
-  override def isWaiting: Boolean = true
+//  override def isWaiting: Boolean = true
 }
 
 /** Indicates that the reaction body finished running but did not reply to the blocking molecule.
@@ -323,18 +327,12 @@ private[jc] final case class ErrorNoReply(message: String) extends ReplyStatus
 private[jc] case object ReplyTimedOut extends ReplyStatus {
   override def isTimedOut: Boolean = true
 }
-
-private[jc] case object ReplyWasRepeated extends ReplyStatus {
-  override def isRepeated: Boolean = true
-}
 /** Indicates that the reaction body correctly replied to the blocking molecule.
   *
   * @param result The reply value.
   * @tparam R Type of the reply value.
   */
-private[jc] final case class HaveReply[R](result: R) extends ReplyStatus {
-  override def haveReply: Boolean = true
-}
+private[jc] final case class HaveReply[R](result: R) extends ReplyStatus
 
 /** This trait contains the implementations of most methods for the [[ReplyValue]] and [[EmptyReplyValue]] classes.
   *
@@ -347,29 +345,36 @@ private[jc] final case class HaveReply[R](result: R) extends ReplyStatus {
   */
 private[jc] trait AbsReplyValue[T, R] {
 
-  @volatile var replyStatus: ReplyStatus = WaitingForReply
+  @volatile private[jc] var replyStatus: ReplyStatus = WaitingForReply
 
-  /** This is initialized only once when creating an instance of this
+  private val numberOfReplies = new AtomicInteger(0)
+
+  private[jc] def noReplyAttemptedYet = numberOfReplies.get == 0
+
+  private[jc] def replyWasRepeated = numberOfReplies.get >= 2
+
+  /** This semaphore blocks the emitter of a blocking molecule until a reply is received.
+    * This semaphore is initialized only once when creating an instance of this
     * class. The semaphore will be acquired when emitting the molecule and released by the "reply"
     * action. The semaphore will never be used again once a reply is received.
     */
-  private val semaphore = new Semaphore(0, false)
+  private val semaphoreForEmitter = new Semaphore(0, false)
 
   /** This is used by the reaction that replies to the blocking molecule, in order to obtain
     * the reply status safely (without race conditions).
-    * Initially the semaphore has 1 permit. The reaction that replies will use 2 permits.
+    * Initially, the semaphore has 1 permits.
+    * The reaction that replies will use 2 permits. Therefore, one additional permit will be given by the emitter after the reply is received.
     */
-  private val semaphoreForReplyStatus = new Semaphore(0, false)
+  private val semaphoreForReplyStatus = new Semaphore(1, false)
 
-  private[jc] def acquireSemaphore(timeoutNanos: Option[Long]): Boolean =
+  private[jc] def acquireSemaphoreForEmitter(timeoutNanos: Option[Long]): Boolean =
     timeoutNanos match {
-      case Some(nanos) => semaphore.tryAcquire(nanos, TimeUnit.NANOSECONDS)
-      case None => semaphore.acquire(); true
+      case Some(nanos) => semaphoreForEmitter.tryAcquire(nanos, TimeUnit.NANOSECONDS)
+      case None => semaphoreForEmitter.acquire(); true
     }
 
-  private[jc] def releaseSemaphore(): Unit = semaphore.release()
+  private[jc] def releaseSemaphoreForEmitter(): Unit = semaphoreForEmitter.release()
   private[jc] def releaseSemaphoreForReply(): Unit = semaphoreForReplyStatus.release()
-  private[jc] def resetSemaphoreForReply() = semaphoreForReplyStatus.drainPermits()
   private[jc] def acquireSemaphoreForReply() = semaphoreForReplyStatus.acquire()
 
   /** Perform the reply action for a blocking molecule.
@@ -381,30 +386,31 @@ private[jc] trait AbsReplyValue[T, R] {
     * @return {{{true}}} if the reply was received normally, {{{false}}} if it was not received due to one of the above conditions.
     */
   protected def performReplyAction(x: R): Boolean = {
-    // This semaphore was released by the emitting reaction as it starts the blocking wait.
-    acquireSemaphoreForReply() // We need to make sure the emitting reaction already started the blocking wait.
-    // After acquiring this semaphore, it is safe to read and modify `replyStatus`.
-    // The reply value will be assigned only if there was no timeout and no previous reply action.
-    val replyWasNotRepeated =
-    if (replyStatus.isWaiting) {
+
+    val replyWasNotRepeated = numberOfReplies.incrementAndGet == 1
+
+    val status = if (replyWasNotRepeated) {
+      // We have not yet tried to reply.
+      // This semaphore was released by the emitting reaction as it starts the blocking wait.
+      acquireSemaphoreForReply()
+      // We need to make sure the emitting reaction already started the blocking wait.
+      // After acquiring this semaphore, it is safe to read and modify `replyStatus`.
+      // The reply value will be assigned only if there was no timeout and no previous reply action.
+
       replyStatus = HaveReply(x)
-      true
-    } else if (replyStatus.haveReply) {
-      replyStatus = ReplyWasRepeated
-      false
-    } else true
 
-    releaseSemaphore() // Unblock the reaction that emitted this blocking molecule.
-    // That reaction will now set reply status and release semaphoreForReplyStatus again.
+      releaseSemaphoreForEmitter() // Unblock the reaction that emitted this blocking molecule.
+      // That reaction will now set reply status and release semaphoreForReplyStatus again.
 
-    // If the reply was repeated, we do not need to check anything.
-    val status = replyWasNotRepeated && {
       acquireSemaphoreForReply() // Wait until the emitting reaction has set the timeout status.
       // After acquiring this semaphore, it is safe to read the reply status.
       !replyStatus.isTimedOut
+
+    } else {
+      // We already tried to reply, so nothing to be done now.
+      false
     }
-    resetSemaphoreForReply()
-    releaseSemaphoreForReply() // If a reaction tries to send a second reply, that is an error but it should not deadlock. So we release this semaphore here.
+
     status
   }
 }
