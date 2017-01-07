@@ -108,18 +108,27 @@ object Macros {
       * @return true or false
       */
     def hasSubtree: Boolean = false
+
+    def varNames: List[String] = Nil
   }
 
   private case object WildcardF extends InputPatternFlag
 
   /** Represents a reply pattern consisting of a simple variable.
     *
-    * @param replyVar The symbol of a reply pattern variable.
+    * @param replyVar The name of a reply pattern variable.
     */
-  private final case class ReplyVarF(replyVar: Any) extends InputPatternFlag {
+  private final case class ReplyVarF(replyVar: String) extends InputPatternFlag {
     override def notReplyValue: Boolean = false
   }
-  private case object SimpleVarF extends InputPatternFlag
+
+  /** Represents a pattern match with a simple pattern variable, such as `a(x)`
+    *
+    * @param v The name of the pattern variable.
+    */
+  private final case class SimpleVarF(v: String) extends InputPatternFlag {
+    override def varNames: List[String] = List(v)
+  }
   private case object WrongReplyVarF extends InputPatternFlag // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
   private final case class SimpleConstF(v: Any) extends InputPatternFlag // this is the [T] type of M[T] or B[T,R]
 
@@ -132,6 +141,7 @@ object Macros {
     */
   private final case class OtherPatternF(matcher: Any, vars: List[String]) extends InputPatternFlag {
     override def hasSubtree: Boolean = true
+    override def varNames: List[String] = vars
   }
 
   /** Describes the pattern matcher for output molecules.
@@ -211,6 +221,26 @@ object Macros {
       }
     }
 
+    object GuardVars extends Traverser {
+
+      private var vars: mutable.ArrayBuffer[c.Symbol] = _
+
+      private var inputVars: List[String] = _
+
+      override def traverse(tree: c.universe.Tree): Unit = tree match {
+        case t@Ident(TermName(name)) if inputVars contains name =>
+          vars.append(t.symbol)
+        case _ => super.traverse(tree)
+      }
+
+      def from(guardTerm: Tree, inputInfos: List[InputPatternFlag]): List[c.Symbol] = {
+        vars = mutable.ArrayBuffer()
+        inputVars = inputInfos.flatMap(_.varNames)
+        traverse(guardTerm)
+        vars.toList
+      }
+    }
+
     class MoleculeInfo(reactionBodyOwner: c.Symbol) extends Traverser {
 
       /** Examine an expression tree, looking for molecule expressions.
@@ -229,10 +259,6 @@ object Macros {
       private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, InputPatternFlag, Option[InputPatternFlag], String)] = mutable.ArrayBuffer()
       private var outputMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
       private var replyActions: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
-
-      private def getSimpleVar(binderTerm: Tree): c.universe.Ident = binderTerm match {
-        case Bind(TermName(n), Ident(termNames.WILDCARD)) => Ident(TermName(n))
-      }
 
       /** Detect whether the symbol {{{s}}} is defined inside the scope of the symbol {{{owner}}}.
         * Will return true for code like {{{ val owner = .... { val s = ... }  }}}
@@ -269,7 +295,7 @@ object Macros {
 
       private def getInputFlag(binderTerm: Tree): InputPatternFlag = binderTerm match {
         case Ident(termNames.WILDCARD) => WildcardF
-        case Bind(TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF
+        case Bind(TermName(name), Ident(termNames.WILDCARD)) => SimpleVarF(name)
         case Literal(_) => SimpleConstF(binderTerm)
         case _ =>
           val vars = PatternVars.from(binderTerm)
@@ -300,7 +326,7 @@ object Macros {
           // matcher with two arguments: a(x, y)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
             val flag2 = getInputFlag(binder2) match {
-              case SimpleVarF => ReplyVarF(getSimpleVar(binder2))
+              case SimpleVarF(v) => ReplyVarF(v)
               case f@_ => WrongReplyVarF // this is an error that we should report later
             }
             val flag1 = getInputFlag(binder1)
@@ -348,7 +374,7 @@ object Macros {
     implicit val liftablePatternFlag: c.universe.Liftable[InputPatternFlag] = Liftable[InputPatternFlag] {
       case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
       case SimpleConstF(x) => q"_root_.code.chymyst.jc.SimpleConst(${x.asInstanceOf[c.Tree]})"
-      case SimpleVarF => q"_root_.code.chymyst.jc.SimpleVar"
+      case SimpleVarF(v) => q"_root_.code.chymyst.jc.SimpleVar($v)"
       case OtherPatternF(matcherTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]}, $vars)"
       case _ => q"_root_.code.chymyst.jc.UnknownInputPattern"
     }
@@ -394,15 +420,18 @@ object Macros {
     val wrongBlockingMolecules = blockingMolecules.filter(_._3.get.notReplyValue).map(_._1)
     maybeError("blocking input molecules", "matches on anything else than a simple variable", wrongBlockingMolecules)
 
-    // If we are here, all input reply molecules are correctly matched. Now we check that each of them has one and only one reply.
+    // If we are here, all input reply molecules have correct pattern variables. Now we check that each of them has one and only one reply.
     val repliedMolecules = (guardReply ++ bodyReply).map(_._1.asTerm.name.decodedName)
-    val blockingReplies = blockingMolecules.flatMap(_._3.flatMap{
-      case ReplyVarF(x) => Some(x.asInstanceOf[c.universe.Ident].name)
+    val blockingReplies = blockingMolecules.flatMap(_._3.flatMap {
+      case ReplyVarF(x) => Some(x)
       case _ => None
     })
 
     val blockingMoleculesWithoutReply = blockingReplies diff repliedMolecules
     val blockingMoleculesWithMultipleReply = repliedMolecules diff blockingReplies
+
+if (blockingMoleculesWithoutReply.nonEmpty) println(s"debug: trouble; repliedMolecules=$repliedMolecules, blockingReplies = $blockingReplies")
+
     maybeError("blocking input molecules", "but no reply found for", blockingMoleculesWithoutReply, "receive a reply")
     maybeError("blocking input molecules", "but multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
 
@@ -421,12 +450,16 @@ object Macros {
     val outputMolecules = allOutputInfo.map { case (m, p) => q"OutputMoleculeInfo(${m.asTerm}, $p)" }
 
     val isGuardAbsent = guard match { case EmptyTree => true; case _ => false }
-    val hasGuardFlag = if (isGuardAbsent) q"GuardAbsent" else q"GuardPresent" // We lift these values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
+    val hasGuardFlag = if (isGuardAbsent) q"GuardAbsent" else {
+      val knownVars =  patternIn.map(_._2)
+      val guardVars = GuardVars.from(guard, knownVars).map(_.asTerm.name.decodedName.toString)
+      q"GuardPresent($guardVars)"
+    } // We lift these values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
 
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of output molecules.
     lazy val allInputMatchersAreTrivial = patternIn.forall{
-      case (_, SimpleVarF, _, _) | (_, WildcardF, _, _) => true
+      case (_, SimpleVarF(_), _, _) | (_, WildcardF, _, _) => true
       case _ => false
     }
     lazy val inputMoleculesAreSubsetOfOutputMolecules = (patternIn.map(_._1) diff allOutputInfo.map(_._1)).isEmpty
