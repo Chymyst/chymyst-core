@@ -1,6 +1,5 @@
 package code.chymyst.test
 
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 import code.chymyst.jc._
@@ -97,7 +96,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     // Important!: We want 2 concurrent writes of value false when former value is true to end up with value false.
     def checkSaddle(row: Int)(): Unit = {
       val pv = seqMinR(row, pointsWithValues)
-      // purposefully avoid chemistry as it's expected that copying full bitmap is prohibitive!
+      // purposefully avoid chemistry as it's expected that copying full bitmap is prohibitive! Use mutable data in reaction??
       if (bitmask(row)(pv.point._2).get()) foundAt(pv)
     }
 
@@ -133,7 +132,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
           tasksCompleted(0)
         }
       },
-      go { case saddlePoints(sps) + foundAt(pv)  =>
+      go { case saddlePoints(sps) + foundAt(pv) => // collect known saddle points if any.
         saddlePoints(pv::sps)
       },
       go { case verifySaddlePoint(task) + tasksCompleted(k) => // 2nd pass starts only once 1st pass is complete, now reap the saddles
