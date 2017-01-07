@@ -17,7 +17,6 @@ JC has the same expressive power as CSP ([Communicating Sequential Processes](ht
 The initial code of `JoinRun` was based on previous work by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
 The current implementation is tested under Oracle JDK 8 with Scala 2.11 and 2.12.
-It also works with Scala 2.10 and with OpenJDK 7 (except for the new `LocalDateTime` functions used in tests, and some performance issues).
 
 [Version history and roadmap](https://chymyst.github.io/joinrun-scala/roadmap.html)
 
