@@ -51,7 +51,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         go { case a(1) + b(2) => }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction {a(1) + b(2) => } is shadowed by {a(.) => }"
+    thrown.getMessage shouldEqual "In Site{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction {a(1) + b(2) => } is shadowed by {a(x) => }"
   }
 
   it should "detect no shadowing of reactions with nontrivial matchers" in {
@@ -169,7 +169,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val possibleErrors = Set(("45EA", "465D", "4BE5", "465D"), ("4AEA", "A89F", "B07E", "4AEA")).map(tup4 =>
       s"In Site{a + a + a + b + b + b + b => ...; a + a + a + b + b + b => ...}: Unavoidable nondeterminism: reaction"+
         s" {a(<${tup4._1}...>) + a(<${tup4._2}...>) + a(<${tup4._3}...>) + b(1) + b(1) + b(2) + b(_) => }" +
-        s" is shadowed by {a(<${tup4._4}...>) + a(_) + a(.) + b(1) + b(1) + b(_) => }")
+        s" is shadowed by {a(<${tup4._4}...>) + a(_) + a(x) + b(1) + b(1) + b(_) => }")
     possibleErrors should contain oneElementOf List(thrown.getMessage)
   }
 
@@ -185,8 +185,8 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val possibleErrors = Set(("45EA", "465D", "4BE5", "465D"), ("4AEA", "A89F", "B07E", "4AEA")).map(tup4 =>
       s"In Site{a + a + a + a + b + b + b + b => ...; a + a + a + a + b => ...}: Unavoidable nondeterminism: reaction"+
-        s" {a(<${tup4._1}...>) + a(<${tup4._2}...>) + a(<${tup4._3}...>) + a(.) + b(1) + b(1) + b(2) + b(_) => }" +
-        s" is shadowed by {a(<${tup4._4}...>) + a(_) + a(_) + a(.) + b(1) => }")
+        s" {a(<${tup4._1}...>) + a(<${tup4._2}...>) + a(<${tup4._3}...>) + a(x) + b(1) + b(1) + b(2) + b(_) => }" +
+        s" is shadowed by {a(<${tup4._4}...>) + a(_) + a(_) + a(x) + b(1) => }")
     possibleErrors should contain oneElementOf List(thrown.getMessage)
   }
 
@@ -225,7 +225,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val result = site(
       go { case a(x) if x > 0 => a(x) }
     )
-    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(.) if(?) => a(?)}"), List(), "Site{a => ...}")
+    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(x) if(?) => a(?)}"), List(), "Site{a => ...}")
   }
 
   it should "detect livelock in a single reaction due to constant output values with nontrivial matchers" in {
@@ -270,7 +270,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       go { case p(x) + q(1) => q(x) + q(2) + p(1) } // Will have livelock when x == 1, but not otherwise.
     )
 
-    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {p(.) + q(1) => q(?) + q(2) + p(1)}"), List(), "Site{p + q => ...}")
+    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {p(x) + q(1) => q(?) + q(2) + p(1)}"), List(), "Site{p + q => ...}")
   }
 
   it should "detect shadowing together with livelock" in {
@@ -341,9 +341,9 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         go { case a(x) + f(_, r) => r(x) },
         go { case a(x) + f(_, r) => r(x) }
       )
-      warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a(.) + c(_) => a(?)}, {a(.) + f/B(_) => }"), List(), "Site{a + c => ...; a + c => ...; a + f/B => ...; a + f/B => ...}") // this is probably unreachable; later we could rewrite this test when logging is better handled
+      warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a(x) + c(_) => a(?)}, {a(x) + f/B(_) => }"), List(), "Site{a + c => ...; a + c => ...; a + f/B => ...; a + f/B => ...}") // this is probably unreachable; later we could rewrite this test when logging is better handled
     }
-    thrown.getMessage shouldEqual "In Site{a + c => ...; a + c => ...; a + f/B => ...; a + f/B => ...}: Unavoidable nondeterminism: reaction {a(.) + c(_) => a(?)} is shadowed by {a(.) + c(_) => a(?)}, reaction {a(.) + c(_) => a(?)} is shadowed by {a(.) + c(_) => a(?)}, reaction {a(.) + f/B(_) => } is shadowed by {a(.) + f/B(_) => }, reaction {a(.) + f/B(_) => } is shadowed by {a(.) + f/B(_) => }"
+    thrown.getMessage shouldEqual "In Site{a + c => ...; a + c => ...; a + f/B => ...; a + f/B => ...}: Unavoidable nondeterminism: reaction {a(x) + c(_) => a(?)} is shadowed by {a(x) + c(_) => a(?)}, reaction {a(x) + c(_) => a(?)} is shadowed by {a(x) + c(_) => a(?)}, reaction {a(x) + f/B(_) => } is shadowed by {a(x) + f/B(_) => }, reaction {a(x) + f/B(_) => } is shadowed by {a(x) + f/B(_) => }"
   }
 
   it should "detect several repeated reactions" in {
@@ -386,7 +386,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val warnings = site(reaction1, reaction2, reaction3, reaction4, reaction5)
 
-    warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a1(.) + c1(_) => a1(?)}, {c1(_) + f/B(_) => }"), List(), "Site{a1 + c1 => ...; a2 + c2 => ...; a3 + c3 => ...; c1 + f/B => ...; c2 + f/B => ...}")
+    warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a1(x) + c1(_) => a1(?)}, {c1(_) + f/B(_) => }"), List(), "Site{a1 + c1 => ...; a2 + c2 => ...; a3 + c3 => ...; c1 + f/B => ...; c2 + f/B => ...}")
   }
 
 }
