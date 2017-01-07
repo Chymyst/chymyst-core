@@ -26,7 +26,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       go { case _ => d("ok") } // singleton
     )
 
-    (1 to 100).foreach { i =>
+    (1 to 200).foreach { i =>
       d(s"bad $i") // this "d" should not be emitted, even though "d" is sometimes not in the soup due to reactions!
       f.timeout(500 millis)() shouldEqual Some("ok")
     }
@@ -47,7 +47,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         go { case _ => d("ok") } // singleton
       )
 
-      (1 to 10).foreach { j =>
+      (1 to 100).foreach { j =>
         d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
         // and even if the initial d() emission was done late
         f.timeout(500 millis)() shouldEqual Some("ok")

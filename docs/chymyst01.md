@@ -1,10 +1,11 @@
-<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
 
 # The chemical machine paradigm
 
 `JoinRun`/`Chymyst` adopts an unusual approach to declarative concurrent programming.
 This approach is purely functional but does not use threads, actors, futures, or monads.
-It is easiest to understand this approach by using the **chemical machine** metaphor.
+Instead, concurrent computations are performed by a special runtime engine that simulates chemical reactions.
+This approach can be more easily understood by first considering the **chemical machine** metaphor.
 
 ## Simulation of chemical reactions
 

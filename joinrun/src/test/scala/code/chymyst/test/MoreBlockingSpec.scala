@@ -44,6 +44,40 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
+  it should "return false if blocking molecule timed out" in {
+    val a = m[Boolean]
+    val f = b[Unit,Int]
+    val g = b[Unit, Boolean]
+
+    val tp = new FixedPool(4)
+
+    site(tp)(
+      go { case g(_, r) + a(x) => r(x) },
+      go { case f(_, r) => Thread.sleep(250); a(r.checkTimeout(123)) }
+    )
+    f.timeout(50.millis)() shouldEqual None // should give enough time so that the reaction can start
+    g() shouldEqual false
+
+    tp.shutdownNow()
+  }
+
+  it should "return false if blocking molecule timed out, with an empty reply value" in {
+    val a = m[Boolean]
+    val f = b[Unit,Unit]
+    val g = b[Unit, Boolean]
+
+    val tp = new FixedPool(4)
+
+    site(tp)(
+      go { case g(_, r) + a(x) => r(x) },
+      go { case f(_, r) => Thread.sleep(250); a(r.checkTimeout()) }
+    )
+    f.timeout(50.millis)() shouldEqual None // should give enough time so that the reaction can start
+    g() shouldEqual false
+
+    tp.shutdownNow()
+  }
+
   it should "return true if blocking molecule had a successful reply" in {
     val f = b[Unit,Int]
 
@@ -52,7 +86,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(4)
 
     site(tp)(
-      go { case f(_, r) => val res = r(123); waiter { res shouldEqual true; ()}; waiter.dismiss() }
+      go { case f(_, r) => val res = r.checkTimeout(123); waiter { res shouldEqual true; ()}; waiter.dismiss() }
     )
     f.timeout(10.seconds)() shouldEqual Some(123)
 
@@ -70,7 +104,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(6)
 
     site(tp)(
-      go { case f(_, reply) => a(reply(123)) },
+      go { case f(_, reply) => a(reply.checkTimeout(123)) },
       go { case a(x) + collect(n) => collect(n + (if (x) 0 else 1))},
       go { case collect(n) + get(_, reply) => reply(n) }
     )
@@ -123,7 +157,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(20)
 
     site(tp)(
-      go { case f(_, r) => val x = g(); val res = r(x); waiter { res shouldEqual false; () }; waiter.dismiss() },
+      go { case f(_, r) => val x = g(); val res = r.checkTimeout(x); waiter { res shouldEqual false; () }; waiter.dismiss() },
       go { case g(_, r) + a(x) => r(x) }
     )
 
@@ -217,7 +251,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       go { case get_f(_, r) + f(x) => r(x) },
       go { case c(_) => incr(); e() },
       go { case wait(_, r) + e(_) => r() },
-      go { case d(x) + incr(_, r) => wait(); r(); f(x+1) }
+      go { case d(x) + incr(_, r) => wait(); r() + f(x+1) }
     )
     d.setLogLevel(4)
     d(100)

@@ -25,6 +25,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "macros for defining new molecule emitters"
 
+  it should "fail to compute correct names when molecule emitters are defined together" in {
+    val (counter, fetch) = (m[Int], b[Unit, String])
+
+    (counter.name, fetch.name) shouldEqual (("x$1", "x$1"))
+  }
+
   it should "compute correct names and classes for molecule emitters" in {
     val a = m[Option[(Int,Int,Map[String,Boolean])]] // complicated type
 
@@ -62,6 +68,28 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   behavior of "macros for inspecting a reaction body"
+
+  it should "fail to compile a reaction with empty singleton clause" in {
+    "val r = go { case _ => }" shouldNot compile
+  }
+
+  it should "fail to compile a reaction that is not defined inline" in {
+    val a = m[Unit]
+    val body: ReactionBody = { case _ => a() }
+    body.isInstanceOf[PartialFunction[UnapplyArg, Any]] shouldEqual true
+
+    "val r = go(body)" shouldNot compile
+  }
+
+  it should "fail to compile a reaction with two case clauses" in {
+    val a = m[Unit]
+    val b = m[Unit]
+
+    a.isInstanceOf[E] shouldEqual true
+    b.isInstanceOf[E] shouldEqual true
+
+    "val r = go { case a(_) =>; case b(_) => }" shouldNot compile
+  }
 
   it should "inspect reaction body with default clause that declares a singleton" in {
     val a = m[Int]
@@ -140,10 +168,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, OtherOutputPattern)))
     result.info.hasGuard == GuardAbsent
-    result.info.sha1 shouldEqual "99CC108DF49886DD7839027DEDF2657083520D4F"
+    result.info.sha1 shouldEqual "B1957B893BF4FE420EC790947A0BB62B856BBF33"
   }
 
-  val axqq_qqSha1 = "8DED02120DA6F4D5E8D0931097E3BA3BAC5F7082"
+  val axqq_qqSha1 = "F98837122C6B2A2945F61CAFC17D1E212B82F2C8"
 
   it should "inspect a two-molecule reaction body" in {
     val a = m[Int]
@@ -252,13 +280,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val a = m[Int]
     val qq = m[Unit]
 
-    val result = go {
+    a.isInstanceOf[M[Int]] shouldEqual true
+    qq.isInstanceOf[E] shouldEqual true
+
+    """val result = go {
       case a(x) => qq()
       case qq(_) + a(y) => qq()
-    }
+    }""" shouldNot compile
 
-    result.isInstanceOf[Reaction] shouldEqual true
-    // TODO: add a test for inspecting this reaction
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
@@ -376,10 +405,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern)))
     r.info.hasGuard shouldEqual GuardAbsent
 
-    // Note: Scala 2.11 and Scala 2.12 have different syntax trees for Some(1)?
-    val shaScala211 = "9F8D8B42C1DB096EEFC80052E603562ECAD0FA29"
-    val shaScala212 = "03F87012279F4B6170E04DB7EBE0816CE1F48FFA"
-    Set(shaScala211, shaScala212) should contain oneElementOf List(r.info.sha1)
+    // Note: Scala 2.11 and Scala 2.12 have different desugared syntax trees for this reaction.
+    r.info.sha1 shouldEqual "9C93A6DE5D096D3CDC3C318E0A07B30B732EA37A"
   }
 
   it should "fail to compile reactions with detectable compile-time errors" in {
@@ -568,6 +595,55 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     )))
   }
 
+  it should "correctly recognize nested emissions of non-blocking molecules" in {
+    val a = m[Int]
+    val c = m[Int]
+    val d = m[Boolean]
+
+    site(
+      go { case a(x) + d(_) => c({ a(1); 2} ) }
+    )
+
+    a.isBound shouldEqual true
+    c.isBound shouldEqual false
+
+
+    val reaction = a.consumingReactions.get.head
+    c.emittingReactions.head shouldEqual reaction
+    a.emittingReactions.head shouldEqual reaction
+
+    reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1), InputMoleculeInfo(d, Wildcard, wildcardSha1))
+    reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
+  }
+
+  it should "correctly recognize nested emissions of blocking molecules and reply values" in {
+    val a = b[Int, Int]
+    val c = m[Int]
+    val d = m[Unit]
+
+    site(
+      go { case d(_) => c(a(1)) },
+      go { case a(x, r) => d(r(x)) }
+    )
+
+    a.isBound shouldEqual true
+    c.isBound shouldEqual false
+    d.isBound shouldEqual true
+
+    val reaction1 = d.consumingReactions.get.head
+    a.emittingReactions.head shouldEqual reaction1
+    c.emittingReactions.head shouldEqual reaction1
+
+    val reaction2 = a.consumingReactions.get.head
+    d.emittingReactions.head shouldEqual reaction2
+
+    reaction1.info.inputs shouldEqual List(InputMoleculeInfo(d, Wildcard, wildcardSha1))
+    reaction1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
+
+    reaction2.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1))
+    reaction2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(d, OtherOutputPattern)))
+  }
+
   behavior of "auxiliary functions"
 
   it should "find expression trees for constant values" in {
@@ -599,56 +675,31 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       val z = getName
       (z, getName)
     }
-    (y1, y2) shouldEqual(("z", "x$7"))
+    (y1, y2) shouldEqual(("z", "x$8"))
   }
 
-  it should "correctly recognize nested emissions of non-blocking molecules" in {
-    val a = m[Int]
-    val c = m[Int]
-    val d = m[Boolean]
+  it should "find correct syntax tree for a reaction" in {
+    val a = new M[Option[Int]]("a")
+    val b = new M[String]("b")
+    val c = new M[(Int, Int)]("c")
+    val d = new E("d")
 
-    site(
-      go { case a(x) + d(_) => c({ a(1); 2} ) }
-    )
+    a.name shouldEqual "a"
+    b.isInstanceOf[M[String]] shouldEqual true
+    b.name shouldEqual "b"
+    c.name shouldEqual "c"
+    d.name shouldEqual "d"
 
-    a.isBound shouldEqual true
-    c.isBound shouldEqual false
+    val bodyRawTree = rawTree({ case a(Some(1)) + b("xyz") + d(()) + c((2, 3)) => a(Some(2)) } : ReactionBody)
+    val bodyRawTreeString = Macros.replaceScala211Quirk(bodyRawTree.toString)
 
+    // Note: Scala 2.11 and Scala 2.12 have different desugared syntax trees for this reaction.
+    // The only difference is AppliedTypeTree(Select(This(TypeName("scala")), scala.Function1), ...) vs AppliedTypeTree(Select(Ident(scala), scala.Function1), ...)
+    val treeScala211 = """Typed(Typed(Block(List(ClassDef(Modifiers(FINAL | SYNTHETIC), TypeName("$anonfun"), List(), Template(List(TypeTree(), TypeTree()), noSelfType, List(DefDef(Modifiers(), termNames.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(Apply(Select(Super(This(TypeName("$anonfun")), typeNames.EMPTY), termNames.CONSTRUCTOR), List())), Literal(Constant(())))), DefDef(Modifiers(OVERRIDE | FINAL | METHOD), TermName("applyOrElse"), List(TypeDef(Modifiers(DEFERRED | PARAM), TypeName("A1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree()))), TypeDef(Modifiers(DEFERRED | PARAM), TypeName("B1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree())))), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x88"), TypeTree().setOriginal(Ident(TypeName("A1"))), EmptyTree), ValDef(Modifiers(PARAM | SYNTHETIC), TermName("default"), TypeTree().setOriginal(AppliedTypeTree(Select(This(TypeName("scala")), scala.Function1), List(TypeTree().setOriginal(Ident(TypeName("A1"))), TypeTree().setOriginal(Ident(TypeName("B1")))))), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))))), UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant("xyz")))))), UnApply(Apply(Select(Ident(TermName("d")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant(())))))), UnApply(Apply(Select(Ident(TermName("c")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Tuple2)), List(Literal(Constant(2)), Literal(Constant(3)))))))), EmptyTree, Apply(Select(Ident(TermName("a")), TermName("apply")), List(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName("apply")), List(TypeTree())), List(Literal(Constant(2))))))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Apply(Select(Ident(TermName("default")), TermName("apply")), List(Ident(TermName("x88")))))))), DefDef(Modifiers(FINAL | METHOD), TermName("isDefinedAt"), List(), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x88"), TypeTree(), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))))), UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant("xyz")))))), UnApply(Apply(Select(Ident(TermName("d")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant(())))))), UnApply(Apply(Select(Ident(TermName("c")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Tuple2)), List(Literal(Constant(2)), Literal(Constant(3)))))))), EmptyTree, Literal(Constant(true))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Literal(Constant(false)))))))))), Apply(Select(New(Ident(TypeName("$anonfun"))), termNames.CONSTRUCTOR), List())), TypeTree()), TypeTree().setOriginal(Select(Ident(code.chymyst.jc.Core), TypeName("ReactionBody"))))"""
+    val treeScala212 = """Typed(Typed(Block(List(ClassDef(Modifiers(FINAL | SYNTHETIC), TypeName("$anonfun"), List(), Template(List(TypeTree(), TypeTree()), noSelfType, List(DefDef(Modifiers(), termNames.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(Apply(Select(Super(This(TypeName("$anonfun")), typeNames.EMPTY), termNames.CONSTRUCTOR), List())), Literal(Constant(())))), DefDef(Modifiers(OVERRIDE | FINAL | METHOD), TermName("applyOrElse"), List(TypeDef(Modifiers(DEFERRED | PARAM), TypeName("A1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree()))), TypeDef(Modifiers(DEFERRED | PARAM), TypeName("B1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree())))), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x88"), TypeTree().setOriginal(Ident(TypeName("A1"))), EmptyTree), ValDef(Modifiers(PARAM | SYNTHETIC), TermName("default"), TypeTree().setOriginal(AppliedTypeTree(Select(Ident(scala), scala.Function1), List(TypeTree().setOriginal(Ident(TypeName("A1"))), TypeTree().setOriginal(Ident(TypeName("B1")))))), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))))), UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant("xyz")))))), UnApply(Apply(Select(Ident(TermName("d")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant(())))))), UnApply(Apply(Select(Ident(TermName("c")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Tuple2)), List(Literal(Constant(2)), Literal(Constant(3)))))))), EmptyTree, Apply(Select(Ident(TermName("a")), TermName("apply")), List(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName("apply")), List(TypeTree())), List(Literal(Constant(2))))))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Apply(Select(Ident(TermName("default")), TermName("apply")), List(Ident(TermName("x88")))))))), DefDef(Modifiers(FINAL | METHOD), TermName("isDefinedAt"), List(), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x88"), TypeTree(), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))))), UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant("xyz")))))), UnApply(Apply(Select(Ident(TermName("d")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant(())))))), UnApply(Apply(Select(Ident(TermName("c")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Tuple2)), List(Literal(Constant(2)), Literal(Constant(3)))))))), EmptyTree, Literal(Constant(true))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Literal(Constant(false)))))))))), Apply(Select(New(Ident(TypeName("$anonfun"))), termNames.CONSTRUCTOR), List())), TypeTree()), TypeTree().setOriginal(Select(Ident(code.chymyst.jc.Core), TypeName("ReactionBody"))))"""
 
-    val reaction = a.consumingReactions.get.head
-    c.emittingReactions.head shouldEqual reaction
-    a.emittingReactions.head shouldEqual reaction
-
-    reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1), InputMoleculeInfo(d, Wildcard, wildcardSha1))
-    reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
-  }
-
-  it should "correctly recognize nested emissions of blocking molecules and reply values" in {
-    val a = b[Int, Int]
-    val c = m[Int]
-    val d = m[Boolean]
-
-    site(
-      go { case d(_) => c(a(1)) },
-      go { case a(x, r) => d(r(x)) }
-    )
-
-    a.isBound shouldEqual true
-    c.isBound shouldEqual false
-    d.isBound shouldEqual true
-
-    val reaction1 = d.consumingReactions.get.head
-    a.emittingReactions.head shouldEqual reaction1
-    c.emittingReactions.head shouldEqual reaction1
-
-    val reaction2 = a.consumingReactions.get.head
-    d.emittingReactions.head shouldEqual reaction2
-
-    reaction1.info.inputs shouldEqual List(InputMoleculeInfo(d, Wildcard, wildcardSha1))
-    reaction1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
-
-    reaction2.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1))
-    reaction2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(d, OtherOutputPattern)))
+    Set(treeScala211, treeScala212) should contain oneElementOf List(bodyRawTree.toString)
+    treeScala212 shouldEqual bodyRawTreeString
   }
 
 }

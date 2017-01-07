@@ -1,6 +1,8 @@
-<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
 
 # Version history
+
+- 0.1.5 Bug fix for a rare race condition with time-out on blocking molecules. Error reporting via data structures rather than flat strings. New `B#checkTimeout` API to make a clean distinction between replies that need to check the timeout status and replies that don't. Documentation was improved. Code cleanups resulted in 98% test coverage.
 
 - 0.1.4 Simplify API: now users need only one package import. Many more tutorial examples of chemical machine concurrency. Test code coverage is 97%. More compiler warnings enabled (including deprecation warnings). There are now more intelligent "whitebox" macros that generate different subclasses of `M[T]` and `B[T,R]` when `T` or `R` are the `Unit` type, to avoid deprecation warnings with the syntax `f()`.
 
@@ -102,10 +104,12 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
 
  2 * 2 - make memory profiling / benchmarking; how many molecules can we have per 1 GB of RAM?
 
- 3 * 4 - implement nonlinear input patterns
-
  2 * 2 - annotate join pools with names. Make a macro for auto-naming join pools of various kinds.
 
  2 * 2 - add tests for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
 
- 3 * 5 - implement "singleton" molecules with automatic detection of possible singletons; implement automatic thread fusion for singletons
+ 3 * 5 - implement automatic thread fusion for singletons
+ 
+ 3 * 3 - allow several `case` clauses in a reaction, but only when the result is a total (not partial) function that will accept any molecule values.
+ 
+ 3 * 5 - consider whether we would like to prohibit emitting molecules from non-reaction code. Maybe with a construct such as `withMolecule{ ... }`?
