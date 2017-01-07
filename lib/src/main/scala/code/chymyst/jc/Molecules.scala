@@ -348,7 +348,7 @@ private[jc] trait AbsReplyValue[T, R] {
 
   private[jc] def isTimedOut = hasTimedOut.get
 
-  private[jc] def noReplyAttemptedYet = numberOfReplies.get == 0
+  private[jc] def noReplyAttemptedYet = numberOfReplies.get === 0
 
   private[jc] def replyWasRepeated = numberOfReplies.get >= 2
 
@@ -388,7 +388,7 @@ private[jc] trait AbsReplyValue[T, R] {
     */
   protected def performReplyAction(x: R): Boolean = {
 
-    val replyWasNotRepeated = numberOfReplies.incrementAndGet == 1
+    val replyWasNotRepeated = numberOfReplies.getAndIncrement() === 0
 
     val status = if (replyWasNotRepeated) {
       // We have not yet tried to reply.
