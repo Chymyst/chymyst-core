@@ -78,17 +78,22 @@ The class of problems I call "general dataflow" is very similar to "acyclic data
 
 The main task of general dataflow remains the same - to process data that comes as a stream, chunk after chunk.
 However, now we allow any step of the processing pipeline to use a "downstream" step as _input_, thus creating a loop in the dataflow graph.
-This loop, of course, must be broken somewhere by an asynchronous boundary: otherwise we will have an actual, synchronous infinite loop in the program.
-An "asynchronous infinite loop" means that the output of some downstream processing step will be _later_ fed into the input of some upstream step.  
+This loop, of course, must cross an asynchronous boundary somewhere, or else we will have an actual, synchronous infinite loop in the program.
+An "asynchronous infinite loop" means that the output of some downstream processing step will be _later_ (asynchronously) fed into the input of some upstream step.  
 
-A typical task that requires a dataflow graph with an asynchronous loop is implementing an event-driven graphical user interface (GUI).
-For example, an interactive Excel table with auto-updating cells will have to recompute a number of cells depending on user input events.
-However, user input events will depend on what is shown on the screen at a given time; and the contents of the screen depends on data in the cells.
+A typical program that requires a dataflow graph with an asynchronous loop is an event-driven graphical user interface (GUI) in the FRP paradigm.
+Consider, for example, an interactive Excel table with auto-updating cells will have to recompute a number of cells depending on user input events.
+User input events will depend on what is shown on the screen at a given time; and the contents of the screen depends on data in the cells.
+
 This mutual dependency creates a loop in the dataflow graph:
-When the user creates an input event, sending a chunk of data to the computation engine, it updates the table cells on the screen, which allows the user to create further input events that will depend on the new contents of the cells.
-The loop in the graph is asynchronous because the user creates new input events _at a later time_ than the cells are updated on the screen. 
+First, the user creates an input event, sending a chunk of data to the Excel computation engine.
+Second, the engine consults the table cells stored in memory and updates the values in the cells.
+Third, the updated values are shown on the screen, which allows the user to create further input events that will depend on the new contents of the cells.
+
+The loop in the graph is asynchronous because the user creates new input events _at a later time_ than the cells are updated on the screen.
 
 This class of problems can be solved by functional reactive programming (FRP) frameworks, Akka Streams, and some other asynchronous streaming systems.
+
 Despite the fact that the general dataflow is strictly more powerful than the acyclic dataflow, the entire computation is _still_ possible to perform synchronously on a single thread without any concurrency.
 
 ### Cyclic dataflow = recursive monadic stream
