@@ -4,13 +4,11 @@ import Core._
 
 import scala.collection.mutable
 import scala.language.experimental.macros
-import scala.reflect.macros._
+import scala.reflect.macros.{blackbox, whitebox} // Note: we are using whitebox macros because we need to refine the return type of m[]() and b[]().
 import scala.reflect.NameTransformer.LOCAL_SUFFIX_STRING
 import scala.annotation.tailrec
 
 object Macros {
-
-  type theContext = whitebox.Context
 
   /** This macro is used only for testing.
     *
@@ -19,7 +17,7 @@ object Macros {
     */
   private[jc] def rawTree(x: Any): String = macro rawTreeImpl
 
-  def rawTreeImpl(c: theContext)(x: c.Expr[Any]): c.universe.Tree = {
+  def rawTreeImpl(c: blackbox.Context)(x: c.Expr[Any]): c.universe.Tree = {
     import c.universe._
     val result = showRaw(x.tree)
     q"$result"
@@ -28,7 +26,7 @@ object Macros {
   def replaceScala211Quirk(s: String): String = {
     val string211 = "AppliedTypeTree(Select(This(TypeName(\"scala\")), scala.Function1), "
     val string212 = "AppliedTypeTree(Select(Ident(scala), scala.Function1), "
-    
+
     s.replace(string211, string212)
   }
 
@@ -40,7 +38,7 @@ object Macros {
     */
   private[jc] def getName: String = macro getNameImpl
 
-  def getNameImpl(c: theContext): c.Expr[String] = {
+  def getNameImpl(c: blackbox.Context): c.Expr[String] = {
     import c.universe._
     val s = getEnclosingName(c)
     c.Expr[String](q"$s")
@@ -51,13 +49,13 @@ object Macros {
     * @param c The macro context.
     * @return String that represents the name of the enclosing value.
     */
-  private def getEnclosingName(c: theContext): String =
+  private def getEnclosingName(c: blackbox.Context): String =
     c.internal.enclosingOwner.name.decodedName.toString
       .stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
 
   def m[T]: M[T] = macro mImpl[T]
 
-  def mImpl[T: c.WeakTypeTag](c: theContext): c.universe.Tree = {
+  def mImpl[T: c.WeakTypeTag](c: whitebox.Context): c.universe.Tree = {
     import c.universe._
     val moleculeName = getEnclosingName(c)
 
@@ -71,7 +69,7 @@ object Macros {
   def b[T, R]: B[T,R] = macro bImpl[T, R]
 
   // Does providing an explicit return type here as c.Expr[...] helps anything? Looks like it doesn't, so far.
-  def bImpl[T: c.WeakTypeTag, R: c.WeakTypeTag](c: theContext): c.universe.Tree = {
+  def bImpl[T: c.WeakTypeTag, R: c.WeakTypeTag](c: whitebox.Context): c.universe.Tree = {
     import c.universe._
     val moleculeName = getEnclosingName(c)
 
@@ -92,6 +90,10 @@ object Macros {
     }
   }
 
+  // Classes need to be defined at top level because we can't have case classes local to a function scope.
+  // However, we need to use path-dependent types such as `Ident` and `Tree`.
+  // So we use type parameters for them.
+
   /** Describes the pattern matcher for input molecules.
     * Possible values:
     * Wildcard: a(_)
@@ -100,7 +102,7 @@ object Macros {
     * WrongReplyVar: the second matcher for blocking molecules is not a simple variable
     * OtherPattern: we don't recognize the pattern (could be a case class or a general Unapply expression)
     */
-  private sealed trait InputPatternFlag {
+  sealed trait InputPatternFlag[+Ident,+Tree] {
     def notReplyValue: Boolean = true
 
     /** Does this pattern contain a nontrivial syntax tree that could contain other molecules?
@@ -109,56 +111,56 @@ object Macros {
       */
     def hasSubtree: Boolean = false
 
-    def varNames: List[String] = Nil
+    def varNames: List[Ident] = Nil
   }
 
-  private case object WildcardF extends InputPatternFlag
+  case object WildcardF extends InputPatternFlag[Nothing, Nothing]
 
   /** Represents a reply pattern consisting of a simple variable.
     *
-    * @param replyVar The name of a reply pattern variable.
+    * @param replyVar The Ident of a reply pattern variable.
     */
-  private final case class ReplyVarF(replyVar: String) extends InputPatternFlag {
+  final case class ReplyVarF[Ident,Tree](replyVar: Ident) extends InputPatternFlag[Ident,Tree] {
     override def notReplyValue: Boolean = false
   }
 
   /** Represents a pattern match with a simple pattern variable, such as `a(x)`
     *
-    * @param v The name of the pattern variable.
+    * @param v The Ident of the pattern variable.
     */
-  private final case class SimpleVarF(v: String) extends InputPatternFlag {
-    override def varNames: List[String] = List(v)
+  final case class SimpleVarF[Ident,Tree](v: Ident) extends InputPatternFlag[Ident,Tree] {
+    override def varNames: List[Ident] = List(v)
   }
-  private case object WrongReplyVarF extends InputPatternFlag // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
-  private final case class SimpleConstF(v: Any) extends InputPatternFlag // this is the [T] type of M[T] or B[T,R]
+  case object WrongReplyVarF extends InputPatternFlag[Nothing, Nothing] // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
+  final case class SimpleConstF[Ident,Tree](v: Tree) extends InputPatternFlag[Ident,Tree] // this is the [T] type of M[T] or B[T,R]
 
   /** Nontrivial pattern matching expression that could contain unapply, destructuring, pattern @ variables, etc.
     * For example, if c is a molecule then this could be c( z@(x, Some(y)) )
     * In that case, vars = List("z", "x", "y") and matcher = { case z@(x, Some(y)) => (z, x, y) }
     *
-    * @param matcher Partial function of type Any => Any.
+    * @param matcher Tree of a partial function of type Any => Any.
     * @param vars List of pattern variable names in the order of their appearance in the syntax tree.
     */
-  private final case class OtherPatternF(matcher: Any, vars: List[String]) extends InputPatternFlag {
+  final case class OtherPatternF[Ident,Tree](matcher: Tree, vars: List[Ident]) extends InputPatternFlag[Ident,Tree] {
     override def hasSubtree: Boolean = true
-    override def varNames: List[String] = vars
+    override def varNames: List[Ident] = vars
   }
 
   /** Describes the pattern matcher for output molecules.
     * Possible values:
-    * ConstOutputPatternF(x): a(x)
+    * ConstOutputPatternF(x): a(123)
     * EmptyOutputPatternF: a()
     * OtherOutputPatternF: a(x+y) or anything else
     */
-  private sealed trait OutputPatternFlag {
+  sealed trait OutputPatternFlag[+Tree] {
     def notSimple: Boolean = this match {
       case ConstOutputPatternF(_) | EmptyOutputPatternF => false
       case _ => true
     }
   }
-  private case object OtherOutputPatternF extends OutputPatternFlag
-  private case object EmptyOutputPatternF extends OutputPatternFlag
-  private final case class ConstOutputPatternF(v: Any) extends OutputPatternFlag
+  case object OtherOutputPatternF extends OutputPatternFlag[Nothing]
+  case object EmptyOutputPatternF extends OutputPatternFlag[Nothing]
+  final case class ConstOutputPatternF[Tree](v: Tree) extends OutputPatternFlag[Tree]
 
   /**
     * Users will define reactions using this function.
@@ -172,7 +174,7 @@ object Macros {
     */
   def go(reactionBody: ReactionBody): Reaction = macro buildReactionImpl
 
-  def buildReactionImpl(c: theContext)(reactionBody: c.Expr[ReactionBody]): c.universe.Tree = {
+  def buildReactionImpl(c: whitebox.Context)(reactionBody: c.Expr[ReactionBody]): c.universe.Tree = {
     import c.universe._
 
     /** Obtain the owner of the current macro call site.
@@ -187,6 +189,10 @@ object Macros {
       }
     }
 
+
+    /** Obtain the list of `case` expressions in a reaction.
+      *
+      */
     object ReactionCases extends Traverser {
       private var info: List[CaseDef] = List()
 
@@ -221,11 +227,15 @@ object Macros {
       }
     }
 
+    def getSimpleVar(binderTerm: Tree): Ident = binderTerm match {
+      case Bind(t@TermName(n), Ident(termNames.WILDCARD)) => Ident(t)
+    }
+
     object GuardVars extends Traverser {
 
       private var vars: mutable.ArrayBuffer[c.Symbol] = _
 
-      private var inputVars: List[String] = _
+      private var inputVars: List[Ident] = _
 
       override def traverse(tree: c.universe.Tree): Unit = tree match {
         case t@Ident(TermName(name)) if inputVars contains name =>
@@ -233,7 +243,7 @@ object Macros {
         case _ => super.traverse(tree)
       }
 
-      def from(guardTerm: Tree, inputInfos: List[InputPatternFlag]): List[c.Symbol] = {
+      def from(guardTerm: Tree, inputInfos: List[InputPatternFlag[Ident,Tree]]): List[c.Symbol] = {
         vars = mutable.ArrayBuffer()
         inputVars = inputInfos.flatMap(_.varNames)
         traverse(guardTerm)
@@ -248,7 +258,7 @@ object Macros {
         * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
         * @return A triple: List of input molecule patterns, list of output molecule patterns, and list of reply action patterns.
         */
-      def from(reactionPart: Tree): (List[(c.Symbol, InputPatternFlag, Option[InputPatternFlag], String)], List[(c.Symbol, OutputPatternFlag)], List[(c.Symbol, OutputPatternFlag)]) = {
+      def from(reactionPart: Tree): (List[(c.Symbol, InputPatternFlag[Ident,Tree], Option[InputPatternFlag[Ident,Tree]], String)], List[(c.Symbol, OutputPatternFlag[Tree])], List[(c.Symbol, OutputPatternFlag[Tree])]) = {
         inputMolecules = mutable.ArrayBuffer()
         outputMolecules = mutable.ArrayBuffer()
         replyActions = mutable.ArrayBuffer()
@@ -256,9 +266,9 @@ object Macros {
         (inputMolecules.toList, outputMolecules.toList, replyActions.toList)
       }
 
-      private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, InputPatternFlag, Option[InputPatternFlag], String)] = mutable.ArrayBuffer()
-      private var outputMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
-      private var replyActions: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
+      private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, InputPatternFlag[Ident,Tree], Option[InputPatternFlag[Ident,Tree]], String)] = mutable.ArrayBuffer()
+      private var outputMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag[Tree])] = mutable.ArrayBuffer()
+      private var replyActions: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag[Tree])] = mutable.ArrayBuffer()
 
       /** Detect whether the symbol {{{s}}} is defined inside the scope of the symbol {{{owner}}}.
         * Will return true for code like {{{ val owner = .... { val s = ... }  }}}
@@ -276,16 +286,16 @@ object Macros {
 
       object PatternVars extends Traverser {
 
-        private var vars: mutable.ArrayBuffer[String] = _
+        private var vars: mutable.ArrayBuffer[Ident] = _
 
         override def traverse(tree: c.universe.Tree): Unit = tree match {
-          case Bind(TermName(name), pat) =>
-            vars.append(name)
+          case Bind(t@TermName(_), pat) =>
+            vars.append(Ident(t))
             traverse(pat)
           case _ => super.traverse(tree)
         }
 
-        def from(binderTerm: Tree): List[String] = {
+        def from(binderTerm: Tree): List[Ident] = {
           vars = mutable.ArrayBuffer()
           traverse(binderTerm)
           vars.toList
@@ -293,9 +303,9 @@ object Macros {
       }
 
 
-      private def getInputFlag(binderTerm: Tree): InputPatternFlag = binderTerm match {
+      private def getInputFlag(binderTerm: Tree): InputPatternFlag[Ident,Tree] = binderTerm match {
         case Ident(termNames.WILDCARD) => WildcardF
-        case Bind(TermName(name), Ident(termNames.WILDCARD)) => SimpleVarF(name)
+        case Bind(t@TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF(Ident(t))
         case Literal(_) => SimpleConstF(binderTerm)
         case _ =>
           val vars = PatternVars.from(binderTerm)
@@ -304,7 +314,7 @@ object Macros {
           OtherPatternF(partialFunctionTree, vars)
       }
 
-      private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag = binderTerms match {
+      private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag[Tree] = binderTerms match {
         case List(t@Literal(_)) => ConstOutputPatternF(t)
         case Nil => EmptyOutputPatternF
         case _ => OtherOutputPatternF
@@ -326,7 +336,7 @@ object Macros {
           // matcher with two arguments: a(x, y)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
             val flag2 = getInputFlag(binder2) match {
-              case SimpleVarF(v) => ReplyVarF(v)
+              case SimpleVarF(_) => ReplyVarF[Ident,Tree](getSimpleVar(binder2))
               case f@_ => WrongReplyVarF // this is an error that we should report later
             }
             val flag1 = getInputFlag(binder1)
@@ -371,16 +381,16 @@ object Macros {
     }
 
     // this boilerplate is necessary for being able to use PatternType values in macro quasiquotes
-    implicit val liftablePatternFlag: c.universe.Liftable[InputPatternFlag] = Liftable[InputPatternFlag] {
+    implicit val liftablePatternFlag: c.universe.Liftable[InputPatternFlag[Ident,Tree]] = Liftable[InputPatternFlag[Ident,Tree]] {
       case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
-      case SimpleConstF(x) => q"_root_.code.chymyst.jc.SimpleConst(${x.asInstanceOf[c.Tree]})"
-      case SimpleVarF(v) => q"_root_.code.chymyst.jc.SimpleVar($v)"
-      case OtherPatternF(matcherTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]}, $vars)"
+      case SimpleConstF(tree) => q"_root_.code.chymyst.jc.SimpleConst($tree)"
+      case SimpleVarF(v) => q"_root_.code.chymyst.jc.SimpleVar(${v.name.decodedName.toString})"
+      case OtherPatternF(matcherTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern($matcherTree, ${vars.map(_.name.decodedName.toString)})"
       case _ => q"_root_.code.chymyst.jc.UnknownInputPattern"
     }
 
-    implicit val liftableOutputPatternFlag: c.universe.Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
-      case ConstOutputPatternF(x) => q"_root_.code.chymyst.jc.ConstOutputValue(${x.asInstanceOf[c.Tree]})"
+    implicit val liftableOutputPatternFlag: c.universe.Liftable[OutputPatternFlag[Tree]] = Liftable[OutputPatternFlag[Tree]] {
+      case ConstOutputPatternF(tree) => q"_root_.code.chymyst.jc.ConstOutputValue($tree)"
       case EmptyOutputPatternF => q"_root_.code.chymyst.jc.ConstOutputValue(())"
       case _ => q"_root_.code.chymyst.jc.OtherOutputPattern"
     }
@@ -391,10 +401,9 @@ object Macros {
     }
 
     val caseDefs = ReactionCases.from(reactionBody.tree)
-    // TODO: check other CaseDef's if any; check that all CaseDef's have the same input molecules.
-    // - for now, we only look at the first case.
 
     // Note: `caseDefs` should not be an empty list because that's a typecheck error (`go` only accepts a partial function, so at least one `case` needs to be given).
+    // However, the user could be clever and write `val body = new PartialFunction...; go(body)`. We do not allow this because `go` needs to see the entire reaction body.
     if (caseDefs.isEmpty) c.error(c.enclosingPosition, "Reactions should be defined inline with the `go { case ... => ... }` syntax")
 
     if (caseDefs.length > 1) c.error(c.enclosingPosition, "Reactions should contain only one `case` clause")
@@ -423,7 +432,7 @@ object Macros {
     // If we are here, all input reply molecules have correct pattern variables. Now we check that each of them has one and only one reply.
     val repliedMolecules = (guardReply ++ bodyReply).map(_._1.asTerm.name.decodedName)
     val blockingReplies = blockingMolecules.flatMap(_._3.flatMap {
-      case ReplyVarF(x) => Some(x)
+      case ReplyVarF(x) => Some(x.asInstanceOf[c.universe.Ident].name)
       case _ => None
     })
 

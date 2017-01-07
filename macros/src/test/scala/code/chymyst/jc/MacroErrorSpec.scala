@@ -1,6 +1,6 @@
 package code.chymyst.jc
 
-import Macros.{m, b}
+import Macros.{m, b, go}
 import org.scalatest.{FlatSpec, Matchers}
 
 class MacroErrorSpec extends FlatSpec with Matchers {
