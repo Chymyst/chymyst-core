@@ -2,7 +2,7 @@ package code.chymyst.jc
 
 import Core._
 import java.util.concurrent.{Semaphore, TimeUnit}
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
@@ -301,22 +301,15 @@ class M[T](val name: String) extends (T => Unit) with NonblockingMolecule[T] {
 }
 
 /** Represent the different states of the reply process.
-  * Initially, the status is [[WaitingForReply]].
+  * Initially, the status is [[HaveReply]] with a {{{null}}} value.
   * Reply is successful if the emitting call does not time out. In this case, we have a reply value.
-  * This is represented by [[HaveReply]].
-  * If the reply times out, there is no reply value. This is represented by [[ReplyTimedOut]].
+  * This is represented by [[HaveReply]] with a non-null value.
+  * If the reply times out, there is still no reply value. This is represented by the AtomicBoolean flag hasTimedOut set to {{{true}}}.
   * If the reaction finished but did not reply, it is an error condition. If the reaction finished and replied more than once, it is also an error condition.
   * After a reaction fails to reply, the emitting closure will put an error message into the status for that molecule. This is represented by [[ErrorNoReply]].
   * When a reaction replies more than once, it is too late to put an error message into the status for that molecule. So we do not have a status value for this situation.
   */
-private[jc] sealed trait ReplyStatus {
-//  def isWaiting: Boolean = false
-  def isTimedOut: Boolean = false
-}
-
-private[jc] case object WaitingForReply extends ReplyStatus {
-//  override def isWaiting: Boolean = true
-}
+private[jc] sealed trait ReplyStatus
 
 /** Indicates that the reaction body finished running but did not reply to the blocking molecule.
   *
@@ -324,10 +317,8 @@ private[jc] case object WaitingForReply extends ReplyStatus {
   */
 private[jc] final case class ErrorNoReply(message: String) extends ReplyStatus
 
-private[jc] case object ReplyTimedOut extends ReplyStatus {
-  override def isTimedOut: Boolean = true
-}
-/** Indicates that the reaction body correctly replied to the blocking molecule.
+/** If the value is not null, indicates that the reaction body correctly replied to the blocking molecule.
+  * If the value is null, indicates that the reaction body has not yet replied.
   *
   * @param result The reply value.
   * @tparam R Type of the reply value.
@@ -336,18 +327,26 @@ private[jc] final case class HaveReply[R](result: R) extends ReplyStatus
 
 /** This trait contains the implementations of most methods for the [[ReplyValue]] and [[EmptyReplyValue]] classes.
   *
-  *
-  * semaphore
-  * semaphoreForReplyStatus
-  *
   * @tparam T Type of the value that the molecule carries.
   * @tparam R Type of the reply value.
   */
 private[jc] trait AbsReplyValue[T, R] {
 
-  @volatile private[jc] var replyStatus: ReplyStatus = WaitingForReply
+  @volatile private var replyStatus: ReplyStatus = HaveReply[R](null.asInstanceOf[R])
+
+  private[jc] def getReplyStatus = replyStatus
+
+  private[jc] def setErrorStatus(message: String) = {
+    replyStatus = ErrorNoReply(message)
+  }
 
   private val numberOfReplies = new AtomicInteger(0)
+
+  private val hasTimedOut = new AtomicBoolean(false)
+
+  private[jc] def setTimedOut() = hasTimedOut.set(true)
+
+  private[jc] def isTimedOut = hasTimedOut.get
 
   private[jc] def noReplyAttemptedYet = numberOfReplies.get == 0
 
@@ -374,7 +373,9 @@ private[jc] trait AbsReplyValue[T, R] {
     }
 
   private[jc] def releaseSemaphoreForEmitter(): Unit = semaphoreForEmitter.release()
+
   private[jc] def releaseSemaphoreForReply(): Unit = semaphoreForReplyStatus.release()
+
   private[jc] def acquireSemaphoreForReply() = semaphoreForReplyStatus.acquire()
 
   /** Perform the reply action for a blocking molecule.
@@ -404,7 +405,7 @@ private[jc] trait AbsReplyValue[T, R] {
 
       acquireSemaphoreForReply() // Wait until the emitting reaction has set the timeout status.
       // After acquiring this semaphore, it is safe to read the reply status.
-      !replyStatus.isTimedOut
+      !isTimedOut
 
     } else {
       // We already tried to reply, so nothing to be done now.

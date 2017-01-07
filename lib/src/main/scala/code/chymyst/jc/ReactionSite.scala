@@ -161,7 +161,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           // Do not send error messages to molecules that already got a reply - this is pointless and leads to errors.
           if (bm.reactionSentNoReply) {
             replyValue.acquireSemaphoreForReply()
-            replyValue.replyStatus = ErrorNoReply(errorMessage)
+            replyValue.setErrorStatus(errorMessage)
             replyValue.releaseSemaphoreForEmitter()
           }
         }
@@ -288,13 +288,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   // Remove a blocking molecule if it is present.
-  private def removeBlockingMolecule[T,R](bm: BlockingMolecule[T,R], blockingMolValue: BlockingMolValue[T,R], hadTimeout: Boolean): Unit = {
+  private def removeBlockingMolecule[T,R](bm: BlockingMolecule[T,R], blockingMolValue: BlockingMolValue[T,R]): Unit = {
     moleculesPresent.synchronized {
       moleculesPresent.removeFromBag(bm, blockingMolValue)
       if (logLevel > 0) println(s"Debug: $this removed $bm($blockingMolValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]")
     }
-    if (hadTimeout) blockingMolValue.replyValue.replyStatus = ReplyTimedOut
-
   }
 
   /** Common code for [[emitAndAwaitReply]] and [[emitAndAwaitReplyWithTimeout]].
@@ -310,47 +308,39 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def emitAndAwaitReplyInternal[T,R](timeoutOpt: Option[Long], bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): ReplyStatus = {
     val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
     emit(bm, blockingMolValue)
-    val success = BlockingIdle {
+    val timedOut: Boolean = !BlockingIdle {
       replyValueWrapper.acquireSemaphoreForEmitter(timeoutNanos = timeoutOpt)
     }
     // We might have timed out, in which case we need to forcibly remove the blocking molecule from the soup.
-    removeBlockingMolecule(bm, blockingMolValue, !success)
-
-    val result = replyValueWrapper.replyStatus
+    if (timedOut) {
+      removeBlockingMolecule(bm, blockingMolValue)
+      blockingMolValue.replyValue.setTimedOut()
+    }
     replyValueWrapper.releaseSemaphoreForReply()
-
-    result
+    replyValueWrapper.getReplyStatus
   }
 
   // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
   // We must make this a blocking call, so we acquire a semaphore (with or without timeout).
   private[jc] def emitAndAwaitReply[T,R](bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): R = {
-    val result = emitAndAwaitReplyInternal(timeoutOpt = None, bm, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value
-    result match {
+    emitAndAwaitReplyInternal(timeoutOpt = None, bm, v, replyValueWrapper) match {
       case ErrorNoReply(message) => throw new Exception(message)
-      case HaveReply(res) => res.asInstanceOf[R]
-      // TODO: refactor the reply logic so that this "internal error" cannot happen. Right now, the following line cannot be covered by tests.
-      case _ => throw new Exception(s"In $this: Internal error: reply status for $bm is $result")
+      case HaveReply(res) => res.asInstanceOf[R] // Cannot guarantee type safety due to type erasure of `R`.
     }
   }
 
   // This is a separate method because it has a different return type than [[emitAndAwaitReply]].
   private[jc] def emitAndAwaitReplyWithTimeout[T,R](timeout: Long, bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]):
   Option[R] = {
-    val result = emitAndAwaitReplyInternal(timeoutOpt = Some(timeout), bm, v, replyValueWrapper)
     // check if we had any errors, and that we have a result value
-    result match {
+    emitAndAwaitReplyInternal(timeoutOpt = Some(timeout), bm, v, replyValueWrapper) match {
       case ErrorNoReply(message) => throw new Exception(message)
-      case HaveReply(res) => Some(res.asInstanceOf[R])
-      case ReplyTimedOut => None
-      // TODO: refactor the reply logic so that this "internal error" cannot happen. Right now, the following line cannot be covered by tests.
-      case _ => throw new Exception(s"In $this: Internal error: reply status for $bm is $result")
+      case HaveReply(res) => if (replyValueWrapper.isTimedOut) None else Some(res.asInstanceOf[R]) // Cannot guarantee type safety due to type erasure of `R`.
     }
   }
 
-  private[jc] def hasVolatileValue[T](m: M[T]): Boolean =
-    m.isSingleton && singletonValues.containsKey(m)
+  private[jc] def hasVolatileValue[T](m: M[T]): Boolean = m.isSingleton && singletonValues.containsKey(m)
 
   private[jc] def getVolatileValue[T](m: M[T]): T = {
     if (m.isSingleton) {
@@ -395,9 +385,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // Emit singleton molecules (note: this is on the same thread as the call to `site`!).
     // This must be done without starting any reactions.
-    // It is OK that the argument is `null` because singleton reactions match on the wildcard: { case _ => ... }
     emittingSingletonsNow = true
-    singletonReactions.foreach { reaction => reaction.body.apply(null.asInstanceOf[UnapplyArg]) }
+    singletonReactions.foreach { reaction => reaction.body.apply(null.asInstanceOf[UnapplyArg]) }    // It is OK that the argument is `null` because singleton reactions match on the wildcard: { case _ => ... }
     emittingSingletonsNow = false
 
     val singletonsActuallyEmitted = moleculesPresent.getCountMap
