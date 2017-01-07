@@ -413,7 +413,8 @@ private[jc] trait AbsReplyValue[T, R] {
       acquireSemaphoreForReply() // Wait until the emitting reaction has set the timeout status.
       // After acquiring this semaphore, it is safe to read the reply status.
       !isTimedOut()
-    } else false  // We already tried to reply, so nothing to be done now.
+    } else
+      false  // We already tried to reply, so nothing to be done now.
 
     status
   }
@@ -440,7 +441,7 @@ private[jc] final class EmptyReplyValue[T] extends ReplyValue[T, Unit] with (() 
     */
   override def apply(): Unit = performReplyActionWithoutTimeoutCheck(())
 
-  override def checkTimeout(x: Unit): Boolean = performReplyAction(())
+  def checkTimeout(): Boolean = performReplyAction(())
 }
 
 /** Reply-value wrapper for blocking molecules. This is a mutable class.
