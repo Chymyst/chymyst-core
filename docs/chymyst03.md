@@ -203,13 +203,13 @@ val (begin2, label2) = makeLabeledReaction() // second call
 
 ```
 
-What is the difference between the new molecule injectors `begin1` and `begin2`?
+What is the difference between the new molecule emitters `begin1` and `begin2`?
 Both `begin1` and `begin2` have the name `"begin"`, and they are of the same type.
 However, they are _chemically_ different: `begin1` will react only with `label1`, and `begin2` only with `label2`.
 The molecules `begin1` and `label1` are bound to the reaction site created by the first call to `makeLabeledReaction()`, and this reaction site is different from that created by the second call to `makeLabeledReaction()`.
 
 For instance, suppose we call `label1("abc")` and `begin2()`.
-We have injected a molecule named `"label"` and a molecule named `"begin"`.
+We have emitted a molecule named `"label"` and a molecule named `"begin"`.
 However, these molecules will not start any reactions, because they are bound to different reaction sites.
 
 ```scala
@@ -219,18 +219,18 @@ label1("abc") + begin2() // no reaction started!
 
 After running this code, 
 the molecule `label1("abc")` will be waiting at the first reaction site for its reaction partner, `begin1()`,
-while the molecule `begin2()` will be waiting at the second reaction site for its reaction partner, `label2(...)`,
-If we now emit, say `label2("abc")`, the reaction with `begin2()` will start and print `"abc"`.
+while the molecule `begin2()` will be waiting at the second reaction site for its reaction partner, `label2(...)`.
+If we now emit, say, `label2("abc")`, the reaction with the molecule `begin2()` will start and print `"abc"`.
 
 ```scala
 label1("abc") + begin2() // no reaction started!
-label2("abc") // reaction with begin2() starts!
+label2("abc") // reaction with begin2() starts and prints "abc"
 
 ```
 
 We see that `begin1` and `begin2` have different chemical designations (because they enter different reactions), even though they are both defined by the same code inside the function `makeLabeledReaction`.
 
-The chemical designations are independent of molecule names and of the local variable names we use in the code.
+The chemical designations are independent of molecule names and of the variable names used in the code.
 For instance, we could (for whatever reason) create aliases for `label2` and `begin2` and write code like this:
 
 ```scala
@@ -259,7 +259,7 @@ However, it is important to keep in mind that:
 
 ## The type matrix of molecule emission
 
-Let us consider what _could_ theoretically happen when we call an emitter function.
+Let us consider what _could_ theoretically happen when we call an emitter.
 The emitter call can be either blocking or non-blocking, and it could return a value or return no value.
 Let us write down all possible combinations of these types of emitter calls as a “type matrix”.
 
@@ -278,8 +278,8 @@ There are two more combinations that are not yet used:
 
 The `JoinRun` library implements both of these possibilities as special features:
 
-- a blocking emitter can time out on its call and fail to return a value;
-- a non-blocking emitter can return a “volatile reader” (see below) that has read-only access to the last known value of the molecule.
+- a blocking emitter can _time out_ on its call and fail to return a value;
+- a non-blocking emitter can return a “volatile reader” (see below) that provides read-only access to the last known value of the molecule.
 
 With these additional features, the type matrix of emission is complete:
 
@@ -288,12 +288,12 @@ With these additional features, the type matrix of emission is complete:
 | value is returned: | `val x: Int = f()` | `val x: Int = c.volatileValue` |
 | no value returned: | timeout was reached | `c(123)` // side effect |
 
-We will now talk about these features in more detail.
+We will now describe these features in more detail.
 
 ### Timeouts for blocking emitters
 
-By default, a blocking emitter call will block until a new reaction is started that consumes the blocking molecule and performs the reply action on that molecule.
-If no reaction can be started that consumes the blocking molecule, the emitter call will block and wait indefinitely.
+By default, a blocking emitter will emit a new molecule and block until a reply action is performed for that molecule by a reaction that consumes that molecule.
+If no reaction can be started that consumes the blocking molecule, the emitter will block and wait indefinitely.
 It is often useful to limit the waiting time to a fixed timeout value.
 `JoinRun` implements the timeout as an additional argument to the blocking emitter:
 
@@ -302,26 +302,28 @@ val f = b[Unit, Int]
 // write a reaction site involving `f` and other molecules:
 site(...)
 
-// call `f` with 200ms timeout:
+// call the emitter `f` with 200ms timeout:
 val x: Option[Int] = f.timeout(200 millis)()
 
 ```
 
-If the emitter call to `f` timed out without any reply action, the value of `x` will be `None`, and the blocking molecule `f()` will be removed from the soup (so that reactions will not start with it and attempt to reply).
-If a reaction already started and attempts to reply with a blocking molecule that already timed out, the reply action will have no effect.
+Here, if the emitter times out before a reply action is performed, the value of `x` will be `None`, and the blocking molecule `f()` will be removed from the soup (so that reactions will not start with it and attempt to reply).
+If a reaction already started and attempts to reply to a blocking molecule that already timed out, the reply action will have no effect.
 
-If the emitter the call to `f()` succeeded and returned a reply value `r`, the value of `x` will be `Some(r)`.
+If the emitter received a reply value `v` before the timeout expired, the value of `x` will become `Some(v)`.
 
-The timeout functionality can be implemented, in principle, using the “First Reply” construction.
+Is the timeout feature required?
+The timeout functionality can be simulated, for instance, using the “First Reply” construction.
 However, this construction is cumbersome and will sometimes leave a thread blocked forever, which is undesirable from the implementation point of view.
+For this reason, `JoinRun` implements the timeout functionality as a special feature of blocking molecules.
 
 ### Singleton molecules
 
-Often it is necessary to ensure that a certain molecule is present in the soup at most once.
+Often it is necessary to ensure that exactly one copy of a certain molecule is present in the soup, and that no further copies can be emitted.
 Such molecules are called **singletons**.
-Singleton molecules `s` must have reactions of the form `s + ... => s + ...`, -- that is, reactions that consume a single copy of `s` and then output a single copy of `s`.
+Singleton molecules `s` must have reactions of the form `s + ... => s + ...`, -- that is, reactions must consume the single copy of `s` and then also emit a single copy of `s`.
 
-An example of a singleton is the concurrent counter molecule `c`, with reactions
+An example of a singleton is the “concurrent counter” molecule `c`, with reactions that we have seen before:
 
 ```scala
 c(x) + d(_) => c(x-1)
@@ -329,35 +331,41 @@ c(x) + i(_) => c(x+1)
 c(x) + f(_, r) => c(x) + r(x)
 ```
 
-These reactions treat `c` as a singleton because they first consume and then output a single copy of `c`.
+These reactions treat `c` as a singleton because they first consume and then emit a single copy of `c`.
 
 `JoinRun` provides special features for singleton molecules:
 
 - Only non-blocking molecules can be declared as singletons.
 - It is an error if a reaction consumes a singleton but does not emit it back into the soup, or emits it more than once.
-- It is also an error if a reaction emits a singleton it did not consume, or if any other code emits additional copies of the singleton at any time. (However, local scoping can prevent other code from having access to a singleton emitter.)
+- It is also an error if a reaction emits a singleton it did not consume, or if any other code emits additional copies of the singleton at any time.
+(However, this feature is easy to simulate with local scoping, which can prevent other code from having access to a molecule emitter.)
 - Singleton molecules are emitted directly from the reaction site.
-In this way, singleton molecules are guaranteed to be emitted once and only once.
+In this way, singleton molecules are guaranteed to be emitted once and only once, before any other molecules are emitted at that reaction site.
 - Singleton molecules have “volatile readers”.
 
-In order to declare a molecule as a singleton, the users of `JoinRun` can write a reaction that has no input molecules:
+In order to declare a molecule as a singleton, the users of `JoinRun` must write a reaction that has no input molecules:
 
 ```scala
 site (
-    // emit and declare a, c, and q to be singletons
-    go { case _ => a(1) + c(123) + q() }
-    // now define some reactions that consume a, c, and q
+    // This pseudo-reaction will declare a, c, and q to be singletons, and emit each of them.
+    go { case _ => a(1) + c(123) + q() },
+    // Now we need to define some reactions that consume a, c, and q.
+    go { case ??? }
 )
 
 ```
 
-Each non-blocking output molecule of such a reaction must be emitted only once and is then declared to be a singleton molecule.
+Consider the reaction `go { case _ => a(1) + c(123) + q() }`.
+This reaction has no input molecules and three output molecules `a`, `c`, and `q`.
+Such a reaction is recognized by `JoinRun` as a reaction that defines singletons and at the same time emits them into the soup.
 
-The reaction sites will run their singleton reactions once and only once, at the time of the `site(...)` call itself.
+A reaction site can define one or more singleton reactions.
+Each non-blocking output molecule of each singleton reaction will be declared a **singleton molecule**.
+The reaction sites will run their singleton reactions only once, at the time of the `site(...)` call itself, and on the same thread that calls `site(...)`.
 
 ### Volatile readers for singleton molecules
 
-Each singleton molecule has a **volatile reader** -- a function of type `=> T` that fetches the most recently emitted value carried by that singleton molecule.
+Each singleton molecule has a **volatile reader** -- a function of type `=> T` that fetches the value carried by that singleton molecule when it was most recently emitted.
 
 ```scala
 val c = m[Int]
@@ -373,17 +381,18 @@ val readC: Int = c.volatileValue // initially returns 0
 The volatile reader is thread-safe (can be used from any reaction without blocking any threads) because it provides a read-only access to the value carried by the molecule.
 The value of a singleton molecule can be modified only by a reaction that consumes the singleton and then emits it back with a different value.
 If the volatile reader is called while that reaction is being run, the reader will return the previous known value of the singleton, which is probably going to become obsolete very shortly.
-I call the volatile reader “volatile” for this reason.
+I call the volatile reader “volatile” for this reason: it returns a value that could change at any time.
 
-The functionality of a volatile reader is equivalent to an additional reaction with a blocking molecule `f` that will read the value of `c`, such as
+The functionality of a volatile reader is equivalent to an additional reaction with a blocking molecule `f` that reads the current value carried by `c`:
 
 ```scala
 go { case c(x) + f(_, reply) => c(x) + reply(x) }
 
 ```
 
-Calling `f()` returns the current value carried by `c`.
-However, the call `f()` may block for an unknown time and requires an extra scheduling operation.
-A volatile reader provides very fast read-only access to the value of a singleton molecule.
+Calling `f()` returns the current value carried by `c`, just like the volatile reader does.
+However, the call `f()` may block for an unknown time if `c` has been consumed by a long-running reaction.
+Even if `c` is immediately available in the soup, running this reaction requires an extra scheduling operation.
+Volatile readers provide very fast read-only access to the values carried by singleton molecules.
 
 The reason this feature is restricted to singletons is that it makes no sense to ask the molecule emitter `c` for the current value of its molecule if there are a thousand different copies of `c` emitted in the soup.

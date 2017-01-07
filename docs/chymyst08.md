@@ -58,7 +58,7 @@ We now introduce one molecule for each smoker and their role should be symmetric
 
 Here, we write up a helper function `enjoyAndResume` that is a refactored piece of code that is common to the three smokers, who, when receiving ingredients, make the 
  cigarette, smoke it while taking a break off work, shutting down the operations and then resuming operation to `pusher` when done, which is required as the 
- smoker must notify the `pusher` when to resume. The smoking break is a simple waste of time represented by a sleep. The smoker molecule must re-inject 
+ smoker must notify the `pusher` when to resume. The smoking break is a simple waste of time represented by a sleep. The smoker molecule must re-emit
  itself once done to indicate readiness of the smoker to get back to work to process the next pair of ingredients. 
  
  Notice here that we capture a state of the shipped inventory from the ingredient molecules, all of which carry 
@@ -194,7 +194,7 @@ solution is provided in code. Let us say that the change is very simple, we just
   write lock and shared read locks.
   
   The main idea is to use a single writer molecule and a collection of reader molecules, each of which is distinguished by a distinct name or key. 
-  Accordingly, we need molecules `val reader = m[String]` and `val writer = m[String]`; we then need to inject these molecules as follows `readers.foreach(n => 
+  Accordingly, we need molecules `val reader = m[String]` and `val writer = m[String]`; we then need to emit these molecules as follows `readers.foreach(n => 
   reader(n))` with `readers` being an arbitrary collection of distinct names and  `writer("exclusive-writer")`. So we emit multiple `reader` molecules and a 
   single `writer` molecule into the soup. The reactions will have to re-emit any of these molecules each time the reaction consumes one.
   
