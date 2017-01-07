@@ -439,8 +439,6 @@ object Macros {
     val blockingMoleculesWithoutReply = blockingReplies diff repliedMolecules
     val blockingMoleculesWithMultipleReply = repliedMolecules diff blockingReplies
 
-if (blockingMoleculesWithoutReply.nonEmpty) println(s"debug: trouble; repliedMolecules=$repliedMolecules, blockingReplies = $blockingReplies")
-
     maybeError("blocking input molecules", "but no reply found for", blockingMoleculesWithoutReply, "receive a reply")
     maybeError("blocking input molecules", "but multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
 
