@@ -45,18 +45,19 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "return false if blocking molecule timed out" in {
+    val a = m[Boolean]
     val f = b[Unit,Int]
-
-    val waiter = new Waiter
+    val g = b[Unit, Boolean]
 
     val tp = new FixedPool(4)
 
     site(tp)(
-      go { case f(_, r) => Thread.sleep(50); val res = r.checkTimeout(123); waiter { res shouldEqual false; ()}; waiter.dismiss() }
+      go { case g(_, r) + a(x) => r(x) },
+      go { case f(_, r) => Thread.sleep(250); a(r.checkTimeout(123)) }
     )
-    f.timeout(0.seconds)() shouldEqual None
+    f.timeout(50.millis)() shouldEqual None // should give enough time so that the reaction can start
+    g() shouldEqual false
 
-    waiter.await()
     tp.shutdownNow()
   }
 
