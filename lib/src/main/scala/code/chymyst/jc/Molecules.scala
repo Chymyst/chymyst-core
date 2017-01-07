@@ -31,7 +31,7 @@ private[jc] sealed trait AbsMolValue[T] {
     */
   override def toString: String = getValue match {
     case () => ""
-    case v@_ => v.asInstanceOf[T].toString
+    case v => v.toString
   }
 
   private[jc] def reactionSentNoReply: Boolean = false
@@ -146,12 +146,12 @@ private[jc] trait NonblockingMolecule[T] extends Molecule {
         v <- moleculeValues.getOne(this)
       } yield {
         usedInputs += (this -> v)
-        v.asInstanceOf[AbsMolValue[T]].getValue
+        v.asInstanceOf[AbsMolValue[T]].getValue // need the type cast due to erasure of type T
       }
 
     // This is used when running the chosen reaction.
     case UnapplyRun(moleculeValues) => moleculeValues.get(this)
-      .map(_.asInstanceOf[MolValue[T]].getValue)
+      .map(_.asInstanceOf[MolValue[T]].getValue) // need the type cast due to erasure of type T
   }
 
 }
@@ -159,7 +159,7 @@ private[jc] trait BlockingMolecule[T, R] extends Molecule {
 
   /** This type will be ReplyValue[T,R] or EmptyReplyValue[R] depending on the class that inherits from BlockingMolecule.
     */
-  type Reply
+  type Reply <: AbsReplyValue[T, R]
 
   val isBlocking = true
 
@@ -202,7 +202,7 @@ private[jc] trait BlockingMolecule[T, R] extends Molecule {
 
     // This is used when running the chosen reaction.
     case UnapplyRun(moleculeValues) => moleculeValues.get(this).map {
-      case BlockingMolValue(v, srv) => (v, srv).asInstanceOf[(T, Reply)]
+      case BlockingMolValue(v, srv) => (v.asInstanceOf[T], srv.asInstanceOf[Reply]) // need this type cast because of erasure of types T and Reply
       case m@_ =>
         throw new ExceptionNoWrapper(s"Internal error: molecule $this with no value wrapper around value $m")
     }
@@ -332,7 +332,7 @@ private[jc] final case class HaveReply[R](result: R) extends ReplyStatus
   */
 private[jc] trait AbsReplyValue[T, R] {
 
-  @volatile private var replyStatus: ReplyStatus = HaveReply[R](null.asInstanceOf[R])
+  @volatile private var replyStatus: ReplyStatus = HaveReply[R](null.asInstanceOf[R]) // the `null` and the typecast will not be used because `replyStatus` will be either overwritten or ignored on timeout. This avoids a third case class in ReplyStatus, and the code can now be completely covered by tests.
 
   private[jc] def getReplyStatus = replyStatus
 
