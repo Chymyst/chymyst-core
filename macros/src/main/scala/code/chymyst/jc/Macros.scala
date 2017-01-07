@@ -101,28 +101,38 @@ object Macros {
     * OtherPattern: we don't recognize the pattern (could be a case class or a general Unapply expression)
     */
   private sealed trait InputPatternFlag {
-    def notReplyValue: Boolean = this match {
-      case ReplyVarF(_) => false
-      case _ => true
-    }
+    def notReplyValue: Boolean = true
 
     /** Does this pattern contain a nontrivial syntax tree that could contain other molecules?
       *
       * @return true or false
       */
-    def notSimple: Boolean = this match {
-      case OtherPatternF(_) => true
-      case _ => false
-    }
-
+    def hasSubtree: Boolean = false
   }
 
   private case object WildcardF extends InputPatternFlag
-  private final case class ReplyVarF(replyVar: Any) extends InputPatternFlag // "Any" is actually a replyVar name
+
+  /** Represents a reply pattern consisting of a simple variable.
+    *
+    * @param replyVar The symbol of a reply pattern variable.
+    */
+  private final case class ReplyVarF(replyVar: Any) extends InputPatternFlag {
+    override def notReplyValue: Boolean = false
+  }
   private case object SimpleVarF extends InputPatternFlag
   private case object WrongReplyVarF extends InputPatternFlag // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
   private final case class SimpleConstF(v: Any) extends InputPatternFlag // this is the [T] type of M[T] or B[T,R]
-  private final case class OtherPatternF(matcher: Any) extends InputPatternFlag // "Any" is actually an expression tree for a partial function
+
+  /** Nontrivial pattern matching expression that could contain unapply, destructuring, pattern @ variables, etc.
+    * For example, if c is a molecule then this could be c( z@(x, Some(y)) )
+    * In that case, vars = List("z", "x", "y") and matcher = { case z@(x, Some(y)) => (z, x, y) }
+    *
+    * @param matcher Partial function of type Any => Any.
+    * @param vars List of pattern variable names in the order of their appearance in the syntax tree.
+    */
+  private final case class OtherPatternF(matcher: Any, vars: List[String]) extends InputPatternFlag {
+    override def hasSubtree: Boolean = true
+  }
 
   /** Describes the pattern matcher for output molecules.
     * Possible values:
@@ -238,13 +248,34 @@ object Macros {
         case o@_ => isOwnedBy(o, owner)
       }
 
-      private def getFlag(binderTerm: Tree): InputPatternFlag = binderTerm match {
+      object PatternVars extends Traverser {
+
+        private var vars: mutable.ArrayBuffer[String] = _
+
+        override def traverse(tree: c.universe.Tree): Unit = tree match {
+          case Bind(TermName(name), pat) =>
+            vars.append(name)
+            traverse(pat)
+          case _ => super.traverse(tree)
+        }
+
+        def from(binderTerm: Tree): List[String] = {
+          vars = mutable.ArrayBuffer()
+          traverse(binderTerm)
+          vars.toList
+        }
+      }
+
+
+      private def getInputFlag(binderTerm: Tree): InputPatternFlag = binderTerm match {
         case Ident(termNames.WILDCARD) => WildcardF
         case Bind(TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF
         case Literal(_) => SimpleConstF(binderTerm)
         case _ =>
-          val partialFunctionTree: c.Tree = q"{ case $binderTerm => }"
-          OtherPatternF(partialFunctionTree)
+          val vars = PatternVars.from(binderTerm)
+          if (vars contains "ytt") println(s"debug: about to construct partial function with $binderTerm")
+          val partialFunctionTree: c.Tree = q"{ case $binderTerm => } : PartialFunction[Any, Unit]"
+          OtherPatternF(partialFunctionTree, vars)
       }
 
       private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag = binderTerms match {
@@ -262,20 +293,20 @@ object Macros {
           // matcher with a single argument: a(x)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
             val flag2Opt = if (t.tpe <:< weakTypeOf[B[_, _]]) Some(WrongReplyVarF) else None
-            val flag1 = getFlag(binder)
-            if (flag1.notSimple) traverse(binder)
+            val flag1 = getInputFlag(binder)
+            if (flag1.hasSubtree) traverse(binder)
             inputMolecules.append((t.symbol, flag1, flag2Opt, getSha1(binder)))
 
           // matcher with two arguments: a(x, y)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
-            val flag2 = getFlag(binder2) match {
+            val flag2 = getInputFlag(binder2) match {
               case SimpleVarF => ReplyVarF(getSimpleVar(binder2))
               case f@_ => WrongReplyVarF // this is an error that we should report later
             }
-            val flag1 = getFlag(binder1)
+            val flag1 = getInputFlag(binder1)
             // Perhaps we need to continue to analyze the "binder" (it could be another molecule).
-            if (flag1.notSimple) traverse(binder1)
-            if (flag2.notSimple) traverse(binder2)
+            if (flag1.hasSubtree) traverse(binder1)
+            if (flag2.hasSubtree) traverse(binder2)
             // After traversing the subtrees, we append this molecule information.
             inputMolecules.append((t.symbol, flag1, Some(flag2), getSha1(binder1)))
 
@@ -318,7 +349,7 @@ object Macros {
       case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
       case SimpleConstF(x) => q"_root_.code.chymyst.jc.SimpleConst(${x.asInstanceOf[c.Tree]})"
       case SimpleVarF => q"_root_.code.chymyst.jc.SimpleVar"
-      case OtherPatternF(matcherTree) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]})"
+      case OtherPatternF(matcherTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherTree.asInstanceOf[c.Tree]}, $vars)"
       case _ => q"_root_.code.chymyst.jc.UnknownInputPattern"
     }
 
