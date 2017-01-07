@@ -37,12 +37,12 @@ object Core {
     def shuffle: Seq[T] = scala.util.Random.shuffle(a)
   }
   @SuppressWarnings(Array("org.wartremover.warts.Equals"))
-  implicit final class AnyOpsEquals[A](self: A) {
+  implicit final class AnyOpsEquals[@specialized A](self: A) {
     def ===(other: A): Boolean = self == other
   }
 
   @SuppressWarnings(Array("org.wartremover.warts.Equals"))
-  implicit final class AnyOpsNotEquals[A](self: A) {
+  implicit final class AnyOpsNotEquals[@specialized A](self: A) {
     def =!=(other: A): Boolean = self != other
   }
 
