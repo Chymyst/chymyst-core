@@ -1,4 +1,4 @@
-<link href="{{ site.github.url }}/tables.css" rel="stylesheet">
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
 
 # Concurrency in Reactions: Declarative concurrent programming in Scala
 
