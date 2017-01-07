@@ -121,45 +121,47 @@ The streaming frameworks that do not support a recursive definition of streams f
 
 ## Level 4: General concurrency
 
-Finally, we consider the general concurrency problems.
-The main task in this class of problems is to manage several computations that run concurrently in unknown order and interact in arbitrary ways.
-For instance, one computation may at some point stop and wait until another computation computes a certain result, and then examine that result to decide whether to continue its own thread of computation, or wait further, or create new computation threads.
+Finally, we consider the most general concurrency problem,
+where we need to manage many computation threads running concurrently in unknown order and interacting in arbitrary ways.
+For instance, one thread may start another, then at some point stop and wait until the other thread computes a certain result, and then examine that result to decide whether to continue its own computation, to wait further, or to create new computation threads.
 
-The main difficulty here is to ensure that different processes are synchronized in the desired manner.
+The main difficulty here is to ensure that different threads are synchronized in the desired manner.
 
 Frameworks such as Akka Actors, Go coroutines/channels, and the Java concurrency primitives (`Thread`, `wait/notify`, `synchronized`) are all Level 4 concurrency frameworks.
 The chemical machine (known in the academic world as "join calculus") is also a Level 4 framework.
 
-The typical task that requires this level of concurrency is implementing an operating system where many running processes can synchronize and communicate with each other in arbitrary ways.
+A typical program that requires this level of concurrency is an operating system where many running processes can synchronize and communicate with each other in arbitrary ways.
 
-It seems to me that the "dining philosophers" problem is also an example of a concurrency task that cannot be implemented by any concurrency framework other than a Level 4 framework.
-However, I do not know how to prove that this is so.
+(It seems to me that the "dining philosophers" problem is also an example of a concurrency task that cannot be implemented by any concurrency framework other than a Level 4 framework.
+However, I do not know how to prove that this is so.)
 
-### Why is Level 4 higher than Level 3
+## Why is Level 4 higher than Level 3
 
-How do we know that Level 4 is truly more powerful than Level 3?
+How do we know that Level 4 is strictly more powerful than Level 3?
 
 I can give the following argument.
 Concurrency at Level 3 (and below) can be simulated on a single thread (although inefficiently).
 In other words, any program at Level 3 or below will give the same results when run on multiple threads and on a single thread.
 
-Now we will find an example of a program that cannot be implemented on a single thread.
-Consider the following task:
+If we find an example of a program that cannot be implemented on a single thread, it will follow that Level 4 is strictly more powerful than Level 3.
+To obtain such an example, consider the following situation:
 
-Two processes, A and B, run concurrently and produce result values `x` and `y`.
-However, sometimes one of these processes will go into an infinite loop, never producing a result.
-It is known that _at most one_ of A and B can go into an infinite loop (but it could be a different process every time).
-We need to implement a function `firstResult()` that will run A and B concurrently and wait for the first result that is returned by either of them.
-The function needs to return that first result.
+Two objects, A and B, have methods `A.run()` and `B.run()`.
+Calling `run()` will start some computations that either return a value or go into an infinite loop, never returning a result.
+It is known that, when we call `A.run()` and `B.run()` concurrently,
+_at most one_ of A and B can go into an infinite loop (but it could be a different process every time).
+We need to implement a function `firstResult(A, B)` that will run processes A and B concurrently and wait for the value returned by whichever process finishes first.
+The function `firstResult(A, B)` needs to return that value.
 
 Now, we claim that this task cannot be simulated on a single thread, because no program running on a single thread can decide correctly which of the two processes returns first.
 Here is why:
-Regardless of how we implement `firstResult()`, a single-threaded program will have to run at least one of the processes A and B on that single thread.
-Sometimes, that process will go into an infinite loop; in that case, the single thread will be infinitely blocked, and our program will never finish computing `firstResult()`.
+Regardless of how we implement `firstResult()`, a single-threaded program will have to call either `A.run()` or `B.run()` on that single thread.
+Sometimes, that call will go into an infinite loop, and then the single thread will be infinitely blocked.
+In that case, our program will never finish computing `firstResult()`.
 
-So, if implemented on a single thread, `firstResult()` is a _partial function_ (it will sometimes fail to return a value).
-However, if we are allowed to use many threads, we can implement `firstResult()` as a _total function_ (it will always return a value),
-since now we can run the processes A and B simultaneously on two different threads,
+So, if implemented on a single thread, `firstResult()` will sometimes fail to return a value; in other words, it is a _partial function_.
+However, if we are allowed to use many threads, we can implement `firstResult()` as a _total function_, always returning a value.
+To do that, we simply run the processes A and B simultaneously on two different threads,
 and we are guaranteed that at least one of the processes will return a result.
 
 ## Are there other levels?
@@ -172,6 +174,15 @@ Some assurance comes from the mathematical description of these levels:
 - Adding `flatMap` to an applicative functor makes it into a monad, and we don't know any intermediate-power functors. Monadic streams is Level 2.
 - Adding recursion raises Level 2 to Level 3. There doesn't seem to be anything in between "non-recursive" and "recursive" powers.
 - Level 4 supports arbitrary concurrency. In computer science, several concurrency formalisms have been developed (Petri nets, CSP, pi-calculus, Actor model, join calculus), which are all equivalent in power to each other. I do not know of a concurrency language that is strictly less powerful than Level 4 but more powerful than Level 3.
+
+It is possible to take a level 3 framework and add a single feature that goes beyond the expressive power of Level 3.
+For instance, we can add `firstResult(A,B)` as a primitive to a streaming framework.
+However, this single feature might not be sufficient to implement other Level 4 tasks.
+
+Similarly, adding a primitive for starting a new thread to a Level 1 framework will enable users to perform certain tasks but not others.
+
+I conjecture that the result of adding a single high-level feature to a lower-level framework will be a new framework that is hard to use because some concurrency tasks cannot be naturally expressed in it while others can.
+Users will have to work around these deficiencies or constantly ask for new features to be added to the framework, and the design of the program will become difficult to understand.
 
 
 # Which level to use?
