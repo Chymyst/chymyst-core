@@ -597,40 +597,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     )))
   }
 
-  behavior of "auxiliary functions"
-
-  it should "find expression trees for constant values" in {
-    rawTree(1) shouldEqual "Literal(Constant(1))"
-    rawTree(None) shouldEqual "Select(Ident(scala), scala.None)"
-
-    (Set(
-      "Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1))))"
-    ) contains rawTree(Some(1))) shouldEqual true
-  }
-
-  it should "find expression trees for matchers" in {
-
-    rawTree(Some(1) match { case Some(1) => }) shouldEqual "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))), EmptyTree, Literal(Constant(())))))"
-  }
-
-  it should "find enclosing symbol names with correct scopes" in {
-    val x = getName
-
-    x shouldEqual "x"
-
-    val y = {
-      val z = getName
-      (z, getName)
-    }
-    y shouldEqual(("z", "y"))
-
-    val (y1,y2) = {
-      val z = getName
-      (z, getName)
-    }
-    (y1, y2) shouldEqual(("z", "x$7"))
-  }
-
   it should "correctly recognize nested emissions of non-blocking molecules" in {
     val a = m[Int]
     val c = m[Int]
@@ -678,6 +644,66 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     reaction2.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1))
     reaction2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(d, OtherOutputPattern)))
+  }
+
+  behavior of "auxiliary functions"
+
+  it should "find expression trees for constant values" in {
+    rawTree(1) shouldEqual "Literal(Constant(1))"
+    rawTree(None) shouldEqual "Select(Ident(scala), scala.None)"
+
+    (Set(
+      "Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1))))"
+    ) contains rawTree(Some(1))) shouldEqual true
+  }
+
+  it should "find expression trees for matchers" in {
+
+    rawTree(Some(1) match { case Some(1) => }) shouldEqual "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))), EmptyTree, Literal(Constant(())))))"
+  }
+
+  it should "find enclosing symbol names with correct scopes" in {
+    val x = getName
+
+    x shouldEqual "x"
+
+    val y = {
+      val z = getName
+      (z, getName)
+    }
+    y shouldEqual(("z", "y"))
+
+    val (y1,y2) = {
+      val z = getName
+      (z, getName)
+    }
+    (y1, y2) shouldEqual(("z", "x$8"))
+  }
+
+  it should "find correct syntax tree for Some(1)" in {
+    val a = new M[Option[Int]]("a")
+    val b = new M[String]("b")
+    val c = new M[(Int, Int)]("c")
+    val d = new E("d")
+
+    val r = go { case a(Some(1)) + b("xyz") + d(()) + c((2, 3)) => a(Some(2)) }
+
+    (r.info.inputs match {
+      case List(
+      InputMoleculeInfo(`a`, OtherInputPattern(_), _),
+      InputMoleculeInfo(`b`, SimpleConst("xyz"), _),
+      InputMoleculeInfo(`d`, SimpleConst(()), _),
+      InputMoleculeInfo(`c`, OtherInputPattern(_), _)
+      ) => true
+      case _ => false
+    }) shouldEqual true
+    r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern)))
+    r.info.hasGuard shouldEqual GuardAbsent
+
+    // Note: Scala 2.11 and Scala 2.12 have different syntax trees for Some(1)?
+    val shaScala211 = "9F8D8B42C1DB096EEFC80052E603562ECAD0FA29"
+    val shaScala212 = "03F87012279F4B6170E04DB7EBE0816CE1F48FFA"
+    Set(shaScala211, shaScala212) should contain oneElementOf List(r.info.sha1)
   }
 
 }
