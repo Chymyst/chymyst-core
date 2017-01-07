@@ -69,28 +69,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "macros for inspecting a reaction body"
 
-  it should "fail to compile a reaction with empty singleton clause" in {
-    "val r = go { case _ => }" shouldNot compile
-  }
-
-  it should "fail to compile a reaction that is not defined inline" in {
-    val a = m[Unit]
-    val body: ReactionBody = { case _ => a() }
-    body.isInstanceOf[PartialFunction[UnapplyArg, Any]] shouldEqual true
-
-    "val r = go(body)" shouldNot compile
-  }
-
-  it should "fail to compile a reaction with two case clauses" in {
-    val a = m[Unit]
-    val b = m[Unit]
-
-    a.isInstanceOf[E] shouldEqual true
-    b.isInstanceOf[E] shouldEqual true
-
-    "val r = go { case a(_) =>; case b(_) => }" shouldNot compile
-  }
-
   it should "inspect reaction body with default clause that declares a singleton" in {
     val a = m[Int]
 
@@ -253,7 +231,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val result = go {
     // This generates a compiler warning "class M expects 2 patterns to hold (Int, Option[Int]) but crushing into 2-tuple to fit single pattern (SI-6675)".
     // Ignore this warning - this case is what we are testing right now, among other cases, so we cannot remove this warning.
-      case a(p) + a(y) + a(1) + c(()) + c(_) + bb(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) if y > 0 && q > 0 && t == p => s(); a(p + 1); qq(); r(p)
+      case a(p) + a(y) + a(1) + c(()) + c(_) + bb(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r)
+        if y > 0 && q > 0 && t == p
+          => s(); a(p + 1) + qq() + r(p)
     }
 
     (result.info.inputs match {
@@ -274,20 +254,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(s, ConstOutputValue(())), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qq, ConstOutputValue(()))))
     result.info.hasGuard shouldEqual GuardPresent(List("y", "q", "t", "p"))
-  }
-
-  it should "inspect reaction body with two cases" in {
-    val a = m[Int]
-    val qq = m[Unit]
-
-    a.isInstanceOf[M[Int]] shouldEqual true
-    qq.isInstanceOf[E] shouldEqual true
-
-    """val result = go {
-      case a(x) => qq()
-      case qq(_) + a(y) => qq()
-    }""" shouldNot compile
-
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {

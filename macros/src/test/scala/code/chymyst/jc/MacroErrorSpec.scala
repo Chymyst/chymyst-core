@@ -1,13 +1,53 @@
 package code.chymyst.jc
 
-import Macros.{m, b, go}
+import Macros.{b, go, m}
+import code.chymyst.jc.Core.ReactionBody
 import org.scalatest.{FlatSpec, Matchers}
+
+// Note: Compilation of this test suite will generate warnings such as "crushing into 2-tuple". This is expected and cannot be avoided.
 
 class MacroErrorSpec extends FlatSpec with Matchers {
 
-  behavior of "compile-time errors"
+  behavior of "miscellaneous compile-time errors"
 
-  it should "fail to compile reactions with detectable compile-time errors" in {
+  it should "fail to compile a reaction with empty singleton clause" in {
+    "val r = go { case _ => }" shouldNot compile
+  }
+
+  it should "fail to compile a reaction that is not defined inline" in {
+    val a = m[Unit]
+    val body: ReactionBody = { case _ => a() }
+    body.isInstanceOf[PartialFunction[UnapplyArg, Any]] shouldEqual true
+
+    "val r = go(body)" shouldNot compile
+  }
+
+  it should "fail to compile a reaction with two case clauses" in {
+    val a = m[Unit]
+    val b = m[Unit]
+
+    a.isInstanceOf[E] shouldEqual true
+    b.isInstanceOf[E] shouldEqual true
+
+    "val r = go { case a(_) =>; case b(_) => }" shouldNot compile
+  }
+
+  it should "inspect reaction body with two cases" in {
+    val a = m[Int]
+    val qq = m[Unit]
+
+    a.isInstanceOf[M[Int]] shouldEqual true
+    qq.isInstanceOf[E] shouldEqual true
+
+    """val result = go {
+      case a(x) => qq()
+      case qq(_) + a(y) => qq()
+    }""" shouldNot compile
+
+
+  }
+
+  it should "fail to compile reactions with incorrect pattern matching" in {
     val a = b[Unit, Unit]
     val c = b[Unit, Unit]
     val e = m[Unit]
@@ -49,6 +89,8 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     "val r = go { case x => bb(x.asInstanceOf[Int]) }" shouldNot compile // no input molecules
     "val r = go { case x => x }" shouldNot compile // no input molecules
   }
+
+  behavior of "compile-time errors due to chemistry"
 
   it should "fail to compile reactions with unconditional livelock" in {
     val a = m[(Int, Int)]
