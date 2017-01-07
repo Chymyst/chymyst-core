@@ -238,7 +238,9 @@ object Macros {
       private var inputVars: List[Ident] = _
 
       override def traverse(tree: Tree): Unit = tree match {
-        case t@Ident(TermName(name)) if inputVars contains name =>
+        case t@Ident(TermName(_)) =>
+          val include = inputVars exists (_.name === t.name)
+          if (include)
           vars.append(t.symbol)
         case _ => super.traverse(tree)
       }

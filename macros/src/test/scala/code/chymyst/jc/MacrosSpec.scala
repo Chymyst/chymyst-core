@@ -230,7 +230,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     // reaction contains all kinds of pattern-matching constructions, blocking molecule in a guard, and unit values in molecules
     val result = go {
     // This generates a compiler warning "class M expects 2 patterns to hold (Int, Option[Int]) but crushing into 2-tuple to fit single pattern (SI-6675)".
-    // Ignore this warning - this case is what we are testing right now, among other cases, so we cannot remove this warning.
+    // However, this crushing is among the issues covered by this test, and we cannot tell scalac to ignore this warning.
       case a(p) + a(y) + a(1) + c(()) + c(_) + bb(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r)
         if y > 0 && q > 0 && t == p
           => s(); a(p + 1) + qq() + r(p)
