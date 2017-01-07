@@ -19,7 +19,7 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     tp.shutdownNow()
   }
 
-  behavior of "smokers"
+  behavior of "Chymyst Continued"
 
   it should "implement smokers" in {
     val supplyLineSize = 10
@@ -78,7 +78,7 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case Jimi(_) + matches(s) + paper(_) => enjoyAndResume(s); Jimi() }
     )
 
-    Keith(()) + Slash(()) + Jimi(())
+    Keith() + Slash() + Jimi()
     pusher(ShippedInventory(0, 0, 0))
     count(supplyLineSize) // if running as a daemon, we would not use count and let the example/application run for ever.
 
@@ -163,6 +163,117 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       List(current(1).toInt, current(2).toInt, current(3).toInt).sum shouldEqual (2 * i) // # ingredients handed out at each cycle is twice number of cycles
       current(0).toInt + i shouldEqual supplyLineSize // # cycles outstanding + cycles ran should be 10.
     }
+  }
+
+  it should "implement dining savages" in {
+    val maxPerPot = 7 // number of consecutive ingredients added to the pot (each ingredient is a prisoner of the tribe and takes time to add in)
+    val batches = 10 // number of times the cook will fill in the pot with all required ingredients
+    val supplyLineSize = maxPerPot * batches // number of ingredients cook puts in the pot over time of the simulation (excludes initial state with pot full)
+    val savages = List("Anita", "Patrick", "Ivan", "Manfred" ).toIndexedSeq // population of savages taking turn in eating from the pot
+    val check = b[Unit, Unit] // molecule used to determine end of simulation
+
+    sealed trait StoryEvent {
+      def toString: String
+    }
+    case object CookRetires extends StoryEvent {
+      override def toString: String = "cook is done, savages may eat last batch"
+    }
+    case object CookStartsToWork extends StoryEvent {
+      override def toString: String = "cook finds empty pot and gets to work"
+    }
+    case object EndOfSimulation extends StoryEvent {
+      override def toString: String =
+        "ending simulation, no more ingredients available, savages will have to fish or eat berries or raid again"
+    }
+    final case class CookAddsVictim(victimsToBeCooked: Int, batchVictim: Int) extends StoryEvent {
+      override def toString: String =
+        s"cook finds unfilled pot and gets cooking with $batchVictim-th victim ingredient " +
+          s"for current batch with $victimsToBeCooked victims to be cooked"
+    }
+    final case class CookCompletedBatch(victimsToBeCooked: Int) extends StoryEvent {
+      override def toString: String =
+        s"cook notices he finished adding all ingredients with $victimsToBeCooked victims to be cooked"
+    }
+    final case class SavageEating(name: String, batchVictim: Int) extends StoryEvent {
+      override def toString: String = s"$name about to eat ingredient # $batchVictim"
+    }
+
+    val Cook = m[Int] // counts ingredients to be consumed, so after a while decides it's enough.
+    val CookHadEnough = m[Unit]
+    val busyCookingIngredientsInPot = m[Int]
+    val savage = m[String]
+
+    val availableIngredientsInPot = m[Int]
+
+    val userStory = new ConcurrentLinkedQueue[StoryEvent]
+
+    def pauseForIngredient(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+    def eatSingleServing(name: String, batchVictim: Int): Unit = {
+      userStory.add(SavageEating(name, batchVictim))
+      Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+      availableIngredientsInPot(batchVictim - 1) // one fewer serving.
+    }
+
+    site(tp)(
+      go { case Cook(0) =>
+        userStory.add(CookCompletedBatch(0))
+        userStory.add(CookAddsVictim(0, 1))
+        userStory.add(CookRetires)
+        CookHadEnough()
+        availableIngredientsInPot(maxPerPot)
+      },
+      go { case CookHadEnough(_) + availableIngredientsInPot(0) + check(_, r) =>
+        userStory.add(EndOfSimulation)
+        r()
+      },
+      go { case Cook(n) + availableIngredientsInPot(0) if n > 0 => // cook gets activated once the pot reaches an empty state.
+        userStory.add(CookStartsToWork)
+        pauseForIngredient()
+        busyCookingIngredientsInPot(1) // switch of counting from availableIngredientsInPot to busyCooking indicates we're refilling the pot.
+        Cook(n - 1)
+      },
+
+      go { case Cook(m) + busyCookingIngredientsInPot(n) if m > 0 =>
+        userStory.add(CookAddsVictim(m, n))
+        if (n < maxPerPot) {
+          pauseForIngredient()
+          busyCookingIngredientsInPot(n + 1)
+          Cook(m - 1)
+        } else {
+          userStory.add(CookCompletedBatch(m))
+          availableIngredientsInPot(maxPerPot) // switch of counting from busyCooking to availableIngredientsInPot indicates we're consuming the pot.
+          Cook(m)
+        }
+      },
+      go { case savage(name) + availableIngredientsInPot(n) if n > 0 =>
+        eatSingleServing(name, n)
+        val randomSavageName = savages(scala.util.Random.nextInt(savages.size))
+        savage(randomSavageName) // emit random savage molecule
+      }
+    )
+    savages.foreach(savage) // emit a distinct savage molecule for each name using savages as dictionary
+    Cook(supplyLineSize) // if running as a daemon, we would not count down for the Cook.
+    availableIngredientsInPot(maxPerPot) // this molecule signifies pot is available for savages to eat.
+    check()
+
+    // Unit test validation follows
+    val result = userStory.iterator().asScala.toSeq
+    // result.foreach(println) // to look at it.
+    val retireCount = result.collect{ case (CookRetires) => 1 }.sum
+    val batchStartsCount = result.collect{ case (CookStartsToWork) => 1 }.sum
+    val simulationCount = result.collect{ case (EndOfSimulation) => 1 }.sum
+    val victimsCount = result.collect{ case (CookAddsVictim(_,_)) => 1 }.sum
+    val batchCompletionsCount = result.collect{ case (CookCompletedBatch(_)) => 1 }.sum
+    val savageEatingCount = result.collect{ case (SavageEating(_,_)) => 1 }.sum
+
+    retireCount shouldEqual 1
+    simulationCount shouldEqual 1
+
+    batchStartsCount shouldEqual batches
+    batchCompletionsCount shouldEqual batches
+
+    victimsCount shouldEqual maxPerPot * batches
+    savageEatingCount shouldEqual maxPerPot * (1 + batches) // our initial condition starts with a full pot.
   }
 
 }
