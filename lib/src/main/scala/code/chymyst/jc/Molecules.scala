@@ -340,13 +340,20 @@ private[jc] trait AbsReplyValue[T, R] {
     replyStatus = ErrorNoReply(message)
   }
 
+  /** This atomic mutable value is read and written only by reactions that perform reply actions.
+    * Access to this variable must be guarded by [[semaphoreForReplyStatus]].
+    */
   private val numberOfReplies = new AtomicInteger(0)
 
+  /** This atomic mutable value is written only by the reaction that emitted the blocking molecule,
+    * but read by reactions that perform the reply action with timeout checking.
+    * Access to this variable must be guarded by [[semaphoreForReplyStatus]].
+    */
   private val hasTimedOut = new AtomicBoolean(false)
 
   private[jc] def setTimedOut() = hasTimedOut.set(true)
 
-  private[jc] def isTimedOut = hasTimedOut.get
+  private[jc] def isTimedOut() = hasTimedOut.get
 
   private[jc] def noReplyAttemptedYet = numberOfReplies.get === 0
 
@@ -386,7 +393,7 @@ private[jc] trait AbsReplyValue[T, R] {
     * @param x Value to reply with.
     * @return {{{true}}} if the reply was received normally, {{{false}}} if it was not received due to one of the above conditions.
     */
-  protected def performReplyAction(x: R): Boolean = {
+  final protected def performReplyAction(x: R): Boolean = {
 
     val replyWasNotRepeated = numberOfReplies.getAndIncrement() === 0
 
@@ -405,14 +412,19 @@ private[jc] trait AbsReplyValue[T, R] {
 
       acquireSemaphoreForReply() // Wait until the emitting reaction has set the timeout status.
       // After acquiring this semaphore, it is safe to read the reply status.
-      !isTimedOut
-
-    } else {
-      // We already tried to reply, so nothing to be done now.
-      false
-    }
+      !isTimedOut()
+    } else false  // We already tried to reply, so nothing to be done now.
 
     status
+  }
+
+  final protected def performReplyActionWithoutTimeoutCheck(x: R): Unit = {
+    val replyWasNotRepeated = numberOfReplies.getAndIncrement() === 0
+    if (replyWasNotRepeated) {
+      // We have not yet tried to reply.
+      replyStatus = HaveReply(x)
+      releaseSemaphoreForEmitter() // Unblock the reaction that emitted this blocking molecule.
+    }
   }
 }
 
@@ -420,13 +432,15 @@ private[jc] trait AbsReplyValue[T, R] {
   *
   * @tparam T Type of the value carried by the molecule.
   */
-private[jc] class EmptyReplyValue[T] extends ReplyValue[T, Unit] with (()=>Boolean) {
+private[jc] final class EmptyReplyValue[T] extends ReplyValue[T, Unit] with (() => Unit) {
   /** Perform a reply action for blocking molecules with Unit reply values. The reply action can use the syntax `r()` without deprecation warnings.
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
     *
     * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
     */
-  override def apply(): Boolean = performReplyAction(())
+  override def apply(): Unit = performReplyActionWithoutTimeoutCheck(())
+
+  override def checkTimeout(x: Unit): Boolean = performReplyAction(())
 }
 
 /** Reply-value wrapper for blocking molecules. This is a mutable class.
@@ -434,15 +448,23 @@ private[jc] class EmptyReplyValue[T] extends ReplyValue[T, Unit] with (()=>Boole
   * @tparam T Type of the value carried by the molecule.
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
-private[jc] class ReplyValue[T, R] extends (R => Boolean) with AbsReplyValue[T, R] {
+private[jc] class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[T, R] {
 
-  /** Perform a reply action for a blocking molecule.
+  /** Perform a reply action for a blocking molecule without checking the timeout status (this is slightly faster).
+    * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
+    *
+    * @param x Value to reply with.
+    * @return Unit value.
+    */
+  def apply(x: R): Unit = performReplyActionWithoutTimeoutCheck(x)
+
+  /** Perform a reply action for a blocking molecule while checking the timeout status.
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
     *
     * @param x Value to reply with.
     * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
     */
-  def apply(x: R): Boolean = performReplyAction(x)
+  def checkTimeout(x: R): Boolean = performReplyAction(x)
 }
 
 /** Blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.

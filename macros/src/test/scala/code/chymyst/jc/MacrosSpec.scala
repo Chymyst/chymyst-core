@@ -626,7 +626,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   it should "correctly recognize nested emissions of blocking molecules and reply values" in {
     val a = b[Int, Int]
     val c = m[Int]
-    val d = m[Boolean]
+    val d = m[Unit]
 
     site(
       go { case d(_) => c(a(1)) },
