@@ -148,6 +148,8 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   it should "get all errors when a reaction attempts to reply twice to more than one molecule" in {
 
+    val iterations = 100
+
     def check(i: Int) = {
       val c = new E("c")
       val d = new E("d")
@@ -175,7 +177,42 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
       tp1.shutdownNow()
     }
 
-    (1 to 100).foreach(check) // Make sure there is no race condition.
+    (1 to iterations).foreach(check) // Make sure there is no race condition.
+  }
+
+  it should "get all errors when a reaction attempts to reply many times to more than one molecule" in {
+
+    val replies = 20
+    val iterations = 100
+
+    def check(i: Int) = {
+      val c = new E("c")
+      val d = new E("d")
+      val d2 = new M[Int]("d2")
+      val e = new EB[Int]("e")
+      val g = new EB[Int]("g")
+      val g2 = new EB[Int]("g2")
+      val h = new EE("h")
+      val tp1 = new FixedPool(4)
+      site(tp1)(
+        _go { case c(_) => h() },
+        _go { case d(_) => d2(g()) },
+        _go { case d2(x) + e(_, r) => r(x) },
+        _go { case g(_, r) + g2(_, r2) + h(_, r3) => (1 to replies).foreach{ _ => r(123); r3() } } // no answer to g2, many answers to g and h
+      )
+      c() + d()
+
+      val thrown = intercept[Exception] {
+        val res = g2()
+        println(s"Iteration $i: got result $res but should not have printed this!")
+      }
+      thrown.getMessage shouldEqual "Error: In Site{c => ...; d => ...; d2 + e/B => ...; g/B + g2/B + h/B => ...}: Reaction {g/B(?) + g2/B(?) + h/B(?) ? => ?} with inputs [g/B(), g2/B(), h/B()] finished without replying to g2/B; Error: In Site{c => ...; d => ...; d2 + e/B => ...; g/B + g2/B + h/B => ...}: Reaction {g/B(?) + g2/B(?) + h/B(?) ? => ?} with inputs [g/B(), g2/B(), h/B()] replied to g/B, h/B more than once"
+
+      e() shouldEqual 123
+      tp1.shutdownNow()
+    }
+
+    (1 to iterations).foreach(check) // Make sure there is no race condition.
   }
 
   it should "throw exception when a reaction does not reply to one blocking molecule" in {
@@ -303,7 +340,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val d = new E("d")
     val g = new EB[Int]("g")
     val g2 = new EB[Int]("g2")
-    val tp = new FixedPool(4)
+    val tp = new FixedPool(2)
     site(tp)(
       _go { case d(_) => g() }, // this will be used to emit g() and blocked
       _go { case c(_) + g(_,r) => r(0) }, // this will not start because we have no c()
