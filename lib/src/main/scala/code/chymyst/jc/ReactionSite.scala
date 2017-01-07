@@ -85,12 +85,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 //  }
 
   private sealed trait ReactionExitStatus {
-    def failedWithRetry: Boolean = false
+    def reactionSucceededOrFailedWithoutRetry: Boolean = true
   }
   private case object ReactionExitSuccess extends ReactionExitStatus
   private case object ReactionExitFailure extends ReactionExitStatus
   private case object ReactionExitRetryFailure extends ReactionExitStatus {
-    override def failedWithRetry: Boolean = true
+    override def reactionSucceededOrFailedWithoutRetry: Boolean = false
   }
 
   /** This closure will be run on the reaction thread pool to start a new reaction.
@@ -150,20 +150,19 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // We will report all errors to each blocking molecule.
     // However, if the reaction failed with retry, we don't yet need to release semaphores and don't need to report errors due to missing reply.
-    val reactionSucceededOrFailedWithoutRetry = !exitStatus.failedWithRetry
     val errorMessage = Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
     val haveErrorsWithBlockingMolecules =
-      (blockingMoleculesWithNoReply.nonEmpty && reactionSucceededOrFailedWithoutRetry) || blockingMoleculesWithMultipleReply.nonEmpty
+      (blockingMoleculesWithNoReply.nonEmpty && exitStatus.reactionSucceededOrFailedWithoutRetry) || blockingMoleculesWithMultipleReply.nonEmpty
 
     // Insert error messages into the reply wrappers and release all semaphores.
     usedInputs.foreach {
       case (_, bm@BlockingMolValue(_, replyValue)) =>
-        if (haveErrorsWithBlockingMolecules && reactionSucceededOrFailedWithoutRetry) {
-          replyValue.acquireSemaphoreForReply()
-          // Do not send error messages to molecules that already got a reply - this is pointless and may lead to errors.
+        if (haveErrorsWithBlockingMolecules && exitStatus.reactionSucceededOrFailedWithoutRetry) {
+          // Do not send error messages to molecules that already got a reply - this is pointless and leads to errors.
           if (bm.reactionSentNoReply) {
+            replyValue.acquireSemaphoreForReply()
             replyValue.replyStatus = ErrorNoReply(errorMessage)
-            replyValue.releaseSemaphore()
+            replyValue.releaseSemaphoreForEmitter()
           }
         }
       case _ => ()
@@ -309,12 +308,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @return Reply status for the reply action.
     */
   private def emitAndAwaitReplyInternal[T,R](timeoutOpt: Option[Long], bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): ReplyStatus = {
-    replyValueWrapper.resetSemaphoreForReply()
-    replyValueWrapper.releaseSemaphoreForReply()
     val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
     emit(bm, blockingMolValue)
     val success = BlockingIdle {
-      replyValueWrapper.acquireSemaphore(timeoutNanos = timeoutOpt)
+      replyValueWrapper.acquireSemaphoreForEmitter(timeoutNanos = timeoutOpt)
     }
     // We might have timed out, in which case we need to forcibly remove the blocking molecule from the soup.
     removeBlockingMolecule(bm, blockingMolValue, !success)
