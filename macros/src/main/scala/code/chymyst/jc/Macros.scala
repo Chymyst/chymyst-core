@@ -237,7 +237,7 @@ object Macros {
 
       private var inputVars: List[Ident] = _
 
-      override def traverse(tree: c.universe.Tree): Unit = tree match {
+      override def traverse(tree: Tree): Unit = tree match {
         case t@Ident(TermName(name)) if inputVars contains name =>
           vars.append(t.symbol)
         case _ => super.traverse(tree)
@@ -288,7 +288,7 @@ object Macros {
 
         private var vars: mutable.ArrayBuffer[Ident] = _
 
-        override def traverse(tree: c.universe.Tree): Unit = tree match {
+        override def traverse(tree: Tree): Unit = tree match {
           case Bind(t@TermName(_), pat) =>
             vars.append(Ident(t))
             traverse(pat)
@@ -381,7 +381,7 @@ object Macros {
     }
 
     // this boilerplate is necessary for being able to use PatternType values in macro quasiquotes
-    implicit val liftablePatternFlag: c.universe.Liftable[InputPatternFlag[Ident,Tree]] = Liftable[InputPatternFlag[Ident,Tree]] {
+    implicit val liftablePatternFlag: Liftable[InputPatternFlag[Ident,Tree]] = Liftable[InputPatternFlag[Ident,Tree]] {
       case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
       case SimpleConstF(tree) => q"_root_.code.chymyst.jc.SimpleConst($tree)"
       case SimpleVarF(v) => q"_root_.code.chymyst.jc.SimpleVar(${v.name.decodedName.toString})"
@@ -389,7 +389,7 @@ object Macros {
       case _ => q"_root_.code.chymyst.jc.UnknownInputPattern"
     }
 
-    implicit val liftableOutputPatternFlag: c.universe.Liftable[OutputPatternFlag[Tree]] = Liftable[OutputPatternFlag[Tree]] {
+    implicit val liftableOutputPatternFlag: Liftable[OutputPatternFlag[Tree]] = Liftable[OutputPatternFlag[Tree]] {
       case ConstOutputPatternF(tree) => q"_root_.code.chymyst.jc.ConstOutputValue($tree)"
       case EmptyOutputPatternF => q"_root_.code.chymyst.jc.ConstOutputValue(())"
       case _ => q"_root_.code.chymyst.jc.OtherOutputPattern"
@@ -432,7 +432,7 @@ object Macros {
     // If we are here, all input reply molecules have correct pattern variables. Now we check that each of them has one and only one reply.
     val repliedMolecules = (guardReply ++ bodyReply).map(_._1.asTerm.name.decodedName)
     val blockingReplies = blockingMolecules.flatMap(_._3.flatMap {
-      case ReplyVarF(x) => Some(x.asInstanceOf[c.universe.Ident].name)
+      case ReplyVarF(x) => Some(x.name)
       case _ => None
     })
 
