@@ -31,7 +31,7 @@ val y = new B[Unit, String]("y") // define a blocking emitter with name "y", wit
 
 ```
 
-Each molecule carries a name.
+Each molecule carries a name, which can be obtained as `m.name`.
 The name will be used when printing the molecule for debugging purposes.
 Otherwise, names have no effect on runtime behavior.
 
@@ -41,9 +41,24 @@ The convenience macros `m` and `b` can be used to further reduce the boilerplate
 val counter = m[Int] // same as new M[Int]("counter")
 val fetch = b[Unit, String] // same as new B[Unit, String]("fetch")
 
+counter.name == "counter" // true
+fetch.name == "fetch" // true
+
 ```
 
 These macros will read the enclosing `val` definition at compile time and substitute the name of the variable as a string into the class constructor.
+
+Note that the macros only work when emitters are created one by one, rather than destructured from a compound value.
+The following code will not assign names correctly:
+
+```scala
+val (counter, fetch) = (m[Int], b[Unit, String])
+counter.name == "x$1" // true
+fetch.name == "x$1" // true
+
+```
+
+
 
 ## Emitting molecules
 
