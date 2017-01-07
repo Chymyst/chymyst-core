@@ -329,6 +329,12 @@ object Macros {
     val caseDefs = ReactionCases.from(reactionBody.tree)
     // TODO: check other CaseDef's if any; check that all CaseDef's have the same input molecules.
     // - for now, we only look at the first case.
+
+    // Note: `caseDefs` should not be an empty list because that's a typecheck error (`go` only accepts a partial function, so at least one `case` needs to be given).
+    if (caseDefs.isEmpty) c.error(c.enclosingPosition, "Reactions should be defined inline with the `go { case ... => ... }` syntax")
+
+    if (caseDefs.length > 1) c.error(c.enclosingPosition, "Reactions should contain only one `case` clause")
+
     val Some((pattern, guard, body, sha1)) = caseDefs.headOption
 
     val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
@@ -362,8 +368,11 @@ object Macros {
     maybeError("blocking input molecules", "but no reply found for", blockingMoleculesWithoutReply, "receive a reply")
     maybeError("blocking input molecules", "but multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
 
-    if (patternIn.isEmpty && !isSingletonReaction(pattern, guard, body))
+    if (patternIn.isEmpty && !isSingletonReaction(pattern, guard, body)) // go { case x => ... }
       c.error(c.enclosingPosition, "Reaction should not have an empty list of input molecules")
+
+    if (isSingletonReaction(pattern, guard, body) && bodyOut.isEmpty)
+      c.error(c.enclosingPosition, "Reaction should not have an empty list of input molecules and no output molecules")
 
     val inputMolecules = patternIn.map { case (s, p, _, patternSha1) => q"InputMoleculeInfo(${s.asTerm}, $p, $patternSha1)" }
 
