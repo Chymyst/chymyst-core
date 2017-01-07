@@ -32,6 +32,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val matrix = Array.ofDim[Int](n, n)
 
+
     type Point = (Int, Int)
     case class PointAndValue(value: Int, point: Point) extends Ordered[PointAndValue] {
       def compare(that: PointAndValue): Int = this.value compare that.value
@@ -69,6 +70,9 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     // print input matrix
     for (i <- dim) { println(dim.map(j => sample(i * n + j)).mkString(" "))}
 
+    val initialMinCandidates = Array.fill[PointAndValue](n)(PointAndValue(0, (-1, -1)))
+    // book-keeping for rows to remember where a previous min was computed.
+
     val tasksCompleted = m[Int]
     val computeMinOrMax = m[()=>Unit] // first pass
     val verifySaddlePoint = m[()=>Unit] // second and final pass
@@ -95,7 +99,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     // at bitmask(0,0) value false to reject.
     // Important!: We want 2 concurrent writes of value false when former value is true to end up with value false.
     def checkSaddle(row: Int)(): Unit = {
-      val pv = seqMinR(row, pointsWithValues)
+      val pv = initialMinCandidates(row)
       // purposefully avoid chemistry as it's expected that copying full bitmap is prohibitive! Use mutable data in reaction??
       if (bitmask(row)(pv.point._2).get()) foundAt(pv)
     }
@@ -104,6 +108,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     def minR(row: Int)(): Unit = {
       val pv = seqMinR(row, pointsWithValues) // this should decompose further into chemistry to execute in O(log n) rather than O(n)
       val k = pv.point._2
+      initialMinCandidates(row) = pv // save for 2nd phase, i.e. checkSaddle.
       // setting bitmask below purposefully avoids chemistry as it's expected that copying full bitmap is prohibitive!
       for (j <-  dim if j != k) { bitmask(row)(j).set(false) }
       // logFile.add(LogData(MinOfRow(row), pv))
