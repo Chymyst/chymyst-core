@@ -1,12 +1,12 @@
 package code.chymyst.test
 
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicBoolean
 
 import code.chymyst.jc._
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 import scala.concurrent.duration._
-import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.collection.immutable.IndexedSeq
 import scala.language.postfixOps
 
@@ -55,8 +55,6 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     def getSaddlePointsSequentially(pointsWithValues: Array[PointAndValue]): IndexedSeq[PointAndValue] = {
       val minOfRows = for { i <- dim } yield seqMinR(i, pointsWithValues)
       val maxOfCols = for { i <- dim } yield seqMaxC(i, pointsWithValues)
-    //  minOfRows.foreach(y => println(s"min at ${y.point._1} is ${y.value} or $y"))
-    //  maxOfCols.foreach(y => println(s"max at ${y.point._2} is ${y.value} or $y"))
 
       // now intersect minOfRows with maxOfCols using the positions we keep track of.
       minOfRows.filter(minElem => maxOfCols(minElem.point._2).point._1 == minElem.point._1)
@@ -72,16 +70,17 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     // print input matrix
     for (i <- dim) { println(dim.map(j => sample(i * n + j)).mkString(" "))}
 
-    val barrier = b[Unit,Unit]
-    val counterInit = m[Unit]
-    val counter = b[Int,Unit]
-    val interpret = m[()=>Unit]
+    val tasksCompleted = m[Int]
+    val computeMinOrMax = m[()=>Unit] // first pass
+    val verifySaddlePoint = m[()=>Unit] // second and final pass
 
-    val minFoundAt = m[PointAndValue]
-    val maxFoundAt = m[PointAndValue]
+    val foundAt = m[PointAndValue]
+
     val saddlePoints = m[List[PointAndValue]]
 
+    val bitmask: Array[Array[AtomicBoolean]] = Array.fill(n, n)( new AtomicBoolean(true) ) // intentional shared memory
     val end = m[Unit]
+
     val done = b[Unit, List[PointAndValue]]
 
     sealed trait ComputeRequest
@@ -89,57 +88,69 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     case class MaxOfColumn(column: Int) extends ComputeRequest
 
     case class LogData (c: ComputeRequest, pv: PointAndValue)
-    val logFile = new ConcurrentLinkedQueue[LogData]
+    // val logFile = new ConcurrentLinkedQueue[LogData] remove corresponding to use and trace
 
-    def minR(row: Int)(): Unit = {
+    // very fast test, assuming O(1) direct access to bitmask, which is shared memory that is writable.
+    // This is totally thread unsafe, but assuming program correctness, 2 threads may write to bitmask at same time or concurrently
+    // but by design, never at the same location, except for rejecting a saddle point (a column and row could simultaneously write
+    // at bitmask(0,0) value false to reject.
+    // Important!: We want 2 concurrent writes of value false when former value is true to end up with value false.
+    def checkSaddle(row: Int)(): Unit = {
       val pv = seqMinR(row, pointsWithValues)
-      minFoundAt(pv)
-      logFile.add(LogData(MinOfRow(row), pv))
+      // purposefully avoid chemistry as it's expected that copying full bitmap is prohibitive!
+      if (bitmask(row)(pv.point._2).get()) foundAt(pv)
+    }
+
+    // a sequential task executed highly concurrently if threads available is large
+    def minR(row: Int)(): Unit = {
+      val pv = seqMinR(row, pointsWithValues) // this should decompose further into chemistry to execute in O(log n) rather than O(n)
+      val k = pv.point._2
+      // setting bitmask below purposefully avoids chemistry as it's expected that copying full bitmap is prohibitive!
+      for (j <-  dim if j != k) { bitmask(row)(j).set(false) }
+      // logFile.add(LogData(MinOfRow(row), pv))
       ()
     }
+
+    // a sequential task executed highly concurrently if threads available is large
     def maxC(col: Int)(): Unit = {
-      val pv = seqMaxC(col, pointsWithValues)
-      maxFoundAt(pv)
-      logFile.add(LogData(MaxOfColumn(col), pv))
+      val pv = seqMaxC(col, pointsWithValues) // this should decompose further into chemistry to execute in O(log n) rather than O(n)
+      val k = pv.point._1
+      for (i <-  dim if i != k) { bitmask(i)(col).set(false)}
+      // logFile.add(LogData(MaxOfColumn(col), pv))
       ()
     }
-    val results = getSaddlePointsSequentially(pointsWithValues)
-    // results.foreach(y => println(s"saddle point at $y"))
+    val sequentialResults = getSaddlePointsSequentially(pointsWithValues)
+    sequentialResults.foreach(y => println(s"saddle point at $y computed sequentially"))
 
     site(sp)(
-      go { case interpret(work) => work(); barrier(); end() },
-      // this reaction will be run n times because we emit n molecules `interpret` with various computation tasks
-
-      go { case barrier(_, r) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
-        counter(1)
-        r()
-      },
-      go { case saddlePoints(sps) + minFoundAt(pv1) + maxFoundAt(pv2) if pv1 == pv2 => // the key matching happens here.
-        saddlePoints(pv1::sps)
-      },
-      go { case barrier(_, r1) + counter(k, r2) => // the `counter` molecule holds the number (`k`) of the reactions/computations triggered by interpret
-        // that have executed so far
-        if (k + 1 < 2*n) { // 2*n is amount of preliminary tasks of computation (emitted originally by interpret)
-          counter(k+1)
-          r2()
-          r1()
+      go { case computeMinOrMax(task) + tasksCompleted(k) => // 1st pass, identify all mins and maxs, coordinate when all done
+        task()
+        if (k < 2*n -1) {
+          tasksCompleted(k+1)
         }
         else {
-          Thread.sleep(500.toLong) // Can we avoid this sleep? Should we?
-          // now we have enough to report immediately the results!
-          end() + counterInit()
+          dim.foreach{i => verifySaddlePoint(checkSaddle(i))}
+          tasksCompleted(0)
         }
       },
-      go { case end(_) + done(_, r) + saddlePoints(sps)  => r(sps) }
+      go { case saddlePoints(sps) + foundAt(pv)  =>
+        saddlePoints(pv::sps)
+      },
+      go { case verifySaddlePoint(task) + tasksCompleted(k) => // 2nd pass starts only once 1st pass is complete, now reap the saddles
+        task()
+        if (k < n -1) tasksCompleted(k+1)
+        else end()
+      },
+
+      go { case end(_) + done(_, r) + saddlePoints(sps) => r(sps) }
     )
 
-    dim.foreach(i => interpret(minR(i)) + interpret(maxC(i)))
-    counterInit()
+    dim.foreach{i => computeMinOrMax(minR(i)) + computeMinOrMax(maxC(i))}
+    tasksCompleted(0)
     saddlePoints(Nil)
-    done.timeout(1000 millis)().toList.flatten.toSet shouldBe results.toSet
-
-    val events: IndexedSeq[LogData] = logFile.iterator().asScala.toIndexedSeq
-    println("\nLogFile START"); events.foreach { case(LogData(c, pv)) => println(s"$c  $pv") }; println("LogFile END") // comment out to see what's going on.
+    done.timeout(200 millis)().toList.flatten.toSet  shouldBe sequentialResults.toSet
+    // val events: IndexedSeq[LogData] = logFile.iterator().asScala.toIndexedSeq
+    // println("\nLogFile START"); events.foreach { case(LogData(c, pv)) => println(s"$c  $pv") }; println("LogFile END") // comment out to see what's going on.
 
     sp.shutdownNow()
 
