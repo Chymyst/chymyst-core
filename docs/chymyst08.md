@@ -403,3 +403,289 @@ solution is provided in code. Let us say that the change is very simple, we just
 
     check()
   ```
+ ## Dining savages
+ 
+ We have a tribe of savages that practises cannibalism. Accordingly, the tribe is assumed to have a large supply of prisoners or victims that will make it 
+ into a pot for communal eating. The concurrency rules are as follows. The pot has capacity for `m` victims at the most. It is generally assumed that there 
+ is an arbitrary number `k` of savages who may take turn eating one serving from the pot, which equates to a single victim. In the current presentation, we 
+ will assume that we have three eating savages, so we may associate a particular chemical reaction to a single eating savage. 
+ 
+ The savages may start taking turn eating only when the cook is not busy, which is from the time the pot is at full capacity until it is empty. Once the pot 
+ is empty, the savages wait for the pot to be replenished, which requires the cook to add one victim at a time into the pot.
+ 
+ As usual, we limit the simulation for some amount of time, here we choose a parameter `n` for the number of victims being consumed by the savages. For 
+ simplicity, here, we assume that `n` is a multiple of the pot capacity `m`.
+ 
+ The approach to solving the problem is to start with few molecules and model the problem more precisely starting with simplifying assumptions; in 
+ particular, it is easier to think of a single savage eating from the pot and generalize to `k` afterwards.
+ 
+ #### Hint: use a counter for filling the pot and one for consuming from it
+ 
+ In this presentation, we will log distinct events representative of the story into a concurrent queue of events sharing a printable (String) interface. This
+  makes it easier to visualize a number of runs, debug, and provide some assertions at the end of the simulation. If the event is unique and parameter free, 
+  we use a case object, otherwise a case class. We will show this logging aspect only at the end of the solution as it does not provide any particular 
+  insight to concurrency modeling with Chymyst.
+  
+We can start with the parameters of the problem and a simulation error condition with a pot starting full and savages never eating, instead the amount of 
+victims in the pot decays with time randomly, warming ourselves up to solving the specifics of the problem:
+  ```scala
+      val maxPerPot = 7
+      // enemies of the tribe put together in a pot or capacity of pot in number of ingredients
+      val batches = 10
+      val supplyLineSize = maxPerPot * batches
+      val check = b[Unit, Unit]
+      val endSimulation = m[Unit]
+      val availableIngredientsInPot = m[Int]
+  
+      sealed trait StoryEvent
+      val userStory = new ConcurrentLinkedQueue[StoryEvent]
+  
+      def eatSingleServing(batchVictim: Int): Unit = {
+        // userStory.add(VictimIsConsumedFromPot(batchVictim)) the parameter here is just an identifier
+        // from the victims/ingredients in the pot starting with a high number
+        Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+        availableIngredientsInPot(batchVictim - 1) // one fewer serving.
+      }
+  
+      site(tp)(
+        go { case endSimulation(_) + check(_, r) => r() },
+        go { case availableIngredientsInPot(n) =>
+          // userStory.add(EndOfSimulation) (adding to concurrentQueue userStory
+          if (n > 0) {
+            eatSingleServing(n)
+          } else endSimulation()
+        }
+      )
+      availableIngredientsInPot(maxPerPot) // this molecule signifies pot is available for savages to eat.
+      check()
+  ```
+  
+  Now, we need to look at a molecule that will understand to run enough cycles of pot filling up and emptying itself. A `Cook` molecule carrying out an 
+  integer number from `supplyLineSize = maxPerPot * batches` should do. It will have to count down. The `check` molecule represent the end of simulation, 
+  which will occur once the cook has enough and the pot is empty, meaning the cook has gone through enough batches to have enough. When the cook's counter is
+   at 0, he has had enough (second reaction below), however he will leave the pot full as he found it (the initial condition for `availableIngredientsInPot`)
+   . In the third reaction, we start filling the pot with the molecule showing cook is busy adding to the pot for a particular batch 
+   `busyCookingIngredientsInPot`.
+  ```scala
+  go { case CookHadEnough(_) + availableIngredientsInPot(0) + check(_, r) => r()},
+  go { case Cook(0) =>
+        CookHadEnough()
+        availableIngredientsInPot(maxPerPot)
+  },
+  go { case Cook(n) + availableIngredientsInPot(0) if n > 0 => // cook gets activated once the pot reaches an empty state.
+    pauseForIngredient()
+    busyCookingIngredientsInPot(1) // switch of counting from availableIngredientsInPot to busyCooking indicates we're refilling the pot.
+    Cook(n - 1)
+  }
+  ```
+   We need however to have the cook fill the pot completely and so we need a new reaction to increment the ingredients to the cooking batch size, so a 
+   counting reaction for `busyCookingIngredientsInPot`. While counting up the ingredients in the batch, we must continue to count down the number of victims 
+   in the simulation. Once the cook finishes his batch and can no longer add any, the cook signifies to savages that they can eat by emitting 
+   `availableIngredientsInPot(maxPerPot)`. 
+   
+   We can now write
+   
+```scala
+   go { case Cook(m) + busyCookingIngredientsInPot(n) if m > 0 =>
+         if (n < maxPerPot) {
+           pauseForIngredient()
+           busyCookingIngredientsInPot(n + 1)
+           Cook(m - 1)
+         } else {
+           availableIngredientsInPot(maxPerPot) // switch of counting from busyCooking to availableIngredientsInPot indicates we're consuming the pot.
+           Cook(m)
+         }
+   }
+```
+    
+   Running through this, we run into a problem with
+    
+   ```scala
+   go { case availableIngredientsInPot(n) =>
+         if (n > 0) {
+           eatSingleServing(n)
+         } else endSimulation()
+   }
+   ```
+   and need to introduce a `savage` molecule to consume the ingredients
+   ```scala
+   go { case savage(_) + availableIngredientsInPot(n) =>
+         if (n > 0) {
+           eatSingleServing(n)
+           savage()
+         }
+   }
+   ```
+   
+   We are now ready to augment the solution with a single savage:
+  
+  ```scala
+      val maxPerPot = 7
+      // enemies of the tribe put together in a pot or capacity of pot in number of ingredients
+      val batches = 10
+      val supplyLineSize = maxPerPot * batches
+      val check = b[Unit, Unit]
+      val endSimulation = m[Unit]
+      val availableIngredientsInPot = m[Int]
+  
+      val Cook = m[Int] // counts ingredients consumed, so after a while decides it's enough.
+      val CookHadEnough = m[Unit]
+      val busyCookingIngredientsInPot = m[Int] // Cook's counter to add ingredients to the pot
+      val savage = m[Unit]
+  
+      sealed trait StoryEvent
+      val userStory = new ConcurrentLinkedQueue[StoryEvent]
+  
+      def eatSingleServing(batchVictim: Int): Unit = {
+        // userStory.add(VictimIsConsumedFromPot(batchVictim)) the parameter here is just an identifier
+        // from the victims/ingredients in the pot starting with a high number
+        Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+        availableIngredientsInPot(batchVictim - 1) // one fewer serving.
+      }
+  
+      def pauseForIngredient(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+  
+        site(tp)(
+          go { case Cook(0) =>
+            CookHadEnough()
+            availableIngredientsInPot(maxPerPot)
+          },
+          go { case CookHadEnough(_) + availableIngredientsInPot(0) + check(_, r) => r()},
+          go { case savage(_) + availableIngredientsInPot(n) =>
+            if (n > 0) {
+              eatSingleServing(n)
+              savage()
+            }
+          },
+          go { case Cook(n) + availableIngredientsInPot(0) if n > 0 => // cook gets activated once the pot reaches an empty state.
+            pauseForIngredient()
+            busyCookingIngredientsInPot(1) // switch of counting from availableIngredientsInPot to busyCooking indicates we're refilling the pot.
+            Cook(n - 1)
+          },
+  
+          go { case Cook(m) + busyCookingIngredientsInPot(n) if m > 0 =>
+            if (n < maxPerPot) {
+              pauseForIngredient()
+              busyCookingIngredientsInPot(n + 1)
+              Cook(m - 1)
+            } else {
+              availableIngredientsInPot(maxPerPot) // switch of counting from busyCooking to availableIngredientsInPot indicates we're consuming the pot.
+              Cook(m)
+            }
+          }
+  
+      )
+      Cook(supplyLineSize)
+      availableIngredientsInPot(maxPerPot) // this molecule signifies pot is available for savages to eat.
+      savage()
+      check()
+  ```
+ 
+  At this point, we can replace the reaction with `savage` with one reaction per savage participating in the meal, with molecules `Ivan`, `Patrick` and 
+  `Anita`. We can also introduce logging to capture events.
+  
+  ```scala
+     val maxPerPot = 7 // enemies of the tribe put together in a pot or capacity of pot in number of ingredients
+      val batches = 10
+      val supplyLineSize = maxPerPot * batches
+      val check = b[Unit, Unit]
+  
+      sealed trait StoryEvent {
+        def toString: String
+      }
+      case object CookRetires extends StoryEvent {
+        override def toString: String = "cook is done, savages may eat last batch"
+      }
+      case object CookStartsToWork extends StoryEvent {
+        override def toString: String = "cook finds empty pot and gets to work"
+      }
+      case object EndOfSimulation extends StoryEvent {
+        override def toString: String =
+          "ending simulation, no more ingredients available, savages will have to fish or eat berries or raid again"
+      }
+      final case class CookAddsVictim(victimsToBeCooked: Int, batchVictim: Int) extends StoryEvent {
+        override def toString: String =
+          s"""cook finds unfilled pot and gets cracking with $batchVictim-th enemy ingredient"
+          | "for current batch with $victimsToBeCooked victims to be cooked"""
+      }
+      final case class CookCompletedBatch(victimsToBeCooked: Int) extends StoryEvent {
+        override def toString: String =
+          s"cook notices he finished adding all ingredients with $victimsToBeCooked victims to be cooked"
+      }
+      final case class SavageEating(name: String, batchVictim: Int) extends StoryEvent {
+        override def toString: String = s"$name about to eat ingredient # $batchVictim"
+      }
+  
+      val Cook = m[Int] // counts ingredients consumed, so after a while decides it's enough.
+      val CookHadEnough = m[Unit]
+      val busyCookingIngredientsInPot = m[Int]
+      val Ivan = m[Unit]   // a savage (consumer)
+      val Patrick = m[Unit] // a savage
+      val Anita = m[Unit] // a savage
+      val availableIngredientsInPot = m[Int]
+  
+      val userStory = new ConcurrentLinkedQueue[StoryEvent]
+  
+      def pauseForIngredient(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+      def eatSingleServing(savage: String, batchVictim: Int): Unit = {
+        userStory.add(SavageEating(savage, batchVictim))
+        Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+        availableIngredientsInPot(batchVictim - 1) // one fewer serving.
+      }
+  
+      site(tp)(
+        go { case Cook(0) =>
+          userStory.add(CookCompletedBatch(0))
+          userStory.add(CookAddsVictim(0, 1))
+          userStory.add(CookRetires)
+          CookHadEnough()
+          availableIngredientsInPot(maxPerPot)
+        },
+        go { case CookHadEnough(_) + availableIngredientsInPot(0) + check(_, r) =>
+          userStory.add(EndOfSimulation)
+          r()
+        },
+        go { case Cook(n) + availableIngredientsInPot(0) if n > 0 => // cook gets activated once the pot reaches an empty state.
+          userStory.add(CookStartsToWork)
+          pauseForIngredient()
+          busyCookingIngredientsInPot(1) // switch of counting from availableIngredientsInPot to busyCooking indicates we're refilling the pot.
+          Cook(n - 1)
+        },
+  
+        go { case Cook(m) + busyCookingIngredientsInPot(n) if m > 0 =>
+          userStory.add(CookAddsVictim(m, n))
+          if (n < maxPerPot) {
+            pauseForIngredient()
+            busyCookingIngredientsInPot(n + 1)
+            Cook(m - 1)
+          } else {
+            userStory.add(CookCompletedBatch(m))
+            availableIngredientsInPot(maxPerPot) // switch of counting from busyCooking to availableIngredientsInPot indicates we're consuming the pot.
+            Cook(m)
+          }
+        },
+        go { case Ivan(_) + availableIngredientsInPot(n) if n > 0 => eatSingleServing("Ivan", n) + Ivan()  },
+        go { case Patrick(_) + availableIngredientsInPot(n) if n > 0 => eatSingleServing( "Patrick", n) + Patrick()  },
+        go { case Anita(_) + availableIngredientsInPot(n) if n > 0 => eatSingleServing( "Anita", n) + Anita()  }
+  
+      )
+      Patrick() + Ivan() + Anita() + Cook(supplyLineSize) // if running as a daemon, we would not count down for the Cook.
+      availableIngredientsInPot(maxPerPot) // this molecule signifies pot is available for savages to eat.
+      check()
+
+  ```
+  
+  To generalize the chemistry to an arbitrary population of savages we introduce an indexed sequence of `savages` containing names or Strings. We then 
+  replace the three molecules for Ivan, Patrick, and Anita of type `m[Unit]` with a single molecule `savage` carrying a name value (`m[String]`).
+   
+  Instead of emitting the three savage molecules at initialization, we emit all savages molecules as `savages.foreach(savage)`. Finally, we generalize the 
+  three specific savage reactions into the following one, selecting a random savage to emit (take turn) once the current savage is done eating:
+  ```scala
+     go { case savage(name) + availableIngredientsInPot(n) if n > 0 =>
+          eatSingleServing(name, n)
+          val randomSavageName = savages(scala.util.Random.nextInt(savages.size))
+          savage(randomSavageName) // emit random savage molecule
+        }
+  ```
+  Full code is available in examples.
+
