@@ -6,7 +6,7 @@
 
 For debugging purposes, molecules in `JoinRun` have names.
 These names have no effect on any concurrent computations.
-For instance, the runtime engine will not check that each molecule's name is not empty, or that the names for different molecule sorts are different.
+For instance, the runtime engine will not check that each molecule's name is not empty, or that the names for different molecules are different.
 Molecule names are used only for debugging: they are printed when logging reactions and reaction sites.
 
 There are two ways of assigning a name to a molecule:
@@ -32,11 +32,10 @@ val fetch = b[Unit, Int]
 
 ```
 
-These macros can read the names `"counter"` and `"fetch"` from the surrounding code context.
+These macros read the names `"counter"` and `"fetch"` from the surrounding code.
 This functionality is intended as a syntactic convenience.
 
-Each molecule emitter as a `toString` method.
-This method will return the molecule's name if it was assigned.
+Each molecule emitter has a `toString` method, which returns the molecule's name.
 For blocking molecules, the molecule's name is followed by `"/B"`.
 
 ```scala
@@ -47,26 +46,6 @@ x.toString // returns “counter"
 y.toString // returns “fetch/B"
 
 ```
-
-## Remarks about the semantics of JoinRun
-
-- Emitted molecules are _not_ Scala values.
-Emitted molecules cannot be, say, stored in a data structure or passed as arguments to functions.
-The programmer has no direct access to the molecules in the soup, apart from being able to emit them.
-But emitters _are_ ordinary, locally defined Scala values and can be manipulated as any other Scala values.
-- Emitters are local values of class `B` or `M`, which both extend the abstract class `Molecule`.
-Blocking molecule emitters are of class `B`, non-blocking of class `M`.
-- Reactions are local values of class `Reaction`. Reactions are created using the function `go { case ... => ... }`.
-- Only one `case` clause can be used in each reaction.
--  Reaction sites are values of class `ReactionSite`. These values are not visible to the user: they are created in a closed scope by the `site(...)` call.
-- Reaction sites are immutable once written.
-- Molecule emitters are immutable after all reactions have been written where these molecules are used.
-- Reactions proceed by first deciding which molecules can be used as inputs to some reaction; these molecules are then atomically removed from the soup, and the reaction body is executed.
-Typically, the reaction body will emit new molecules into the soup.
-- We can emit new molecules into the soup at any time and from any code (not only inside a reaction body).
-- It is not possible to decide which reactions will proceed first, or which molecules will be consumed first, when the chemistry allows several possibilities. It is also not possible to know at what time reactions will start. Reactions and molecules do not have priorities and are not ordered in the soup. It is the responsibility of the programmer to define the chemical laws appropriately so that the behavior of the program is deterministic when determinism is required. (This is always possible!)
-- All reactions that share some _input_ molecule must be defined in the same reaction site.
-Reactions that share no input molecules can (and should) be defined in separate reaction sites.
 
 
 ## Molecules and molecule emitters
@@ -81,9 +60,11 @@ val c = m[Int]
 Any molecule emitted in the soup must carry a value.
 So the value `c` itself is not a molecule in the soup.
 The value `c` is a **molecule emitter**, - that is, a function that, when called, will emit molecules of sort `c` into the soup.
-The result of calling the emitter when evaluating `c(123)` is a _side-effect_ that emits the molecule of sort `c` with value `123` into the soup.
+The result of calling the emitter when evaluating `c(123)` is a _side effect_ that emits the molecule of sort `c` with value `123` into the soup.
 
-As defined above, `c` is a non-blocking sort of molecule, so the call `c(123)` is non-blocking -- it does not wait for any reactions involving `c(123)` to start.
+### Non-blocking molecules
+
+As defined above with the `m` method, `c` is a **non-blocking** molecule emitter, which means that the call `c(123)` is non-blocking -- it does not wait for any reactions involving `c(123)` to start.
 Calling `c(123)` will immediately return a `Unit` value.
 
 The non-blocking emitter `c` has type `M[Int]` and can be also created directly using the class constructor:
@@ -93,7 +74,9 @@ val c = new M[Int]("c")
 
 ```
 
-For a blocking molecule, the emission call will block until a reaction can start that consumes that molecule.
+### Blocking molecules
+
+For a **blocking** molecule, the emitter call will block until a reaction can start that consumes that molecule.
 
 A blocking emitter is defined like this,
 
@@ -102,7 +85,7 @@ val f = b[Int, String]
 
 ```
 
-Now `f` is an emitter that takes an `Int` value and returns a `String`.
+Now `f` is a blocking emitter that takes an `Int` value and returns a `String`.
 
 Emitters for blocking molecules are essentially functions: their type is `B[T, R]`, which extends `Function1[T, R]`.
 The emitter `f` could be equivalently defined by
@@ -121,21 +104,57 @@ val result = f(123)
 
 will emit a molecule of sort `f` with value `123` into the soup.
 
-The calling process in `f(123)` will wait until some reaction consumes this molecule and performs a **reply action** for the molecule `f`.
-The reply action must pass a string value to the reply function:
+The calling process that emitted `f(123)` will become blocked.
+It will wait until some reaction starts, consumes this molecule, and performs a **reply action**.
+
+Since the type of `f` is `B[Int, String]`, the reply action must pass a `String` value to the reply function:
 
 ```scala
-go { case c(x) + f(y, r) => r((x+y).toString) }
+go { case c(x) + f(y, r) =>
+  val replyValue = (x+y).toString 
+  r(replyValue) 
+}
 
 ```
 
-Only after the reaction body executes the reply action, the `result` will be assigned to that string value, and the calling process will become unblocked and will continue its computations.
+The reply action consists of calling the **reply function** `r` with the reply value as its argument.
+
+Only after the reaction body performs the reply action, the process that emitted `f(123)` will become unblocked.
+Then the variable `result` will become equal to the string value that was sent as the reply, and the calling process will continue its computation.
+
+## Remarks about the semantics of `JoinRun`
+
+- Emitted molecules such as `c(123)` are _not_ Scala values.
+Emitted molecules cannot be stored in a data structure or passed as arguments to functions.
+The programmer has no direct access to the molecules in the soup, apart from being able to emit them.
+But emitters _are_ ordinary, locally defined Scala values and can be manipulated as any other Scala values.
+Emitters are functions whose `apply` method has the side effect of emitting a new copy of a molecule into the soup.
+- Emitters are local values of class `B` or `M`, which both extend the abstract class `Molecule` and the `Function1` trait.
+Blocking molecule emitters are of class `B`, non-blocking of class `M`.
+- Reactions are local values of class `Reaction`. Reactions are created using the function `go` with the syntax `go { case ... => ... }`.
+- Only one `case` clause can be used in each reaction. It is an error to use several `case` clauses, or case clauses that do not match on input molecules, such as `go { case x => }`.
+- Reaction sites are immutable values of class `ReactionSite`. These values are not visible to the user: they are created in a closed scope by the `site(...)` call. The `site(...)` call activates all the reactions at that reaction site.
+- Molecule emitters are immutable after all reactions have been activated where these molecules are used as inputs.
+- Molecules emitted into the soup gather at their reaction site. Reaction sites proceed by first deciding which input molecules can be consumed by some reactions; this decision involves the chemical sorts of the molecules as well as any pattern matching and guard conditions that depend on molecule values.
+When suitable input molecules are found and a reaction is chosen, the input molecules are atomically removed from the soup, and the reaction body is executed.
+- The reaction body can emit one or more new molecules into the soup.
+The code can emit new molecules into the soup at any time and from any code (not only inside a reaction body).
+- When enough input molecules are present at a reaction site so that several alternative reactions can start, is not possible to decide which reactions will proceed first, or which molecules will be consumed first.
+It is also not possible to know at what time reactions will start.
+Reactions and molecules do not have priorities and are not ordered in the soup.
+When determinism is required, it is the responsibility of the programmer to define the chemical laws such that the behavior of the program is deterministic.
+(This is always possible!)
+- All reactions that share some _input_ molecule must be defined within the same reaction site.
+Reactions that share no input molecules can (and should) be defined in separate reaction sites.
+
 
 ## Chemical designations of molecules vs. molecule names vs. local variable names 
 
 Each molecule has a specific chemical designation, such as `sum`, `counter`, and so on.
 These chemical designations are not actually strings `"sum"` or `"counter"`.
 (The names of the local variables and the molecule names are chosen purely for convenience.)
+
+Rather, the chemical designations are the object identities of the molecule emitters.
 
 We could define a local alias for a molecule emitter, for example like this:
 
@@ -146,7 +165,7 @@ val q = counter
 ```
 
 This code will copy the molecule emitter `counter` into another local value `q`.
-However, this does not change the chemical designation of the molecule.
+However, this does not change the chemical designation of the molecule, because `q` will be a reference to the same object as `counter`.
 The emitter `q` will emit the same molecules as `counter`; that is, molecules emitted with `q(...)` will react in the same way and in the same reactions as molecules emitted with `counter(...)`.
 
 (This is similar to how chemical substances are named in ordinary language.
