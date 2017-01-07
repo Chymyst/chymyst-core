@@ -161,7 +161,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     (result.info.inputs match {
       case List(
       InputMoleculeInfo(`a`, SimpleVar, `simpleVarXSha1`),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_), "4B93FCEF4617B49161D3D2F83E34012391D5A883")
+      InputMoleculeInfo(`bb`, OtherInputPattern(_, List()), "4B93FCEF4617B49161D3D2F83E34012391D5A883")
       ) => true
       case _ => false
     }) shouldEqual true
@@ -264,9 +264,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       InputMoleculeInfo(`c`, SimpleConst(()), _),
       InputMoleculeInfo(`c`, Wildcard, _),
       InputMoleculeInfo(`bb`, Wildcard, _),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_), _),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_), _),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_), _),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_, List("z")), _),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_, List()), _),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_, List("t", "q")), _),
       InputMoleculeInfo(`s`, Wildcard, _)
       ) => true
       case _ => false
@@ -395,10 +395,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     (r.info.inputs match {
       case List(
-      InputMoleculeInfo(`a`, OtherInputPattern(_), _),
+      InputMoleculeInfo(`a`, OtherInputPattern(_, List()), _),
       InputMoleculeInfo(`b`, SimpleConst("xyz"), _),
       InputMoleculeInfo(`d`, SimpleConst(()), _),
-      InputMoleculeInfo(`c`, OtherInputPattern(_), _)
+      InputMoleculeInfo(`c`, OtherInputPattern(_, List()), _)
       ) => true
       case _ => false
     }) shouldEqual true
@@ -498,6 +498,18 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     ))
   }
 
+  it should "compute input pattern variables correctly" in {
+
+    val bb = m[(Int, Int, Option[Int], (Int, Option[Int]))]
+
+    val result = go { case bb( p@(ytt, 1, None, (s, Some(t))) ) =>  }
+    val vars = result.info.inputs(0).flag match {
+      case OtherInputPattern(_, vars) => vars
+      case _ => Nil
+    }
+    vars shouldEqual List("p", "ytt", "s", "t")
+  }
+
   it should "create partial functions for matching from reaction body" in {
     val aa = m[Option[Int]]
     val bb = m[(Int, Option[Int])]
@@ -511,19 +523,21 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val pat_bb = result.info.inputs(1)
     pat_bb.molecule shouldEqual bb
 
+    // different desugared syntax trees with Scala 2.11 vs. Scala 2.12
+    (Set("9247828A8E7754B2D961E955541CF1D4D77E2D1E", "A67750BF5B6338391B0034D3A99694889CBB26A3") contains pat_aa.sha1) shouldEqual true
+    (Set("2FB215E623E8AF28E9EA279CBEA827A1065CA226", "A67750BF5B6338391B0034D3A99694889CBB26A3") contains pat_bb.sha1) shouldEqual true
+
     (pat_aa.flag match {
-      case OtherInputPattern(matcher) =>
+      case OtherInputPattern(matcher, vars) =>
         matcher.isDefinedAt(Some(1)) shouldEqual true
         matcher.isDefinedAt(None) shouldEqual false
+        vars shouldEqual List("x")
         true
       case _ => false
     }) shouldEqual true
 
-    // Scala 2.11 vs. Scala 2.12
-    (Set("9247828A8E7754B2D961E955541CF1D4D77E2D1E", "A67750BF5B6338391B0034D3A99694889CBB26A3") contains pat_aa.sha1) shouldEqual true
-
     (pat_bb.flag match {
-      case OtherInputPattern(matcher) =>
+      case OtherInputPattern(matcher, vars) =>
         matcher.isDefinedAt((0, None)) shouldEqual true
         matcher.isDefinedAt((1, None)) shouldEqual false
         matcher.isDefinedAt((0, Some(1))) shouldEqual false
@@ -531,9 +545,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         true
       case _ => false
     }) shouldEqual true
-
-    (Set("2FB215E623E8AF28E9EA279CBEA827A1065CA226", "A67750BF5B6338391B0034D3A99694889CBB26A3") contains pat_bb.sha1) shouldEqual true
-
   }
 
   behavior of "output value computation"
@@ -676,30 +687,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       (z, getName)
     }
     (y1, y2) shouldEqual(("z", "x$8"))
-  }
-
-  it should "find correct syntax tree for a reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new M[String]("b")
-    val c = new M[(Int, Int)]("c")
-    val d = new E("d")
-
-    a.name shouldEqual "a"
-    b.isInstanceOf[M[String]] shouldEqual true
-    b.name shouldEqual "b"
-    c.name shouldEqual "c"
-    d.name shouldEqual "d"
-
-    val bodyRawTree = rawTree({ case a(Some(1)) + b("xyz") + d(()) + c((2, 3)) => a(Some(2)) } : ReactionBody)
-    val bodyRawTreeString = Macros.replaceScala211Quirk(bodyRawTree.toString)
-
-    // Note: Scala 2.11 and Scala 2.12 have different desugared syntax trees for this reaction.
-    // The only difference is AppliedTypeTree(Select(This(TypeName("scala")), scala.Function1), ...) vs AppliedTypeTree(Select(Ident(scala), scala.Function1), ...)
-    val treeScala211 = """Typed(Typed(Block(List(ClassDef(Modifiers(FINAL | SYNTHETIC), TypeName("$anonfun"), List(), Template(List(TypeTree(), TypeTree()), noSelfType, List(DefDef(Modifiers(), termNames.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(Apply(Select(Super(This(TypeName("$anonfun")), typeNames.EMPTY), termNames.CONSTRUCTOR), List())), Literal(Constant(())))), DefDef(Modifiers(OVERRIDE | FINAL | METHOD), TermName("applyOrElse"), List(TypeDef(Modifiers(DEFERRED | PARAM), TypeName("A1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree()))), TypeDef(Modifiers(DEFERRED | PARAM), TypeName("B1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree())))), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x88"), TypeTree().setOriginal(Ident(TypeName("A1"))), EmptyTree), ValDef(Modifiers(PARAM | SYNTHETIC), TermName("default"), TypeTree().setOriginal(AppliedTypeTree(Select(This(TypeName("scala")), scala.Function1), List(TypeTree().setOriginal(Ident(TypeName("A1"))), TypeTree().setOriginal(Ident(TypeName("B1")))))), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))))), UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant("xyz")))))), UnApply(Apply(Select(Ident(TermName("d")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant(())))))), UnApply(Apply(Select(Ident(TermName("c")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Tuple2)), List(Literal(Constant(2)), Literal(Constant(3)))))))), EmptyTree, Apply(Select(Ident(TermName("a")), TermName("apply")), List(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName("apply")), List(TypeTree())), List(Literal(Constant(2))))))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Apply(Select(Ident(TermName("default")), TermName("apply")), List(Ident(TermName("x88")))))))), DefDef(Modifiers(FINAL | METHOD), TermName("isDefinedAt"), List(), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x88"), TypeTree(), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))))), UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant("xyz")))))), UnApply(Apply(Select(Ident(TermName("d")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant(())))))), UnApply(Apply(Select(Ident(TermName("c")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Tuple2)), List(Literal(Constant(2)), Literal(Constant(3)))))))), EmptyTree, Literal(Constant(true))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Literal(Constant(false)))))))))), Apply(Select(New(Ident(TypeName("$anonfun"))), termNames.CONSTRUCTOR), List())), TypeTree()), TypeTree().setOriginal(Select(Ident(code.chymyst.jc.Core), TypeName("ReactionBody"))))"""
-    val treeScala212 = """Typed(Typed(Block(List(ClassDef(Modifiers(FINAL | SYNTHETIC), TypeName("$anonfun"), List(), Template(List(TypeTree(), TypeTree()), noSelfType, List(DefDef(Modifiers(), termNames.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(Apply(Select(Super(This(TypeName("$anonfun")), typeNames.EMPTY), termNames.CONSTRUCTOR), List())), Literal(Constant(())))), DefDef(Modifiers(OVERRIDE | FINAL | METHOD), TermName("applyOrElse"), List(TypeDef(Modifiers(DEFERRED | PARAM), TypeName("A1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree()))), TypeDef(Modifiers(DEFERRED | PARAM), TypeName("B1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree())))), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x88"), TypeTree().setOriginal(Ident(TypeName("A1"))), EmptyTree), ValDef(Modifiers(PARAM | SYNTHETIC), TermName("default"), TypeTree().setOriginal(AppliedTypeTree(Select(Ident(scala), scala.Function1), List(TypeTree().setOriginal(Ident(TypeName("A1"))), TypeTree().setOriginal(Ident(TypeName("B1")))))), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))))), UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant("xyz")))))), UnApply(Apply(Select(Ident(TermName("d")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant(())))))), UnApply(Apply(Select(Ident(TermName("c")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Tuple2)), List(Literal(Constant(2)), Literal(Constant(3)))))))), EmptyTree, Apply(Select(Ident(TermName("a")), TermName("apply")), List(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName("apply")), List(TypeTree())), List(Literal(Constant(2))))))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Apply(Select(Ident(TermName("default")), TermName("apply")), List(Ident(TermName("x88")))))))), DefDef(Modifiers(FINAL | METHOD), TermName("isDefinedAt"), List(), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x88"), TypeTree(), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))))), UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant("xyz")))))), UnApply(Apply(Select(Ident(TermName("d")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant(())))))), UnApply(Apply(Select(Ident(TermName("c")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Tuple2)), List(Literal(Constant(2)), Literal(Constant(3)))))))), EmptyTree, Literal(Constant(true))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Literal(Constant(false)))))))))), Apply(Select(New(Ident(TypeName("$anonfun"))), termNames.CONSTRUCTOR), List())), TypeTree()), TypeTree().setOriginal(Select(Ident(code.chymyst.jc.Core), TypeName("ReactionBody"))))"""
-
-    Set(treeScala211, treeScala212) should contain oneElementOf List(bodyRawTree.toString)
-    treeScala212 shouldEqual bodyRawTreeString
   }
 
 }
