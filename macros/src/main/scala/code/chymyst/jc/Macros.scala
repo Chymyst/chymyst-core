@@ -25,6 +25,13 @@ object Macros {
     q"$result"
   }
 
+  def replaceScala211Quirk(s: String): String = {
+    val string211 = "AppliedTypeTree(Select(This(TypeName(\"scala\")), scala.Function1), "
+    val string212 = "AppliedTypeTree(Select(Ident(scala), scala.Function1), "
+    
+    s.replace(string211, string212)
+  }
+
   /** This macro is not actually used by Chymyst.
     * It serves only for testing the mechanism by which we detect the name of the enclosing value.
     * For example, `val myVal = { 1; 2; 3; getName }` returns the string "myVal".
@@ -183,7 +190,7 @@ object Macros {
         info.filter { // PartialFunction automatically adds a default case; we ignore that CaseDef.
             case CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, _) => false
             case _ => true
-          }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody, getSha1(c)) }
+          }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody, getSha1String(replaceScala211Quirk(showRaw(c)))) }
       }
     }
 
