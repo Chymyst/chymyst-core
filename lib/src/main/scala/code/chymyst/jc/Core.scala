@@ -46,6 +46,9 @@ object Core {
     def =!=(other: A): Boolean = self != other
   }
 
+  implicit final class StringToSymbol(s: String) {
+    def toScalaSymbol: scala.Symbol = scala.Symbol(s)
+  }
 
   val defaultSitePool = new FixedPool(2)
   val defaultReactionPool = new FixedPool(4)

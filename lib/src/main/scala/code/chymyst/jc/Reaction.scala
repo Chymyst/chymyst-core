@@ -6,11 +6,11 @@ sealed trait InputPatternType
 
 case object Wildcard extends InputPatternType
 
-final case class SimpleVar(v: String) extends InputPatternType
+final case class SimpleVar(v: Symbol) extends InputPatternType
 
 final case class SimpleConst(v: Any) extends InputPatternType
 
-final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: List[String]) extends InputPatternType
+final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: List[Symbol]) extends InputPatternType
 
 case object UnknownInputPattern extends InputPatternType
 
@@ -27,7 +27,7 @@ sealed trait GuardPresenceType {
   }
 }
 
-final case class GuardPresent(vars: List[List[String]]) extends GuardPresenceType
+final case class GuardPresent(vars: List[List[Symbol]]) extends GuardPresenceType
 
 case object GuardAbsent extends GuardPresenceType
 

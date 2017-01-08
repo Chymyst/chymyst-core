@@ -233,7 +233,7 @@ object Macros {
 
     def splitGuard(guardTerm: Tree): List[Tree] = {
       guardTerm match {
-        case q"$a && $b" => splitGuard(a:Tree) ++ splitGuard(b:Tree) // IntelliJ has a bug that prevents it from unifying Trees#Tree and c.universe.Tree
+        case q"$a && $b" => splitGuard(a.asInstanceOf[Tree]) ++ splitGuard(b.asInstanceOf[Tree]) // IntelliJ has a bug that prevents it from unifying Trees#Tree and c.universe.Tree. So let's do this harmless type cast to appease IntelliJ.
         case t@_ => List(t)
       }
     }
@@ -392,8 +392,8 @@ object Macros {
     implicit val liftablePatternFlag: Liftable[InputPatternFlag[Ident,Tree]] = Liftable[InputPatternFlag[Ident,Tree]] {
       case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
       case SimpleConstF(tree) => q"_root_.code.chymyst.jc.SimpleConst($tree)"
-      case SimpleVarF(v) => q"_root_.code.chymyst.jc.SimpleVar(${v.name.decodedName.toString})"
-      case OtherPatternF(matcherTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern($matcherTree, ${vars.map(_.name.decodedName.toString)})"
+      case SimpleVarF(v) => q"_root_.code.chymyst.jc.SimpleVar(${v.name.decodedName.toString.toScalaSymbol})"
+      case OtherPatternF(matcherTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern($matcherTree, ${vars.map(_.name.decodedName.toString.toScalaSymbol)})"
       case _ => q"_root_.code.chymyst.jc.UnknownInputPattern"
     }
 
@@ -472,7 +472,7 @@ object Macros {
     else {
       val knownVars =  patternIn.map(_._2)
       val guardComponents = splitGuard(guard)
-      val guardVars = guardComponents.map(guard => GuardVars.from(guard, knownVars).map(_.asTerm.name.decodedName.toString))
+      val guardVars = guardComponents.map(guard => GuardVars.from(guard, knownVars).map(_.asTerm.name.decodedName.toString.toScalaSymbol))
       q"GuardPresent($guardVars)"
     }
 
