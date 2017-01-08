@@ -32,14 +32,19 @@ sealed trait GuardPresenceType {
 }
 
 /** Indicates the presence of a guard condition.
-  * The guard is parsed into a flat conjunction of guard clauses, for example `a == 2 && (b > c && d < 0) && e == f` will be parsed into a conjunction of (a==2), (b>c), (d<0), (e==f).
-  * Here, a to f are pattern variables in a reaction.
+  * The guard is parsed into a flat conjunction of guard clauses, which are then analyzed for cross-dependencies between molecules.
   *
-  * @param vars The list of variables used by the guard condition. Each element of this list is a list of variables used by a guard clause. In the example shown above, this will be List(List('a), List('b, 'c), List('d), List('e, 'f)).
-  * @param staticGuard The conjunction of all the clauses of the guard that are independent of pattern variables. This closure can be called in order to determine whether the reaction should even be considered to start, regardless of the presence of molecules.
-  * @param crossGuards A list of functions that represent the clauses of the guard that relate values of different molecules. The closure `Any => Boolean` should be called with the arguments representing the tuples of pattern variables from each molecule.
+  * For example, consider the reaction {{{go { case a(x) + b(y) + c(z) if x > n && y > 0 && y > z && n > 1 => ...} }}}. Here {{{n}}} is an integer constant defined outside the reaction.
+  * The conditions for starting this reaction is that a(x) has value x > n; that b(y) has value y > 0; that c(z) has value such that y > z; and finally that n > 1, independently of any molecule values.
+  * The condition n > 1 is a static guard. The condition x > n pertains only to the molecule a(x) and therefore can be moved out of the guard into the InputMoleculeInfo for that molecule. Similarly, the condition y > 0 can be moved out of the guard.
+  * However, the condition y > z relates two different molecule values; it is a cross guard.
+  *
+  * @param vars The list of all pattern variables used by the guard condition. Each element of this list is a list of variables used by one guard clause. In the example shown above, this will be {{{List(List('y, 'z))}}} because all other conditions are moved out of the guard.
+  * @param staticGuard The conjunction of all the clauses of the guard that are independent of pattern variables. This closure can be called in order to determine whether the reaction should even be considered to start, regardless of the presence of molecules. In this example, the value of {{{staticGuard}}} will be {{{Some(() => n > 1)}}}.
+  * @param crossGuards A list of functions that represent the clauses of the guard that relate values of different molecules. The closure `Any => Unit` should be called with the arguments representing the tuples of pattern variables from each molecule used by the cross guard.
+  *                    In the present example, {{{crossGuards}}} will be {{{List((List('y, 'z), { case List(y, z) if y > z => () }))}}}.
   */
-final case class GuardPresent(vars: List[List[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: List[(List[ScalaSymbol], Any => Boolean)]) extends GuardPresenceType
+final case class GuardPresent(vars: List[List[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: List[(List[ScalaSymbol], PartialFunction[List[Any], Unit])]) extends GuardPresenceType
 
 case object GuardAbsent extends GuardPresenceType
 

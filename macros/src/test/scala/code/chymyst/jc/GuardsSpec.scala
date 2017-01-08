@@ -6,7 +6,7 @@ import org.scalatest.{FlatSpec, Matchers}
 class GuardsSpec extends FlatSpec with Matchers {
 
   behavior of "guard conditions"
-
+/*
   it should "correctly recognize a guard condition with captured variables" in {
     val a = m[Int]
 
@@ -82,14 +82,13 @@ class GuardsSpec extends FlatSpec with Matchers {
     }) shouldEqual true
 
   }
-
-
+*/
     it should "handle a guard condition with cross dependency that cannot be eliminated by Boolean transformations" in {
       val a = m[Int]
 
       val n = 10
 
-      val result = go { case a(x) + a(y) if x > n || y > n && 1 > n => }
+      val result = go { case a(x) + a(y) if x > n || y > n => }
 
       (result.info.hasGuard match {
         case GuardPresent(List(List('x), List('y)), None, List()) =>
