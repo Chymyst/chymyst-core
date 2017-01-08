@@ -231,23 +231,29 @@ object Macros {
       case Bind(t@TermName(n), Ident(termNames.WILDCARD)) => Ident(t)
     }
 
+    def splitGuard(guardTerm: Tree): List[Tree] = {
+      guardTerm match {
+        case q"$a && $b" => splitGuard(a:Tree) ++ splitGuard(b:Tree) // IntelliJ has a bug that prevents it from unifying Trees#Tree and c.universe.Tree
+        case t@_ => List(t)
+      }
+    }
+
     object GuardVars extends Traverser {
 
       private var vars: mutable.ArrayBuffer[c.Symbol] = _
 
-      private var inputVars: List[Ident] = _
+      private var givenPatternVars: List[Ident] = _
 
       override def traverse(tree: Tree): Unit = tree match {
         case t@Ident(TermName(_)) =>
-          val include = inputVars exists (_.name === t.name)
-          if (include)
-          vars.append(t.symbol)
+          val identIsPatternVariable = givenPatternVars exists (_.name === t.name)
+          if (identIsPatternVariable) vars.append(t.symbol)
         case _ => super.traverse(tree)
       }
 
       def from(guardTerm: Tree, inputInfos: List[InputPatternFlag[Ident,Tree]]): List[c.Symbol] = {
         vars = mutable.ArrayBuffer()
-        inputVars = inputInfos.flatMap(_.varNames)
+        givenPatternVars = inputInfos.flatMap(_.varNames)
         traverse(guardTerm)
         vars.toList
       }
@@ -459,11 +465,16 @@ object Macros {
     val outputMolecules = allOutputInfo.map { case (m, p) => q"OutputMoleculeInfo(${m.asTerm}, $p)" }
 
     val isGuardAbsent = guard match { case EmptyTree => true; case _ => false }
-    val hasGuardFlag = if (isGuardAbsent) q"GuardAbsent" else {
+
+    // We lift the GuardPresenceType values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
+    val hasGuardFlag = if (isGuardAbsent)
+      q"GuardAbsent"
+    else {
       val knownVars =  patternIn.map(_._2)
-      val guardVars = GuardVars.from(guard, knownVars).map(_.asTerm.name.decodedName.toString)
+      val guardComponents = splitGuard(guard)
+      val guardVars = guardComponents.map(guard => GuardVars.from(guard, knownVars).map(_.asTerm.name.decodedName.toString))
       q"GuardPresent($guardVars)"
-    } // We lift these values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
+    }
 
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of output molecules.
