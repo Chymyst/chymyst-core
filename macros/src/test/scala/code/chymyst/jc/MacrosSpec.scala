@@ -32,7 +32,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "compute correct names and classes for molecule emitters" in {
-    val a = m[Option[(Int,Int,Map[String,Boolean])]] // complicated type
+    val a = m[Option[(Int, Int, Map[String, Boolean])]] // complicated type
 
     a.isInstanceOf[M[_]] shouldEqual true
     a.isInstanceOf[E] shouldEqual false
@@ -40,7 +40,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val s = b[Map[(Boolean, Unit), Seq[Int]], Option[List[(Int, Option[Map[Int, String]])]]] // complicated type
 
-    s.isInstanceOf[B[_,_]] shouldEqual true
+    s.isInstanceOf[B[_, _]] shouldEqual true
     s.isInstanceOf[EB[_]] shouldEqual false
     s.isInstanceOf[BE[_]] shouldEqual false
     s.isInstanceOf[EE] shouldEqual false
@@ -229,8 +229,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     // reaction contains all kinds of pattern-matching constructions
     val result = go {
-    // This generates a compiler warning "class M expects 2 patterns to hold (Int, Option[Int]) but crushing into 2-tuple to fit single pattern (SI-6675)".
-    // However, this crushing is among the issues covered by this test, and we cannot tell scalac to ignore this warning.
+      // This generates a compiler warning "class M expects 2 patterns to hold (Int, Option[Int]) but crushing into 2-tuple to fit single pattern (SI-6675)".
+      // However, this crushing is among the issues covered by this test, and we cannot tell scalac to ignore this warning.
       case a(p) + a(y) + a(1) + c(()) + c(_) + bb(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) => s(); a(p + 1) + qq() + r(p)
     }
 
@@ -252,16 +252,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(s, ConstOutputValue(())), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qq, ConstOutputValue(()))))
 
-  }
-
-  it should "correctly split a guard condition" in {
-    val a = m[Int]
-    val bb = m[(Int, Option[Int])]
-
-    val result = go {
-      case a(p) + a(y) + a(1) + bb((1, z)) + bb((t, Some(q))) if y > 0 && q > 0 && t == p =>
-    }
-    result.info.hasGuard shouldEqual GuardPresent(List(List('y), List('q), List('t, 'p)))
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
@@ -407,7 +397,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val bb = m[(Int, Int, Option[Int], (Int, Option[Int]))]
 
-    val result = go { case bb( p@(ytt, 1, None, (s, Some(t))) ) =>  }
+    val result = go { case bb(p@(ytt, 1, None, (s, Some(t)))) => }
     val vars = result.info.inputs.head.flag match {
       case OtherInputPattern(_, vs) => vs
       case _ => Nil
@@ -518,7 +508,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val d = m[Boolean]
 
     site(
-      go { case a(x) + d(_) => c({ a(1); 2} ) }
+      go { case a(x) + d(_) => c({
+        a(1); 2
+      })
+      }
     )
 
     a.isBound shouldEqual true
@@ -586,14 +579,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       val z = getName
       (z, getName)
     }
-    y shouldEqual(("z", "y"))
+    y shouldEqual (("z", "y"))
 
-    val (y1,y2) = {
+    val (y1, y2) = {
       val z = getName
       (z, getName)
     }
-    (y1, y2) shouldEqual(("z", "x$8"))
+    (y1, y2) shouldEqual (("z", "x$8"))
   }
 
 }
-
