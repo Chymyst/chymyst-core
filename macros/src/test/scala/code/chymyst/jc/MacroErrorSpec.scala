@@ -1,6 +1,7 @@
 package code.chymyst.jc
 
-import Macros.{b, go, m}
+
+import Macros.{b, m, go}
 import code.chymyst.jc.Core.ReactionBody
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -12,6 +13,15 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
   it should "fail to compile a reaction with empty singleton clause" in {
     "val r = go { case _ => }" shouldNot compile
+  }
+
+  it should "fail to compile a guard that replies" in {
+    val f = b[Unit,Unit]
+    val x = 2
+    x shouldEqual 2
+    f.isInstanceOf[EE] shouldEqual true
+
+    "val r = go { case f(_, r) if r() && x == 2 => }" shouldNot compile
   }
 
   it should "fail to compile a reaction that is not defined inline" in {
