@@ -424,7 +424,7 @@ object Macros {
     maybeError("input molecule patterns", "emits output molecules", patternOut)
     maybeError("input molecule patterns", "perform any reply actions", patternReply, "not")
 
-    val (guardIn, guardOut, guardReply) = moleculeInfoMaker.from(guard) // guard lists should be all empty
+    val (guardIn, guardOut, guardReply) = moleculeInfoMaker.from(guard) // guard in/out/reply lists should be all empty
     maybeError("input guard", "matches on additional input molecules", guardIn.map(_._1))
     maybeError("input guard", "emit any output molecules", guardOut.map(_._1), "not")
     maybeError("input guard", "perform any reply actions", guardReply.map(_._1), "not")
@@ -438,7 +438,7 @@ object Macros {
     maybeError("blocking input molecules", "matches on anything else than a simple variable", wrongBlockingMolecules)
 
     // If we are here, all input reply molecules have correct pattern variables. Now we check that each of them has one and only one reply.
-    val repliedMolecules = (guardReply ++ bodyReply).map(_._1.asTerm.name.decodedName)
+    val repliedMolecules = bodyReply.map(_._1.asTerm.name.decodedName)
     val blockingReplies = blockingMolecules.flatMap(_._3.flatMap {
       case ReplyVarF(x) => Some(x.name)
       case _ => None
@@ -461,7 +461,7 @@ object Macros {
     // Note: the output molecules could be sometimes not emitted according to a runtime condition.
     // We do not try to examine the reaction body to determine which output molecules are always emitted.
     // However, the order of output molecules corresponds to the order in which they might be emitted.
-    val allOutputInfo = guardOut ++ bodyOut
+    val allOutputInfo = bodyOut // Neither the pattern nor the guard can emit output molecules.
     val outputMolecules = allOutputInfo.map { case (m, p) => q"OutputMoleculeInfo(${m.asTerm}, $p)" }
 
     val isGuardAbsent = guard match { case EmptyTree => true; case _ => false }
