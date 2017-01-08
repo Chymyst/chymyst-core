@@ -19,10 +19,13 @@ object Core {
 
   def getSha1(c: Any): String = getSha1String(c.toString)
 
+  // not sure if this will be useful:
   //  def flatten[T](optionSet: Option[Set[T]]): Set[T] = optionSet.getOrElse(Set())
   //  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 
-  def nonemptyOpt[S](s: Seq[S]): Option[Seq[S]] = if (s.isEmpty) None else Some(s)
+  implicit class SeqWithOption[S](s: Seq[S]) {
+    def toOptionSeq: Option[Seq[S]] = if (s.isEmpty) None else Some(s)
+  }
 
   /** Add a random shuffle method to sequences.
     *
@@ -44,6 +47,14 @@ object Core {
   @SuppressWarnings(Array("org.wartremover.warts.Equals"))
   implicit final class AnyOpsNotEquals[@specialized A](self: A) {
     def =!=(other: A): Boolean = self != other
+  }
+
+  implicit final class SafeSeqDiff[T](s: Seq[T]) {
+    def difff(t: Seq[T]): Seq[T] = s diff t
+  }
+
+  implicit final class SafeListDiff[T](s: List[T]) {
+    def difff(t: List[T]): List[T] = s diff t
   }
 
   implicit final class StringToSymbol(s: String) {
