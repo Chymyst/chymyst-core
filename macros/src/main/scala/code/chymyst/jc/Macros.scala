@@ -297,9 +297,9 @@ object Macros {
       if (guardTree.isEmpty)
         q"{ case $binderTerm => () } : PartialFunction[Any, Unit]"
       else {
-//        val newGuard = (ReplaceVars.in(guardTree, vars))
-        val newBinder = ReplaceVars.in(binderTerm, GuardVars.fromVars(guardTree, vars))
-        val caseDefs = List(cq"$binderTerm if $guardTree => ()") //if $guardTree => fails
+//        val newGuardTree = (ReplaceVars.in(guardTree, vars))
+//        val newBinderTerm = ReplaceVars.in(binderTerm, GuardVars.fromVars(guardTree, vars))
+        val caseDefs = List(cq"$binderTerm => ()") //if $guardTree => fails
         q"{ case ..$caseDefs } : PartialFunction[Any, Unit]"
       }
     }
@@ -339,9 +339,7 @@ object Macros {
     }
 
     object GuardVars extends Traverser {
-
       private var vars: mutable.ArrayBuffer[Ident] = _
-
       private var givenPatternVars: List[Ident] = _
 
       override def traverse(tree: Tree): Unit = tree match {
@@ -580,7 +578,7 @@ object Macros {
         //        val caseDefs = List(cq"(..$matchers) => $guardTree  ")
         //        val partialFunctionTree = q"{ case ..$caseDefs }"
         //        val guardUntypechecked = c.typecheck( guardTree )
-                val partialFunctionTree = q"{ case (..$binders) if $guardTree => () } : PartialFunction[Any, Unit]"
+                val partialFunctionTree = q"{ case (..$binders) => () } : PartialFunction[Any, Unit]" //  if $guardTree; doesn't work
         (vars.map(identToScalaSymbol), partialFunctionTree)
     }
 
