@@ -68,6 +68,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     }) shouldEqual true
 
   }
+
   it should "perform Boolean transformation on a guard condition to eliminate cross dependency" in {
     val a = m[Int]
 
@@ -83,12 +84,27 @@ class GuardsSpec extends FlatSpec with Matchers {
 
   }
 */
+  it should "correctly handle a guard condition with nontrivial matcher" in {
+    val a = m[(Int,Int,Int)]
+
+    val n = 10
+
+    val result = go { case a((x,y,z)) if x > y => }
+
+    (result.info.hasGuard match {
+      case GuardPresent(List(List('x), List('y)), None, List()) =>
+        true
+      case _ => false
+    }) shouldEqual true
+
+  }
+/*
     it should "handle a guard condition with cross dependency that cannot be eliminated by Boolean transformations" in {
       val a = m[Int]
 
       val n = 10
 
-      val result = go { case a(x) + a(y) if x > n || y > n => }
+      val result = go { case a(x) + a(y) if x > n + y => }
 
       (result.info.hasGuard match {
         case GuardPresent(List(List('x), List('y)), None, List()) =>
@@ -98,7 +114,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     }
 
-  /*
+
         it should "correctly split a guard condition when some clauses contain no pattern variables" in {
           val a = m[Int]
           val bb = m[(Int, Option[Int])]
