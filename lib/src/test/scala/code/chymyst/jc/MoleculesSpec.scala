@@ -84,7 +84,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     a()
     a()
     b()
-    Thread.sleep(400)
+    Thread.sleep(500)
     a.logSoup shouldEqual "Site{a + b + c + f/B => ...}\nMolecules: a() * 2, b()"
     c()
     f()
