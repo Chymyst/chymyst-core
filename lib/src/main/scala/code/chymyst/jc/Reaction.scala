@@ -27,7 +27,7 @@ sealed trait GuardPresenceType {
   }
 }
 
-final case class GuardPresent(vars: List[String]) extends GuardPresenceType
+final case class GuardPresent(vars: List[List[String]]) extends GuardPresenceType
 
 case object GuardAbsent extends GuardPresenceType
 

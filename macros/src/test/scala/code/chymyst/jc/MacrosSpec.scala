@@ -253,7 +253,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }) shouldEqual true
 
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(s, ConstOutputValue(())), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qq, ConstOutputValue(()))))
-    result.info.hasGuard shouldEqual GuardPresent(List("y", "q", "t", "p"))
+    result.info.hasGuard shouldEqual GuardPresent(List(List("y"), List("q"), List("t", "p")))
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
