@@ -24,16 +24,18 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(x) if 1 > n => }
 
-    result.info.hasGuard shouldEqual GuardPresent(List(List())) // `n` should not be among the guard variables
+    result.info.hasGuard shouldEqual GuardPresent(List()) // `n` should not be among the guard variables
   }
 
-  it should "correctly split a guard condition with three clauses" in {
+  it should "correctly split a guard condition when a clause contains no pattern variables" in {
     val a = m[Int]
     val bb = m[(Int, Option[Int])]
     val f = b[Unit, Unit]
 
+    val n = 10
+
     val result = go {
-      case a(p) + a(y) + a(1) + bb((1, z)) + bb((t, Some(q))) + f(_, r) if y > 0 && q > 0 && t == p => r()
+      case a(p) + a(y) + a(1) + bb((1, z)) + bb((t, Some(q))) + f(_, r) if y > 0 && n == 10 && q == n && t > p => r()
     }
     result.info.hasGuard shouldEqual GuardPresent(List(List('y), List('q), List('t, 'p)))
   }

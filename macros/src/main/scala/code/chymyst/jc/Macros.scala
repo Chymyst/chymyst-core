@@ -432,6 +432,20 @@ object Macros {
     val (bodyIn, bodyOut, bodyReply) = moleculeInfoMaker.from(body) // bodyIn should be empty
     maybeError("reaction body", "matches on additional input molecules", bodyIn.map(_._1))
 
+    val isGuardAbsent = guard match { case EmptyTree => true; case _ => false }
+
+    // We lift the GuardPresenceType values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
+    val (hasGuardFlag, guardComponents, guardVars) = if (isGuardAbsent)
+      (q"GuardAbsent", List(), List())
+    else {
+      val knownVars =  patternIn.map(_._2)
+      val guardComponents = splitGuard(guard)
+      val guardVars = guardComponents.map(guard => GuardVars.from(guard, knownVars).map(_.asTerm.name.decodedName.toString.toScalaSymbol)).filter(_.nonEmpty)
+      (q"GuardPresent($guardVars)", guardComponents, guardVars)
+    }
+
+    // For each guard clause,
+
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
     // It is an error to have reply molecules that do not match on a simple variable.
     val wrongBlockingMolecules = blockingMolecules.filter(_._3.get.notReplyValue).map(_._1)
@@ -464,25 +478,14 @@ object Macros {
     val allOutputInfo = bodyOut // Neither the pattern nor the guard can emit output molecules.
     val outputMolecules = allOutputInfo.map { case (m, p) => q"OutputMoleculeInfo(${m.asTerm}, $p)" }
 
-    val isGuardAbsent = guard match { case EmptyTree => true; case _ => false }
-
-    // We lift the GuardPresenceType values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
-    val hasGuardFlag = if (isGuardAbsent)
-      q"GuardAbsent"
-    else {
-      val knownVars =  patternIn.map(_._2)
-      val guardComponents = splitGuard(guard)
-      val guardVars = guardComponents.map(guard => GuardVars.from(guard, knownVars).map(_.asTerm.name.decodedName.toString.toScalaSymbol))
-      q"GuardPresent($guardVars)"
-    }
-
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of output molecules.
-    lazy val allInputMatchersAreTrivial = patternIn.forall{
+    val allInputMatchersAreTrivial = patternIn.forall{
       case (_, SimpleVarF(_), _, _) | (_, WildcardF, _, _) => true
       case _ => false
     }
-    lazy val inputMoleculesAreSubsetOfOutputMolecules = (patternIn.map(_._1) diff allOutputInfo.map(_._1)).isEmpty
+
+    val inputMoleculesAreSubsetOfOutputMolecules = (patternIn.map(_._1) diff allOutputInfo.map(_._1)).isEmpty
 
     if(isGuardAbsent && allInputMatchersAreTrivial && inputMoleculesAreSubsetOfOutputMolecules) {
       maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
