@@ -1,4 +1,4 @@
-package code.chymyst.jc
+package sample
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
