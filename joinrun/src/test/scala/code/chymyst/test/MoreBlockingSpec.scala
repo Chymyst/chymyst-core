@@ -127,7 +127,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val a = m[Int]
     val f = b[Unit,Int]
 
-    val tp = new FixedPool(20)
+    val tp = new FixedPool(2)
 
     site(tp)(
       go { case f(_, r) + a(x) => r(x); a(0) }
@@ -135,6 +135,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     a.setLogLevel(4)
     a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
     f.timeout(100 millis)() shouldEqual None
+    // TODO: this test sometimes fails because f is not withdrawn and reacts with a(123) - even though logSoup prints "No molecules"!
     // there should be no a(0) now, because the reaction has not yet run ("f" timed out and was withdrawn, so no molecules)
     a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
     a(123)
