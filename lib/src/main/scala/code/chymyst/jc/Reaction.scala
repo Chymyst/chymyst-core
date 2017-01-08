@@ -1,16 +1,17 @@
 package code.chymyst.jc
 
 import Core._
+import scala.{Symbol => ScalaSymbol}
 
 sealed trait InputPatternType
 
 case object Wildcard extends InputPatternType
 
-final case class SimpleVar(v: Symbol) extends InputPatternType
+final case class SimpleVar(v: ScalaSymbol) extends InputPatternType
 
 final case class SimpleConst(v: Any) extends InputPatternType
 
-final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: List[Symbol]) extends InputPatternType
+final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: List[ScalaSymbol]) extends InputPatternType
 
 case object UnknownInputPattern extends InputPatternType
 
@@ -38,7 +39,7 @@ sealed trait GuardPresenceType {
   * @param staticGuard The conjunction of all the clauses of the guard that are independent of pattern variables. This closure can be called in order to determine whether the reaction should even be considered to start, regardless of the presence of molecules.
   * @param crossGuards A list of functions that represent the clauses of the guard that relate values of different molecules. The closure `Any => Boolean` should be called with the arguments representing the tuples of pattern variables from each molecule.
   */
-final case class GuardPresent(vars: List[List[Symbol]], staticGuard: Option[() => Boolean], crossGuards: List[(List[Symbol], Any => Boolean)]) extends GuardPresenceType
+final case class GuardPresent(vars: List[List[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: List[(List[ScalaSymbol], Any => Boolean)]) extends GuardPresenceType
 
 case object GuardAbsent extends GuardPresenceType
 

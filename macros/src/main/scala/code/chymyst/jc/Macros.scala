@@ -8,6 +8,7 @@ import scala.reflect.macros.{blackbox, whitebox}
 import scala.reflect.NameTransformer.LOCAL_SUFFIX_STRING
 import scala.annotation.tailrec
 import scala.collection.immutable.Seq
+import scala.reflect.api.Trees
 
 object Macros {
 
@@ -129,7 +130,7 @@ object Macros {
     *
     * @param v The Ident of the pattern variable.
     */
-  final case class SimpleVarF[Ident,Tree](v: Ident) extends InputPatternFlag[Ident,Tree] {
+  final case class SimpleVarF[Ident,Tree](v: Ident, binder: Tree) extends InputPatternFlag[Ident,Tree] {
     override def varNames: List[Ident] = List(v)
   }
   case object WrongReplyVarF extends InputPatternFlag[Nothing, Nothing] // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
@@ -213,10 +214,11 @@ object Macros {
       def from(tree: Tree): List[(Tree, Tree, Tree, String)] = {
         info = List()
         this.traverse(tree)
-        info.filter { // PartialFunction automatically adds a default case; we ignore that CaseDef.
-            case CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, _) => false
-            case _ => true
-          }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody, getSha1String(replaceScala211Quirk(showRaw(c)))) }
+        info.filter {
+          // PartialFunction automatically adds a default case; we ignore that CaseDef.
+          case CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, _) => false
+          case _ => true
+        }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody, getSha1String(replaceScala211Quirk(showRaw(c)))) }
       }
     }
 
@@ -231,9 +233,61 @@ object Macros {
       case Bind(t@TermName(n), Ident(termNames.WILDCARD)) => Ident(t)
     }
 
-    def splitGuard(guardTerm: Tree): List[Tree] = {
-      guardTerm match {
-        case q"$a && $b" => splitGuard(a.asInstanceOf[Tree]) ++ splitGuard(b.asInstanceOf[Tree]) // IntelliJ has a bug that prevents it from unifying Trees#Tree and c.universe.Tree. So let's do this harmless type cast to appease IntelliJ.
+    def identToScalaSymbol(ident: Ident): scala.Symbol = ident.name.decodedName.toString.toScalaSymbol
+
+    /** Convert a term to conjunctive normal form (CNF).
+      * CNF is represented as a list of lists of Boolean term trees.
+      * For example, {{{List( List(q"x>0", q"y<x"), List(q"x>z", q"z<1") )}}} represents {{{( x > 0 || y < x ) && ( x > z || z < 1)}}}.
+      *
+      * @param term Initial expression tree.
+      * @return Equivalent expression in CNF. Terms will be duplicated when necessary. No simplification is performed on terms.
+      */
+    def convertToCNF(term: Tree): List[List[Tree]] = {
+
+      def disjunctionOneTerm(a: Tree, b: List[List[Tree]]): List[List[Tree]] = b.map( y => (a :: y).distinct ).distinct
+      def disjunctionOneClause(a: List[Tree], b: List[List[Tree]]): List[List[Tree]] = b.map( y => (a ++ y).distinct ).distinct
+      def disjunction(a: List[List[Tree]], b: List[List[Tree]]): List[List[Tree]] = a.flatMap( x => disjunctionOneClause(x, b)).distinct
+      def conjunction(a: List[List[Tree]], b: List[List[Tree]]): List[List[Tree]] = (a++b).distinct
+      def negation(a: List[List[Tree]]): List[List[Tree]] = a match {
+        case x :: xs =>
+          val nxs = negation(xs)
+          x.flatMap(t => disjunctionOneTerm(q"! $t", nxs))
+        case Nil => List(List())  // negation of true is false
+      }
+      def normalize(a: Trees#Tree): List[List[Tree]] = convertToCNF(a.asInstanceOf[Tree])
+
+      term match {
+        case q"$a && $b" =>
+          val aN = normalize(a)
+          val bN = normalize(b)
+          conjunction(aN, bN)
+
+        case q"$a || $b" =>
+          val aN = normalize(a)
+          val bN = normalize(b)
+          disjunction(aN, bN)
+
+        case q"if ($a) $b else $c" =>  // (a' + b)(a + c)
+          val aN = normalize(a)
+          val bN = normalize(b)
+          val cN = normalize(c)
+          conjunction(disjunction(negation(aN), bN), disjunction(aN, cN))
+
+        case q"$a ^ $b" => // (a+b)(a'+b')
+          val aN = normalize(a)
+          val bN = normalize(b)
+          conjunction(disjunction(aN, bN), disjunction(negation(aN), negation(bN)))
+
+        case q"! $a" => negation(normalize(a))
+        case q"true" => List()
+        case q"false" => List(List())
+        case _ => List(List(term))
+      }
+    }
+
+    def splitAtConjunctions(term: Tree): List[Tree] = {
+      term match {
+        case q"$a && $b" => splitAtConjunctions(a.asInstanceOf[Tree]) ++ splitAtConjunctions(b.asInstanceOf[Tree]) // IntelliJ has a bug that prevents it from unifying Trees#Tree and c.universe.Tree. So let's do this harmless type cast to appease IntelliJ.
         case t@_ => List(t)
       }
     }
@@ -258,7 +312,7 @@ object Macros {
         case _ => super.traverse(tree)
       }
 
-      def from(guardTerm: Tree, inputInfos: List[InputPatternFlag[Ident,Tree]]): List[Ident] = {
+      def from(guardTerm: Tree, inputInfos: List[InputPatternFlag[Ident, Tree]]): List[Ident] = {
         vars = mutable.ArrayBuffer()
         givenPatternVars = inputInfos.flatMap(_.varNames)
         traverse(guardTerm)
@@ -273,7 +327,7 @@ object Macros {
         * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
         * @return A triple: List of input molecule patterns, list of output molecule patterns, and list of reply action patterns.
         */
-      def from(reactionPart: Tree): (List[(c.Symbol, InputPatternFlag[Ident,Tree], Option[InputPatternFlag[Ident,Tree]], String)], List[(c.Symbol, OutputPatternFlag[Tree])], List[(c.Symbol, OutputPatternFlag[Tree])]) = {
+      def from(reactionPart: Tree): (List[(c.Symbol, InputPatternFlag[Ident, Tree], Option[InputPatternFlag[Ident, Tree]], String)], List[(c.Symbol, OutputPatternFlag[Tree])], List[(c.Symbol, OutputPatternFlag[Tree])]) = {
         inputMolecules = mutable.ArrayBuffer()
         outputMolecules = mutable.ArrayBuffer()
         replyActions = mutable.ArrayBuffer()
@@ -281,14 +335,14 @@ object Macros {
         (inputMolecules.toList, outputMolecules.toList, replyActions.toList)
       }
 
-      private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, InputPatternFlag[Ident,Tree], Option[InputPatternFlag[Ident,Tree]], String)] = mutable.ArrayBuffer()
+      private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, InputPatternFlag[Ident, Tree], Option[InputPatternFlag[Ident, Tree]], String)] = mutable.ArrayBuffer()
       private var outputMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag[Tree])] = mutable.ArrayBuffer()
       private var replyActions: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag[Tree])] = mutable.ArrayBuffer()
 
       /** Detect whether the symbol {{{s}}} is defined inside the scope of the symbol {{{owner}}}.
         * Will return true for code like {{{ val owner = .... { val s = ... }  }}}
         *
-        * @param s Symbol to be examined.
+        * @param s     Symbol to be examined.
         * @param owner Owner symbol of the scope to be examined.
         * @return True if {{{s}}} is defined inside the scope of {{{owner}}}.
         */
@@ -317,13 +371,12 @@ object Macros {
         }
       }
 
-      private def getInputFlag(binderTerm: Tree): InputPatternFlag[Ident,Tree] = binderTerm match {
+      private def getInputFlag(binderTerm: Tree): InputPatternFlag[Ident, Tree] = binderTerm match {
         case Ident(termNames.WILDCARD) => WildcardF
-        case Bind(t@TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF(Ident(t))
+        case Bind(t@TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF(Ident(t), binderTerm)
         case Literal(_) => SimpleConstF(binderTerm)
         case _ =>
           val vars = PatternVars.from(binderTerm)
-          if (vars contains "ytt") println(s"debug: about to construct partial function with $binderTerm")
           OtherPatternF(binderTerm, EmptyTree, vars)
       }
 
@@ -349,7 +402,7 @@ object Macros {
           // matcher with two arguments: a(x, y)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
             val flag2 = getInputFlag(binder2) match {
-              case SimpleVarF(_) => ReplyVarF[Ident,Tree](getSimpleVar(binder2))
+              case SimpleVarF(_,_) => ReplyVarF[Ident, Tree](getSimpleVar(binder2))
               case f@_ => WrongReplyVarF // this is an error that we should report later
             }
             val flag1 = getInputFlag(binder1)
@@ -394,11 +447,11 @@ object Macros {
     }
 
     // this boilerplate is necessary for being able to use PatternType values in macro quasiquotes
-    implicit val liftablePatternFlag: Liftable[InputPatternFlag[Ident,Tree]] = Liftable[InputPatternFlag[Ident,Tree]] {
+    implicit val liftablePatternFlag: Liftable[InputPatternFlag[Ident, Tree]] = Liftable[InputPatternFlag[Ident, Tree]] {
       case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
       case SimpleConstF(tree) => q"_root_.code.chymyst.jc.SimpleConst($tree)"
-      case SimpleVarF(v) => q"_root_.code.chymyst.jc.SimpleVar(${v.name.decodedName.toString.toScalaSymbol})"
-      case OtherPatternF(matcherTree, guardTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTree)}, ${vars.map(_.name.decodedName.toString.toScalaSymbol)})"
+      case SimpleVarF(v, binder) => q"_root_.code.chymyst.jc.SimpleVar(${identToScalaSymbol(v)})"
+      case OtherPatternF(matcherTree, guardTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTree)}, ${vars.map(identToScalaSymbol)})"
       case _ => q"_root_.code.chymyst.jc.UnknownInputPattern"
     }
 
@@ -437,10 +490,18 @@ object Macros {
     val (bodyIn, bodyOut, bodyReply) = moleculeInfoMaker.from(body) // bodyIn should be empty
     maybeError("reaction body", "matches on additional input molecules", bodyIn.map(_._1))
 
-    val isGuardAbsent = guard match { case EmptyTree => true; case _ => false }
+    val isGuardAbsent = guard match {
+      case EmptyTree => true;
+      case _ => false
+    }
 
-    val guardComponents = splitGuard(guard)
-    val guardVarsSeq: List[(Tree, List[Ident])] = guardComponents.map(guard => (guard, GuardVars.from(guard, patternIn.map(_._2)))) // .map(_.symbol.asTerm.name.decodedName.toString.toScalaSymbol)
+//    val guardComponents = splitAtConjunctions(guard)
+    val guardCNF = convertToCNF(guard)
+    val guardVarsSeq: List[(Tree, List[Ident])] = guardCNF.map {
+      guardDisjunctions =>
+        val mergedDisjunction = guardDisjunctions.reduceOption((g1, g2) => q"$g1 || $g2").getOrElse(q"true")
+        (mergedDisjunction, GuardVars.from(mergedDisjunction, patternIn.map(_._2)))
+    }
 
     // For each guard clause, first determine whether this guard clause is static, relevant to a single molecule, or binds several molecules together.
     // Concatenate all static clauses together into a `() => Boolean`.
@@ -449,20 +510,23 @@ object Macros {
 
     val staticGuardTree: Option[Tree] = guardVarsSeq
       .filter(_._2.isEmpty) // We need to merge all these guard clauses.
-      .map(_._1).toOptionSeq // This makes `reduce` safe for empty sequences by transforming them into None.
-      .map( _.reduce { (g1, g2) => q"$g1 && $g2" } )
-      .map( guardTree => q"() => $guardTree" )
+      .map(_._1)
+      .reduceOption{ (g1, g2) => q"$g1 && $g2" }
+      .map(guardTree => q"() => $guardTree")
+
+    def guardVarsReferOnlyToMolecule(guardVarList: List[Ident], moleculeFlag: InputPatternFlag[Ident, Tree]): Boolean =
+      guardVarList.forall(v => moleculeFlag.varNames.exists(mv => mv.name === v.name))
 
     val patternInWithMergedGuards = patternIn // patternInWithMergedGuards has same type as patternIn
       .map {
       case (mol, flag, replyFlag, patternSha1) =>
         val mergedGuardOpt = guardVarsSeq
-          .filter { case (g, vars) => (vars difff flag.varNames).isEmpty }
-          .map(_._1).toOptionSeq
-          .map(_.reduce { (g1, g2) => q"$g1 && $g2" })
+          .filter { case (g, vars) => guardVarsReferOnlyToMolecule(vars, flag) }
+          .map(_._1)
+          .reduceOption{ (g1, g2) => q"$g1 && $g2" }
 
         val mergedFlag = flag match {
-          case SimpleVarF(v) => mergedGuardOpt.map(guardTree => OtherPatternF(Bind(v.name, Ident(termNames.WILDCARD)), guardTree, List(v))).getOrElse(flag)
+          case SimpleVarF(v, binder) => mergedGuardOpt.map(guardTree => OtherPatternF(binder, guardTree, List(v))).getOrElse(flag)
           case OtherPatternF(matcher, _, vars) => mergedGuardOpt.map(guardTree => OtherPatternF(matcher, guardTree, vars)).getOrElse(flag) // We can't have a nontrivial guardTree in patternIn, so we replace it here.
           case _ => flag
         }
@@ -470,19 +534,25 @@ object Macros {
         (mol, mergedFlag, replyFlag, patternSha1)
     }
 
+    val emptyTypeTree = tq""
+
     val crossGuards = guardVarsSeq // The "cross guards" are guard clauses whose variables do not all belong to any single molecule's matcher.
-      .filter { case (g, vars) => patternIn.forall { case (_, flag, _, _) => (vars difff flag.varNames).nonEmpty } }
-      // We need to produce
+      .filter { case (_, vars) => patternIn.forall { case (_, flag, _, _) => !guardVarsReferOnlyToMolecule(vars, flag) } }
+      // We need to produce a closure that starts with all the vars as parameters, and evaluates the guardTree
       .map {
-      case (g, vars) =>
-        (vars, q"(..${vars.map(v => q"${v.symbol}")}) => $g")
+      case (guardTree, vars) =>
+        val params = vars.map { v =>
+          val tname: TermName = v.symbol.asTerm.name
+          q"val $tname: $emptyTypeTree"
+        }
+        (vars, q"(..$params) => $guardTree")
     }
 
     // We lift the GuardPresenceType values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
     val guardPresenceFlag = if (isGuardAbsent)
       q"GuardAbsent"
     else
-      q"GuardPresent(${guardVarsSeq.map(_._2).filter(_.nonEmpty)}, $staticGuardTree, $crossGuards)"
+      q"GuardPresent(${guardVarsSeq.map(_._2.map(identToScalaSymbol)).filter(_.nonEmpty)}, $staticGuardTree, $crossGuards)"
 
 
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
@@ -520,7 +590,7 @@ object Macros {
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of output molecules.
     val allInputMatchersAreTrivial = patternInWithMergedGuards.forall{
-      case (_, SimpleVarF(_), _, _) | (_, WildcardF, _, _) => true
+      case (_, SimpleVarF(_, _), _, _) | (_, WildcardF, _, _) => true
       case _ => false
     }
 
