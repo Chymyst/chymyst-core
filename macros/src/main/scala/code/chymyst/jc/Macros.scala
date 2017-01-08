@@ -285,12 +285,13 @@ object Macros {
       }
     }
 
-    def splitAtConjunctions(term: Tree): List[Tree] = {
-      term match {
-        case q"$a && $b" => splitAtConjunctions(a.asInstanceOf[Tree]) ++ splitAtConjunctions(b.asInstanceOf[Tree]) // IntelliJ has a bug that prevents it from unifying Trees#Tree and c.universe.Tree. So let's do this harmless type cast to appease IntelliJ.
-        case t@_ => List(t)
-      }
-    }
+    // TODO: remove
+//    def splitAtConjunctions(term: Tree): List[Tree] = {
+//      term match {
+//        case q"$a && $b" => splitAtConjunctions(a.asInstanceOf[Tree]) ++ splitAtConjunctions(b.asInstanceOf[Tree]) // IntelliJ has a bug that prevents it from unifying Trees#Tree and c.universe.Tree. So let's do this harmless type cast to appease IntelliJ.
+//        case t@_ => List(t)
+//      }
+//    }
 
     def matcherFunction(binderTerm: Tree, guardTree: Tree): Tree = {
       if (guardTree.isEmpty)
@@ -537,7 +538,7 @@ object Macros {
         (mol, mergedFlag, replyFlag, patternSha1)
     }
 
-    val crossGuards = guardVarsSeq // The "cross guards" are guard clauses whose variables do not all belong to any single molecule's matcher.
+    val crossGuards = guardVarsSeq // List[(List[scala.Symbol], Tree)]. The "cross guards" are guard clauses whose variables do not all belong to any single molecule's matcher.
       .filter { case (_, vars) => patternIn.forall { case (_, flag, _, _) => !guardVarsConstrainOnlyThisMolecule(vars, flag) } }
       // We need to produce a closure that starts with all the vars as parameters, and evaluates the guardTree.
       .map {
@@ -549,14 +550,19 @@ object Macros {
             case OtherPatternF(matcher, _, vs) => Some((flag, matcher, vs))
             case _ => None
           }
-        }.filter { case (flag, binder, vs) => guardVarsConstrainThisMolecule(vs, flag) }
+        }.filter { case (flag, _, vs) => guardVarsConstrainThisMolecule(vs, flag) }
         //        val params = vars.map { v =>
         //          val tname: TermName = v.symbol.asTerm.name
         //          val tpname: TypeName = v.tpe.typeSymbol.asType.name
         //          q"val $tname: $tpname"
         //        }
-        val matchers = binders.map { case (flag, binder, vs) => binder }
-        (vars.map(identToScalaSymbol), q"{ case List(..$matchers) if $guardTree => () } : PartialFunction[List[Any], Unit]")
+        .map { case (_, binder, _) => binder }
+
+//        val caseDefs = List(cq"(..$binders) => ")
+//        val partialFunctionTree = q"{ case ..$caseDefs }"
+        val guardUntypechecked = c.typecheck( guardTree )
+        val partialFunctionTree = q"{ case spqr@(..$binders) if $guardUntypechecked => () } : PartialFunction[Any, Unit]"
+        (vars.map(identToScalaSymbol), partialFunctionTree)
     }
 
     // We lift the GuardPresenceType values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
@@ -614,6 +620,7 @@ object Macros {
     // Prepare the ReactionInfo structure.
     val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $guardPresenceFlag, $reactionSha1), null, None, false)"
     println(s"debug: ${show(result)}")
+    println(s"debug raw: ${showRaw(result)}")
     result
   }
 
