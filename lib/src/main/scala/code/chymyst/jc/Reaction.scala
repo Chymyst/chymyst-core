@@ -104,7 +104,7 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
   override def toString: String = {
     val printedPattern = flag match {
       case Wildcard => "_"
-      case SimpleVar(v) => v.toString
+      case SimpleVar(v) => v.name
       case SimpleConst(c) => c.toString
       case OtherInputPattern(_, _) => s"<${sha1.substring(0, 4)}...>"
       case UnknownInputPattern => s"?"
