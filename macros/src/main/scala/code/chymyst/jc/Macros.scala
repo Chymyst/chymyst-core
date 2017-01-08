@@ -294,9 +294,9 @@ object Macros {
 
     def matcherFunction(binderTerm: Tree, guardTree: Tree): Tree = {
       if (guardTree.isEmpty)
-        q"{ case $binderTerm => } : PartialFunction[Any, Unit]"
+        q"{ case $binderTerm => () } : PartialFunction[Any, Unit]"
       else
-        q"{ case $binderTerm if $guardTree => } : PartialFunction[Any, Unit]"
+        q"{ case $binderTerm if $guardTree => () } : PartialFunction[Any, Unit]"
     }
 
     object GuardVars extends Traverser {
@@ -514,38 +514,49 @@ object Macros {
       .reduceOption{ (g1, g2) => q"$g1 && $g2" }
       .map(guardTree => q"() => $guardTree")
 
-    def guardVarsReferOnlyToMolecule(guardVarList: List[Ident], moleculeFlag: InputPatternFlag[Ident, Tree]): Boolean =
+    def guardVarsConstrainOnlyThisMolecule(guardVarList: List[Ident], moleculeFlag: InputPatternFlag[Ident, Tree]): Boolean =
       guardVarList.forall(v => moleculeFlag.varNames.exists(mv => mv.name === v.name))
+
+    def guardVarsConstrainThisMolecule(guardVarList: List[Ident], moleculeFlag: InputPatternFlag[Ident, Tree]): Boolean =
+      guardVarList.exists(v => moleculeFlag.varNames.exists(mv => mv.name === v.name))
 
     val patternInWithMergedGuards = patternIn // patternInWithMergedGuards has same type as patternIn
       .map {
       case (mol, flag, replyFlag, patternSha1) =>
         val mergedGuardOpt = guardVarsSeq
-          .filter { case (g, vars) => guardVarsReferOnlyToMolecule(vars, flag) }
+          .filter { case (g, vars) => guardVarsConstrainOnlyThisMolecule(vars, flag) }
           .map(_._1)
           .reduceOption{ (g1, g2) => q"$g1 && $g2" }
 
         val mergedFlag = flag match {
-          case SimpleVarF(v, binder) => mergedGuardOpt.map(guardTree => OtherPatternF(binder, guardTree, List(v))).getOrElse(flag)
-          case OtherPatternF(matcher, _, vars) => mergedGuardOpt.map(guardTree => OtherPatternF(matcher, guardTree, vars)).getOrElse(flag) // We can't have a nontrivial guardTree in patternIn, so we replace it here.
+          case SimpleVarF(v, binder) => mergedGuardOpt.map(guardTree => OtherPatternF(binder, guardTree, List(v))).getOrElse(flag) // a(x) if x>0 is replaced with a(x : check if x>0).
+          case OtherPatternF(matcher, _, vars) => mergedGuardOpt.map(guardTree => OtherPatternF(matcher, guardTree, vars)).getOrElse(flag) // We can't have a nontrivial guardTree in patternIn, so we replace it here with the new guardTree.
           case _ => flag
         }
 
         (mol, mergedFlag, replyFlag, patternSha1)
     }
 
-    val emptyTypeTree = tq""
-
     val crossGuards = guardVarsSeq // The "cross guards" are guard clauses whose variables do not all belong to any single molecule's matcher.
-      .filter { case (_, vars) => patternIn.forall { case (_, flag, _, _) => !guardVarsReferOnlyToMolecule(vars, flag) } }
-      // We need to produce a closure that starts with all the vars as parameters, and evaluates the guardTree
+      .filter { case (_, vars) => patternIn.forall { case (_, flag, _, _) => !guardVarsConstrainOnlyThisMolecule(vars, flag) } }
+      // We need to produce a closure that starts with all the vars as parameters, and evaluates the guardTree.
       .map {
       case (guardTree, vars) =>
-        val params = vars.map { v =>
-          val tname: TermName = v.symbol.asTerm.name
-          q"val $tname: $emptyTypeTree"
-        }
-        (vars, q"(..$params) => $guardTree")
+        // Determine which molecules we are constraining in this guard.
+        val binders = patternIn.flatMap {
+          case (_, flag, _, _) => flag match {
+            case SimpleVarF(v, binder) => Some((flag, binder, List(v)))
+            case OtherPatternF(matcher, _, vs) => Some((flag, matcher, vs))
+            case _ => None
+          }
+        }.filter { case (flag, binder, vs) => guardVarsConstrainThisMolecule(vs, flag) }
+        //        val params = vars.map { v =>
+        //          val tname: TermName = v.symbol.asTerm.name
+        //          val tpname: TypeName = v.tpe.typeSymbol.asType.name
+        //          q"val $tname: $tpname"
+        //        }
+        val matchers = binders.map { case (flag, binder, vs) => binder }
+        (vars.map(identToScalaSymbol), q"{ case List(..$matchers) if $guardTree => () } : PartialFunction[List[Any], Unit]")
     }
 
     // We lift the GuardPresenceType values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
@@ -601,8 +612,8 @@ object Macros {
     }
 
     // Prepare the ReactionInfo structure.
-    val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $guardPresenceFlag, $reactionSha1), $reactionBody, None, false)"
-//    println(s"debug: ${show(result)}")
+    val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $guardPresenceFlag, $reactionSha1), null, None, false)"
+    println(s"debug: ${show(result)}")
     result
   }
 
