@@ -293,11 +293,49 @@ object Macros {
 //      }
 //    }
 
-    def matcherFunction(binderTerm: Tree, guardTree: Tree): Tree = {
+    def matcherFunction(binderTerm: Tree, guardTree: Tree, vars: List[Ident]): Tree = {
       if (guardTree.isEmpty)
         q"{ case $binderTerm => () } : PartialFunction[Any, Unit]"
-      else
-        q"{ case $binderTerm if $guardTree => () } : PartialFunction[Any, Unit]"
+      else {
+//        val newGuard = (ReplaceVars.in(guardTree, vars))
+        val newBinder = ReplaceVars.in(binderTerm, GuardVars.fromVars(guardTree, vars))
+        val caseDefs = List(cq"$binderTerm if $guardTree => ()") //if $guardTree => fails
+        q"{ case ..$caseDefs } : PartialFunction[Any, Unit]"
+      }
+    }
+
+    object PatternVars extends Traverser {
+
+      private var vars: mutable.ArrayBuffer[Ident] = _
+
+      override def traverse(tree: Tree): Unit = tree match {
+        case Bind(t@TermName(_), pat) =>
+          vars.append(Ident(t))
+          traverse(pat)
+        case _ => super.traverse(tree)
+      }
+
+      def from(binderTerm: Tree): List[Ident] = {
+        vars = mutable.ArrayBuffer()
+        traverse(binderTerm)
+        vars.toList
+      }
+    }
+
+    object ReplaceVars extends Transformer {
+      var replacingIdents: List[Ident] = _
+
+      override def transform(tree: Tree): Tree = tree match {
+        case Ident(name) =>
+          val newIdentOpt = replacingIdents.find( _.name === name )
+          newIdentOpt.getOrElse(tree)
+        case _ => super.transform(tree)
+      }
+
+      def in(guardTree: Tree, vars: List[Ident]): Tree = {
+        replacingIdents = vars
+        transform(guardTree)
+      }
     }
 
     object GuardVars extends Traverser {
@@ -312,10 +350,12 @@ object Macros {
           if (identIsPatternVariable) vars.append(t)
         case _ => super.traverse(tree)
       }
+      def fromFlags(guardTerm: Tree, inputInfos: List[InputPatternFlag[Ident, Tree]]): List[Ident] =
+        fromVars(guardTerm, inputInfos.flatMap(_.varNames))
 
-      def from(guardTerm: Tree, inputInfos: List[InputPatternFlag[Ident, Tree]]): List[Ident] = {
+      def fromVars(guardTerm: Tree, givenVars: List[Ident]): List[Ident] = {
+        givenPatternVars = givenVars
         vars = mutable.ArrayBuffer()
-        givenPatternVars = inputInfos.flatMap(_.varNames)
         traverse(guardTerm)
         vars.toList
       }
@@ -352,24 +392,6 @@ object Macros {
         case `owner` => owner =!= NoSymbol
         case `NoSymbol` => false
         case o@_ => isOwnedBy(o, owner)
-      }
-
-      object PatternVars extends Traverser {
-
-        private var vars: mutable.ArrayBuffer[Ident] = _
-
-        override def traverse(tree: Tree): Unit = tree match {
-          case Bind(t@TermName(_), pat) =>
-            vars.append(Ident(t))
-            traverse(pat)
-          case _ => super.traverse(tree)
-        }
-
-        def from(binderTerm: Tree): List[Ident] = {
-          vars = mutable.ArrayBuffer()
-          traverse(binderTerm)
-          vars.toList
-        }
       }
 
       private def getInputFlag(binderTerm: Tree): InputPatternFlag[Ident, Tree] = binderTerm match {
@@ -452,7 +474,7 @@ object Macros {
       case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
       case SimpleConstF(tree) => q"_root_.code.chymyst.jc.SimpleConst($tree)"
       case SimpleVarF(v, binder) => q"_root_.code.chymyst.jc.SimpleVar(${identToScalaSymbol(v)})"
-      case OtherPatternF(matcherTree, guardTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTree)}, ${vars.map(identToScalaSymbol)})"
+      case OtherPatternF(matcherTree, guardTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTree, vars)}, ${vars.map(identToScalaSymbol)})"
       case _ => q"_root_.code.chymyst.jc.UnknownInputPattern"
     }
 
@@ -501,7 +523,7 @@ object Macros {
     val guardVarsSeq: List[(Tree, List[Ident])] = guardCNF.map {
       guardDisjunctions =>
         val mergedDisjunction = guardDisjunctions.reduceOption((g1, g2) => q"$g1 || $g2").getOrElse(q"true")
-        (mergedDisjunction, GuardVars.from(mergedDisjunction, patternIn.map(_._2)))
+        (mergedDisjunction, GuardVars.fromFlags(mergedDisjunction, patternIn.map(_._2)))
     }
 
     // For each guard clause, first determine whether this guard clause is static, relevant to a single molecule, or binds several molecules together.
@@ -550,18 +572,15 @@ object Macros {
             case OtherPatternF(matcher, _, vs) => Some((flag, matcher, vs))
             case _ => None
           }
-        }.filter { case (flag, _, vs) => guardVarsConstrainThisMolecule(vs, flag) }
-        //        val params = vars.map { v =>
-        //          val tname: TermName = v.symbol.asTerm.name
-        //          val tpname: TypeName = v.tpe.typeSymbol.asType.name
-        //          q"val $tname: $tpname"
-        //        }
-        .map { case (_, binder, _) => binder }
+        }
+          .filter { case (flag, _, vs) => guardVarsConstrainThisMolecule(vs, flag) }
+          .map { case (_, binder, _) => binder }
 
-//        val caseDefs = List(cq"(..$binders) => ")
-//        val partialFunctionTree = q"{ case ..$caseDefs }"
-        val guardUntypechecked = c.typecheck( guardTree )
-        val partialFunctionTree = q"{ case spqr@(..$binders) if $guardUntypechecked => () } : PartialFunction[Any, Unit]"
+        //        val matchers = binders.map(b => pq"$b")
+        //        val caseDefs = List(cq"(..$matchers) => $guardTree  ")
+        //        val partialFunctionTree = q"{ case ..$caseDefs }"
+        //        val guardUntypechecked = c.typecheck( guardTree )
+                val partialFunctionTree = q"{ case (..$binders) if $guardTree => () } : PartialFunction[Any, Unit]"
         (vars.map(identToScalaSymbol), partialFunctionTree)
     }
 
@@ -619,8 +638,8 @@ object Macros {
 
     // Prepare the ReactionInfo structure.
     val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $guardPresenceFlag, $reactionSha1), null, None, false)"
-    println(s"debug: ${show(result)}")
-    println(s"debug raw: ${showRaw(result)}")
+//    println(s"debug: ${show(result)}")
+//    println(s"debug raw: ${showRaw(result)}")
     result
   }
 
