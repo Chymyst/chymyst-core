@@ -20,6 +20,9 @@ final case class ConstOutputValue(v: Any) extends OutputPatternType
 
 case object OtherOutputPattern extends OutputPatternType
 
+/** Indicates whether a reaction has a guard condition.
+  *
+  */
 sealed trait GuardPresenceType {
   def knownFalse: Boolean = this match {
     case GuardAbsent => true
@@ -27,10 +30,21 @@ sealed trait GuardPresenceType {
   }
 }
 
-final case class GuardPresent(vars: List[List[Symbol]]) extends GuardPresenceType
+/** Indicates the presence of a guard condition.
+  * The guard is parsed into a flat conjunction of guard clauses, for example `a == 2 && (b > c && d < 0) && e == f` will be parsed into a conjunction of (a==2), (b>c), (d<0), (e==f).
+  * Here, a to f are pattern variables in a reaction.
+  *
+  * @param vars The list of variables used by the guard condition. Each element of this list is a list of variables used by a guard clause. In the example shown above, this will be List(List('a), List('b, 'c), List('d), List('e, 'f)).
+  * @param staticGuard The conjunction of all the clauses of the guard that are independent of pattern variables. This closure can be called in order to determine whether the reaction should even be considered to start, regardless of the presence of molecules.
+  * @param crossGuards A list of functions that represent the clauses of the guard that relate values of different molecules. The closure `Any => Boolean` should be called with the arguments representing the tuples of pattern variables from each molecule.
+  */
+final case class GuardPresent(vars: List[List[Symbol]], staticGuard: Option[() => Boolean], crossGuards: List[(List[Symbol], Any => Boolean)]) extends GuardPresenceType
 
 case object GuardAbsent extends GuardPresenceType
 
+/** Indicates that there is no information about the presence of the guard.
+  * This happens only with reactions that
+  */
 case object GuardPresenceUnknown extends GuardPresenceType
 
 /** Compile-time information about an input molecule pattern in a reaction.
@@ -150,7 +164,7 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[L
 
   override val toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")}${hasGuard match {
     case GuardAbsent => ""
-    case GuardPresent(_) => " if(?)"
+    case GuardPresent(_, _, _) => " if(?)"
     case GuardPresenceUnknown => " ?"
   }} => ${outputs match {
     case Some(outputMoleculeInfos) => outputMoleculeInfos.map(_.toString).mkString(" + ")

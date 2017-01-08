@@ -17,7 +17,7 @@ class MutableBag[K,V] { // quadratic time, extremely slow
   }
 
   def removeFromBag(k: K, v: V): Unit = bag.get(k).foreach { vs =>
-    val newVs = vs.diff(Seq(v))
+    val newVs = vs.difff(Seq(v))
     if (newVs.isEmpty)
       bag -= k
     else
@@ -148,7 +148,7 @@ class MutableBag[K,V] {
   }
 
   def removeFromBag(k: K, v: V): Unit = bag.get(k).foreach { vs =>
-    //    val newVs = vs.diff(Seq(v)) 4x slower
+    //    val newVs = vs.difff(Seq(v)) 4x slower
     //    if (newVs.isEmpty)
     //      bag -= k
     //    else

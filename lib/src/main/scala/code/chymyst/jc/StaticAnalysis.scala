@@ -30,7 +30,7 @@ private[jc] object StaticAnalysis {
             i => info1.matcherIsWeakerThan(i).getOrElse(false)
 
           input2filtered.find(isWeaker) match {
-            case Some(correspondingMatcher) => allMatchersAreWeakerThan(rest1, input2filtered diff List(correspondingMatcher))
+            case Some(correspondingMatcher) => allMatchersAreWeakerThan(rest1, input2filtered difff List(correspondingMatcher))
             case None => false
           }
       }
@@ -48,7 +48,7 @@ private[jc] object StaticAnalysis {
             i => info.matcherIsWeakerThanOutput(i).getOrElse(false)
 
           output.find(isWeaker) match {
-            case Some(correspondingMatcher) => inputMatchersAreWeakerThanOutput(rest, output diff List(correspondingMatcher))
+            case Some(correspondingMatcher) => inputMatchersAreWeakerThanOutput(rest, output difff List(correspondingMatcher))
             case None => false
           }
       }
@@ -66,7 +66,7 @@ private[jc] object StaticAnalysis {
             i => info.matcherIsSimilarToOutput(i).getOrElse(false)
 
           output.find(isWeaker) match {
-            case Some(correspondingMatcher) => inputMatchersAreSimilarToOutput(rest, output diff List(correspondingMatcher))
+            case Some(correspondingMatcher) => inputMatchersAreSimilarToOutput(rest, output difff List(correspondingMatcher))
             case None => false
           }
       }
@@ -102,7 +102,7 @@ private[jc] object StaticAnalysis {
   // There should not be any two reactions whose source code is identical to each other.
   private def findIdenticalReactions(reactions: Seq[Reaction]): Option[String] = {
     val reactionsSha1 = reactions.map(_.info.sha1)
-    val repeatedReactionSha1 = (reactionsSha1 diff reactionsSha1.distinct).distinct
+    val repeatedReactionSha1 = (reactionsSha1 difff reactionsSha1.distinct).distinct
     val repeatedReactions = repeatedReactionSha1.flatMap(sha1 => reactions.find(_.info.sha1 == sha1) )
 
     if (repeatedReactions.nonEmpty) {
