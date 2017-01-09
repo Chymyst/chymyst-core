@@ -47,16 +47,16 @@ The streams form an acyclic graph that starts "upstream" at "source" vertices an
 Other vertices of the graph are processing steps that transform the chunks of data in some way.
 Usually, programmers want to achieve the maximum throughput (number of chunks consumed at "sources" and delivered to "sinks" per unit time).
 
-The dataflow is _asynchronous_ -- each vertex of the graph can perform its computation and deliver a result to a next vertex, even though that vertex might be still busy with its own processing. 
-Since the computations could take different amounts of time at different vertices, certain processing steps will have lower throughput and incur longer wait times on subsequent steps.
-To compensate for this, we could run the slower processing steps in parallel on several data chunks at once, while other steps may run sequentially.
+The dataflow is _asynchronous_: each vertex of the graph can perform its computation and deliver a result to a next vertex, even though that vertex might be still busy with its own processing. 
+Since the computations could take different amounts of time at different vertices, certain processing steps will have lower throughput and incur longer wait times for subsequent steps.
+To compensate for this, we could run the slower processing steps in parallel on several data chunks at once, while other steps may run sequentially on each chunk.
 Therefore, acyclic dataflow systems can be also called "asynchronous parallel streaming systems".
 
 A typical use case of acyclic dataflow is to implement a high-throughput asynchronous Web server that can start responding to the next request long before the previous request is answered.
 This class of problems can be solved by using `Future[T]`, by asynchronous streaming frameworks such as Akka Streaming, scala/async, or FS2, and by various functional reactive programming (FRP) frameworks. 
 The main difficulty for the implementers of these frameworks is to interleave the wait times on each thread as much as possible and to avoid wasting CPU cycles when some threads are blocked.
 
-As in the case of data-parallel computations, the acyclic dataflow computation is still a sequential computation, in the following sense:
+As in the case of data-parallel computations, the acyclic dataflow computation is still equivalent a sequential computation, in the following sense:
 We could have computed the same results on a single thread and without using any asynchronous computations.
 However, this would be too slow, and thus we are trying to speed it up by interleaving the wait times and optimizing thread usage.
 
@@ -70,7 +70,7 @@ A monadic functor is strictly more powerful than an applicative functor, and acc
 in which the next steps can depend in arbitrary ways on other steps
 and on previous data chunks in the stream.
 However, a monadic computation is difficult to parallelize automatically.
-Therefore, it is the user who now needs to specify which steps of the pipeline should be parallelized, and which should be separated by an asynchronous "boundary" from other steps.
+Therefore, it is the user who now needs to specify which steps of the pipeline should be parallelized, and which steps should be separated by an asynchronous "boundary" from other steps.
 
 ## Level 3: Cyclic dataflow
 
