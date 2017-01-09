@@ -2,11 +2,11 @@
 
 # Patterns of concurrency
 
-To get more familiar with programming the chemical machine, let us now implement a number of simple concurrent programs.
+To get more intuition about programming the chemical machine, let us now implement a number of simple concurrent programs.
 These programs are somewhat abstract and are chosen to illustrate various patterns of concurrency that are found in real software.
 
-Allen B. Downey's [The little book of semaphores](http://greenteapress.com/semaphores/LittleBookOfSemaphores.pdf) lists many concurrency "puzzles" that he solves in Python using semaphores.
-In this and following chapter, we will use the chemical machine to solve Downey's concurrency puzzles as well as some other problems.
+Allen B. Downey's [_The little book of semaphores_](http://greenteapress.com/semaphores/LittleBookOfSemaphores.pdf) lists many concurrency "puzzles" that he solves in Python using semaphores.
+In this and following chapter, we will use the chemical machine to solve those concurrency puzzles as well as some other problems.
 
 Our approach will be deductive: we start with the problem and reason logically about the molecules and reactions that are necessary to solve it.
 Eventually we deduce the required chemistry and implement it declaratively in `JoinRun`/`Chymyst`.
@@ -36,7 +36,7 @@ def wait_forever(): B[Unit, Unit] = {
 
 ```
 
-The function `wait_forever()` will create and return a new blocking molecule emitter that, when called, will block forever, never returning any value.
+The function `wait_forever()` will create and return a new blocking emitter that, when called, will block forever, never returning any value.
 Here is example usage:
 
 ```scala
@@ -49,11 +49,12 @@ never() // this will never return
 
 ## Background jobs
 
-A basic asynchronous task is to start a long background job and get notified when it is done.
+A basic concurrency pattern is to start a long background job and to get notified when the job is finished.
 
-A chemical model is easy to invent: the reaction needs no data to start (the calculation can be inserted directly in the reaction body).
-So we define a reaction with a single non-blocking input molecule that carries a `Unit` value.
-The reaction will consume the molecule, do the long calculation, and then emit a `finished(...)` molecule that carries the result value on it.
+It is easy to come up with a suitable chemistry.
+The reaction needs no data to start, and the computation can be inserted directly into the reaction body.
+So we define a reaction with a single non-blocking input molecule.
+The reaction will consume the molecule, do the long computation, and then emit a `finished(...)` molecule that carries the result value of the computation.
 
 A convenient implementation is to define a function that will return an emitter that starts the job.
 
@@ -63,10 +64,10 @@ A convenient implementation is to define a function that will return an emitter 
 *
 * @tparam R The type of result value
 * @param closure The closure to be run
-* @param finished A previously bound non-blocking molecule to be emitted when the calculation is done
+* @param finished A previously bound non-blocking molecule to be emitted when the computation is done
 * @return A new non-blocking molecule that will start the job
 */
-def submitJob[R](closure: Unit => R, finished: M[R]): M[R] = {
+def submitJob[R](closure: () => R, finished: M[R]): M[R] = {
   val startJobMolecule = m[Unit] // Declare a new emitter.
 
   site (
@@ -85,11 +86,11 @@ The `finished` molecule should be bound to another reaction site.
 
 Another implementation of the same idea will put the `finished` emitter into the molecule value, together with the closure that needs to be run.
 
-However, we lose some polymorphism since Scala values cannot be parameterized by types.
-The `startJobMolecule` cannot have type parameters and has to accept `Any` as a type:
+However, we lose some polymorphism since Scala values cannot be parameterized by a type.
+The `startJobMolecule` cannot have type parameters and so has to carry values of type `Any`:
 
 ```scala
-val startJobMolecule = new M[(Unit => Any, M[Any])]
+val startJobMolecule = new M[() => Any, M[Any])]
 
 site (
   go {
@@ -104,8 +105,8 @@ site (
 A solution to this difficulty is to create a method that is parameterized by type and returns a `startJobMolecule`:
 
 ```scala
-def makeStartJobMolecule[R]: M[(Unit => R, M[R])] = {
-  val startJobMolecule = m[(Unit => R, M[R])]
+def makeStartJobMolecule[R]: M[(() => R, M[R])] = {
+  val startJobMolecule = m[(() => R, M[R])]
 
   site (
     go {
@@ -136,9 +137,8 @@ val done = m[Unit]
 val remaining = m[Int]
 
 site(
-  go { done(_) + remaining(k) => remaining(k-1) }
+  go { done(_) + remaining(k) => remaining(k - 1) }
 )
-
 remaining(n) // Emit the molecule with value `n`,
 // which is the initial number of remaining `done()` molecules.
 
@@ -155,7 +155,7 @@ go { all_done(_, reply) + remaining(0) => reply() }
 
 ```
 
-Since this reaction consumes `remaining`, it should be declared at the same reaction site as the `done + remaining => ...` reaction.
+Since this reaction consumes `remaining()`, it should be declared at the same reaction site as the `{ done + remaining => ... }` reaction.
 
 The complete code is
 
@@ -165,17 +165,16 @@ val remaining = m[Int]
 val all_done = b[Unit,Unit]
 
 site(
-  go { done(_) + remaining(k) if k>0 => remaining(k-1) }, // Adding a guard to be safe.
+  go { done(_) + remaining(k) if k > 0 => remaining(k - 1) }, // Adding a guard to be safe.
   go { all_done(_, reply) + remaining(0) => reply() }
 )
-
 remaining(n) // Emit the molecule with value `n`,
 // which is the initial number of remaining `done()` molecules.
 
 ```
 
-Adding a guard `if k>0` will prevent the first reaction from running once we consume the expected number of `done()` molecules.
-This allows the user to emit more `done()` molecules than expected without disrupting the logic.
+Adding a guard (`if k > 0`) will prevent the first reaction from running once we consume the expected number of `done()` molecules.
+This allows the user to emit more `done()` molecules than `n`, without disrupting the logic.
 
 ### Example usage
 
@@ -188,7 +187,7 @@ After emitting the input molecules for these reactions to start, we call `all_do
 val begin = m[Int]
 
 site(
-  go { begin(x) => long_calculation(x); done() )}
+  go { begin(x) => long_computation(x); done() )}
 )
 val n = 10000
 (1 to n).foreach(begin) // Emit begin(1), begin(2), ..., begin(10000) now.
@@ -199,8 +198,8 @@ all_done() // This will block until all reactions are finished.
 
 ### Refactoring into a function
 
-Consider what is required in order to refactor this functionality into a reusable library function.
-We would like to have a function call such as `make_all_done()` that creates the `all_done()` molecule for us.
+Consider what is required in order to refactor this chemistry into a reusable function
+such as `make_all_done()` that would create the `all_done()` molecule for us.
 
 The function `make_all_done()` will need to declare a new reaction site.
 The `done()` molecule is an input molecule at the new reaction site.
@@ -209,15 +208,15 @@ Therefore, this molecule cannot be already defined before we perform the call to
 We see that the result of the call `make_all_done()` must be the creation of _two_ new molecules: a new `done()` molecule and a new `all_done()` molecule.
 
 The user will then need to make sure that every job emits the `done()` molecule at the end of the job,
-and arrange for all the jobs to start (in whatever way necessary).
+and arrange for all the jobs to start.
 When it becomes necessary to wait until the completion of all jobs, the user code will simply emit the `all_done()` blocking molecule and wait until it returns.
 
-Refactoring an inline piece of chemistry into a reusablefunction is generally done in two steps:
+Refactoring an inline piece of chemistry into a reusable function is generally done in two steps:
 
-- declare the same molecules and reactions as in the previous code, but now everything is within the scope of a function
-- the function should then return just the new molecule emitters that the user will need to call, but no other molecule emitters
+- within the function scope, declare the same molecules and reactions as in the previous inline code;
+- at the end of the function body, return just the new molecule emitters that the user will need to call, but no other molecule emitters.
 
-Here is the result of this procedure for our previous code:
+Here is the result of this refactoring for our previous code:
 
 ```scala
 def make_all_done(n: Int): (E, EE) = {
@@ -226,10 +225,9 @@ def make_all_done(n: Int): (E, EE) = {
   val all_done = b[Unit,Unit]
   
   site(
-    go { done(_) + remaining(k) if k>0 => remaining(k-1) }, // Adding a guard to be safe.
+    go { done(_) + remaining(k) if k > 0 => remaining(k - 1) }, // Adding a guard to be safe.
     go { all_done(_, reply) + remaining(0) => reply() }
   )
-  
   remaining(n)
   
   (done, all_done)
@@ -238,10 +236,10 @@ def make_all_done(n: Int): (E, EE) = {
 ```
 
 Note that we declared the molecule types to be `E` and `EE`.
-These are the types created by the `m[Unit]` and `m[Unit,Unit]` macro calls.
-The class `E` is a refinement of the class `M[Unit]`, and `EE` is a refinement of `M[Unit,Unit]`.
-The refinements are pure syntactic sugar: they are needed in order to permit the syntax `done()` and `all_done()` without a compiler warning about the missing `Unit` arguments.
-Without them, we would have to write `done(())` and `all_done(())`.
+These are the types automatically created by the `m[Unit]` and `m[Unit,Unit]` macro calls.
+The class `E` is a subclass of the class `M[Unit]`, and `EE` is a subclass of `M[Unit,Unit]`.
+The subclasses are needed only in order to permit the syntax `done()` and `all_done()` without a compiler warning about the missing `Unit` arguments.
+If we defined `val done = new M[Unit]("done")`, we would have to write `done(())` to avoid the compiler warning.
 
 Let us now use the method `make_all_done()` to simplify the example usage code we had in the previous section:
 
@@ -252,7 +250,7 @@ val n = 10000
 val (done, all_done) = make_all_done(n)
 
 site(
-  go { begin(x) => long_calculation(x); done() )}
+  go { begin(x) => long_computation(x); done() )}
 )
 
 (1 to n).foreach(begin) // Emit begin(1), begin(2), ..., begin(10000) now.
@@ -270,14 +268,14 @@ Let us take the code we just saw for `make_all_done()` and try to modify it for 
 The key reaction
 
 ```scala
-go { done(_) + remaining(k) if k>0 => remaining(k-1) }
+go { done(_) + remaining(k) if k > 0 => remaining(k - 1) }
 
 ```
 
 now needs to be modified because we must reply to the `done()` molecule at some point in that reaction:
 
 ```scala
-go { done(_, r) + remaining(k) if k>0 => r(); remaining(k-1) }
+go { done(_, r) + remaining(k) if k > 0 => r() + remaining(k - 1) }
 
 ```
 
@@ -299,15 +297,15 @@ Since our only way to control concurrency is by manipulating molecules, we need 
 In other words, `doWork()` must be called by a _reaction_ that consumes certain molecules whose presence or absence we will control.
 The reaction must be of the form `case [some molecules] => ... doWork() ...`.
 Let us call it the "worker reaction".
-There must be no other way to call `doWork()` except by starting this reaction.
+Our code must be such that the only way to call `doWork()` is by starting this reaction.
 
 Processes that need to call `doWork()` will therefore need to emit a certain molecule that the worker reaction consumes.
-Let us call that molecule `request`.
-The `request` molecule must be a _blocking_ molecule because `doWork()` should be able to block the caller when the resource _R_ is not available.
+Let us call that molecule `request()`.
+The `request()` molecule must be a _blocking_ molecule because `doWork()` should be able to block the caller when the resource _R_ is not available.
 
-If the `request` molecule is the only input molecule of the worker reaction, we will be unable to prevent the reaction from starting whenever some process emits a `request` molecule.
-Therefore, we need a second input molecule in the worker reaction.
-Let us call that molecule `access`.
+If the `request()` molecule is the only input molecule of the worker reaction, we will be unable to prevent the reaction from starting whenever some process emits `request()`.
+Therefore, we need a _second_ input molecule in the worker reaction.
+Let us call that molecule `access()`.
 The worker reaction will then look like this:
 
 ```scala
@@ -322,36 +320,37 @@ Therefore, `access()` must be present at the reaction site: we should have emitt
 While `doWork()` is evaluated, the `access()` molecule is absent, so no other copy of the worker reaction can start.
 This is precisely the exclusion behavior we need.
 
-When the `doWork()` function finishes, we need to unblock the calling process by replying to the `request` molecule.
+When the `doWork()` function finishes, we need to unblock the calling process by replying to the `request()` molecule.
 Perhaps `doWork()` will return a result value: in that case, we should pass this value as the reply value.
-We should also emit the `access()` molecule back into the soup, so that another process will be able to run `doWork`.
+We should also emit the `access()` molecule back into the soup, so that another process will be able to run `doWork()`.
 
 After these considerations, the worker reaction becomes
 
 ```scala
 site (
-  go { case access(_) + request(_, reply) => reply(doWork()); access() }
+  go { case access(_) + request(_, reply) => reply(doWork()) + access() }
 )
 access() // Emit just one copy of `access`.
 
 ```
 
-As long as we emit just one copy of the `access` molecule, and as long as `doWork()` is not used elsewhere in the code, we will guarantee that at most one process will call `doWork()` at any time.
+As long as we emit just one copy of the `access()` molecule, and as long as `doWork()` is not used elsewhere in the code, we will guarantee that at most one process will call `doWork()` at any time.
 
 ### Multiple access
 
-What if we now relax the requirement of single access for the resource _R_?
+What if we need to relax the requirement of single access for the resource _R_?
 Suppose that now, at most `n` concurrent processes should be able to call `doWork()`.
 
 This formulation of the shared resource problem will describe, for instance, the situation where a connection pool with a fixed number of connections should be used to access a database server.
 
-The effect of allowing `n` simultaneous reactions to access the resource _R_ can be achieved simply by emitting `n` copies of the `access()` molecule.
+The effect of allowing `n` simultaneous reactions to access the resource _R_ can be achieved simply by initially emitting `n` copies of the `access()` molecule.
 The worker reaction remains unchanged.
+This is how easy it is to program the chemical machine!
 
 ### Refactoring into a function
 
 The following code defines a convenience function that wraps `doWork()` and provides single-access or multiple-access restrictions.
-This illustrates how we can easily and safely package chemistry into a reusable function.
+This illustrates how we can easily and safely package new chemistry into a reusable function.
 
 ```scala
 def wrapWithAccess[T](allowed: Int, doWork: () => T): () => T = {
@@ -359,10 +358,10 @@ def wrapWithAccess[T](allowed: Int, doWork: () => T): () => T = {
   val request = b[Unit, T]
 
   site (
-    go { case access(_) + request(_, reply) => reply(doWork()); access() }
+    go { case access(_) + request(_, reply) => reply(doWork()) + access() }
   )
 
-  (1 to n).foreach(_ => access()) // Emit `n` copies of `access`.
+  (1 to n).foreach(access) // Emit `n` copies of `access`.
   val result: () => T = () => request()
   result
 }
@@ -426,9 +425,12 @@ We will now implement the following requirements:
 - The code between these two calls can be executed only by one reaction at a time, among all reactions that call these functions.
 - A reaction that calls `beginCritical()` will be blocked if another reaction already called `beginCritical()` but did not yet call `endCritical()`, and will be unblocked only when that other reaction calls `endCritical`. 
 
-This functionality is similar to `Object.synchronized`, which provides synchronized access to a block of reentrant code.
-In our case, the critical section is delimited by two function calls `beginCritical()` and `endCritical()` are separate function calls that can be made at any two points in the code -- including `if` expressions or inside closures -- which is impossible with `synchronized` blocks.
-Also, the `Object.synchronized` construction identifies the synchronized blocks by an `Object` reference: different objects will be responsible for synchronizing different blocks of reentrant code.
+This functionality is similar to `Object.synchronized`, which provides exclusive synchronized access within otherwise reentrant code.
+In our case, the critical section is delimited by two function calls, `beginCritical()` and `endCritical()`, that can be made at any two points in the code -- including `if` expressions or inside closures,
+which is impossible with `Object.synchronized`.
+
+The `Object.synchronized` construction identifies the synchronized blocks by an `Object` reference:
+different objects will be responsible for synchronizing different blocks of reentrant code.
 What we would like to allow is _any_ code anywhere to contain any number of critical sections identified by the same `beginCritical()` call.
 
 How can we implement this functionality using the chemical machine?
@@ -437,7 +439,7 @@ Clearly, `beginCritical` must be blocking while `endCritical` does not have to b
 
 What should happen when a process emits `beginCritical()`?
 We must enforce a single-process access to the critical section.
-In other words, a reaction that consumes `beginCritical()` should only start one at a time even if several `beginCritical` molecules are available.
+In other words, a reaction that consumes `beginCritical()` should only start one at a time, even if several `beginCritical` molecules are available.
 Therefore, this reaction must also require another input molecule, say `access()`, of which we will only have a single copy emitted into the soup:
 
 ```scala
@@ -451,19 +453,19 @@ access() // Emit only one copy.
 
 ```
 
-Just as in the case of single-access resource, we have guaranteed that `beginCritical()` blocks if called more than once.
+Just as in the case of single-access resource, we can guarantee that `beginCritical()` will block if called more than once.
 All we need to do is insure that there is initially a single copy of `access()` in the soup, and that no further copies of `access()` are ever emitted.
 
 Another requirement is that emitting `endCritical()` must end whatever `beginCritical()` began, but only if `endCritical()` is emitted by the _same reaction_.
-If a different reaction emits `endCritical()`, access to the critical section should not be granted.
-Somehow, the `endCritical()` molecules must be different when emitted by different reactions (however, `beginCritical()` must be the same for all reactions, or else there can't be any contention between them).
+If a different reaction emits `endCritical()`, no access to the critical section should be granted.
+Somehow, the `endCritical()` molecules must be different when emitted by different reactions.
+However, `beginCritical()` must be the same for all reactions, or else there can't be any contention between them.
 
 Additionally, we would like it to be impossible for any reaction to call `endCritical()` without first calling `beginCritical()`.
 
-One way of achieving this is to make `beginCritical()` return a value that enables us to call `endCritical()`.
-
-When we will use this functionality, we will emit a `beginCritical()` molecule and, since this is a blocking molecule, its emitter will block and return a value, which is the `endCritical` emitter.
-This will enable us to emit `endCritical()` later.
+One way of achieving this is to make `beginCritical()` return a value that is required for us to call `endCritical()` later.
+The simplest such value is the emitter `endCritical` itself.
+So let us make `beginCritical()`, which is a blocking call, return the `endCritical` emitter.
 
 To achieve the uniqueness of `endCritical`, let us implement the call to `beginCritical()` in such a way that it creates each time a new, unique emitter for `endCritical()`, and returns that emitter:
 
@@ -484,7 +486,8 @@ access() // Emit only one copy.
 
 ```
 
-Since `endCritical` and its reaction site are defined within the local scope of the reaction that consumes `beginCritical()`, each such reaction will create a _chemically unique_ new molecule that no other reactions can emit.
+Since `endCritical()` and its chemistry are defined within the local scope of the reaction that consumes `beginCritical()`,
+each such scope will create a _chemically unique_ new molecule that no other reactions can emit.
 This will guarantee that reactions cannot end the critical section for other reactions.
 
 Also, since the `endCritical` emitter is created by `beginCritical()`, we cannot possibly call `endCritical()` before calling `beginCritical()`!
@@ -556,7 +559,7 @@ endCritical() // This has no effect because `beganOnce()` is not available any m
 
 ```
 
-As before, we can easily modify this code to support multiple (but limited) concurrent entry into critical sections or token-based access. 
+As before, we can easily modify this code to support multiple (but limited) concurrent entry into critical sections, or to support token-based access. 
 
 ### Refactoring into a function
 
@@ -582,7 +585,7 @@ val beginCritical2 = newCriticalSectionMarker()
 | ... | | ... | | ... |
 | ... | | `endCritical1()` | | `endCritical2()` |
 
-The result should be that we can create any number of critical sections that work independently of each other.
+The result should be that we are able to delimit any number of critical sections that work independently of each other.
 
 In order to package the implementation of the critical section into a function `newCriticalSectionMarker()`,
 we simply declare the chemistry in the local scope of that function and return the molecule emitter:
@@ -662,10 +665,9 @@ begin1() + begin2() // emit both molecules to enable starting the two reactions
 
 ```
 
-So far, so good.
-Look at what happens in in Process 1 after `x1` is computed.
-The next step is to send the value `x1` to Process 2.
-The only way we can send data to any other process is by emitting a molecule.
+Let us now look at what happens in Process 1 after `x1` is computed.
+The next step at that point is to send the value `x1` to Process 2.
+The only way of sending data to another process is by emitting a molecule with a value.
 Therefore, here we must be emitting _some molecule_.
 
 Now, either Process 1 or Process 2 is already running by this time, and so it won't help if we emit a molecule that Process 2 consumes as input.
@@ -739,13 +741,9 @@ The easiest solution is to just let these two molecules react with each other.
 The reaction will then reply to both of them, exchanging the reply values. 
 
 ```scala
-go { case barrier1(x1, reply1) + barrier2(x2, reply2) => reply1(x2); reply2(x1) }
+go { case barrier1(x1, reply1) + barrier2(x2, reply2) => reply1(x2) + reply2(x1) }
 
 ```
-
-This reaction could be defined at its own reaction site, since it is the only reaction that will consume `barrier1` and `barrier2`.
-(The same is true for the two `begin1` and `begin2` reactions.)
-For simplicity, we will keep all reactions in one reaction site.
 
 The final code looks like this:
 
@@ -767,7 +765,7 @@ site(
     val y2 = barrier2(x2) // receive value from Process 1
     val z = further_computation_2(y2)
    },
-   go { case barrier1(x1, reply1) + barrier2(x2, reply2) => reply1(x2); reply2(x1) }
+   go { case barrier1(x1, reply1) + barrier2(x2, reply2) => reply1(x2) + reply2(x1) }
 )
 begin1() + begin2() // emit both molecules to enable starting the two reactions
 
@@ -777,10 +775,11 @@ Working test code for the rendezvous problem is in `Patterns01Spec.scala`.
 
 ## Rendezvous with `n` participants
 
-Suppose we need a rendezvous with `n` participants: there are `n` processes (where `n` is a run-time value, not known in advance), and each process would like to wait until all other processes reach the rendezvous point.
+Suppose we need a rendezvous with `n` participants: there are `n` processes (where `n` is a run-time value, not known in advance),
+and each process would like to wait until all other processes reach the rendezvous point.
 After that, all `n` waiting processes become unblocked and proceed concurrently.
 
-This problem is similar to the rendezvous with two participants that we considered before.
+This is similar to the rendezvous with two participants that we just discussed.
 To simplify the problem, we assume that no data is exchanged -- this is a pure synchronization task.
 
 Let us try to generalize our previous implementation of the rendezvous from 2 participants to `n`.
@@ -797,24 +796,26 @@ go { case barrier1(x1, reply1) + barrier2(x2, reply2) => ... }
 Generalizing this reaction straightforwardly to `n` participants would now require a reaction with `n` input molecules `barrier1`, ..., `barrier_n`.
 In the chemical machine, input molecules to each reaction must be defined statically.
 Since `n` is a run-time parameter, we cannot define a reaction with `n` input molecules.
-So we cannot generalize from 2 to `n` rendezvous participants in this way.
+So we cannot generalize from 2 to `n` participants in this way.
 
-What we need is to consume all `n` blocking molecules `barrier1`, ..., `barrier_n` and also reply to all of them at the time when we make sure we consumed exactly `n` of them.
+What we need is to consume all `n` blocking molecules `barrier1`, ..., `barrier_n` and also reply to all of them after we make sure we consumed exactly `n` of them.
 The only way to implement chemistry that consumes `n` molecules (where `n` is a runtime parameter) is to consume one molecule at a time while counting to `n`.
-The count value (showing the number of `barrier()` molecules already consumed) must be carried by another molecule, say `counter`.
+We need a molecule, say `counter()`, to carry the integer value that shows the number of `barrier()` molecules already consumed.
 Therefore, we need a reaction like this:
 
 ```scala
-go { case barrier(_, reply) + counter(k) => ???; if (k + 1 < n) counter(k + 1); ???; reply() }
+go { case barrier(_, reply) + counter(k) => 
+  ???; if (k + 1 < n) counter(k + 1); ???; reply()
+}
 
 ```
 
-This reaction should reply to the `barrier()` molecule (as should any reaction that consumes a blocking molecule).
+This reaction must reply to the `barrier()` molecule, since a reply is required in any reaction that consumes a blocking molecule.
 It is clear that `reply()` should come last: this is the reply to the `barrier()` molecule, which should be performed only after we counted up to `n`.
 Until then, this reaction must be blocked.
 
 The only way to block in the middle of a reaction is to emit a blocking molecule there.
-Therefore, some blocking molecule must be emitted in the reaction before replying to `barrier()`.
+Therefore, some blocking molecule must be emitted in this reaction before replying to `barrier()`.
 Let us make `counter()` a blocking molecule:
 
 ```scala
@@ -823,34 +824,44 @@ go { case barrier(_, reply) + counter(k, replyCounter) => ???; if (k + 1 < n) co
 ```
 
 What is still missing is the reply to the `counter(k)` molecule.
-Now we are faced with a question: at what point should we perform that reply, before emitting `counter(k + 1)` or after?
-We could write one of the two reactions:
+Now we are faced with a question: should we perform that reply before emitting `counter(k + 1)` or after?
+Here are the two possible reactions:
 
 ```scala
-val reaction1 = go { case barrier(_, reply) + counter(k, replyCounter) => replyCounter(); if (k + 1 < n) counter(k + 1); reply() }
-val reaction2 = go { case barrier(_, reply) + counter(k, replyCounter) => if (k + 1 < n) counter(k + 1); replyCounter(); reply() }
+val reaction1 = go { case barrier(_, reply) + counter(k, replyCounter) =>
+  replyCounter(); if (k + 1 < n) counter(k + 1); reply()
+}
+val reaction2 = go { case barrier(_, reply) + counter(k, replyCounter) =>
+  if (k + 1 < n) counter(k + 1); replyCounter(); reply()
+}
 
 ```
 
-We now need to decide whether `reaction1` or `reaction2` works as we want.
+We now need to decide whether `reaction1` or `reaction2` works as required.
 
-To resolve this question, let us visualize the molecules that we'd like to be present at different stages of running the program.
-Suppose that `n=10` and we have already consumed all `barrier` molecules except three.
-We presently have three `barrier()` molecules and one `counter(7)` molecule (which, as we decided, is a blocking molecule).
+To resolve this question, let us visualize the molecules that we need to be present at different stages of running the program.
+Suppose that `n = 10` and we have already consumed all `barrier()` molecules except three.
+We presently have three `barrier()` molecules and one `counter(7)` molecule.
+(As we decided, this is a blocking molecule.)
 
 Note that the `counter(7)` molecule was emitted by a previous reaction of the same kind, 
 
-`barrier() + counter(6) => ... counter(7); ... }`
+```scala
+go { barrier() + counter(6) => ... counter(7); ... }
+
+```
 
 So, this previous reaction is now blocked at the place where it emitted `counter(7)`. 
 
-Next, the reaction `barrier() + counter(7) => ...` will start and consume its input molecules, leaving two `barrier()` molecules present.
+Next, the reaction `{ barrier() + counter(7) => ... }` will start and consume its input molecules, leaving two `barrier()` molecules present.
 
-Now the reaction body of `barrier() + counter(7) => ...` will run and emit `counter(8)`.
+Now the reaction body of `{ barrier() + counter(7) => ... }` will run and emit `counter(8)`.
 Then we will have the molecules `barrier(), barrier(), counter(8)` in the soup.
-This set of molecules will be the same whether we define `reaction1` or `reaction2`.
-However, in `reaction1` the reply is already sent to `counter(7)` before emitting `counter(8)`.
-This will unblock the previous reaction,
+This set of molecules will be the same whether we use `reaction1` or `reaction2`.
+
+Suppose we used `reaction1`.
+We see that in the body of `reaction1` the reply is sent to `counter(7)` before emitting `counter(8)`.
+The reply to `counter(7)` will unblock the previous reaction,
  
 ```scala
 { case barrier(_, reply) + counter(6, replyCounter) => replyCounter(); counter(7); reply() }
@@ -858,28 +869,30 @@ This will unblock the previous reaction,
 ```
 
 which was blocked at the call to `counter(7)`.
-Now this reaction can proceed to reply to `barrier()` using `reply()`.
+Now this reaction can proceed to reply to its `barrier()` using `reply()`.
 However, at this point it is too early to send a reply to `barrier()`, because we still have two `barrier()` molecules that we have not yet consumed!
 
 Therefore, `reaction1` is incorrect.
 On the other hand, `reaction2` works correctly.
-It will block at each emission of `counter(k + 1)` and unblock only when `k=n-1`.
-At that time, `reaction2` will reply to the `counter(n-1)` molecule and to the just consumed `barrier()` molecule.
-The reply to the `counter(n-1)` molecule will unblock the copy of `reaction2` that emitted it, which will unblock the next molecules.
+It will block at each emission of `counter(k + 1)` and unblock only when `k = n - 1`.
+At that time, `reaction2` will reply to the `counter(n - 1)` molecule and to the `barrier()` molecule just consumed.
+The reply to the `counter(n - 1)` molecule will unblock the copy of `reaction2` that emitted it, which will unblock the next molecules.
 
 In this way, the `n`-rendezvous will require all `n` reactions to wait at the "barrier" until all participants reach the barrier, and then unblock all of them.
 
-It remains to see how the first reaction will start.
+It remains to see how the very first `barrier()` molecule can be consumed.
 We could emit a `counter(0)` molecule at the initial time.
-This molecule is blocking, so emitting it will block a reaction until the very end of the `n`-rendezvous.
-Alternatively, we can write a special initial reaction such as
+This molecule is blocking, so emitting it will block its emitter until the very end of the `n`-rendezvous.
+This may be undesirable.
+
+To avoid that, we can introduce a special initial molecule `counterInit()` with a reaction such as
 
 ```scala
 go { case barrier(_, reply) + counterInit(_) => counter(1); reply() }
 
 ```
 
-Then the complete code looks like this:
+This works; the complete code looks like this:
 
 ```scala
 val barrier = b[Unit,Unit]
@@ -887,12 +900,13 @@ val counterInit = m[Unit]
 val counter = b[Int,Unit]
 
 site(
-  go { case barrier(_, reply) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
+  go { case barrier(_, reply) + counterInit(_) =>
+    // this reaction will consume the very first barrier molecule emitted
     counter(1) // one reaction has reached the rendezvous point
     reply()
   },
   go { case barrier(_, reply) + counter(k, replyCounter) =>
-    if (k + 1 < n) counter(k + 1)
+    if (k + 1 < n) counter(k + 1) // k + 1 reactions have reached the rendezvous point
     replyCounter()
     reply()
   }
@@ -902,12 +916,12 @@ counterInit() // This needs to be emitted initially.
 ```
 
 Note that this chemistry will block `n` reactions that emit `barrier()` and another set of `n` copies of `reaction2`.
-In the current implementation of `JoinRun`, a blocked reaction will block a thread, so the`n`-rendezvous will require `2*n` new threads that remain blocked until the rendezvous is passed.
+In the current implementation of `JoinRun`, a blocked reaction always blocks a thread, so the`n`-rendezvous will block `2*n` threads until the rendezvous is passed.
 (A future implementation of `JoinRun` might be able to perform a code transformation that never blocks any threads.)
 
-How do we use this `n`-rendezvous?
+How do we use the `n`-rendezvous?
 Suppose we have a reaction where a certain processing step needs to wait for all other reactions to reach the same step.
-Then we emit the `barrier()` molecule at that step:
+Then we simply emit the `barrier()` molecule at that step:
 
 ```scala
 site (
@@ -924,11 +938,12 @@ site (
 
 ### Refactoring into a function
 
-As usual when encapsulating some piece of chemistry into a reusable function, we first figure out what new molecule emitters are necessary for the users of the function to be able to run the encapsulated chemistry.
-These new emitters will be returned (say, as a tuple) by the function; all the other chemistry will remain encapsulated within the local scope of the function.
+As always when encapsulating some piece of chemistry into a reusable function, we first figure out what new molecule emitters are necessary for the users of the function.
+These new emitters will be returned by the function, while all the other chemistry will remain encapsulated within that function's local scope.
 
-In our case, the users of the function will only need the `barrier()` molecule emitter.
-In fact, users should _not_ have access to `counter` or `counterInit` emitters: if users emit more copies of these molecules, the encapsulated reactions will work incorrectly.
+In our case, the users of the function will only need the `barrier` emitter.
+In fact, users should _not_ have access to `counter` or `counterInit` emitters:
+if users emit any additional copies of these molecules, the encapsulated reactions will begin to work incorrectly.
 
 We also note that the number `n` needs to be given in advance, before creating the reaction site for the `barrier` molecule.
 Therefore, we write a function with an integer argument `n`:
@@ -940,12 +955,13 @@ def makeRendezvous(n: Int): EE = { // We are returning EE, which is a subclass o
   val counter = b[Int,Unit]
   
   site(
-    go { case barrier(_, reply) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
+    go { case barrier(_, reply) + counterInit(_) =>
+      // this reaction will consume the very first barrier molecule emitted
       counter(1) // one reaction has reached the rendezvous point
       reply()
     },
     go { case barrier(_, reply) + counter(k, replyCounter) =>
-      if (k + 1 < n) counter(k + 1)
+      if (k + 1 < n) counter(k + 1) // k + 1 reactions have reached the rendezvous point
       replyCounter()
       reply()
     }
@@ -978,13 +994,14 @@ site (
 ### Reusable `n`-rendezvous
 
 The `n`-rendezvous as implemented in the previous section has a drawback:
-After `n` reactions have passed the rendezvous point, emitting more `barrier()` molecules will have no effect.
+Once `n` reactions have passed the rendezvous point, emitting more `barrier()` molecules will have no effect.
 If another set of `n` reactions needs to participate in an `n`-rendezvous, a new call to `makeRendezvous()` needs to be made in order to produce a whole new reaction site with a new `barrier()` molecule.
 
 In a _reusable_ `n`-rendezvous,
 once a set of `n` participant reactions have passed the rendezvous point, the same `barrier` molecule should automatically become ready to be used again by another set of `n` reactions.
 This can be seen as a batching functionality:
-If reactions emit a large number of `barrier()` molecules, these molecules are split into batches of `n` and an `n`-rendezvous procedure is automatically performed for one batch after another. 
+If reactions emit a large number of `barrier()` molecules, these molecules are split into batches of size `n`.
+A rendezvous procedure is automatically performed for one batch after another. 
 
 Let us see how we can revise the code of `makeRendezvous()` to implement this new requirement.
 We need to consider what molecules will be present after one rendezvous is complete.
@@ -1007,7 +1024,7 @@ In the 18th century Paris, there are two doors that open to the dance floor wher
 At random intervals, men and women arrive to the dancing place.
 Men queue up at door A, women at door B.
 
-The first man waiting at door A and the first woman waiting at door B will then form a dance pair and go off to dance.
+The first man waiting at door A and the first woman waiting at door B will then form a pair and go off to dance.
 If a man is first in the queue at door A but no woman is waiting at door B (that is, the other queue is empty), the man needs to wait until a woman arrives and goes off to dance with her.
 Similarly, when a woman is first in the queue at door B and no man is waiting, she needs to wait for the next man to arrive, and then go off to dance with him.
 
