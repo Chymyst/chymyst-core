@@ -166,11 +166,9 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
 
-    val possibleErrors = Set(("45EA", "465D", "4BE5", "465D"), ("4AEA", "A89F", "B07E", "4AEA")).map(tup4 =>
-      s"In Site{a + a + a + b + b + b + b => ...; a + a + a + b + b + b => ...}: Unavoidable nondeterminism: reaction"+
-        s" {a(<${tup4._1}...>) + a(<${tup4._2}...>) + a(<${tup4._3}...>) + b(1) + b(1) + b(2) + b(_) => }" +
-        s" is shadowed by {a(<${tup4._4}...>) + a(_) + a(x) + b(1) + b(1) + b(_) => }")
-    possibleErrors should contain oneElementOf List(thrown.getMessage)
+    thrown.getMessage should fullyMatch regex "In Site\\{a \\+ a \\+ a \\+ b \\+ b \\+ b \\+ b => ...; a \\+ a \\+ a \\+ b \\+ b \\+ b => ...}: Unavoidable nondeterminism: reaction" +
+      " \\{a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ b\\(1\\) \\+ b\\(1\\) \\+ b\\(2\\) \\+ b\\(_\\) => }" +
+      " is shadowed by \\{a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(_\\) \\+ a\\(x\\) \\+ b\\(1\\) \\+ b\\(1\\) \\+ b\\(_\\) => }"
   }
 
   it should "detect shadowing of reactions with several wildcards" in {
@@ -183,11 +181,9 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
 
-    val possibleErrors = Set(("45EA", "465D", "4BE5", "465D"), ("4AEA", "A89F", "B07E", "4AEA")).map(tup4 =>
-      s"In Site{a + a + a + a + b + b + b + b => ...; a + a + a + a + b => ...}: Unavoidable nondeterminism: reaction"+
-        s" {a(<${tup4._1}...>) + a(<${tup4._2}...>) + a(<${tup4._3}...>) + a(x) + b(1) + b(1) + b(2) + b(_) => }" +
-        s" is shadowed by {a(<${tup4._4}...>) + a(_) + a(_) + a(x) + b(1) => }")
-    possibleErrors should contain oneElementOf List(thrown.getMessage)
+    thrown.getMessage should fullyMatch regex "In Site\\{a \\+ a \\+ a \\+ a \\+ b \\+ b \\+ b \\+ b => ...; a \\+ a \\+ a \\+ a \\+ b => ...}: Unavoidable nondeterminism: reaction" +
+      " \\{a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(x\\) \\+ b\\(1\\) \\+ b\\(1\\) \\+ b\\(2\\) \\+ b\\(_\\) => }" +
+      " is shadowed by \\{a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(_\\) \\+ a\\(_\\) \\+ a\\(x\\) \\+ b\\(1\\) => }"
   }
 
   behavior of "analysis of livelock"
@@ -225,7 +221,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val result = site(
       go { case a(x) if x > 0 => a(x) }
     )
-    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(x) if(?) => a(?)}"), List(), "Site{a => ...}")
+    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(x if ?) => a(?)}"), List(), "Site{a => ...}")
   }
 
   it should "detect livelock in a single reaction due to constant output values with nontrivial matchers" in {
