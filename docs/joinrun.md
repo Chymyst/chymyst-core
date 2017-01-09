@@ -161,7 +161,7 @@ A reaction is an instance of class `Reaction`.
 Reactions are declared using the `go` method with a partial function syntax that resembles pattern-matching on molecule values:
 
 ```scala
-val reaction1 = go { case a(x) + b(y) => a(x+y) }
+val reaction1 = go { case a(x) + b(y) => a(x + y) }
 
 ```
 
@@ -263,8 +263,8 @@ val i = new M[Unit]("increment")
 val f = new M[Unit]("finished")
 
 site(
-  go { case c(x) + d(_) => c(x-1); if (x==1) f() },
-  go { case c(x) + i(_) => c(x+1) }
+  go { case c(x) + d(_) => c(x - 1); if (x == 1) f() },
+  go { case c(x) + i(_) => c(x + 1) }
 )
 
 ```
@@ -277,7 +277,7 @@ Note that `f` is not an input molecule here; we will need to write another RS to
 It is perfectly acceptable for a reaction to output a molecule such as `f` that is not consumed by any reaction in this RS.
 However, if we forget to write any other RS that consumes `f`, it will be a runtime error to emit `f`.
 
-As a warning, note that in the present example the molecule `f` will be emitted only if `x==1` (and it is impossible to determine at compile time whether `x==1` will be true at runtime).
+As a warning, note that in the present example the molecule `f` will be emitted only if `x == 1` (and it is impossible to determine at compile time whether `x == 1` will be true at runtime).
 So, if we forget to write an RS to which `f` is bound, it will be not necessarily easy to detect the error at runtime!
 
 An important requirement for reaction sites is that any given molecule must be bound to one and only one reaction site.
@@ -292,11 +292,11 @@ val i = new M[Unit]("increment")
 val f = new M[Unit]("finished")
 
 site(
-  go { case c(x) + d(_) => c(x-1); if (x==1) f() }
+  go { case c(x) + d(_) => c(x - 1); if (x == 1) f() }
 )
 
 site(
-  go { case c(x) + i(_) => c(x+1) }
+  go { case c(x) + i(_) => c(x + 1) }
 ) // runtime error: "c" is already bound to another RS
 
 ```
@@ -330,7 +330,7 @@ val decr = b[Unit] // the name is "decr"
 val get = b[Unit,Int] // the name is "get"
 
 site (
-  go { case counter(n) + decr(_) if n > 0 => counter(n-1) },
+  go { case counter(n) + decr(_) if n > 0 => counter(n - 1) },
   go { case counter(n) + get(_, res) => res(n) + counter(n) }
 )
 

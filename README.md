@@ -100,8 +100,8 @@ def makeCounter(initCount: Int)
   val get = b[Unit, Int] // empty blocking molecule returning integer value
 
   site {
-    go { counter(n) + incr(_) => counter(n+1) },
-    go { counter(n) + decr(_) => counter(n-1) },
+    go { counter(n) + incr(_) => counter(n + 1) },
+    go { counter(n) + decr(_) => counter(n - 1) },
     go { counter(n) + get(_,res) => counter(n) + res(n) }
   }
 

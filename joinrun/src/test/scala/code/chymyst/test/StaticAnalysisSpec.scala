@@ -267,7 +267,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val p = m[Int]
     val q = m[Int]
     val warnings = site(
-      go { case p(x) + q(1) => q(x) + q(2) + p(1) } // Will have livelock when x==1, but not otherwise.
+      go { case p(x) + q(1) => q(x) + q(2) + p(1) } // Will have livelock when x == 1, but not otherwise.
     )
 
     warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {p(.) + q(1) => q(?) + q(2) + p(1)}"), List(), "Site{p + q => ...}")

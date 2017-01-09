@@ -353,8 +353,8 @@ Singleton molecules `s` must have reactions of the form `s + ... => s + ...`, --
 An example of a singleton is the “concurrent counter” molecule `c`, with reactions that we have seen before:
 
 ```scala
-c(x) + d(_) => c(x-1)
-c(x) + i(_) => c(x+1)
+c(x) + d(_) => c(x - 1)
+c(x) + i(_) => c(x + 1)
 c(x) + f(_, r) => c(x) + r(x)
 ```
 
@@ -397,7 +397,7 @@ Each singleton molecule has a **volatile reader** -- a function of type `=> T` t
 ```scala
 val c = m[Int]
 site(
-  go { case c(x) + incr(_) => c(x+1) },
+  go { case c(x) + incr(_) => c(x + 1) },
   go { case _ => c(0) } // emit `c(0)` and declare it a singleton
 )
 
