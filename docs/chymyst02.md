@@ -137,7 +137,7 @@ object C extends App {
   // declare reactions
   site(
     go { case counter(0) + fetch(_, reply)  => reply() },
-    go { case counter(n) + decr(_) => counter(n-1) }
+    go { case counter(n) + decr(_) => counter(n - 1) }
   )
 
   // emit molecules
@@ -445,7 +445,7 @@ This can be done from the `result + done => result` reaction, which we modify as
 ```scala
 go { case result(n) + done(x) =>
         if (x == true) finalResult(true)
-        else if (n==1) finalResult(false)
+        else if (n == 1) finalResult(false)
         else result(n + 1)
    }
 

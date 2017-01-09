@@ -543,7 +543,7 @@ site (
   go { case data(x) + sum((y, remaining)) =>
       val newSum = x + y
       if (remaining == 1)  println(s"sum = $newSum")
-      else  sum((newSum, remaining-1)) 
+      else  sum((newSum, remaining - 1)) 
      }
 )
 data(5) + data(10) + data(150) // emit three `data` molecules
