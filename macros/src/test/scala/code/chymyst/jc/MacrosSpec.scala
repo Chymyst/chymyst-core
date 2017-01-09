@@ -86,7 +86,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case a(x) =>
         val q = new M[Int]("q")
         val s = new E("s")
-        go { case q(_) + s(()) => }
+        go { case q(_) + s(_) => }
         q(0)
       }
     reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar('x), simpleVarXSha1))

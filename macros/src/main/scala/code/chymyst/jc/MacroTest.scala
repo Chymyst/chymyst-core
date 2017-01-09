@@ -32,14 +32,14 @@ object MacroTest {
   def par_problemImpl[T](c: blackbox.Context)(pf: c.Expr[PartialFunction[T,Any]]) = {
     import c.universe._
     val q"{ case $binder  => $body }" = pf.tree
-    q"{ case $binder  => $body }"
+    c.untypecheck(q"{ case $binder  => $body }")
   }
 
   def medium_problem(pf: Medium): Medium = macro medium_problemImpl
   def medium_problemImpl(c: blackbox.Context)(pf: c.Expr[Medium]) = {
     import c.universe._
     val q"{ case $binder  => $body }" = pf.tree
-    q"{ case $binder  => $body }"
+    c.untypecheck(q"{ case $binder  => $body }")
   }
 
   def problem(pf: Complicated): Complicated = macro problemImpl
@@ -67,8 +67,8 @@ object MacroTest {
 
 
 
-      val q"{ case $binder  => $body }" = pf.tree
-      q"{ case $binder  => $body }"
+      val q"{ case $binder if $guard => $body }" = pf.tree
+    c.untypecheck(q"{ case $binder if $guard => $body }")
 
 
   }

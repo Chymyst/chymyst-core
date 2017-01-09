@@ -299,8 +299,9 @@ object Macros {
       else {
 //        val newGuardTree = (ReplaceVars.in(guardTree, vars))
 //        val newBinderTerm = ReplaceVars.in(binderTerm, GuardVars.fromVars(guardTree, vars))
-        val caseDefs = List(cq"$binderTerm => ()") //if $guardTree => fails
-        q"{ case ..$caseDefs } : PartialFunction[Any, Unit]"
+//        val caseDefs = List(cq"$binderTerm => ()") //if $guardTree => fails
+//        q"{ case ..$caseDefs } : PartialFunction[Any, Unit]"
+        c.untypecheck(q"{ case ${(binderTerm)} if ${(guardTree)} => }")
       }
     }
 
@@ -577,8 +578,8 @@ object Macros {
         //        val matchers = binders.map(b => pq"$b")
         //        val caseDefs = List(cq"(..$matchers) => $guardTree  ")
         //        val partialFunctionTree = q"{ case ..$caseDefs }"
-        //        val guardUntypechecked = c.typecheck( guardTree )
-                val partialFunctionTree = q"{ case (..$binders) => () } : PartialFunction[Any, Unit]" //  if $guardTree; doesn't work
+                val guardUntypechecked = c.untypecheck( guardTree )
+                val partialFunctionTree = q"{ case (..$binders) if $guardUntypechecked => () } : PartialFunction[Any, Unit]" //  if $guardTree; doesn't work
         (vars.map(identToScalaSymbol), partialFunctionTree)
     }
 
@@ -638,6 +639,7 @@ object Macros {
     val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $guardPresenceFlag, $reactionSha1), $reactionBody, None, false)"
 //    println(s"debug: ${show(result)}")
 //    println(s"debug raw: ${showRaw(result)}")
+//    c.untypecheck(result) // this fails
     result
   }
 
