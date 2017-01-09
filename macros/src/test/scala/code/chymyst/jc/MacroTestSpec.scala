@@ -40,7 +40,7 @@ class MacroTestSpec extends FlatSpec with Matchers {
     val result = par_problem[T]({ case x => x + 1 })
     result(blob) shouldEqual 3
   }
-
+/*
   it should "parse a partial function T => Any with T = Blah" in {
     type T = Blah
     val blob: T = Blah(1, 2)
@@ -51,7 +51,7 @@ class MacroTestSpec extends FlatSpec with Matchers {
     result(blob) shouldEqual 3
   }
 
-/*  it should "parse a partial function Blob => Any" in {
+  it should "parse a partial function Blob => Any" in {
     val blob = Blob((1, Some(2)), 3)
     val testPf: Complicated = { case Blob((1, Some(x)), y) => x + y }
     testPf(blob) shouldEqual 5 // passes
