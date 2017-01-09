@@ -2,15 +2,15 @@
 
 # Blocking vs. non-blocking molecules
 
-So far, we have used molecules whose emission was a non-blocking call:
-Emitting a molecule, such as `a(123)`, immediately returns `Unit` but performs a concurrent side effect (adding a new molecule to the soup).
+So far, we have used molecules whose emission was a non-blocking call.
+Emitting a molecule, such as `a(123)`, immediately returns `Unit` but performs a concurrent side effect, adding a new molecule to the soup.
 Such molecules are called **non-blocking**.
 
 An important feature of the chemical machine is the ability to define **blocking molecules**.
 Just like non-blocking molecules, a blocking molecule can be emitted into the soup with a value.
 However, there are two major differences:
 
-- emitting a blocking molecule will return a **reply value**, which is supplied by some reaction that consumed that blocking molecule;
+- emitting a blocking molecule is a function call that returns a **reply value**, which is supplied by some reaction that consumed that blocking molecule;
 - emitting a blocking molecule will block the emitting process, until some reaction consumes the blocking molecule and sends the reply value.
 
 Here is an example of declaring a blocking molecule:
@@ -25,10 +25,10 @@ The blocking molecule `f` carries a value of type `Unit`; the reply value is of 
 
 The runtime engine treats an emission of a blocking molecule in a special way:
 
-1. The emission call such as `f()` will insert `f()` into the soup.
-2. The emitting process (which can be another reaction body or any other code) will be blocked until _some reaction can consume_ the newly emitted molecule `f()`.
-3. Once such a reaction starts, this reaction's body will **reply to the blocking molecule** -- that is, send a reply value back to the emitting process.
-4. Once the reply value has been received, the emitting process is unblocked. To this process, the reply value appears to be the value returned by the function call `f()`.
+1. The emission call such as `f()` will insert a new copy of the `f()` molecule into the soup.
+2. The emitting process, which can be in another reaction body or any other code, will be blocked until some reaction consumes the newly emitted copy of `f()`.
+3. Once such a reaction starts, this reaction's body can (and should) **reply to the blocking molecule**. Replying is a special operation that sends a **reply value** to the emitting process.
+4. The emitting process becomes unblocked after it receives the reply value. To the emitting process, the reply value appears to be the value returned by the function call `f()`.
 
 Sending a reply value is a special feature available only within reactions that consume blocking molecules.
 We call this feature the **reply action**.
@@ -64,10 +64,11 @@ So, the call to `f()` will be blocked for some (hopefully short) time.
 
 Once the reaction starts, it will receive the value `n = 123` from the input molecule `c(123)`.
 Both `c(123)` and `f()` will be consumed by the reaction.
-The reaction will then perform the reply action `reply(n)` with `n` set to `123`.
+The reaction will then perform the reply action `reply(n)` with `n = 123`.
 Only at this point the calling process will get unblocked and receive `123` as the return value of the function call `f()`.
-From the point of view of the reaction that consumes a blocking molecule, the reply action is a non-blocking (i.e. very fast) function call.
-The reaction will continue evaluating its reaction body, concurrently with the newly unblocked process that received the reply value `123` and can continue its computations.
+
+From the point of view of the reaction that consumea a blocking molecule, the reply action is a non-blocking (i.e. a very fast) function call.
+The reaction will continue evaluating its reaction body, _concurrently_ with the newly unblocked process that received the reply value and can also continue its computations.
 
 This is how the chemical machine implements blocking molecules.
 Blocking molecules work at once as [synchronizing barriers](https://en.wikipedia.org/wiki/Barrier_(computer_science)) and as channels of communication between processes.
@@ -79,23 +80,29 @@ The `reply` function appears only in the pattern-matching expression for `f` ins
 Blocking molecule emitters are values of type `B[T,R]`, while non-blocking molecule emitters have type `M[T]`.
 Here `T` is the type of value that the molecule carries, and `R` (for blocking molecules) is the type of the reply value.
 
-The pattern-matching expression for a blocking molecule of type `B[T,R]` has the form `case ... + f(v, r) + ...` where `v` is of type `T` and `r` is of type 
-`R => Boolean`.
+The pattern-matching expression for a blocking molecule of type `B[T,R]` has the form
+
+```scala
+{ case ... + f(v, r) + ... => ... }
+
+```
+where `v` is of type `T` and `r` is a function of type `R => Unit`.
 Since `r` has a function type, users must match it with a pattern variable.
-The names `reply` or `r` can be used for clarity.
+For clarity, we will usually name this pattern variable `reply` or `r`.
 
 ## Example: Benchmarking the concurrent counter
 
-To illustrate the usage of non-blocking and blocking molecules, let us consider the task of benchmarking the concurrent counter we have previously defined.
+To illustrate the usage of non-blocking and blocking molecules, let us consider the task of _benchmarking_ the concurrent counter we have previously defined.
 The plan is to initialize the counter to a large value _N_, then to emit _N_ decrement molecules, and finally wait until the counter reaches the value 0.
 We will use a blocking molecule to wait until this happens and thus to determine the time elapsed during the countdown.
 
 Let us now extend the previous reaction site to implement this new functionality.
 The simplest solution is to define a blocking molecule `fetch`, which will react with the counter molecule only when the counter reaches zero.
-Since we don't need to pass any data (just the fact that the counting is over), the `fetch` molecule will carry `Unit` and also bring back a `Unit` reply.
-This reaction can be written in pseudocode like this:
-```
-fetch() + counter(n) if n==0 => reply () to fetch
+Since the `fetch()` molecule does not need to pass any data, we will define it as type `Unit` with a `Unit` reply.
+
+```scala
+val fetch = b[Unit, Unit]
+
 ```
 
 We can implement this reaction by using a guard in the `case` clause:
@@ -105,7 +112,7 @@ go { case fetch(_, reply) + counter(n) if n == 0  => reply() }
 
 ```
 
-For more clarity, we can also use the pattern matching facility of `JoinRun` to implement the same reaction like this:
+For more clarity, we can also use Scala's pattern matching facility to implement the same reaction like this:
 
 ```scala
 go { case counter(0) + fetch(_, reply)  => reply() }
@@ -135,10 +142,10 @@ object C extends App {
 
   // emit molecules
 
-  val n = 10000
+  val N = 10000
   val initTime = now
-  counter(n)
-  (1 to n).foreach( _ => decr() )
+  counter(N)
+  (1 to N).foreach( _ => decr() )
   fetch()
   val elapsed = initTime.until(now, MILLIS)
   println(s"Elapsed: $elapsed ms")
@@ -150,40 +157,39 @@ Some remarks:
 
 - Molecules with unit values still require a pattern variable when used in the `case` construction.
 For this reason, we write `decr(_)` and `fetch(_, reply)` in the match patterns.
-However, these molecules can be emitted simply by calling `decr()` and `fetch()`, since Scala inserts a `Unit` value automatically when calling functions.
+However, these molecules can be emitted simply by calling `decr()` and `fetch()`.
 - We declare both reactions in one reaction site, because these two reactions share the input molecule `counter`.
-- The emitted blocking molecule `fetch()` will not remain in the soup after the reaction is finished.
-Actually, it would not make sense for `fetch()` to remain in the soup:
-If a molecule remains in the soup after a reaction, it means that the molecule is going to be available for some later reaction without blocking its emitting call; but this is the behavior of a non-blocking molecule.
 - Blocking molecules are like functions except that they will block as long as their reactions are unavailable.
-If the relevant reaction never starts, a blocking molecule blocks forever.
-The runtime engine cannot detect this situation because it cannot determine whether the relevant input molecules for that reaction might become available in the future.
+If the relevant reaction never starts, -- for instance, because some input molecules are missing, -- a blocking molecule will block forever.
+The runtime engine cannot detect this situation because it cannot determine whether the missing input molecules might become available in the near future.
 - If several reactions are available for the blocking molecule, one of these reactions will be selected at random.
-- Blocking molecules are printed with the suffix `"/B"`.
+- Blocking molecule names are printed with the suffix `"/B"` in the debugging output.
 
 ## Example: implementing "First Result"
 
-Suppose we have two blocking molecules `f` and `g` that return a reply value of type `T`.
-We would like to emit both `f` and `g` together and wait until a reply value is received, from whichever molecule unblocks sooner.
-If the other molecule gets a reply later, we will just ignore that.
+Suppose we have two blocking molecules `f` and `g` that return a reply value.
+We would like to emit both `f` and `g` together and wait until a reply value is received from whichever molecule unblocks sooner.
+If the other molecule gets a reply later, we will just ignore that value.
 
 The result of this nondeterministic operation is the value of type `T` obtained from one of the molecules `f` and `g`, depending on which molecule got its reply first.
 
 Let us now implement this operation in `JoinRun`.
 We will derive the required chemistry by reasoning about the behavior of molecules.
 
-We need to define a blocking molecule emitter `firstReply` that will unblock when `f` or `g` unblocks, whichever is earliest.
+The task is to define a blocking molecule emitter `firstReply` that will unblock when `f` or `g` unblocks, whichever happens first.
+Let us assume for simplicity that both `f()` and `g()` return values of type `Int`.
 
-It is clear that we need to emit both `f()` and `g()` at the same time.
+It is clear that we need to emit both `f()` and `g()` concurrently.
 But we cannot do this from one reaction, since `f()` will block and prevent us from emitting `g()`.
 Therefore we need two different reactions, one emitting `f()` and another emitting `g()`.
 
 These two reactions need some input molecules.
-These input molecules cannot be `f` and `g` since these two molecules are given to us, and we cannot add reactions that consume them.
+These input molecules cannot be `f` and `g` since these two molecules are given to us, their chemistry is already fixed, and so we cannot add new reactions that consume them.
 Therefore, we need at least one new molecule that will be consumed to start these two reactions.
 However, if we declare the two reactions as `c() => f()` and `c() => g()` and emit two copies of `c()`, we are not guaranteed that both reactions will start.
-It is possible that two copies of the first reaction (or two copies of the second reaction) are started instead.
-In other words, there will be an unavoidable nondeterminism in our chemistry.
+It is possible that two copies of the first reaction or two copies of the second reaction are started instead.
+In other words, there will be an _unavoidable nondeterminism_ in our chemistry.
+
 `JoinRun` will in fact detect this problem and generate an error:
 
 ```scala
@@ -191,11 +197,13 @@ val c = m[Unit]
 val f = b[Unit, Int]
 val g = b[Unit, Int]
 site(
-    go { case c(_) => val x = f(); ... },
-    go { case c(_) => val x = g(); ... }
+    go { case c(_) => val x = f(); ??? },
+    go { case c(_) => val x = g(); ??? }
 )
-java.lang.Exception: In Site{c => ...; c => ...}: Unavoidable nondeterminism: reaction c => ... is shadowed by c => ...
+
 ```
+`java.lang.Exception: In Site{c => ...; c => ...}: Unavoidable nondeterminism:`
+`reaction c => ... is shadowed by c => ...`
 
 So, we need to define two _different_ molecules (say, `c` and `d`) as inputs for these two reactions.
 
@@ -205,8 +213,8 @@ val d = m[Unit]
 val f = b[Unit, Int]
 val g = b[Unit, Int]
 site(
-    go { case c(_) => val x = f() },
-    go { case d(_) => val x = g() }
+    go { case c(_) => val x = f(); ??? },
+    go { case d(_) => val x = g(); ??? }
 )
 c() + d()
 
@@ -217,18 +225,26 @@ When one of them finishes and gets a reply value `x`, we would like to use that 
 
 Can we reply to `firstResult` in the same reactions? This would require us to make `firstResult` an input molecule in each of these reactions.
 However, we will have only one copy of `firstResult` emitted.
-Having `firstResult` as input will therefore prevent both reactions from proceeding.
+Having `firstResult` as input will therefore prevent both reactions from proceeding concurrently.
 
-Then there must be some other reaction that consumes `firstResult` and replies to it.
+Therefore, there must be some _other_ reaction that consumes `firstResult` and replies to it.
 This reaction must have the form
 
-`firstResult(_, reply) + ??? => reply(x)`
+```scala
+go { case firstResult(_, reply) + ??? => reply(x) }
 
-It is clear that we need to have access to the value `x` that we will reply with.
-Therefore, we need a new auxiliary molecule, say `done(x)`, that will carry `x` on itself.
-The reaction with `firstResult` will then have the form `firstResult(_, reply) + done(x) => reply(x)`.
+```
 
-Now it is clear that the value `x` should be emitted on `done(x)` in both of the reactions.
+In this reaction, we somehow need to obtain the value `x` that we will reply with.
+So we need a new auxiliary molecule, say `done(x)`, that will carry `x` on itself.
+The reaction with `firstResult` will then have the form
+
+```scala
+go { case firstResult(_, reply) + done(x) => reply(x) }
+
+```
+
+Now it is clear that the value `x` should be emitted on `done(x)` in both of the `c => ...` and `d => ...` reactions.
 The complete program looks like this:
 
 ```scala
@@ -249,25 +265,21 @@ site(
 
 c() + d()
 val result = firstResult()
+
 ```
 
-### How to encapsulate the new chemistry
+### Encapsulating chemistry in a function
 
 The code as written works but is not encapsulated -- in this code, we define new molecules and new chemistry inline.
-There are two ways we could encapsulate this chemistry:
+To remedy this, we can create a function that will return the `firstResult` emitter, given the emitters `f` and `g`.
 
-- create a function that will return the `firstResult` emitter, given the emitters `f` and `g`
-- create a “universal First Result molecule” that carries `f` and `g` as parts of its value and performs the required chemistry
-
-#### Refactoring as a function
-
-The idea is to create a function that will define the new chemistry in its _local scope_ and return the new molecule emitter.
+The idea is to define new chemistry in a _local scope_ and return a new molecule emitter.
 To make things more interesting, let us introduce a type parameter `T` for the result value of the given blocking molecules `f` and `g`.
-The code should look like this:
+The code looks like this:
 
 ```scala
 def makeFirstResult[T](f: B[Unit, T], g: B[Unit, T]): B[Unit, T] = {
-    // the same code as above
+    // The same code as above, but now in a local scope.
     val firstResult = b[Unit, T]
     val c = m[Unit]
     val d = m[Unit]
@@ -285,7 +297,7 @@ def makeFirstResult[T](f: B[Unit, T], g: B[Unit, T]): B[Unit, T] = {
 
     c() + d()
 
-    // return only the `firstResult` emitter:
+    // Return only the `firstResult` emitter:
     firstResult
 }
 
@@ -293,20 +305,16 @@ def makeFirstResult[T](f: B[Unit, T], g: B[Unit, T]): B[Unit, T] = {
 
 The main advantage of this code is to encapsulate all the auxiliary molecule emitters within the local scope of the method `makeFirstResult()`.
 Only the `firstResult` emitter is returned:
-This is the only emitter that the user of `makeFirstResult()` will need.
-The other emitters (`c`, `d`, and `done`) are invisible to the user since they are local variables in the scope of `makeFirstResult`.
-The user of `makeFirstResult()` cannot break the chemistry by inadvertently emitting some further copies of `c`, `d`, or `done`.
-
-
-#### Refactoring as a molecule
-
-TODO
+This is the only emitter that users of `makeFirstResult()` need.
+The other emitters (`c`, `d`, and `done`) are invisible to the users because they are local variables in the scope of `makeFirstResult`.
+Now the users of `makeFirstResult()` cannot inadvertently break the chemistry by emitting some further copies of `c`, `d`, or `done`.
+This is the hallmark of a successful encapsulation.
 
 ## Example: Parallel Or
 
 We will now consider a task called “Parallel Or”; this is somewhat similar to the “first result” task considered above.
 
-The task is to create a new blocking molecule `parallelOr` from two given blocking molecules `f` and `g` that return a reply value of `Boolean` type.
+The goal is to create a new blocking molecule `parallelOr` from two given blocking molecules `f` and `g` that return a reply value of `Boolean` type.
 We would like to emit both `f` and `g` together and wait until a reply value is received.
 The `parallelOr` should reply with `true` as soon as one of the blocking molecules `f` and `g` returns `true`.
 If both `f` and `g` return `false` then `parallelOr` will also return `false`.
@@ -316,7 +324,7 @@ We will now implement this operation in `JoinRun`.
 Our task is to define the necessary molecules and reactions that will simulate the desired behavior.
 
 Let us recall the logic we used when reasoning about the "First Result" problem.
-We will again need two non-blocking molecules `c` and `d` that will emit `f` and `g` on different threads.
+We will again need two non-blocking molecules `c` and `d` that will emit `f` and `g` concurrently.
 We begin by writing the two reactions that consume `c` and `d`:
 
 ```scala
@@ -333,43 +341,39 @@ c() + d()
 
 ```
 
-Now, the Boolean values `x` and `y` could be obtained in any order (or not at all).
+Now, the Boolean values `x` and `y` could appear in any order (or not at all).
 We need to implement the logic of receiving these values and computing the final result value.
 This final result must sit on some molecule, say `result`.
 We should keep track of whether we already received both `x` and `y`, or just one of them.
-So let us define `result` with integer value that shows how many intermediate `false` results we already received.
 
-The next task is to be able to communicate the value of `x` and `y` to the reaction that will update the `result` value.
+When we receive a `true` value, we are dont.
+So, we only need to keep track of the number of `false` values received.
+Therefore, let us define `result` with integer value that shows how many intermediate `false` results we already received.
+
+The next step is to communicate the values of `x` and `y` to the reaction that updates the `result` value.
 For this, we can use a non-blocking molecule `done` and write reactions like this:
 
 ```scala
-val c = m[Unit]
-val d = m[Unit]
-val done = m[Boolean]
-val result = m[Int]
-val f = b[Unit, Boolean]
-val g = b[Unit, Boolean]
-
 site(
   go { case c(_) => val x = f(); done(x) },
   go { case d(_) => val y = g(); done(y) },
-  go { case result(n) + done(x) => result(n+1) }
+  go { case result(n) + done(x) => result(n + 1) }
 )
 c() + d() + result(0)
 
 ```
 
-The effect of this chemistry will be that `result`'s value will get incremented whenever one of `f` or `g` returns.
+The effect of this chemistry is that `result`'s value will get incremented whenever one of `f` or `g` returns.
 This is not yet what we need, but we are getting closer.
 
 What remains is to implement the required logic:
-When `result` receives a `true` value, it should return `true` as a final answer (regardless of how many answers it received).
+When `result` receives a `true` value, it should return `true` as a final answer, regardless of how many answers it received.
 When `result` receives a `false` value twice, it should return `false` as a final answer.
-Otherwise, there should be no final answer.
+Otherwise, there is no final answer yet.
 
 We are required to deliver the final answer as a reply to the `parallelOr` molecule.
 It is clear that `parallelOr` cannot be reacting with the `result` molecule -- this would prevent the `result + done => result` reaction from running.
-Therefore, `parallelOr` needs to react with another auxiliary molecule, say `finalResult`.
+Therefore, `parallelOr` needs to react with _another_ auxiliary molecule, say `finalResult`.
 There is only one way of defining this kind of reaction,
 
 ```scala
@@ -384,18 +388,20 @@ This can be done from the `result + done => result` reaction, which we modify as
 go { case result(n) + done(x) =>
         if (x == true) finalResult(true)
         else if (n==1) finalResult(false)
-        else result(n+1)
-    }
+        else result(n + 1)
+   }
+
 ```
 
-To make the chemistry clearer, we can rewrite this as three reactions using pattern matching:
+To make the chemistry clearer, we may rewrite this reaction as three reactions with conditional pattern matching:
 
 ```scala
 site(
-  go { case result(_) + done(true) => finalResult(true) },
   go { case result(1) + done(false) => finalResult(false) },
-  go { case result(0) + done(false) => result(1) }
+  go { case result(0) + done(false) => result(1) },
+  go { case result(_) + done(true)  => finalResult(true) }
 )
+
 ```
 
 Here is the complete code for `parallelOr`, where we have separated the reactions in three independent reaction sites.
@@ -414,9 +420,9 @@ site(
   go { case parallelOr(_, r) + finalResult(x) => r(x) }
 )
 site(
-  go { case result(_) + done(true) => finalResult(true) },
   go { case result(1) + done(false) => finalResult(false) },
-  go { case result(0) + done(false) => result(1) }
+  go { case result(0) + done(false) => result(1) },
+  go { case result(_) + done(true)  => finalResult(true) }
 )
 site(
   go { case c(_) => val x = f(); done(x) },
@@ -424,15 +430,16 @@ site(
 )
 
 c() + d() + result(0)
+
 ```
 
 As an exercise, the reader should now try to encapsulate the `parallelOr` operation into a function.
 (This is done in the tests in `ParallelOrSpec.scala`.)
 
-As another exercise: Revise these reactions to incorporate more than two blocking emitters (say, `f`, `g`, `h`, `i`, `j`).
+Another exercise: Implement `parallelOr` for _three_ blocking emitters (say, `f`, `g`, `h`).
 The `parallelOr` emitter should return `true` whenever one of these emitters returns `true`; it should return `false` if _all_ of them return `false`; and it should block otherwise.
 
-## Error checking for blocking molecules
+## Errors with blocking molecules
 
 Each blocking molecule must receive one (and only one) reply.
 It is an error if a reaction consumes a blocking molecule but does not reply.
@@ -443,30 +450,29 @@ Sometimes, errors of this type can be caught at compile time:
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-site( go { case f(_,r) + c(n) => c(n+1) } ) // forgot to reply!
+site( go { case f(_,r) + c(n) => c(n + 1) } ) // forgot to reply!
 // compile-time error: "blocking input molecules should receive a reply but no reply found"
 
-site( go { case f(_,r) + c(n) => c(n+1) + r(n) + r(n) } ) // replied twice!
+site( go { case f(_,r) + c(n) => c(n + 1) + r(n) + r(n) } ) // replied twice!
 // compile-time error: "blocking input molecules should receive one reply but multiple replies found"
 
 ```
 
-However, a reaction could depend on a run-time condition, which is impossible to evaluate at compile time.
-In this case, a reaction that does not reply will generate a run-time error:
+However, the reply could depend on a run-time condition, which is impossible to evaluate at compile time.
+In this case, a reaction that does not reply will generate a run-time exception:
 
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-site( go { case f(_,r) + c(n) => c(n+1); if (n==0) r(n) } )
+site( go { case f(_,r) + c(n) => c(n + 1); if (n != 0) r(n) } )
 
 c(1)
 f()
-java.lang.Exception: Error: In Site{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B
 
 ```
+`java.lang.Exception: Error: In Site{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B`
 
-Note that this error will occur only when reactions actually start and the run-time condition is evaluated to `false`.
-Also, the exception may be thrown on another thread, which may not be immediately visible.
+Note that this exception will be thrown only when reaction actually starts and the run-time condition `n != 0` is evaluated to `false`.
+Also, the exception may occur on another thread, which will not be immediately visible.
 For these reasons, it is not easy to catch errors of this type, either at compile time or at run time.
-To avoid these problems, it is advisable to reorganize the chemistry such that reply actions (and, more generally, output molecule emissions) are unconditional.
-
+To avoid these problems, it is advisable to reorganize the chemistry such that reply actions are unconditional.

@@ -6,29 +6,27 @@
 
 For debugging purposes, molecules in `JoinRun` have names.
 These names have no effect on any concurrent computations.
-For instance, the runtime engine will not check that each molecule's name is not empty, or that the names for different molecules are different.
+For instance, the runtime engine will not check that each molecule's name is not empty, or that the names of different molecules are different.
 Molecule names are used only for debugging: they are printed when logging reactions and reaction sites.
 
 There are two ways of assigning a name to a molecule:
 
-- specify the name explicitly, by using a class constructor;
+- specify a name explicitly, by using a class constructor;
 - use the macros `m` and `b`.
 
 Here is an example of defining emitters using explicit class constructors and molecule names:
 
 ```scala
 val counter = new M[Int]("counter")
-val fetch = new B[Unit, Int]("fetch")
+val fetch = new B[Int, Int]("fetch")
 
 ```
 
-This code is completely equivalent to the shorter code written using macros:
+This code is _completely equivalent_ to the shorter code written using macros:
 
 ```scala
-import code.chymyst.jc._
-
 val counter = m[Int]
-val fetch = b[Unit, Int]
+val fetch = b[Int, Int]
 
 ```
 
@@ -42,13 +40,13 @@ For blocking molecules, the molecule's name is followed by `"/B"`.
 val x = new M[Int]("counter")
 val y = new B[Unit, Int]("fetch")
 
-x.toString // returns “counter"
-y.toString // returns “fetch/B"
+x.toString // returns “counter”
+y.toString // returns “fetch/B”
 
 ```
 
 
-## Molecules and molecule emitters
+## Molecules vs. molecule emitters
 
 Molecules are emitted into the chemical soup using the syntax such as `c(123)`. Here, `c` is a value we define using a construction such as
 
@@ -59,20 +57,51 @@ val c = m[Int]
 
 Any molecule emitted in the soup must carry a value.
 So the value `c` itself is not a molecule in the soup.
-The value `c` is a **molecule emitter**, - that is, a function that, when called, will emit molecules of sort `c` into the soup.
-The result of calling the emitter when evaluating `c(123)` is a _side effect_ that emits the molecule of sort `c` with value `123` into the soup.
+The value `c` is a **molecule emitter**, -- that is, a function that, when called, will emit molecules of chemical sort `c` into the soup.
+The result of evaluating the emitter call such as `c(123)` is a _side effect_ that emits the molecule of sort `c` with value `123`.
+
+The syntax `c(x)` is used in two different ways:
+
+- in the left-hand side of a reaction, it is a pattern matching construction that matches on values of input molecules
+- in the reaction body, it is an emitter call
+
+In both cases, `c(x)` can be visualized as a molecule with value `x` that exists in the soup.
+
+The chemistry-resembling syntax such as `c(x) + d(y)` is also used in two different ways:
+
+- in the left-hand side of a reaction, it is a pattern matching construction that matches on values of several input molecules at once
+- in the reaction body, it is syntactic sugar for several emitter calls, equivalent to `c(x); d(y)`
 
 ### Non-blocking molecules
 
-As defined above with the `m` method, `c` is a **non-blocking** molecule emitter, which means that the call `c(123)` is non-blocking -- it does not wait for any reactions involving `c(123)` to start.
-Calling `c(123)` will immediately return a `Unit` value.
+If `c` defined as above as `val c = m[Int]`, the emitter `c` is **non-blocking**.
+The emitter function call `c(123)` is non-blocking because it immediately returns a `Unit` value
+and does not wait for any reaction involving `c(123)` to actually start.
 
-The non-blocking emitter `c` has type `M[Int]` and can be also created directly using the class constructor:
+The non-blocking emitter `c` defined above will have type `M[Int]` and can be also created directly using the class constructor:
 
 ```scala
 val c = new M[Int]("c")
 
 ```
+
+Molecules carrying `Unit` values can be emitted using the syntax such as `a()` rather than `a(())`.
+This is provided as a syntactic convenience and is implemented by creating instances of class `E`, which is a subclass of `M[Unit]`.
+
+A direct way of defining a molecule emitter with a `Unit` type is therefore
+
+```scala
+val a = new E("a")
+
+```
+
+The macro call `m[Unit]` will return this subclass:
+
+```scala
+val a = m[Unit] // equivalent to `val a = new E("a")`
+
+```
+
 
 ### Blocking molecules
 
@@ -87,7 +116,7 @@ val f = b[Int, String]
 
 Now `f` is a blocking emitter that takes an `Int` value and returns a `String`.
 
-Emitters for blocking molecules are essentially functions: their type is `B[T, R]`, which extends `Function1[T, R]`.
+Emitters for blocking molecules are instances of class `B[T, R]`, which extends `Function1[T, R]`.
 The emitter `f` could be equivalently defined by
 
 ```scala
@@ -104,8 +133,7 @@ val result = f(123)
 
 will emit a molecule of sort `f` with value `123` into the soup.
 
-The calling process that emitted `f(123)` will become blocked.
-It will wait until some reaction starts, consumes this molecule, and performs a **reply action**.
+After emitting `f(123)`, the process will become blocked until some reaction starts, consumes this molecule, and performs a **reply action**.
 
 Since the type of `f` is `B[Int, String]`, the reply action must pass a `String` value to the reply function:
 
@@ -138,7 +166,7 @@ Blocking molecule emitters are of class `B`, non-blocking of class `M`.
 - Molecules emitted into the soup gather at their reaction site. Reaction sites proceed by first deciding which input molecules can be consumed by some reactions; this decision involves the chemical sorts of the molecules as well as any pattern matching and guard conditions that depend on molecule values.
 When suitable input molecules are found and a reaction is chosen, the input molecules are atomically removed from the soup, and the reaction body is executed.
 - The reaction body can emit one or more new molecules into the soup.
-The code can emit new molecules into the soup at any time and from any code (not only inside a reaction body).
+The code can emit new molecules into the soup at any time and from any code, not only inside a reaction body.
 - When enough input molecules are present at a reaction site so that several alternative reactions can start, is not possible to decide which reactions will proceed first, or which molecules will be consumed first.
 It is also not possible to know at what time reactions will start.
 Reactions and molecules do not have priorities and are not ordered in the soup.
@@ -152,11 +180,10 @@ Reactions that share no input molecules can (and should) be defined in separate 
 
 Each molecule has a specific chemical designation, such as `sum`, `counter`, and so on.
 These chemical designations are not actually strings `"sum"` or `"counter"`.
-(The names of the local variables and the molecule names are chosen purely for convenience.)
+The names of the local variables and the molecule names are chosen purely for convenience.
 
-Rather, the chemical designations are the object identities of the molecule emitters.
-
-We could define a local alias for a molecule emitter, for example like this:
+Rather, the chemical designations are the _object identities_ of the molecule emitters.
+We could define an alias for a molecule emitter, for example like this:
 
 ```scala
 val counter = m[Int]
