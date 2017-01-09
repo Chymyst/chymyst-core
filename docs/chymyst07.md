@@ -573,6 +573,8 @@ val beginCritical2 = newCriticalSectionMarker()
 
 ```
 
+The result should be that we are able to delimit any number of critical sections that work independently of each other.
+
 | Reaction 1 | |  Reaction 2 | | Reaction 3 |
 |---|---|---|---|---|
 | `beginCritical1()` | | ... | | `beginCritical2()` |
@@ -584,8 +586,6 @@ val beginCritical2 = newCriticalSectionMarker()
 | `endCritical2()` | | ... | | (starts running) |
 | ... | | ... | | ... |
 | ... | | `endCritical1()` | | `endCritical2()` |
-
-The result should be that we are able to delimit any number of critical sections that work independently of each other.
 
 In order to package the implementation of the critical section into a function `newCriticalSectionMarker()`,
 we simply declare the chemistry in the local scope of that function and return the molecule emitter:
