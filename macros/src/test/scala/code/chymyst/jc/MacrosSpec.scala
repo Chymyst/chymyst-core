@@ -76,7 +76,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     reaction.info.inputs shouldEqual Nil
     reaction.info.hasGuard.knownFalse shouldEqual true
-    reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(123))))
+    reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, SimpleConstOutput(123))))
   }
 
   it should "inspect reaction body containing local molecule emitters" in {
@@ -89,7 +89,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         go { case q(_) + s(_) => }
         q(0)
       }
-    reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar('x), simpleVarXSha1))
+    (reaction.info.inputs match {
+      case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`)) => true
+      case _ => false
+
+    }) shouldEqual true
     reaction.info.outputs shouldEqual Some(List())
   }
 
@@ -138,14 +142,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     (result.info.inputs match {
       case List(
-      InputMoleculeInfo(`a`, SimpleVar('x), `simpleVarXSha1`),
+      InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`),
       InputMoleculeInfo(`bb`, OtherInputPattern(_, List()), "4B93FCEF4617B49161D3D2F83E34012391D5A883")
       ) => true
       case _ => false
     }) shouldEqual true
 
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, OtherOutputPattern)))
-    result.info.hasGuard == GuardAbsent
+    result.info.hasGuard shouldEqual GuardAbsent
     result.info.sha1 shouldEqual "B1957B893BF4FE420EC790947A0BB62B856BBF33"
   }
 
@@ -157,12 +161,15 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val result = go { case a(x) + qq(_) => qq() }
 
-    result.info.inputs shouldEqual List(
-      InputMoleculeInfo(a, SimpleVar('x), simpleVarXSha1),
-      InputMoleculeInfo(qq, Wildcard, wildcardSha1)
-    )
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, ConstOutputValue(()))))
-    result.info.hasGuard == GuardAbsent
+    (result.info.inputs match {
+      case List(
+       InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`),
+        InputMoleculeInfo(`qq`, Wildcard, `wildcardSha1`)
+      ) => true
+      case _ => false
+    }) shouldEqual true
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, SimpleConstOutput(()))))
+    result.info.hasGuard shouldEqual AllMatchersAreTrivial
     result.info.sha1 shouldEqual axqq_qqSha1
   }
 
@@ -180,7 +187,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       case _ => false
     }) shouldEqual true
     result.info.outputs shouldEqual None
-    result.info.hasGuard == GuardPresenceUnknown
+    result.info.hasGuard shouldEqual GuardPresenceUnknown
     result.info.sha1 should not equal axqq_qqSha1
   }
 
@@ -200,13 +207,16 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         qqq("")
     }
 
-    result.info.inputs shouldEqual List(
-      InputMoleculeInfo(a, Wildcard, wildcardSha1),
-      InputMoleculeInfo(a, SimpleVar('x), simpleVarXSha1),
-      InputMoleculeInfo(a, SimpleConst(1), constantOneSha1)
-    )
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qqq, ConstOutputValue(""))))
-    result.info.hasGuard == GuardAbsent
+    (result.info.inputs match {
+      case List(
+      InputMoleculeInfo(`a`, Wildcard, `wildcardSha1`),
+      InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`),
+      InputMoleculeInfo(`a`, SimpleConst(1), `constantOneSha1`)
+      ) => true
+      case _ => false
+    }) shouldEqual true
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qqq, SimpleConstOutput(""))))
+    result.info.hasGuard shouldEqual AllMatchersAreTrivial
   }
 
   it should "inspect reaction body with embedded reaction" in {
@@ -215,9 +225,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val result = go { case a(x) => go { case qq(_) => a(0) }; qq() }
 
-    result.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar('x), simpleVarXSha1))
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, ConstOutputValue(()))))
-    result.info.hasGuard == GuardAbsent
+    (result.info.inputs match {
+      case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`)) => true
+      case _ => false
+    }) shouldEqual true
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, SimpleConstOutput(()))))
+    result.info.hasGuard shouldEqual AllMatchersAreTrivial
   }
 
   it should "inspect a very complicated reaction input pattern" in {
@@ -236,8 +249,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     (result.info.inputs match {
       case List(
-      InputMoleculeInfo(`a`, SimpleVar('p), _),
-      InputMoleculeInfo(`a`, SimpleVar('y), _),
+      InputMoleculeInfo(`a`, SimpleVar('p, _), _),
+      InputMoleculeInfo(`a`, SimpleVar('y, _), _),
       InputMoleculeInfo(`a`, SimpleConst(1), _),
       InputMoleculeInfo(`c`, SimpleConst(()), _),
       InputMoleculeInfo(`c`, Wildcard, _),
@@ -250,7 +263,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       case _ => false
     }) shouldEqual true
 
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(s, ConstOutputValue(())), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qq, ConstOutputValue(()))))
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(s, SimpleConstOutput(())), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qq, SimpleConstOutput(()))))
 
   }
 
@@ -383,11 +396,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val r3 = go { case bbb(x) + bb(_) + bb(_) => bbb(1) + bb(x) + bbb(2) + cc(None) + cc(Some(1)) }
 
     r1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, OtherOutputPattern)))
-    r2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bbb, ConstOutputValue(0))))
+    r2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bbb, SimpleConstOutput(0))))
     r3.info.outputs shouldEqual Some(List(
-      OutputMoleculeInfo(bbb, ConstOutputValue(1)),
+      OutputMoleculeInfo(bbb, SimpleConstOutput(1)),
       OutputMoleculeInfo(bb, OtherOutputPattern),
-      OutputMoleculeInfo(bbb, ConstOutputValue(2)),
+      OutputMoleculeInfo(bbb, SimpleConstOutput(2)),
       OutputMoleculeInfo(cc, OtherOutputPattern),
       OutputMoleculeInfo(cc, OtherOutputPattern)
     ))
@@ -413,7 +426,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(aa, OtherOutputPattern)))
 
-    val pat_aa = result.info.inputs(0)
+    val pat_aa = result.info.inputs.head
     pat_aa.molecule shouldEqual aa
     val pat_bb = result.info.inputs(1)
     pat_bb.molecule shouldEqual bb
@@ -451,7 +464,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       site(
         go { case a(1) => a(1) }
       )
-      a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
+      a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, SimpleConstOutput(1)))))
     }
     thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction {a(1) => a(1)}"
   }
@@ -467,9 +480,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
           a(2)
       }
     )
-    a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(2)))))
+    a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, SimpleConstOutput(2)))))
     a.consumingReactions.get.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, SimpleConst(1), constantOneSha1)))
-    a.emittingReactions.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(2)))))
+    a.emittingReactions.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, SimpleConstOutput(2)))))
     a.emittingReactions.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, SimpleConst(1), constantOneSha1)))
   }
 
@@ -496,9 +509,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case a(2) => b(2) + a(1) + b(1) }
     )
     a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(
-      OutputMoleculeInfo(b, ConstOutputValue(2)),
-      OutputMoleculeInfo(a, ConstOutputValue(1)),
-      OutputMoleculeInfo(b, ConstOutputValue(1))
+      OutputMoleculeInfo(b, SimpleConstOutput(2)),
+      OutputMoleculeInfo(a, SimpleConstOutput(1)),
+      OutputMoleculeInfo(b, SimpleConstOutput(1))
     )))
   }
 
@@ -522,8 +535,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     c.emittingReactions.head shouldEqual reaction
     a.emittingReactions.head shouldEqual reaction
 
-    reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar('x), simpleVarXSha1), InputMoleculeInfo(d, Wildcard, wildcardSha1))
-    reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
+    (reaction.info.inputs match {
+      case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`), InputMoleculeInfo(`d`, Wildcard, `wildcardSha1`)) => true
+      case _ => false
+    }) shouldEqual true
+    reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, SimpleConstOutput(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
   }
 
   it should "correctly recognize nested emissions of blocking molecules and reply values" in {
@@ -548,9 +564,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     d.emittingReactions.head shouldEqual reaction2
 
     reaction1.info.inputs shouldEqual List(InputMoleculeInfo(d, Wildcard, wildcardSha1))
-    reaction1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
+    reaction1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, SimpleConstOutput(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
 
-    reaction2.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar('x), simpleVarXSha1))
+    (reaction2.info.inputs match {
+      case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`)) => true
+      case _ => false
+    }) shouldEqual true
     reaction2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(d, OtherOutputPattern)))
   }
 

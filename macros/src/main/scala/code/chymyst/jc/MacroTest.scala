@@ -47,29 +47,33 @@ object MacroTest {
   def problemImpl(c: blackbox.Context)(pf: c.Expr[Complicated]) = {
     import c.universe._
 
-//    if (false) {
-//      // search through the tree of pf and find matchers
-//      val q"{ case ..$cases }" = pf.tree
-//
-//      val caseDef = cases.head
-//      val cq"$binder if $guard => $body" = caseDef
-//
-//      val newRes = q"{ case $binder if $guard => $body }"
-//
-//      q"ResultBlob($newRes)"
-//
-//    } else {
-      // search through the tree of pf and find matchers
+    //    if (false) {
+    //      // search through the tree of pf and find matchers
+    //      val q"{ case ..$cases }" = pf.tree
+    //
+    //      val caseDef = cases.head
+    //      val cq"$binder if $guard => $body" = caseDef
+    //
+    //      val newRes = q"{ case $binder if $guard => $body }"
+    //
+    //      q"ResultBlob($newRes)"
+    //
+    //    } else {
+    // search through the tree of pf and find matchers
 
-//      val q"{ case $binder  => $body }" = pf.tree
-//      val cases = List(cq"$binder => $body")
-//      q"ResultBlob({ case ..$cases })"
+    //      val q"{ case $binder  => $body }" = pf.tree
+    //      val cases = List(cq"$binder => $body")
+    //      q"ResultBlob({ case ..$cases })"
 
+    val unTree = pf.tree//c.untypecheck(pf.tree)
 
+    val q"{ case $binder if $guard => $body }" = unTree
 
-      val q"{ case $binder if $guard => $body }" = pf.tree
+//    val binderSymbol = binder.symbol // symbol is NoSymbol at this point!
+//    val binderType = binder.tpe // type is correct: sample.Blob
+
+    // typecheck won't work, even if specifying the types explicitly. untypecheck works, either here or with pf.tree
     c.untypecheck(q"{ case $binder if $guard => $body }")
-
 
   }
 
