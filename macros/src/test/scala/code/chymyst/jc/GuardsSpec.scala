@@ -87,7 +87,7 @@ class GuardsSpec extends FlatSpec with Matchers {
   it should "correctly handle a guard condition with nontrivial matcher" in {
     val a = m[(Int, Int, Int)]
 
-    val result = go { case a((x, y, z)) if x > y => }
+    val result = go { case a((x, y, z)) if x > y =>  }
 
     result.info.hasGuard shouldEqual GuardPresent(List(List('x, 'y)), None, List())
   }
@@ -100,7 +100,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a(x) + a(y) if x > n + y => }
 
     (result.info.hasGuard match {
-      case GuardPresent(List(List('x), List('y)), None, List()) =>
+      case GuardPresent(List(List('x, 'y)), None, List()) =>
         true
       case _ => false
     }) shouldEqual true

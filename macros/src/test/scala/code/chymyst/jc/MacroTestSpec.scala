@@ -22,14 +22,14 @@ class MacroTestSpec extends FlatSpec with Matchers {
 
   }
 
-//  it should "parse a partial function Blah => Any" in {
-//    val blob = Blah(1, 2)
-//    val testPf: Medium = { case Blah(x, y) => x + y }
-//    testPf(blob) shouldEqual 3 // passes
-//
-//    val result = medium_problem({ case Blah(x, y) => x + y })
-//    result(blob) shouldEqual 3
-//  }
+  it should "parse a partial function Blah => Any" in {
+    val blob = Blah(1, 2)
+    val testPf: Medium = { case Blah(x, y) => x + y }
+    testPf(blob) shouldEqual 3 // passes
+
+    val result = medium_problem({ case Blah(x, y) => x + y })
+    result(blob) shouldEqual 3
+  }
 
   it should "parse a partial function T => Any with T = Int" in {
     type T = Int
@@ -40,16 +40,16 @@ class MacroTestSpec extends FlatSpec with Matchers {
     val result = par_problem[T]({ case x => x + 1 })
     result(blob) shouldEqual 3
   }
-/*
-  it should "parse a partial function T => Any with T = Blah" in {
-    type T = Blah
-    val blob: T = Blah(1, 2)
-    val testPf: PartialFunction[T,Any] = { case Blah(x,y) => x + y }
-    testPf(blob) shouldEqual 3 // passes
 
-    val result = par_problem[T]({ case Blah(x,y) => x + y })
-    result(blob) shouldEqual 3
-  }
+//  it should "parse a partial function T => Any with T = Blah" in {
+//    type T = Blah
+//    val blob: T = Blah(1, 2)
+//    val testPf: PartialFunction[T,Any] = { case Blah(x,y) => x + y }
+//    testPf(blob) shouldEqual 3 // passes
+//
+//    val result = par_problem[T]({ case Blah(x,y) => x + y })
+//    result(blob) shouldEqual 3
+//  }
 
   it should "parse a partial function Blob => Any" in {
     val blob = Blob((1, Some(2)), 3)
@@ -65,23 +65,8 @@ class MacroTestSpec extends FlatSpec with Matchers {
 
     val blob = Blob((1, Some(2)), 3)
 
-    result.res(blob) shouldEqual 5
+    result(blob) shouldEqual 5
 
   }
-*/
-//  it should "parse a partial function and create two identical partial functions" in {
-//    val result = problem({ case Blob((1, Some(x)), y) if x > 0 => x + y })
-//
-//    result match {
-//      case ResultBlob(left, all) =>
-//    }
-//  }
 
-//  it should "parse the partial function and create new partial functions" in {
-//    val result = problem({ case Blob((1, Some(x)), y) if x > 0 => x + y }: PartialFunction[Any, Any])
-//
-//    result match {
-//      case ResultBlob(left, all) =>
-//    }
-//  }
 }
