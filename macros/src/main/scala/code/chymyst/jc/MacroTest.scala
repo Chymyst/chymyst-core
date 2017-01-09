@@ -3,10 +3,10 @@ package sample
 import scala.language.experimental.macros
 import scala.reflect.macros.{blackbox }
 
-case class Blah(left: Int, right: Int)
-case class Blob(left: (Int, Option[Int]), right: Int)
+final case class Blah(left: Int, right: Int)
+final case class Blob(left: (Int, Option[Int]), right: Int)
 
-case class ResultBlob(res: PartialFunction[Blob,Any])
+final case class ResultBlob(res: PartialFunction[Blob,Any])
 
 object MacroTest {
 
