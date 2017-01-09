@@ -139,7 +139,7 @@ Since the type of `f` is `B[Int, String]`, the reply action must pass a `String`
 
 ```scala
 go { case c(x) + f(y, r) =>
-  val replyValue = (x+y).toString 
+  val replyValue = (x + y).toString 
   r(replyValue) 
 }
 
