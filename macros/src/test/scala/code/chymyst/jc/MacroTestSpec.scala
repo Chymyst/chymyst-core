@@ -7,6 +7,16 @@ class MacroTestSpec extends FlatSpec with Matchers {
 
   behavior of "macro test"
 
+  it should "parse the partial function with guard" in {
+    val result = problem({ case Blob((1, Some(x)), y) => x + y })
+
+    val blob = Blob((1, Some(2)), 3)
+
+    result(blob) shouldEqual 5
+
+  }
+
+  /*
   it should "display raw desugared tree" in {
     val tree = rawTree({ case Blob((1, Some(x)), y) if x > 0 => x + y }: PartialFunction[Blob, Any])
 
@@ -41,15 +51,15 @@ class MacroTestSpec extends FlatSpec with Matchers {
     result(blob) shouldEqual 3
   }
 
-//  it should "parse a partial function T => Any with T = Blah" in {
-//    type T = Blah
-//    val blob: T = Blah(1, 2)
-//    val testPf: PartialFunction[T,Any] = { case Blah(x,y) => x + y }
-//    testPf(blob) shouldEqual 3 // passes
-//
-//    val result = par_problem[T]({ case Blah(x,y) => x + y })
-//    result(blob) shouldEqual 3
-//  }
+  it should "parse a partial function T => Any with T = Blah" in {
+    type T = Blah
+    val blob: T = Blah(1, 2)
+    val testPf: PartialFunction[T,Any] = { case Blah(x,y) => x + y }
+    testPf(blob) shouldEqual 3 // passes
+
+    val result = par_problem[T]({ case Blah(x,y) => x + y })
+    result(blob) shouldEqual 3
+  }
 
   it should "parse a partial function Blob => Any" in {
     val blob = Blob((1, Some(2)), 3)
@@ -59,14 +69,6 @@ class MacroTestSpec extends FlatSpec with Matchers {
     val result = problem({ case Blob((1, Some(x)), y) => x + y })
     result(blob) shouldEqual 5
   }
-
-  it should "parse the partial function with guard" in {
-    val result = problem({ case Blob((1, Some(x)), y) if x > 0 => x + y })
-
-    val blob = Blob((1, Some(2)), 3)
-
-    result(blob) shouldEqual 5
-
-  }
+*/
 
 }
