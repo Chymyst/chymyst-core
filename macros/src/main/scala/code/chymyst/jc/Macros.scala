@@ -635,7 +635,7 @@ object Macros {
     }
 
     // Prepare the ReactionInfo structure.
-    val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $guardPresenceFlag, $reactionSha1), null, None, false)"
+    val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $guardPresenceFlag, $reactionSha1), $reactionBody, None, false)"
 //    println(s"debug: ${show(result)}")
 //    println(s"debug raw: ${showRaw(result)}")
     result

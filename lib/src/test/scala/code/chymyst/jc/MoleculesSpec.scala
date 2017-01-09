@@ -90,10 +90,10 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     Thread.sleep(100)
     d()
     g()
-    a.logSoup shouldEqual "Site{a + b + c + f/B => ...}\nMolecules: a() * 2, b()"
+    a.logSoup shouldEqual "Site{a + b + c + f/B => ...; d + g/B => ...}\nMolecules: a() * 2, b()"
     c()
     f()
-    a.logSoup shouldEqual "Site{a + b + c + f/B => ...}\nMolecules: a()"
+    a.logSoup shouldEqual "Site{a + b + c + f/B => ...; d + g/B => ...}\nMolecules: a()"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at end of reaction" in {
