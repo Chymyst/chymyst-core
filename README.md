@@ -37,48 +37,47 @@ This is a complete runnable example.
 import code.chymyst.jc._
 
 object Main extends App {
-     /**
-     * Print message and wait for a random time interval.
-     */
-    def randomWait(message: String): Unit = {
-      println(message)
-      Thread.sleep(scala.util.Random.nextInt(20))
-    }
-    
-    val hungry1 = m[Int]
-    val hungry2 = m[Int]
-    val hungry3 = m[Int]
-    val hungry4 = m[Int]
-    val hungry5 = m[Int]
-    val thinking1 = m[Int]
-    val thinking2 = m[Int]
-    val thinking3 = m[Int]
-    val thinking4 = m[Int]
-    val thinking5 = m[Int]
-    val fork12 = m[Unit]
-    val fork23 = m[Unit]
-    val fork34 = m[Unit]
-    val fork45 = m[Unit]
-    val fork51 = m[Unit]
-    
-    site (
-      go { case thinking1(_) => randomWait("Socrates is eating");  hungry1() },
-      go { case thinking2(_) => randomWait("Confucius is eating"); hungry2() },
-      go { case thinking3(_) => randomWait("Descartes is eating"); hungry3() },
-      go { case thinking4(_) => randomWait("Plato is eating");     hungry4() },
-      go { case thinking5(_) => randomWait("Voltaire is eating");  hungry5() },
-    
-      go { case hungry1(_) + fork12(_) + fork51(_) => randomWait("Socrates is thinking");  thinking1() + fork12() + fork51() },
-      go { case hungry2(_) + fork23(_) + fork12(_) => randomWait("Confucius is thinking"); thinking2() + fork23() + fork12() },
-      go { case hungry3(_) + fork34(_) + fork23(_) => randomWait("Descartes is thinking"); thinking3() + fork34() + fork23() },
-      go { case hungry4(_) + fork45(_) + fork34(_) => randomWait("Plato is thinking");     thinking4() + fork45() + fork34() },
-      go { case hungry5(_) + fork51(_) + fork45(_) => randomWait("Voltaire is thinking");  thinking5() + fork51() + fork45() }
-    )
-    // Emit molecules representing the initial state:
-    thinking1() + thinking2() + thinking3() + thinking4() + thinking5()
-    fork12() + fork23() + fork34() + fork45() + fork51()
-    // Now reactions will start and print to the console.
-
+   /**
+   * Print message and wait for a random time interval.
+   */
+  def wait(message: String): Unit = {
+    println(message)
+    Thread.sleep(scala.util.Random.nextInt(20))
+  }
+  
+  val hungry1 = m[Int]
+  val hungry2 = m[Int]
+  val hungry3 = m[Int]
+  val hungry4 = m[Int]
+  val hungry5 = m[Int]
+  val thinking1 = m[Int]
+  val thinking2 = m[Int]
+  val thinking3 = m[Int]
+  val thinking4 = m[Int]
+  val thinking5 = m[Int]
+  val fork12 = m[Unit]
+  val fork23 = m[Unit]
+  val fork34 = m[Unit]
+  val fork45 = m[Unit]
+  val fork51 = m[Unit]
+  
+  site (
+    go { case thinking1(_) => wait("Socrates is thinking");  hungry1() },
+    go { case thinking2(_) => wait("Confucius is thinking"); hungry2() },
+    go { case thinking3(_) => wait("Descartes is thinking"); hungry3() },
+    go { case thinking4(_) => wait("Plato is thinking");     hungry4() },
+    go { case thinking5(_) => wait("Voltaire is thinking");  hungry5() },
+  
+    go { case hungry1(_) + fork12(_) + fork51(_) => wait("Socrates is eating");  thinking1() + fork12() + fork51() },
+    go { case hungry2(_) + fork23(_) + fork12(_) => wait("Confucius is eating"); thinking2() + fork23() + fork12() },
+    go { case hungry3(_) + fork34(_) + fork23(_) => wait("Descartes is eating"); thinking3() + fork34() + fork23() },
+    go { case hungry4(_) + fork45(_) + fork34(_) => wait("Plato is eating");     thinking4() + fork45() + fork34() },
+    go { case hungry5(_) + fork51(_) + fork45(_) => wait("Voltaire is eating");  thinking5() + fork51() + fork45() }
+  )
+  // Emit molecules representing the initial state:
+  thinking1() + thinking2() + thinking3() + thinking4() + thinking5()
+  fork12() + fork23() + fork34() + fork45() + fork51()
+  // Now reactions will start and print to the console.
 }
 
 ```
@@ -101,8 +100,8 @@ def makeCounter(initCount: Int)
   val get = b[Unit, Int] // empty blocking molecule returning integer value
 
   site {
-    go { counter(n) + incr(_) => counter(n+1) },
-    go { counter(n) + decr(_) => counter(n-1) },
+    go { counter(n) + incr(_) => counter(n + 1) },
+    go { counter(n) + decr(_) => counter(n - 1) },
     go { counter(n) + get(_,res) => counter(n) + res(n) }
   }
 
