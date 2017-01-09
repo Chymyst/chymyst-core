@@ -82,7 +82,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       _go { case g(_, r) + d(_) => r() },
       _go { case a(_) + b(_) + c(_) + f(_, r) => r() }
     )
-    a.logSoup shouldEqual "Site{a + b + c + f/B => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c + f/B => ...; d + g/B => ...}\nNo molecules"
 
     a()
     a()
