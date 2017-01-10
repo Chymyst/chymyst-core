@@ -267,7 +267,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(s, SimpleConstOutput(())), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qq, SimpleConstOutput(()))))
 
-    result.info.toString shouldEqual "a(p) + a(y) + a(1) + bb(<1EA7...>) + bb(<577C...>) + bb(<F08D...>) + bb((0,None)) + bb((1,Some(2))) + c(_) + c(_) + s/B(_) => s/B() + a(?) + qq()"
+    result.info.toString shouldEqual "a(1) + a(p) + a(y) + bb((0,None)) + bb((1,Some(2))) + bb(<1EA7...>) + bb(<577C...>) + bb(<F08D...>) + c(_) + c(_) + s/B(_) => s/B() + a(?) + qq()"
   }
 
   it should "fail to define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {

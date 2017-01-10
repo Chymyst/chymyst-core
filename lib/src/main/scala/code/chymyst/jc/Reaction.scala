@@ -102,7 +102,7 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
         case _ => Some(false) // Here we can reliably determine that this matcher is not weaker.
       }
       case SimpleConst(c) => Some(info.flag match {
-        case SimpleConst(`c`) => true
+        case SimpleConst(c1) => c == c1
         case _ => false
       })
       case _ => Some(false)
@@ -202,7 +202,7 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[L
       case SimpleConst(v) => v.toString
       case _ => ""
     }
-    (mol.toString, molValue, patternPrecedence, sha)
+    (mol.toString, patternPrecedence, molValue, sha)
   }
 
   override val toString: String = {

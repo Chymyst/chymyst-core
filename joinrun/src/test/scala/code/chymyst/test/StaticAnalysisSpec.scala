@@ -162,13 +162,14 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val thrown = intercept[Exception] {
       val a = m[Option[Int]]
       val b = m[Int]
-      site(
+      val result = site(
         go { case a(_) + b(1) + a(Some(2)) + a(x) + b(1) + b(_) => },
         go { case a(Some(1)) + b(2) + a(Some(2)) + a(Some(3)) + b(1) + b(_) + b(1) => }
       )
+      result.hasErrorsOrWarnings shouldEqual false
     }
 
-    thrown.getMessage shouldEqual "In Site{a + a + a + b + b + b + b => ...; a + a + a + b + b + b => ...}: Unavoidable nondeterminism: reaction {a(Some(3)) + a(Some(2)) + a(Some(1)) + b(1) + b(1) + b(2) + b(_) => } is shadowed by {a(Some(2)) + a(_) + a(x) + b(1) + b(1) + b(_) => }"
+    thrown.getMessage shouldEqual "In Site{a + a + a + b + b + b + b => ...; a + a + a + b + b + b => ...}: Unavoidable nondeterminism: reaction {a(Some(1)) + a(Some(2)) + a(Some(3)) + b(1) + b(1) + b(2) + b(_) => } is shadowed by {a(Some(2)) + a(_) + a(x) + b(1) + b(1) + b(_) => }"
   }
 
   it should "detect shadowing of reactions with several wildcards" in {
@@ -181,7 +182,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
 
-    thrown.getMessage shouldEqual "In Site{a + a + a + a + b + b + b + b => ...; a + a + a + a + b => ...}: Unavoidable nondeterminism: reaction {a(Some(3)) + a(Some(2)) + a(Some(1)) + a(x) + b(1) + b(1) + b(2) + b(_) => } is shadowed by {a(Some(2)) + a(_) + a(_) + a(x) + b(1) => }"
+    thrown.getMessage shouldEqual "In Site{a + a + a + a + b + b + b + b => ...; a + a + a + a + b => ...}: Unavoidable nondeterminism: reaction {a(Some(1)) + a(Some(2)) + a(Some(3)) + a(x) + b(1) + b(1) + b(2) + b(_) => } is shadowed by {a(Some(2)) + a(_) + a(_) + a(x) + b(1) => }"
   }
 
   behavior of "analysis of livelock"
