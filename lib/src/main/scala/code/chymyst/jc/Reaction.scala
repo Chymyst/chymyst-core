@@ -239,20 +239,20 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
     * @param newThreadPool A custom thread pool on which this reaction will be scheduled.
     * @return New reaction value with the thread pool set.
     */
-  def onThreads(newThreadPool: Pool): Reaction = Reaction(info, body, Some(newThreadPool), retry)
+  def onThreads(newThreadPool: Pool): Reaction = copy(threadPool = Some(newThreadPool))
 
   /** Convenience method to specify the "retry" option for a reaction.
     *
     * @return New reaction value with the "retry" flag set.
     */
-  def withRetry: Reaction = Reaction(info, body, threadPool, retry = true)
+  def withRetry: Reaction = copy(retry = true)
 
   /** Convenience method to specify the "no retry" option for a reaction.
     * (This option is the default.)
     *
     * @return New reaction value with the "retry" flag unset.
     */
-  def noRetry: Reaction = Reaction(info, body, threadPool, retry = false)
+  def noRetry: Reaction = copy(retry = false)
 
   // Optimization: this is used often.
   val inputMolecules: Seq[Molecule] = info.inputs.map(_.molecule).sortBy(_.toString)
