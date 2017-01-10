@@ -11,7 +11,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val a = m[Int]
 
     val result = go { case a(x) if true => }
-    result.info.hasGuard shouldEqual AllMatchersAreTrivial
+    result.info.guardPresence shouldEqual AllMatchersAreTrivial
 
     result.info.inputs should matchPattern { case List(InputMoleculeInfo(`a`, SimpleVar('x, None), _)) => }
     result.info.toString shouldEqual "a(x) => "
@@ -35,7 +35,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val n = 10
     val result = go { case a(x) if false || (true && false) || !false || n > 0 => }
 
-    result.info.hasGuard shouldEqual AllMatchersAreTrivial
+    result.info.guardPresence shouldEqual AllMatchersAreTrivial
 
     result.info.inputs should matchPattern { case List(InputMoleculeInfo(`a`, SimpleVar('x, None), _)) => }
     result.info.toString shouldEqual "a(x) => "
@@ -48,7 +48,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(x) if 1 > n => }
 
-    (result.info.hasGuard match {
+    (result.info.guardPresence match {
       case GuardPresent(List(), Some(staticGuard), List()) => // `n` should not be among the guard variables
         staticGuard() shouldEqual false
         true
@@ -66,7 +66,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(xyz) if xyz > n => }
 
-    result.info.hasGuard should matchPattern { case GuardPresent(List(List('xyz)), None, List()) => // `n` should not be among the guard variables
+    result.info.guardPresence should matchPattern { case GuardPresent(List(List('xyz)), None, List()) => // `n` should not be among the guard variables
     }
     result.info.toString shouldEqual "a(xyz if ?) => "
     (result.info.inputs match {
@@ -85,7 +85,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(x) + a(y) if 1 > n && x > n && y > n => }
 
-    (result.info.hasGuard match {
+    (result.info.guardPresence match {
       case GuardPresent(List(List('x), List('y)), Some(staticGuard), List()) =>
         staticGuard() shouldEqual false
         true
@@ -101,7 +101,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(x) + a(y) if (1 > n || x > n) && y > n => }
 
-    result.info.hasGuard should matchPattern { case GuardPresent(List(List('x), List('y)), None, List()) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(List(List('x), List('y)), None, List()) => }
     result.info.toString shouldEqual "a(x if ?) + a(y if ?) => "
   }
 
@@ -112,7 +112,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(x) + a(y) if x > n && y > n || 1 > n => }
 
-    result.info.hasGuard should matchPattern { case GuardPresent(List(List('x), List('y)), None, List()) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(List(List('x), List('y)), None, List()) => }
     result.info.toString shouldEqual "a(x if ?) + a(y if ?) => "
   }
 
@@ -121,7 +121,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a((x: Int, y: Int, z: Int)) if x > y => }
 
-    result.info.hasGuard shouldEqual GuardPresent(List(List('x, 'y)), None, List())
+    result.info.guardPresence shouldEqual GuardPresent(List(List('x, 'y)), None, List())
     result.info.toString should fullyMatch regex "a\\(<[A-F0-9]{4}\\.\\.\\.>\\) => "
 
   }
@@ -135,7 +135,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(x: Int) + a(y: Int) if x > n + y => }
 
-    (result.info.hasGuard match {
+    (result.info.guardPresence match {
       case GuardPresent(List(List('x, 'y)), None, List((List('x, 'y), guard_x_y))) =>
         guard_x_y.isDefinedAt(List(10, 0)) shouldEqual false
         guard_x_y.isDefinedAt(List(11, 0)) shouldEqual true
@@ -156,7 +156,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go {
       case a(p: Int) + a(y: Int) + a(1) + bb((1, z)) + bb((t: Int, Some(qwerty))) + f(_, r) if y > 0 && n == 10 && qwerty == n && t > p && k < n => r()
     }
-    (result.info.hasGuard match {
+    (result.info.guardPresence match {
       case GuardPresent(List(List('y), List('qwerty), List('t, 'p)), Some(staticGuard), List((List('t, 'p), guard_t_p))) =>
         staticGuard() shouldEqual true
         true
@@ -171,7 +171,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go {
       case a(p: Int) + a(y: Int) + a(1) + bb((1, z)) + bb((t: Int, Some(q: Int))) if p == 3 && ((t == q && y > 0) && q > 0) && (t == p && y == q) =>
     }
-    (result.info.hasGuard match {
+    (result.info.guardPresence match {
       case GuardPresent(List(List('p), List('t, 'q), List('y), List('q), List('t, 'p), List('y, 'q)), None, List((List('t, 'p), guard_t_p), (List('y, 'q), guard_y_q))) =>
 
         true
