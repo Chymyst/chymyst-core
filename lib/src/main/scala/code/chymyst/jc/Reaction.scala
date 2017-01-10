@@ -44,7 +44,7 @@ sealed trait GuardPresenceType {
   * @param crossGuards A list of functions that represent the clauses of the guard that relate values of different molecules. The partial function `Any => Unit` should be called with the arguments representing the tuples of pattern variables from each molecule used by the cross guard.
   *                    In the present example, {{{crossGuards}}} will be {{{List((List('y, 'z), { case List(y, z) if y > z => () }))}}}.
   */
-final case class GuardPresent(vars: List[List[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: List[(List[ScalaSymbol], PartialFunction[Any, Unit])]) extends GuardPresenceType
+final case class GuardPresent(vars: List[List[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: List[(List[ScalaSymbol], PartialFunction[List[Any], Unit])]) extends GuardPresenceType
 
 case object GuardAbsent extends GuardPresenceType
 case object AllMatchersAreTrivial extends GuardPresenceType

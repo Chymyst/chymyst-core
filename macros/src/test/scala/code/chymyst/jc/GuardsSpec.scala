@@ -91,54 +91,58 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString should fullyMatch regex "a\\(<[A-F0-9]{4}\\.\\.\\.>\\) => "
 
   }
-  /* cross guard causes untypecheck-related trouble with Tuple2
-        it should "handle a guard condition with cross dependency that cannot be eliminated by Boolean transformations" in {
-          val a = m[Int]
 
-          val n = 10
+  behavior of "cross-molecule guards"
 
-          val result = go { case a(x) + a(y) if x > n + y => }
+  it should "handle a guard condition with cross dependency that cannot be eliminated by Boolean transformations" in {
+    val a = m[Int]
 
-          (result.info.hasGuard match {
-            case GuardPresent(List(List('x, 'y)), None, List((List('x, 'y), guard_x_y))) =>
-              true
-            case _ => false
-          }) shouldEqual true
+    val n = 10
 
-        }
+    val result = go { case a(x: Int) + a(y: Int) if x > n + y => }
 
-           it should "correctly split a guard condition when some clauses contain no pattern variables" in {
-             val a = m[Int]
-             val bb = m[(Int, Option[Int])]
-             val f = b[Unit, Unit]
+    (result.info.hasGuard match {
+      case GuardPresent(List(List('x, 'y)), None, List((List('x, 'y), guard_x_y))) =>
+        guard_x_y.isDefinedAt(List(10, 0)) shouldEqual false
+        guard_x_y.isDefinedAt(List(11, 0)) shouldEqual true
+        true
+      case _ => false
+    }) shouldEqual true
 
-             val k = 5
-             val n = 10
+  }
 
-             val result = go {
-               case a(p) + a(y) + a(1) + bb((1, z:Option[Int])) + bb((t:Int, Some(qwerty:Int))) + f(_, r) if y > 0 && n == 10 && qwerty == n && t > p && k < n => r()
-             }
-             (result.info.hasGuard match {
-               case GuardPresent(List(List('y), List('qwerty), List('t, 'p)), Some(staticGuard), List((List('t,'p), guard_t_p))) =>
-                 staticGuard() shouldEqual true
-                 true
-               case _ => false
-             }) shouldEqual true
-           }
+  it should "correctly split a guard condition when some clauses contain no pattern variables" in {
+    val a = m[Int]
+    val bb = m[(Int, Option[Int])]
+    val f = b[Unit, Unit]
 
-           it should "correctly flatten a guard condition with complicated nested clauses" in {
-             val a = m[Int]
-             val bb = m[(Int, Option[Int])]
+    val k = 5
+    val n = 10
 
-             val result = go {
-               case a(p) + a(y) + a(1) + bb((1, z:Option[Int])) + bb((t:Int, Some(q:Int))) if p == 3 && ((t == q && y > 0) && q > 0) && (t == p && y == q) =>
-             }
-             (result.info.hasGuard match {
-               case GuardPresent(List(List('p), List('t, 'q), List('y), List('q), List('t, 'p), List('y, 'q)), None, List((List('t, 'p), guard_t_p), (List('y, 'q), guard_y_q))) =>
+    val result = go {
+      case a(p: Int) + a(y: Int) + a(1) + bb((1, z)) + bb((t: Int, Some(qwerty: Int))) + f(_, r) if y > 0 && n == 10 && qwerty == n && t > p && k < n => r()
+    }
+    (result.info.hasGuard match {
+      case GuardPresent(List(List('y), List('qwerty), List('t, 'p)), Some(staticGuard), List((List('t, 'p), guard_t_p))) =>
+        staticGuard() shouldEqual true
+        true
+      case _ => false
+    }) shouldEqual true
+  }
 
-                 true
-               case _ => false
-             }) shouldEqual true
-           }
-      */
+  it should "correctly flatten a guard condition with complicated nested clauses" in {
+    val a = m[Int]
+    val bb = m[(Int, Option[Int])]
+
+    val result = go {
+      case a(p: Int) + a(y: Int) + a(1) + bb((1, z)) + bb((t: Int, Some(q: Int))) if p == 3 && ((t == q && y > 0) && q > 0) && (t == p && y == q) =>
+    }
+    (result.info.hasGuard match {
+      case GuardPresent(List(List('p), List('t, 'q), List('y), List('q), List('t, 'p), List('y, 'q)), None, List((List('t, 'p), guard_t_p), (List('y, 'q), guard_y_q))) =>
+
+        true
+      case _ => false
+    }) shouldEqual true
+  }
+
 }
