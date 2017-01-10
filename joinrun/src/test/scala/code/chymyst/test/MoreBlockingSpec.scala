@@ -53,10 +53,11 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     site(tp)(
       go { case g(_, r) + a(x) => r(x) },
-      go { case f(_, r) => Thread.sleep(500); a(r.checkTimeout(123)) }
+      go { case f(_, r) + a(true) => Thread.sleep(500); a(r.checkTimeout(123)) }
     )
+    a(true)
     f.timeout(300.millis)() shouldEqual None // should give enough time so that the reaction can start
-    g() shouldEqual false
+    g() shouldEqual false  // will be `true` when the `f` reaction did not start before timeout
 
     tp.shutdownNow()
   }
@@ -70,9 +71,10 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     site(tp)(
       go { case g(_, r) + a(x) => r(x) },
-      go { case f(_, r) => Thread.sleep(250); a(r.checkTimeout()) }
+      go { case f(_, r) + a(true) => Thread.sleep(500); a(r.checkTimeout()) }
     )
-    f.timeout(50.millis)() shouldEqual None // should give enough time so that the reaction can start
+    a(true)
+    f.timeout(300.millis)() shouldEqual None // should give enough time so that the reaction can start
     g() shouldEqual false
 
     tp.shutdownNow()

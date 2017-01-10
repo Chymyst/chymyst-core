@@ -263,15 +263,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   }
 
-  it should "define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
+  it should "fail to define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
     val a = new M[Option[Int]]("a")
     val b = new E("b")
     val c = new E("c")
 
     site(tp0)(_go { case b(_) + a(Some(x)) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b => ...}\nNo molecules" // this is the wrong result
-    // when the problem is fixed, this test will have to be rewritten
+    a.logSoup shouldEqual "Site{a + b => ...}\nNo molecules" // this is the wrong result that we expect from _go
   }
 
   it should "define a reaction with correct inputs with default pattern-matching in the middle of reaction" in {
@@ -325,17 +324,17 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "run reactions correctly with non-default pattern-matching at start of reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new E("b")
+    val a = m[Option[Int]]
+    val f = b[Unit, Int]
 
-    site(tp0)(go { case a(Some(x)) + b(_) => })
+    site(tp0)(go { case a(Some(x)) + f(_, r) => r(x) })
 
     a(Some(1))
     waitSome()
-    a.logSoup shouldEqual "Site{a + b => ...}\nMolecules: a(Some(1))"
-    b()
     waitSome()
-    a.logSoup shouldEqual "Site{a + b => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(1))"
+    f() shouldEqual 1
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant non-default pattern-matching at start of reaction" in {
