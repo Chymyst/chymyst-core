@@ -55,7 +55,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       InputMoleculeInfo(`bb`, OtherInputPattern(_, List('list, 'y)), _)
       ) =>
     }
-    result.info.toString shouldEqual "a(<9247...>) + bb(<8E8D...>) => "
+    result.info.toString shouldEqual "a(<FD6F...>) + bb(<DBA9...>) => "
   }
 
   it should "use parameterized types in cross-guard condition" in {
@@ -89,7 +89,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       InputMoleculeInfo(`bb`, OtherInputPattern(_, List('list, 'y)), _)
       ) =>
     }
-    result.info.toString shouldEqual "a(<9247...>) + bb(<8E8D...>) if(x,list,y) => "
+    result.info.toString shouldEqual "a(<643A...>) + bb(<9D3F...>) if(x,list,y) => "
   }
 
   it should "correctly recognize an indentically false guard condition" in {
@@ -156,7 +156,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     reaction.info.guardPresence shouldEqual GuardPresent(List(List('x, 'y)),None,List())
 
-    (reaction.info.inputs(0).flag match {
+    (reaction.info.inputs.head.flag match {
       case OtherInputPattern(cond, vars) =>
         cond.isDefinedAt((1, 2, 0, 0)) shouldEqual false
         cond.isDefinedAt((2, 1, 0, 0)) shouldEqual true
@@ -286,7 +286,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case _ => false
     }) shouldEqual true
 
-    result.info.toString shouldEqual "a(1) + a(y if ?) + a(p) + bb(<1EA7...>) + bb(<2784...>) + f/B(_) if(t,p) => "
+    result.info.toString shouldEqual "a(1) + a(y if ?) + a(p) + bb(<26CD...>) + bb(<85B4...>) + f/B(_) if(t,p) => "
   }
 
   it should "correctly flatten a guard condition with complicated nested clauses" in {
@@ -299,7 +299,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.guardPresence should matchPattern {
       case GuardPresent(List(List('p), List('t, 'q), List('y), List('q), List('t, 'p), List('y, 'q)), None, List((List('t, 'p), guard_t_p), (List('y, 'q), guard_y_q))) =>
     }
-    result.info.toString shouldEqual "a(1) + a(p if ?) + a(y if ?) + bb(<1EA7...>) + bb(<577C...>) if(t,p,y,q) => "
+    result.info.toString shouldEqual "a(1) + a(p if ?) + a(y if ?) + bb(<26CD...>) + bb(<E0BD...>) if(t,p,y,q) => "
   }
 
 }

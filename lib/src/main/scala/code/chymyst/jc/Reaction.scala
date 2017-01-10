@@ -198,11 +198,12 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[L
       case SimpleConst(_) => 1
       case _ => 0
     }
-    val molValue = flag match {
+    val molValueString = flag match {
       case SimpleConst(v) => v.toString
+      case SimpleVar(v, _) => v.name
       case _ => ""
     }
-    (mol.toString, patternPrecedence, molValue, sha)
+    (mol.toString, patternPrecedence, molValueString, sha)
   }
 
   override val toString: String = {

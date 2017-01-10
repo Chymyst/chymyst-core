@@ -95,11 +95,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         go { case q(_) + s(_) => }
         q(0)
       }
-    (reaction.info.inputs match {
-      case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`)) => true
-      case _ => false
-
-    }) shouldEqual true
+    reaction.info.inputs should matchPattern { case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`)) => }
     reaction.info.outputs shouldEqual Some(List())
   }
 
@@ -135,8 +131,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     f.timeout(500 millis)() shouldEqual Some(2)
   }
 
-  val simpleVarXSha1 = "8227489534FBEA1F404CAAEC9F4CCAEEB9EF2DC1"
-  val wildcardSha1 = "53A0ACFAD59379B3E050338BF9F23CFC172EE787"
+  val simpleVarXSha1 = ""
+  val constantNoneSha1 = "6EEF6648406C333A4035CD5E60D0BF2ECF2606D7"
+  val wildcardSha1 = ""
   val constantZeroSha1 = "8227489534FBEA1F404CAAEC9F4CCAEEB9EF2DC1"
   val constantOneSha1 = "356A192B7913B04C54574D18C28D46E6395428AB"
 
@@ -146,12 +143,16 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val result = go { case a(x) + bb(None) => bb(None) }
 
-    result.info.inputs should matchPattern {
+    (result.info.inputs match {
       case List(
-        InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`),
-        InputMoleculeInfo(`bb`, SimpleConst(None), "4B93FCEF4617B49161D3D2F83E34012391D5A883")
+        InputMoleculeInfo(`a`, SimpleVar('x, _), sha_a),
+        InputMoleculeInfo(`bb`, SimpleConst(None), sha_bb)
       ) =>
-    }
+        sha_a shouldEqual simpleVarXSha1
+        sha_bb shouldEqual constantNoneSha1
+        true
+      case _ => false
+    }) shouldEqual true
 
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, SimpleConstOutput(None))))
     result.info.guardPresence shouldEqual GuardAbsent
@@ -169,8 +170,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     (result.info.inputs match {
       case List(
        InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`),
-        InputMoleculeInfo(`qq`, Wildcard, `wildcardSha1`)
-      ) => true
+        InputMoleculeInfo(`qq`, Wildcard, sha_qq)
+      ) =>
+        sha_qq shouldEqual wildcardSha1
+        true
       case _ => false
     }) shouldEqual true
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, SimpleConstOutput(()))))
@@ -216,8 +219,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       case List(
       InputMoleculeInfo(`a`, Wildcard, `wildcardSha1`),
       InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`),
-      InputMoleculeInfo(`a`, SimpleConst(1), `constantOneSha1`)
-      ) => true
+      InputMoleculeInfo(`a`, SimpleConst(1), sha_a)
+      ) =>
+        sha_a shouldEqual constantOneSha1
+        true
       case _ => false
     }) shouldEqual true
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qqq, SimpleConstOutput(""))))
@@ -267,7 +272,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(s, SimpleConstOutput(())), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qq, SimpleConstOutput(()))))
 
-    result.info.toString shouldEqual "a(1) + a(p) + a(y) + bb((0,None)) + bb((1,Some(2))) + bb(<1EA7...>) + bb(<577C...>) + bb(<F08D...>) + c(_) + c(_) + s/B(_) => s/B() + a(?) + qq()"
+    result.info.toString shouldEqual "a(1) + a(p) + a(y) + bb((0,None)) + bb((1,Some(2))) + bb(<26CD...>) + bb(<5158...>) + bb(<F81F...>) + c(_) + c(_) + s/B(_) => s/B() + a(?) + qq()"
   }
 
   it should "fail to define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
@@ -421,7 +426,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       InputMoleculeInfo(`bb`, OtherInputPattern(_, List('p, 'ytt, 's, 't)), _)
       ) =>
     }
-    result.info.toString shouldEqual "a(<43E7...>) + bb(<60A0...>) + c(_) => "
+    result.info.toString shouldEqual "a(<43E7...>) + bb(<117C...>) + c(_) => "
   }
 
   it should "create partial functions for matching from reaction body" in {
