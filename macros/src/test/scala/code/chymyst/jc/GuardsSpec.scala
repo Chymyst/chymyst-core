@@ -7,6 +7,40 @@ class GuardsSpec extends FlatSpec with Matchers {
 
   behavior of "guard conditions"
 
+  it should "correctly recognize a trivial true guard condition" in {
+    val a = m[Int]
+
+    val result = go { case a(x) if true => }
+    result.info.hasGuard shouldEqual AllMatchersAreTrivial
+
+    result.info.inputs should matchPattern { case List(InputMoleculeInfo(`a`, SimpleVar('x, None), _)) => }
+    result.info.toString shouldEqual "a(x) => "
+  }
+
+  it should "correctly recognize an indentically false guard condition" in {
+    val a = m[Int]
+    val n = 10
+    a.isInstanceOf[M[Int]] shouldEqual true
+    n shouldEqual n
+
+    "val result = go { case a(x) if false => }" shouldNot compile
+    "val result = go { case a(x) if false ^ false => }" shouldNot compile
+    "val result = go { case a(x) if !(false ^ !false) => }" shouldNot compile
+    "val result = go { case a(x) if false || (true && false) || !true && n > 0 => }" shouldNot compile
+    "val result = go { case a(x) if false ^ (true && false) || !true && n > 0 => }" shouldNot compile
+  }
+
+  it should "correctly simplify guard condition using true and false" in {
+    val a = m[Int]
+    val n = 10
+    val result = go { case a(x) if false || (true && false) || !false || n > 0 => }
+
+    result.info.hasGuard shouldEqual AllMatchersAreTrivial
+
+    result.info.inputs should matchPattern { case List(InputMoleculeInfo(`a`, SimpleVar('x, None), _)) => }
+    result.info.toString shouldEqual "a(x) => "
+  }
+
   it should "correctly recognize a guard condition with no variables" in {
     val a = m[Int]
 
@@ -120,7 +154,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val n = 10
 
     val result = go {
-      case a(p: Int) + a(y: Int) + a(1) + bb((1, z)) + bb((t: Int, Some(qwerty: Int))) + f(_, r) if y > 0 && n == 10 && qwerty == n && t > p && k < n => r()
+      case a(p: Int) + a(y: Int) + a(1) + bb((1, z)) + bb((t: Int, Some(qwerty))) + f(_, r) if y > 0 && n == 10 && qwerty == n && t > p && k < n => r()
     }
     (result.info.hasGuard match {
       case GuardPresent(List(List('y), List('qwerty), List('t, 'p)), Some(staticGuard), List((List('t, 'p), guard_t_p))) =>
