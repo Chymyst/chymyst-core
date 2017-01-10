@@ -66,7 +66,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(x) if(?) => "
   }
 
-  it should "correctly compute reaction info" in {
+  it should "compute reaction info with condition matcher" in {
     val a = m[Int]
     val b = m[Int]
 
@@ -81,7 +81,24 @@ class GuardsSpec extends FlatSpec with Matchers {
     }) shouldEqual true
   }
 
-  it should "correctly recognize a guard condition with captured variables" in {
+  it should "compute reaction info with condition matcher on a compound type" in {
+    val a = m[(Int, Int, Int, Int)]
+
+    val reaction = go { case a((x, y, z, t)) if x > y => }
+
+    reaction.info.guardPresence shouldEqual GuardPresent(List(List('x, 'y)),None,List())
+
+    (reaction.info.inputs(0).flag match {
+      case OtherInputPattern(cond, vars) =>
+        cond.isDefinedAt((1, 2, 0, 0)) shouldEqual false
+        cond.isDefinedAt((2, 1, 0, 0)) shouldEqual true
+        vars shouldEqual List('x, 'y, 'z, 't)
+        true
+      case _ => false
+    }) shouldEqual true
+  }
+
+  it should "recognize a guard condition with captured non-molecule variables" in {
     val a = m[Int]
 
     val n = 10
@@ -141,8 +158,7 @@ class GuardsSpec extends FlatSpec with Matchers {
   it should "correctly handle a guard condition with nontrivial unapply matcher" in {
     val a = m[(Int, Int, Int)]
 
-    // TODO: remove `: Int` type annotations from compound types.
-    val result = go { case a((x: Int, y: Int, z: Int)) if x > y => }
+    val result = go { case a((x, y, z)) if x > y => }
 
     result.info.guardPresence shouldEqual GuardPresent(List(List('x, 'y)), None, List())
     result.info.toString should fullyMatch regex "a\\(<[A-F0-9]{4}\\.\\.\\.>\\) => "
@@ -205,9 +221,8 @@ class GuardsSpec extends FlatSpec with Matchers {
     val a = m[Int]
     val bb = m[(Int, Option[Int])]
 
-    // TODO: Remove `: Int` type annotations from compound types.
     val result = go {
-      case a(p) + a(y) + a(1) + bb((1, z)) + bb((t: Int, Some(q: Int))) if p == 3 && ((t == q && y > 0) && q > 0) && (t == p && y == q) =>
+      case a(p) + a(y) + a(1) + bb((1, z)) + bb((t, Some(q))) if p == 3 && ((t == q && y > 0) && q > 0) && (t == p && y == q) =>
     }
     result.info.guardPresence should matchPattern {
       case GuardPresent(List(List('p), List('t, 'q), List('y), List('q), List('t, 'p), List('y, 'q)), None, List((List('t, 'p), guard_t_p), (List('y, 'q), guard_y_q))) =>
