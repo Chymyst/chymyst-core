@@ -314,7 +314,7 @@ object Macros {
       if (guardTree.isEmpty)
         q"{ case $binderTerm => () }" // This should not be untypechecked!! Why?
       else {
-        c.untypecheck(q"{ case $binderTerm if $guardTree => () } : PartialFunction[Any, Unit]")
+        c.untypecheck(q"{ case $binderTerm if $guardTree => () }")
       }
     }
 
@@ -624,6 +624,7 @@ object Macros {
         val partialFunctionTree = q"{ case ..$caseDefs }"
 //        val pfTree = c.parse(showCode(partialFunctionTree))
         val pfTree = c.untypecheck(partialFunctionTree)
+//        println(s"debug: returning pfTree = ${show(pfTree)}")
         (vars.map(identToScalaSymbol), pfTree)
     }
 
