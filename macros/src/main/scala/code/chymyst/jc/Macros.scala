@@ -336,23 +336,30 @@ object Macros {
       }
     }
 
-/* Not used now.
     object ReplaceVars extends Transformer {
       var replacingIdents: List[Ident] = _
+      var addTypes: Boolean = _
 
-      override def transform(tree: Tree): Tree = tree match {
-        case Ident(name) =>
-          val newIdentOpt = replacingIdents.find( _.name === name )
-          newIdentOpt.getOrElse(tree)
+      override def transform(tree: Tree): Tree = if (addTypes) tree match {
+        case Bind(t@TermName(name), Ident(termNames.WILDCARD)) =>
+          val newIdentOpt = replacingIdents.find( _.name.toTermName.decodedName.toString === name )
+          newIdentOpt.map { newIdent =>
+            val newIdentType = newIdent.symbol.info.typeSymbol
+            pq"$t : $newIdentType"
+          }.getOrElse(tree)
+        case _ => super.transform(tree)
+      } else tree match {
+        case Ident(name) => replacingIdents.find( _.name === name ).getOrElse(tree)
         case _ => super.transform(tree)
       }
 
-      def in(guardTree: Tree, vars: List[Ident]): Tree = {
+      def in(guardTree: Tree, vars: List[Ident], inBinder: Boolean): Tree = {
         replacingIdents = vars
+        addTypes = inBinder
         transform(guardTree)
       }
     }
-*/
+
     object GuardVars extends Traverser {
       private var vars: mutable.ArrayBuffer[Ident] = _
       private var givenPatternVars: List[Ident] = _
@@ -590,6 +597,8 @@ object Macros {
       case _ => false
     }
 
+    val allBinderVars = patternIn.flatMap(_._2.varNames)
+
     val crossGuards = moleculeGuardVarsSeq // List[(List[scala.Symbol], Tree)]. The "cross guards" are guard clauses whose variables do not all belong to any single molecule's matcher.
       .filter { case (_, vars) => patternIn.forall { case (_, flag, _, _) => !guardVarsConstrainOnlyThisMolecule(vars, flag) } }
       // We need to produce a closure that starts with all the vars as parameters, and evaluates the guardTree.
@@ -606,14 +615,16 @@ object Macros {
           .filter { case (flag, _, vs) => guardVarsConstrainThisMolecule(vs, flag) }
           .map { case (_, binder, _) => binder }
 
-        //        val matchers = binders.map(b => pq"$b")
-        //        val caseDefs = List(cq"(..$matchers) => $guardTree  ")
-        //        val partialFunctionTree = q"{ case ..$caseDefs }"
-        //        val bindersUntypechecked = binders.map(binder => c.untypecheck(binder))
-        //        val guardUntypechecked = c.untypecheck(guardTree)
-        val partialFunctionTree = q"{ case List(..$binders) if $guardTree => () }"
-        val partialFunctionTreeUntypechecked = c.untypecheck(partialFunctionTree)
-        (vars.map(identToScalaSymbol), partialFunctionTreeUntypechecked)
+        val bindersWithTypedVars = binders.map { binder =>
+          ReplaceVars.in(binder, moleculeGuardVarsSeq.flatMap(_._2), inBinder = true)
+        }
+
+        val guardWithReplacedVars = ReplaceVars.in(guardTree, allBinderVars, inBinder = false)
+        val caseDefs = List(cq"List(..$bindersWithTypedVars) if $guardWithReplacedVars => ")
+        val partialFunctionTree = q"{ case ..$caseDefs }"
+//        val pfTree = c.parse(showCode(partialFunctionTree))
+        val pfTree = c.untypecheck(partialFunctionTree)
+        (vars.map(identToScalaSymbol), pfTree)
     }
 
     // We lift the GuardPresenceType values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
