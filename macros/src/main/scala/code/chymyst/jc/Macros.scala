@@ -608,6 +608,7 @@ object Macros {
         val mergedFlag = flag match {
           case SimpleVarF(v, binder, _) => mergedGuardOpt.map(guardTree => SimpleVarF(v, binder, Some(guardTree))).getOrElse(flag) // a(x) if x>0 is replaced with a(x : check if x>0). Let's not replace vars in binder in this case?
           case OtherPatternF(matcher, _, vars) => mergedGuardOpt.map(guardTree => OtherPatternF(replaceVarsInBinder(matcher), guardTree, vars)).getOrElse(flag) // We can't have a nontrivial guardTree in patternIn, so we replace it here with the new guardTree.
+          case SimpleConstF(Literal(Constant(()))) => WildcardF // Replace Unit constant values with wildcards.
           case _ => flag
         }
 
