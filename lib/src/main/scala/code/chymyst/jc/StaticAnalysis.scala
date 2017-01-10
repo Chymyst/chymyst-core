@@ -86,7 +86,7 @@ private[jc] object StaticAnalysis {
   // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
   private def checkReactionShadowing(reactions: Seq[Reaction]): Option[String] = {
     val suspiciousReactions = for {
-      r1 <- reactions.withFilter(_.info.guardPresence.knownFalse)
+      r1 <- reactions.withFilter(_.info.guardPresence.effectivelyAbsent)
       r2 <- reactions.withFilter(_ =!= r1)
       if allMatchersAreWeakerThan(r1.info.inputsSorted, r2.info.inputsSorted)
     } yield (r1, r2)
@@ -113,7 +113,7 @@ private[jc] object StaticAnalysis {
 
   private def checkSingleReactionLivelock(reactions: Seq[Reaction]): Option[String] = {
     val errorList = reactions
-      .filter { r => r.info.guardPresence.knownFalse && inputMatchersWeakerThanOutput(r.info.inputsSorted, r.info.outputs)}
+      .filter { r => r.info.guardPresence.effectivelyAbsent && inputMatchersWeakerThanOutput(r.info.inputsSorted, r.info.outputs)}
       .map(r => s"{${r.info.toString}}")
     if (errorList.nonEmpty)
       Some(s"Unavoidable livelock: reaction${if (errorList.size == 1) "" else "s"} ${errorList.mkString(", ")}")
@@ -286,7 +286,7 @@ private[jc] object StaticAnalysis {
 
 
   private[jc] def findSingletonDeclarationErrors(singletonReactions: Seq[Reaction]): Seq[String] = {
-    val foundErrors = singletonReactions.map(_.info).filterNot(_.guardPresence.knownFalse)
+    val foundErrors = singletonReactions.map(_.info).filterNot(_.guardPresence.effectivelyAbsent)
     if (foundErrors.nonEmpty) foundErrors.map { info => s"Singleton reaction {$info} should not have a guard condition" } else Seq()
   }
 
