@@ -156,10 +156,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, SimpleConstOutput(None))))
     result.info.guardPresence shouldEqual GuardAbsent
-    result.info.sha1 shouldEqual "B1957B893BF4FE420EC790947A0BB62B856BBF33"
+    result.info.sha1 shouldEqual "EFE8DF725DAFF58F6E770FC9B8FF9F98C05E1D7F"
   }
 
-  val axqq_qqSha1 = "F98837122C6B2A2945F61CAFC17D1E212B82F2C8"
+  val ax_qq_reaction_sha1 = "99EDFE1E26346B98698FE634621D91B9AAEB17BB"
 
   it should "inspect a two-molecule reaction body" in {
     val a = m[Int]
@@ -178,7 +178,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }) shouldEqual true
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, SimpleConstOutput(()))))
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
-    result.info.sha1 shouldEqual axqq_qqSha1
+    result.info.sha1 shouldEqual ax_qq_reaction_sha1
+
+    // TODO: normalize reaction bodies so that this sha1 becomes the same as ax_qq_reaction_sha1
+    val result2 = go { case qq(_)  + a(x)  => qq() }
+    result2.info.sha1 shouldEqual "9E80536699339945A66AA9BEF33F31C66C7A851C"
   }
 
   it should "inspect a _go reaction body" in {
@@ -189,14 +193,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     (result.info.inputs match {
       case List(
-      InputMoleculeInfo(`a`, UnknownInputPattern, _),
-      InputMoleculeInfo(`qq`, UnknownInputPattern, _)
+        InputMoleculeInfo(`a`, UnknownInputPattern, _),
+        InputMoleculeInfo(`qq`, UnknownInputPattern, _)
       ) => true
       case _ => false
     }) shouldEqual true
     result.info.outputs shouldEqual None
     result.info.guardPresence shouldEqual GuardPresenceUnknown
-    result.info.sha1 should not equal axqq_qqSha1
+    result.info.sha1 should not equal ax_qq_reaction_sha1
   }
 
   it should "inspect a reaction body with another molecule and extra code" in {
@@ -388,8 +392,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, SimpleConstOutput(Some(2)))))
     r.info.guardPresence shouldEqual GuardAbsent
 
-    // Note: Scala 2.11 and Scala 2.12 might have different desugared syntax trees for this reaction?
-    r.info.sha1 shouldEqual "9C93A6DE5D096D3CDC3C318E0A07B30B732EA37A"
+    r.info.sha1 shouldEqual "7CA728F315C854E49045FC42E3651128AA40F495"
   }
 
   it should "detect output molecules with constant values" in {
