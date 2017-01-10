@@ -35,20 +35,21 @@ explicitly; this inventory tracking does add a bit of complexity.
 
 For counting, we will use a distinct molecule `count` dedicated just to that and emit it initially with a constant number. We also use a blocking molecule 
 `check` that we emit when we reach a `count` of 0. This approach is same as in several other examples discussed here.
-```scala
-    val count = m[Int]
-    val check = new EE("check") 
 
-    site(tp) ( // reactions
-          go { case pusher(???) + count(n) if n >= 1 => ??? // the supply reaction TBD
-                 count(n-1) // let us include this decrement now.
-             },
-          go { case count(0) + check(_, r) => r() }  // note that we use mutually exclusive conditions on count in the two reactions.
-    )
-    // emission of initial molecules in chemistry follows
-    // other molecules to emit as necessary for the specifics of this problem
-    count(supplyLineSize) // if running as a daemon, we would not use the count molecule and let the example/application run for ever.
-    check()
+```scala
+val count = m[Int]
+val check = new EE("check") 
+
+site(tp) ( // reactions
+      go { case pusher(???) + count(n) if n >= 1 => ??? // the supply reaction TBD
+             count(n-1) // let us include this decrement now.
+         },
+      go { case count(0) + check(_, r) => r() }  // note that we use mutually exclusive conditions on count in the two reactions.
+)
+// emission of initial molecules in chemistry follows
+// other molecules to emit as necessary for the specifics of this problem
+count(supplyLineSize) // if running as a daemon, we would not use the count molecule and let the example/application run for ever.
+check()
 
 ```
 
@@ -67,19 +68,19 @@ Here, we write up a helper function `enjoyAndResume` that is a refactored piece 
  manufacturing).
 
 ```scala
-    def smokingBreak(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
-    def enjoyAndResume(s: ShippedInventory) = {
-      smokingBreak()
-      pusher(s)
-    }
-   site(tp) ( // reactions
-     // other reactions ...
-      go { case Keith(_) + tobacco(s) + matches(_) => enjoyAndResume(s); Keith() },
-      go { case Slash(_) + tobacco(s) + paper(_) => enjoyAndResume(s); Slash() },
-      go { case Jimi(_) + matches(s) + paper(_) => enjoyAndResume(s); Jimi()}
-   )
-   // other initial molecules to be emitted
-   Keith(()) + Slash(()) + Jimi(())
+ def smokingBreak(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
+ def enjoyAndResume(s: ShippedInventory) = {
+   smokingBreak()
+   pusher(s)
+ }
+site(tp) ( // reactions
+  // other reactions ...
+   go { case Keith(_) + tobacco(s) + matches(_) => enjoyAndResume(s); Keith() },
+   go { case Slash(_) + tobacco(s) + paper(_) => enjoyAndResume(s); Slash() },
+   go { case Jimi(_) + matches(s) + paper(_) => enjoyAndResume(s); Jimi()}
+)
+// other initial molecules to be emitted
+Keith() + Slash() + Jimi()
 
 ```
 
@@ -93,29 +94,29 @@ terminology) and the `pusher` molecule should be emitted on start up and should 
 `ShippedInventory`. We integrate counting as previously discussed, introduce the random selection of ingredient pairs and emit the molecules for the pair of ingredients.
 
 ```scala
-  case class ShippedInventory(tobacco: Int, paper: Int, matches: Int)
-  site(tp) (
-      go { case pusher(ShippedInventory(t, p, m)) + count(n) if n >= 1 =>
-        scala.util.Random.nextInt(3) match { // select the 2 ingredients randomly
-          case 0 =>
-            val s = ShippedInventory(t+1, p, m+1)
-            tobaccoShipment(s)
-            matchesShipment(s)
-          case 1 =>
-            val s =  ShippedInventory(t+1, p+1, m)
-            tobaccoShipment(s)
-            paperShipment(s)
-          case _ =>
-            val s = ShippedInventory(t, p+1, m+1)
-            matchesShipment(s)
-            paperShipment(s)
-        }
-        count(n-1)
+case class ShippedInventory(tobacco: Int, paper: Int, matches: Int)
+site(tp) (
+    go { case pusher(ShippedInventory(t, p, m)) + count(n) if n >= 1 =>
+      scala.util.Random.nextInt(3) match { // select the 2 ingredients randomly
+        case 0 =>
+          val s = ShippedInventory(t+1, p, m+1)
+          tobaccoShipment(s)
+          matchesShipment(s)
+        case 1 =>
+          val s =  ShippedInventory(t+1, p+1, m)
+          tobaccoShipment(s)
+          paperShipment(s)
+        case _ =>
+          val s = ShippedInventory(t, p+1, m+1)
+          matchesShipment(s)
+          paperShipment(s)
       }
-  )
-  count(supplyLineSize) 
-  pusher(ShippedInventory(0,0,0))
-  // other initial molecules to be emitted (the smokers and check)
+      count(n-1)
+    }
+)
+count(supplyLineSize) 
+pusher(ShippedInventory(0,0,0))
+// other initial molecules to be emitted (the smokers and check)
   
 ```
 
@@ -175,11 +176,12 @@ site(tp) (
   }
 )
 
-KeithInNeed(()) + SlashInNeed(()) + JimiInNeed(())
+KeithInNeed() + SlashInNeed() + JimiInNeed()
 pusher(ShippedInventory(0,0,0))
 count(supplyLineSize) // if running as a daemon, we would not use count and let the example/application run for ever.
 
 check()
+
 ```
 
 There is a harder, more general treatment of the cigarette smokers problem, which has the `pusher` in charge of the rate of availability of ingredients, not 
@@ -208,26 +210,27 @@ We need to log events as we go along. What needs to be captured is the identity 
 
 ```scala
  sealed trait LockEvent {
-      val name: String
-      def toString: String
-    }
-    case class LockAcquisition(override val name: String) extends LockEvent {
-      override def toString: String = s"$name enters critical section"
-    }
-    case class LockRelease(override val name: String) extends LockEvent {
-      override def toString: String = s"$name leaves critical section"
-    }
-    val logFile = new ConcurrentLinkedQueue[LockEvent]
+  val name: String
+  def toString: String
+}
+case class LockAcquisition(override val name: String) extends LockEvent {
+  override def toString: String = s"$name enters critical section"
+}
+case class LockRelease(override val name: String) extends LockEvent {
+  override def toString: String = s"$name leaves critical section"
+}
+val logFile = new ConcurrentLinkedQueue[LockEvent]
 
-    def useResource(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
-    def visitCriticalSection(name: String): Unit = {
-      logFile.add(LockAcquisition(name))
-      useResource()
-    }
-    def leaveCriticalSection(name: String): Unit = {
-      logFile.add(LockRelease(name))
-      ()
-    }
+def useResource(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
+def visitCriticalSection(name: String): Unit = {
+  logFile.add(LockAcquisition(name))
+  useResource()
+}
+def leaveCriticalSection(name: String): Unit = {
+  logFile.add(LockRelease(name))
+  ()
+}
+
 ```
 
 We need to consider the ending of the simulation, which we do with a `count = m[Int]` non-blocking molecule and a `check = b[Unit, Unit]` molecule as is 
@@ -238,40 +241,42 @@ Now, the fun begins: we need to model how many readers are using the resource co
 with a draft, using some count down logic with a `writer` molecule reaction, ignoring helper functions and case classes we introduced already:
  
  ```scala
-     val count = m[Int]
-     val readerCount = m[Int]
-     val check = b[Unit, Unit]
-     val readers = "ABCDEFGH".toCharArray.map(_.toString).toVector // vector of letters as Strings.
- 
-     val reader = m[String]
-     val writer = m[String]
- 
-     site(tp)(
-       go { case writer(name) + readerCount(0) + count(n) if n > 0 =>
-         visitCriticalSection(name)
-         writer(name)
-         count(n - 1)
-         readerCount(0)
-         leaveCriticalSection(name)
-       },
-       go { case count(0) + readerCount(0) + check(_, r) => r() }, // readerCount(0) condition ensures we end when all locks are released.
- 
-       go { case readerCount(n) + reader(name)  =>
-         readerCount(n+1)
-         visitCriticalSection(name)
-         readerCount(n - 1)
-         leaveCriticalSection(name) // undefined count
-         reader(name) 
-       }
-     )
-     readerCount(0)
-     readers.foreach(n => reader(n))
-     val writerName = "exclusive-writer"
-     writer(writerName)
-     count(supplyLineSize)
- 
-     check()
- ```
+val count = m[Int]
+val readerCount = m[Int]
+val check = b[Unit, Unit]
+val readers = "ABCDEFGH".toCharArray.map(_.toString).toVector // vector of letters as Strings.
+
+val reader = m[String]
+val writer = m[String]
+
+site(tp)(
+  go { case writer(name) + readerCount(0) + count(n) if n > 0 =>
+    visitCriticalSection(name)
+    writer(name)
+    count(n - 1)
+    readerCount(0)
+    leaveCriticalSection(name)
+  },
+  go { case count(0) + readerCount(0) + check(_, r) => r() }, // readerCount(0) condition ensures we end when all locks are released.
+
+  go { case readerCount(n) + reader(name)  =>
+    readerCount(n+1)
+    visitCriticalSection(name)
+    readerCount(n - 1)
+    leaveCriticalSection(name) // undefined count
+    reader(name) 
+  }
+)
+readerCount(0)
+readers.foreach(n => reader(n))
+val writerName = "exclusive-writer"
+writer(writerName)
+count(supplyLineSize)
+
+check()
+
+```
+
 It does not even compile! Macros code tell us _Unconditional livelock: Input molecules should not be a subset of output molecules, with all trivial 
 matchers for_ `(readerCount, reader) go { case readerCount(n) + reader(name)`. What went wrong? Well, yes, sure enough, we consume two molecules and emit 
 three! `readerCount(n+1)` and `readerCount(n - 1)` with `reader(name)` count as three. Let us introduce an intermediate molecule in between the emission of
@@ -317,6 +322,7 @@ writer(writerName)
 count(supplyLineSize)
 
 check()
+
 ```
 
 The simulation does not stop... We could replace `visitCriticalSection` and `leaveCriticalSection` with some tracing. What we see is that the `reader` 
@@ -327,85 +333,88 @@ Let us have an exiting reader molecule yield by waiting for more incoming work t
 `waitForUserRequest()` before emitting `reader(name)`:
 ```scala
 go { case readerCount(n) + readerExit(name)  =>
-        readerCount(n - 1)
-        leaveCriticalSection(name) // undefined count
-        waitForUserRequest() // gives a chance to writer to do some work
-        reader(name)
-      }
+  readerCount(n - 1)
+  leaveCriticalSection(name) // undefined count
+  waitForUserRequest() // gives a chance to writer to do some work
+  reader(name)
+}
+
 ```
 
 It now works, so let's assemble the complete solution ignoring unit testing, which can be found in code. Unit test verifies no reader lock acquisition 
 while a writer lock is active and no double locking by any lock prior to releasing.
 
 ```scala
- val supplyLineSize = 25 // make it high enough to try to provoke race conditions, but not so high that sleeps make the test run too slow.
+val supplyLineSize = 25 // make it high enough to try to provoke race conditions, but not so high that sleeps make the test run too slow.
 
-  sealed trait LockEvent {
-    val name: String
-    def toString: String
+sealed trait LockEvent {
+  val name: String
+  def toString: String
+}
+case class LockAcquisition(override val name: String) extends LockEvent {
+  override def toString: String = s"$name enters critical section"
+}
+case class LockRelease(override val name: String) extends LockEvent {
+  override def toString: String = s"$name leaves critical section"
+}
+val logFile = new ConcurrentLinkedQueue[LockEvent]
+
+def useResource(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
+def waitForUserRequest(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
+def visitCriticalSection(name: String): Unit = {
+  logFile.add(LockAcquisition(name))
+  useResource()
+}
+def leaveCriticalSection(name: String): Unit = {
+  logFile.add(LockRelease(name))
+  ()
+}
+
+val count = m[Int]
+val readerCount = m[Int]
+
+val check = b[Unit, Unit] // blocking Unit, only blocking molecule of the example.
+
+val readers = "ABCDEFGH".toCharArray.map(_.toString).toVector // vector of letters as Strings.
+// Making readers a large collection introduces lots of sleeps since we count number of writer locks for simulation and the more readers we have
+// the more total locks and total sleeps simulation will have.
+
+val readerExit = m[String]
+val reader = m[String]
+val writer = m[String]
+
+site(tp)(
+  go { case writer(name) + readerCount(0) + count(n) if n > 0 =>
+    visitCriticalSection(name)
+    writer(name)
+    count(n - 1)
+    readerCount(0)
+    leaveCriticalSection(name)
+  },
+  go { case count(0) + readerCount(0) + check(_, r) => r() }, // readerCount(0) condition ensures we end when all locks are released.
+
+  go { case readerCount(n) + readerExit(name)  =>
+    readerCount(n - 1)
+    leaveCriticalSection(name)
+    waitForUserRequest() // gives a chance to writer to do some work
+    reader(name)
+  },
+  go { case readerCount(n) + reader(name)  =>
+    readerCount(n+1)
+    visitCriticalSection(name)
+    readerExit(name)
   }
-  case class LockAcquisition(override val name: String) extends LockEvent {
-    override def toString: String = s"$name enters critical section"
-  }
-  case class LockRelease(override val name: String) extends LockEvent {
-    override def toString: String = s"$name leaves critical section"
-  }
-  val logFile = new ConcurrentLinkedQueue[LockEvent]
+)
+readerCount(0)
+readers.foreach(n => reader(n))
+val writerName = "exclusive-writer"
+writer(writerName)
+count(supplyLineSize)
 
-  def useResource(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
-  def waitForUserRequest(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
-  def visitCriticalSection(name: String): Unit = {
-    logFile.add(LockAcquisition(name))
-    useResource()
-  }
-  def leaveCriticalSection(name: String): Unit = {
-    logFile.add(LockRelease(name))
-    ()
-  }
+check()
 
-  val count = m[Int]
-  val readerCount = m[Int]
-
-  val check = b[Unit, Unit] // blocking Unit, only blocking molecule of the example.
-
-  val readers = "ABCDEFGH".toCharArray.map(_.toString).toVector // vector of letters as Strings.
-  // Making readers a large collection introduces lots of sleeps since we count number of writer locks for simulation and the more readers we have
-  // the more total locks and total sleeps simulation will have.
-
-  val readerExit = m[String]
-  val reader = m[String]
-  val writer = m[String]
-
-  site(tp)(
-    go { case writer(name) + readerCount(0) + count(n) if n > 0 =>
-      visitCriticalSection(name)
-      writer(name)
-      count(n - 1)
-      readerCount(0)
-      leaveCriticalSection(name)
-    },
-    go { case count(0) + readerCount(0) + check(_, r) => r() }, // readerCount(0) condition ensures we end when all locks are released.
-
-    go { case readerCount(n) + readerExit(name)  =>
-      readerCount(n - 1)
-      leaveCriticalSection(name)
-      waitForUserRequest() // gives a chance to writer to do some work
-      reader(name)
-    },
-    go { case readerCount(n) + reader(name)  =>
-      readerCount(n+1)
-      visitCriticalSection(name)
-      readerExit(name)
-    }
-  )
-  readerCount(0)
-  readers.foreach(n => reader(n))
-  val writerName = "exclusive-writer"
-  writer(writerName)
-  count(supplyLineSize)
-
-  check()
 ```
+
 ## Dining savages
 
 We have a tribe of savages that practises cannibalism. Accordingly, the tribe is assumed to have a large supply of prisoners or victims that will make it 
@@ -431,36 +440,38 @@ In this presentation, we will log distinct events representative of the story in
  
 We can start with the parameters of the problem and a simulation error condition with a pot starting full and savages never eating, instead the amount of 
 victims in the pot decays with time randomly, warming ourselves up to solving the specifics of the problem:
+
 ```scala
-    val maxPerPot = 7
-    // enemies of the tribe put together in a pot or capacity of pot in number of ingredients
-    val batches = 10
-    val supplyLineSize = maxPerPot * batches
-    val check = b[Unit, Unit]
-    val endSimulation = m[Unit]
-    val availableIngredientsInPot = m[Int]
+val maxPerPot = 7
+// enemies of the tribe put together in a pot or capacity of pot in number of ingredients
+val batches = 10
+val supplyLineSize = maxPerPot * batches
+val check = b[Unit, Unit]
+val endSimulation = m[Unit]
+val availableIngredientsInPot = m[Int]
 
-    sealed trait StoryEvent
-    val userStory = new ConcurrentLinkedQueue[StoryEvent]
+sealed trait StoryEvent
+val userStory = new ConcurrentLinkedQueue[StoryEvent]
 
-    def eatSingleServing(batchVictim: Int): Unit = {
-      // userStory.add(VictimIsConsumedFromPot(batchVictim)) the parameter here is just an identifier
-      // from the victims/ingredients in the pot starting with a high number
-      Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
-      availableIngredientsInPot(batchVictim - 1) // one fewer serving.
-    }
+def eatSingleServing(batchVictim: Int): Unit = {
+  // userStory.add(VictimIsConsumedFromPot(batchVictim)) the parameter here is just an identifier
+  // from the victims/ingredients in the pot starting with a high number
+  Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+  availableIngredientsInPot(batchVictim - 1) // one fewer serving.
+}
 
-    site(tp)(
-      go { case endSimulation(_) + check(_, r) => r() },
-      go { case availableIngredientsInPot(n) =>
-        // userStory.add(EndOfSimulation) (adding to concurrentQueue userStory
-        if (n > 0) {
-          eatSingleServing(n)
-        } else endSimulation()
-      }
-    )
-    availableIngredientsInPot(maxPerPot) // this molecule signifies pot is available for savages to eat.
-    check()
+site(tp)(
+  go { case endSimulation(_) + check(_, r) => r() },
+  go { case availableIngredientsInPot(n) =>
+    // userStory.add(EndOfSimulation) (adding to concurrentQueue userStory
+    if (n > 0) {
+      eatSingleServing(n)
+    } else endSimulation()
+  }
+)
+availableIngredientsInPot(maxPerPot) // this molecule signifies pot is available for savages to eat.
+check()
+
 ```
 
 Now, we need to look at a molecule that will understand to run enough cycles of pot filling up and emptying itself. A `Cook` molecule carrying out an 
@@ -469,6 +480,7 @@ which will occur once the cook has enough and the pot is empty, meaning the cook
  at 0, he has had enough (second reaction below), however he will leave the pot full as he found it (the initial condition for `availableIngredientsInPot`)
  . In the third reaction, we start filling the pot with the molecule showing cook is busy adding to the pot for a particular batch 
  `busyCookingIngredientsInPot`.
+ 
 ```scala
 go { case CookHadEnough(_) + availableIngredientsInPot(0) + check(_, r) => r()},
 go { case Cook(0) =>
@@ -480,7 +492,9 @@ go { case Cook(n) + availableIngredientsInPot(0) if n > 0 => // cook gets activa
   busyCookingIngredientsInPot(1) // switch of counting from availableIngredientsInPot to busyCooking indicates we're refilling the pot.
   Cook(n - 1)
 }
+
 ```
+
 We need however to have the cook fill the pot completely and so we need a new reaction to increment the ingredients to the cooking batch size, so a 
 counting reaction for `busyCookingIngredientsInPot`. While counting up the ingredients in the batch, we must continue to count down the number of victims 
 in the simulation. Once the cook finishes his batch and can no longer add any, the cook signifies to savages that they can eat by emitting 
@@ -490,191 +504,197 @@ We can now write
 
 ```scala
 go { case Cook(m) + busyCookingIngredientsInPot(n) if m > 0 =>
-      if (n < maxPerPot) {
-        pauseForIngredient()
-        busyCookingIngredientsInPot(n + 1)
-        Cook(m - 1)
-      } else {
-        availableIngredientsInPot(maxPerPot) // switch of counting from busyCooking to availableIngredientsInPot indicates we're consuming the pot.
-        Cook(m)
-      }
+  if (n < maxPerPot) {
+    pauseForIngredient()
+    busyCookingIngredientsInPot(n + 1)
+    Cook(m - 1)
+  } else {
+    availableIngredientsInPot(maxPerPot) // switch of counting from busyCooking to availableIngredientsInPot indicates we're consuming the pot.
+    Cook(m)
+  }
 }
+
 ```
  
 Running through this, we run into a problem with
  
 ```scala
 go { case availableIngredientsInPot(n) =>
-      if (n > 0) {
-        eatSingleServing(n)
-      } else endSimulation()
+  if (n > 0) {
+    eatSingleServing(n)
+  } else endSimulation()
 }
+
 ```
+
 and need to introduce a `savage` molecule to consume the ingredients
+
 ```scala
 go { case savage(_) + availableIngredientsInPot(n) =>
-      if (n > 0) {
-        eatSingleServing(n)
-        savage()
-      }
+  if (n > 0) {
+    eatSingleServing(n)
+    savage()
+  }
 }
+
 ```
 
 We are now ready to augment the solution with a single savage:
 
 ```scala
-    val maxPerPot = 7
-    // enemies of the tribe put together in a pot or capacity of pot in number of ingredients
-    val batches = 10
-    val supplyLineSize = maxPerPot * batches
-    val check = b[Unit, Unit]
-    val endSimulation = m[Unit]
-    val availableIngredientsInPot = m[Int]
+val maxPerPot = 7
+// enemies of the tribe put together in a pot or capacity of pot in number of ingredients
+val batches = 10
+val supplyLineSize = maxPerPot * batches
+val check = b[Unit, Unit]
+val endSimulation = m[Unit]
+val availableIngredientsInPot = m[Int]
 
-    val Cook = m[Int] // counts ingredients consumed, so after a while decides it's enough.
-    val CookHadEnough = m[Unit]
-    val busyCookingIngredientsInPot = m[Int] // Cook's counter to add ingredients to the pot
-    val savage = m[Unit]
+val Cook = m[Int] // counts ingredients consumed, so after a while decides it's enough.
+val CookHadEnough = m[Unit]
+val busyCookingIngredientsInPot = m[Int] // Cook's counter to add ingredients to the pot
+val savage = m[Unit]
 
-    sealed trait StoryEvent
-    val userStory = new ConcurrentLinkedQueue[StoryEvent]
+sealed trait StoryEvent
+val userStory = new ConcurrentLinkedQueue[StoryEvent]
 
-    def eatSingleServing(batchVictim: Int): Unit = {
-      // userStory.add(VictimIsConsumedFromPot(batchVictim)) the parameter here is just an identifier
-      // from the victims/ingredients in the pot starting with a high number
-      Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
-      availableIngredientsInPot(batchVictim - 1) // one fewer serving.
+def eatSingleServing(batchVictim: Int): Unit = {
+  // userStory.add(VictimIsConsumedFromPot(batchVictim)) the parameter here is just an identifier
+  // from the victims/ingredients in the pot starting with a high number
+  Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+  availableIngredientsInPot(batchVictim - 1) // one fewer serving.
+}
+
+def pauseForIngredient(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+
+site(tp)(
+  go { case Cook(0) =>
+    CookHadEnough()
+    availableIngredientsInPot(maxPerPot)
+  },
+  go { case CookHadEnough(_) + availableIngredientsInPot(0) + check(_, r) => r()},
+  go { case savage(_) + availableIngredientsInPot(n) =>
+    if (n > 0) {
+      eatSingleServing(n)
+      savage()
     }
+  },
+  go { case Cook(n) + availableIngredientsInPot(0) if n > 0 => // cook gets activated once the pot reaches an empty state.
+    pauseForIngredient()
+    busyCookingIngredientsInPot(1) // switch of counting from availableIngredientsInPot to busyCooking indicates we're refilling the pot.
+    Cook(n - 1)
+  },
 
-    def pauseForIngredient(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+  go { case Cook(m) + busyCookingIngredientsInPot(n) if m > 0 =>
+    if (n < maxPerPot) {
+      pauseForIngredient()
+      busyCookingIngredientsInPot(n + 1)
+      Cook(m - 1)
+    } else {
+      availableIngredientsInPot(maxPerPot) // switch of counting from busyCooking to availableIngredientsInPot indicates we're consuming the pot.
+      Cook(m)
+    }
+  }
 
-      site(tp)(
-        go { case Cook(0) =>
-          CookHadEnough()
-          availableIngredientsInPot(maxPerPot)
-        },
-        go { case CookHadEnough(_) + availableIngredientsInPot(0) + check(_, r) => r()},
-        go { case savage(_) + availableIngredientsInPot(n) =>
-          if (n > 0) {
-            eatSingleServing(n)
-            savage()
-          }
-        },
-        go { case Cook(n) + availableIngredientsInPot(0) if n > 0 => // cook gets activated once the pot reaches an empty state.
-          pauseForIngredient()
-          busyCookingIngredientsInPot(1) // switch of counting from availableIngredientsInPot to busyCooking indicates we're refilling the pot.
-          Cook(n - 1)
-        },
+)
+Cook(supplyLineSize)
+availableIngredientsInPot(maxPerPot) // this molecule signifies pot is available for savages to eat.
+savage()
+check()
 
-        go { case Cook(m) + busyCookingIngredientsInPot(n) if m > 0 =>
-          if (n < maxPerPot) {
-            pauseForIngredient()
-            busyCookingIngredientsInPot(n + 1)
-            Cook(m - 1)
-          } else {
-            availableIngredientsInPot(maxPerPot) // switch of counting from busyCooking to availableIngredientsInPot indicates we're consuming the pot.
-            Cook(m)
-          }
-        }
-
-    )
-    Cook(supplyLineSize)
-    availableIngredientsInPot(maxPerPot) // this molecule signifies pot is available for savages to eat.
-    savage()
-    check()
 ```
 
 At this point, we can replace the reaction with `savage` with one reaction per savage participating in the meal, with molecules `Ivan`, `Patrick` and 
 `Anita`. We can also introduce logging to capture events.
 
 ```scala
-   val maxPerPot = 7 // enemies of the tribe put together in a pot or capacity of pot in number of ingredients
-    val batches = 10
-    val supplyLineSize = maxPerPot * batches
-    val check = b[Unit, Unit]
+val maxPerPot = 7 // enemies of the tribe put together in a pot or capacity of pot in number of ingredients
+val batches = 10
+val supplyLineSize = maxPerPot * batches
+val check = b[Unit, Unit]
 
-    sealed trait StoryEvent {
-      def toString: String
-    }
-    case object CookRetires extends StoryEvent {
-      override def toString: String = "cook is done, savages may eat last batch"
-    }
-    case object CookStartsToWork extends StoryEvent {
-      override def toString: String = "cook finds empty pot and gets to work"
-    }
-    case object EndOfSimulation extends StoryEvent {
-      override def toString: String =
-        "ending simulation, no more ingredients available, savages will have to fish or eat berries or raid again"
-    }
-    final case class CookAddsVictim(victimsToBeCooked: Int, batchVictim: Int) extends StoryEvent {
-      override def toString: String =
-        s"""cook finds unfilled pot and gets cracking with $batchVictim-th enemy ingredient"
-        | "for current batch with $victimsToBeCooked victims to be cooked"""
-    }
-    final case class CookCompletedBatch(victimsToBeCooked: Int) extends StoryEvent {
-      override def toString: String =
-        s"cook notices he finished adding all ingredients with $victimsToBeCooked victims to be cooked"
-    }
-    final case class SavageEating(name: String, batchVictim: Int) extends StoryEvent {
-      override def toString: String = s"$name about to eat ingredient # $batchVictim"
-    }
+sealed trait StoryEvent {
+  def toString: String
+}
+case object CookRetires extends StoryEvent {
+  override def toString: String = "cook is done, savages may eat last batch"
+}
+case object CookStartsToWork extends StoryEvent {
+  override def toString: String = "cook finds empty pot and gets to work"
+}
+case object EndOfSimulation extends StoryEvent {
+  override def toString: String =
+    "ending simulation, no more ingredients available, savages will have to fish or eat berries or raid again"
+}
+final case class CookAddsVictim(victimsToBeCooked: Int, batchVictim: Int) extends StoryEvent {
+  override def toString: String =
+    s"""cook finds unfilled pot and gets cracking with $batchVictim-th enemy ingredient"
+    | "for current batch with $victimsToBeCooked victims to be cooked"""
+}
+final case class CookCompletedBatch(victimsToBeCooked: Int) extends StoryEvent {
+  override def toString: String =
+    s"cook notices he finished adding all ingredients with $victimsToBeCooked victims to be cooked"
+}
+final case class SavageEating(name: String, batchVictim: Int) extends StoryEvent {
+  override def toString: String = s"$name about to eat ingredient # $batchVictim"
+}
 
-    val Cook = m[Int] // counts ingredients consumed, so after a while decides it's enough.
-    val CookHadEnough = m[Unit]
-    val busyCookingIngredientsInPot = m[Int]
-    val Ivan = m[Unit]   // a savage (consumer)
-    val Patrick = m[Unit] // a savage
-    val Anita = m[Unit] // a savage
-    val availableIngredientsInPot = m[Int]
+val Cook = m[Int] // counts ingredients consumed, so after a while decides it's enough.
+val CookHadEnough = m[Unit]
+val busyCookingIngredientsInPot = m[Int]
+val Ivan = m[Unit]   // a savage (consumer)
+val Patrick = m[Unit] // a savage
+val Anita = m[Unit] // a savage
+val availableIngredientsInPot = m[Int]
 
-    val userStory = new ConcurrentLinkedQueue[StoryEvent]
+val userStory = new ConcurrentLinkedQueue[StoryEvent]
 
-    def pauseForIngredient(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
-    def eatSingleServing(savage: String, batchVictim: Int): Unit = {
-      userStory.add(SavageEating(savage, batchVictim))
-      Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
-      availableIngredientsInPot(batchVictim - 1) // one fewer serving.
+def pauseForIngredient(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+def eatSingleServing(savage: String, batchVictim: Int): Unit = {
+  userStory.add(SavageEating(savage, batchVictim))
+  Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+  availableIngredientsInPot(batchVictim - 1) // one fewer serving.
+}
+
+site(tp)(
+  go { case Cook(0) =>
+    userStory.add(CookCompletedBatch(0))
+    userStory.add(CookAddsVictim(0, 1))
+    userStory.add(CookRetires)
+    CookHadEnough()
+    availableIngredientsInPot(maxPerPot)
+  },
+  go { case CookHadEnough(_) + availableIngredientsInPot(0) + check(_, r) =>
+    userStory.add(EndOfSimulation)
+    r()
+  },
+  go { case Cook(n) + availableIngredientsInPot(0) if n > 0 => // cook gets activated once the pot reaches an empty state.
+    userStory.add(CookStartsToWork)
+    pauseForIngredient()
+    busyCookingIngredientsInPot(1) // switch of counting from availableIngredientsInPot to busyCooking indicates we're refilling the pot.
+    Cook(n - 1)
+  },
+
+  go { case Cook(m) + busyCookingIngredientsInPot(n) if m > 0 =>
+    userStory.add(CookAddsVictim(m, n))
+    if (n < maxPerPot) {
+      pauseForIngredient()
+      busyCookingIngredientsInPot(n + 1)
+      Cook(m - 1)
+    } else {
+      userStory.add(CookCompletedBatch(m))
+      availableIngredientsInPot(maxPerPot) // switch of counting from busyCooking to availableIngredientsInPot indicates we're consuming the pot.
+      Cook(m)
     }
+  },
+  go { case Ivan(_) + availableIngredientsInPot(n) if n > 0 => eatSingleServing("Ivan", n) + Ivan()  },
+  go { case Patrick(_) + availableIngredientsInPot(n) if n > 0 => eatSingleServing( "Patrick", n) + Patrick()  },
+  go { case Anita(_) + availableIngredientsInPot(n) if n > 0 => eatSingleServing( "Anita", n) + Anita()  }
 
-    site(tp)(
-      go { case Cook(0) =>
-        userStory.add(CookCompletedBatch(0))
-        userStory.add(CookAddsVictim(0, 1))
-        userStory.add(CookRetires)
-        CookHadEnough()
-        availableIngredientsInPot(maxPerPot)
-      },
-      go { case CookHadEnough(_) + availableIngredientsInPot(0) + check(_, r) =>
-        userStory.add(EndOfSimulation)
-        r()
-      },
-      go { case Cook(n) + availableIngredientsInPot(0) if n > 0 => // cook gets activated once the pot reaches an empty state.
-        userStory.add(CookStartsToWork)
-        pauseForIngredient()
-        busyCookingIngredientsInPot(1) // switch of counting from availableIngredientsInPot to busyCooking indicates we're refilling the pot.
-        Cook(n - 1)
-      },
-
-      go { case Cook(m) + busyCookingIngredientsInPot(n) if m > 0 =>
-        userStory.add(CookAddsVictim(m, n))
-        if (n < maxPerPot) {
-          pauseForIngredient()
-          busyCookingIngredientsInPot(n + 1)
-          Cook(m - 1)
-        } else {
-          userStory.add(CookCompletedBatch(m))
-          availableIngredientsInPot(maxPerPot) // switch of counting from busyCooking to availableIngredientsInPot indicates we're consuming the pot.
-          Cook(m)
-        }
-      },
-      go { case Ivan(_) + availableIngredientsInPot(n) if n > 0 => eatSingleServing("Ivan", n) + Ivan()  },
-      go { case Patrick(_) + availableIngredientsInPot(n) if n > 0 => eatSingleServing( "Patrick", n) + Patrick()  },
-      go { case Anita(_) + availableIngredientsInPot(n) if n > 0 => eatSingleServing( "Anita", n) + Anita()  }
-
-    )
-    Patrick() + Ivan() + Anita() + Cook(supplyLineSize) // if running as a daemon, we would not count down for the Cook.
-    availableIngredientsInPot(maxPerPot) // this molecule signifies pot is available for savages to eat.
-    check()
+)
+Patrick() + Ivan() + Anita() + Cook(supplyLineSize) // if running as a daemon, we would not count down for the Cook.
+availableIngredientsInPot(maxPerPot) // this molecule signifies pot is available for savages to eat.
+check()
 
 ```
 
@@ -683,12 +703,15 @@ replace the three molecules for Ivan, Patrick, and Anita of type `m[Unit]` with 
  
 Instead of emitting the three savage molecules at initialization, we emit all savages molecules as `savages.foreach(savage)`. Finally, we generalize the 
 three specific savage reactions into the following one, selecting a random savage to emit (take turn) once the current savage is done eating:
+
 ```scala
-   go { case savage(name) + availableIngredientsInPot(n) if n > 0 =>
-        eatSingleServing(name, n)
-        val randomSavageName = savages(scala.util.Random.nextInt(savages.size))
-        savage(randomSavageName) // emit random savage molecule
-      }
+go { case savage(name) + availableIngredientsInPot(n) if n > 0 =>
+     eatSingleServing(name, n)
+     val randomSavageName = savages(scala.util.Random.nextInt(savages.size))
+     savage(randomSavageName) // emit random savage molecule
+   }
+   
 ```
+
 Full code is available in examples.
 
