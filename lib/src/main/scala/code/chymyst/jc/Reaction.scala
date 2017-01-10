@@ -34,7 +34,15 @@ case object OtherOutputPattern extends OutputPatternType
   *
   */
 sealed trait GuardPresenceType {
-  def knownFalse: Boolean = this match {
+  /** Checks whether the reaction has no cross-molecule guard conditions.
+    * For example, {{{go { case a(x) + b(y) if x > y => } }}} has a cross-molecule guard condition,
+    * whereas {{{go { case a(x) + b(y) if x == 1 && y == 2 => } }}} has no cross-guard conditions because its guard condition
+    * can be split into a conjunction of guard conditions that each constrain the value of a single molecule.
+    *
+    * @return {{{true}}} if the reaction has no guard condition, or if it has guard conditions that can be split between molecules;
+    *        {{{false}}} if the reaction has a cross-molecule guard condition, or if it is unknown whethe rthe reaction has a guard condition at all.
+    */
+  def effectivelyAbsent: Boolean = this match {
     case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => true
     case _ => false
   }
@@ -196,7 +204,7 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[L
   override val toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")}${guardPresence match {
     case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => ""
     case GuardPresent(_, Some(_), List()) => " if(?)"
-    case GuardPresent(_, _, crossGuards) => s" if(${crossGuards.flatMap{_._1}.mkString(",")})"
+    case GuardPresent(_, _, crossGuards) => s" if(${crossGuards.flatMap{_._1}.map(_.name).mkString(",")})"
     case GuardPresenceUnknown => " ?if?"
   }} => ${outputs match {
     case Some(outputMoleculeInfos) => outputMoleculeInfos.map(_.toString).mkString(" + ")
