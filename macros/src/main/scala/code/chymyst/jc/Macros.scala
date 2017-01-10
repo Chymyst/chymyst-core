@@ -345,7 +345,11 @@ object Macros {
         case Bind(t@TermName(name), Ident(termNames.WILDCARD)) =>
           val newIdentOpt = replacingIdents.find( _.name.toTermName.decodedName.toString === name )
           newIdentOpt.map { newIdent =>
-            val newIdentType = newIdent.symbol.info.dealias
+            val newIdentType = newIdent.symbol.typeSignature
+            val paramType = newIdentType
+            pq"$t : $paramType"
+            // TODO: test this separately and debug.
+            /* Type params perhaps needs more work?
             val typeParams = newIdentType.typeArgs
             if (typeParams.isEmpty)
               pq"$t : $newIdentType"
@@ -353,6 +357,7 @@ object Macros {
               val typeApplication = tq"$newIdentType[..$typeParams]"
               pq"$t : $typeApplication"
             }
+            */
           }.getOrElse(tree)
         case _ => super.transform(tree)
       } else tree match {
@@ -601,7 +606,7 @@ object Macros {
           .map(t => replaceVarsInGuardTree(t))
 
         val mergedFlag = flag match {
-          case SimpleVarF(v, binder, _) => mergedGuardOpt.map(guardTree => SimpleVarF(v, replaceVarsInBinder(binder), Some(guardTree))).getOrElse(flag) // a(x) if x>0 is replaced with a(x : check if x>0).
+          case SimpleVarF(v, binder, _) => mergedGuardOpt.map(guardTree => SimpleVarF(v, binder, Some(guardTree))).getOrElse(flag) // a(x) if x>0 is replaced with a(x : check if x>0). Let's not replace vars in binder in this case?
           case OtherPatternF(matcher, _, vars) => mergedGuardOpt.map(guardTree => OtherPatternF(replaceVarsInBinder(matcher), guardTree, vars)).getOrElse(flag) // We can't have a nontrivial guardTree in patternIn, so we replace it here with the new guardTree.
           case _ => flag
         }
