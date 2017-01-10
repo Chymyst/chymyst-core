@@ -404,7 +404,7 @@ We need to implement the logic of receiving these values and computing the final
 This final result must sit on some molecule, say `result`.
 We should keep track of whether we already received both `x` and `y`, or just one of them.
 
-When we receive a `true` value, we are dont.
+When we receive a `true` value, we are done.
 So, we only need to keep track of the number of `false` values received.
 Therefore, let us define `result` with integer value that shows how many intermediate `false` results we already received.
 

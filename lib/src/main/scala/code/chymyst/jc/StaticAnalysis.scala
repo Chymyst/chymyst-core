@@ -30,7 +30,7 @@ private[jc] object StaticAnalysis {
             i => info1.matcherIsWeakerThan(i).getOrElse(false)
 
           input2filtered.find(isWeaker) match {
-            case Some(correspondingMatcher) => allMatchersAreWeakerThan(rest1, input2filtered diff List(correspondingMatcher))
+            case Some(correspondingMatcher) => allMatchersAreWeakerThan(rest1, input2filtered difff List(correspondingMatcher))
             case None => false
           }
       }
@@ -48,7 +48,7 @@ private[jc] object StaticAnalysis {
             i => info.matcherIsWeakerThanOutput(i).getOrElse(false)
 
           output.find(isWeaker) match {
-            case Some(correspondingMatcher) => inputMatchersAreWeakerThanOutput(rest, output diff List(correspondingMatcher))
+            case Some(correspondingMatcher) => inputMatchersAreWeakerThanOutput(rest, output difff List(correspondingMatcher))
             case None => false
           }
       }
@@ -66,7 +66,7 @@ private[jc] object StaticAnalysis {
             i => info.matcherIsSimilarToOutput(i).getOrElse(false)
 
           output.find(isWeaker) match {
-            case Some(correspondingMatcher) => inputMatchersAreSimilarToOutput(rest, output diff List(correspondingMatcher))
+            case Some(correspondingMatcher) => inputMatchersAreSimilarToOutput(rest, output difff List(correspondingMatcher))
             case None => false
           }
       }
@@ -74,8 +74,8 @@ private[jc] object StaticAnalysis {
   }
 
   private def inputMatchersWeakerThanOutput(input: List[InputMoleculeInfo], outputsOpt: Option[List[OutputMoleculeInfo]]) =
-    outputsOpt.exists {
-      outputs => input.forall(patternIsNotUnknown) && inputMatchersAreWeakerThanOutput(input, outputs)
+    input.forall(patternIsNotUnknown) && outputsOpt.exists {
+      outputs => inputMatchersAreWeakerThanOutput(input, outputs)
     }
 
   private def inputMatchersSimilarToOutput(input: List[InputMoleculeInfo], outputsOpt: Option[List[OutputMoleculeInfo]]) =
@@ -86,7 +86,7 @@ private[jc] object StaticAnalysis {
   // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
   private def checkReactionShadowing(reactions: Seq[Reaction]): Option[String] = {
     val suspiciousReactions = for {
-      r1 <- reactions.withFilter(_.info.hasGuard.knownFalse)
+      r1 <- reactions.withFilter(_.info.guardPresence.knownFalse)
       r2 <- reactions.withFilter(_ =!= r1)
       if allMatchersAreWeakerThan(r1.info.inputsSorted, r2.info.inputsSorted)
     } yield (r1, r2)
@@ -102,7 +102,7 @@ private[jc] object StaticAnalysis {
   // There should not be any two reactions whose source code is identical to each other.
   private def findIdenticalReactions(reactions: Seq[Reaction]): Option[String] = {
     val reactionsSha1 = reactions.map(_.info.sha1)
-    val repeatedReactionSha1 = (reactionsSha1 diff reactionsSha1.distinct).distinct
+    val repeatedReactionSha1 = (reactionsSha1 difff reactionsSha1.distinct).distinct
     val repeatedReactions = repeatedReactionSha1.flatMap(sha1 => reactions.find(_.info.sha1 == sha1) )
 
     if (repeatedReactions.nonEmpty) {
@@ -113,7 +113,7 @@ private[jc] object StaticAnalysis {
 
   private def checkSingleReactionLivelock(reactions: Seq[Reaction]): Option[String] = {
     val errorList = reactions
-      .filter { r => r.info.hasGuard.knownFalse && inputMatchersWeakerThanOutput(r.info.inputsSorted, r.info.outputs)}
+      .filter { r => r.info.guardPresence.knownFalse && inputMatchersWeakerThanOutput(r.info.inputsSorted, r.info.outputs)}
       .map(r => s"{${r.info.toString}}")
     if (errorList.nonEmpty)
       Some(s"Unavoidable livelock: reaction${if (errorList.size == 1) "" else "s"} ${errorList.mkString(", ")}")
@@ -286,7 +286,7 @@ private[jc] object StaticAnalysis {
 
 
   private[jc] def findSingletonDeclarationErrors(singletonReactions: Seq[Reaction]): Seq[String] = {
-    val foundErrors = singletonReactions.map(_.info).filterNot(_.hasGuard.knownFalse)
+    val foundErrors = singletonReactions.map(_.info).filterNot(_.guardPresence.knownFalse)
     if (foundErrors.nonEmpty) foundErrors.map { info => s"Singleton reaction {$info} should not have a guard condition" } else Seq()
   }
 

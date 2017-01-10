@@ -32,7 +32,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "compute correct names and classes for molecule emitters" in {
-    val a = m[Option[(Int,Int,Map[String,Boolean])]] // complicated type
+    val a = m[Option[(Int, Int, Map[String, Boolean])]] // complicated type
 
     a.isInstanceOf[M[_]] shouldEqual true
     a.isInstanceOf[E] shouldEqual false
@@ -40,7 +40,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val s = b[Map[(Boolean, Unit), Seq[Int]], Option[List[(Int, Option[Map[Int, String]])]]] // complicated type
 
-    s.isInstanceOf[B[_,_]] shouldEqual true
+    s.isInstanceOf[B[_, _]] shouldEqual true
     s.isInstanceOf[EB[_]] shouldEqual false
     s.isInstanceOf[BE[_]] shouldEqual false
     s.isInstanceOf[EE] shouldEqual false
@@ -69,36 +69,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "macros for inspecting a reaction body"
 
-  it should "fail to compile a reaction with empty singleton clause" in {
-    "val r = go { case _ => }" shouldNot compile
-  }
-
-  it should "fail to compile a reaction that is not defined inline" in {
-    val a = m[Unit]
-    val body: ReactionBody = { case _ => a() }
-    body.isInstanceOf[PartialFunction[UnapplyArg, Any]] shouldEqual true
-
-    "val r = go(body)" shouldNot compile
-  }
-
-  it should "fail to compile a reaction with two case clauses" in {
-    val a = m[Unit]
-    val b = m[Unit]
-
-    a.isInstanceOf[E] shouldEqual true
-    b.isInstanceOf[E] shouldEqual true
-
-    "val r = go { case a(_) =>; case b(_) => }" shouldNot compile
-  }
-
   it should "inspect reaction body with default clause that declares a singleton" in {
     val a = m[Int]
 
     val reaction = go { case _ => a(123) }
 
     reaction.info.inputs shouldEqual Nil
-    reaction.info.hasGuard.knownFalse shouldEqual true
-    reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(123))))
+    reaction.info.guardPresence.knownFalse shouldEqual true
+    reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, SimpleConstOutput(123))))
   }
 
   it should "inspect reaction body containing local molecule emitters" in {
@@ -108,10 +86,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case a(x) =>
         val q = new M[Int]("q")
         val s = new E("s")
-        go { case q(_) + s(()) => }
+        go { case q(_) + s(_) => }
         q(0)
       }
-    reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1))
+    (reaction.info.inputs match {
+      case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`)) => true
+      case _ => false
+
+    }) shouldEqual true
     reaction.info.outputs shouldEqual Some(List())
   }
 
@@ -158,16 +140,15 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val result = go { case a(x) + bb(None) => bb(None) }
 
-    (result.info.inputs match {
+    result.info.inputs should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, SimpleVar, `simpleVarXSha1`),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_), "4B93FCEF4617B49161D3D2F83E34012391D5A883")
-      ) => true
-      case _ => false
-    }) shouldEqual true
+        InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`),
+        InputMoleculeInfo(`bb`, SimpleConst(None), "4B93FCEF4617B49161D3D2F83E34012391D5A883")
+      ) =>
+    }
 
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, OtherOutputPattern)))
-    result.info.hasGuard == GuardAbsent
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, SimpleConstOutput(None))))
+    result.info.guardPresence shouldEqual GuardAbsent
     result.info.sha1 shouldEqual "B1957B893BF4FE420EC790947A0BB62B856BBF33"
   }
 
@@ -179,12 +160,15 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val result = go { case a(x) + qq(_) => qq() }
 
-    result.info.inputs shouldEqual List(
-      InputMoleculeInfo(a, SimpleVar, simpleVarXSha1),
-      InputMoleculeInfo(qq, Wildcard, wildcardSha1)
-    )
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, ConstOutputValue(()))))
-    result.info.hasGuard == GuardAbsent
+    (result.info.inputs match {
+      case List(
+       InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`),
+        InputMoleculeInfo(`qq`, Wildcard, `wildcardSha1`)
+      ) => true
+      case _ => false
+    }) shouldEqual true
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, SimpleConstOutput(()))))
+    result.info.guardPresence shouldEqual AllMatchersAreTrivial
     result.info.sha1 shouldEqual axqq_qqSha1
   }
 
@@ -202,7 +186,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       case _ => false
     }) shouldEqual true
     result.info.outputs shouldEqual None
-    result.info.hasGuard == GuardPresenceUnknown
+    result.info.guardPresence shouldEqual GuardPresenceUnknown
     result.info.sha1 should not equal axqq_qqSha1
   }
 
@@ -222,13 +206,16 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         qqq("")
     }
 
-    result.info.inputs shouldEqual List(
-      InputMoleculeInfo(a, Wildcard, wildcardSha1),
-      InputMoleculeInfo(a, SimpleVar, simpleVarXSha1),
-      InputMoleculeInfo(a, SimpleConst(1), constantOneSha1)
-    )
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qqq, ConstOutputValue(""))))
-    result.info.hasGuard == GuardAbsent
+    (result.info.inputs match {
+      case List(
+      InputMoleculeInfo(`a`, Wildcard, `wildcardSha1`),
+      InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`),
+      InputMoleculeInfo(`a`, SimpleConst(1), `constantOneSha1`)
+      ) => true
+      case _ => false
+    }) shouldEqual true
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qqq, SimpleConstOutput(""))))
+    result.info.guardPresence shouldEqual GuardAbsent
   }
 
   it should "inspect reaction body with embedded reaction" in {
@@ -237,9 +224,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val result = go { case a(x) => go { case qq(_) => a(0) }; qq() }
 
-    result.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1))
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, ConstOutputValue(()))))
-    result.info.hasGuard == GuardAbsent
+    (result.info.inputs match {
+      case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`)) => true
+      case _ => false
+    }) shouldEqual true
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, SimpleConstOutput(()))))
+    result.info.guardPresence shouldEqual AllMatchersAreTrivial
   }
 
   it should "inspect a very complicated reaction input pattern" in {
@@ -249,44 +239,27 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val s = b[Unit, Int]
     val bb = m[(Int, Option[Int])]
 
-    // reaction contains all kinds of pattern-matching constructions, blocking molecule in a guard, and unit values in molecules
+    // reaction contains all kinds of pattern-matching constructions
     val result = go {
-    // This generates a compiler warning "class M expects 2 patterns to hold (Int, Option[Int]) but crushing into 2-tuple to fit single pattern (SI-6675)".
-    // Ignore this warning - this case is what we are testing right now, among other cases, so we cannot remove this warning.
-      case a(p) + a(y) + a(1) + c(()) + c(_) + bb(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) if y > 0 => s(); a(p + 1); qq(); r(p)
+      case a(p) + a(y) + a(1) + c(()) + c(_) + bb( (0, None) ) + bb( (1, Some(2)) ) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) => s(); a(p + 1) + qq() + r(p)
     }
 
-    (result.info.inputs match {
+    result.info.inputs should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, SimpleVar, _),
-      InputMoleculeInfo(`a`, SimpleVar, _),
+      InputMoleculeInfo(`a`, SimpleVar('p, _), _),
+      InputMoleculeInfo(`a`, SimpleVar('y, _), _),
       InputMoleculeInfo(`a`, SimpleConst(1), _),
       InputMoleculeInfo(`c`, SimpleConst(()), _),
       InputMoleculeInfo(`c`, Wildcard, _),
-      InputMoleculeInfo(`bb`, Wildcard, _),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_), _),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_), _),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_), _),
+      InputMoleculeInfo(`bb`, SimpleConst((0, None)), _),
+      InputMoleculeInfo(`bb`, SimpleConst((1, Some(2))), _),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_, List('z)), _),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_, List()), _),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_, List('t, 'q)), _),
       InputMoleculeInfo(`s`, Wildcard, _)
-      ) => true
-      case _ => false
-    }) shouldEqual true
-
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(s, ConstOutputValue(())), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qq, ConstOutputValue(()))))
-    result.info.hasGuard shouldEqual GuardPresent
-  }
-
-  it should "inspect reaction body with two cases" in {
-    val a = m[Int]
-    val qq = m[Unit]
-
-    a.isInstanceOf[M[Int]] shouldEqual true
-    qq.isInstanceOf[E] shouldEqual true
-
-    """val result = go {
-      case a(x) => qq()
-      case qq(_) + a(y) => qq()
-    }""" shouldNot compile
+      ) =>
+    }
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(s, SimpleConstOutput(())), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qq, SimpleConstOutput(()))))
 
   }
 
@@ -385,7 +358,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
-  it should "determine input patterns correctly" in {
+  it should "determine constant input and output patterns correctly" in {
     val a = new M[Option[Int]]("a")
     val b = new M[String]("b")
     val c = new M[(Int, Int)]("c")
@@ -393,89 +366,19 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val r = go { case a(Some(1)) + b("xyz") + d(()) + c((2, 3)) => a(Some(2)) }
 
-    (r.info.inputs match {
+    r.info.inputs should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, OtherInputPattern(_), _),
+      InputMoleculeInfo(`a`, SimpleConst(Some(1)), _),
       InputMoleculeInfo(`b`, SimpleConst("xyz"), _),
       InputMoleculeInfo(`d`, SimpleConst(()), _),
-      InputMoleculeInfo(`c`, OtherInputPattern(_), _)
-      ) => true
-      case _ => false
-    }) shouldEqual true
-    r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern)))
-    r.info.hasGuard shouldEqual GuardAbsent
+      InputMoleculeInfo(`c`, SimpleConst((2,3)), _)
+      ) =>
+    }
+    r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, SimpleConstOutput(Some(2)))))
+    r.info.guardPresence shouldEqual GuardAbsent
 
-    // Note: Scala 2.11 and Scala 2.12 have different desugared syntax trees for this reaction.
+    // Note: Scala 2.11 and Scala 2.12 might have different desugared syntax trees for this reaction?
     r.info.sha1 shouldEqual "9C93A6DE5D096D3CDC3C318E0A07B30B732EA37A"
-  }
-
-  it should "fail to compile reactions with detectable compile-time errors" in {
-    val a = b[Unit, Unit]
-    val c = b[Unit, Unit]
-    val e = m[Unit]
-
-
-    a.isInstanceOf[B[Unit,Unit]] shouldEqual true
-    c.isInstanceOf[B[Unit,Unit]] shouldEqual true
-    e.isInstanceOf[M[Unit]] shouldEqual true
-
-    // Note: these tests will produce several warnings "expects 2 patterns to hold but crushing into 2-tuple to fit single pattern".
-    // However, it is precisely this crushing that we are testing here, that actually should not compile with our `go` macro.
-    // So, these warnings cannot be removed here and should be ignored.
-    "val r = go { case e() => }" shouldNot compile // no pattern variable in a non-blocking molecule "e"
-    "val r = go { case e(_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
-    "val r = go { case e(_,_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
-
-    "val r = go { case a() => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = go { case a(_) => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = go { case a(_, _) => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = go { case a(_, _, _) => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = go { case a(_, r) => }" shouldNot compile // no reply is performed with r
-    "val r = go { case a(_, r) + a(_) + c(_) => r()  }" shouldNot compile // invalid patterns for "a" and "c"
-    "val r = go { case a(_, r) + a(_) + c(_) => r(); r() }" shouldNot compile // two replies are performed with r, and invalid patterns for "a" and "c"
-
-    "val r = go { case e(_) if false => c() }" should compile // input guard does not emit molecules
-    "val r = go { case e(_) if c() => }" shouldNot compile // input guard emits molecules
-    "val r = go { case a(_,r) if r() => }" shouldNot compile // input guard performs reply actions
-
-    "val r = go { case e(_) => { case e(_) => } }" shouldNot compile // reaction body matches on input molecules
-  }
-
-  it should "fail to compile reactions with no input molecules" in {
-    val bb = m[Int]
-    val bbb = m[Int]
-
-    bb.isInstanceOf[M[Int]] shouldEqual true
-    bbb.isInstanceOf[M[Int]] shouldEqual true
-
-    "val r = go { case _ => bb(0) }" should compile // declaration of a singleton
-    "val r = go { case x => bb(x.asInstanceOf[Int]) }" shouldNot compile // no input molecules
-    "val r = go { case x => x }" shouldNot compile // no input molecules
-  }
-
-  it should "fail to compile reactions with unconditional livelock" in {
-    val a = m[(Int, Int)]
-    val bb = m[Int]
-    val bbb = m[Int]
-
-    a.isInstanceOf[M[(Int,Int)]] shouldEqual true
-    bb.isInstanceOf[M[Int]] shouldEqual true
-    bbb.isInstanceOf[M[Int]] shouldEqual true
-
-    "val r = go { case a((x,y)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
-    "val r = go { case a((_,x)) => a((x,x)) }" should compile // cannot detect unconditional livelock here
-    "val r = go { case a((1,_)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
-
-    "val r = go { case bb(x) => bb(1) }" shouldNot compile // unconditional livelock
-    "val r = go { case bb(x) if x > 0 => bb(1) }" should compile // no unconditional livelock due to guard
-
-    "val r = go { case a(_) => a((1,1)) }" shouldNot compile // unconditional livelock
-
-    "val r = go { case bbb(1) => bbb(2) }" should compile // no unconditional livelock
-
-    "val r = go { case bbb(_) => bbb(0) }" shouldNot compile // unconditional livelock
-    "val r = go { case bbb(x) => bbb(x) + bb(x) }" shouldNot compile
-    "val r = go { case bbb(x) + bb(y) => bbb(x) + bb(x) + bb(y) }" shouldNot compile
   }
 
   it should "detect output molecules with constant values" in {
@@ -488,14 +391,25 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val r3 = go { case bbb(x) + bb(_) + bb(_) => bbb(1) + bb(x) + bbb(2) + cc(None) + cc(Some(1)) }
 
     r1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, OtherOutputPattern)))
-    r2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bbb, ConstOutputValue(0))))
+    r2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bbb, SimpleConstOutput(0))))
     r3.info.outputs shouldEqual Some(List(
-      OutputMoleculeInfo(bbb, ConstOutputValue(1)),
+      OutputMoleculeInfo(bbb, SimpleConstOutput(1)),
       OutputMoleculeInfo(bb, OtherOutputPattern),
-      OutputMoleculeInfo(bbb, ConstOutputValue(2)),
-      OutputMoleculeInfo(cc, OtherOutputPattern),
-      OutputMoleculeInfo(cc, OtherOutputPattern)
-    ))
+      OutputMoleculeInfo(bbb, SimpleConstOutput(2)),
+      OutputMoleculeInfo(cc, SimpleConstOutput(None)),
+      OutputMoleculeInfo(cc, SimpleConstOutput(Some(1)))
+    )
+    )
+  }
+
+  it should "compute input pattern variables correctly" in {
+    val a = m[Int]
+    val bb = m[(Int, Int, Option[Int], (Int, Option[Int]))]
+
+    val result = go { case a(1|2) + bb(p@(ytt, 1, None, (s, Some(t)))) => }
+    result.info.inputs should matchPattern {
+      case List(InputMoleculeInfo(`a`, OtherInputPattern(_, List()), _), InputMoleculeInfo(`bb`, OtherInputPattern(_, List('p, 'ytt, 's, 't)), _)) =>
+    }
   }
 
   it should "create partial functions for matching from reaction body" in {
@@ -506,34 +420,21 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(aa, OtherOutputPattern)))
 
-    val pat_aa = result.info.inputs(0)
+    val pat_aa = result.info.inputs.head
     pat_aa.molecule shouldEqual aa
     val pat_bb = result.info.inputs(1)
     pat_bb.molecule shouldEqual bb
 
     (pat_aa.flag match {
-      case OtherInputPattern(matcher) =>
+      case OtherInputPattern(matcher, vars) =>
         matcher.isDefinedAt(Some(1)) shouldEqual true
         matcher.isDefinedAt(None) shouldEqual false
+        vars shouldEqual List('x)
         true
       case _ => false
     }) shouldEqual true
 
-    // Scala 2.11 vs. Scala 2.12
-    (Set("9247828A8E7754B2D961E955541CF1D4D77E2D1E", "A67750BF5B6338391B0034D3A99694889CBB26A3") contains pat_aa.sha1) shouldEqual true
-
-    (pat_bb.flag match {
-      case OtherInputPattern(matcher) =>
-        matcher.isDefinedAt((0, None)) shouldEqual true
-        matcher.isDefinedAt((1, None)) shouldEqual false
-        matcher.isDefinedAt((0, Some(1))) shouldEqual false
-        matcher.isDefinedAt((1, Some(1))) shouldEqual false
-        true
-      case _ => false
-    }) shouldEqual true
-
-    (Set("2FB215E623E8AF28E9EA279CBEA827A1065CA226", "A67750BF5B6338391B0034D3A99694889CBB26A3") contains pat_bb.sha1) shouldEqual true
-
+    pat_bb.flag shouldEqual SimpleConst( (0, None) )
   }
 
   behavior of "output value computation"
@@ -544,7 +445,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       site(
         go { case a(1) => a(1) }
       )
-      a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)))))
+      a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, SimpleConstOutput(1)))))
     }
     thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction {a(1) => a(1)}"
   }
@@ -560,9 +461,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
           a(2)
       }
     )
-    a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(2)))))
+    a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, SimpleConstOutput(2)))))
     a.consumingReactions.get.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, SimpleConst(1), constantOneSha1)))
-    a.emittingReactions.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, ConstOutputValue(2)))))
+    a.emittingReactions.map(_.info.outputs) shouldEqual Set(Some(List(OutputMoleculeInfo(a, SimpleConstOutput(2)))))
     a.emittingReactions.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, SimpleConst(1), constantOneSha1)))
   }
 
@@ -589,9 +490,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case a(2) => b(2) + a(1) + b(1) }
     )
     a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(Some(List(
-      OutputMoleculeInfo(b, ConstOutputValue(2)),
-      OutputMoleculeInfo(a, ConstOutputValue(1)),
-      OutputMoleculeInfo(b, ConstOutputValue(1))
+      OutputMoleculeInfo(b, SimpleConstOutput(2)),
+      OutputMoleculeInfo(a, SimpleConstOutput(1)),
+      OutputMoleculeInfo(b, SimpleConstOutput(1))
     )))
   }
 
@@ -601,7 +502,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val d = m[Boolean]
 
     site(
-      go { case a(x) + d(_) => c({ a(1); 2} ) }
+      go { case a(x) + d(_) => c({
+        a(1); 2
+      })
+      }
     )
 
     a.isBound shouldEqual true
@@ -612,8 +516,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     c.emittingReactions.head shouldEqual reaction
     a.emittingReactions.head shouldEqual reaction
 
-    reaction.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1), InputMoleculeInfo(d, Wildcard, wildcardSha1))
-    reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
+    (reaction.info.inputs match {
+      case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`), InputMoleculeInfo(`d`, Wildcard, `wildcardSha1`)) => true
+      case _ => false
+    }) shouldEqual true
+    reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, SimpleConstOutput(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
   }
 
   it should "correctly recognize nested emissions of blocking molecules and reply values" in {
@@ -638,9 +545,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     d.emittingReactions.head shouldEqual reaction2
 
     reaction1.info.inputs shouldEqual List(InputMoleculeInfo(d, Wildcard, wildcardSha1))
-    reaction1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, ConstOutputValue(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
+    reaction1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, SimpleConstOutput(1)), OutputMoleculeInfo(c, OtherOutputPattern)))
 
-    reaction2.info.inputs shouldEqual List(InputMoleculeInfo(a, SimpleVar, simpleVarXSha1))
+    (reaction2.info.inputs match {
+      case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`)) => true
+      case _ => false
+    }) shouldEqual true
     reaction2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(d, OtherOutputPattern)))
   }
 
@@ -669,38 +579,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       val z = getName
       (z, getName)
     }
-    y shouldEqual(("z", "y"))
+    y shouldEqual (("z", "y"))
 
-    val (y1,y2) = {
+    val (y1, y2) = {
       val z = getName
       (z, getName)
     }
-    (y1, y2) shouldEqual(("z", "x$8"))
-  }
-
-  it should "find correct syntax tree for a reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new M[String]("b")
-    val c = new M[(Int, Int)]("c")
-    val d = new E("d")
-
-    a.name shouldEqual "a"
-    b.isInstanceOf[M[String]] shouldEqual true
-    b.name shouldEqual "b"
-    c.name shouldEqual "c"
-    d.name shouldEqual "d"
-
-    val bodyRawTree = rawTree({ case a(Some(1)) + b("xyz") + d(()) + c((2, 3)) => a(Some(2)) } : ReactionBody)
-    val bodyRawTreeString = Macros.replaceScala211Quirk(bodyRawTree.toString)
-
-    // Note: Scala 2.11 and Scala 2.12 have different desugared syntax trees for this reaction.
-    // The only difference is AppliedTypeTree(Select(This(TypeName("scala")), scala.Function1), ...) vs AppliedTypeTree(Select(Ident(scala), scala.Function1), ...)
-    val treeScala211 = """Typed(Typed(Block(List(ClassDef(Modifiers(FINAL | SYNTHETIC), TypeName("$anonfun"), List(), Template(List(TypeTree(), TypeTree()), noSelfType, List(DefDef(Modifiers(), termNames.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(Apply(Select(Super(This(TypeName("$anonfun")), typeNames.EMPTY), termNames.CONSTRUCTOR), List())), Literal(Constant(())))), DefDef(Modifiers(OVERRIDE | FINAL | METHOD), TermName("applyOrElse"), List(TypeDef(Modifiers(DEFERRED | PARAM), TypeName("A1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree()))), TypeDef(Modifiers(DEFERRED | PARAM), TypeName("B1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree())))), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x88"), TypeTree().setOriginal(Ident(TypeName("A1"))), EmptyTree), ValDef(Modifiers(PARAM | SYNTHETIC), TermName("default"), TypeTree().setOriginal(AppliedTypeTree(Select(This(TypeName("scala")), scala.Function1), List(TypeTree().setOriginal(Ident(TypeName("A1"))), TypeTree().setOriginal(Ident(TypeName("B1")))))), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))))), UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant("xyz")))))), UnApply(Apply(Select(Ident(TermName("d")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant(())))))), UnApply(Apply(Select(Ident(TermName("c")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Tuple2)), List(Literal(Constant(2)), Literal(Constant(3)))))))), EmptyTree, Apply(Select(Ident(TermName("a")), TermName("apply")), List(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName("apply")), List(TypeTree())), List(Literal(Constant(2))))))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Apply(Select(Ident(TermName("default")), TermName("apply")), List(Ident(TermName("x88")))))))), DefDef(Modifiers(FINAL | METHOD), TermName("isDefinedAt"), List(), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x88"), TypeTree(), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))))), UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant("xyz")))))), UnApply(Apply(Select(Ident(TermName("d")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant(())))))), UnApply(Apply(Select(Ident(TermName("c")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Tuple2)), List(Literal(Constant(2)), Literal(Constant(3)))))))), EmptyTree, Literal(Constant(true))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Literal(Constant(false)))))))))), Apply(Select(New(Ident(TypeName("$anonfun"))), termNames.CONSTRUCTOR), List())), TypeTree()), TypeTree().setOriginal(Select(Ident(code.chymyst.jc.Core), TypeName("ReactionBody"))))"""
-    val treeScala212 = """Typed(Typed(Block(List(ClassDef(Modifiers(FINAL | SYNTHETIC), TypeName("$anonfun"), List(), Template(List(TypeTree(), TypeTree()), noSelfType, List(DefDef(Modifiers(), termNames.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(Apply(Select(Super(This(TypeName("$anonfun")), typeNames.EMPTY), termNames.CONSTRUCTOR), List())), Literal(Constant(())))), DefDef(Modifiers(OVERRIDE | FINAL | METHOD), TermName("applyOrElse"), List(TypeDef(Modifiers(DEFERRED | PARAM), TypeName("A1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree()))), TypeDef(Modifiers(DEFERRED | PARAM), TypeName("B1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree())))), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x88"), TypeTree().setOriginal(Ident(TypeName("A1"))), EmptyTree), ValDef(Modifiers(PARAM | SYNTHETIC), TermName("default"), TypeTree().setOriginal(AppliedTypeTree(Select(Ident(scala), scala.Function1), List(TypeTree().setOriginal(Ident(TypeName("A1"))), TypeTree().setOriginal(Ident(TypeName("B1")))))), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))))), UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant("xyz")))))), UnApply(Apply(Select(Ident(TermName("d")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant(())))))), UnApply(Apply(Select(Ident(TermName("c")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Tuple2)), List(Literal(Constant(2)), Literal(Constant(3)))))))), EmptyTree, Apply(Select(Ident(TermName("a")), TermName("apply")), List(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName("apply")), List(TypeTree())), List(Literal(Constant(2))))))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Apply(Select(Ident(TermName("default")), TermName("apply")), List(Ident(TermName("x88")))))))), DefDef(Modifiers(FINAL | METHOD), TermName("isDefinedAt"), List(), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x88"), TypeTree(), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x88")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))))), UnApply(Apply(Select(Ident(TermName("b")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant("xyz")))))), UnApply(Apply(Select(Ident(TermName("d")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Literal(Constant(())))))), UnApply(Apply(Select(Ident(TermName("c")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Tuple2)), List(Literal(Constant(2)), Literal(Constant(3)))))))), EmptyTree, Literal(Constant(true))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Literal(Constant(false)))))))))), Apply(Select(New(Ident(TypeName("$anonfun"))), termNames.CONSTRUCTOR), List())), TypeTree()), TypeTree().setOriginal(Select(Ident(code.chymyst.jc.Core), TypeName("ReactionBody"))))"""
-
-    Set(treeScala211, treeScala212) should contain oneElementOf List(bodyRawTree.toString)
-    treeScala212 shouldEqual bodyRawTreeString
+    (y1, y2) shouldEqual (("z", "x$8"))
   }
 
 }
-

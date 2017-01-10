@@ -74,21 +74,26 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val a = new E("a")
     val b = new E("b")
     val c = new E("c")
+    val d = new E("d")
     val f = new EE("f")
+    val g = new EE("g")
 
     site(tp0)(
+      _go { case g(_, r) + d(_) => r() },
       _go { case a(_) + b(_) + c(_) + f(_, r) => r() }
     )
-    a.logSoup shouldEqual "Site{a + b + c + f/B => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c + f/B => ...; d + g/B => ...}\nNo molecules"
 
     a()
     a()
     b()
-    Thread.sleep(400)
-    a.logSoup shouldEqual "Site{a + b + c + f/B => ...}\nMolecules: a() * 2, b()"
+    Thread.sleep(100)
+    d()
+    g()
+    a.logSoup shouldEqual "Site{a + b + c + f/B => ...; d + g/B => ...}\nMolecules: a() * 2, b()"
     c()
     f()
-    a.logSoup shouldEqual "Site{a + b + c + f/B => ...}\nMolecules: a()"
+    a.logSoup shouldEqual "Site{a + b + c + f/B => ...; d + g/B => ...}\nMolecules: a()"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at end of reaction" in {
