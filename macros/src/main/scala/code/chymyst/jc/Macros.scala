@@ -515,16 +515,22 @@ object Macros {
     val (bodyIn, bodyOut, bodyReply) = moleculeInfoMaker.from(body) // bodyIn should be empty
     maybeError("reaction body", "matches on additional input molecules", bodyIn.map(_._1))
 
-    val isGuardAbsent = guard match {
-      case EmptyTree => true;
-      case _ => false
+    val guardCNF: List[List[Tree]] = convertToCNF(guard) // Conjunctive normal form of the guard condition. In this CNF, `true` is List() and `false` is List(List()).
+
+    // If any of the CNF clauses is empty, the entire guard is identically `false`. This is an error condition: reactions should not be permanently prohibited.
+    if (guardCNF.exists(_.isEmpty)) {
+      c.error(c.enclosingPosition, "Reaction should not have an identically false guard condition")
     }
 
-//    val guardComponents = splitAtConjunctions(guard)
-    val guardCNF = convertToCNF(guard)
+    // If the CNF is empty, the entire guard is identically `true`. We can remove it altogether.
+    val isGuardAbsent = guardCNF.isEmpty || (guard match {
+      case EmptyTree => true;
+      case _ => false
+    })
+
     val guardVarsSeq: List[(Tree, List[Ident])] = guardCNF.map {
       guardDisjunctions =>
-        val mergedDisjunction = guardDisjunctions.reduceOption((g1, g2) => q"$g1 || $g2").getOrElse(q"true")
+        val mergedDisjunction = guardDisjunctions.reduceOption((g1, g2) => q"$g1 || $g2").getOrElse(q"false")
         (mergedDisjunction, GuardVars.fromFlags(mergedDisjunction, patternIn.map(_._2)))
     }
 
