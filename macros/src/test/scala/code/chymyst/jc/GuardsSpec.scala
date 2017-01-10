@@ -138,9 +138,10 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(x if ?) + a(y if ?) => "
   }
 
-  it should "correctly handle a guard condition with nontrivial matcher" in {
+  it should "correctly handle a guard condition with nontrivial unapply matcher" in {
     val a = m[(Int, Int, Int)]
 
+    // TODO: remove `: Int` type annotations
     val result = go { case a((x: Int, y: Int, z: Int)) if x > y => }
 
     result.info.guardPresence shouldEqual GuardPresent(List(List('x, 'y)), None, List())
@@ -155,7 +156,8 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val n = 10
 
-    val result = go { case a(x: Int) + a(y: Int) if x > n + y => }
+    // TODO: remove `: Int` type annotations
+    val result = go { case a(x) + a(y: Int) if x > n + y => }
 
     (result.info.guardPresence match {
       case GuardPresent(List(List('x, 'y)), None, List((List('x, 'y), guard_x_y))) =>
@@ -175,6 +177,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val k = 5
     val n = 10
 
+    // TODO: remove `: Int` type annotations
     val result = go {
       case a(p: Int) + a(y: Int) + a(1) + bb((1, z)) + bb((t: Int, Some(qwerty))) + f(_, r) if y > 0 && n == 10 && qwerty == n && t > p && k < n => r()
     }
@@ -190,6 +193,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val a = m[Int]
     val bb = m[(Int, Option[Int])]
 
+    // TODO: remove `: Int` type annotations
     val result = go {
       case a(p: Int) + a(y: Int) + a(1) + bb((1, z)) + bb((t: Int, Some(q: Int))) if p == 3 && ((t == q && y > 0) && q > 0) && (t == p && y == q) =>
     }
