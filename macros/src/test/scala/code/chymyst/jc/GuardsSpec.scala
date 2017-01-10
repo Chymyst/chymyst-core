@@ -141,12 +141,11 @@ class GuardsSpec extends FlatSpec with Matchers {
   it should "correctly handle a guard condition with nontrivial unapply matcher" in {
     val a = m[(Int, Int, Int)]
 
-    // TODO: remove `: Int` type annotations
+    // TODO: remove `: Int` type annotations from compound types.
     val result = go { case a((x: Int, y: Int, z: Int)) if x > y => }
 
     result.info.guardPresence shouldEqual GuardPresent(List(List('x, 'y)), None, List())
     result.info.toString should fullyMatch regex "a\\(<[A-F0-9]{4}\\.\\.\\.>\\) => "
-
   }
 
   behavior of "cross-molecule guards"
