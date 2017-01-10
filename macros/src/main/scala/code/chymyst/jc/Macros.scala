@@ -238,11 +238,10 @@ object Macros {
       * @return {{{Some(tree)}}} if the expression represents a constant of the recognized form. Here {{{tree}}} will be a quoted expression tree (not a binder tree). {{{None}}} otherwise.
       */
 
-    def getConstantTree(exprTree: Trees#Tree): Option[Trees#Tree] =
-    exprTree match {
+    def getConstantTree(exprTree: Trees#Tree): Option[Trees#Tree] = exprTree match {
       case Literal(_) => Some(exprTree)
       case pq"scala.None" | q"scala.None" => Some(q"None")
-      case q"Some(..$xs)" if xs.size ===1 =>
+      case q"scala.Some.apply[..$ts](..$xs)" if ts.size === 1 && xs.size === 1 =>
         xs.headOption
           .flatMap(getConstantTree)
           .map(t => q"Some(${t.asInstanceOf[Tree]})")

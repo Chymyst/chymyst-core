@@ -282,7 +282,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       // When static analysis fails to produce an error, it might give this warning. If this test fails due to no exception thrown, we know that this warning was produced.
       warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(<9247...>) => a(?)}"), List(), "Site{a => ...}")
     }
-    thrown.getMessage shouldEqual "In Site{a + b => ...}: Unavoidable livelock: reaction {a(1) + b(x if ?) => b(1) + b(2) + a(1)}"
+    thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction {a(<9247...>) => a(Some(2))}"
   }
 
   it should "give a livelock warning in a single reaction due to constant output values" in {
