@@ -41,6 +41,23 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(xOpt if ?) + bb(y if ?) => "
   }
 
+  it should "use parameterized types and tuple in simple guard condition" in {
+    val a = m[Option[Int]]
+    val bb = m[(List[Int], Option[String])]
+
+    val result = go { case a(Some(x)) + bb((list, Some(y))) if x == 1 && list.isEmpty && y == "abc" => }
+    result.info.guardPresence.effectivelyAbsent shouldEqual true
+    result.info.guardPresence should matchPattern { case GuardPresent(List(List('x), List('list), List('y)), None, List()) => }
+
+    result.info.inputs should matchPattern {
+      case List(
+      InputMoleculeInfo(`a`, OtherInputPattern(_, List('x)), _),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_, List('list, 'y)), _)
+      ) =>
+    }
+    result.info.toString shouldEqual "a(<9247...>) + bb(<8E8D...>) => "
+  }
+
   it should "use parameterized types in cross-guard condition" in {
     val a = m[Option[Int]]
     val bb = m[(Int,Option[String])]
@@ -56,6 +73,23 @@ class GuardsSpec extends FlatSpec with Matchers {
       ) =>
     }
     result.info.toString shouldEqual "a(xOpt) + bb(y) if(xOpt,y) => "
+  }
+
+  it should "use parameterized types and tuple in cross-guard condition" in {
+    val a = m[Option[Int]]
+    val bb = m[(List[Int], Option[String])]
+
+    val result = go { case a(Some(x)) + bb((list, Some(y))) if x == 1 || list.isEmpty || y == "abc" => }
+    result.info.guardPresence.effectivelyAbsent shouldEqual false
+    result.info.guardPresence should matchPattern { case GuardPresent(List(List('x, 'list, 'y)), None, List((List('x, 'list, 'y), _))) => }
+
+    result.info.inputs should matchPattern {
+      case List(
+      InputMoleculeInfo(`a`, OtherInputPattern(_, List('x)), _),
+      InputMoleculeInfo(`bb`, OtherInputPattern(_, List('list, 'y)), _)
+      ) =>
+    }
+    result.info.toString shouldEqual "a(<9247...>) + bb(<8E8D...>) if(x,list,y) => "
   }
 
   it should "correctly recognize an indentically false guard condition" in {
@@ -213,6 +247,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case _ => false
     }) shouldEqual true
 
+    result.info.toString shouldEqual "a(x) + a(y) if(x,y) => "
   }
 
   it should "handle a guard condition with cross dependency that cannot be eliminated by Boolean transformations" in {
@@ -230,6 +265,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case _ => false
     }) shouldEqual true
 
+    result.info.toString shouldEqual "a(x) + a(y) if(x,y) => "
   }
 
   it should "correctly split a guard condition when some clauses contain no pattern variables" in {
@@ -249,6 +285,8 @@ class GuardsSpec extends FlatSpec with Matchers {
         true
       case _ => false
     }) shouldEqual true
+
+    result.info.toString shouldEqual "a(1) + a(y if ?) + a(p) + bb(<1EA7...>) + bb(<2784...>) + f/B(_) if(t,p) => "
   }
 
   it should "correctly flatten a guard condition with complicated nested clauses" in {
@@ -261,6 +299,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.guardPresence should matchPattern {
       case GuardPresent(List(List('p), List('t, 'q), List('y), List('q), List('t, 'p), List('y, 'q)), None, List((List('t, 'p), guard_t_p), (List('y, 'q), guard_y_q))) =>
     }
+    result.info.toString shouldEqual "a(1) + a(p if ?) + a(y if ?) + bb(<1EA7...>) + bb(<577C...>) if(t,p,y,q) => "
   }
 
 }
