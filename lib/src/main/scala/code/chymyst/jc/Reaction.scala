@@ -34,7 +34,15 @@ case object OtherOutputPattern extends OutputPatternType
   *
   */
 sealed trait GuardPresenceType {
-  def knownFalse: Boolean = this match {
+  /** Checks whether the reaction has no cross-molecule guard conditions.
+    * For example, {{{go { case a(x) + b(y) if x > y => } }}} has a cross-molecule guard condition,
+    * whereas {{{go { case a(x) + b(y) if x == 1 && y == 2 => } }}} has no cross-guard conditions because its guard condition
+    * can be split into a conjunction of guard conditions that each constrain the value of a single molecule.
+    *
+    * @return {{{true}}} if the reaction has no guard condition, or if it has guard conditions that can be split between molecules;
+    *        {{{false}}} if the reaction has a cross-molecule guard condition, or if it is unknown whethe rthe reaction has a guard condition at all.
+    */
+  def effectivelyAbsent: Boolean = this match {
     case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => true
     case _ => false
   }
@@ -94,7 +102,7 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
         case _ => Some(false) // Here we can reliably determine that this matcher is not weaker.
       }
       case SimpleConst(c) => Some(info.flag match {
-        case SimpleConst(`c`) => true
+        case SimpleConst(c1) => c == c1
         case _ => false
       })
       case _ => Some(false)
@@ -183,27 +191,38 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[L
 
   // The input pattern sequence is pre-sorted for further use.
   private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
-    // wildcard and simplevars are sorted together; more specific matchers must precede less specific matchers
+    // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers
     val patternPrecedence = flag match {
       case Wildcard | SimpleVar(_, None) => 3
       case OtherInputPattern(_, _) | SimpleVar(_, Some(_)) => 2
       case SimpleConst(_) => 1
       case _ => 0
     }
-    (mol.toString, patternPrecedence, sha)
+    val molValueString = flag match {
+      case SimpleConst(v) => v.toString
+      case SimpleVar(v, _) => v.name
+      case _ => ""
+    }
+    (mol.toString, patternPrecedence, molValueString, sha)
   }
 
-  override val toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")}${guardPresence match {
-    case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => ""
-    case GuardPresent(_, Some(_), List()) => " if(?)"
-    case GuardPresent(_, _, crossGuards) => s" if(${crossGuards.flatMap{_._1}.mkString(",")})"
-    case GuardPresenceUnknown => " ?if?"
-  }} => ${outputs match {
-    case Some(outputMoleculeInfos) => outputMoleculeInfos.map(_.toString).mkString(" + ")
-    case None => "?"
-  }}"
+  override val toString: String = {
+    val inputsInfo = inputsSorted.map(_.toString).mkString(" + ")
+    val guardInfo = guardPresence match {
+      case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => ""
+      case GuardPresent(_, Some(_), List()) => " if(?)"
+      case GuardPresent(_, _, crossGuards) =>
+        val crossGuardsInfo = crossGuards.flatMap(_._1).map(_.name).mkString(",")
+        s" if($crossGuardsInfo)"
+      case GuardPresenceUnknown => " ?if?"
+    }
+    val outputsInfo = outputs match {
+      case Some(outputMoleculeInfos) => outputMoleculeInfos.map(_.toString).mkString(" + ")
+      case None => "?"
+    }
+    s"$inputsInfo$guardInfo => $outputsInfo"
+  }
 }
-
 
 /** Represents a reaction body. This class is immutable.
   *
