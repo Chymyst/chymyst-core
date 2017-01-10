@@ -8,13 +8,20 @@ class GuardsSpec extends FlatSpec with Matchers {
   behavior of "guard conditions"
 
   it should "correctly recognize a trivial true guard condition" in {
-    val a = m[Int]
+    val a = m[Option[Int]]
+    val bb = m[(Int,Option[Int])]
 
-    val result = go { case a(x) if true => }
-    result.info.guardPresence shouldEqual AllMatchersAreTrivial
+    val result = go { case a(Some(1)) + a(None) + bb( (2, Some(3)) ) if true => }
+    result.info.guardPresence shouldEqual GuardAbsent
 
-    result.info.inputs should matchPattern { case List(InputMoleculeInfo(`a`, SimpleVar('x, None), _)) => }
-    result.info.toString shouldEqual "a(x) => "
+    result.info.inputs should matchPattern {
+      case List(
+        InputMoleculeInfo(`a`, SimpleConst(Some(1)), _),
+        InputMoleculeInfo(`a`, SimpleConst(None), _),
+        InputMoleculeInfo(`bb`, SimpleConst((2, Some(3))), _)
+      ) =>
+    }
+    result.info.toString shouldEqual "a(None) + a(Some(1)) + bb((2,Some(3))) => "
   }
 
   it should "correctly recognize an indentically false guard condition" in {

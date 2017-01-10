@@ -242,9 +242,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     // reaction contains all kinds of pattern-matching constructions
     val result = go {
-      case a(p) + a(y) + a(1) + c(()) + c(_) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) => s(); a(p + 1) + qq() + r(p)
+      case a(p) + a(y) + a(1) + c(()) + c(_) + bb( (0, None) ) + bb( (1, Some(2)) ) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) => s(); a(p + 1) + qq() + r(p)
     }
-
+println(s"${result.info.inputs}")
     (result.info.inputs match {
       case List(
       InputMoleculeInfo(`a`, SimpleVar('p, _), _),
@@ -252,6 +252,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       InputMoleculeInfo(`a`, SimpleConst(1), _),
       InputMoleculeInfo(`c`, SimpleConst(()), _),
       InputMoleculeInfo(`c`, Wildcard, _),
+      InputMoleculeInfo(`bb`, SimpleConst((0, None)), _),
+      InputMoleculeInfo(`bb`, SimpleConst((1, Some(2))), _),
       InputMoleculeInfo(`bb`, OtherInputPattern(_, List('z)), _),
       InputMoleculeInfo(`bb`, OtherInputPattern(_, List()), _),
       InputMoleculeInfo(`bb`, OtherInputPattern(_, List('t, 'q)), _),

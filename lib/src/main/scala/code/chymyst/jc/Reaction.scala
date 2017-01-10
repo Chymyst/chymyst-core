@@ -3,6 +3,15 @@ package code.chymyst.jc
 import Core._
 import scala.{Symbol => ScalaSymbol}
 
+/** Represents compile-time information about the pattern matching for values carried by input molecules.
+  * Possibilities:
+  * {{{a(_)}}} is represented by [[Wildcard]]
+  * {{{a(x)}}} is represented by [[SimpleVar]] with value {{{SimpleVar(v = 'x, cond = None)}}}
+  * {{{a(x) if x > 0}}} is represented by [[SimpleVar]] with value {{{SimpleVar(v = 'x, cond = Some({ case x if x > 0 => }))}}}
+  * {{{a(1)}}} is represented by [[SimpleConst]] with value {{{SimpleConst(v = 1)}}}
+  * {{{a( (x, Some((y,z)))) ) if x > y}}} is represented by [[OtherInputPattern]] with value {{{OtherInputPattern(matcher = { case (x, Some((y,z)))) if x > y => }, vars = List('x, 'y, 'z))}}}
+  * [[UnknownInputPattern]] is used for reactions defined with [[_go]], which do not have this compile-time information.
+  */
 sealed trait InputPatternType
 
 case object Wildcard extends InputPatternType
