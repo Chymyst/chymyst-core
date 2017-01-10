@@ -216,7 +216,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       case _ => false
     }) shouldEqual true
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qqq, SimpleConstOutput(""))))
-    result.info.hasGuard shouldEqual AllMatchersAreTrivial
+    result.info.hasGuard shouldEqual GuardAbsent
   }
 
   it should "inspect reaction body with embedded reaction" in {

@@ -588,9 +588,9 @@ object Macros {
         //        val matchers = binders.map(b => pq"$b")
         //        val caseDefs = List(cq"(..$matchers) => $guardTree  ")
         //        val partialFunctionTree = q"{ case ..$caseDefs }"
-//        val bindersUntypechecked = binders.map(binder => c.untypecheck(binder))
-        val guardUntypechecked = c.untypecheck(guardTree)
-        val partialFunctionTree = q"{ case List(..$binders) if $guardUntypechecked => () }" //  if $guardTree; doesn't work
+        //        val bindersUntypechecked = binders.map(binder => c.untypecheck(binder))
+        //        val guardUntypechecked = c.untypecheck(guardTree)
+        val partialFunctionTree = q"{ case List(..$binders) if $guardTree => () }"
         val partialFunctionTreeUntypechecked = c.untypecheck(partialFunctionTree)
         (vars.map(identToScalaSymbol), partialFunctionTreeUntypechecked)
     }
