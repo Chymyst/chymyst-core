@@ -16,7 +16,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   override def runTest(testName: String, args: Args): Status = {
     testNumber += 1
-    println(s"Starting test $testNumber: $testName")
+    println(s"Starting MoreBlockingSpec test $testNumber: $testName")
     super.runTest(testName, args)
     //(1 to 100).map {i => println(s"Iteration $i"); super.runTest(testName, args)}.reduce{ (s1, s2) => if (s1.succeeds) s2 else s1 }
   }
