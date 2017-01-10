@@ -15,9 +15,6 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   behavior of "analysis of reaction shadowing"
 
-  val hash211 = "4BE5"
-  val hash212 = "B07E"
-
   it should "detect shadowing of simplest reactions" in {
     val thrown = intercept[Exception] {
       val a = m[Unit]
@@ -96,21 +93,19 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
 
-    val possibleErrors = Set(hash211, hash212).map(h =>
-      s"In Site{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction {a(<$h...>) + b(2) => } is " +
-        s"shadowed by {a(<$h...>) => }"
-    )
-    possibleErrors should contain oneElementOf List(thrown.getMessage)
+    thrown.getMessage shouldEqual "In Site{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction {a(Some(1)) + b(2) => } is shadowed by {a(Some(1)) => }"
   }
 
-  it should "fail to detect shadowing of reactions with non-identical non-constant matchers" in {
-    val a = m[Option[Int]]
-    val b = m[Int]
-    val result = site(
-      go { case a(Some(_)) => },
-      go { case a(Some(1)) + b(2) => }
-    )
-    result.hasErrorsOrWarnings shouldEqual false
+  it should "detect shadowing of reactions with non-identical complicated constant matchers" in {
+    val thrown = intercept[Exception] {
+      val a = m[Option[Int]]
+      val b = m[Int]
+      site(
+        go { case a(Some(_)) => },
+        go { case a(Some(1)) + b(2) => }
+      )
+    }
+    thrown.getMessage shouldEqual "In Site{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction {a(Some(1)) + b(2) => } is shadowed by {a(<12E5...>) => }"
   }
 
   it should "detect shadowing of reactions with non-identical matchers that match a constant and a wildcard" in {
@@ -123,10 +118,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
 
-    val possibleErrors = Set(hash211, hash212).map(h =>
-      s"In Site{a + b => ...; a + b => ...}: Unavoidable nondeterminism: reaction {a(<$h...>) + b(2) => } is shadowed by {a(<$h...>) + b(_) => }"
-    )
-    possibleErrors should contain oneElementOf List(thrown.getMessage)
+    thrown.getMessage shouldEqual "In Site{a + b => ...; a + b => ...}: Unavoidable nondeterminism: reaction {a(Some(1)) + b(2) => } is shadowed by {a(Some(1)) + b(_) => }"
   }
 
   object IsEven {
@@ -166,9 +158,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
 
-    thrown.getMessage should fullyMatch regex "In Site\\{a \\+ a \\+ a \\+ b \\+ b \\+ b \\+ b => ...; a \\+ a \\+ a \\+ b \\+ b \\+ b => ...}: Unavoidable nondeterminism: reaction" +
-      " \\{a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ b\\(1\\) \\+ b\\(1\\) \\+ b\\(2\\) \\+ b\\(_\\) => }" +
-      " is shadowed by \\{a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(_\\) \\+ a\\(x\\) \\+ b\\(1\\) \\+ b\\(1\\) \\+ b\\(_\\) => }"
+    thrown.getMessage shouldEqual "In Site{a + a + a + b + b + b + b => ...; a + a + a + b + b + b => ...}: Unavoidable nondeterminism: reaction {a(Some(3)) + a(Some(2)) + a(Some(1)) + b(1) + b(1) + b(2) + b(_) => } is shadowed by {a(Some(2)) + a(_) + a(x) + b(1) + b(1) + b(_) => }"
   }
 
   it should "detect shadowing of reactions with several wildcards" in {
@@ -181,9 +171,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
 
-    thrown.getMessage should fullyMatch regex "In Site\\{a \\+ a \\+ a \\+ a \\+ b \\+ b \\+ b \\+ b => ...; a \\+ a \\+ a \\+ a \\+ b => ...}: Unavoidable nondeterminism: reaction" +
-      " \\{a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(x\\) \\+ b\\(1\\) \\+ b\\(1\\) \\+ b\\(2\\) \\+ b\\(_\\) => }" +
-      " is shadowed by \\{a\\(<[A-F0-9]{4}\\.\\.\\.>\\) \\+ a\\(_\\) \\+ a\\(_\\) \\+ a\\(x\\) \\+ b\\(1\\) => }"
+    thrown.getMessage shouldEqual "In Site{a + a + a + a + b + b + b + b => ...; a + a + a + a + b => ...}: Unavoidable nondeterminism: reaction {a(Some(3)) + a(Some(2)) + a(Some(1)) + a(x) + b(1) + b(1) + b(2) + b(_) => } is shadowed by {a(Some(2)) + a(_) + a(_) + a(x) + b(1) => }"
   }
 
   behavior of "analysis of livelock"
@@ -266,7 +254,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       val warnings = site(
         go { case a(1) + b(x) if x > 0 => b(1) + b(2) + a(1) }
       )
-      // When this test fails to produce an error, it might give this warning. If we see no exception, we know that this warning was produced.
+      // When static analysis fails to produce an error, it might give this warning. If this test fails due to no exception thrown, we know that this warning was produced.
       warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) + b(x if ?) => b(1) + b(2) + a(1)}"), List(), "Site{a + b => ...}")
     }
     thrown.getMessage shouldEqual "In Site{a + b => ...}: Unavoidable livelock: reaction {a(1) + b(x if ?) => b(1) + b(2) + a(1)}"
@@ -279,7 +267,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       val warnings = site(
         go { case a(1) + b(x) if x > 1 => b(1) + b(2) + a(1) }
       )
-      // When this test fails to produce an error, it might give this warning. If we see no exception, we know that this warning was produced.
+      // When static analysis fails to produce an error, it might give this warning. If this test fails due to no exception thrown, we know that this warning was produced.
       warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) + b(x if ?) => b(1) + b(2) + a(1)}"), List(), "Site{a + b => ...}")
     }
     thrown.getMessage shouldEqual "In Site{a + b => ...}: Unavoidable livelock: reaction {a(1) + b(x if ?) => b(1) + b(2) + a(1)}"
@@ -291,8 +279,8 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       val warnings = site(
         go { case a(Some(x)) if x > 1 => a(Some(2)) }
       )
-      // When this test fails to produce an error, it might give this warning. If we see no exception, we know that this warning was produced.
-      warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) + b(x if ?) => b(1) + b(2) + a(1)}"), List(), "Site{a + b => ...}")
+      // When static analysis fails to produce an error, it might give this warning. If this test fails due to no exception thrown, we know that this warning was produced.
+      warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(<9247...>) => a(?)}"), List(), "Site{a => ...}")
     }
     thrown.getMessage shouldEqual "In Site{a + b => ...}: Unavoidable livelock: reaction {a(1) + b(x if ?) => b(1) + b(2) + a(1)}"
   }
