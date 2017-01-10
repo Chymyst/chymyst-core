@@ -403,15 +403,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "compute input pattern variables correctly" in {
-
+    val a = m[Int]
     val bb = m[(Int, Int, Option[Int], (Int, Option[Int]))]
 
-    val result = go { case bb(p@(ytt, 1, None, (s, Some(t)))) => }
-    val vars = result.info.inputs.head.flag match {
-      case OtherInputPattern(_, vs) => vs
-      case _ => Nil
+    val result = go { case a(1|2) + bb(p@(ytt, 1, None, (s, Some(t)))) => }
+    result.info.inputs should matchPattern {
+      case List(InputMoleculeInfo(`a`, OtherInputPattern(_, List()), _), InputMoleculeInfo(`bb`, OtherInputPattern(_, List('p, 'ytt, 's, 't)), _)) =>
     }
-    vars shouldEqual List('p, 'ytt, 's, 't)
   }
 
   it should "create partial functions for matching from reaction body" in {
