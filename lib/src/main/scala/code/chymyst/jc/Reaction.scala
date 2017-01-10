@@ -26,7 +26,7 @@ case object OtherOutputPattern extends OutputPatternType
   */
 sealed trait GuardPresenceType {
   def knownFalse: Boolean = this match {
-    case GuardAbsent | AllMatchersAreTrivial => true
+    case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => true
     case _ => false
   }
 }
