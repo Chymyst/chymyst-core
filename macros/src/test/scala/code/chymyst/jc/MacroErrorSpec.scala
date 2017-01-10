@@ -126,4 +126,32 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     "val r = go { case bbb(x) + bb(y) => bbb(x) + bb(x) + bb(y) }" shouldNot compile
   }
 
+  it should "inspect a pattern with a crushed tuple" in {
+
+    val bb = m[(Int, Option[Int])]
+
+    val result = go {
+      // This generates a compiler warning "class M expects 2 patterns to hold (Int, Option[Int]) but crushing into 2-tuple to fit single pattern (SI-6675)".
+      // However, this crushing is precisely what this test focuses on, and we cannot tell scalac to ignore this warning.
+      case bb(_) + bb(z) if (z match {
+        case (1, Some(x)) if x > 0 => true;
+        case _ => false
+      }) =>
+    }
+
+    (result.info.inputs match {
+      case List(
+      InputMoleculeInfo(`bb`, Wildcard, _),
+      InputMoleculeInfo(`bb`, SimpleVar('z, Some(cond)), _)
+      ) =>
+        cond.isDefinedAt((1, Some(2))) shouldEqual true
+        cond.isDefinedAt((1, None)) shouldEqual false
+        cond.isDefinedAt((1, Some(0))) shouldEqual false
+        cond.isDefinedAt((0, Some(2))) shouldEqual false
+        true
+      case _ => false
+    }) shouldEqual true
+
+  }
+
 }
