@@ -314,7 +314,8 @@ object Macros {
       if (guardTree.isEmpty)
         q"{ case $binderTerm => () }" // This should not be untypechecked!! Why?
       else {
-        c.untypecheck(q"{ case $binderTerm if $guardTree => () } : PartialFunction[Any, Unit]")
+        // Need to put types on binder variables and remove owner from guard tree symbols.
+        c.untypecheck(q"{ case $binderTerm if $guardTree => () }")
       }
     }
 
@@ -336,23 +337,41 @@ object Macros {
       }
     }
 
-/* Not used now.
     object ReplaceVars extends Transformer {
       var replacingIdents: List[Ident] = _
+      var addTypes: Boolean = _
 
-      override def transform(tree: Tree): Tree = tree match {
-        case Ident(name) =>
-          val newIdentOpt = replacingIdents.find( _.name === name )
-          newIdentOpt.getOrElse(tree)
+      override def transform(tree: Tree): Tree = if (addTypes) tree match {
+        case Bind(t@TermName(name), Ident(termNames.WILDCARD)) =>
+          val newIdentOpt = replacingIdents.find( _.name.toTermName.decodedName.toString === name )
+          newIdentOpt.map { newIdent =>
+            val newIdentType = newIdent.symbol.typeSignature
+            val paramType = newIdentType
+            pq"$t : $paramType"
+            // TODO: test this separately and debug.
+            /* Type params perhaps needs more work?
+            val typeParams = newIdentType.typeArgs
+            if (typeParams.isEmpty)
+              pq"$t : $newIdentType"
+            else {
+              val typeApplication = tq"$newIdentType[..$typeParams]"
+              pq"$t : $typeApplication"
+            }
+            */
+          }.getOrElse(tree)
+        case _ => super.transform(tree)
+      } else tree match {
+        case Ident(name) => replacingIdents.find( _.name === name ).getOrElse(tree)
         case _ => super.transform(tree)
       }
 
-      def in(guardTree: Tree, vars: List[Ident]): Tree = {
+      def in(guardTree: Tree, vars: List[Ident], inBinder: Boolean): Tree = {
         replacingIdents = vars
+        addTypes = inBinder
         transform(guardTree)
       }
     }
-*/
+
     object GuardVars extends Traverser {
       private var vars: mutable.ArrayBuffer[Ident] = _
       private var givenPatternVars: List[Ident] = _
@@ -556,6 +575,15 @@ object Macros {
 
     val (staticGuardVarsSeq, moleculeGuardVarsSeq) = guardVarsSeq.partition(_._2.isEmpty)
 
+    val allBinderVars = patternIn.flatMap(_._2.varNames)
+
+    val allGuardVars =  moleculeGuardVarsSeq.flatMap(_._2)
+
+    // To avoid problems with macros, we nneed to put types on binder variables and remove owners from guard tree symbols.
+    def replaceVarsInBinder(binderTree: Tree): Tree = ReplaceVars.in(binderTree, allGuardVars, inBinder = true)
+
+    def replaceVarsInGuardTree(guardTree: Tree): Tree = ReplaceVars.in(guardTree, allBinderVars, inBinder = false)
+
     val staticGuardTree: Option[Tree] = staticGuardVarsSeq // We need to merge all these guard clauses.
       .map(_._1)
       .reduceOption{ (g1, g2) => q"$g1 && $g2" }
@@ -575,10 +603,11 @@ object Macros {
           .filter { case (g, vars) => guardVarsConstrainOnlyThisMolecule(vars, flag) }
           .map(_._1)
           .reduceOption{ (g1, g2) => q"$g1 && $g2" }
+          .map(t => replaceVarsInGuardTree(t))
 
         val mergedFlag = flag match {
-          case SimpleVarF(v, binder, _) => mergedGuardOpt.map(guardTree => SimpleVarF(v, binder, Some(guardTree))).getOrElse(flag) // a(x) if x>0 is replaced with a(x : check if x>0).
-          case OtherPatternF(matcher, _, vars) => mergedGuardOpt.map(guardTree => OtherPatternF(matcher, guardTree, vars)).getOrElse(flag) // We can't have a nontrivial guardTree in patternIn, so we replace it here with the new guardTree.
+          case SimpleVarF(v, binder, _) => mergedGuardOpt.map(guardTree => SimpleVarF(v, binder, Some(guardTree))).getOrElse(flag) // a(x) if x>0 is replaced with a(x : check if x>0). Let's not replace vars in binder in this case?
+          case OtherPatternF(matcher, _, vars) => mergedGuardOpt.map(guardTree => OtherPatternF(replaceVarsInBinder(matcher), guardTree, vars)).getOrElse(flag) // We can't have a nontrivial guardTree in patternIn, so we replace it here with the new guardTree.
           case _ => flag
         }
 
@@ -606,14 +635,15 @@ object Macros {
           .filter { case (flag, _, vs) => guardVarsConstrainThisMolecule(vs, flag) }
           .map { case (_, binder, _) => binder }
 
-        //        val matchers = binders.map(b => pq"$b")
-        //        val caseDefs = List(cq"(..$matchers) => $guardTree  ")
-        //        val partialFunctionTree = q"{ case ..$caseDefs }"
-        //        val bindersUntypechecked = binders.map(binder => c.untypecheck(binder))
-        //        val guardUntypechecked = c.untypecheck(guardTree)
-        val partialFunctionTree = q"{ case List(..$binders) if $guardTree => () }"
-        val partialFunctionTreeUntypechecked = c.untypecheck(partialFunctionTree)
-        (vars.map(identToScalaSymbol), partialFunctionTreeUntypechecked)
+        // To avoid problems with macros, we nneed to put types on binder variables and remove owners from guard tree symbols.
+        val bindersWithTypedVars = binders.map(b => replaceVarsInBinder(b))
+        val guardWithReplacedVars = replaceVarsInGuardTree(guardTree)
+
+        val caseDefs = List(cq"List(..$bindersWithTypedVars) if $guardWithReplacedVars => ")
+        val partialFunctionTree = q"{ case ..$caseDefs }"
+//        val pfTree = c.parse(showCode(partialFunctionTree)) // This works but it's an overkill.
+        val pfTree = c.untypecheck(partialFunctionTree)
+        (vars.map(identToScalaSymbol), pfTree)
     }
 
     // We lift the GuardPresenceType values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
