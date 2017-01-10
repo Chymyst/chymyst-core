@@ -75,7 +75,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val reaction = go { case _ => a(123) }
 
     reaction.info.inputs shouldEqual Nil
-    reaction.info.guardPresence.knownFalse shouldEqual true
+    reaction.info.guardPresence.effectivelyAbsent shouldEqual true
     reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, SimpleConstOutput(123))))
   }
 

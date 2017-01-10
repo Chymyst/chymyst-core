@@ -24,12 +24,12 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(None) + a(Some(1)) + bb((2,Some(3))) => a(Some(1))"
   }
 
-  it should "use parameterized types in guard condition" in {
+  it should "use parameterized types in simple guard condition" in {
     val a = m[Option[Int]]
-    val bb = m[(Int,Option[String])]
+    val bb = m[(Int, Option[String])]
 
-    val result = go { case a(xOpt) + bb( y ) if xOpt.isEmpty && y._2.isEmpty => }
-    result.info.guardPresence.knownFalse shouldEqual true
+    val result = go { case a(xOpt) + bb(y) if xOpt.isEmpty && y._2.isEmpty => }
+    result.info.guardPresence.effectivelyAbsent shouldEqual true
     result.info.guardPresence should matchPattern { case GuardPresent(List(List('xOpt), List('y)),None,List()) => }
 
     result.info.inputs should matchPattern {
@@ -39,6 +39,23 @@ class GuardsSpec extends FlatSpec with Matchers {
       ) =>
     }
     result.info.toString shouldEqual "a(xOpt if ?) + bb(y if ?) => "
+  }
+
+  it should "use parameterized types in cross-guard condition" in {
+    val a = m[Option[Int]]
+    val bb = m[(Int,Option[String])]
+
+    val result = go { case a(xOpt) + bb( y ) if xOpt.isEmpty || y._2.isEmpty => }
+    result.info.guardPresence.effectivelyAbsent shouldEqual false
+    result.info.guardPresence should matchPattern { case GuardPresent(List(List('xOpt, 'y)), None, List((List('xOpt, 'y), _))) => }
+
+    result.info.inputs should matchPattern {
+      case List(
+      InputMoleculeInfo(`a`, SimpleVar('xOpt, None), _),
+      InputMoleculeInfo(`bb`, SimpleVar('y, None), _)
+      ) =>
+    }
+    result.info.toString shouldEqual "a(xOpt) + bb(y) if(xOpt,y) => "
   }
 
   it should "correctly recognize an indentically false guard condition" in {
