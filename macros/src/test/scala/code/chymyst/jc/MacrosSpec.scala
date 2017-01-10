@@ -358,7 +358,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
-  it should "determine input patterns correctly" in {
+  it should "determine constant input and output patterns correctly" in {
     val a = new M[Option[Int]]("a")
     val b = new M[String]("b")
     val c = new M[(Int, Int)]("c")
@@ -374,7 +374,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       InputMoleculeInfo(`c`, SimpleConst((2,3)), _)
       ) =>
     }
-    r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern)))
+    r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, SimpleConstOutput(Some(2)))))
     r.info.guardPresence shouldEqual GuardAbsent
 
     // Note: Scala 2.11 and Scala 2.12 might have different desugared syntax trees for this reaction?

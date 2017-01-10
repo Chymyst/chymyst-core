@@ -11,7 +11,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val a = m[Option[Int]]
     val bb = m[(Int,Option[Int])]
 
-    val result = go { case a(Some(1)) + a(None) + bb( (2, Some(3)) ) if true => }
+    val result = go { case a(Some(1)) + a(None) + bb( (2, Some(3)) ) if true => a(Some(1)) }
     result.info.guardPresence shouldEqual GuardAbsent
 
     result.info.inputs should matchPattern {
@@ -21,7 +21,7 @@ class GuardsSpec extends FlatSpec with Matchers {
         InputMoleculeInfo(`bb`, SimpleConst((2, Some(3))), _)
       ) =>
     }
-    result.info.toString shouldEqual "a(None) + a(Some(1)) + bb((2,Some(3))) => "
+    result.info.toString shouldEqual "a(None) + a(Some(1)) + bb((2,Some(3))) => a(Some(1))"
   }
 
   it should "correctly recognize an indentically false guard condition" in {
