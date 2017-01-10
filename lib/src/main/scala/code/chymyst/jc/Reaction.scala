@@ -191,27 +191,37 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[L
 
   // The input pattern sequence is pre-sorted for further use.
   private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
-    // wildcard and simplevars are sorted together; more specific matchers must precede less specific matchers
+    // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers
     val patternPrecedence = flag match {
       case Wildcard | SimpleVar(_, None) => 3
       case OtherInputPattern(_, _) | SimpleVar(_, Some(_)) => 2
       case SimpleConst(_) => 1
       case _ => 0
     }
-    (mol.toString, patternPrecedence, sha)
+    val molValue = flag match {
+      case SimpleConst(v) => v.toString
+      case _ => ""
+    }
+    (mol.toString, molValue, patternPrecedence, sha)
   }
 
-  override val toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")}${guardPresence match {
-    case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => ""
-    case GuardPresent(_, Some(_), List()) => " if(?)"
-    case GuardPresent(_, _, crossGuards) => s" if(${crossGuards.flatMap{_._1}.map(_.name).mkString(",")})"
-    case GuardPresenceUnknown => " ?if?"
-  }} => ${outputs match {
-    case Some(outputMoleculeInfos) => outputMoleculeInfos.map(_.toString).mkString(" + ")
-    case None => "?"
-  }}"
+  override val toString: String = {
+    val inputsInfo = inputsSorted.map(_.toString).mkString(" + ")
+    val guardInfo = guardPresence match {
+      case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => ""
+      case GuardPresent(_, Some(_), List()) => " if(?)"
+      case GuardPresent(_, _, crossGuards) =>
+        val crossGuardsInfo = crossGuards.flatMap(_._1).map(_.name).mkString(",")
+        s" if($crossGuardsInfo)"
+      case GuardPresenceUnknown => " ?if?"
+    }
+    val outputsInfo = outputs match {
+      case Some(outputMoleculeInfos) => outputMoleculeInfos.map(_.toString).mkString(" + ")
+      case None => "?"
+    }
+    s"$inputsInfo$guardInfo => $outputsInfo"
+  }
 }
-
 
 /** Represents a reaction body. This class is immutable.
   *
