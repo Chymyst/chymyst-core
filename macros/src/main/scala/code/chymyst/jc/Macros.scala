@@ -588,9 +588,11 @@ object Macros {
         //        val matchers = binders.map(b => pq"$b")
         //        val caseDefs = List(cq"(..$matchers) => $guardTree  ")
         //        val partialFunctionTree = q"{ case ..$caseDefs }"
-                val guardUntypechecked = c.untypecheck( guardTree )
-                val partialFunctionTree = q"{ case (..$binders) if $guardUntypechecked => () } : PartialFunction[Any, Unit]" //  if $guardTree; doesn't work
-        (vars.map(identToScalaSymbol), partialFunctionTree)
+//        val bindersUntypechecked = binders.map(binder => c.untypecheck(binder))
+        val guardUntypechecked = c.untypecheck(guardTree)
+        val partialFunctionTree = q"{ case List(..$binders) if $guardUntypechecked => () }" //  if $guardTree; doesn't work
+        val partialFunctionTreeUntypechecked = c.untypecheck(partialFunctionTree)
+        (vars.map(identToScalaSymbol), partialFunctionTreeUntypechecked)
     }
 
     // We lift the GuardPresenceType values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
