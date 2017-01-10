@@ -140,15 +140,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val result = go { case a(x) + bb(None) => bb(None) }
 
-    (result.info.inputs match {
+    result.info.inputs should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_, List()), "4B93FCEF4617B49161D3D2F83E34012391D5A883")
-      ) => true
-      case _ => false
-    }) shouldEqual true
+        InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`),
+        InputMoleculeInfo(`bb`, SimpleConst(None), "4B93FCEF4617B49161D3D2F83E34012391D5A883")
+      ) =>
+    }
 
-    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, OtherOutputPattern)))
+    result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, SimpleConstOutput(None))))
     result.info.guardPresence shouldEqual GuardAbsent
     result.info.sha1 shouldEqual "B1957B893BF4FE420EC790947A0BB62B856BBF33"
   }
@@ -244,8 +243,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val result = go {
       case a(p) + a(y) + a(1) + c(()) + c(_) + bb( (0, None) ) + bb( (1, Some(2)) ) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) => s(); a(p + 1) + qq() + r(p)
     }
-println(s"${result.info.inputs}")
-    (result.info.inputs match {
+
+    result.info.inputs should matchPattern {
       case List(
       InputMoleculeInfo(`a`, SimpleVar('p, _), _),
       InputMoleculeInfo(`a`, SimpleVar('y, _), _),
@@ -258,10 +257,8 @@ println(s"${result.info.inputs}")
       InputMoleculeInfo(`bb`, OtherInputPattern(_, List()), _),
       InputMoleculeInfo(`bb`, OtherInputPattern(_, List('t, 'q)), _),
       InputMoleculeInfo(`s`, Wildcard, _)
-      ) => true
-      case _ => false
-    }) shouldEqual true
-
+      ) =>
+    }
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(s, SimpleConstOutput(())), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qq, SimpleConstOutput(()))))
 
   }
@@ -369,19 +366,18 @@ println(s"${result.info.inputs}")
 
     val r = go { case a(Some(1)) + b("xyz") + d(()) + c((2, 3)) => a(Some(2)) }
 
-    (r.info.inputs match {
+    r.info.inputs should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, OtherInputPattern(_, List()), _),
+      InputMoleculeInfo(`a`, SimpleConst(Some(1)), _),
       InputMoleculeInfo(`b`, SimpleConst("xyz"), _),
       InputMoleculeInfo(`d`, SimpleConst(()), _),
-      InputMoleculeInfo(`c`, OtherInputPattern(_, List()), _)
-      ) => true
-      case _ => false
-    }) shouldEqual true
+      InputMoleculeInfo(`c`, SimpleConst((2,3)), _)
+      ) =>
+    }
     r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern)))
     r.info.guardPresence shouldEqual GuardAbsent
 
-    // Note: Scala 2.11 and Scala 2.12 have different desugared syntax trees for this reaction.
+    // Note: Scala 2.11 and Scala 2.12 might have different desugared syntax trees for this reaction?
     r.info.sha1 shouldEqual "9C93A6DE5D096D3CDC3C318E0A07B30B732EA37A"
   }
 
@@ -400,9 +396,10 @@ println(s"${result.info.inputs}")
       OutputMoleculeInfo(bbb, SimpleConstOutput(1)),
       OutputMoleculeInfo(bb, OtherOutputPattern),
       OutputMoleculeInfo(bbb, SimpleConstOutput(2)),
-      OutputMoleculeInfo(cc, OtherOutputPattern),
-      OutputMoleculeInfo(cc, OtherOutputPattern)
-    ))
+      OutputMoleculeInfo(cc, SimpleConstOutput(None)),
+      OutputMoleculeInfo(cc, SimpleConstOutput(Some(1)))
+    )
+    )
   }
 
   it should "compute input pattern variables correctly" in {
@@ -430,10 +427,6 @@ println(s"${result.info.inputs}")
     val pat_bb = result.info.inputs(1)
     pat_bb.molecule shouldEqual bb
 
-    // different desugared syntax trees with Scala 2.11 vs. Scala 2.12
-    (Set("9247828A8E7754B2D961E955541CF1D4D77E2D1E", "A67750BF5B6338391B0034D3A99694889CBB26A3") contains pat_aa.sha1) shouldEqual true
-    (Set("2FB215E623E8AF28E9EA279CBEA827A1065CA226", "A67750BF5B6338391B0034D3A99694889CBB26A3") contains pat_bb.sha1) shouldEqual true
-
     (pat_aa.flag match {
       case OtherInputPattern(matcher, vars) =>
         matcher.isDefinedAt(Some(1)) shouldEqual true
@@ -443,16 +436,7 @@ println(s"${result.info.inputs}")
       case _ => false
     }) shouldEqual true
 
-    (pat_bb.flag match {
-      case OtherInputPattern(matcher, vars) =>
-        matcher.isDefinedAt((0, None)) shouldEqual true
-        matcher.isDefinedAt((1, None)) shouldEqual false
-        matcher.isDefinedAt((0, Some(1))) shouldEqual false
-        matcher.isDefinedAt((1, Some(1))) shouldEqual false
-        vars shouldEqual List()
-        true
-      case _ => false
-    }) shouldEqual true
+    pat_bb.flag shouldEqual SimpleConst( (0, None) )
   }
 
   behavior of "output value computation"

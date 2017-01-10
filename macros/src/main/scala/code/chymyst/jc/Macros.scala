@@ -155,12 +155,11 @@ object Macros {
     * OtherOutputPatternF: a(x+y) or anything else
     */
   sealed trait OutputPatternFlag[+Tree] {
-    def notSimple: Boolean = this match {
-      case ConstOutputPatternF(_) | EmptyOutputPatternF => false
-      case _ => true
-    }
+    def needTraversal: Boolean = false
   }
-  case object OtherOutputPatternF extends OutputPatternFlag[Nothing]
+  case object OtherOutputPatternF extends OutputPatternFlag[Nothing] {
+    override def needTraversal: Boolean = true
+  }
   case object EmptyOutputPatternF extends OutputPatternFlag[Nothing]
   final case class ConstOutputPatternF[Tree](v: Tree) extends OutputPatternFlag[Tree]
 
@@ -231,6 +230,33 @@ object Macros {
 
     def getSimpleVar(binderTerm: Tree): Ident = binderTerm match {
       case Bind(t@TermName(n), Ident(termNames.WILDCARD)) => Ident(t)
+    }
+    /** Detect whether an expression tree represents a constant expression.
+      * Recognize literals, Some(), None(), and tuples.
+      *
+      * @param exprTree Binder pattern tree or expression tree.
+      * @return {{{Some(tree)}}} if the expression represents a constant of the recognized form. Here {{{tree}}} will be a quoted expression tree (not a binder tree). {{{None}}} otherwise.
+      */
+
+    def getConstantTree(exprTree: Trees#Tree): Option[Trees#Tree] =
+    exprTree match {
+      case Literal(_) => Some(exprTree)
+      case pq"scala.None" | q"scala.None" => Some(q"None")
+      case q"Some(..$xs)" if xs.size ===1 =>
+        xs.headOption
+          .flatMap(getConstantTree)
+          .map(t => q"Some(${t.asInstanceOf[Tree]})")
+      case pq"$extr(..$xs)" if xs.size === 1 && showCode(extr.asInstanceOf[Tree]) === "scala.Some" =>
+        xs.headOption
+          .flatMap(getConstantTree)
+          .map(t => q"Some(${t.asInstanceOf[Tree]})")
+      case pq"(..$exprs)" if exprs.size > 1 => // Tuples of size 0 are Unit values, tuples of size 1 are ordinary values.
+        val trees = exprs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
+        if (trees.size === exprs.size) Some(q"(..$trees)") else None
+      case q"(..$exprs)" if exprs.size > 1 => // Tuples of size 0 are Unit values, tuples of size 1 are ordinary values.
+        val trees = exprs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
+        if (trees.size === exprs.size) Some(q"(..$trees)") else None
+      case _ => None
     }
 
     def identToScalaSymbol(ident: Ident): scala.Symbol = ident.name.decodedName.toString.toScalaSymbol
@@ -382,26 +408,6 @@ object Macros {
         case o@_ => isOwnedBy(o, owner)
       }
 
-      /** Detect whether an expression tree represents a constant expression.
-        * Recognize literals, Some(), None(), and tuples.
-        *
-        * @param binderTree Binder pattern tree.
-        * @return {{{Some(tree)}}} if the expression represents a constant of the recognized form. Here {{{tree}}} will be a quoted expression tree. {{{None}}} otherwise.
-        */
-      private def getConstantTree(binderTree: Trees#Tree): Option[Trees#Tree] =
-        binderTree match {
-          case Literal(_) => Some(binderTree)
-          case pq"scala.None" => Some(q"None")
-          case pq"$extr(..$xs)" if xs.size === 1 && showCode(extr.asInstanceOf[Tree]) === "scala.Some" =>
-            xs.headOption
-              .flatMap(getConstantTree)
-              .map(t => q"Some(${t.asInstanceOf[Tree]})")
-          case pq"(..$exprs)" if exprs.size > 1 => // Tuples of size 0 are Unit values, tuples of size 1 are ordinary values.
-            val trees = exprs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
-            if (trees.size === exprs.size) Some(q"(..$trees)") else None
-          case _ => None
-        }
-
       private def getInputFlag(binderTerm: Tree): InputPatternFlag[Ident, Tree] = binderTerm match {
         case Ident(termNames.WILDCARD) => WildcardF
         case Bind(t@TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF(Ident(t), binderTerm, None)
@@ -414,7 +420,7 @@ object Macros {
       }
 
       private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag[Tree] = binderTerms match {
-        case List(t@Literal(_)) => ConstOutputPatternF(t)
+        case List(t) => getConstantTree(t).map(tree => ConstOutputPatternF(tree.asInstanceOf[Tree])).getOrElse(OtherOutputPatternF)
         case Nil => EmptyOutputPatternF
         case _ => OtherOutputPatternF
       }
@@ -453,16 +459,16 @@ object Macros {
             */
 
           // possibly a molecule emission
-          case Apply(Select(t@Ident(TermName(_)), TermName(f)), binder)
+          case Apply(Select(t@Ident(TermName(_)), TermName(f)), binderList)
             if f === "apply" || f === "checkTimeout" =>
 
             // In the output list, we do not include any molecule emitters defined in the inner scope of the reaction.
             val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
 
-            val flag1 = getOutputFlag(binder)
-            if (flag1.notSimple)
+            val flag1 = getOutputFlag(binderList)
+            if (flag1.needTraversal)
             // Traverse the tree of the first binder element (molecules should only have one binder element anyway).
-              binder.headOption.foreach(traverse)
+              binderList.headOption.foreach(traverse)
 
             if (includeThisSymbol) {
               if (t.tpe <:< typeOf[Molecule]) {
