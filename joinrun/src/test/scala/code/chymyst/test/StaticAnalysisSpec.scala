@@ -51,11 +51,21 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     thrown.getMessage shouldEqual "In Site{a + b => ...; a => ...}: Unavoidable nondeterminism: reaction {a(1) + b(2) => } is shadowed by {a(x) => }"
   }
 
-  it should "detect no shadowing of reactions with nontrivial matchers" in {
+  it should "detect no shadowing of reactions with constant matchers" in {
     val a = m[Int]
     val b = m[Unit]
     val result = site(
       go { case a(1) => },
+      go { case a(_) + b(_) => }
+    )
+    result.hasErrorsOrWarnings shouldEqual false
+  }
+
+  it should "detect no shadowing of reactions with nontrivial matchers" in {
+    val a = m[Int]
+    val b = m[Unit]
+    val result = site(
+      go { case a(1 | 2) => },
       go { case a(_) + b(_) => }
     )
     result.hasErrorsOrWarnings shouldEqual false
