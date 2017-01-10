@@ -191,8 +191,8 @@ In the present example, however, both reactions need to be written within the sa
 Here is why:
 
 Both reactions `{ counter + incr => ... }` and `{ counter + decr => ... }` consume the molecule `counter()`.
-In order for any of these reactions to start, the molecule `counter` needs to be present at some reaction site.
-Thus the `incr` and `decr` molecules must be present at the _same_ reaction site; otherwise they could not get together with `counter` to start a reaction.
+In order for any of these reactions to start, the molecule `counter()` needs to be present at some reaction site.
+Therefore, the `incr()` and `decr()` molecules must be present at the _same_ reaction site, or else they cannot meet with `counter()` to start a reaction.
 For this reason, both reactions need to be defined _together_ in a single reaction site.
 
 After defining the molecules and their reactions, we can start emitting new molecules into the soup:

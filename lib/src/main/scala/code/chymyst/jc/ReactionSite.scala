@@ -136,15 +136,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // value to unblock the threads.
 
     // Compute error messages here in case we will need them later.
-    val blockingMoleculesWithNoReply = nonemptyOpt(usedInputs
+    val blockingMoleculesWithNoReply = usedInputs
       .filter(_._2.reactionSentNoReply)
-      .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
+      .keys.toSeq.toOptionSeq.map(_.map(_.toString).sorted.mkString(", "))
 
     val messageNoReply = blockingMoleculesWithNoReply map { s => s"Error: In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] finished without replying to $s" }
 
-    val blockingMoleculesWithMultipleReply = nonemptyOpt(usedInputs
+    val blockingMoleculesWithMultipleReply = usedInputs
       .filter(_._2.reactionSentRepeatedReply)
-      .keys.toSeq).map(_.map(_.toString).sorted.mkString(", "))
+      .keys.toSeq.toOptionSeq.map(_.map(_.toString).sorted.mkString(", "))
 
     val messageMultipleReply = blockingMoleculesWithMultipleReply map { s => s"Error: In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] replied to $s more than once" }
 
@@ -336,7 +336,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // check if we had any errors, and that we have a result value
     emitAndAwaitReplyInternal(timeoutOpt = Some(timeout), bm, v, replyValueWrapper) match {
       case ErrorNoReply(message) => throw new Exception(message)
-      case HaveReply(res) => if (replyValueWrapper.isTimedOut) None else Some(res.asInstanceOf[R]) // Cannot guarantee type safety due to type erasure of `R`.
+      case HaveReply(res) => if (replyValueWrapper.isTimedOut()) None else Some(res.asInstanceOf[R]) // Cannot guarantee type safety due to type erasure of `R`.
     }
   }
 
@@ -345,7 +345,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private[jc] def getVolatileValue[T](m: M[T]): T = {
     if (m.isSingleton) {
       if (singletonValues.containsKey(m)) {
-        singletonValues.get(m).asInstanceOf[AbsMolValue[T]].getValue
+        singletonValues.get(m).asInstanceOf[AbsMolValue[T]].getValue // need this type cast because of erasure of type T
       } else throw new Exception(s"Internal error: In $this: The volatile reader for singleton ($m) is not yet ready")
     }
     else

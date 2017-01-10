@@ -6,7 +6,7 @@ table {
 }
 table th {
     padding:21px 25px 22px 25px;
-    border:1px solid #e0e0e0;
+    border:1px solid #d0d0d0;
     border-bottom:1px solid #808080;
 }
 table tr {
@@ -15,7 +15,7 @@ table tr {
 table td {
     padding:18px;
 /*     border-top: 1px solid #ffffff; */
-     border:1px solid #e0e0e0;
+     border:1px solid #d0d0d0;
 }
 
 /* markdown code */
@@ -46,4 +46,11 @@ ul, ol {
     margin-bottom: 12px;
     padding-top: 12px;
     padding-left: 12px;
+}
+
+body blockquote {
+    padding: 0 1em;
+    color: #bbb;
+    border-left: 0.25em solid #ddd;
+    margin: 0 40px;
 }

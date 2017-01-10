@@ -1,36 +1,66 @@
 package code.chymyst.jc
 
 import Core._
+import scala.{Symbol => ScalaSymbol}
 
+/** Represents compile-time information about the pattern matching for values carried by input molecules.
+  * Possibilities:
+  * {{{a(_)}}} is represented by [[Wildcard]]
+  * {{{a(x)}}} is represented by [[SimpleVar]] with value {{{SimpleVar(v = 'x, cond = None)}}}
+  * {{{a(x) if x > 0}}} is represented by [[SimpleVar]] with value {{{SimpleVar(v = 'x, cond = Some({ case x if x > 0 => }))}}}
+  * {{{a(1)}}} is represented by [[SimpleConst]] with value {{{SimpleConst(v = 1)}}}
+  * {{{a( (x, Some((y,z)))) ) if x > y}}} is represented by [[OtherInputPattern]] with value {{{OtherInputPattern(matcher = { case (x, Some((y,z)))) if x > y => }, vars = List('x, 'y, 'z))}}}
+  * [[UnknownInputPattern]] is used for reactions defined with [[_go]], which do not have this compile-time information.
+  */
 sealed trait InputPatternType
 
 case object Wildcard extends InputPatternType
 
-case object SimpleVar extends InputPatternType
+final case class SimpleVar(v: ScalaSymbol, cond: Option[PartialFunction[Any, Unit]]) extends InputPatternType
 
 final case class SimpleConst(v: Any) extends InputPatternType
 
-final case class OtherInputPattern(matcher: PartialFunction[Any, Unit]) extends InputPatternType
+final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: List[ScalaSymbol]) extends InputPatternType
 
 case object UnknownInputPattern extends InputPatternType
 
 sealed trait OutputPatternType
 
-final case class ConstOutputValue(v: Any) extends OutputPatternType
+final case class SimpleConstOutput(v: Any) extends OutputPatternType
 
 case object OtherOutputPattern extends OutputPatternType
 
+/** Indicates whether a reaction has a guard condition.
+  *
+  */
 sealed trait GuardPresenceType {
   def knownFalse: Boolean = this match {
-    case GuardAbsent => true
+    case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => true
     case _ => false
   }
 }
 
-case object GuardPresent extends GuardPresenceType
+/** Indicates the presence of a guard condition.
+  * The guard is parsed into a flat conjunction of guard clauses, which are then analyzed for cross-dependencies between molecules.
+  *
+  * For example, consider the reaction {{{go { case a(x) + b(y) + c(z) if x > n && y > 0 && y > z && n > 1 => ...} }}}. Here {{{n}}} is an integer constant defined outside the reaction.
+  * The conditions for starting this reaction is that a(x) has value x > n; that b(y) has value y > 0; that c(z) has value such that y > z; and finally that n > 1, independently of any molecule values.
+  * The condition n > 1 is a static guard. The condition x > n pertains only to the molecule a(x) and therefore can be moved out of the guard into the InputMoleculeInfo for that molecule. Similarly, the condition y > 0 can be moved out of the guard.
+  * However, the condition y > z relates two different molecule values; it is a cross guard.
+  *
+  * @param vars The list of all pattern variables used by the guard condition. Each element of this list is a list of variables used by one guard clause. In the example shown above, this will be {{{List(List('y, 'z))}}} because all other conditions are moved out of the guard.
+  * @param staticGuard The conjunction of all the clauses of the guard that are independent of pattern variables. This closure can be called in order to determine whether the reaction should even be considered to start, regardless of the presence of molecules. In this example, the value of {{{staticGuard}}} will be {{{Some(() => n > 1)}}}.
+  * @param crossGuards A list of functions that represent the clauses of the guard that relate values of different molecules. The partial function `Any => Unit` should be called with the arguments representing the tuples of pattern variables from each molecule used by the cross guard.
+  *                    In the present example, {{{crossGuards}}} will be {{{List((List('y, 'z), { case List(y, z) if y > z => () }))}}}.
+  */
+final case class GuardPresent(vars: List[List[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: List[(List[ScalaSymbol], PartialFunction[List[Any], Unit])]) extends GuardPresenceType
 
 case object GuardAbsent extends GuardPresenceType
+case object AllMatchersAreTrivial extends GuardPresenceType
 
+/** Indicates that there is no information about the presence of the guard.
+  * This happens only with reactions that
+  */
 case object GuardPresenceUnknown extends GuardPresenceType
 
 /** Compile-time information about an input molecule pattern in a reaction.
@@ -52,10 +82,15 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
   private[jc] def matcherIsWeakerThan(info: InputMoleculeInfo): Option[Boolean] = {
     if (molecule =!= info.molecule) Some(false)
     else flag match {
-      case Wildcard | SimpleVar => Some(true)
-      case OtherInputPattern(matcher1) => info.flag match {
+      case Wildcard | SimpleVar(_, None) => Some(true)
+      case SimpleVar(_, Some(matcher1)) => info.flag match {
+        case SimpleConst(c)=> Some(matcher1.isDefinedAt(c))
+        case SimpleVar(_, Some(_)) | OtherInputPattern(_,_) => None // Cannot reliably determine a weaker matcher.
+        case _ => Some(false)
+      }
+      case OtherInputPattern(matcher1,_) => info.flag match {
         case SimpleConst(c) => Some(matcher1.isDefinedAt(c))
-        case OtherInputPattern(_) => if (sha1 === info.sha1) Some(true) else None // We can reliably determine identical matchers.
+        case OtherInputPattern(_,_) => if (sha1 === info.sha1) Some(true) else None // We can reliably determine identical matchers.
         case _ => Some(false) // Here we can reliably determine that this matcher is not weaker.
       }
       case SimpleConst(c) => Some(info.flag match {
@@ -69,14 +104,18 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
   private[jc] def matcherIsWeakerThanOutput(info: OutputMoleculeInfo): Option[Boolean] = {
     if (molecule =!= info.molecule) Some(false)
     else flag match {
-      case Wildcard | SimpleVar => Some(true)
-      case OtherInputPattern(matcher1) => info.flag match {
-        case ConstOutputValue(c) => Some(matcher1.isDefinedAt(c))
+      case Wildcard | SimpleVar(_, None) => Some(true)
+      case SimpleVar(_, Some(matcher1)) => info.flag match {
+        case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
+        case _ => None // Here we can't reliably determine whether this matcher is weaker.
+      }
+      case OtherInputPattern(matcher1,_) => info.flag match {
+        case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
         case _ => None // Here we can't reliably determine whether this matcher is weaker.
       }
       case SimpleConst(c) => info.flag match {
-        case ConstOutputValue(`c`) => Some(true)
-        case ConstOutputValue(_) => Some(false) // definitely not the same constant
+        case SimpleConstOutput(`c`) => Some(true)
+        case SimpleConstOutput(_) => Some(false) // definitely not the same constant
         case _ => None // Otherwise, it could be this constant but we can't determine.
       }
       case _ => Some(false)
@@ -87,14 +126,18 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
   private[jc] def matcherIsSimilarToOutput(info: OutputMoleculeInfo): Option[Boolean] = {
     if (molecule =!= info.molecule) Some(false)
     else flag match {
-      case Wildcard | SimpleVar => Some(true)
-      case OtherInputPattern(matcher1) => info.flag match {
-        case ConstOutputValue(c) => Some(matcher1.isDefinedAt(c))
+      case Wildcard | SimpleVar(_, None) => Some(true)
+      case SimpleVar(_, Some(matcher1)) => info.flag match {
+        case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
+        case _ => Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
+      }
+      case OtherInputPattern(matcher1, _) => info.flag match {
+        case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
         case _ => Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
       }
       case SimpleConst(c) => Some(info.flag match {
-        case ConstOutputValue(`c`) => true
-        case ConstOutputValue(_) => false // definitely not the same constant
+        case SimpleConstOutput(`c`) => true
+        case SimpleConstOutput(_) => false // definitely not the same constant
         case _ => true // Otherwise, it could be this constant.
       })
       case UnknownInputPattern => Some(true) // pattern unknown - could be weaker.
@@ -104,9 +147,11 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
   override def toString: String = {
     val printedPattern = flag match {
       case Wildcard => "_"
-      case SimpleVar => "."
+      case SimpleVar(v, None) => v.name
+      case SimpleVar(v, Some(_)) => s"${v.name} if ?"
+      case SimpleConst(()) => ""
       case SimpleConst(c) => c.toString
-      case OtherInputPattern(_) => s"<${sha1.substring(0, 4)}...>"
+      case OtherInputPattern(_, _) => s"<${sha1.substring(0, 4)}...>"
       case UnknownInputPattern => s"?"
     }
 
@@ -124,8 +169,8 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
 final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType) {
   override def toString: String = {
     val printedPattern = flag match {
-      case ConstOutputValue(()) => ""
-      case ConstOutputValue(c) => c.toString
+      case SimpleConstOutput(()) => ""
+      case SimpleConstOutput(c) => c.toString
       case OtherOutputPattern => "?"
     }
 
@@ -134,24 +179,25 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
 }
 
 // This class is immutable.
-final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) {
+final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], guardPresence: GuardPresenceType, sha1: String) {
 
   // The input pattern sequence is pre-sorted for further use.
   private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
     // wildcard and simplevars are sorted together; more specific matchers must precede less specific matchers
     val patternPrecedence = flag match {
-      case Wildcard | SimpleVar => 3
-      case OtherInputPattern(_) => 2
+      case Wildcard | SimpleVar(_, None) => 3
+      case OtherInputPattern(_, _) | SimpleVar(_, Some(_)) => 2
       case SimpleConst(_) => 1
       case _ => 0
     }
     (mol.toString, patternPrecedence, sha)
   }
 
-  override val toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")}${hasGuard match {
-    case GuardAbsent => ""
-    case GuardPresent => " if(?)"
-    case GuardPresenceUnknown => " ?"
+  override val toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")}${guardPresence match {
+    case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => ""
+    case GuardPresent(_, Some(_), List()) => " if(?)"
+    case GuardPresent(_, _, crossGuards) => s" if(${crossGuards.flatMap{_._1}.mkString(",")})"
+    case GuardPresenceUnknown => " ?if?"
   }} => ${outputs match {
     case Some(outputMoleculeInfos) => outputMoleculeInfos.map(_.toString).mkString(" + ")
     case None => "?"
