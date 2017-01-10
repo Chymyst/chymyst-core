@@ -285,23 +285,11 @@ object Macros {
       }
     }
 
-    // TODO: remove
-//    def splitAtConjunctions(term: Tree): List[Tree] = {
-//      term match {
-//        case q"$a && $b" => splitAtConjunctions(a.asInstanceOf[Tree]) ++ splitAtConjunctions(b.asInstanceOf[Tree]) // IntelliJ has a bug that prevents it from unifying Trees#Tree and c.universe.Tree. So let's do this harmless type cast to appease IntelliJ.
-//        case t@_ => List(t)
-//      }
-//    }
-
     def matcherFunction(binderTerm: Tree, guardTree: Tree, vars: List[Ident]): Tree = {
       if (guardTree.isEmpty)
-        q"{ case $binderTerm => () } : PartialFunction[Any, Unit]"
+        q"{ case $binderTerm => () }" // This should not be untypechecked!! Why?
       else {
-//        val newGuardTree = (ReplaceVars.in(guardTree, vars))
-//        val newBinderTerm = ReplaceVars.in(binderTerm, GuardVars.fromVars(guardTree, vars))
-//        val caseDefs = List(cq"$binderTerm => ()") //if $guardTree => fails
-//        q"{ case ..$caseDefs } : PartialFunction[Any, Unit]"
-        c.untypecheck(q"{ case ${(binderTerm)} if ${(guardTree)} => }")
+        c.untypecheck(q"{ case $binderTerm if $guardTree => () } : PartialFunction[Any, Unit]")
       }
     }
 
