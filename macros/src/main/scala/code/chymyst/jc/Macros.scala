@@ -284,6 +284,7 @@ object Macros {
       def normalize(a: Trees#Tree): List[List[Tree]] = convertToCNF(a.asInstanceOf[Tree])
 
       term match {
+        case EmptyTree => List()
         case q"$a && $b" =>
           val aN = normalize(a)
           val bN = normalize(b)
@@ -559,10 +560,11 @@ object Macros {
     }
 
     // If the CNF is empty, the entire guard is identically `true`. We can remove it altogether.
-    val isGuardAbsent = guardCNF.isEmpty || (guard match {
-      case EmptyTree => true;
-      case _ => false
-    })
+    val isGuardAbsent = guardCNF.isEmpty
+//    || (guard match {
+//      case EmptyTree => true;
+//      case _ => false
+//    })
 
     val guardVarsSeq: List[(Tree, List[Ident])] = guardCNF.map {
       guardDisjunctions =>
