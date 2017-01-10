@@ -382,13 +382,35 @@ object Macros {
         case o@_ => isOwnedBy(o, owner)
       }
 
+      /** Detect whether an expression tree represents a constant expression.
+        * Recognize literals, Some(), None(), and tuples.
+        *
+        * @param binderTree Binder pattern tree.
+        * @return {{{Some(tree)}}} if the expression represents a constant of the recognized form. Here {{{tree}}} will be a quoted expression tree. {{{None}}} otherwise.
+        */
+      private def getConstantTree(binderTree: Trees#Tree): Option[Trees#Tree] =
+        binderTree match {
+          case Literal(_) => Some(binderTree)
+          case pq"scala.None" => Some(q"None")
+          case pq"$extr(..$xs)" if xs.size === 1 && showCode(extr.asInstanceOf[Tree]) === "scala.Some" =>
+            xs.headOption
+              .flatMap(getConstantTree)
+              .map(t => q"Some(${t.asInstanceOf[Tree]})")
+          case pq"(..$exprs)" if exprs.size > 1 => // Tuples of size 0 are Unit values, tuples of size 1 are ordinary values.
+            val trees = exprs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
+            if (trees.size === exprs.size) Some(q"(..$trees)") else None
+          case _ => None
+        }
+
       private def getInputFlag(binderTerm: Tree): InputPatternFlag[Ident, Tree] = binderTerm match {
         case Ident(termNames.WILDCARD) => WildcardF
         case Bind(t@TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF(Ident(t), binderTerm, None)
-        case Literal(_) => SimpleConstF(binderTerm)
-        case _ =>
-          val vars = PatternVars.from(binderTerm)
-          OtherPatternF(binderTerm, EmptyTree, vars)
+        case _ => getConstantTree(binderTerm)
+          .map(t => SimpleConstF(t.asInstanceOf[Tree]))
+          .getOrElse {
+            val vars = PatternVars.from(binderTerm)
+            OtherPatternF(binderTerm, EmptyTree, vars)
+          }
       }
 
       private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag[Tree] = binderTerms match {
