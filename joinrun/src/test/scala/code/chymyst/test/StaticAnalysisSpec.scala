@@ -132,7 +132,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
   object IsEven {
     def unapply(x: Int): Option[Int] = if (x % 2 == 0) Some(x / 2) else None
   }
-
+/*
   it should "detect shadowing of reactions with non-identical matchers that are nontrivially weaker" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
@@ -155,7 +155,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     )
     result.hasErrorsOrWarnings shouldEqual false
   }
-
+*/
   it should "detect shadowing of reactions with all supported matcher combinations" in {
     val thrown = intercept[Exception] {
       val a = m[Option[Int]]
@@ -208,20 +208,20 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     result.hasErrorsOrWarnings shouldEqual false
   }
 
-  it should "detect possible livelock in a single reaction due to nontrivial matchers" in {
-    val a = m[Int]
-    val result = site(
-      go { case a(IsEven(x)) => a(x) }
-    )
-    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(<A854...>) => a(?)}"), List(), "Site{a => ...}")
-  }
-
   it should "detect possible livelock in a single reaction due to guard" in {
     val a = m[Int]
     val result = site(
       go { case a(x) if x > 0 => a(x) }
     )
     result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(x if ?) => a(?)}"), List(), "Site{a => ...}")
+  }
+/*
+  it should "detect possible livelock in a single reaction due to nontrivial matchers" in {
+    val a = m[Int]
+    val result = site(
+      go { case a(IsEven(x)) => a(x) }
+    )
+    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(<A854...>) => a(?)}"), List(), "Site{a => ...}")
   }
 
   it should "detect livelock in a single reaction due to constant output values with nontrivial matchers" in {
@@ -237,7 +237,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     }
     thrown.getMessage shouldEqual "In Site{a + b + b + c => ...}: Unavoidable livelock: reaction {a(_) + b(<A854...>) + b(_) + c(1) => c(1) + b(1) + b(2) + a(?) + c(2)}"
   }
-
+*/
   it should "detect livelock in a simple reaction due to constant output values" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
@@ -259,16 +259,52 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     thrown.getMessage shouldEqual "In Site{a + b => ...}: Unavoidable livelock: reaction {a(1) + b(_) => b(1) + b(2) + a(1)}"
   }
 
+  it should "detect livelock in a single reaction due to one constant output value with simple guard" in {
+    val thrown = intercept[Exception] {
+      val a = m[Int]
+      val b = m[Int]
+      val warnings = site(
+        go { case a(1) + b(x) if x > 0 => b(1) + b(2) + a(1) }
+      )
+      // When this test fails to produce an error, it might give this warning. If we see no exception, we know that this warning was produced.
+      warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) + b(x if ?) => b(1) + b(2) + a(1)}"), List(), "Site{a + b => ...}")
+    }
+    thrown.getMessage shouldEqual "In Site{a + b => ...}: Unavoidable livelock: reaction {a(1) + b(x if ?) => b(1) + b(2) + a(1)}"
+  }
+
+  it should "detect livelock in a single reaction due to two constant output values with simple guard" in {
+    val thrown = intercept[Exception] {
+      val a = m[Int]
+      val b = m[Int]
+      val warnings = site(
+        go { case a(1) + b(x) if x > 1 => b(1) + b(2) + a(1) }
+      )
+      // When this test fails to produce an error, it might give this warning. If we see no exception, we know that this warning was produced.
+      warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) + b(x if ?) => b(1) + b(2) + a(1)}"), List(), "Site{a + b => ...}")
+    }
+    thrown.getMessage shouldEqual "In Site{a + b => ...}: Unavoidable livelock: reaction {a(1) + b(x if ?) => b(1) + b(2) + a(1)}"
+  }
+
   it should "give a livelock warning in a single reaction due to constant output values" in {
     val p = m[Int]
     val q = m[Int]
     val warnings = site(
-      go { case p(x) + q(1) => q(x) + q(2) + p(1) } // Will have livelock when x == 1, but not otherwise.
+      go { case p(x) + q(1) => q(x) + q(2) + p(1) } // Will have livelock when x == 1, but not otherwise, thus it is a warning and not an error.
     )
 
     warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {p(x) + q(1) => q(?) + q(2) + p(1)}"), List(), "Site{p + q => ...}")
   }
 
+  it should "give a livelock warning in a single reaction due to constant output values with simple guard" in {
+    val p = m[Int]
+    val q = m[Int]
+    val warnings = site(
+      go { case p(x) + q(1) if x > 0 => q(x) + q(2) + p(1) } // The condition x > 0 is true when x = 1.
+    )
+
+    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {p(x if ?) + q(1) => q(?) + q(2) + p(1)}"), List(), "Site{p + q => ...}")
+  }
+/*
   it should "detect shadowing together with livelock" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
@@ -282,7 +318,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     }
     thrown.getMessage shouldEqual "In Site{a + b => ...; a + b => ...; a => ...}: Unavoidable nondeterminism: reaction {a(2) + b(3) => } is shadowed by {a(<A854...>) => a(2)}; Unavoidable livelock: reactions {a(1) + b(_) => b(1) + b(2) + a(1)}, {a(<A854...>) => a(2)}"
   }
-
+*/
   behavior of "deadlock detection"
 
   it should "not warn about likely deadlock for a reaction that emits molecules for itself in the right order" in {

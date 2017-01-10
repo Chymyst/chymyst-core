@@ -59,6 +59,21 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(x) if(?) => "
   }
 
+  it should "correctly compute reaction info" in {
+    val a = m[Int]
+    val b = m[Int]
+
+    val reaction = go { case a(1) + b(x) if x > 1 => }
+
+    (reaction.info.inputs(1).flag match {
+      case SimpleVar(v, Some(cond)) =>
+        cond.isDefinedAt(1) shouldEqual false
+        cond.isDefinedAt(2) shouldEqual true
+        true
+      case _ => false
+    }) shouldEqual true
+  }
+
   it should "correctly recognize a guard condition with captured variables" in {
     val a = m[Int]
 
