@@ -170,7 +170,7 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
 }
 
 // This class is immutable.
-final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], hasGuard: GuardPresenceType, sha1: String) {
+final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], guardPresence: GuardPresenceType, sha1: String) {
 
   // The input pattern sequence is pre-sorted for further use.
   private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
@@ -184,7 +184,7 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[L
     (mol.toString, patternPrecedence, sha)
   }
 
-  override val toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")}${hasGuard match {
+  override val toString: String = s"${inputsSorted.map(_.toString).mkString(" + ")}${guardPresence match {
     case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => ""
     case GuardPresent(_, Some(_), List()) => " if(?)"
     case GuardPresent(_, _, crossGuards) => s" if(${crossGuards.flatMap{_._1}.mkString(",")})"

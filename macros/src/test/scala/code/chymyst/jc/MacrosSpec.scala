@@ -75,7 +75,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val reaction = go { case _ => a(123) }
 
     reaction.info.inputs shouldEqual Nil
-    reaction.info.hasGuard.knownFalse shouldEqual true
+    reaction.info.guardPresence.knownFalse shouldEqual true
     reaction.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, SimpleConstOutput(123))))
   }
 
@@ -149,7 +149,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }) shouldEqual true
 
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, OtherOutputPattern)))
-    result.info.hasGuard shouldEqual GuardAbsent
+    result.info.guardPresence shouldEqual GuardAbsent
     result.info.sha1 shouldEqual "B1957B893BF4FE420EC790947A0BB62B856BBF33"
   }
 
@@ -169,7 +169,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       case _ => false
     }) shouldEqual true
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, SimpleConstOutput(()))))
-    result.info.hasGuard shouldEqual AllMatchersAreTrivial
+    result.info.guardPresence shouldEqual AllMatchersAreTrivial
     result.info.sha1 shouldEqual axqq_qqSha1
   }
 
@@ -187,7 +187,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       case _ => false
     }) shouldEqual true
     result.info.outputs shouldEqual None
-    result.info.hasGuard shouldEqual GuardPresenceUnknown
+    result.info.guardPresence shouldEqual GuardPresenceUnknown
     result.info.sha1 should not equal axqq_qqSha1
   }
 
@@ -216,7 +216,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       case _ => false
     }) shouldEqual true
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qqq, SimpleConstOutput(""))))
-    result.info.hasGuard shouldEqual GuardAbsent
+    result.info.guardPresence shouldEqual GuardAbsent
   }
 
   it should "inspect reaction body with embedded reaction" in {
@@ -230,7 +230,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       case _ => false
     }) shouldEqual true
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, SimpleConstOutput(()))))
-    result.info.hasGuard shouldEqual AllMatchersAreTrivial
+    result.info.guardPresence shouldEqual AllMatchersAreTrivial
   }
 
   it should "inspect a very complicated reaction input pattern" in {
@@ -380,7 +380,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       case _ => false
     }) shouldEqual true
     r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, OtherOutputPattern)))
-    r.info.hasGuard shouldEqual GuardAbsent
+    r.info.guardPresence shouldEqual GuardAbsent
 
     // Note: Scala 2.11 and Scala 2.12 have different desugared syntax trees for this reaction.
     r.info.sha1 shouldEqual "9C93A6DE5D096D3CDC3C318E0A07B30B732EA37A"

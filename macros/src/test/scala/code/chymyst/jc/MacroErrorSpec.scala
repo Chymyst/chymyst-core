@@ -81,7 +81,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     "val r = go { case a(_, r) + a(_) + c(_) => r()  }" shouldNot compile // invalid patterns for "a" and "c"
     "val r = go { case a(_, r) + a(_) + c(_) => r(); r() }" shouldNot compile // two replies are performed with r, and invalid patterns for "a" and "c"
 
-    "val r = go { case e(_) if false => c() }" should compile // input guard does not emit molecules
+    "val r = go { case e(_) if true => c() }" should compile // input guard does not emit molecules
     "val r = go { case e(_) if c() => }" shouldNot compile // input guard emits molecules
     "val r = go { case a(_,r) if r() => }" shouldNot compile // input guard performs reply actions
 
