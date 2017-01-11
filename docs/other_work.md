@@ -31,9 +31,34 @@ Unfortunately, I cannot recommend reading them - they are unsuitable for learnin
 
 I learned about the “Reflexive Chemical Abstract Machine” from the introduction in one of the [early papers on Join Calculus](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.32.3078&rep=rep1&type=pdf).
 
-Do not start by reading these papers if you are a beginner in Join Calculus - you will only be unnecessarily confused, because those texts are intended for advanced computer scientists and not pedagogically appropriate for beginners.
+Do not start by reading academic papers if you are a beginner in Join Calculus - you will only be unnecessarily confused, because those texts are intended for advanced computer scientists and not pedagogically appropriate for beginners.
 
-Also, I do not recommend reading the [Wikipedia page on Join Calculus](https://en.wikipedia.org/wiki/Join-calculus).
+As another comparison, here is some code in academic Join Calculus, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
+
+<img alt="def newVar(v0) def put(w) etc." src="academic_join_calculus_2.png" width="200" />
+
+This code creates a shared value container `val` with synchronized single access.
+
+The equivalent `Chymyst` code looks like this:
+
+```scala
+def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
+  val put = b[T, Unit] 
+  val get = b[Unit, T]
+  val _val = m[T] // have to use `_val` since `val` is a Scala keyword
+  
+  site(
+    go { case put(w, ret) + _val(v) => _val(w); ret() },
+    go { case get(_, ret) + _val(v) => _val(v); ret(v) }
+  )
+  _val(v0)
+  
+  (put, get)
+}
+
+```
+
+I also do not recommend reading the [Wikipedia page on Join Calculus](https://en.wikipedia.org/wiki/Join-calculus).
 As of December 2016, this page says this about Join Calculus:
 
 > The join-calculus ... can be considered, at its core, an asynchronous π-calculus with several strong restrictions:
@@ -45,9 +70,9 @@ As of December 2016, this page says this about Join Calculus:
 > However, as a language for programming, the join-calculus offers at least one convenience over the π-calculus — namely the use of multi-way join patterns, the ability to match against messages from multiple channels simultaneously.
 
 This text is impossible to understand unless you are already well-versed in the research literature.
-(What does it mean to have "communication on _defined_ names" as opposed to _undefined_ names?)
+(I'm not sure what it means to have "communication on _defined_ names", as opposed to communication on _undefined_ names...)
 
-Research literature on Join Calculus typically uses terms such as "channel" or "message", which are not very helpful for understanding how to write concurrent program.
+Research literature on Join Calculus typically uses terms such as "channel" or "message", which are not very helpful for understanding how to write concurrent programs in JC.
 
 Instead of using academic terminology, I always follow the chemical machine metaphor and terminology when talking about `Chymyst` programming.
 Here is a dictionary:
