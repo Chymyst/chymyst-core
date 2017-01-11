@@ -11,6 +11,7 @@ import scala.collection.immutable.Seq
 import scala.reflect.api.Trees
 
 class CommonMacros(val c: blackbox.Context) {
+  import c.universe._
 
   /** Detect the enclosing name of an expression.
     * For example: {{{val x = "name is " + getName}}} will set x to the string "name is x".
@@ -20,6 +21,94 @@ class CommonMacros(val c: blackbox.Context) {
   def getEnclosingName: String =
     c.internal.enclosingOwner.name.decodedName.toString
       .stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
+
+  // Classes need to be defined at top level because we can't have case classes local to a function scope.
+  // However, we need to use path-dependent types such as `Ident` and `Tree`.
+  // So we use type parameters for them.
+
+  /** Describes the pattern matcher for input molecules.
+    * Possible values:
+    * Wildcard: a(_)
+    * SimpleVar: a(x)
+    * SimpleConst: a(1)
+    * WrongReplyVar: the second matcher for blocking molecules is not a simple variable
+    * OtherPattern: we don't recognize the pattern (could be a case class or a general Unapply expression)
+    */
+  sealed trait InputPatternFlag {
+    def patternSha1(showCode: Tree => String): String = ""
+
+    def notReplyValue: Boolean = true
+
+    /** Does this pattern contain a nontrivial syntax tree that could contain other molecules?
+      *
+      * @return true or false
+      */
+    def hasSubtree: Boolean = false
+
+    def varNames: List[Ident] = Nil
+  }
+
+  case object WildcardF extends InputPatternFlag
+
+  /** Represents a reply pattern consisting of a simple variable.
+    *
+    * @param replyVar The Ident of a reply pattern variable.
+    */
+  final case class ReplyVarF[Ident, Tree](replyVar: Ident) extends InputPatternFlag[Ident, Tree] {
+    override def notReplyValue: Boolean = false
+  }
+
+  /** Represents a pattern match with a simple pattern variable, such as `a(x)`
+    *
+    * @param v The Ident of the pattern variable.
+    */
+  final case class SimpleVarF[Ident, Tree](v: Ident, binder: Tree, cond: Option[Tree]) extends InputPatternFlag[Ident, Tree] {
+    override def varNames: List[Ident] = List(v)
+
+    override def patternSha1(showCode: Tree => String): String = cond.map(c => getSha1String(showCode(c))).getOrElse("")
+  }
+
+  case object WrongReplyVarF extends InputPatternFlag[Nothing, Nothing]
+
+  // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
+
+  // the value v represents a value of the [T] type of M[T] or B[T,R]
+  final case class SimpleConstF[Ident, Tree](v: Tree) extends InputPatternFlag[Ident, Tree] {
+    override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(v))
+  }
+
+  /** Nontrivial pattern matching expression that could contain unapply, destructuring, pattern @ variables, etc.
+    * For example, if c is a molecule then this could be c( z@(x, Some(y)) )
+    * In that case, vars = List("z", "x", "y") and matcher = { case z@(x, Some(y)) => (z, x, y) }
+    *
+    * @param matcher Tree of a partial function of type Any => Any.
+    * @param vars    List of pattern variable names in the order of their appearance in the syntax tree.
+    */
+  final case class OtherPatternF[Ident, Tree](matcher: Tree, guard: Tree, vars: List[Ident]) extends InputPatternFlag[Ident, Tree] {
+    override def hasSubtree: Boolean = true
+
+    override def varNames: List[Ident] = vars
+
+    override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(matcher) + showCode(guard))
+  }
+
+  /** Describes the pattern matcher for output molecules.
+    * Possible values:
+    * ConstOutputPatternF(x): a(123)
+    * EmptyOutputPatternF: a()
+    * OtherOutputPatternF: a(x+y) or anything else
+    */
+  sealed trait OutputPatternFlag[+Tree] {
+    def needTraversal: Boolean = false
+  }
+
+  case object OtherOutputPatternF extends OutputPatternFlag[Nothing] {
+    override def needTraversal: Boolean = true
+  }
+
+  case object EmptyOutputPatternF extends OutputPatternFlag[Nothing]
+
+  final case class ConstOutputPatternF[Tree](v: Tree) extends OutputPatternFlag[Tree]
 
 }
 
@@ -712,7 +801,7 @@ object Macros {
     */
   private[jc] def rawTree(x: Any): String = macro BlackboxMacros.rawTreeImpl
 
-  /** This macro is not actually used by Chymyst.
+  /** This macro is not actually used.
     * It serves only for testing the mechanism by which we detect the name of the enclosing value.
     * For example, `val myVal = { 1; 2; 3; getName }` returns the string "myVal".
     *
@@ -737,92 +826,3 @@ object Macros {
   def go(reactionBody: ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl
 
 }
-
-// Classes need to be defined at top level because we can't have case classes local to a function scope.
-// However, we need to use path-dependent types such as `Ident` and `Tree`.
-// So we use type parameters for them.
-
-/** Describes the pattern matcher for input molecules.
-  * Possible values:
-  * Wildcard: a(_)
-  * SimpleVar: a(x)
-  * SimpleConst: a(1)
-  * WrongReplyVar: the second matcher for blocking molecules is not a simple variable
-  * OtherPattern: we don't recognize the pattern (could be a case class or a general Unapply expression)
-  */
-sealed trait InputPatternFlag[+Ident, +Tree] {
-  def patternSha1(showCode: Tree => String): String = ""
-
-  def notReplyValue: Boolean = true
-
-  /** Does this pattern contain a nontrivial syntax tree that could contain other molecules?
-    *
-    * @return true or false
-    */
-  def hasSubtree: Boolean = false
-
-  def varNames: List[Ident] = Nil
-}
-
-case object WildcardF extends InputPatternFlag[Nothing, Nothing]
-
-/** Represents a reply pattern consisting of a simple variable.
-  *
-  * @param replyVar The Ident of a reply pattern variable.
-  */
-final case class ReplyVarF[Ident, Tree](replyVar: Ident) extends InputPatternFlag[Ident, Tree] {
-  override def notReplyValue: Boolean = false
-}
-
-/** Represents a pattern match with a simple pattern variable, such as `a(x)`
-  *
-  * @param v The Ident of the pattern variable.
-  */
-final case class SimpleVarF[Ident, Tree](v: Ident, binder: Tree, cond: Option[Tree]) extends InputPatternFlag[Ident, Tree] {
-  override def varNames: List[Ident] = List(v)
-
-  override def patternSha1(showCode: Tree => String): String = cond.map(c => getSha1String(showCode(c))).getOrElse("")
-}
-
-case object WrongReplyVarF extends InputPatternFlag[Nothing, Nothing]
-
-// the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
-
-// the value v represents a value of the [T] type of M[T] or B[T,R]
-final case class SimpleConstF[Ident, Tree](v: Tree) extends InputPatternFlag[Ident, Tree] {
-  override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(v))
-}
-
-/** Nontrivial pattern matching expression that could contain unapply, destructuring, pattern @ variables, etc.
-  * For example, if c is a molecule then this could be c( z@(x, Some(y)) )
-  * In that case, vars = List("z", "x", "y") and matcher = { case z@(x, Some(y)) => (z, x, y) }
-  *
-  * @param matcher Tree of a partial function of type Any => Any.
-  * @param vars    List of pattern variable names in the order of their appearance in the syntax tree.
-  */
-final case class OtherPatternF[Ident, Tree](matcher: Tree, guard: Tree, vars: List[Ident]) extends InputPatternFlag[Ident, Tree] {
-  override def hasSubtree: Boolean = true
-
-  override def varNames: List[Ident] = vars
-
-  override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(matcher) + showCode(guard))
-}
-
-/** Describes the pattern matcher for output molecules.
-  * Possible values:
-  * ConstOutputPatternF(x): a(123)
-  * EmptyOutputPatternF: a()
-  * OtherOutputPatternF: a(x+y) or anything else
-  */
-sealed trait OutputPatternFlag[+Tree] {
-  def needTraversal: Boolean = false
-}
-
-case object OtherOutputPatternF extends OutputPatternFlag[Nothing] {
-  override def needTraversal: Boolean = true
-}
-
-case object EmptyOutputPatternF extends OutputPatternFlag[Nothing]
-
-final case class ConstOutputPatternF[Tree](v: Tree) extends OutputPatternFlag[Tree]
-

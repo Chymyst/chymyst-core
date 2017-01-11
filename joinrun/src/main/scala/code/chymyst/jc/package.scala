@@ -1,7 +1,5 @@
 package code.chymyst
 
-import code.chymyst.jc.Macros._
-
 import scala.language.experimental.macros
 
 package object jc {
@@ -32,7 +30,7 @@ package object jc {
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
     * @return A reaction value, to be used later in [[site]].
     */
-  def go(reactionBody: Core.ReactionBody): Reaction = macro buildReactionImpl
+  def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl
 
   /**
     * Convenience syntax: users can write a(x)+b(y) to emit several molecules at once.
@@ -51,7 +49,7 @@ package object jc {
     * @tparam T Type of the value carried by the molecule.
     * @return A new instance of class [[M]]{{{[T]}}} if {{{T}}} is not {{{Unit}}}, or of class [[E]] if {{{T}}} is {{{Unit}}}.
     */
-  def m[T]: M[T] = macro mImpl[T]
+  def m[T]: M[T] = macro WhiteboxMacros.mImpl[T]
 
   /** Declare a new blocking molecule emitter.
     * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
@@ -59,9 +57,9 @@ package object jc {
     * @tparam T Type of the value carried by the molecule.
     * @tparam R Type of the reply value.
     * @return A new instance of class [[B]]{{{[T,R]}}} if both {{{T}}} and {{{R}}} are not {{{Unit}}}.
-    *         Otherwise will return a new instance of one of the subclasses: [[EF]]{[R]}, [[FE]]{{{[T]}}, or [[EE]].
+    *         Otherwise will return a new instance of one of the subclasses: [[EB]]{[R]}, [[BE]]{{{[T]}}, or [[EE]].
     */
-  def b[T, R]: B[T,R] = macro bImpl[T, R]
+  def b[T, R]: B[T,R] = macro WhiteboxMacros.bImpl[T, R]
 
   val defaultSitePool: Pool = Core.defaultSitePool
   val defaultReactionPool: Pool = Core.defaultReactionPool

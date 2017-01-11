@@ -7,7 +7,6 @@ import code.chymyst.jc._
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
-import scala.language.postfixOps
 import scala.util.Random.nextInt
 
 class ReactionDelaySpec extends FlatSpec with Matchers {
