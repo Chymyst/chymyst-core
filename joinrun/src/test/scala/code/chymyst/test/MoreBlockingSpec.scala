@@ -87,10 +87,11 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     println(s"Mean reply delay is $meanReplyDelay ms out of $trials trials; the test took $timeElapsed ms")
   }
 
+  type Result = (Int, Int, Long, Boolean)
+
   case class MeasurementResult(resultTrueSize: Int, resultFalseSize: Int, timeoutDelayArraySize: Int, noTimeoutMeanShiftArraySize: Int, timeoutDelay: Float, noTimeoutDelay: Float, timeoutMeanShift: Float, noTimeoutMeanShift: Float, printout: String)
 
-  def measureTimeoutDelays(trials: Int, maxTimeout: Int, tp: Pool): MeasurementResult = {
-    type Result = (Int, Int, Long, Boolean)
+  def measureTimeoutDelays(trials: Int, maxTimeout: Int, tp: Pool) = {
     val f = b[Long, Unit]
     val counter = m[(Int, List[Result])]
     val all_done = b[Unit, List[Result]]
@@ -114,7 +115,11 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     counter((trials, Nil))
     (1 to trials).foreach(_ => begin())
 
-    val (resultTrue, resultFalse) = all_done().partition(_._4)
+    all_done()
+  }
+
+  def processResults(result: List[Result]): MeasurementResult = {
+    val (resultTrue, resultFalse) = result.partition(_._4)
 
     val resultFalseSize = resultFalse.size
     val resultTrueSize = resultTrue.size
@@ -130,10 +135,10 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val noTimeoutMeanShiftArraySize = noTimeoutMeanShiftArray.size
 
     val printout = s"""Results:   # samples      | delay     | mean shift
-       |----------------------------------------------------
-       | timeout     ${resultTrueSize} (${timeoutDelayArraySize} items) | ${timeoutDelay} | ${timeoutMeanShift}
-       |----------------------------------------------------
-       | no timeout  ${resultFalseSize} (${noTimeoutMeanShiftArraySize} items) | ${noTimeoutDelay} | ${noTimeoutMeanShift}
+                      |----------------------------------------------------
+                      | timeout     ${resultTrueSize} (${timeoutDelayArraySize} items) | ${timeoutDelay} | ${timeoutMeanShift}
+                      |----------------------------------------------------
+                      | no timeout  ${resultFalseSize} (${noTimeoutMeanShiftArraySize} items) | ${noTimeoutDelay} | ${noTimeoutMeanShift}
        """.stripMargin
 
     MeasurementResult(resultTrueSize, resultFalseSize, timeoutDelayArraySize, noTimeoutMeanShiftArraySize, timeoutDelay, noTimeoutDelay, timeoutMeanShift, noTimeoutMeanShift, printout)
@@ -145,7 +150,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new SmartPool(4)
 
-    val result = measureTimeoutDelays(trials, maxTimeout, tp)
+    val result = processResults(measureTimeoutDelays(trials, maxTimeout, tp))
 
     println(result.printout)
 
@@ -158,7 +163,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(4)
 
-    val result = measureTimeoutDelays(trials, maxTimeout, tp)
+    val result = processResults(measureTimeoutDelays(trials, maxTimeout, tp))
 
     println(result.printout)
 
