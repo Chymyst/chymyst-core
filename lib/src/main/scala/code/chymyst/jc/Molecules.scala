@@ -7,8 +7,13 @@ import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 
+sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
+private[jc] final case class UnapplyCheckSimple(inputMolecules: mutable.MutableList[Molecule]) extends UnapplyArg // used only for `_go` and in tests
+private[jc] final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg // used for checking that reaction values pass the pattern-matching, before running the reaction
+private[jc] final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg // used for running the reaction
+
 /**
-  * Convenience syntax: users can write a(x)+b(y) in reaction patterns.
+  * Convenience syntax: users can write a(x) + b(y) in reaction patterns.
   * Pattern-matching can be extended to molecule values as well, for example
   * {{{ { case a(MyCaseClass(x,y)) + b(Some(z)) => ... } }}}
   *
@@ -155,6 +160,7 @@ private[jc] trait NonblockingMolecule[T] extends Molecule {
   }
 
 }
+
 private[jc] trait BlockingMolecule[T, R] extends Molecule {
 
   /** This type will be ReplyValue[T,R] or EmptyReplyValue[R] depending on the class that inherits from BlockingMolecule.
@@ -488,11 +494,6 @@ class B[T, R](val name: String) extends (T => R) with BlockingMolecule[T, R] {
 
   def unapply(arg: UnapplyArg): Option[(T, Reply)] = unapplyInternal(arg)
 }
-
-sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
-private[jc] final case class UnapplyCheckSimple(inputMolecules: mutable.MutableList[Molecule]) extends UnapplyArg // used only for `_go` and in tests
-private[jc] final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg // used for checking that reaction values pass the pattern-matching, before running the reaction
-private[jc] final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg // used for running the reaction
 
 /** Mix this trait into your class to make the has code persistent after the first time it's computed.
   *
