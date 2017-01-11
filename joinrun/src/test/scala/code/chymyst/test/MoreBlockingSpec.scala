@@ -48,6 +48,8 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
+  val safeSize: Int => Float = x => if (x==0) 1.0f else x.toFloat
+
   it should "return false if blocking molecule timed out" in {
     val a = m[Boolean]
     val f = b[Unit,Int]
@@ -66,6 +68,25 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
+  it should "measure simple statistics on reaction delay" in {
+    val f = b[Unit,Unit]
+    val tp = new SmartPool(4)
+    site(tp)(
+      go { case f(_, r) => BlockingIdle{Thread.sleep(1)}; r() } // reply immediately
+    )
+    val trials = 100
+    val timeInit = LocalDateTime.now
+    val results = (1 to trials).map { _ =>
+      val timeInit = LocalDateTime.now
+      f()
+      val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MICROS)
+      timeElapsed
+    }
+    val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
+    val meanReplyDelay = results.sum / safeSize(results.size) / 1000 - 1
+    println(s"Mean reply delay is $meanReplyDelay ms out of $trials trials; the test took $timeElapsed ms")
+  }
+
   case class MeasurementResult(resultTrueSize: Int, resultFalseSize: Int, timeoutDelayArraySize: Int, noTimeoutMeanShiftArraySize: Int, timeoutDelay: Float, noTimeoutDelay: Float, timeoutMeanShift: Float, noTimeoutMeanShift: Float, printout: String)
 
   def measureTimeoutDelays(trials: Int, maxTimeout: Int, tp: Pool): MeasurementResult = {
@@ -75,7 +96,6 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val all_done = b[Unit, List[Result]]
     val done = m[Result]
     val begin = m[Unit]
-
 
     site(tp)(
       go { case begin(_) =>
@@ -95,8 +115,6 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     (1 to trials).foreach(_ => begin())
 
     val (resultTrue, resultFalse) = all_done().partition(_._4)
-
-    val safeSize: Int => Float = x => if (x==0) 1.0f else x.toFloat
 
     val resultFalseSize = resultFalse.size
     val resultTrueSize = resultTrue.size
@@ -125,7 +143,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val trials = 900
     val maxTimeout = 500
 
-    val tp = new SmartPool(2)
+    val tp = new SmartPool(4)
 
     val result = measureTimeoutDelays(trials, maxTimeout, tp)
 
@@ -138,7 +156,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val trials = 20
     val maxTimeout = 200
 
-    val tp = new FixedPool(2)
+    val tp = new FixedPool(4)
 
     val result = measureTimeoutDelays(trials, maxTimeout, tp)
 
