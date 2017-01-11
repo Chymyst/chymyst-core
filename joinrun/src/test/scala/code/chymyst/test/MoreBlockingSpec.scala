@@ -74,7 +74,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     site(tp)(
       go { case f(_, r) => BlockingIdle{Thread.sleep(1)}; r() } // reply immediately
     )
-    val trials = 100
+    val trials = 200
     val timeInit = LocalDateTime.now
     val results = (1 to trials).map { _ =>
       val timeInit = LocalDateTime.now
@@ -84,14 +84,47 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     }
     val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
     val meanReplyDelay = results.sum / safeSize(results.size) / 1000 - 1
-    println(s"Mean reply delay is $meanReplyDelay ms out of $trials trials; the test took $timeElapsed ms")
+    println(s"Sequential test: Mean reply delay is $meanReplyDelay ms out of $trials trials; the test took $timeElapsed ms")
+  }
+
+  it should "measure simple statistics on reaction delay in parallel" in {
+    val f = b[Unit, Unit]
+    val counter = m[(Int, List[Long])]
+    val all_done = b[Unit, List[Long]]
+    val done = m[Long]
+    val begin = m[Unit]
+    val tp = new SmartPool(4)
+
+    val trials = 200
+
+    site(tp)(
+      go { case begin(_) =>
+        val timeInit = LocalDateTime.now
+        f()
+        val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MICROS)
+        done(timeElapsed)
+      },
+      go { case all_done(_, r) + counter((0, results)) => r(results) },
+      go { case counter( (n, results) ) + done(res) if n > 0 => counter( (n-1, res :: results) ) },
+      go { case f(timeOut, r) => BlockingIdle{Thread.sleep(1)}; r() }
+    )
+
+    counter((trials, Nil))
+    (1 to trials).foreach(_ => begin())
+
+    val timeInit = LocalDateTime.now
+    (1 to trials).foreach { _ => begin() }
+    val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
+    val results = all_done()
+    val meanReplyDelay = results.sum / safeSize(results.size) / 1000 - 1
+    println(s"Parallel test: Mean reply delay is $meanReplyDelay ms out of $trials trials; the test took $timeElapsed ms")
   }
 
   type Result = (Int, Int, Long, Boolean)
 
   case class MeasurementResult(resultTrueSize: Int, resultFalseSize: Int, timeoutDelayArraySize: Int, noTimeoutMeanShiftArraySize: Int, timeoutDelay: Float, noTimeoutDelay: Float, timeoutMeanShift: Float, noTimeoutMeanShift: Float, printout: String)
 
-  def measureTimeoutDelays(trials: Int, maxTimeout: Int, tp: Pool) = {
+  def measureTimeoutDelays(trials: Int, maxTimeout: Int, tp: Pool): List[(Int, Int, Long, Boolean)] = {
     val f = b[Long, Unit]
     val counter = m[(Int, List[Result])]
     val all_done = b[Unit, List[Result]]
