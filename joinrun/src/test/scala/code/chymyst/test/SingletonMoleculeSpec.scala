@@ -47,7 +47,8 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         go { case _ => d("ok") } // singleton
       )
 
-      (1 to 100).foreach { j =>
+      // Warning: the timeouts might fail the test due to timed tests.
+      (1 to 20).foreach { j =>
         d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
         // and even if the initial d() emission was done late
         f.timeout(500 millis)() shouldEqual Some("ok")
