@@ -10,7 +10,7 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers {
     Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
   }
 
-  val philosophers = IndexedSeq("Confucius", "Descartes", "Plato", "Socrates", "Voltaire")
+  val philosophers = IndexedSeq("Socrates", "Confucius", "Plato", "Descartes", "Voltaire")
 
   def eating(philosopher: Int): Unit = {
     randomWait(s"${philosophers(philosopher-1)} is eating")
