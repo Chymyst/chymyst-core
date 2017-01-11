@@ -205,17 +205,20 @@ object Macros {
       */
     object ReactionCases extends Traverser {
       private var info: List[CaseDef] = List()
+      private var isFirst: Boolean = true
 
       override def traverse(tree: Tree): Unit =
         tree match {
           // this is matched by the partial function of type ReactionBody
-          case DefDef(_, TermName("applyOrElse"), _, _, _, Match(_, list)) =>
+          case DefDef(_, TermName("applyOrElse"), _, _, _, Match(_, list)) if isFirst =>
             info = list
+            isFirst = false
 
           // this is matched by a closure which is not a partial function. Not used now.
           /*
-          case Function(List(ValDef(_, TermName(_), TypeTree(), EmptyTree)), Match(Ident(TermName(_)), list)) =>
+          case Function(List(ValDef(_, TermName(_), TypeTree(), EmptyTree)), Match(Ident(TermName(_)), list)) if isFirst =>
            info = list
+           isFirst = false
           */
           case _ => super.traverse(tree)
         }
@@ -464,8 +467,8 @@ object Macros {
       override def traverse(tree: Tree): Unit = {
         tree match {
           // avoid traversing nested reactions: check whether this subtree is a Reaction() value
-          case q"code.chymyst.jc.Reaction.apply($_,$_,$_,$_)" => ()
-          case q"Reaction.apply($_,$_,$_,$_)" => ()
+          case q"code.chymyst.jc.Reaction.apply(..$_)" => ()
+          case q"Reaction.apply(..$_)" => ()
 
           // matcher with a single argument: a(x)
           case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
