@@ -161,6 +161,31 @@ Here is a dictionary:
 | emitting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
 | reaction site | join definition | `site(r1, r2, ...)` |
 
+As another comparison, here is some code in academic Join Calculus, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
+
+<img alt="def newVar(v0) def put(w) etc." src="docs/academic_join_calculus_2.png" width="400" />
+
+This code creates a shared value container `val` with synchronized single access.
+
+The equivalent `Chymyst` code looks like this:
+
+```scala
+def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
+  val put = b[T, Unit] 
+  val get = b[Unit, T]
+  val _val = m[T] // have to use `_val` since `val` is a Scala keyword
+  
+  site(
+    go { case put(w, ret) + _val(v) => _val(w); ret() },
+    go { case get(_, ret) + _val(v) => _val(v); ret(v) }
+  )
+  _val(v0)
+  
+  (put, get)
+}
+
+```
+
 ## Comparison: chemical machine vs. CSP
 
 CSP (Communicating Sequential Processes) is another approach to declarative concurrency, used today in the Go programming language.
