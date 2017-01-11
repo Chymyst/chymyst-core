@@ -267,7 +267,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.toString shouldEqual "a(x) + a(y) if(x,y) => "
   }
-
+/*
   it should "correctly split a guard condition when some clauses contain no pattern variables" in {
     val a = m[Int]
     val bb = m[(Int, Option[Int])]
@@ -278,6 +278,27 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go {
       case a(p) + a(y) + a(1) + bb((1, z)) + bb((t, Some(qwerty))) + f(_, r) if y > 0 && n == 10 && qwerty == n && t > p && k < n => r()
+    }
+    (result.info.guardPresence match {
+      case GuardPresent(List(List('y), List('qwerty), List('t, 'p)), Some(staticGuard), List((List('t, 'p), guard_t_p))) =>
+        staticGuard() shouldEqual true
+        true
+      case _ => false
+    }) shouldEqual true
+
+    result.info.toString shouldEqual "a(1) + a(y if ?) + a(p) + bb(<26CD...>) + bb(<85B4...>) + f/B(_) if(t,p) => "
+  }
+*/
+  it should "correctly split a simpler guard condition when some clauses contain no pattern variables" in {
+
+    val bb = m[(Int, Option[Int])]
+
+
+    val k = 5
+    val n = 10
+
+    val result = go {
+      case bb((x, Some(2))) + bb((3, Some(4)))   => x
     }
     (result.info.guardPresence match {
       case GuardPresent(List(List('y), List('qwerty), List('t, 'p)), Some(staticGuard), List((List('t, 'p), guard_t_p))) =>

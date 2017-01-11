@@ -72,6 +72,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   it should "fail to compile a reaction with regrouped inputs" in {
     val a = m[Unit]
     a.isInstanceOf[E] shouldEqual true
+
     "val r = go { case a(_) + (a(_) + a(_)) => }" shouldNot compile
     "val r = go { case (a(_) + a(_)) + a(_) => }" should compile
   }
