@@ -112,7 +112,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
     )
     a(1)
-    f.timeout(500 millis)() shouldEqual Some(2)
+    f.timeout(1000 millis)() shouldEqual Some(2)
   }
 
   it should "inspect reaction body with embedded join and _go" in {
@@ -128,7 +128,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
     )
     a(1)
-    f.timeout(500 millis)() shouldEqual Some(2)
+    f.timeout(1000 millis)() shouldEqual Some(2)
   }
 
   val simpleVarXSha1 = ""
