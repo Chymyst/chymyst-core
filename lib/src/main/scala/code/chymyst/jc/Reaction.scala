@@ -40,7 +40,7 @@ sealed trait GuardPresenceType {
     * can be split into a conjunction of guard conditions that each constrain the value of a single molecule.
     *
     * @return {{{true}}} if the reaction has no guard condition, or if it has guard conditions that can be split between molecules;
-    *        {{{false}}} if the reaction has a cross-molecule guard condition, or if it is unknown whethe rthe reaction has a guard condition at all.
+    *         {{{false}}} if the reaction has a cross-molecule guard condition, or if it is unknown whether the reaction has a guard condition at all.
     */
   def effectivelyAbsent: Boolean = this match {
     case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => true
@@ -56,7 +56,7 @@ sealed trait GuardPresenceType {
   * The condition n > 1 is a static guard. The condition x > n pertains only to the molecule a(x) and therefore can be moved out of the guard into the InputMoleculeInfo for that molecule. Similarly, the condition y > 0 can be moved out of the guard.
   * However, the condition y > z relates two different molecule values; it is a cross guard.
   *
-  * @param vars The list of all pattern variables used by the guard condition. Each element of this list is a list of variables used by one guard clause. In the example shown above, this will be {{{List(List('y, 'z))}}} because all other conditions are moved out of the guard.
+  * @param vars        The list of all pattern variables used by the guard condition. Each element of this list is a list of variables used by one guard clause. In the example shown above, this will be {{{List(List('y, 'z))}}} because all other conditions are moved out of the guard.
   * @param staticGuard The conjunction of all the clauses of the guard that are independent of pattern variables. This closure can be called in order to determine whether the reaction should even be considered to start, regardless of the presence of molecules. In this example, the value of {{{staticGuard}}} will be {{{Some(() => n > 1)}}}.
   * @param crossGuards A list of functions that represent the clauses of the guard that relate values of different molecules. The partial function `Any => Unit` should be called with the arguments representing the tuples of pattern variables from each molecule used by the cross guard.
   *                    In the present example, {{{crossGuards}}} will be {{{List((List('y, 'z), { case List(y, z) if y > z => () }))}}}.
@@ -64,6 +64,7 @@ sealed trait GuardPresenceType {
 final case class GuardPresent(vars: List[List[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: List[(List[ScalaSymbol], PartialFunction[List[Any], Unit])]) extends GuardPresenceType
 
 case object GuardAbsent extends GuardPresenceType
+
 case object AllMatchersAreTrivial extends GuardPresenceType
 
 /** Indicates that there is no information about the presence of the guard.
@@ -92,13 +93,13 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
     else flag match {
       case Wildcard | SimpleVar(_, None) => Some(true)
       case SimpleVar(_, Some(matcher1)) => info.flag match {
-        case SimpleConst(c)=> Some(matcher1.isDefinedAt(c))
-        case SimpleVar(_, Some(_)) | OtherInputPattern(_,_) => None // Cannot reliably determine a weaker matcher.
+        case SimpleConst(c) => Some(matcher1.isDefinedAt(c))
+        case SimpleVar(_, Some(_)) | OtherInputPattern(_, _) => None // Cannot reliably determine a weaker matcher.
         case _ => Some(false)
       }
-      case OtherInputPattern(matcher1,_) => info.flag match {
+      case OtherInputPattern(matcher1, _) => info.flag match {
         case SimpleConst(c) => Some(matcher1.isDefinedAt(c))
-        case OtherInputPattern(_,_) => if (sha1 === info.sha1) Some(true) else None // We can reliably determine identical matchers.
+        case OtherInputPattern(_, _) => if (sha1 === info.sha1) Some(true) else None // We can reliably determine identical matchers.
         case _ => Some(false) // Here we can reliably determine that this matcher is not weaker.
       }
       case SimpleConst(c) => Some(info.flag match {
@@ -117,7 +118,7 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
         case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
         case _ => None // Here we can't reliably determine whether this matcher is weaker.
       }
-      case OtherInputPattern(matcher1,_) => info.flag match {
+      case OtherInputPattern(matcher1, _) => info.flag match {
         case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
         case _ => None // Here we can't reliably determine whether this matcher is weaker.
       }
@@ -226,11 +227,11 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[L
 
 /** Represents a reaction body. This class is immutable.
   *
-  * @param body Partial function of type {{{ UnapplyArg => Unit }}}
+  * @param body       Partial function of type {{{ UnapplyArg => Unit }}}
   * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
-  * @param retry Whether the reaction should be run again when an exception occurs in its body. Default is false.
+  * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is false.
   */
-final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Option[Pool] = None, retry: Boolean) {
+final case class Reaction(info: ReactionInfo, body: ReactionBody, leanBody: PartialFunction[List[Any], Any], threadPool: Option[Pool] = None, retry: Boolean) {
 
   /** Convenience method to specify thread pools per reaction.
     *
@@ -261,7 +262,9 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
     *
     * @return String representation of input molecules of the reaction.
     */
-  override val toString: String = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${if (retry)
-    "/R" else ""}"
+  override val toString: String = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${
+    if (retry)
+      "/R" else ""
+  }"
 }
 
