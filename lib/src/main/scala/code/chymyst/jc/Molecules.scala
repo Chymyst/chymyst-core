@@ -8,7 +8,6 @@ import scala.collection.mutable
 import scala.concurrent.duration.Duration
 
 sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
-private[jc] final case class UnapplyCheckSimple(inputMolecules: mutable.MutableList[Molecule]) extends UnapplyArg // used only for `_go` and in tests
 private[jc] final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg // used for checking that reaction values pass the pattern-matching, before running the reaction
 private[jc] final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg // used for running the reaction
 
@@ -137,10 +136,6 @@ private[jc] trait NonblockingMolecule[T] extends Molecule {
 
   def unapplyInternal(arg: UnapplyArg): Option[T] = arg match {
 
-    case UnapplyCheckSimple(inputMoleculesProbe) =>   // This is used only by `_go`.
-      inputMoleculesProbe += this
-      Some(null.asInstanceOf[T]) // hack for testing only. This value will not be used.
-
     // When we are gathering information about the input molecules, `unapply` will always return Some(...),
     // so that any pattern-matching on arguments will continue with null (since, at this point, we have no values).
     // Any pattern-matching will work unless null fails.
@@ -189,11 +184,6 @@ private[jc] trait BlockingMolecule[T, R] extends Molecule {
     *         In this way, {{{isDefinedAt}}} is used to gather data about the input molecule values.
     */
   def unapplyInternal(arg: UnapplyArg): Option[(T, Reply)] = arg match {
-
-    case UnapplyCheckSimple(inputMoleculesProbe) =>   // used only by _go
-      inputMoleculesProbe += this
-      Some((null, null).asInstanceOf[(T, Reply)]) // hack for testing purposes only:
-    // The null value will not be used in any production code since _go is private.
 
     // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
     // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.

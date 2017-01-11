@@ -10,7 +10,7 @@ object Core {
   /** A special value for {{{ReactionInfo}}} to signal that we are not running a reaction.
     *
     */
-  val emptyReactionInfo = ReactionInfo(Nil, None, GuardPresenceUnknown, "")
+  val emptyReactionInfo = ReactionInfo(Nil, None, GuardAbsent, "")
 
   private lazy val sha1Digest = java.security.MessageDigest.getInstance("SHA-1")
 

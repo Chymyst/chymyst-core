@@ -6,9 +6,6 @@ import scala.annotation.tailrec
 
 private[jc] object StaticAnalysis {
 
-  private val patternIsNotUnknown: InputMoleculeInfo => Boolean =
-    _.flag match { case UnknownInputPattern => false; case _ => true }
-
   /** Check that every input molecule matcher of one reaction is weaker than a corresponding matcher in another reaction.
     * If true, it means that the first reaction can start whenever the second reaction can start, which is an instance of unavoidable nondeterminism.
     * The input1, input2 list2 should not contain UnknownInputPattern.
@@ -18,19 +15,17 @@ private[jc] object StaticAnalysis {
     * @return True if the first reaction is weaker than the second.
     */
   @tailrec
-  private def allMatchersAreWeakerThan(input1: List[InputMoleculeInfo], input2: List[InputMoleculeInfo]): Boolean =
-  input1.forall(patternIsNotUnknown) && {
-    val input2filtered = input2.filter(patternIsNotUnknown)
+  private def allMatchersAreWeakerThan(input1: List[InputMoleculeInfo], input2: List[InputMoleculeInfo]): Boolean = {
     input1 match {
       case Nil => true // input1 has no matchers left
-      case info1 :: rest1 => input2filtered match {
+      case info1 :: rest1 => input2 match {
         case Nil => false // input1 has matchers but input2 has no matchers left
         case _ =>
           val isWeaker: InputMoleculeInfo => Boolean =
             i => info1.matcherIsWeakerThan(i).getOrElse(false)
 
-          input2filtered.find(isWeaker) match {
-            case Some(correspondingMatcher) => allMatchersAreWeakerThan(rest1, input2filtered difff List(correspondingMatcher))
+          input2.find(isWeaker) match {
+            case Some(correspondingMatcher) => allMatchersAreWeakerThan(rest1, input2 difff List(correspondingMatcher))
             case None => false
           }
       }
@@ -74,7 +69,7 @@ private[jc] object StaticAnalysis {
   }
 
   private def inputMatchersWeakerThanOutput(input: List[InputMoleculeInfo], outputsOpt: Option[List[OutputMoleculeInfo]]) =
-    input.forall(patternIsNotUnknown) && outputsOpt.exists {
+    outputsOpt.exists {
       outputs => inputMatchersAreWeakerThanOutput(input, outputs)
     }
 

@@ -400,23 +400,6 @@ site(
 
 ``` 
 
-### Error: Nonlinear pattern
-
-`JoinRun` requires that all input molecules for a reaction should be of different chemical sorts.
-In other words, it is not allowed to have a reaction with repeated input molecules, e.g. of the form `{ b(x) + b(y) => ...}`, where the molecule of chemical sort `b` is repeated.
-An input molecule pattern with a repeated molecule is called a “nonlinear pattern”.
-
-```scala
-val x = m[Int]
-site( go { case x(n1) + x(n2) =>  })
-// java.lang.Exception: Nonlinear pattern: x used twice
-
-``` 
-
-Sometimes it appears that repeating input molecules is the most natural way of expressing the desired behavior of certain concurrent programs.
-However, I believe it is always possible to introduce some new auxiliary molecules and to rewrite the chemistry so that input molecules are not repeated, while the resulting computations give the same results.
-This limitation could be lifted in a later version of `JoinRun` if it proves useful to do so.
-
 ## Order of reactions and nondeterminism
 
 When a reaction site has enough waiting molecules for several different reactions to start, the runtime engine will choose the reaction at random, giving each candidate reaction an equal chance of starting.
