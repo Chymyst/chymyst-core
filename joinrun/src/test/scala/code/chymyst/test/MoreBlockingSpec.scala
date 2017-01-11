@@ -1,5 +1,8 @@
 package code.chymyst.test
 
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
+
 import code.chymyst.jc._
 import org.scalatest.{Args, FlatSpec, Matchers, Status}
 import org.scalatest.concurrent.TimeLimitedTests
@@ -8,6 +11,7 @@ import org.scalatest.time.{Millis, Span}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.Random.nextInt
 
 class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
@@ -25,8 +29,8 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   it should "wait for blocking molecule before emitting non-blocking molecule" in {
     val a = m[Int]
-    val f = b[Unit,Int]
-    val g = b[Unit,Int]
+    val f = b[Unit, Int]
+    val g = b[Unit, Int]
     val c = m[Int]
     val d = m[Int]
 
@@ -36,7 +40,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       go { case f(_, r) => r(123) },
       go { case g(_, r) + a(x) => r(x) },
       go { case g(_, r) + d(x) => r(-x) },
-      go { case c(x) => val y = f(); if (y>0) d(x) else a(x) }
+      go { case c(x) => val y = f(); if (y > 0) d(x) else a(x) }
     )
 
     c(-2)
@@ -58,6 +62,87 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     a(true)
     f.timeout(300.millis)() shouldEqual None // should give enough time so that the reaction can start
     g() shouldEqual false  // will be `true` when the `f` reaction did not start before timeout
+
+    tp.shutdownNow()
+  }
+
+  case class MeasurementResult(resultTrueSize: Int, resultFalseSize: Int, timeoutDelayArraySize: Int, noTimeoutMeanShiftArraySize: Int, timeoutDelay: Float, noTimeoutDelay: Float, timeoutMeanShift: Float, noTimeoutMeanShift: Float, printout: String)
+
+  def measureTimeoutDelays(trials: Int, maxTimeout: Int, tp: Pool): MeasurementResult = {
+    type Result = (Int, Int, Long, Boolean)
+    val f = b[Long, Unit]
+    val counter = m[(Int, List[Result])]
+    val all_done = b[Unit, List[Result]]
+    val done = m[Result]
+    val begin = m[Unit]
+
+
+    site(tp)(
+      go { case begin(_) =>
+        val t1 = nextInt(maxTimeout)
+        val t2 = nextInt(maxTimeout)
+        val timeInit = LocalDateTime.now
+        val res = f.timeout(t1.millis)(t2.toLong).isEmpty
+        val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
+        done((t1, t2, timeElapsed, res))
+      },
+      go { case all_done(_, r) + counter((0, results)) => r(results) },
+      go { case counter( (n, results) ) + done(res) if n > 0 => counter( (n-1, res :: results) ) },
+      go { case f(timeOut, r) => BlockingIdle{Thread.sleep(timeOut)}; r() }
+    )
+
+    counter((trials, Nil))
+    (1 to trials).foreach(_ => begin())
+
+    val (resultTrue, resultFalse) = all_done().partition(_._4)
+
+    val safeSize: Int => Float = x => if (x==0) 1.0f else x.toFloat
+
+    val resultFalseSize = resultFalse.size
+    val resultTrueSize = resultTrue.size
+
+    val timeoutDelayArray = resultTrue.map{ case (t1, t2, timeElapsed, _) => timeElapsed - t2 }.filter(_ > 0)
+    val timeoutDelay = timeoutDelayArray.sum / safeSize(timeoutDelayArray.size)
+    val noTimeoutDelay = resultFalse.map{ case (t1, t2, timeElapsed, _) => timeElapsed - t2 }.sum / safeSize(resultFalse.size)
+    val timeoutMeanShift = resultTrue.map{ case (t1, t2, timeElapsed, _) => timeElapsed - t1 }.sum / safeSize(resultTrue.size)
+    val noTimeoutMeanShiftArray = resultFalse.map{ case (t1, t2, timeElapsed, _) => timeElapsed - t1 }.filter(_ > 0)
+    val noTimeoutMeanShift = noTimeoutMeanShiftArray.sum / safeSize(noTimeoutMeanShiftArray.size)
+
+    val timeoutDelayArraySize = timeoutDelayArray.size
+    val noTimeoutMeanShiftArraySize = noTimeoutMeanShiftArray.size
+
+    val printout = s"""Results:   # samples      | delay     | mean shift
+       |----------------------------------------------------
+       | timeout     ${resultTrueSize} (${timeoutDelayArraySize} items) | ${timeoutDelay} | ${timeoutMeanShift}
+       |----------------------------------------------------
+       | no timeout  ${resultFalseSize} (${noTimeoutMeanShiftArraySize} items) | ${noTimeoutDelay} | ${noTimeoutMeanShift}
+       """.stripMargin
+
+    MeasurementResult(resultTrueSize, resultFalseSize, timeoutDelayArraySize, noTimeoutMeanShiftArraySize, timeoutDelay, noTimeoutDelay, timeoutMeanShift, noTimeoutMeanShift, printout)
+  }
+
+  it should "measure the timeout delay in parallel threads" in {
+    val trials = 900
+    val maxTimeout = 500
+
+    val tp = new SmartPool(2)
+
+    val result = measureTimeoutDelays(trials, maxTimeout, tp)
+
+    println(result.printout)
+
+    tp.shutdownNow()
+  }
+
+  it should "measure the timeout delay in single thread" in {
+    val trials = 20
+    val maxTimeout = 200
+
+    val tp = new FixedPool(2)
+
+    val result = measureTimeoutDelays(trials, maxTimeout, tp)
+
+    println(result.printout)
 
     tp.shutdownNow()
   }
