@@ -24,7 +24,9 @@ class CommonMacros(val c: blackbox.Context) {
 
   // Classes need to be defined at top level because we can't have case classes local to a function scope.
   // However, we need to use path-dependent types such as `Ident` and `Tree`.
-  // So we use type parameters for them.
+  // We could use type parameters for every path-dependent type, but it's unwieldy (although it works).
+  // Instead, we just put them inside the {{{CommonMacros}}} class. The price for this is a warning "The outer reference in this type test cannot be checked at run time."
+  // This warning is discussed here, http://stackoverflow.com/questions/16450008/typesafe-swing-events-the-outer-reference-in-this-type-test-cannot-be-checked-a
 
   /** Describes the pattern matcher for input molecules.
     * Possible values:
@@ -54,7 +56,7 @@ class CommonMacros(val c: blackbox.Context) {
     *
     * @param replyVar The Ident of a reply pattern variable.
     */
-  final case class ReplyVarF[Ident, Tree](replyVar: Ident) extends InputPatternFlag[Ident, Tree] {
+  final case class ReplyVarF(replyVar: Ident) extends InputPatternFlag {
     override def notReplyValue: Boolean = false
   }
 
@@ -62,18 +64,18 @@ class CommonMacros(val c: blackbox.Context) {
     *
     * @param v The Ident of the pattern variable.
     */
-  final case class SimpleVarF[Ident, Tree](v: Ident, binder: Tree, cond: Option[Tree]) extends InputPatternFlag[Ident, Tree] {
+  final case class SimpleVarF(v: Ident, binder: Tree, cond: Option[Tree]) extends InputPatternFlag {
     override def varNames: List[Ident] = List(v)
 
     override def patternSha1(showCode: Tree => String): String = cond.map(c => getSha1String(showCode(c))).getOrElse("")
   }
 
-  case object WrongReplyVarF extends InputPatternFlag[Nothing, Nothing]
+  case object WrongReplyVarF extends InputPatternFlag
 
   // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
 
   // the value v represents a value of the [T] type of M[T] or B[T,R]
-  final case class SimpleConstF[Ident, Tree](v: Tree) extends InputPatternFlag[Ident, Tree] {
+  final case class SimpleConstF(v: Tree) extends InputPatternFlag {
     override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(v))
   }
 
@@ -84,7 +86,7 @@ class CommonMacros(val c: blackbox.Context) {
     * @param matcher Tree of a partial function of type Any => Any.
     * @param vars    List of pattern variable names in the order of their appearance in the syntax tree.
     */
-  final case class OtherPatternF[Ident, Tree](matcher: Tree, guard: Tree, vars: List[Ident]) extends InputPatternFlag[Ident, Tree] {
+  final case class OtherPatternF(matcher: Tree, guard: Tree, vars: List[Ident]) extends InputPatternFlag {
     override def hasSubtree: Boolean = true
 
     override def varNames: List[Ident] = vars
@@ -98,17 +100,17 @@ class CommonMacros(val c: blackbox.Context) {
     * EmptyOutputPatternF: a()
     * OtherOutputPatternF: a(x+y) or anything else
     */
-  sealed trait OutputPatternFlag[+Tree] {
+  sealed trait OutputPatternFlag {
     def needTraversal: Boolean = false
   }
 
-  case object OtherOutputPatternF extends OutputPatternFlag[Nothing] {
+  case object OtherOutputPatternF extends OutputPatternFlag {
     override def needTraversal: Boolean = true
   }
 
-  case object EmptyOutputPatternF extends OutputPatternFlag[Nothing]
+  case object EmptyOutputPatternF extends OutputPatternFlag
 
-  final case class ConstOutputPatternF[Tree](v: Tree) extends OutputPatternFlag[Tree]
+  final case class ConstOutputPatternF(v: Tree) extends OutputPatternFlag
 
 }
 
@@ -164,419 +166,427 @@ class BlackboxMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     q"$s"
   }
 
-  def buildReactionImpl(reactionBody: c.Expr[ReactionBody]): Tree = {
-
-
-    /** Obtain the owner of the current macro call site.
-      *
-      * @return The owner symbol of the current macro call site.
-      */
-    def getCurrentSymbolOwner: c.Symbol = {
-      val freshName = c.freshName(TypeName("Probe$"))
-      val probe = c.typecheck(q""" {class $freshName; ()} """)
-      probe match {
-        case Block(List(t), r) => t.symbol.owner
-      }
+  // A singleton reaction must start with _ and must emit some output molecules (which we check later).
+  def isSingletonReaction(pattern: Tree, guard: Tree, body: Tree): Boolean = {
+    pattern match {
+      case Ident(termNames.WILDCARD) => true
+      case _ => false
     }
-    /*
-        object RemoveReactionGuardTransformer extends Transformer {
-          override def transform(tree: Tree): Tree = tree match {
-            case CaseDef(aPattern, aGuard, aBody) => CaseDef(aPattern, EmptyTree, aBody)
-            case _ => super.transform(tree)
-          }
-        }
+  }
 
-        object LocateAndTransformReactionInput extends Transformer {
-          private var isFirstApplyOrElse: Boolean = _
-          private var isFirstIsDefinedAt: Boolean = _
-          private var useTransform: Tree => Tree = _
+  def getSimpleVar(binderTerm: Tree): Ident = binderTerm match {
+    case Bind(t@TermName(n), Ident(termNames.WILDCARD)) => Ident(t)
+  }
 
-          override def transform(tree: Tree): Tree = tree match {
-            case DefDef(modifiers, termName@TermName(termNameString), tparams, vparamss, tpt, Match(matchee, list))
-              if isFirstApplyOrElse && termNameString === "applyOrElse" || isFirstIsDefinedAt && termNameString === "isDefinedAt" =>
-              if (termNameString === "applyOrElse") isFirstApplyOrElse = false
-              if (termNameString === "isDefinedAt") isFirstIsDefinedAt = false
-              val newList = list.map(l => useTransform(l).asInstanceOf[CaseDef]) // `object` cannot have type parameters, otherwise we would have done .map(useTransform[CaseDef])
-              DefDef(modifiers, termName, tparams, vparamss, tpt, Match(matchee, newList))
-            case _ => super.transform(tree)
-          }
-
-          def withMap(trans: Tree => Tree)(tree: Tree): Tree = {
-            isFirstApplyOrElse = true
-            isFirstIsDefinedAt = true
-            useTransform = trans
-            transform(tree)
-          }
-        }
-
-        def removeReactionGuard(tree: Tree): Tree =
-          LocateAndTransformReactionInput.withMap(l => RemoveReactionGuardTransformer.transform(l))(tree)
+  /** Detect whether an expression tree represents a constant expression.
+    * Recognize literals, Some(), None(), and tuples.
+    *
+    * @param exprTree Binder pattern tree or expression tree.
+    * @return {{{Some(tree)}}} if the expression represents a constant of the recognized form. Here {{{tree}}} will be a quoted expression tree (not a binder tree). {{{None}}} otherwise.
     */
-    /** Obtain the list of `case` expressions in a reaction.
-      * There should be only one `case` expression.
-      */
-    object GetReactionCases extends Traverser {
-      private var info: List[CaseDef] = List()
-      private var isFirstReactionCase: Boolean = true
 
-      override def traverse(tree: Tree): Unit =
-        tree match {
-          // this is matched by the partial function of type ReactionBody
-          case DefDef(_, TermName("applyOrElse"), _, _, _, Match(_, list)) if isFirstReactionCase =>
-            info = list
-            isFirstReactionCase = false
+  def getConstantTree(exprTree: Trees#Tree): Option[Trees#Tree] = exprTree match {
+    case Literal(_) => Some(exprTree)
+    case pq"scala.None" | q"scala.None" => Some(q"None")
+    case q"scala.Some.apply[..$ts](..$xs)" if ts.size === 1 && xs.size === 1 =>
+      xs.headOption
+        .flatMap(getConstantTree)
+        .map(t => q"Some(${t.asInstanceOf[Tree]})")
+    case pq"$extr(..$xs)" if xs.size === 1 && showCode(extr.asInstanceOf[Tree]) === "scala.Some" =>
+      xs.headOption
+        .flatMap(getConstantTree)
+        .map(t => q"Some(${t.asInstanceOf[Tree]})")
+    case pq"(..$exprs)" if exprs.size > 1 => // Tuples of size 0 are Unit values, tuples of size 1 are ordinary values.
+      val trees = exprs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
+      if (trees.size === exprs.size) Some(q"(..$trees)") else None
+    case q"(..$exprs)" if exprs.size > 1 => // Tuples of size 0 are Unit values, tuples of size 1 are ordinary values.
+      val trees = exprs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
+      if (trees.size === exprs.size) Some(q"(..$trees)") else None
+    case _ => None
+  }
 
-          // this is matched by a closure which is not a partial function. Not used now, because ReactionBody is now a subclass of PartialFunction.
-          /*
-          case Function(List(ValDef(_, TermName(_), TypeTree(), EmptyTree)), Match(Ident(TermName(_)), list)) if isFirstReactionCase =>
-           info = list
-           isFirstReactionCase = false
-          */
-          case _ => super.traverse(tree)
-        }
+  def identToScalaSymbol(ident: Ident): scala.Symbol = ident.name.decodedName.toString.toScalaSymbol
 
-      def from(tree: Tree): List[(Tree, Tree, Tree)] = {
-        info = List()
-        this.traverse(tree)
-        info.filter {
-          // PartialFunction automatically adds a default case; we ignore that CaseDef.
-          case CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, _) => false
-          case _ => true
-        }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody) }
-      }
+  /** Convert a term to conjunctive normal form (CNF).
+    * CNF is represented as a list of lists of Boolean term trees.
+    * For example, {{{List( List(q"x>0", q"y<x"), List(q"x>z", q"z<1") )}}} represents {{{( x > 0 || y < x ) && ( x > z || z < 1)}}}.
+    *
+    * @param term Initial expression tree.
+    * @return Equivalent expression in CNF. Terms will be duplicated when necessary. No simplification is performed on terms.
+    */
+  def convertToCNF(term: Tree): List[List[Tree]] = {
+
+    def disjunctionOneTerm(a: Tree, b: List[List[Tree]]): List[List[Tree]] = b.map(y => (a :: y).distinct).distinct
+
+    def disjunctionOneClause(a: List[Tree], b: List[List[Tree]]): List[List[Tree]] = b.map(y => (a ++ y).distinct).distinct
+
+    def disjunction(a: List[List[Tree]], b: List[List[Tree]]): List[List[Tree]] = a.flatMap(x => disjunctionOneClause(x, b)).distinct
+
+    def conjunction(a: List[List[Tree]], b: List[List[Tree]]): List[List[Tree]] = (a ++ b).distinct
+
+    def negation(a: List[List[Tree]]): List[List[Tree]] = a match {
+      case x :: xs =>
+        val nxs = negation(xs)
+        x.flatMap(t => disjunctionOneTerm(q"! $t", nxs))
+      case Nil => List(List()) // negation of true is false
     }
 
-    // A singleton reaction must start with _ and must emit some output molecules (which we check later).
-    def isSingletonReaction(pattern: Tree, guard: Tree, body: Tree): Boolean = {
-      pattern match {
-        case Ident(termNames.WILDCARD) => true
-        case _ => false
-      }
+    def normalize(a: Trees#Tree): List[List[Tree]] = convertToCNF(a.asInstanceOf[Tree])
+
+    term match {
+      case EmptyTree => List()
+      case q"$a && $b" =>
+        val aN = normalize(a)
+        val bN = normalize(b)
+        conjunction(aN, bN)
+
+      case q"$a || $b" =>
+        val aN = normalize(a)
+        val bN = normalize(b)
+        disjunction(aN, bN)
+
+      case q"if ($a) $b else $c" => // (a' + b)(a + c)
+        val aN = normalize(a)
+        val bN = normalize(b)
+        val cN = normalize(c)
+        conjunction(disjunction(negation(aN), bN), disjunction(aN, cN))
+
+      case q"$a ^ $b" => // (a+b)(a'+b')
+        val aN = normalize(a)
+        val bN = normalize(b)
+        conjunction(disjunction(aN, bN), disjunction(negation(aN), negation(bN)))
+
+      case q"! $a" => negation(normalize(a))
+      case q"true" => List()
+      case q"false" => List(List())
+      case _ => List(List(term))
     }
+  }
 
-    def getSimpleVar(binderTerm: Tree): Ident = binderTerm match {
-      case Bind(t@TermName(n), Ident(termNames.WILDCARD)) => Ident(t)
+  def matcherFunction(binderTerm: Tree, guardTree: Tree, vars: List[Ident]): Tree = {
+    if (guardTree.isEmpty)
+      q"{ case $binderTerm => () }" // This should not be untypechecked!! Why?
+    else {
+      // Need to put types on binder variables and remove owner from guard tree symbols.
+      c.untypecheck(q"{ case $binderTerm if $guardTree => () }")
     }
+  }
 
-    /** Detect whether an expression tree represents a constant expression.
-      * Recognize literals, Some(), None(), and tuples.
-      *
-      * @param exprTree Binder pattern tree or expression tree.
-      * @return {{{Some(tree)}}} if the expression represents a constant of the recognized form. Here {{{tree}}} will be a quoted expression tree (not a binder tree). {{{None}}} otherwise.
-      */
-
-    def getConstantTree(exprTree: Trees#Tree): Option[Trees#Tree] = exprTree match {
-      case Literal(_) => Some(exprTree)
-      case pq"scala.None" | q"scala.None" => Some(q"None")
-      case q"scala.Some.apply[..$ts](..$xs)" if ts.size === 1 && xs.size === 1 =>
-        xs.headOption
-          .flatMap(getConstantTree)
-          .map(t => q"Some(${t.asInstanceOf[Tree]})")
-      case pq"$extr(..$xs)" if xs.size === 1 && showCode(extr.asInstanceOf[Tree]) === "scala.Some" =>
-        xs.headOption
-          .flatMap(getConstantTree)
-          .map(t => q"Some(${t.asInstanceOf[Tree]})")
-      case pq"(..$exprs)" if exprs.size > 1 => // Tuples of size 0 are Unit values, tuples of size 1 are ordinary values.
-        val trees = exprs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
-        if (trees.size === exprs.size) Some(q"(..$trees)") else None
-      case q"(..$exprs)" if exprs.size > 1 => // Tuples of size 0 are Unit values, tuples of size 1 are ordinary values.
-        val trees = exprs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
-        if (trees.size === exprs.size) Some(q"(..$trees)") else None
-      case _ => None
+  /** Obtain the owner of the current macro call site.
+    *
+    * @return The owner symbol of the current macro call site.
+    */
+  def getCurrentSymbolOwner: c.Symbol = {
+    val freshName = c.freshName(TypeName("Probe$"))
+    val probe = c.typecheck(q""" {class $freshName; ()} """)
+    probe match {
+      case Block(List(t), r) => t.symbol.owner
     }
+  }
 
-    def identToScalaSymbol(ident: Ident): scala.Symbol = ident.name.decodedName.toString.toScalaSymbol
+  /** Obtain the list of `case` expressions in a reaction.
+    * There should be only one `case` expression.
+    */
+  object GetReactionCases extends Traverser {
+    private var info: List[CaseDef] = List()
+    private var isFirstReactionCase: Boolean = true
 
-    /** Convert a term to conjunctive normal form (CNF).
-      * CNF is represented as a list of lists of Boolean term trees.
-      * For example, {{{List( List(q"x>0", q"y<x"), List(q"x>z", q"z<1") )}}} represents {{{( x > 0 || y < x ) && ( x > z || z < 1)}}}.
-      *
-      * @param term Initial expression tree.
-      * @return Equivalent expression in CNF. Terms will be duplicated when necessary. No simplification is performed on terms.
-      */
-    def convertToCNF(term: Tree): List[List[Tree]] = {
+    override def traverse(tree: Tree): Unit =
+      tree match {
+        // this is matched by the partial function of type ReactionBody
+        case DefDef(_, TermName("applyOrElse"), _, _, _, Match(_, list)) if isFirstReactionCase =>
+          info = list
+          isFirstReactionCase = false
 
-      def disjunctionOneTerm(a: Tree, b: List[List[Tree]]): List[List[Tree]] = b.map(y => (a :: y).distinct).distinct
-
-      def disjunctionOneClause(a: List[Tree], b: List[List[Tree]]): List[List[Tree]] = b.map(y => (a ++ y).distinct).distinct
-
-      def disjunction(a: List[List[Tree]], b: List[List[Tree]]): List[List[Tree]] = a.flatMap(x => disjunctionOneClause(x, b)).distinct
-
-      def conjunction(a: List[List[Tree]], b: List[List[Tree]]): List[List[Tree]] = (a ++ b).distinct
-
-      def negation(a: List[List[Tree]]): List[List[Tree]] = a match {
-        case x :: xs =>
-          val nxs = negation(xs)
-          x.flatMap(t => disjunctionOneTerm(q"! $t", nxs))
-        case Nil => List(List()) // negation of true is false
-      }
-
-      def normalize(a: Trees#Tree): List[List[Tree]] = convertToCNF(a.asInstanceOf[Tree])
-
-      term match {
-        case EmptyTree => List()
-        case q"$a && $b" =>
-          val aN = normalize(a)
-          val bN = normalize(b)
-          conjunction(aN, bN)
-
-        case q"$a || $b" =>
-          val aN = normalize(a)
-          val bN = normalize(b)
-          disjunction(aN, bN)
-
-        case q"if ($a) $b else $c" => // (a' + b)(a + c)
-          val aN = normalize(a)
-          val bN = normalize(b)
-          val cN = normalize(c)
-          conjunction(disjunction(negation(aN), bN), disjunction(aN, cN))
-
-        case q"$a ^ $b" => // (a+b)(a'+b')
-          val aN = normalize(a)
-          val bN = normalize(b)
-          conjunction(disjunction(aN, bN), disjunction(negation(aN), negation(bN)))
-
-        case q"! $a" => negation(normalize(a))
-        case q"true" => List()
-        case q"false" => List(List())
-        case _ => List(List(term))
-      }
-    }
-
-    def matcherFunction(binderTerm: Tree, guardTree: Tree, vars: List[Ident]): Tree = {
-      if (guardTree.isEmpty)
-        q"{ case $binderTerm => () }" // This should not be untypechecked!! Why?
-      else {
-        // Need to put types on binder variables and remove owner from guard tree symbols.
-        c.untypecheck(q"{ case $binderTerm if $guardTree => () }")
-      }
-    }
-
-    object PatternVars extends Traverser {
-
-      private var vars: mutable.ArrayBuffer[Ident] = _
-
-      override def traverse(tree: Tree): Unit = tree match {
-        case Bind(t@TermName(_), pat) =>
-          vars.append(Ident(t))
-          traverse(pat)
-        case _ => super.traverse(tree)
-      }
-
-      def from(binderTerm: Tree): List[Ident] = {
-        vars = mutable.ArrayBuffer()
-        traverse(binderTerm)
-        vars.toList
-      }
-    }
-
-    object ReplaceVars extends Transformer {
-      var replacingIdents: List[Ident] = _
-      var addTypes: Boolean = _
-
-      override def transform(tree: Tree): Tree = if (addTypes) tree match {
-        case Bind(t@TermName(name), Ident(termNames.WILDCARD)) =>
-          val newIdentOpt = replacingIdents.find(_.name.toTermName.decodedName.toString === name)
-          newIdentOpt.map { newIdent =>
-            val newIdentType = newIdent.symbol.typeSignature
-            val paramType = newIdentType
-            pq"$t : $paramType"
-            // TODO: test this separately and debug.
-            /* Type params perhaps needs more work?
-            val typeParams = newIdentType.typeArgs
-            if (typeParams.isEmpty)
-              pq"$t : $newIdentType"
-            else {
-              val typeApplication = tq"$newIdentType[..$typeParams]"
-              pq"$t : $typeApplication"
-            }
-            */
-          }.getOrElse(tree)
-        case _ => super.transform(tree)
-      } else tree match {
-        case Ident(name) => replacingIdents.find(_.name === name).getOrElse(tree)
-        case _ => super.transform(tree)
-      }
-
-      def in(guardTree: Tree, vars: List[Ident], inBinder: Boolean): Tree = {
-        replacingIdents = vars
-        addTypes = inBinder
-        transform(guardTree)
-      }
-    }
-
-    object GuardVars extends Traverser {
-      private var vars: mutable.ArrayBuffer[Ident] = _
-      private var givenPatternVars: List[Ident] = _
-
-      override def traverse(tree: Tree): Unit = tree match {
-        case t@Ident(TermName(_)) =>
-          val identIsPatternVariable = givenPatternVars exists (_.name === t.name)
-          if (identIsPatternVariable) vars.append(t)
-        case _ => super.traverse(tree)
-      }
-
-      def fromFlags(guardTerm: Tree, inputInfos: List[InputPatternFlag[Ident, Tree]]): List[Ident] =
-        fromVars(guardTerm, inputInfos.flatMap(_.varNames))
-
-      def fromVars(guardTerm: Tree, givenVars: List[Ident]): List[Ident] = {
-        givenPatternVars = givenVars
-        vars = mutable.ArrayBuffer()
-        traverse(guardTerm)
-        vars.toList
-      }
-    }
-
-    object DetectInvalidInputGrouping extends Traverser {
-      var found: Boolean = _
-
-      override def traverse(tree: c.universe.Tree): Unit = tree match {
-        case pq"$extr1($_,$extr2($_,$_))"
-          if extr1.symbol.fullName === "code.chymyst.jc.$plus" && extr2.symbol.fullName === "code.chymyst.jc.$plus" =>
-          found = true
-        case _ => super.traverse(tree)
-      }
-
-      def in(tree: Tree): Boolean = {
-        found = false
-        traverse(tree)
-        found
-      }
-    }
-
-    class MoleculeInfo(reactionBodyOwner: c.Symbol) extends Traverser {
-
-      /** Examine an expression tree, looking for molecule expressions.
-        *
-        * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
-        * @return A triple: List of input molecule patterns, list of output molecule patterns, and list of reply action patterns.
+        // this is matched by a closure which is not a partial function. Not used now, because ReactionBody is now a subclass of PartialFunction.
+        /*
+        case Function(List(ValDef(_, TermName(_), TypeTree(), EmptyTree)), Match(Ident(TermName(_)), list)) if isFirstReactionCase =>
+         info = list
+         isFirstReactionCase = false
         */
-      def from(reactionPart: Tree): (List[(c.Symbol, InputPatternFlag[Ident, Tree], Option[InputPatternFlag[Ident, Tree]])], List[(c.Symbol, OutputPatternFlag[Tree])], List[(c.Symbol, OutputPatternFlag[Tree])]) = {
-        inputMolecules = mutable.ArrayBuffer()
-        outputMolecules = mutable.ArrayBuffer()
-        replyActions = mutable.ArrayBuffer()
-        traverse(reactionPart)
-        (inputMolecules.toList, outputMolecules.toList, replyActions.toList)
+        case _ => super.traverse(tree)
       }
 
-      private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, InputPatternFlag[Ident, Tree], Option[InputPatternFlag[Ident, Tree]])] = mutable.ArrayBuffer()
-      private var outputMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag[Tree])] = mutable.ArrayBuffer()
-      private var replyActions: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag[Tree])] = mutable.ArrayBuffer()
+    def from(tree: Tree): List[(Tree, Tree, Tree)] = {
+      info = List()
+      this.traverse(tree)
+      info.filter {
+        // PartialFunction automatically adds a default case; we ignore that CaseDef.
+        case CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, _) => false
+        case _ => true
+      }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody) }
+    }
+  }
 
-      /** Detect whether the symbol {{{s}}} is defined inside the scope of the symbol {{{owner}}}.
-        * Will return true for code like {{{ val owner = .... { val s = ... }  }}}
-        *
-        * @param s     Symbol to be examined.
-        * @param owner Owner symbol of the scope to be examined.
-        * @return True if {{{s}}} is defined inside the scope of {{{owner}}}.
-        */
-      @tailrec
-      private def isOwnedBy(s: c.Symbol, owner: c.Symbol): Boolean = s.owner match {
-        case `owner` => owner =!= NoSymbol
-        case `NoSymbol` => false
-        case o@_ => isOwnedBy(o, owner)
-      }
+  object PatternVars extends Traverser {
 
-      private def getInputFlag(binderTerm: Tree): InputPatternFlag[Ident, Tree] = binderTerm match {
-        case Ident(termNames.WILDCARD) => WildcardF
-        case Bind(t@TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF(Ident(t), binderTerm, None)
-        case _ => getConstantTree(binderTerm)
-          .map(t => SimpleConstF(t.asInstanceOf[Tree]))
-          .getOrElse {
-            val vars = PatternVars.from(binderTerm)
-            OtherPatternF(binderTerm, EmptyTree, vars)
+    private var vars: mutable.ArrayBuffer[Ident] = _
+
+    override def traverse(tree: Tree): Unit = tree match {
+      case Bind(t@TermName(_), pat) =>
+        vars.append(Ident(t))
+        traverse(pat)
+      case _ => super.traverse(tree)
+    }
+
+    def from(binderTerm: Tree): List[Ident] = {
+      vars = mutable.ArrayBuffer()
+      traverse(binderTerm)
+      vars.toList
+    }
+  }
+
+  object ReplaceVars extends Transformer {
+    var replacingIdents: List[Ident] = _
+    var addTypes: Boolean = _
+
+    override def transform(tree: Tree): Tree = if (addTypes) tree match {
+      case Bind(t@TermName(name), Ident(termNames.WILDCARD)) =>
+        val newIdentOpt = replacingIdents.find(_.name.toTermName.decodedName.toString === name)
+        newIdentOpt.map { newIdent =>
+          val newIdentType = newIdent.symbol.typeSignature
+          val paramType = newIdentType
+          pq"$t : $paramType"
+          // TODO: test this separately and debug.
+          /* Type params perhaps needs more work?
+          val typeParams = newIdentType.typeArgs
+          if (typeParams.isEmpty)
+            pq"$t : $newIdentType"
+          else {
+            val typeApplication = tq"$newIdentType[..$typeParams]"
+            pq"$t : $typeApplication"
           }
+          */
+        }.getOrElse(tree)
+      case _ => super.transform(tree)
+    } else tree match {
+      case Ident(name) => replacingIdents.find(_.name === name).getOrElse(tree)
+      case _ => super.transform(tree)
+    }
+
+    def in(guardTree: Tree, vars: List[Ident], inBinder: Boolean): Tree = {
+      replacingIdents = vars
+      addTypes = inBinder
+      transform(guardTree)
+    }
+  }
+
+  object GuardVars extends Traverser {
+    private var vars: mutable.ArrayBuffer[Ident] = _
+    private var givenPatternVars: List[Ident] = _
+
+    override def traverse(tree: Tree): Unit = tree match {
+      case t@Ident(TermName(_)) =>
+        val identIsPatternVariable = givenPatternVars exists (_.name === t.name)
+        if (identIsPatternVariable) vars.append(t)
+      case _ => super.traverse(tree)
+    }
+
+    def fromFlags(guardTerm: Tree, inputInfos: List[InputPatternFlag]): List[Ident] =
+      fromVars(guardTerm, inputInfos.flatMap(_.varNames))
+
+    def fromVars(guardTerm: Tree, givenVars: List[Ident]): List[Ident] = {
+      givenPatternVars = givenVars
+      vars = mutable.ArrayBuffer()
+      traverse(guardTerm)
+      vars.toList
+    }
+  }
+
+  object DetectInvalidInputGrouping extends Traverser {
+    var found: Boolean = _
+
+    override def traverse(tree: c.universe.Tree): Unit = tree match {
+      case pq"$extr1($_,$extr2($_,$_))"
+        if extr1.symbol.fullName === "code.chymyst.jc.$plus" && extr2.symbol.fullName === "code.chymyst.jc.$plus" =>
+        found = true
+      case _ => super.traverse(tree)
+    }
+
+    def in(tree: Tree): Boolean = {
+      found = false
+      traverse(tree)
+      found
+    }
+  }
+
+  class MoleculeInfo(reactionBodyOwner: c.Symbol) extends Traverser {
+
+    /** Examine an expression tree, looking for molecule expressions.
+      *
+      * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
+      * @return A triple: List of input molecule patterns, list of output molecule patterns, and list of reply action patterns.
+      */
+    def from(reactionPart: Tree): (List[(c.Symbol, InputPatternFlag, Option[InputPatternFlag])], List[(c.Symbol, OutputPatternFlag)], List[(c.Symbol, OutputPatternFlag)]) = {
+      inputMolecules = mutable.ArrayBuffer()
+      outputMolecules = mutable.ArrayBuffer()
+      replyActions = mutable.ArrayBuffer()
+      traverse(reactionPart)
+      (inputMolecules.toList, outputMolecules.toList, replyActions.toList)
+    }
+
+    private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, InputPatternFlag, Option[InputPatternFlag])] = mutable.ArrayBuffer()
+    private var outputMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
+    private var replyActions: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
+
+    /** Detect whether the symbol {{{s}}} is defined inside the scope of the symbol {{{owner}}}.
+      * Will return true for code like {{{ val owner = .... { val s = ... }  }}}
+      *
+      * @param s     Symbol to be examined.
+      * @param owner Owner symbol of the scope to be examined.
+      * @return True if {{{s}}} is defined inside the scope of {{{owner}}}.
+      */
+    @tailrec
+    private def isOwnedBy(s: c.Symbol, owner: c.Symbol): Boolean = s.owner match {
+      case `owner` => owner =!= NoSymbol
+      case `NoSymbol` => false
+      case o@_ => isOwnedBy(o, owner)
+    }
+
+    private def getInputFlag(binderTerm: Tree): InputPatternFlag = binderTerm match {
+      case Ident(termNames.WILDCARD) => WildcardF
+      case Bind(t@TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF(Ident(t), binderTerm, None)
+      case _ => getConstantTree(binderTerm)
+        .map(t => SimpleConstF(t.asInstanceOf[Tree]))
+        .getOrElse {
+          val vars = PatternVars.from(binderTerm)
+          OtherPatternF(binderTerm, EmptyTree, vars)
+        }
+    }
+
+    private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag = binderTerms match {
+      case List(t) => getConstantTree(t).map(tree => ConstOutputPatternF(tree.asInstanceOf[Tree])).getOrElse(OtherOutputPatternF)
+      case Nil => EmptyOutputPatternF
+      case _ => OtherOutputPatternF
+    }
+
+    override def traverse(tree: Tree): Unit = {
+      tree match {
+        // avoid traversing nested reactions: check whether this subtree is a Reaction() value
+        case q"code.chymyst.jc.Reaction.apply(..$_)" => ()
+        case q"Reaction.apply(..$_)" => ()
+
+        // matcher with a single argument: a(x)
+        case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
+          val flag2Opt = if (t.tpe <:< weakTypeOf[B[_, _]]) Some(WrongReplyVarF) else None
+          val flag1 = getInputFlag(binder)
+          if (flag1.hasSubtree) traverse(binder)
+          inputMolecules.append((t.symbol, flag1, flag2Opt))
+
+        // matcher with two arguments: a(x, y)
+        case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
+          val flag2 = getInputFlag(binder2) match {
+            case SimpleVarF(_, _, _) => ReplyVarF(getSimpleVar(binder2))
+            case f@_ => WrongReplyVarF // this is an error that we should report later
+          }
+          val flag1 = getInputFlag(binder1)
+          // Perhaps we need to continue to analyze the "binder" (it could be another molecule).
+          if (flag1.hasSubtree) traverse(binder1)
+          if (flag2.hasSubtree) traverse(binder2)
+          // After traversing the subtrees, we append this molecule information.
+          inputMolecules.append((t.symbol, flag1, Some(flag2)))
+
+        // Matcher with wrong number of arguments - neither 1 nor 2. This seems to never be called, so let's comment it out.
+        /*
+        case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), _)
+          if t.tpe <:< typeOf[Molecule] =>
+            inputMolecules.append((t.symbol, WrongReplyVarF, None, getSha1(t)))
+          */
+
+        // possibly a molecule emission
+        case Apply(Select(t@Ident(TermName(_)), TermName(f)), binderList)
+          if f === "apply" || f === "checkTimeout" =>
+
+          // In the output list, we do not include any molecule emitters defined in the inner scope of the reaction.
+          val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
+
+          val flag1 = getOutputFlag(binderList)
+          if (flag1.needTraversal)
+          // Traverse the tree of the first binder element (molecules should only have one binder element anyway).
+            binderList.headOption.foreach(traverse)
+
+          if (includeThisSymbol) {
+            if (t.tpe <:< typeOf[Molecule]) {
+              outputMolecules.append((t.symbol, flag1))
+            }
+          }
+          if (t.tpe <:< weakTypeOf[AbsReplyValue[_, _]]) {
+            replyActions.append((t.symbol, flag1))
+          }
+
+        case _ => super.traverse(tree)
+
       }
+    }
+  }
 
-      private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag[Tree] = binderTerms match {
-        case List(t) => getConstantTree(t).map(tree => ConstOutputPatternF(tree.asInstanceOf[Tree])).getOrElse(OtherOutputPatternF)
-        case Nil => EmptyOutputPatternF
-        case _ => OtherOutputPatternF
-      }
+  // This boilerplate is necessary for being able to use PatternType values in quasiquotes.
+  implicit val liftableInputPatternFlag: Liftable[InputPatternFlag] = Liftable[InputPatternFlag] {
+    case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
+    case SimpleConstF(tree) => q"_root_.code.chymyst.jc.SimpleConst($tree)"
+    case SimpleVarF(v, binder, cond) =>
+      val guardFunction = cond.map(c => matcherFunction(binder, c, List(v)))
+      q"_root_.code.chymyst.jc.SimpleVar(${identToScalaSymbol(v)}, $guardFunction)"
+    case OtherPatternF(matcherTree, guardTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTree, vars)}, ${vars.map(identToScalaSymbol)})"
+    case _ => q"_root_.code.chymyst.jc.UnknownInputPattern"
+  }
 
-      override def traverse(tree: Tree): Unit = {
-        tree match {
-          // avoid traversing nested reactions: check whether this subtree is a Reaction() value
-          case q"code.chymyst.jc.Reaction.apply(..$_)" => ()
-          case q"Reaction.apply(..$_)" => ()
+  implicit val liftableOutputPatternFlag: Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
+    case ConstOutputPatternF(tree) => q"_root_.code.chymyst.jc.SimpleConstOutput($tree)"
+    case EmptyOutputPatternF => q"_root_.code.chymyst.jc.SimpleConstOutput(())"
+    case _ => q"_root_.code.chymyst.jc.OtherOutputPattern"
+  }
 
-          // matcher with a single argument: a(x)
-          case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
-            val flag2Opt = if (t.tpe <:< weakTypeOf[B[_, _]]) Some(WrongReplyVarF) else None
-            val flag1 = getInputFlag(binder)
-            if (flag1.hasSubtree) traverse(binder)
-            inputMolecules.append((t.symbol, flag1, flag2Opt))
+  def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error) = {
+    if (molecules.nonEmpty)
+      method(c.enclosingPosition, s"$what must $connector $patternWhat (${molecules.mkString(", ")})")
+  }
 
-          // matcher with two arguments: a(x, y)
-          case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
-            val flag2 = getInputFlag(binder2) match {
-              case SimpleVarF(_, _, _) => ReplyVarF[Ident, Tree](getSimpleVar(binder2))
-              case f@_ => WrongReplyVarF // this is an error that we should report later
-            }
-            val flag1 = getInputFlag(binder1)
-            // Perhaps we need to continue to analyze the "binder" (it could be another molecule).
-            if (flag1.hasSubtree) traverse(binder1)
-            if (flag2.hasSubtree) traverse(binder2)
-            // After traversing the subtrees, we append this molecule information.
-            inputMolecules.append((t.symbol, flag1, Some(flag2)))
+  def haveError(message: String) = c.error(c.enclosingPosition, message)
 
-          // Matcher with wrong number of arguments - neither 1 nor 2. This seems to never be called, so let's comment it out.
-          /*
-          case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), _)
-            if t.tpe <:< typeOf[Molecule] =>
-              inputMolecules.append((t.symbol, WrongReplyVarF, None, getSha1(t)))
-            */
-
-          // possibly a molecule emission
-          case Apply(Select(t@Ident(TermName(_)), TermName(f)), binderList)
-            if f === "apply" || f === "checkTimeout" =>
-
-            // In the output list, we do not include any molecule emitters defined in the inner scope of the reaction.
-            val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
-
-            val flag1 = getOutputFlag(binderList)
-            if (flag1.needTraversal)
-            // Traverse the tree of the first binder element (molecules should only have one binder element anyway).
-              binderList.headOption.foreach(traverse)
-
-            if (includeThisSymbol) {
-              if (t.tpe <:< typeOf[Molecule]) {
-                outputMolecules.append((t.symbol, flag1))
-              }
-            }
-            if (t.tpe <:< weakTypeOf[AbsReplyValue[_, _]]) {
-              replyActions.append((t.symbol, flag1))
-            }
-
-          case _ => super.traverse(tree)
-
+  /*
+      object RemoveReactionGuardTransformer extends Transformer {
+        override def transform(tree: Tree): Tree = tree match {
+          case CaseDef(aPattern, aGuard, aBody) => CaseDef(aPattern, EmptyTree, aBody)
+          case _ => super.transform(tree)
         }
       }
-    }
 
-    // This boilerplate is necessary for being able to use PatternType values in quasiquotes.
-    implicit val liftableInputPatternFlag: Liftable[InputPatternFlag[Ident, Tree]] = Liftable[InputPatternFlag[Ident, Tree]] {
-      case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
-      case SimpleConstF(tree) => q"_root_.code.chymyst.jc.SimpleConst($tree)"
-      case SimpleVarF(v, binder, cond) =>
-        val guardFunction = cond.map(c => matcherFunction(binder, c, List(v)))
-        q"_root_.code.chymyst.jc.SimpleVar(${identToScalaSymbol(v)}, $guardFunction)"
-      case OtherPatternF(matcherTree, guardTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTree, vars)}, ${vars.map(identToScalaSymbol)})"
-      case _ => q"_root_.code.chymyst.jc.UnknownInputPattern"
-    }
+      object LocateAndTransformReactionInput extends Transformer {
+        private var isFirstApplyOrElse: Boolean = _
+        private var isFirstIsDefinedAt: Boolean = _
+        private var useTransform: Tree => Tree = _
 
-    implicit val liftableOutputPatternFlag: Liftable[OutputPatternFlag[Tree]] = Liftable[OutputPatternFlag[Tree]] {
-      case ConstOutputPatternF(tree) => q"_root_.code.chymyst.jc.SimpleConstOutput($tree)"
-      case EmptyOutputPatternF => q"_root_.code.chymyst.jc.SimpleConstOutput(())"
-      case _ => q"_root_.code.chymyst.jc.OtherOutputPattern"
-    }
+        override def transform(tree: Tree): Tree = tree match {
+          case DefDef(modifiers, termName@TermName(termNameString), tparams, vparamss, tpt, Match(matchee, list))
+            if isFirstApplyOrElse && termNameString === "applyOrElse" || isFirstIsDefinedAt && termNameString === "isDefinedAt" =>
+            if (termNameString === "applyOrElse") isFirstApplyOrElse = false
+            if (termNameString === "isDefinedAt") isFirstIsDefinedAt = false
+            val newList = list.map(l => useTransform(l).asInstanceOf[CaseDef]) // `object` cannot have type parameters, otherwise we would have done .map(useTransform[CaseDef])
+            DefDef(modifiers, termName, tparams, vparamss, tpt, Match(matchee, newList))
+          case _ => super.transform(tree)
+        }
 
-    def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error) = {
-      if (molecules.nonEmpty)
-        method(c.enclosingPosition, s"$what must $connector $patternWhat (${molecules.mkString(", ")})")
-    }
+        def withMap(trans: Tree => Tree)(tree: Tree): Tree = {
+          isFirstApplyOrElse = true
+          isFirstIsDefinedAt = true
+          useTransform = trans
+          transform(tree)
+        }
+      }
 
-    def haveError(message: String) = c.error(c.enclosingPosition, message)
+      def removeReactionGuard(tree: Tree): Tree =
+        LocateAndTransformReactionInput.withMap(l => RemoveReactionGuardTransformer.transform(l))(tree)
+  */
+
+  def guardVarsConstrainOnlyThisMolecule(guardVarList: List[Ident], moleculeFlag: InputPatternFlag): Boolean =
+    guardVarList.forall(v => moleculeFlag.varNames.exists(mv => mv.name === v.name))
+
+  def guardVarsConstrainThisMolecule(guardVarList: List[Ident], moleculeFlag: InputPatternFlag): Boolean =
+    guardVarList.exists(v => moleculeFlag.varNames.exists(mv => mv.name === v.name))
+
+  // This is the main method that gathers the reaction info and performs some preliminary static analysis.
+  def buildReactionImpl(reactionBody: c.Expr[ReactionBody]): c.Expr[Reaction] = {
 
     val caseDefs = GetReactionCases.from(reactionBody.tree)
 
@@ -635,21 +645,20 @@ class BlackboxMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     val allGuardVars = moleculeGuardVarsSeq.flatMap(_._2)
 
-    // To avoid problems with macros, we nneed to put types on binder variables and remove owners from guard tree symbols.
+    // To avoid problems with constructing a partially typed tree, we need to put types on binder variables and remove owners from guard tree symbols, and then untypecheck the tree.
+    // These functions perform all that.
+    //
+    // The variables in the binder are replaced by explicit typed match, e.g. a(Some(x)) is replaced by a(Some(x: Int)).
     def replaceVarsInBinder(binderTree: Tree): Tree = ReplaceVars.in(binderTree, allGuardVars, inBinder = true)
-
+    // The variables in the guard are replaced by variable Idents from the binder. This hopefully resolves the ownership problems (although I need to look further into that).
     def replaceVarsInGuardTree(guardTree: Tree): Tree = ReplaceVars.in(guardTree, allBinderVars, inBinder = false)
+    // Eventually it will be necessary to go through the source code of scala/async and through the "Macrology 201" course here, https://github.com/scalamacros/macrology201/commits/part1
+    // And perhaps use https://github.com/scalamacros/resetallattrs
 
     val staticGuardTree: Option[Tree] = staticGuardVarsSeq // We need to merge all these guard clauses.
       .map(_._1)
       .reduceOption { (g1, g2) => q"$g1 && $g2" }
       .map(guardTree => q"() => $guardTree")
-
-    def guardVarsConstrainOnlyThisMolecule(guardVarList: List[Ident], moleculeFlag: InputPatternFlag[Ident, Tree]): Boolean =
-      guardVarList.forall(v => moleculeFlag.varNames.exists(mv => mv.name === v.name))
-
-    def guardVarsConstrainThisMolecule(guardVarList: List[Ident], moleculeFlag: InputPatternFlag[Ident, Tree]): Boolean =
-      guardVarList.exists(v => moleculeFlag.varNames.exists(mv => mv.name === v.name))
 
     // Merge the guard information into the individual input molecule infos. The result, patternInWithMergedGuards, replaces patternIn.
     val patternInWithMergedGuards = patternIn // patternInWithMergedGuards has same type as patternIn
@@ -709,23 +718,6 @@ class BlackboxMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       else q"GuardAbsent"
     } else
       q"GuardPresent(${guardVarsSeq.map(_._2.map(identToScalaSymbol)).filter(_.nonEmpty)}, $staticGuardTree, $crossGuards)"
-
-    // Prepare the "lean" reaction body: omit the guard and omit molecules without pattern variables.
-    //    val leanReactionBody = removeReactionGuard(reactionBody.tree)
-
-    //    {
-    //      val bindersWithVars = patternInWithMergedGuards.flatMap { case (_, flag, replyFlag) =>
-    //        flag match {
-    //          case SimpleVarF(_, binder, _) => Some(binder)
-    //          case OtherPatternF(matcher, _, vs) if vs.nonEmpty => Some(matcher) // omit matchers having no pattern variables, e.g. (None, Some(_), _)
-    //          case _ => None
-    //        }
-    //      }.map(b => c.untypecheck(replaceVarsInBinder(b)))
-    //      // We can omit the guard since the conditions will be checked by the reaction site's code before calling this.
-    //      val caseDefs = List(cq"List(..$bindersWithVars) => $body")
-    //      c.untypecheck(q"{ case ..$caseDefs }")
-    //    }
-    //    println(s"debug: leanReactionBody = $leanReactionBody")
 
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
     // It is an error to have reply molecules that do not match on a simple variable.
@@ -787,7 +779,7 @@ class BlackboxMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     //    println(s"debug: ${showCode(result)}")
     //    println(s"debug raw: ${showRaw(result)}")
     //    c.untypecheck(result) // this fails
-    result
+    c.Expr[Reaction](result)
   }
 
 }
