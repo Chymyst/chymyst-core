@@ -240,7 +240,7 @@ often done here. We make the arbitrary decision that we will count down number o
 Now, the fun begins: we need to model how many readers are using the resource concurrently, which we do with molecule `readerCount[Int]`. So let us start 
 with a draft, using some count down logic with a `writer` molecule reaction, ignoring helper functions and case classes we introduced already:
  
- ```scala
+```scala
 val count = m[Int]
 val readerCount = m[Int]
 val check = b[Unit, Unit]
