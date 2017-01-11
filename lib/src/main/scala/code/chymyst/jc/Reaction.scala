@@ -242,7 +242,7 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[L
   * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
   * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is false.
   */
-final case class Reaction(info: ReactionInfo, body: ReactionBody, leanBody: ReactionBody, threadPool: Option[Pool] = None, retry: Boolean) {
+final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Option[Pool], retry: Boolean) {
 
   /** Convenience method to specify thread pools per reaction.
     *

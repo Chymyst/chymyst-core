@@ -199,7 +199,7 @@ object Macros {
         case Block(List(t), r) => t.symbol.owner
       }
     }
-
+/*
     object RemoveReactionGuardTransformer extends Transformer {
       override def transform(tree: Tree): Tree = tree match {
         case CaseDef(aPattern, aGuard, aBody) => CaseDef(aPattern, EmptyTree, aBody)
@@ -232,7 +232,7 @@ object Macros {
 
     def removeReactionGuard(tree: Tree): Tree =
       LocateAndTransformReactionInput.withMap(l => RemoveReactionGuardTransformer.transform(l))(tree)
-
+*/
     /** Obtain the list of `case` expressions in a reaction.
       * There should be only one `case` expression.
       */
@@ -732,7 +732,7 @@ object Macros {
       q"GuardPresent(${guardVarsSeq.map(_._2.map(identToScalaSymbol)).filter(_.nonEmpty)}, $staticGuardTree, $crossGuards)"
 
     // Prepare the "lean" reaction body: omit the guard and omit molecules without pattern variables.
-    val leanReactionBody = removeReactionGuard(reactionBody.tree)
+//    val leanReactionBody = removeReactionGuard(reactionBody.tree)
 
 //    {
 //      val bindersWithVars = patternInWithMergedGuards.flatMap { case (_, flag, replyFlag) =>
@@ -789,19 +789,18 @@ object Macros {
       maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
     }
 
-    def removeGuard(tree: Tree): Tree = tree match {
-      case q"{case ..$cases }" =>
-        val newCases = cases.map {
-        case cq"$pat if $guard => $body" => cq"$pat => $body"
-        case _ => tree
-      }
-        q"{case ..$newCases}"
-      case _ => tree
-    }
+//    def removeGuard(tree: Tree): Tree = tree match {
+//      case q"{case ..$cases }" =>
+//        val newCases = cases.map {
+//        case cq"$pat if $guard => $body" => cq"$pat => $body"
+//        case _ => tree
+//      }
+//        q"{case ..$newCases}"
+//      case _ => tree
+//    }
 
     // Prepare the ReactionInfo structure.
-    val dummy = q"{ case _ if false => () }"
-    val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $guardPresenceFlag, $reactionSha1), ${removeGuard(reactionBody.tree)}, $dummy, None, false)"
+    val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $guardPresenceFlag, $reactionSha1), ${reactionBody.tree}, None, false)"
     //    println(s"debug: ${showCode(result)}")
     //    println(s"debug raw: ${showRaw(result)}")
     //    c.untypecheck(result) // this fails
