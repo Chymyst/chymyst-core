@@ -1,5 +1,8 @@
 package code.chymyst.test
 
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
+
 import code.chymyst.jc._
 import org.scalatest.{Args, FlatSpec, Matchers, Status}
 import org.scalatest.concurrent.TimeLimitedTests
@@ -8,6 +11,7 @@ import org.scalatest.time.{Millis, Span}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.Random.nextInt
 
 class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
@@ -25,8 +29,8 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   it should "wait for blocking molecule before emitting non-blocking molecule" in {
     val a = m[Int]
-    val f = b[Unit,Int]
-    val g = b[Unit,Int]
+    val f = b[Unit, Int]
+    val g = b[Unit, Int]
     val c = m[Int]
     val d = m[Int]
 
@@ -36,7 +40,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       go { case f(_, r) => r(123) },
       go { case g(_, r) + a(x) => r(x) },
       go { case g(_, r) + d(x) => r(-x) },
-      go { case c(x) => val y = f(); if (y>0) d(x) else a(x) }
+      go { case c(x) => val y = f(); if (y > 0) d(x) else a(x) }
     )
 
     c(-2)
