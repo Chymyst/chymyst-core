@@ -1,8 +1,5 @@
 package code.chymyst.test
 
-import java.time.LocalDateTime
-import java.time.temporal.ChronoUnit
-
 import code.chymyst.jc._
 import org.scalatest.{Args, FlatSpec, Matchers, Status}
 import org.scalatest.concurrent.TimeLimitedTests
@@ -11,7 +8,6 @@ import org.scalatest.time.{Millis, Span}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.Random.nextInt
 
 class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
