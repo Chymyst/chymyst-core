@@ -313,4 +313,15 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(x if ?) + a(y if ?) if(y,x) => "
   }
 
+  it should "simplify a guard with an if clause into no cross guard" in {
+    val a = m[Int]
+
+    val n = 10
+
+    val result = go { case a(x) + a(y) if x > n || (if (!false) 1 > n else x == y) => }
+
+    result.info.guardPresence should matchPattern { case GuardPresent(List(List('x)), None, List()) => }
+    result.info.toString shouldEqual "a(x if ?) + a(y) => "
+  }
+
 }
