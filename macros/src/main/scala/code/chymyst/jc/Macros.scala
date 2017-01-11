@@ -200,6 +200,38 @@ object Macros {
       }
     }
 
+    object RemoveReactionGuardTransformer extends Transformer {
+      override def transform(tree: Tree): Tree = tree match {
+        case CaseDef(aPattern, aGuard, aBody) => CaseDef(aPattern, EmptyTree, aBody)
+        case _ => super.transform(tree)
+      }
+    }
+
+    object LocateAndTransformReactionInput extends Transformer {
+      private var isFirstApplyOrElse: Boolean = _
+      private var isFirstIsDefinedAt: Boolean = _
+      private var useTransform: Tree => Tree = _
+
+      override def transform(tree: Tree): Tree = tree match {
+        case DefDef(modifiers, termName@TermName(termNameString), tparams, vparamss, tpt, Match(matchee, list))
+          if isFirstApplyOrElse && termNameString === "applyOrElse" || isFirstIsDefinedAt && termNameString === "isDefinedAt" =>
+          if (termNameString === "applyOrElse") isFirstApplyOrElse = true
+          if (termNameString === "isDefinedAt") isFirstIsDefinedAt = true
+          val newList = list.map(useTransform)
+          DefDef(modifiers, termName, tparams, vparamss, tpt, Match(matchee, newList))
+        case _ => super.transform(tree)
+      }
+
+      def withMap(trans: Tree => Tree)(tree: Tree): Tree = {
+        isFirstApplyOrElse = true
+        isFirstIsDefinedAt = true
+        useTransform = trans
+        transform(tree)
+      }
+    }
+
+    def removeReactionGuard(tree: Tree): Tree = LocateAndTransformReactionInput.withMap(l => RemoveReactionGuardTransformer.transform(l))(tree)
+
     /** Obtain the list of `case` expressions in a reaction.
       *
       */
@@ -214,7 +246,7 @@ object Macros {
             info = list
             isFirst = false
 
-          // this is matched by a closure which is not a partial function. Not used now.
+          // this is matched by a closure which is not a partial function. Not used now, because ReactionBody is now a subclass of PartialFunction.
           /*
           case Function(List(ValDef(_, TermName(_), TypeTree(), EmptyTree)), Match(Ident(TermName(_)), list)) if isFirst =>
            info = list
