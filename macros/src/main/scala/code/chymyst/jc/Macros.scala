@@ -709,7 +709,7 @@ class BlackboxMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         val partialFunctionTree = q"{ case ..$caseDefs }"
         //        val pfTree = c.parse(showCode(partialFunctionTree)) // This works but it's an overkill.
         val pfTree = c.untypecheck(partialFunctionTree)
-        (vars.map(identToScalaSymbol), pfTree)
+        (vars.map(identToScalaSymbol).distinct, pfTree)
     }
 
     // We lift the GuardPresenceFlag values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceFlag].
@@ -717,7 +717,7 @@ class BlackboxMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       if (allInputMatchersAreTrivial) q"AllMatchersAreTrivial"
       else q"GuardAbsent"
     } else
-      q"GuardPresent(${guardVarsSeq.map(_._2.map(identToScalaSymbol)).filter(_.nonEmpty)}, $staticGuardTree, $crossGuards)"
+      q"GuardPresent(${guardVarsSeq.map(_._2.map(identToScalaSymbol).distinct).filter(_.nonEmpty)}, $staticGuardTree, $crossGuards)"
 
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
     // It is an error to have reply molecules that do not match on a simple variable.

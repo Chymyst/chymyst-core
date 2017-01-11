@@ -422,24 +422,28 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "detect output molecules with constant values" in {
-    val bb = m[Int]
+    val c = m[Int]
+    val bb = m[(Int, Int)]
     val bbb = m[Int]
     val cc = m[Option[Int]]
 
-    val r1 = go { case bbb(x) => bb(x) }
-    val r2 = go { case bbb(_) + bb(_) => bbb(0) }
-    val r3 = go { case bbb(x) + bb(_) + bb(_) => bbb(1) + bb(x) + bbb(2) + cc(None) + cc(Some(1)) }
+    val r1 = go { case bbb(x) => c(x) + bb((1, 2)) + bb((3, x)) }
+    val r2 = go { case bbb(_) + c(_) => bbb(0) }
+    val r3 = go { case bbb(x) + c(_) + c(_) => bbb(1) + c(x) + bbb(2) + cc(None) + cc(Some(1)) }
 
-    r1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, OtherOutputPattern)))
+    r1.info.outputs shouldEqual Some(List(
+      OutputMoleculeInfo(c, OtherOutputPattern),
+      OutputMoleculeInfo(bb, SimpleConstOutput((1, 2))),
+      OutputMoleculeInfo(bb, OtherOutputPattern)
+    ))
     r2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bbb, SimpleConstOutput(0))))
     r3.info.outputs shouldEqual Some(List(
       OutputMoleculeInfo(bbb, SimpleConstOutput(1)),
-      OutputMoleculeInfo(bb, OtherOutputPattern),
+      OutputMoleculeInfo(c, OtherOutputPattern),
       OutputMoleculeInfo(bbb, SimpleConstOutput(2)),
       OutputMoleculeInfo(cc, SimpleConstOutput(None)),
       OutputMoleculeInfo(cc, SimpleConstOutput(Some(1)))
-    )
-    )
+    ))
   }
 
   it should "compute input pattern variables correctly" in {
