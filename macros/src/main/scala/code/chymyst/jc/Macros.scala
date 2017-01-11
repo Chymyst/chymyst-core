@@ -217,7 +217,7 @@ object Macros {
           if isFirstApplyOrElse && termNameString === "applyOrElse" || isFirstIsDefinedAt && termNameString === "isDefinedAt" =>
           if (termNameString === "applyOrElse") isFirstApplyOrElse = true
           if (termNameString === "isDefinedAt") isFirstIsDefinedAt = true
-          val newList = list.map(useTransform)
+          val newList = list.map(l => useTransform(l).asInstanceOf[CaseDef]) // `object` cannot have type parameters, otherwise we would have done .map(useTransform[CaseDef])
           DefDef(modifiers, termName, tparams, vparamss, tpt, Match(matchee, newList))
         case _ => super.transform(tree)
       }
@@ -233,9 +233,9 @@ object Macros {
     def removeReactionGuard(tree: Tree): Tree = LocateAndTransformReactionInput.withMap(l => RemoveReactionGuardTransformer.transform(l))(tree)
 
     /** Obtain the list of `case` expressions in a reaction.
-      *
+      * There should be only one `case` expression.
       */
-    object ReactionCases extends Traverser {
+    object GetReactionCases extends Traverser {
       private var info: List[CaseDef] = List()
       private var isFirst: Boolean = true
 
@@ -446,6 +446,23 @@ object Macros {
       }
     }
 
+    object DetectInvalidInputGrouping extends Traverser {
+      var found: Boolean = _
+
+      override def traverse(tree: c.universe.Tree): Unit = tree match {
+        case pq"$extr1($_,$extr2($_,$_))"
+          if extr1.symbol.fullName === "code.chymyst.jc.$plus" && extr2.symbol.fullName === "code.chymyst.jc.$plus" =>
+          found = true
+        case _ => super.traverse(tree)
+      }
+
+      def in(tree: Tree): Boolean = {
+        found = false
+        traverse(tree)
+        found
+      }
+    }
+
     class MoleculeInfo(reactionBodyOwner: c.Symbol) extends Traverser {
 
       /** Examine an expression tree, looking for molecule expressions.
@@ -578,7 +595,7 @@ object Macros {
         method(c.enclosingPosition, s"$what should $connector $patternWhat (${molecules.mkString(", ")})")
     }
 
-    val caseDefs = ReactionCases.from(reactionBody.tree)
+    val caseDefs = GetReactionCases.from(reactionBody.tree)
 
     // Note: `caseDefs` should not be an empty list because that's a typecheck error (`go` only accepts a partial function, so at least one `case` needs to be given).
     // However, the user could be clever and write `val body = new PartialFunction...; go(body)`. We do not allow this because `go` needs to see the entire reaction body.
@@ -587,6 +604,8 @@ object Macros {
     if (caseDefs.length > 1) c.error(c.enclosingPosition, "Reactions should contain only one `case` clause")
 
     val Some((pattern, guard, body, reactionSha1)) = caseDefs.headOption
+
+    if (DetectInvalidInputGrouping.in(pattern)) c.error(c.enclosingPosition, "Reaction inputs should be grouped to the left")
 
     val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
 
