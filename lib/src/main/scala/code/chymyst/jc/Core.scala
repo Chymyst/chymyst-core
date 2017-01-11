@@ -90,7 +90,7 @@ object Core {
     val inputMoleculesUsed = moleculesInThisReaction.inputMolecules.toList
     val inputMoleculeInfo = inputMoleculesUsed.map(m => InputMoleculeInfo(m, UnknownInputPattern, UUID.randomUUID().toString))
     val simpleInfo = ReactionInfo(inputMoleculeInfo, None, GuardPresenceUnknown, UUID.randomUUID().toString)
-    Reaction(simpleInfo, body, retry = false)
+    Reaction(simpleInfo, body, { case _ if false => () }, retry = false)
   }
 
   /**

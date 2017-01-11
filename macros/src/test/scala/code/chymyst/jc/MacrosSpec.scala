@@ -71,7 +71,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "correctly sort input molecules with compound values" in {
     val bb = m[(Int, Option[Int])]
-    val reaction = go { case bb( (1,Some(2)) ) + bb( (0,None) ) => }
+    val reaction = go { case bb((1, Some(2))) + bb((0, None)) => }
     reaction.info.toString shouldEqual "bb((0,None)) + bb((1,Some(2))) => "
   }
 
@@ -307,6 +307,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     site(go { case b(_) + a(List()) + c(_) => })
 
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
+  }
+
+  it should "fail to compile a reaction with regrouped inputs" in {
+    val a = m[Unit]
+    a.isInstanceOf[E] shouldEqual true
+    "val r = go { case (a(_) + a(_)) + a(_) => }" should compile
+    "val r = go { case a(_) + (a(_) + a(_)) => }" shouldNot compile
   }
 
   it should "fail to define a simple reaction with correct inputs with empty option pattern-matching at start of reaction" in {
@@ -588,6 +595,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   it should "find expression trees for matchers" in {
 
     rawTree(Some(1) match { case Some(1) => }) shouldEqual "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))), EmptyTree, Literal(Constant(())))))"
+  }
+
+  it should "find expression tree for reaction" in {
+    val a = m[Unit]
+    a.isInstanceOf[M[Unit]] shouldEqual true
+    rawTree({ case a(_) + (a(_) + a(_)) => } : ReactionBody) shouldEqual """Typed(Typed(Block(List(ClassDef(Modifiers(FINAL | SYNTHETIC), TypeName("$anonfun"), List(), Template(List(TypeTree(), TypeTree()), noSelfType, List(DefDef(Modifiers(), termNames.CONSTRUCTOR, List(), List(List()), TypeTree(), Block(List(Apply(Select(Super(This(TypeName("$anonfun")), typeNames.EMPTY), termNames.CONSTRUCTOR), List())), Literal(Constant(())))), DefDef(Modifiers(OVERRIDE | FINAL | METHOD), TermName("applyOrElse"), List(TypeDef(Modifiers(DEFERRED | PARAM), TypeName("A1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree()))), TypeDef(Modifiers(DEFERRED | PARAM), TypeName("B1"), List(), TypeTree().setOriginal(TypeBoundsTree(TypeTree(), TypeTree())))), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x97"), TypeTree().setOriginal(Ident(TypeName("A1"))), EmptyTree), ValDef(Modifiers(PARAM | SYNTHETIC), TermName("default"), TypeTree().setOriginal(AppliedTypeTree(Select(This(TypeName("scala")), scala.Function1), List(TypeTree().setOriginal(Ident(TypeName("A1"))), TypeTree().setOriginal(Ident(TypeName("B1")))))), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x97")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x97")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Ident(termNames.WILDCARD))), UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Ident(termNames.WILDCARD))), UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Ident(termNames.WILDCARD))))))), EmptyTree, Literal(Constant(()))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Apply(Select(Ident(TermName("default")), TermName("apply")), List(Ident(TermName("x97")))))))), DefDef(Modifiers(FINAL | METHOD), TermName("isDefinedAt"), List(), List(List(ValDef(Modifiers(PARAM | SYNTHETIC | TRIEDCOOKING), TermName("x97"), TypeTree(), EmptyTree))), TypeTree(), Match(Typed(Typed(TypeApply(Select(Ident(TermName("x97")), TermName("asInstanceOf")), List(TypeTree())), TypeTree()), TypeTree().setOriginal(Annotated(Apply(Select(New(Select(Ident(scala), scala.unchecked)), termNames.CONSTRUCTOR), List()), Typed(TypeApply(Select(Ident(TermName("x97")), TermName("asInstanceOf")), List(TypeTree())), TypeTree())))), List(CaseDef(UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Ident(termNames.WILDCARD))), UnApply(Apply(Select(Ident(code.chymyst.jc.$plus), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Ident(termNames.WILDCARD))), UnApply(Apply(Select(Ident(TermName("a")), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(Ident(termNames.WILDCARD))))))), EmptyTree, Literal(Constant(true))), CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, Literal(Constant(false)))))))))), Apply(Select(New(Ident(TypeName("$anonfun"))), termNames.CONSTRUCTOR), List())), TypeTree()), TypeTree().setOriginal(Select(Ident(code.chymyst.jc.Core), TypeName("ReactionBody"))))"""
   }
 
   it should "find enclosing symbol names with correct scopes" in {
