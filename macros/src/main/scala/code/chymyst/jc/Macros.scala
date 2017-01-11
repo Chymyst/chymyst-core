@@ -256,14 +256,14 @@ object Macros {
           case _ => super.traverse(tree)
         }
 
-      def from(tree: Tree): List[(Tree, Tree, Tree, String)] = {
+      def from(tree: Tree): List[(Tree, Tree, Tree)] = {
         info = List()
         this.traverse(tree)
         info.filter {
           // PartialFunction automatically adds a default case; we ignore that CaseDef.
           case CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, _) => false
           case _ => true
-        }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody, getSha1String(showCode(c))) }
+        }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody) }
       }
     }
 
@@ -607,7 +607,7 @@ object Macros {
 
     if (caseDefs.length > 1) haveError("Reactions must contain only one `case` clause")
 
-    val Some((pattern, guard, body, reactionSha1)) = caseDefs.headOption
+    val Some((pattern, guard, body)) = caseDefs.headOption
 
     if (DetectInvalidInputGrouping.in(pattern)) haveError("Reaction's input molecules must be grouped to the left in chemical notation")
 
@@ -789,6 +789,7 @@ object Macros {
       maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
     }
 
+    // this fails in weird ways
 //    def removeGuard(tree: Tree): Tree = tree match {
 //      case q"{case ..$cases }" =>
 //        val newCases = cases.map {
@@ -798,6 +799,9 @@ object Macros {
 //        q"{case ..$newCases}"
 //      case _ => tree
 //    }
+
+    // Compute reaction sha1 from simplified inputlist
+    val reactionSha1 = getSha1String(patternInWithMergedGuards.map(_._2.patternSha1(t => showCode(t))).sorted.mkString(",") + crossGuards.map(_._2).map(t => showCode(t)).sorted.mkString(",") + showCode(body))
 
     // Prepare the ReactionInfo structure.
     val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $guardPresenceFlag, $reactionSha1), ${reactionBody.tree}, None, false)"
