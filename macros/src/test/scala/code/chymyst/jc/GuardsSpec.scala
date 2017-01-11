@@ -9,16 +9,16 @@ class GuardsSpec extends FlatSpec with Matchers {
 
   it should "correctly recognize a trivial true guard condition" in {
     val a = m[Option[Int]]
-    val bb = m[(Int,Option[Int])]
+    val bb = m[(Int, Option[Int])]
 
-    val result = go { case a(Some(1)) + a(None) + bb( (2, Some(3)) ) if true => a(Some(1)) }
+    val result = go { case a(Some(1)) + a(None) + bb((2, Some(3))) if true => a(Some(1)) }
     result.info.guardPresence shouldEqual GuardAbsent
 
     result.info.inputs should matchPattern {
       case List(
-        InputMoleculeInfo(`a`, SimpleConst(Some(1)), _),
-        InputMoleculeInfo(`a`, SimpleConst(None), _),
-        InputMoleculeInfo(`bb`, SimpleConst((2, Some(3))), _)
+      InputMoleculeInfo(`a`, SimpleConst(Some(1)), _),
+      InputMoleculeInfo(`a`, SimpleConst(None), _),
+      InputMoleculeInfo(`bb`, SimpleConst((2, Some(3))), _)
       ) =>
     }
     result.info.toString shouldEqual "a(None) + a(Some(1)) + bb((2,Some(3))) => a(Some(1))"
@@ -30,7 +30,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(xOpt) + bb(y) if xOpt.isEmpty && y._2.isEmpty => }
     result.info.guardPresence.effectivelyAbsent shouldEqual true
-    result.info.guardPresence should matchPattern { case GuardPresent(List(List('xOpt), List('y)),None,List()) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(List(List('xOpt), List('y)), None, List()) => }
 
     result.info.inputs should matchPattern {
       case List(
@@ -60,9 +60,9 @@ class GuardsSpec extends FlatSpec with Matchers {
 
   it should "use parameterized types in cross-guard condition" in {
     val a = m[Option[Int]]
-    val bb = m[(Int,Option[String])]
+    val bb = m[(Int, Option[String])]
 
-    val result = go { case a(xOpt) + bb( y ) if xOpt.isEmpty || y._2.isEmpty => }
+    val result = go { case a(xOpt) + bb(y) if xOpt.isEmpty || y._2.isEmpty => }
     result.info.guardPresence.effectivelyAbsent shouldEqual false
     result.info.guardPresence should matchPattern { case GuardPresent(List(List('xOpt, 'y)), None, List((List('xOpt, 'y), _))) => }
 
@@ -154,7 +154,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val reaction = go { case a((x, y, z, t)) if x > y => }
 
-    reaction.info.guardPresence shouldEqual GuardPresent(List(List('x, 'y)),None,List())
+    reaction.info.guardPresence shouldEqual GuardPresent(List(List('x, 'y)), None, List())
 
     (reaction.info.inputs.head.flag match {
       case OtherInputPattern(cond, vars) =>
@@ -300,6 +300,28 @@ class GuardsSpec extends FlatSpec with Matchers {
       case GuardPresent(List(List('p), List('t, 'q), List('y), List('q), List('t, 'p), List('y, 'q)), None, List((List('t, 'p), guard_t_p), (List('y, 'q), guard_y_q))) =>
     }
     result.info.toString shouldEqual "a(1) + a(p if ?) + a(y if ?) + bb(<26CD...>) + bb(<E0BD...>) if(t,p,y,q) => "
+  }
+
+  it should "simplify a guard with an if clause and a negation of one term" in {
+    val a = m[Int]
+
+    val n = 10
+
+    val result = go { case a(x) + a(y) if x > n && (if (y > n) 1 > n else !(x == y)) => }
+
+    result.info.guardPresence should matchPattern { case GuardPresent(List(List('x), List('y), List('y, 'x)), None, List((List('y, 'x), _))) => }
+    result.info.toString shouldEqual "a(x if ?) + a(y if ?) if(y,x) => "
+  }
+
+  it should "simplify a guard with an if clause into no cross guard" in {
+    val a = m[Int]
+
+    val n = 10
+
+    val result = go { case a(x) + a(y) if x > n || (if (!false) 1 > n else x == y) => }
+
+    result.info.guardPresence should matchPattern { case GuardPresent(List(List('x)), None, List()) => }
+    result.info.toString shouldEqual "a(x if ?) + a(y) => "
   }
 
 }
