@@ -20,7 +20,7 @@ private[jc] final case class UnapplyRun(moleculeValues: LinearMoleculeBag) exten
   * @return an unapply operation
   */
 object + {
-  def unapply(attr:Any): Option[(Any, Any)] = Some((attr,attr))
+  def unapply(attr:UnapplyArg): Option[(UnapplyArg, UnapplyArg)] = Some((attr,attr))
 }
 
 /** Abstract container for molecule values. This is a common wrapper for values of blocking and non-blocking molecules.
