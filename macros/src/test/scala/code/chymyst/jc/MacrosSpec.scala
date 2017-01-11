@@ -23,6 +23,36 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     tp0.shutdownNow()
   }
 
+  behavior of "reaction site"
+
+  it should "track whether molecule emitters are bound" in {
+    val a = new E("a123")
+    val b = new E("b")
+    val c = new E("")
+
+    a.toString shouldEqual "a123"
+    b.toString shouldEqual "b"
+    c.toString shouldEqual "<no name>"
+
+    a.isBound shouldEqual false
+    b.isBound shouldEqual false
+    c.isBound shouldEqual false
+
+    site(go { case a(_) + c(_) => b() })
+
+    a.isBound shouldEqual true
+    b.isBound shouldEqual false
+    c.isBound shouldEqual true
+
+    a.emittingReactions shouldEqual Set()
+    b.emittingReactions shouldEqual Set() // we don't use macros here, so we don't know which molecules are emitted as output
+    c.emittingReactions shouldEqual Set()
+    a.consumingReactions.get.size shouldEqual 1
+    a.consumingReactions.get.head.toString shouldEqual "<no name> + a123 => ..."
+    b.consumingReactions shouldEqual None
+    c.consumingReactions.get shouldEqual a.consumingReactions.get
+  }
+
   behavior of "macros for defining new molecule emitters"
 
   it should "fail to compute correct names when molecule emitters are defined together" in {
@@ -123,13 +153,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     f.timeout(1000 millis)() shouldEqual Some(2)
   }
 
-  it should "inspect reaction body with embedded join and _go" in {
+  it should "inspect reaction body with embedded join and go" in {
     val a = m[Int]
     val bb = m[Int]
     val f = b[Unit, Int]
     site(tp0)(
-      _go { case f(_, r) + bb(x) => r(x) },
-      _go { case a(x) =>
+      go { case f(_, r) + bb(x) => r(x) },
+      go { case a(x) =>
         val p = m[Int]
         site(tp0)(go { case p(y) => bb(y) })
         p(x + 1)
@@ -211,11 +241,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     result.info.sha1 shouldEqual result2.info.sha1
   }
 
-  it should "inspect a _go reaction body" in {
+  it should "inspect a go reaction body" in {
     val a = m[Int]
     val qq = m[Unit]
 
-    val result = _go { case a(x) + qq(_) => qq() }
+    val result = go { case a(x) + qq(_) => qq() }
 
     (result.info.inputs match {
       case List(
@@ -310,9 +340,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new E("b")
     val c = new E("c")
 
-    site(tp0)(_go { case b(_) + a(Some(x)) + c(_) => })
+    site(tp0)(go { case b(_) + a(Some(x)) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b => ...}\nNo molecules" // this is the wrong result that we expect from _go
+    a.logSoup shouldEqual "Site{a + b => ...}\nNo molecules" // this is the wrong result that we expect from go
   }
 
   it should "define a reaction with correct inputs with default pattern-matching in the middle of reaction" in {
@@ -340,7 +370,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new E("b")
     val c = new E("c")
 
-    site(tp0)(_go { case a(None) + b(_) + c(_) => })
+    site(tp0)(go { case a(None) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Site{a => ...}\nNo molecules"
   }

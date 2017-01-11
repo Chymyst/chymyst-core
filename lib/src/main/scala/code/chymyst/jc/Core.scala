@@ -1,6 +1,5 @@
 package code.chymyst.jc
 
-import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import scala.collection.JavaConverters.asScalaIteratorConverter
@@ -11,7 +10,7 @@ object Core {
   /** A special value for {{{ReactionInfo}}} to signal that we are not running a reaction.
     *
     */
-  private[jc] val emptyReactionInfo = ReactionInfo(Nil, None, GuardPresenceUnknown, "")
+  val emptyReactionInfo = ReactionInfo(Nil, None, GuardPresenceUnknown, "")
 
   private lazy val sha1Digest = java.security.MessageDigest.getInstance("SHA-1")
 
@@ -67,31 +66,7 @@ object Core {
 
   // Wait until the reaction site to which `molecule` is bound becomes quiescent, then emit `callback`.
   // TODO: implement
-  def waitUntilQuiet[T](molecule: M[T], callback: E): Unit = molecule.site.setQuiescenceCallback(callback)
-
-  /** Create a reaction value out of a simple reaction body. Used only for testing.
-    * The reaction body must be "simple" in the sense that it allows very limited pattern-matching with molecule values:
-    * - all patterns must be simple variables or wildcards, or {{{null}}} or zero constant values, except the last molecule in the reaction.
-    * - the last molecule in the reaction can have a nontrivial pattern matcher.
-    *
-    * The only reason this method exists is to enable testing JoinRun without depending on the macro package.
-    * Since this method does not provide a full compile-time analysis of reactions, it should be used only for internal testing and debugging of JoinRun itself.
-    * At the moment, this method is used in benchmarks and unit tests of JoinRun that run without depending on the macro package.
-    *
-    * @param body Body of the reaction. Should not contain any pattern-matching on molecule values, except possibly for the last molecule in the list of input molecules.
-    * @return Reaction value. The [[ReactionInfo]] structure will be filled out in a minimal fashion (only has information about input molecules, and all patterns are "unknown").
-    */
-  private[jc] def _go(body: ReactionBody): Reaction = {
-    val moleculesInThisReaction = UnapplyCheckSimple(mutable.MutableList.empty)
-    body.isDefinedAt(moleculesInThisReaction)
-    // detect nonlinear patterns
-    val duplicateMolecules = moleculesInThisReaction.inputMolecules diff moleculesInThisReaction.inputMolecules.distinct
-    if (duplicateMolecules.nonEmpty) throw new ExceptionInJoinRun(s"Nonlinear pattern: ${duplicateMolecules.mkString(", ")} used twice")
-    val inputMoleculesUsed = moleculesInThisReaction.inputMolecules.toList
-    val inputMoleculeInfo = inputMoleculesUsed.map(m => InputMoleculeInfo(m, UnknownInputPattern, UUID.randomUUID().toString))
-    val simpleInfo = ReactionInfo(inputMoleculeInfo, None, GuardPresenceUnknown, UUID.randomUUID().toString)
-    Reaction(simpleInfo, body, threadPool = None, retry = false)
-  }
+//  def waitUntilQuiet[T](molecule: M[T], callback: E): Unit = molecule.site.setQuiescenceCallback(callback)
 
   /**
     * Convenience syntax: users can write a(x)+b(y) to emit several molecules at once.

@@ -15,60 +15,6 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   behavior of "thread with info"
 
-  def checkPool(tp: Pool): Unit = {
-    val waiter = new Waiter
-
-    tp.runClosure({
-      val threadInfoOptOpt: Option[Option[ReactionInfo]] = Thread.currentThread match {
-        case t : ThreadWithInfo => Some(t.reactionInfo)
-        case _ => None
-      }
-      waiter {
-        threadInfoOptOpt shouldEqual Some(Some(emptyReactionInfo))
-        ()
-      }
-      waiter.dismiss()
-
-    }, emptyReactionInfo)
-
-    waiter.await()(patienceConfig, implicitly[Position])
-  }
-
-  it should "run tasks on a thread with info, in fixed pool" in {
-    Chymyst.withPool(new FixedPool(2))(checkPool).get shouldEqual (())
-  }
-
-  it should "run tasks on a thread with info, in smart pool" in {
-    Chymyst.withPool(new SmartPool(2))(checkPool).get shouldEqual (())
-  }
-
-  it should "run reactions on a thread with reaction info" in {
-    Chymyst.withPool(new FixedPool(2)){ tp =>
-      val waiter = new Waiter
-      val a = new E("a")
-
-      site(tp)(
-        _go { case a(_) =>
-          val reactionInfo = Thread.currentThread match {
-            case t: ThreadWithInfo => t.reactionInfo
-            case _ => None
-          }
-
-          waiter {
-            (reactionInfo match {
-              case Some(ReactionInfo(List(InputMoleculeInfo(a, UnknownInputPattern, _)), None, GuardPresenceUnknown, _)) => true
-              case _ => false
-            }) shouldEqual true; ()
-          }
-          waiter.dismiss()
-        }
-      )
-
-      a()
-      waiter.await()(patienceConfig, implicitly[Position])
-    }.get shouldEqual (())
-  }
-
   behavior of "fixed thread pool"
 
   it should "run a task on a separate thread" in {

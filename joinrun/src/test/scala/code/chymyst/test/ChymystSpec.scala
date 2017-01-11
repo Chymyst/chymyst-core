@@ -1,12 +1,13 @@
-package code.chymyst.jc
+package code.chymyst.test
 
-import Chymyst._
-import Core._
+import code.chymyst.jc._
+import code.chymyst.jc.Chymyst._
+import code.chymyst.jc.Core.emptyReactionInfo
 import org.scalactic.source.Position
 import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
+import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -30,7 +31,7 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(2)
     site(tp)(
-      _go { case c(_) + f(_, r) => r() }
+      go { case c(_) + f(_, r) => r() }
     )
 
     Future { Thread.sleep(50) } & c    // insert a molecule from the end of the future
@@ -46,7 +47,7 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(2)
 
     site(tp)(
-      _go { case c(x) => waiter { x shouldEqual "send it off"; () }; waiter.dismiss() }
+      go { case c(x) => waiter { x shouldEqual "send it off"; () }; waiter.dismiss() }
     )
 
     Future { Thread.sleep(50) } + c("send it off")    // insert a molecule from the end of the future
@@ -67,9 +68,9 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(4)
     site(tp)(
-      _go { case e(_) + c(_) => d() },
-      _go { case c(_) + f(_, r) => r("from c"); c() },
-      _go { case d(_) + f2(_, r) => r("from d") }
+      go { case e(_) + c(_) => d() },
+      go { case c(_) + f(_, r) => r("from c"); c() },
+      go { case d(_) + f2(_, r) => r("from d") }
     )
 
     c()
@@ -100,7 +101,7 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val (c, fut) = moleculeFuture[String](tp)
 
     site(tp)(
-      _go { case b(_) => c("send it off") }
+      go { case b(_) => c("send it off") }
     )
 
     for {
@@ -126,6 +127,62 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "catch exceptions and not fail" in {
     val tryX = cleanup(1)(_ => throw new Exception("ignore this exception"))(_ => throw new Exception("foo"))
     tryX.isFailure shouldEqual true
+  }
+
+  behavior of "withPool"
+
+  def checkPool(tp: Pool): Unit = {
+    val waiter = new Waiter
+
+    tp.runClosure({
+      val threadInfoOptOpt: Option[Option[ReactionInfo]] = Thread.currentThread match {
+        case t : ThreadWithInfo => Some(t.reactionInfo)
+        case _ => None
+      }
+      waiter {
+        threadInfoOptOpt shouldEqual Some(Some(emptyReactionInfo))
+        ()
+      }
+      waiter.dismiss()
+
+    }, emptyReactionInfo)
+
+    waiter.await()(patienceConfig, implicitly[Position])
+  }
+
+  it should "run tasks on a thread with info, in fixed pool" in {
+    withPool(new FixedPool(2))(checkPool).get shouldEqual (())
+  }
+
+  it should "run tasks on a thread with info, in smart pool" in {
+    withPool(new SmartPool(2))(checkPool).get shouldEqual (())
+  }
+
+  it should "run reactions on a thread with reaction info" in {
+    withPool(new FixedPool(2)){ tp =>
+      val waiter = new Waiter
+      val a = new E("a")
+
+      site(tp)(
+        go { case a(_) =>
+          val reactionInfo = Thread.currentThread match {
+            case t: ThreadWithInfo => t.reactionInfo
+            case _ => None
+          }
+
+          waiter {
+            (reactionInfo match {
+              case Some(ReactionInfo(List(InputMoleculeInfo(a, UnknownInputPattern, _)), None, GuardPresenceUnknown, _)) => true
+              case _ => false
+            }) shouldEqual true; ()
+          }
+          waiter.dismiss()
+        }
+      )
+
+      a()
+      waiter.await()(patienceConfig, implicitly[Position])
+    }.get shouldEqual (())
   }
 
 }

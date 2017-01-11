@@ -359,11 +359,11 @@ private[jc] trait AbsReplyValue[T, R] {
 
   private[jc] def setTimedOut() = hasTimedOut.set(true)
 
-  private[jc] def isTimedOut() = hasTimedOut.get
+  private[jc] def isTimedOut: Boolean = hasTimedOut.get
 
-  private[jc] def noReplyAttemptedYet = numberOfReplies.get === 0
+  private[jc] def noReplyAttemptedYet: Boolean = numberOfReplies.get === 0
 
-  private[jc] def replyWasRepeated = numberOfReplies.get >= 2
+  private[jc] def replyWasRepeated: Boolean = numberOfReplies.get >= 2
 
   /** This semaphore blocks the emitter of a blocking molecule until a reply is received.
     * This semaphore is initialized only once when creating an instance of this
@@ -418,7 +418,7 @@ private[jc] trait AbsReplyValue[T, R] {
 
       acquireSemaphoreForReply() // Wait until the emitting reaction has set the timeout status.
       // After acquiring this semaphore, it is safe to read the reply status.
-      !isTimedOut()
+      !isTimedOut
     } else
       false  // We already tried to reply, so nothing to be done now.
 

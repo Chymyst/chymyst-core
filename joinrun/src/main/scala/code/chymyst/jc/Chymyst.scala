@@ -1,9 +1,7 @@
 package code.chymyst.jc
 
-import Core._
-
 import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.{Try, Success, Failure}
+import scala.util.{Failure, Success, Try}
 
 object Chymyst {
   /** Create a non-blocking molecule that, when emitted, will resolve the future.
@@ -18,7 +16,7 @@ object Chymyst {
     val p = Promise[T]()
 
     site(pool,pool)(
-      _go { case f(x) => p.success(x); () }
+      go { case f(x) => p.success(x); () }
     )
     (f, p.future)
   }
