@@ -172,7 +172,7 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
           waiter {
             (reactionInfo match {
-              case Some(ReactionInfo(List(InputMoleculeInfo(a, UnknownInputPattern, _)), None, GuardPresenceUnknown, _)) => true
+              case Some(ReactionInfo(List(InputMoleculeInfo(a, Wildcard, _)), None, GuardAbsent, _)) => true
               case _ => false
             }) shouldEqual true; ()
           }

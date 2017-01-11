@@ -44,11 +44,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     b.isBound shouldEqual false
     c.isBound shouldEqual true
 
-    a.emittingReactions shouldEqual Set()
-    b.emittingReactions shouldEqual Set() // we don't use macros here, so we don't know which molecules are emitted as output
+    val expectedReaction = "<no name> + a123 => ..."
+
+    a.emittingReactions shouldEqual Set(expectedReaction)
+    b.emittingReactions shouldEqual Set(expectedReaction)
     c.emittingReactions shouldEqual Set()
     a.consumingReactions.get.size shouldEqual 1
-    a.consumingReactions.get.head.toString shouldEqual "<no name> + a123 => ..."
+    a.consumingReactions.get.head.toString shouldEqual expectedReaction
     b.consumingReactions shouldEqual None
     c.consumingReactions.get shouldEqual a.consumingReactions.get
   }
@@ -241,24 +243,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     result.info.sha1 shouldEqual result2.info.sha1
   }
 
-  it should "inspect a go reaction body" in {
-    val a = m[Int]
-    val qq = m[Unit]
-
-    val result = go { case a(x) + qq(_) => qq() }
-
-    (result.info.inputs match {
-      case List(
-        InputMoleculeInfo(`a`, UnknownInputPattern, _),
-        InputMoleculeInfo(`qq`, UnknownInputPattern, _)
-      ) => true
-      case _ => false
-    }) shouldEqual true
-    result.info.outputs shouldEqual None
-    result.info.guardPresence shouldEqual GuardPresenceUnknown
-    result.info.sha1 should not equal ax_qq_reaction_sha1
-  }
-
   it should "inspect a reaction body with another molecule and extra code" in {
     val a = m[Int]
     val qqq = m[String]
@@ -335,14 +319,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     result.info.toString shouldEqual "a(1) + a(p) + a(y) + bb((0,None)) + bb((1,Some(2))) + bb(<26CD...>) + bb(<5158...>) + bb(<F81F...>) + c(_) + c(_) + s/B(_) => s/B() + a(?) + qq()"
   }
 
-  it should "fail to define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
+  it should "not fail to define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
     val a = new M[Option[Int]]("a")
     val b = new E("b")
     val c = new E("c")
 
     site(tp0)(go { case b(_) + a(Some(x)) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b => ...}\nNo molecules" // this is the wrong result that we expect from go
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with default pattern-matching in the middle of reaction" in {
@@ -365,14 +349,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
-  it should "fail to define a simple reaction with correct inputs with empty option pattern-matching at start of reaction" in {
+  it should "not fail to define a simple reaction with correct inputs with empty option pattern-matching at start of reaction" in {
     val a = new M[Option[Int]]("a")
     val b = new E("b")
     val c = new E("c")
 
     site(tp0)(go { case a(None) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with empty option pattern-matching at start of reaction" in {

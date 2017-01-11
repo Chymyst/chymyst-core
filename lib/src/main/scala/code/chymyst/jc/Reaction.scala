@@ -10,7 +10,6 @@ import scala.{Symbol => ScalaSymbol}
   * {{{a(x) if x > 0}}} is represented by [[SimpleVar]] with value {{{SimpleVar(v = 'x, cond = Some({ case x if x > 0 => }))}}}
   * {{{a(Some(1))}}} is represented by [[SimpleConst]] with value {{{SimpleConst(v = Some(1))}}}
   * {{{a( (x, Some((y,z)))) ) if x > y}}} is represented by [[OtherInputPattern]] with value {{{OtherInputPattern(matcher = { case (x, Some((y,z)))) if x > y => }, vars = List('x, 'y, 'z))}}}
-  * [[UnknownInputPattern]] is used for reactions defined using the non-macro call [[_go]], which does not provide detailed compile-time information about reactions.
   */
 sealed trait InputPatternType
 
@@ -26,8 +25,6 @@ final case class SimpleVar(v: ScalaSymbol, cond: Option[PartialFunction[Any, Uni
 final case class SimpleConst(v: Any) extends InputPatternType
 
 final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: List[ScalaSymbol]) extends InputPatternType
-
-case object UnknownInputPattern extends InputPatternType
 
 sealed trait OutputPatternType
 
@@ -77,11 +74,6 @@ case object GuardAbsent extends GuardPresenceFlag
   *
   */
 case object AllMatchersAreTrivial extends GuardPresenceFlag
-
-/** Indicates that there is no information about the presence of the guard.
-  * This happens only with reactions that were defined using the non-macro call [[_go]].
-  */
-case object GuardPresenceUnknown extends GuardPresenceFlag
 
 /** Compile-time information about an input molecule pattern in a reaction.
   * This class is immutable.
@@ -160,7 +152,6 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
         case SimpleConstOutput(_) => false // definitely not the same constant
         case _ => true // Otherwise, it could be this constant.
       })
-      case UnknownInputPattern => Some(true) // pattern unknown - could be weaker.
     }
   }
 
@@ -172,7 +163,6 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
       case SimpleConst(()) => ""
       case SimpleConst(c) => c.toString
       case OtherInputPattern(_, _) => s"<${sha1.substring(0, 4)}...>"
-      case UnknownInputPattern => s"?"
     }
 
     s"$molecule($printedPattern)"
@@ -226,7 +216,6 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[L
       case GuardPresent(_, _, crossGuards) =>
         val crossGuardsInfo = crossGuards.flatMap(_._1).map(_.name).mkString(",")
         s" if($crossGuardsInfo)"
-      case GuardPresenceUnknown => " ?if?"
     }
     val outputsInfo = outputs match {
       case Some(outputMoleculeInfos) => outputMoleculeInfos.map(_.toString).mkString(" + ")

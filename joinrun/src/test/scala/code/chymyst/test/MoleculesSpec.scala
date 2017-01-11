@@ -144,21 +144,14 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     waiter.await()
   }
 
-  it should "throw exception when join pattern is nonlinear" in {
-    val thrown = intercept[Exception] {
-      val a = new E("a")
-      site( go { case a(_) + a(_) => () })
-    }
-    thrown.getMessage shouldEqual "Nonlinear pattern: a used twice"
-
+  it should "accept nonlinear input patterns" in {
+    val a = new E("a")
+    site(go { case a(_) + a(_) => () })
   }
 
-  it should "throw exception when join pattern is nonlinear, with blocking molecule" in {
-    val thrown = intercept[Exception] {
-      val a = new EE("a")
-      site( go { case a(_,r) + a(_,s) => r() + s() })
-    }
-    thrown.getMessage shouldEqual "Nonlinear pattern: a/B used twice"
+  it should "accept nonlinear input patterns, with blocking molecule" in {
+    val a = new EE("a")
+    site(go { case a(_, r) + a(_, s) => r() + s() })
   }
 
   it should "throw exception when join pattern attempts to redefine a blocking molecule" in {
