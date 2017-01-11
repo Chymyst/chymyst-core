@@ -11,9 +11,9 @@ class MultithreadSpec extends FlatSpec with Matchers {
     def runWork(threads: Int) = {
 
       def performWork(): Unit = {
-        val n = 200
+        val n = 300
         // load the CPU with some work:
-        (1 to n).foreach(i => (1 to i).foreach(j => (1 to j).foreach(k => math.cos(10000.0))))
+        (1 to n).foreach(i => (1 to i).foreach(j => (1 to j).foreach(k => math.cos(1.0))))
       }
 
 
@@ -36,8 +36,8 @@ class MultithreadSpec extends FlatSpec with Matchers {
       tp2.shutdownNow()
     }
 
-    val result8 = timeWithPriming{runWork(8)}
     val result1 = timeWithPriming{runWork(1)}
+    val result8 = timeWithPriming{runWork(8)}
 
     println(s"with 1 thread $result1 ms, with 8 threads $result8 ms")
 

@@ -7,7 +7,6 @@ import code.chymyst.jc._
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
-import scala.language.postfixOps
 import scala.util.Random.nextInt
 
 class ReactionDelaySpec extends FlatSpec with Matchers {
@@ -31,6 +30,7 @@ class ReactionDelaySpec extends FlatSpec with Matchers {
     val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
     val meanReplyDelay = results.sum / safeSize(results.size) / 1000 - 1
     println(s"Sequential test: Mean reply delay is $meanReplyDelay ms out of $trials trials; the test took $timeElapsed ms")
+    tp.shutdownNow()
   }
 
   it should "measure simple statistics on reaction delay in parallel" in {
@@ -64,6 +64,7 @@ class ReactionDelaySpec extends FlatSpec with Matchers {
     val result = all_done()
     val meanReplyDelay = result.sum / safeSize(result.size) / 1000 - 1
     println(s"Parallel test: Mean reply delay is $meanReplyDelay ms out of $trials trials; the test took $timeElapsed ms")
+    tp.shutdownNow()
   }
 
   type Result = (Int, Int, Long, Boolean)

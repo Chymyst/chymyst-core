@@ -69,9 +69,17 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "macros for inspecting a reaction body"
 
+  it should "fail to compile a reaction with regrouped inputs" in {
+    val a = m[Unit]
+    a.isInstanceOf[E] shouldEqual true
+
+    "val r = go { case a(_) + (a(_) + a(_)) => }" shouldNot compile
+    "val r = go { case (a(_) + a(_)) + a(_) => }" should compile
+  }
+
   it should "correctly sort input molecules with compound values" in {
     val bb = m[(Int, Option[Int])]
-    val reaction = go { case bb( (1,Some(2)) ) + bb( (0,None) ) => }
+    val reaction = go { case bb((1, Some(2))) + bb((0, None)) => }
     reaction.info.toString shouldEqual "bb((0,None)) + bb((1,Some(2))) => "
   }
 
@@ -112,7 +120,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
     )
     a(1)
-    f.timeout(500 millis)() shouldEqual Some(2)
+    f.timeout(1000 millis)() shouldEqual Some(2)
   }
 
   it should "inspect reaction body with embedded join and _go" in {
@@ -128,7 +136,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
     )
     a(1)
-    f.timeout(500 millis)() shouldEqual Some(2)
+    f.timeout(1000 millis)() shouldEqual Some(2)
   }
 
   val simpleVarXSha1 = ""
@@ -156,10 +164,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, SimpleConstOutput(None))))
     result.info.guardPresence shouldEqual GuardAbsent
-    result.info.sha1 shouldEqual "EFE8DF725DAFF58F6E770FC9B8FF9F98C05E1D7F"
+    result.info.sha1 shouldEqual "435CBA662F8A4992849522C11B78BE206E8D29D4"
   }
 
-  val ax_qq_reaction_sha1 = "99EDFE1E26346B98698FE634621D91B9AAEB17BB"
+  val ax_qq_reaction_sha1 = "84BE76228B9549230BCA620A56209B9BD1D0D25F"
 
   it should "inspect a two-molecule reaction body" in {
     val a = m[Int]
@@ -169,8 +177,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     (result.info.inputs match {
       case List(
-       InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`),
-        InputMoleculeInfo(`qq`, Wildcard, sha_qq)
+      InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`),
+      InputMoleculeInfo(`qq`, Wildcard, sha_qq)
       ) =>
         sha_qq shouldEqual wildcardSha1
         true
@@ -179,10 +187,28 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     result.info.outputs shouldEqual Some(List(OutputMoleculeInfo(qq, SimpleConstOutput(()))))
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
     result.info.sha1 shouldEqual ax_qq_reaction_sha1
+  }
 
-    // TODO: normalize reaction bodies so that this sha1 becomes the same as ax_qq_reaction_sha1
+  it should "compute reaction sha1 independently of input molecule order" in {
+    val a = m[Int]
+    val qq = m[Unit]
+
+    val result = go { case a(x) + qq(_) => qq() }
+    result.info.sha1 shouldEqual ax_qq_reaction_sha1
+
+    // This reaction is different only in the order of input molecules, so its sha1 must be the same.
     val result2 = go { case qq(_)  + a(x)  => qq() }
-    result2.info.sha1 shouldEqual "9E80536699339945A66AA9BEF33F31C66C7A851C"
+    result2.info.sha1 shouldEqual ax_qq_reaction_sha1
+  }
+
+  it should "compute reaction sha1 independently of guard order" in {
+    val a = m[Int]
+
+    val result = go { case a(x) + a(y) if x > 1 && y > 1 => a(x+y) }
+
+    // This reaction is different only in the order of guards, so its sha1 must be the same.
+    val result2 = go { case a(x) + a(y) if y > 1 && x > 1 => a(x+y) }
+    result.info.sha1 shouldEqual result2.info.sha1
   }
 
   it should "inspect a _go reaction body" in {
@@ -392,28 +418,32 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     r.info.outputs shouldEqual Some(List(OutputMoleculeInfo(a, SimpleConstOutput(Some(2)))))
     r.info.guardPresence shouldEqual GuardAbsent
 
-    r.info.sha1 shouldEqual "7CA728F315C854E49045FC42E3651128AA40F495"
+    r.info.sha1 shouldEqual "27AE82D8BE5D67328DC1485A0041B055A5E05D98"
   }
 
   it should "detect output molecules with constant values" in {
-    val bb = m[Int]
+    val c = m[Int]
+    val bb = m[(Int, Int)]
     val bbb = m[Int]
     val cc = m[Option[Int]]
 
-    val r1 = go { case bbb(x) => bb(x) }
-    val r2 = go { case bbb(_) + bb(_) => bbb(0) }
-    val r3 = go { case bbb(x) + bb(_) + bb(_) => bbb(1) + bb(x) + bbb(2) + cc(None) + cc(Some(1)) }
+    val r1 = go { case bbb(x) => c(x) + bb((1, 2)) + bb((3, x)) }
+    val r2 = go { case bbb(_) + c(_) => bbb(0) }
+    val r3 = go { case bbb(x) + c(_) + c(_) => bbb(1) + c(x) + bbb(2) + cc(None) + cc(Some(1)) }
 
-    r1.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bb, OtherOutputPattern)))
+    r1.info.outputs shouldEqual Some(List(
+      OutputMoleculeInfo(c, OtherOutputPattern),
+      OutputMoleculeInfo(bb, SimpleConstOutput((1, 2))),
+      OutputMoleculeInfo(bb, OtherOutputPattern)
+    ))
     r2.info.outputs shouldEqual Some(List(OutputMoleculeInfo(bbb, SimpleConstOutput(0))))
     r3.info.outputs shouldEqual Some(List(
       OutputMoleculeInfo(bbb, SimpleConstOutput(1)),
-      OutputMoleculeInfo(bb, OtherOutputPattern),
+      OutputMoleculeInfo(c, OtherOutputPattern),
       OutputMoleculeInfo(bbb, SimpleConstOutput(2)),
       OutputMoleculeInfo(cc, SimpleConstOutput(None)),
       OutputMoleculeInfo(cc, SimpleConstOutput(Some(1)))
-    )
-    )
+    ))
   }
 
   it should "compute input pattern variables correctly" in {
@@ -586,7 +616,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "find expression trees for matchers" in {
-
     rawTree(Some(1) match { case Some(1) => }) shouldEqual "Match(Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1)))), List(CaseDef(Apply(TypeTree().setOriginal(Select(Ident(scala), scala.Some)), List(Literal(Constant(1)))), EmptyTree, Literal(Constant(())))))"
   }
 
