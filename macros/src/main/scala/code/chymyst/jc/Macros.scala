@@ -723,12 +723,10 @@ object Macros {
         (vars.map(identToScalaSymbol), pfTree)
     }
 
-    // We lift the GuardPresenceType values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceType].
+    // We lift the GuardPresenceFlag values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceFlag].
     val guardPresenceFlag = if (isGuardAbsent) {
-      if (allInputMatchersAreTrivial)
-        q"AllMatchersAreTrivial"
-      else
-        q"GuardAbsent"
+      if (allInputMatchersAreTrivial) q"AllMatchersAreTrivial"
+      else q"GuardAbsent"
     } else
       q"GuardPresent(${guardVarsSeq.map(_._2.map(identToScalaSymbol)).filter(_.nonEmpty)}, $staticGuardTree, $crossGuards)"
 

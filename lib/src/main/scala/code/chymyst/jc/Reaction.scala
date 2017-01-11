@@ -33,7 +33,7 @@ case object OtherOutputPattern extends OutputPatternType
 /** Indicates whether a reaction has a guard condition.
   *
   */
-sealed trait GuardPresenceType {
+sealed trait GuardPresenceFlag {
   /** Checks whether the reaction has no cross-molecule guard conditions.
     * For example, {{{go { case a(x) + b(y) if x > y => } }}} has a cross-molecule guard condition,
     * whereas {{{go { case a(x) + b(y) if x == 1 && y == 2 => } }}} has no cross-guard conditions because its guard condition
@@ -61,16 +61,16 @@ sealed trait GuardPresenceType {
   * @param crossGuards A list of functions that represent the clauses of the guard that relate values of different molecules. The partial function `Any => Unit` should be called with the arguments representing the tuples of pattern variables from each molecule used by the cross guard.
   *                    In the present example, {{{crossGuards}}} will be {{{List((List('y, 'z), { case List(y, z) if y > z => () }))}}}.
   */
-final case class GuardPresent(vars: List[List[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: List[(List[ScalaSymbol], PartialFunction[List[Any], Unit])]) extends GuardPresenceType
+final case class GuardPresent(vars: List[List[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: List[(List[ScalaSymbol], PartialFunction[List[Any], Unit])]) extends GuardPresenceFlag
 
-case object GuardAbsent extends GuardPresenceType
+case object GuardAbsent extends GuardPresenceFlag
 
-case object AllMatchersAreTrivial extends GuardPresenceType
+case object AllMatchersAreTrivial extends GuardPresenceFlag
 
 /** Indicates that there is no information about the presence of the guard.
   * This happens only with reactions that
   */
-case object GuardPresenceUnknown extends GuardPresenceType
+case object GuardPresenceUnknown extends GuardPresenceFlag
 
 /** Compile-time information about an input molecule pattern in a reaction.
   * This class is immutable.
@@ -188,7 +188,7 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
 }
 
 // This class is immutable.
-final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], guardPresence: GuardPresenceType, sha1: String) {
+final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], guardPresence: GuardPresenceFlag, sha1: String) {
 
   // The input pattern sequence is pre-sorted for further use.
   private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
