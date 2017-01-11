@@ -50,7 +50,7 @@ ul, ol {
 
 body blockquote {
     padding: 0 1em;
-    color: #bbb;
+    color: #777;
     border-left: 0.25em solid #ddd;
-    margin: 0 40px;
+    margin: 0;
 }

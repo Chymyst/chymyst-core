@@ -35,7 +35,7 @@ Do not start by reading academic papers if you are a beginner in Join Calculus -
 
 As another comparison, here is some code in academic Join Calculus, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
 
-<img alt="def newVar(v0) def put(w) etc." src="academic_join_calculus_2.png" width="200" />
+<img alt="def newVar(v0) def put(w) etc." src="academic_join_calculus_2.png" width="400" />
 
 This code creates a shared value container `val` with synchronized single access.
 
