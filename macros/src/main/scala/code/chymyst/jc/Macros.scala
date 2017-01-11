@@ -266,6 +266,7 @@ object Macros {
       }
     }
 
+    // A singleton reaction must start with _ and must emit some output molecules (which we check later).
     def isSingletonReaction(pattern: Tree, guard: Tree, body: Tree): Boolean = {
       pattern match {
         case Ident(termNames.WILDCARD) => true
@@ -573,8 +574,8 @@ object Macros {
       }
     }
 
-    // this boilerplate is necessary for being able to use PatternType values in macro quasiquotes
-    implicit val liftablePatternFlag: Liftable[InputPatternFlag[Ident, Tree]] = Liftable[InputPatternFlag[Ident, Tree]] {
+    // This boilerplate is necessary for being able to use PatternType values in quasiquotes.
+    implicit val liftableInputPatternFlag: Liftable[InputPatternFlag[Ident, Tree]] = Liftable[InputPatternFlag[Ident, Tree]] {
       case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
       case SimpleConstF(tree) => q"_root_.code.chymyst.jc.SimpleConst($tree)"
       case SimpleVarF(v, binder, cond) =>
@@ -592,20 +593,22 @@ object Macros {
 
     def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error) = {
       if (molecules.nonEmpty)
-        method(c.enclosingPosition, s"$what should $connector $patternWhat (${molecules.mkString(", ")})")
+        method(c.enclosingPosition, s"$what must $connector $patternWhat (${molecules.mkString(", ")})")
     }
+
+    def haveError(message: String) = c.error(c.enclosingPosition, message)
 
     val caseDefs = GetReactionCases.from(reactionBody.tree)
 
     // Note: `caseDefs` should not be an empty list because that's a typecheck error (`go` only accepts a partial function, so at least one `case` needs to be given).
     // However, the user could be clever and write `val body = new PartialFunction...; go(body)`. We do not allow this because `go` needs to see the entire reaction body.
-    if (caseDefs.isEmpty) c.error(c.enclosingPosition, "Reactions should be defined inline with the `go { case ... => ... }` syntax")
+    if (caseDefs.isEmpty) haveError("No `case` clauses found: Reactions must be defined inline with the `go { case ... => ... }` syntax")
 
-    if (caseDefs.length > 1) c.error(c.enclosingPosition, "Reactions should contain only one `case` clause")
+    if (caseDefs.length > 1) haveError("Reactions must contain only one `case` clause")
 
     val Some((pattern, guard, body, reactionSha1)) = caseDefs.headOption
 
-    if (DetectInvalidInputGrouping.in(pattern)) c.error(c.enclosingPosition, "Reaction inputs should be grouped to the left")
+    if (DetectInvalidInputGrouping.in(pattern)) haveError("Reaction's input molecules must be grouped to the left in chemical notation")
 
     val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
 
@@ -625,7 +628,7 @@ object Macros {
 
     // If any of the CNF clauses is empty, the entire guard is identically `false`. This is an error condition: reactions should not be permanently prohibited.
     if (guardCNF.exists(_.isEmpty)) {
-      c.error(c.enclosingPosition, "Reaction should not have an identically false guard condition")
+      haveError("Reaction must not have an identically false guard condition")
     }
 
     // If the CNF is empty, the entire guard is identically `true`. We can remove it altogether.
@@ -729,19 +732,21 @@ object Macros {
     } else
       q"GuardPresent(${guardVarsSeq.map(_._2.map(identToScalaSymbol)).filter(_.nonEmpty)}, $staticGuardTree, $crossGuards)"
 
-    // Prepare the "lean" reaction body: { case List(binder1, binder2, ...) if cross-guards => body }
-    val leanReactionBody = {
-      val bindersWithVars = patternInWithMergedGuards.flatMap { case (_, flag, replyFlag) =>
-        flag match {
-          case SimpleVarF(_, binder, _) => Some(binder)
-          case OtherPatternF(matcher, _, vs) if vs.nonEmpty => Some(matcher) // omit matchers with no pattern variables, e.g. (None, Some(_), _)
-          case _ => None
-        }
-      }.map(b => c.untypecheck(replaceVarsInBinder(b)))
-      // We can omit the guard since the conditions will be checked by the reaction site's code before calling this.
-      val caseDefs = List(cq"List(..$bindersWithVars) => ${body}")
-      c.untypecheck(q"{ case ..$caseDefs }")
-    }
+    // Prepare the "lean" reaction body: omit the guard and omit molecules without pattern variables.
+    val leanReactionBody = removeReactionGuard(reactionBody.tree)
+
+//    {
+//      val bindersWithVars = patternInWithMergedGuards.flatMap { case (_, flag, replyFlag) =>
+//        flag match {
+//          case SimpleVarF(_, binder, _) => Some(binder)
+//          case OtherPatternF(matcher, _, vs) if vs.nonEmpty => Some(matcher) // omit matchers having no pattern variables, e.g. (None, Some(_), _)
+//          case _ => None
+//        }
+//      }.map(b => c.untypecheck(replaceVarsInBinder(b)))
+//      // We can omit the guard since the conditions will be checked by the reaction site's code before calling this.
+//      val caseDefs = List(cq"List(..$bindersWithVars) => $body")
+//      c.untypecheck(q"{ case ..$caseDefs }")
+//    }
     //    println(s"debug: leanReactionBody = $leanReactionBody")
 
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
@@ -763,10 +768,10 @@ object Macros {
     maybeError("blocking input molecules", "but multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
 
     if (patternIn.isEmpty && !isSingletonReaction(pattern, guard, body)) // go { case x => ... }
-      c.error(c.enclosingPosition, "Reaction should not have an empty list of input molecules")
+      haveError("Reaction's input must be `_` or have some input molecules")
 
     if (isSingletonReaction(pattern, guard, body) && bodyOut.isEmpty)
-      c.error(c.enclosingPosition, "Reaction should not have an empty list of input molecules and no output molecules")
+      haveError("Reaction must not have an empty list of input molecules and no output molecules")
 
     val inputMolecules = patternInWithMergedGuards.map { case (s, p, _) => q"InputMoleculeInfo(${s.asTerm}, $p, ${p.patternSha1(t => showCode(t))})" }
 
