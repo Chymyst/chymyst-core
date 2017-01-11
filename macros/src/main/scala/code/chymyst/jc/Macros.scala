@@ -215,8 +215,8 @@ object Macros {
       override def transform(tree: Tree): Tree = tree match {
         case DefDef(modifiers, termName@TermName(termNameString), tparams, vparamss, tpt, Match(matchee, list))
           if isFirstApplyOrElse && termNameString === "applyOrElse" || isFirstIsDefinedAt && termNameString === "isDefinedAt" =>
-          if (termNameString === "applyOrElse") isFirstApplyOrElse = true
-          if (termNameString === "isDefinedAt") isFirstIsDefinedAt = true
+          if (termNameString === "applyOrElse") isFirstApplyOrElse = false
+          if (termNameString === "isDefinedAt") isFirstIsDefinedAt = false
           val newList = list.map(l => useTransform(l).asInstanceOf[CaseDef]) // `object` cannot have type parameters, otherwise we would have done .map(useTransform[CaseDef])
           DefDef(modifiers, termName, tparams, vparamss, tpt, Match(matchee, newList))
         case _ => super.transform(tree)
@@ -230,27 +230,28 @@ object Macros {
       }
     }
 
-    def removeReactionGuard(tree: Tree): Tree = LocateAndTransformReactionInput.withMap(l => RemoveReactionGuardTransformer.transform(l))(tree)
+    def removeReactionGuard(tree: Tree): Tree =
+      LocateAndTransformReactionInput.withMap(l => RemoveReactionGuardTransformer.transform(l))(tree)
 
     /** Obtain the list of `case` expressions in a reaction.
       * There should be only one `case` expression.
       */
     object GetReactionCases extends Traverser {
       private var info: List[CaseDef] = List()
-      private var isFirst: Boolean = true
+      private var isFirstReactionCase: Boolean = true
 
       override def traverse(tree: Tree): Unit =
         tree match {
           // this is matched by the partial function of type ReactionBody
-          case DefDef(_, TermName("applyOrElse"), _, _, _, Match(_, list)) if isFirst =>
+          case DefDef(_, TermName("applyOrElse"), _, _, _, Match(_, list)) if isFirstReactionCase =>
             info = list
-            isFirst = false
+            isFirstReactionCase = false
 
           // this is matched by a closure which is not a partial function. Not used now, because ReactionBody is now a subclass of PartialFunction.
           /*
-          case Function(List(ValDef(_, TermName(_), TypeTree(), EmptyTree)), Match(Ident(TermName(_)), list)) if isFirst =>
+          case Function(List(ValDef(_, TermName(_), TypeTree(), EmptyTree)), Match(Ident(TermName(_)), list)) if isFirstReactionCase =>
            info = list
-           isFirst = false
+           isFirstReactionCase = false
           */
           case _ => super.traverse(tree)
         }
@@ -788,9 +789,19 @@ object Macros {
       maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
     }
 
+    def removeGuard(tree: Tree): Tree = tree match {
+      case q"{case ..$cases }" =>
+        val newCases = cases.map {
+        case cq"$pat if $guard => $body" => cq"$pat => $body"
+        case _ => tree
+      }
+        q"{case ..$newCases}"
+      case _ => tree
+    }
+
     // Prepare the ReactionInfo structure.
     val dummy = q"{ case _ if false => () }"
-    val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $guardPresenceFlag, $reactionSha1), $reactionBody, $dummy, None, false)"
+    val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $guardPresenceFlag, $reactionSha1), ${removeGuard(reactionBody.tree)}, $dummy, None, false)"
     //    println(s"debug: ${showCode(result)}")
     //    println(s"debug raw: ${showRaw(result)}")
     //    c.untypecheck(result) // this fails
