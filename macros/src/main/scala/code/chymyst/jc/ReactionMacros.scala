@@ -12,11 +12,9 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   import c.universe._
 
   // A singleton reaction must start with _ and must emit some output molecules (which we check later).
-  def isSingletonReaction(pattern: Tree, guard: Tree, body: Tree): Boolean = {
-    pattern match {
-      case Ident(termNames.WILDCARD) => true
-      case _ => false
-    }
+  def isSingletonReaction(pattern: Tree, guard: Tree, body: Tree): Boolean = pattern match {
+    case Ident(termNames.WILDCARD) => true
+    case _ => false
   }
 
   def getSimpleVar(binderTerm: Tree): Ident = binderTerm match {
@@ -28,8 +26,13 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     "scala.`package`.Left" -> q"Left",
     "scala.`package`.Right" -> q"Right"
   )
+  private val listExtractorCodes = Map(
+    "scala.collection.immutable.List" -> q"List"
+  )
 
   private val applyCodes = Set("scala.Some.apply", "scala.util.Left.apply", "scala.util.Right.apply")
+
+  private val listApplyCodes = Set("scala.collection.immutable.List.apply")
 
   /** Detect whether an expression tree represents a constant expression.
     * A constant expression is either a literal constant, or Some(), None(), Left(), Right(), and tuples of constant expressions.
@@ -41,7 +44,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     case Literal(_) => Some(exprTree)
 
-    case pq"scala.None" | q"scala.None" => Some(q"None")
+    case pq"scala.None" | q"scala.None"  => Some(q"None")
+    case pq"Nil" | q"Nil"  => Some(q"Nil")
 
     case q"$applier[..$ts](..$xs)"
       if (ts.size === 1 || ts.size === 2) && xs.size === 1 &&
@@ -50,11 +54,23 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         .flatMap(getConstantTree)
         .map(t => q"$applier(${t.asInstanceOf[Tree]})")
 
+    case q"$applier[..$ts](..$xs)"
+      if ts.size === 1 && xs.nonEmpty &&
+        listApplyCodes.contains(applier.symbol.fullName) =>
+      val trees = xs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
+      if (trees.size === xs.size) Some(q"$applier(..$trees)") else None
+
     case pq"$extr(..$xs)" if xs.size === 1 => for {
       applier <- extractorCodes.get(showCode(extr.asInstanceOf[Tree]))
       x <- xs.headOption
       xConstant <- getConstantTree(x)
     } yield q"$applier(${xConstant.asInstanceOf[Tree]})"
+
+    case pq"$extr(..$xs)" if xs.nonEmpty =>
+      listExtractorCodes.get(extr.symbol.fullName).flatMap { extractor =>
+        val trees = xs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
+        if (trees.size === xs.size) Some(q"$extractor(..$trees)") else None
+      }
 
     // Tuples: the pq"" quasiquote covers both the binder and the expression
     case pq"(..$exprs)" if exprs.size > 1 => // Tuples of size 0 are Unit values, tuples of size 1 are ordinary values.
