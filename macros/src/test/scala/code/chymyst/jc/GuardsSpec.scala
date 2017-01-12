@@ -7,9 +7,28 @@ class GuardsSpec extends FlatSpec with Matchers {
 
   behavior of "guard conditions"
 
+  it should "correctly recognize constants of various kinds" in {
+    val a = m[Either[Int, String]]
+    val ccc = m[List[Int]]
+
+    val result = go { case ccc(Nil) + ccc(List()) + ccc(List(1)) + ccc(List(1,2,3)) + a(Right("input")) => ccc(Nil); ccc(List()); ccc(List(1)); ccc(List(1,2,3)); a(Right("output")) }
+
+    result.info.inputs should matchPattern {
+      case List(
+      InputMoleculeInfo(`ccc`, SimpleConst(Nil), _),
+      InputMoleculeInfo(`ccc`, SimpleConst(List()), _),
+      InputMoleculeInfo(`ccc`, SimpleConst(List(1)), _),
+      InputMoleculeInfo(`ccc`, SimpleConst(List(1,2,3)), _),
+      InputMoleculeInfo(`a`, SimpleConst(Right("input")), _)
+      ) =>
+    }
+    result.info.toString shouldEqual "a(Right(input)) + ccc(Nil) => ccc(Nil) + a(Right(output))"
+  }
+
   it should "correctly recognize a trivial true guard condition" in {
     val a = m[Either[Int, String]]
     val bb = m[(Int, Option[Int])]
+    val ccc = m[List[Int]]
 
     val result = go { case a(Left(1)) + a(Right("input")) + bb((2, Some(3))) if true => a(Right("output")) }
     result.info.guardPresence shouldEqual GuardAbsent
@@ -23,7 +42,6 @@ class GuardsSpec extends FlatSpec with Matchers {
     }
     result.info.toString shouldEqual "a(Left(1)) + a(Right(input)) + bb((2,Some(3))) => a(Right(output))"
   }
-
   it should "use parameterized types in simple guard condition" in {
     val a = m[Option[Int]]
     val bb = m[(Int, Option[String])]
