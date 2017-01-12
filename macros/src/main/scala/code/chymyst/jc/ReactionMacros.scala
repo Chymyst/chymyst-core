@@ -89,7 +89,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         val childrenOpt: Option[List[Trees#Tree]] = exprTree.children.headOption flatMap {
           case pq"$e(..$x)"
             if seqExtractorHeads.contains(e.symbol.fullName) &&
-              x.head.symbol.toString === "value <unapply-selector>" &&
+              x.headOption.exists(_.symbol.toString === "value <unapply-selector>") &&
               exprTree.children.nonEmpty =>
             Some(exprTree.children.drop(1))
           case _ => None
