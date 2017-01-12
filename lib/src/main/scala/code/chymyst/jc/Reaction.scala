@@ -18,7 +18,7 @@ case object Wildcard extends InputPatternType
 final case class SimpleVar(v: ScalaSymbol, cond: Option[PartialFunction[Any, Unit]]) extends InputPatternType
 
 /** Represents molecules that have constant pattern matchers, such as {{{a(1)}}}.
-  * Constant pattern matchers are either literal values (Int, String, etc.) or special values such as None, Nil, (),
+  * Constant pattern matchers are either literal values (Int, String, Sembol, etc.) or special values such as None, Nil, (),
   * as well as {{{Some}}}, {{{Left}}}, {{{Right}}}, {{{List}}}, and tuples of constant matchers.
   *
   * @param v Value of the constant. This is nominally of type {{{Any}}} but actually is of the molecule value type {{{T}}}.
