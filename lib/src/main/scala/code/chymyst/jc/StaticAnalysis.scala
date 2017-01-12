@@ -246,8 +246,7 @@ private[jc] object StaticAnalysis {
               Some(s"singleton ($m) emitted more than once by reaction ${r.info}")
             else if (outputTimes == 1 && !r.inputMolecules.contains(m))
               Some(s"singleton ($m) emitted but not consumed by reaction ${r.info}")
-            else
-              None
+            else None
         }
     }
 
@@ -271,7 +270,8 @@ private[jc] object StaticAnalysis {
 
   private[jc] def findSingletonDeclarationErrors(singletonReactions: Seq[Reaction]): Seq[String] = {
     val foundErrors = singletonReactions.map(_.info).filterNot(_.guardPresence.effectivelyAbsent)
-    if (foundErrors.nonEmpty) foundErrors.map { info => s"Singleton reaction {$info} should not have a guard condition" } else Seq()
+    if (foundErrors.nonEmpty) foundErrors.map { info => s"Singleton reaction {$info} should not have a guard condition" }
+    else Seq()
   }
 
   // Inspect the singletons actually emitted. Their multiplicities must be not less than the declared multiplicities.
@@ -282,7 +282,8 @@ private[jc] object StaticAnalysis {
         val countEmitted = singletonsEmitted.getOrElse(mol, 0)
         s"$mol emitted $countEmitted times instead of $count"
       }
-    if (foundErrors.nonEmpty) Seq(s"Too few singletons emitted: ${foundErrors.toList.sorted.mkString(", ")}") else Seq()
+    if (foundErrors.nonEmpty) Seq(s"Too few singletons emitted: ${foundErrors.toList.sorted.mkString(", ")}")
+    else Seq()
   }
 
   // Inspect the singletons actually emitted. Their multiplicities must be not more than the declared multiplicities.
@@ -293,7 +294,8 @@ private[jc] object StaticAnalysis {
         val countEmitted = singletonsEmitted.getOrElse(mol, 0)
         s"$mol emitted $countEmitted times instead of $count"
       }
-    if (foundErrors.nonEmpty) Seq(s"Possibly too many singletons emitted: ${foundErrors.toList.sorted.mkString(", ")}") else Seq()
+    if (foundErrors.nonEmpty) Seq(s"Possibly too many singletons emitted: ${foundErrors.toList.sorted.mkString(", ")}")
+    else Seq()
   }
 
 }

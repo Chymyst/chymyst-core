@@ -7,21 +7,46 @@ class GuardsSpec extends FlatSpec with Matchers {
 
   behavior of "guard conditions"
 
+  it should "correctly recognize constants of various kinds" in {
+    val a = m[Either[Int, String]]
+    val bb = m[scala.Symbol]
+    val ccc = m[List[Int]]
+
+    val result = go { case ccc(Nil) + ccc(List()) + ccc(List(1)) + ccc(List(1,2,3)) + bb('input) + a(Right("input")) =>
+      bb('output); ccc(Nil); ccc(List()); ccc(List(1)); ccc(List(1,2,3)); a(Right("output")) }
+
+    result.info.toString shouldEqual "a(Right(input)) + bb('input) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) => bb('output) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) + a(Right(output))"
+
+    result.info.inputs should matchPattern {
+      case List(InputMoleculeInfo(`ccc`, SimpleConst(Nil), _),
+        InputMoleculeInfo(`ccc`, SimpleConst(List()), _),
+        InputMoleculeInfo(`ccc`, SimpleConst(List(1)), _),
+        InputMoleculeInfo(`ccc`, SimpleConst(List(1, 2, 3)), _),
+        InputMoleculeInfo(`bb`, SimpleConst('input), _),
+        InputMoleculeInfo(`a`, SimpleConst(Right("input")), _)
+      ) =>
+    }
+
+  }
+
   it should "correctly recognize a trivial true guard condition" in {
-    val a = m[Option[Int]]
+    val a = m[Either[Int, String]]
     val bb = m[(Int, Option[Int])]
 
-    val result = go { case a(Some(1)) + a(None) + bb((2, Some(3))) if true => a(Some(1)) }
+    val result = go { case a(Left(1)) + a(Right("input")) + bb((2, Some(3))) + bb((0, None)) if true => a(Right("output")); bb((1, None)) }
     result.info.guardPresence shouldEqual GuardAbsent
+
+    result.info.toString shouldEqual "a(Left(1)) + a(Right(input)) + bb((0,None)) + bb((2,Some(3))) => a(Right(output)) + bb((1,None))"
 
     result.info.inputs should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, SimpleConst(Some(1)), _),
-      InputMoleculeInfo(`a`, SimpleConst(None), _),
-      InputMoleculeInfo(`bb`, SimpleConst((2, Some(3))), _)
+      InputMoleculeInfo(`a`, SimpleConst(Left(1)), _),
+      InputMoleculeInfo(`a`, SimpleConst(Right("input")), _),
+      InputMoleculeInfo(`bb`, SimpleConst((2, Some(3))), _),
+      InputMoleculeInfo(`bb`, SimpleConst((0, None)), _)
       ) =>
     }
-    result.info.toString shouldEqual "a(None) + a(Some(1)) + bb((2,Some(3))) => a(Some(1))"
+
   }
 
   it should "use parameterized types in simple guard condition" in {
