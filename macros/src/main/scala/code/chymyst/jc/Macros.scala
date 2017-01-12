@@ -122,7 +122,7 @@ class CommonMacros(val c: blackbox.Context) {
 
 }
 
-class WhiteboxMacros(override val c: whitebox.Context) extends CommonMacros(c) {
+final class WhiteboxMacros(override val c: whitebox.Context) extends CommonMacros(c) {
   import c.universe._
 
   def mImpl[T: c.WeakTypeTag]: c.universe.Tree = {
@@ -159,7 +159,7 @@ class WhiteboxMacros(override val c: whitebox.Context) extends CommonMacros(c) {
 
 }
 
-class BlackboxMacros(override val c: blackbox.Context) extends ReactionMacros(c) {
+final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMacros(c) {
   import c.universe._
 
   // This is the main method that gathers the reaction info and performs some preliminary static analysis.

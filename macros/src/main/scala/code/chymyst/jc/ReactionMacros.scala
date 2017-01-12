@@ -23,19 +23,27 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   private val extractorCodes = Map(
     "scala.Some" -> q"Some",
+    "scala.Symbol" -> q"Symbol",
     "scala.`package`.Left" -> q"Left",
     "scala.`package`.Right" -> q"Right"
   )
-  private val listExtractorCodes = Map(
-    "scala.collection.immutable.List" -> q"List"
+
+  private val applierCodes = Set(
+    "scala.Some.apply",
+    "scala.util.Left.apply",
+    "scala.util.Right.apply",
+    "scala.Symbol.apply",
+    "scala.collection.immutable.List.apply"
   )
 
-  private val applyCodes = Set("scala.Some.apply", "scala.util.Left.apply", "scala.util.Right.apply")
+  private val seqExtractorCodes = Map(
+    "scala.collection.immutable.List(" -> q"List"
+  )
 
-  private val listApplyCodes = Set("scala.collection.immutable.List.apply")
+  private val seqExtractorHeads = Set("scala.collection.generic.SeqFactory.unapplySeq")
 
   /** Detect whether an expression tree represents a constant expression.
-    * A constant expression is either a literal constant, or Some(), None(), Left(), Right(), and tuples of constant expressions.
+    * A constant expression is either a literal constant (Int, String, Symbol, etc.), (), None, Nil, or Some(...), Left(...), Right(...), List(...), and tuples of constant expressions.
     *
     * @param exprTree Binder pattern tree or expression tree.
     * @return {{{Some(tree)}}} if the expression represents a constant of the recognized form. Here {{{tree}}} will be a quoted expression tree (not a binder tree). {{{None}}} otherwise.
@@ -44,38 +52,59 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     case Literal(_) => Some(exprTree)
 
-    case pq"scala.None" | q"scala.None"  => Some(q"None")
-    case pq"Nil" | q"Nil"  => Some(q"Nil")
+    case pq"scala.None"
+         | q"scala.None" =>
+      Some(q"None")
 
-    case q"$applier[..$ts](..$xs)"
-      if (ts.size === 1 || ts.size === 2) && xs.size === 1 &&
-        applyCodes.contains(applier.symbol.fullName) =>
-      xs.headOption
-        .flatMap(getConstantTree)
-        .map(t => q"$applier(${t.asInstanceOf[Tree]})")
+    case pq"immutable.this.Nil"
+         | q"immutable.this.Nil" =>
+      Some(q"Nil")
 
-    case q"$applier[..$ts](..$xs)"
-      if ts.size === 1 && xs.nonEmpty &&
-        listApplyCodes.contains(applier.symbol.fullName) =>
+    // Tuples: the pq"" quasiquote covers both the binder and the expression!
+    case pq"(..$exprs)" if exprs.size >= 2 => // Tuples of size 0 are Unit values, tuples of size 1 are ordinary values.
+      val trees = exprs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
+      if (trees.size === exprs.size)
+        Some(q"(..$trees)")
+      else None
+
+    case q"$applier[..$ts](..$xs)" if applierCodes.contains(applier.symbol.fullName) =>
       val trees = xs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
-      if (trees.size === xs.size) Some(q"$applier(..$trees)") else None
+      if (trees.size === xs.size)
+        Some(q"$applier(..$trees)")
+      else None
 
-    case pq"$extr(..$xs)" if xs.size === 1 => for {
-      applier <- extractorCodes.get(showCode(extr.asInstanceOf[Tree]))
-      x <- xs.headOption
-      xConstant <- getConstantTree(x)
-    } yield q"$applier(${xConstant.asInstanceOf[Tree]})"
-
-    case pq"$extr(..$xs)" if xs.nonEmpty =>
-      listExtractorCodes.get(extr.symbol.fullName).flatMap { extractor =>
+    case pq"$extr(..$xs)" =>
+      val extrCode = showCode(extr.asInstanceOf[Tree])
+      extractorCodes.get(extrCode).flatMap { extractor =>
         val trees = xs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
-        if (trees.size === xs.size) Some(q"$extractor(..$trees)") else None
+        if (trees.size === xs.size)
+          Some(q"$extractor(..$trees)")
+        else None
       }
 
-    // Tuples: the pq"" quasiquote covers both the binder and the expression
-    case pq"(..$exprs)" if exprs.size > 1 => // Tuples of size 0 are Unit values, tuples of size 1 are ordinary values.
-      val trees = exprs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
-      if (trees.size === exprs.size) Some(q"(..$trees)") else None
+    case pq"$extr(...$xs)"  =>
+      val extrCode = showCode(extr.asInstanceOf[Tree])
+      val cleanedCode = extrCode.substring(0, 1 + extrCode.indexOf("("))
+      seqExtractorCodes.get(cleanedCode).flatMap { extractor =>
+        val childrenOpt: Option[List[Trees#Tree]] = exprTree.children.headOption flatMap {
+          case pq"$e(..$x)"
+            if seqExtractorHeads.contains(e.symbol.fullName) &&
+              x.head.symbol.toString === "value <unapply-selector>" &&
+              exprTree.children.nonEmpty =>
+            Some(exprTree.children.drop(1))
+          case _ => None
+        }
+
+        val resultTree: Option[Tree] = for {
+          children <- childrenOpt
+          trees = for {
+            child <- children
+            childConst <- getConstantTree(child).map(_.asInstanceOf[Tree])
+          } yield childConst.asInstanceOf[Tree]
+          if trees.size === children.size
+        } yield q"$extractor(..$trees)"
+        resultTree
+      }
 
     case _ => None
   }
@@ -343,9 +372,12 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
         // matcher with a single argument: a(x)
         case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
-          val flag2Opt = if (t.tpe <:< weakTypeOf[B[_, _]]) Some(WrongReplyVarF) else None
+          val flag2Opt = if (t.tpe <:< weakTypeOf[B[_, _]])
+            Some(WrongReplyVarF)
+          else None
           val flag1 = getInputFlag(binder)
-          if (flag1.hasSubtree) traverse(binder)
+          if (flag1.hasSubtree)
+            traverse(binder)
           inputMolecules.append((t.symbol, flag1, flag2Opt))
 
         // matcher with two arguments: a(x, y)
@@ -356,8 +388,10 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           }
           val flag1 = getInputFlag(binder1)
           // Perhaps we need to continue to analyze the "binder" (it could be another molecule).
-          if (flag1.hasSubtree) traverse(binder1)
-          if (flag2.hasSubtree) traverse(binder2)
+          if (flag1.hasSubtree)
+            traverse(binder1)
+          if (flag2.hasSubtree)
+            traverse(binder2)
           // After traversing the subtrees, we append this molecule information.
           inputMolecules.append((t.symbol, flag1, Some(flag2)))
 
