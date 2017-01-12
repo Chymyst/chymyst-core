@@ -8,20 +8,20 @@ class GuardsSpec extends FlatSpec with Matchers {
   behavior of "guard conditions"
 
   it should "correctly recognize a trivial true guard condition" in {
-    val a = m[Option[Int]]
+    val a = m[Either[Int, String]]
     val bb = m[(Int, Option[Int])]
 
-    val result = go { case a(Some(1)) + a(None) + bb((2, Some(3))) if true => a(Some(1)) }
+    val result = go { case a(Left(1)) + a(Right("input")) + bb((2, Some(3))) if true => a(Right("output")) }
     result.info.guardPresence shouldEqual GuardAbsent
 
     result.info.inputs should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, SimpleConst(Some(1)), _),
-      InputMoleculeInfo(`a`, SimpleConst(None), _),
+      InputMoleculeInfo(`a`, SimpleConst(Left(1)), _),
+      InputMoleculeInfo(`a`, SimpleConst(Right("input")), _),
       InputMoleculeInfo(`bb`, SimpleConst((2, Some(3))), _)
       ) =>
     }
-    result.info.toString shouldEqual "a(None) + a(Some(1)) + bb((2,Some(3))) => a(Some(1))"
+    result.info.toString shouldEqual "a(Left(1)) + a(Right(input)) + bb((2,Some(3))) => a(Right(output))"
   }
 
   it should "use parameterized types in simple guard condition" in {

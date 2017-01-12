@@ -18,7 +18,8 @@ case object Wildcard extends InputPatternType
 final case class SimpleVar(v: ScalaSymbol, cond: Option[PartialFunction[Any, Unit]]) extends InputPatternType
 
 /** Represents molecules that have constant pattern matchers, such as {{{a(1)}}}.
-  * Literal values (Int, String, Unit etc.) as well as tuples and {{{Option}}} of constants are also considered constants.
+  * Constant pattern matchers are either literal values (Int, String, etc.) or special values such as None, Nil, (),
+  * as well as {{{Some}}}, {{{Left}}}, {{{Right}}}, {{{List}}}, and tuples of constant matchers.
   *
   * @param v Value of the constant. This is nominally of type {{{Any}}} but actually is of the molecule value type {{{T}}}.
   */
@@ -109,7 +110,6 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
         case SimpleConst(c1) => c == c1
         case _ => false
       })
-      case _ => Some(false)
     }
   }
 
@@ -130,7 +130,6 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
         case SimpleConstOutput(_) => Some(false) // definitely not the same constant
         case _ => None // Otherwise, it could be this constant but we can't determine.
       }
-      case _ => Some(false)
     }
   }
 
@@ -198,8 +197,8 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: List[Out
       case Wildcard | SimpleVar(_, None) => 3
       case OtherInputPattern(_, _) | SimpleVar(_, Some(_)) => 2
       case SimpleConst(_) => 1
-      case _ => 0
     }
+
     val molValueString = flag match {
       case SimpleConst(v) => v.toString
       case SimpleVar(v, _) => v.name
