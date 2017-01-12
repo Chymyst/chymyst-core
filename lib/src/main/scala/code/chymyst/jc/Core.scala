@@ -68,17 +68,6 @@ object Core {
   // TODO: implement
 //  def waitUntilQuiet[T](molecule: M[T], callback: E): Unit = molecule.site.setQuiescenceCallback(callback)
 
-  /**
-    * Convenience syntax: users can write a(x)+b(y) to emit several molecules at once.
-    * (However, the molecules are emitted one by one in the present implementation.)
-    *
-    * @param x the first emitted molecule
-    * @return a class with a + operator
-    */
-  implicit final class EmitMultiple(x: Unit) {
-    def +(n: Unit): Unit = ()
-  }
-
   /** Type alias for reaction body.
     *
     */

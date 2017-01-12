@@ -105,9 +105,6 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
     )
 
     for {
-      _ <- Future {
-        Thread.sleep(20)
-      } // waiter has 150 ms timeout
       s <- fut
     } yield {
       waiter {

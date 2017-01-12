@@ -305,7 +305,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     // reaction contains all kinds of pattern-matching constructions
     val result = go {
-      case a(p) + a(y) + a(1) + c(()) + c(_) + bb( (0, None) ) + bb( (1, Some(2)) ) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) => s(); a(p + 1) + qq() + r(p)
+      case a(p) + a(y) + a(1) + c(()) + c(_) + bb( (0, None) ) + bb( (1, Some(2)) ) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) => s(); a(p + 1); qq(); r(p)
     }
 
     result.info.inputs should matchPattern {
@@ -427,21 +427,29 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = new M[String]("b")
     val c = new M[(Int, Int)]("c")
     val d = new E("d")
+    val e = m[Either[Option[Int],String]]
 
-    val r = go { case a(Some(1)) + b("xyz") + d(()) + c((2, 3)) => a(Some(2)) }
+    val r = go { case a(Some(1)) + b("xyz") + d(()) + c((2, 3)) + e(Left(Some(1))) + e(Right("input")) =>
+      a(Some(2)); e(Left(Some(2))); e(Right("output"))
+    }
 
     r.info.inputs should matchPattern {
       case List(
       InputMoleculeInfo(`a`, SimpleConst(Some(1)), _),
       InputMoleculeInfo(`b`, SimpleConst("xyz"), _),
       InputMoleculeInfo(`d`, Wildcard, _),
-      InputMoleculeInfo(`c`, SimpleConst((2,3)), _)
+      InputMoleculeInfo(`c`, SimpleConst((2,3)), _),
+      InputMoleculeInfo(`e`, SimpleConst(Left(Some(1))), _),
+      InputMoleculeInfo(`e`, SimpleConst(Right("input")), _)
       ) =>
     }
-    r.info.outputs shouldEqual List(OutputMoleculeInfo(a, SimpleConstOutput(Some(2))))
+    r.info.outputs shouldEqual List(
+      OutputMoleculeInfo(a, SimpleConstOutput(Some(2))),
+      OutputMoleculeInfo(e, SimpleConstOutput(Left(Some(2)))),
+      OutputMoleculeInfo(e, SimpleConstOutput(Right("output")))
+    )
     r.info.guardPresence shouldEqual GuardAbsent
-
-    r.info.sha1 shouldEqual "27AE82D8BE5D67328DC1485A0041B055A5E05D98"
+    r.info.sha1 shouldEqual "31B407C84D1871664635F7A7A7DEDF16B7BBE107"
   }
 
   it should "detect output molecules with constant values" in {
@@ -450,9 +458,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val bbb = m[Int]
     val cc = m[Option[Int]]
 
-    val r1 = go { case bbb(x) => c(x) + bb((1, 2)) + bb((3, x)) }
+    val r1 = go { case bbb(x) => c(x); bb((1, 2)); bb((3, x)) }
     val r2 = go { case bbb(_) + c(_) => bbb(0) }
-    val r3 = go { case bbb(x) + c(_) + c(_) => bbb(1) + c(x) + bbb(2) + cc(None) + cc(Some(1)) }
+    val r3 = go { case bbb(x) + c(_) + c(_) => bbb(1); c(x); bbb(2); cc(None); cc(Some(1)) }
 
     r1.info.outputs shouldEqual List(
       OutputMoleculeInfo(c, OtherOutputPattern),
@@ -560,7 +568,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val a = m[Int]
     val b = m[Int]
     site(
-      go { case a(2) => b(2) + a(1) + b(1) }
+      go { case a(2) => b(2); a(1); b(1) }
     )
     a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(List(
       OutputMoleculeInfo(b, SimpleConstOutput(2)),
@@ -584,15 +592,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     a.isBound shouldEqual true
     c.isBound shouldEqual false
 
-
     val reaction = a.consumingReactions.get.head
     c.emittingReactions.head shouldEqual reaction
     a.emittingReactions.head shouldEqual reaction
 
-    (reaction.info.inputs match {
-      case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`), InputMoleculeInfo(`d`, Wildcard, `wildcardSha1`)) => true
-      case _ => false
-    }) shouldEqual true
+    reaction.info.inputs should matchPattern {
+      case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`), InputMoleculeInfo(`d`, Wildcard, `wildcardSha1`)) =>
+    }
     reaction.info.outputs shouldEqual List(OutputMoleculeInfo(a, SimpleConstOutput(1)), OutputMoleculeInfo(c, OtherOutputPattern))
   }
 
@@ -620,10 +626,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     reaction1.info.inputs shouldEqual List(InputMoleculeInfo(d, Wildcard, wildcardSha1))
     reaction1.info.outputs shouldEqual List(OutputMoleculeInfo(a, SimpleConstOutput(1)), OutputMoleculeInfo(c, OtherOutputPattern))
 
-    (reaction2.info.inputs match {
-      case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`)) => true
-      case _ => false
-    }) shouldEqual true
+    reaction2.info.inputs should matchPattern {
+      case List(InputMoleculeInfo(`a`, SimpleVar('x, _), `simpleVarXSha1`)) =>
+    }
     reaction2.info.outputs shouldEqual List(OutputMoleculeInfo(d, OtherOutputPattern))
   }
 
@@ -644,7 +649,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "find enclosing symbol names with correct scopes" in {
     val x = getName
-
     x shouldEqual "x"
 
     val y = {
