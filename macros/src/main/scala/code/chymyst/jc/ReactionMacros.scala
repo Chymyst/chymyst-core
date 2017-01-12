@@ -82,8 +82,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         else None
       }
 
-    case pq"$extr(...$xs)"  =>
-      val extrCode = showCode(extr.asInstanceOf[Tree])
+    case _ => // Unapply with List() doesn't work - can't be matched with pq"$extr(..$xs)" or pq"$extr(...$xs)". Do it by hand.
+      val extrCode = showCode(exprTree.asInstanceOf[Tree])
       val cleanedCode = extrCode.substring(0, 1 + extrCode.indexOf("("))
       seqExtractorCodes.get(cleanedCode).flatMap { extractor =>
         val childrenOpt: Option[List[Trees#Tree]] = exprTree.children.headOption flatMap {
@@ -92,7 +92,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
               x.headOption.exists(_.symbol.toString === "value <unapply-selector>") &&
               exprTree.children.nonEmpty =>
             Some(exprTree.children.drop(1))
-          case _ => None
+          case _ => None // not sure what that is!
         }
 
         val resultTree: Option[Tree] = for {
@@ -106,7 +106,6 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         resultTree
       }
 
-    case _ => None
   }
 
   def identToScalaSymbol(ident: Ident): scala.Symbol = ident.name.decodedName.toString.toScalaSymbol
@@ -319,19 +318,23 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     /** Examine an expression tree, looking for molecule expressions.
       *
       * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
-      * @return A triple: List of input molecule patterns, list of output molecule patterns, and list of reply action patterns.
+      * @return A 4-tuple: List of input molecule patterns, list of output molecule patterns, list of reply action patterns, and list of molecules erroneously used inside pattern matching expressions.
       */
-    def from(reactionPart: Tree): (List[(c.Symbol, InputPatternFlag, Option[InputPatternFlag])], List[(c.Symbol, OutputPatternFlag)], List[(c.Symbol, OutputPatternFlag)]) = {
+    def from(reactionPart: Tree): (List[(c.Symbol, InputPatternFlag, Option[InputPatternFlag])], List[(c.Symbol, OutputPatternFlag)], List[(c.Symbol, OutputPatternFlag)], List[c.Symbol]) = {
       inputMolecules = mutable.ArrayBuffer()
       outputMolecules = mutable.ArrayBuffer()
       replyActions = mutable.ArrayBuffer()
+      moleculesInBinder = mutable.ArrayBuffer()
+      traversingBinderNow = false
       traverse(reactionPart)
-      (inputMolecules.toList, outputMolecules.toList, replyActions.toList)
+      (inputMolecules.toList, outputMolecules.toList, replyActions.toList, moleculesInBinder.toList)
     }
 
-    private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, InputPatternFlag, Option[InputPatternFlag])] = mutable.ArrayBuffer()
-    private var outputMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
-    private var replyActions: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = mutable.ArrayBuffer()
+    private var traversingBinderNow: Boolean = _
+    private var moleculesInBinder: mutable.ArrayBuffer[c.Symbol] = _
+    private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, InputPatternFlag, Option[InputPatternFlag])] = _
+    private var outputMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = _
+    private var replyActions: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = _
 
     /** Detect whether the symbol {{{s}}} is defined inside the scope of the symbol {{{owner}}}.
       * Will return true for code like {{{ val owner = .... { val s = ... }  }}}
@@ -376,9 +379,16 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
             Some(WrongReplyVarF)
           else None
           val flag1 = getInputFlag(binder)
-          if (flag1.hasSubtree)
-            traverse(binder)
-          inputMolecules.append((t.symbol, flag1, flag2Opt))
+          if (traversingBinderNow) {
+            moleculesInBinder.append(t.symbol)
+          } else {
+            if (flag1.needTraversing) {
+              traversingBinderNow = true
+              traverse(binder)
+              traversingBinderNow = false
+            }
+            inputMolecules.append((t.symbol, flag1, flag2Opt))
+          }
 
         // matcher with two arguments: a(x, y)
         case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
@@ -387,13 +397,20 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
             case f@_ => WrongReplyVarF // this is an error that we should report later
           }
           val flag1 = getInputFlag(binder1)
-          // Perhaps we need to continue to analyze the "binder" (it could be another molecule).
-          if (flag1.hasSubtree)
-            traverse(binder1)
-          if (flag2.hasSubtree)
-            traverse(binder2)
-          // After traversing the subtrees, we append this molecule information.
-          inputMolecules.append((t.symbol, flag1, Some(flag2)))
+          // Perhaps we need to continue to analyze the "binder" (it could be another molecule, which is an error).
+          if (traversingBinderNow) {
+            moleculesInBinder.append(t.symbol)
+          } else {
+            if (flag1.needTraversing) {
+              traversingBinderNow = true
+              traverse(binder1)
+              traversingBinderNow = false
+            }
+            inputMolecules.append((t.symbol, flag1, Some(flag2)))
+          }
+          // We do not need to traverse binder2 since it's an error (WrongReplyVarF) to have anything other than a SimpleVarF there.
+
+        // After traversing the subtree, we append this molecule information.
 
         // Matcher with wrong number of arguments - neither 1 nor 2. This seems to never be called, so let's comment it out.
         /*
@@ -453,6 +470,16 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     case _ => q"_root_.code.chymyst.jc.OtherOutputPattern"
   }
 
+  /** Build an error message about incorrect usage of chemical notation.
+    * The phrase looks like this: (Beginning of phrase) must (Phrase connector) (What was incorrect) (molecule list)
+    *
+    * @param what Beginning of phrase.
+    * @param patternWhat What was incorrect about the molecule usage.
+    * @param molecules List of molecules (or other objects) that were incorrectly used.
+    * @param connector Phrase connector. By default: {{{"not contain a pattern that"}}}.
+    * @param method How to report the error; by default using [[c.error]].
+    * @tparam T Type of molecule or other object.
+    */
   def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error): Unit = {
     if (molecules.nonEmpty)
       method(c.enclosingPosition, s"$what must $connector $patternWhat (${molecules.mkString(", ")})")
