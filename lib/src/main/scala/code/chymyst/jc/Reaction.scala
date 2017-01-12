@@ -160,7 +160,7 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
       case Wildcard => "_"
       case SimpleVar(v, None) => v.name
       case SimpleVar(v, Some(_)) => s"${v.name} if ?"
-      case SimpleConst(()) => ""
+//      case SimpleConst(()) => ""  // we now eliminated this case by converting it to Wildcard
       case SimpleConst(c) => c.toString
       case OtherInputPattern(_, _) => s"<${sha1.substring(0, 4)}...>"
     }
