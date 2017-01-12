@@ -2,6 +2,9 @@ package code.chymyst
 
 import scala.language.experimental.macros
 
+/** This is a pure interface to other functions to make them visible to users.
+  * This object does not contain any new code.
+  */
 package object jc {
 
   private[jc] type ReactionBody = PartialFunction[UnapplyArg, Any]

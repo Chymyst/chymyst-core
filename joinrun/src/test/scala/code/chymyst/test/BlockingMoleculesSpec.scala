@@ -1,13 +1,13 @@
-package code.chymyst.jc
+package code.chymyst.test
 
-import Chymyst.withPool
-import Core._
+import code.chymyst.jc._
+import Chymyst._
+import org.scalatest.{FlatSpec, Matchers, BeforeAndAfterEach, Args, Status}
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
-import org.scalatest._
 
-import scala.language.postfixOps
 import scala.concurrent.duration.DurationInt
+import scala.language.postfixOps
 
 /** More unit tests for blocking molecule functionality.
   *
@@ -41,7 +41,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     val a = new E("a")
     val f = new EB[Int]("f")
-    site(tp0)( _go { case a(_) + f(_, r) => r(3) })
+    site(tp0)( go { case a(_) + f(_, r) => r(3) })
     a()
     a()
     a()
@@ -54,7 +54,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     (1 to 1000).map { _ =>
       val f = new EB[Int]("f")
-      site(tp0)( _go { case f(_, r) => r(0) })
+      site(tp0)( go { case f(_, r) => r(0) })
 
       f.timeout(500 millis)().getOrElse(1)
     }.sum shouldEqual 0 // we used to have about 4% failure rate here!
@@ -64,7 +64,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     val a = new E("a")
     val f = new EB[Int]("f")
-    site(tp0)( _go { case a(_) + f(_, r) => r(3) })
+    site(tp0)( go { case a(_) + f(_, r) => r(3) })
     a()
     f() shouldEqual 3 // now the a() molecule is gone
     f.timeout(500 millis)() shouldEqual None
@@ -74,7 +74,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     val a = new E("a")
     val f = new EB[Int]("f")
-    site(tp0)( _go { case a(_) + f(_, r) => Thread.sleep(100); r(3) })
+    site(tp0)( go { case a(_) + f(_, r) => Thread.sleep(100); r(3) })
     a()
     f.timeout(500 millis)() shouldEqual Some(3)
   }
@@ -83,7 +83,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     val a = new E("a")
     val f = new EB[Int]("f")
-    site(tp0)( _go { case a(_) + f(_, r) => Thread.sleep(500); r(3) })
+    site(tp0)( go { case a(_) + f(_, r) => Thread.sleep(500); r(3) })
     a()
     f.timeout(200 millis)() shouldEqual None
   }
@@ -92,37 +92,37 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
 
   it should "allow non-unit values and non-unit replies" in {
     val f = new B[Int,Int]("f")
-    site(tp0)( _go { case f(x, r) if x == 123 => r(456) })
+    site(tp0)( go { case f(x, r) if x == 123 => r(456) })
     f(123) shouldEqual 456
   }
 
   it should "allow non-unit values and non-unit replies with timeout" in {
     val f = new B[Int,Int]("f")
-    site(tp0)( _go { case f(x, r) if x != 123 => r(456) })
+    site(tp0)( go { case f(x, r) if x != 123 => r(456) })
     f.timeout(200 millis)(123) shouldEqual None
   }
 
   it should "allow non-unit values and unit replies" in {
     val f = new BE[Int]("f")
-    site(tp0)( _go { case f(x, r) if x == 123 => r() })
+    site(tp0)( go { case f(x, r) if x == 123 => r() })
     f(123) shouldEqual (())
   }
 
   it should "allow non-unit values and unit replies with timeout" in {
     val f = new BE[Int]("f")
-    site(tp0)( _go { case f(x, r) if x != 123 => r() })
+    site(tp0)( go { case f(x, r) if x != 123 => r() })
     f.timeout(200 millis)(123) shouldEqual None
   }
 
   it should "allow unit values and unit replies" in {
     val f = new EE("f")
-    site(tp0)( _go { case f(x, r) if x == (()) => r() })
+    site(tp0)( go { case f(x, r) if x == (()) => r() })
     f() shouldEqual (())
   }
 
   it should "allow unit values and unit replies with timeout" in {
     val f = new EE("f")
-    site(tp0)( _go { case f(x, r) if x != (()) => r() })
+    site(tp0)( go { case f(x, r) if x != (()) => r() })
     f.timeout(200 millis)() shouldEqual None
   }
 
@@ -136,10 +136,10 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val g = new EB[Int]("g")
     val g2 = new EB[Int]("g")
     site(tp0)(
-      _go { case e(_) => c(g()) },
-      _go { case g(_,r) => r.checkTimeout(123); r.checkTimeout(0); d() },
-      _go { case g2(_,r) + c(x) => r(x) },
-      _go { case d(_) + f(_,r) => r() }
+      go { case e(_) => c(g()) },
+      go { case g(_,r) => Seq(123, 0).foreach (i => r.checkTimeout(i)); d() },
+      go { case g2(_,r) + c(x) => r(x) },
+      go { case d(_) + f(_,r) => r() }
     )
     e()
     f() // make sure "r(0)" was called
@@ -160,10 +160,10 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
       val h = new EE("h")
       val tp1 = new FixedPool(4)
       site(tp1)(
-        _go { case c(_) => h() },
-        _go { case d(_) => d2(g()) },
-        _go { case d2(x) + e(_, r) => r(x) },
-        _go { case g(_, r) + g2(_, r2) + h(_, r3) => r(123)+ r3() + r(0) + r3() } // no answer to g2, two answers to g and h
+        go { case c(_) => h() },
+        go { case d(_) => d2(g()) },
+        go { case d2(x) + e(_, r) => r(x) },
+        go { case g(_, r) + g2(_, r2) + h(_, r3) => Seq(123, 0).foreach(i => r(i)); Seq(1,2).foreach(_ => r3()); if(false) r2(0) } // no answer to g2, two answers to g and h
       )
       c() + d()
 
@@ -171,7 +171,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
         val res = g2()
         println(s"Iteration $i: got result $res but should not have printed this!")
       }
-      thrown.getMessage shouldEqual "Error: In Site{c => ...; d => ...; d2 + e/B => ...; g/B + g2/B + h/B => ...}: Reaction {g/B(?) + g2/B(?) + h/B(?) ?if? => ?} with inputs [g/B(), g2/B(), h/B()] finished without replying to g2/B; Error: In Site{c => ...; d => ...; d2 + e/B => ...; g/B + g2/B + h/B => ...}: Reaction {g/B(?) + g2/B(?) + h/B(?) ?if? => ?} with inputs [g/B(), g2/B(), h/B()] replied to g/B, h/B more than once"
+      thrown.getMessage shouldEqual "Error: In Site{c => ...; d => ...; d2 + e/B => ...; g/B + g2/B + h/B => ...}: Reaction {g/B(_) + g2/B(_) + h/B(_) => } with inputs [g/B(), g2/B(), h/B()] finished without replying to g2/B; Error: In Site{c => ...; d => ...; d2 + e/B => ...; g/B + g2/B + h/B => ...}: Reaction {g/B(_) + g2/B(_) + h/B(_) => } with inputs [g/B(), g2/B(), h/B()] replied to g/B, h/B more than once"
 
       e() shouldEqual 123
       tp1.shutdownNow()
@@ -195,10 +195,10 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
       val h = new EE("h")
       val tp1 = new FixedPool(4)
       site(tp1)(
-        _go { case c(_) => h() },
-        _go { case d(_) => d2(g()) },
-        _go { case d2(x) + e(_, r) => r(x) },
-        _go { case g(_, r) + g2(_, r2) + h(_, r3) => (1 to replies).foreach{ _ => r(123); r3() } } // no answer to g2, many answers to g and h
+        go { case c(_) => h() },
+        go { case d(_) => d2(g()) },
+        go { case d2(x) + e(_, r) => r(x) },
+        go { case g(_, r) + g2(_, r2) + h(_, r3) => if(false) r2(0); (1 to replies).foreach{ _ => r(123); r3(); } } // no answer to g2, many answers to g and h
       )
       c() + d()
 
@@ -206,7 +206,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
         val res = g2()
         println(s"Iteration $i: got result $res but should not have printed this!")
       }
-      thrown.getMessage shouldEqual "Error: In Site{c => ...; d => ...; d2 + e/B => ...; g/B + g2/B + h/B => ...}: Reaction {g/B(?) + g2/B(?) + h/B(?) ?if? => ?} with inputs [g/B(), g2/B(), h/B()] finished without replying to g2/B; Error: In Site{c => ...; d => ...; d2 + e/B => ...; g/B + g2/B + h/B => ...}: Reaction {g/B(?) + g2/B(?) + h/B(?) ?if? => ?} with inputs [g/B(), g2/B(), h/B()] replied to g/B, h/B more than once"
+      thrown.getMessage shouldEqual "Error: In Site{c => ...; d => ...; d2 + e/B => ...; g/B + g2/B + h/B => ...}: Reaction {g/B(_) + g2/B(_) + h/B(_) => } with inputs [g/B(), g2/B(), h/B()] finished without replying to g2/B; Error: In Site{c => ...; d => ...; d2 + e/B => ...; g/B + g2/B + h/B => ...}: Reaction {g/B(_) + g2/B(_) + h/B(_) => } with inputs [g/B(), g2/B(), h/B()] replied to g/B, h/B more than once"
 
       e() shouldEqual 123
       tp1.shutdownNow()
@@ -219,28 +219,28 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val c = new E("c")
     val g = new EB[Int]("g")
     site(tp0)(
-      _go { case c(_) + g(_,r) => c() }
+      go { case c(_) + g(_,r) => c(); if(false) r(0) }
     )
     c()
 
     val thrown = intercept[Exception] {
       println(s"got result: ${g()} but should not have printed this!")
     }
-    thrown.getMessage shouldEqual "Error: In Site{c + g/B => ...}: Reaction {c(?) + g/B(?) ?if? => ?} with inputs [c(), g/B()] finished without replying to g/B"
+    thrown.getMessage shouldEqual "Error: In Site{c + g/B => ...}: Reaction {c(_) + g/B(_) => c()} with inputs [c(), g/B()] finished without replying to g/B"
   }
 
   it should "throw exception when a reaction does not reply to one blocking molecule, with timeout" in {
     val c = new E("c")
     val g = new EB[Int]("g")
     site(tp0)(
-      _go { case c(_) + g(_,r) => c() }
+      go { case c(_) + g(_,r) => c(); if(false) r(0) }
     )
     c()
 
     val thrown = intercept[Exception] {
       println(s"got result: ${g.timeout(1 second)()} but should not have printed this!")
     }
-    thrown.getMessage shouldEqual "Error: In Site{c + g/B => ...}: Reaction {c(?) + g/B(?) ?if? => ?} with inputs [c(), g/B()] finished without replying to g/B"
+    thrown.getMessage shouldEqual "Error: In Site{c + g/B => ...}: Reaction {c(_) + g/B(_) => c()} with inputs [c(), g/B()] finished without replying to g/B"
   }
 
   it should "throw exception when a reaction does not reply to two blocking molecules)" in {
@@ -250,15 +250,15 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val g2 = new EB[Int]("g2")
     val tp = new FixedPool(4)
     site(tp)(
-      _go { case d(_) => g2() } onThreads tp,
-      _go { case c(_) + g(_,_) + g2(_,_) => c() }
+      go { case d(_) => g2() } onThreads tp,
+      go { case c(_) + g(_,r) + g2(_,s) => c(); if (false) {r(0) + s(0)} }
     )
     c() + d()
 
     val thrown = intercept[Exception] {
       println(s"got result2: ${g()} but should not have printed this!")
     }
-    thrown.getMessage shouldEqual "Error: In Site{c + g/B + g2/B => ...; d => ...}: Reaction {c(?) + g/B(?) + g2/B(?) ?if? => ?} with inputs [c(), g/B(), g2/B()] finished without replying to g/B, g2/B"
+    thrown.getMessage shouldEqual "Error: In Site{c + g/B + g2/B => ...; d => ...}: Reaction {c(_) + g/B(_) + g2/B(_) => c()} with inputs [c(), g/B(), g2/B()] finished without replying to g/B, g2/B"
 
     tp.shutdownNow()
   }
@@ -270,15 +270,15 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val g2 = new EB[Int]("g2")
     val tp = new FixedPool(4)
     site(tp)(
-      _go { case d(_) => g() } onThreads tp,
-      _go { case c(_) + g(_,r) + g2(_,_) => c(); r(0) }
+      go { case d(_) => g() } onThreads tp,
+      go { case c(_) + g(_,r) + g2(_,s) => c(); r(0); if(false) s(0) }
     )
     c() + d()
 
     val thrown = intercept[Exception] {
       println(s"got result2: ${g2()} but should not have printed this!")
     }
-    thrown.getMessage shouldEqual "Error: In Site{c + g/B + g2/B => ...; d => ...}: Reaction {c(?) + g/B(?) + g2/B(?) ?if? => ?} with inputs [c(), g/B(), g2/B()] finished without replying to g2/B"
+    thrown.getMessage shouldEqual "Error: In Site{c + g/B + g2/B => ...; d => ...}: Reaction {c(_) + g/B(_) + g2/B(_) => c()} with inputs [c(), g/B(), g2/B()] finished without replying to g2/B"
 
     tp.shutdownNow()
   }
@@ -294,9 +294,9 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val h = new EB[Int]("h")
     val tp = new FixedPool(4)
     site(tp0)(
-      _go { case c(_) => e(g2()) }, // e(0) should be emitted now
-      _go { case d(_) + g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
-      _go { case e(x) + h(_,r) =>  r(x) }
+      go { case c(_) => e(g2()) }, // e(0) should be emitted now
+      go { case d(_) + g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
+      go { case e(x) + h(_,r) =>  r(x) }
     )
     c()+d()
     g() shouldEqual 0
@@ -317,11 +317,11 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val h = new EB[Int]("h")
     val tp = new FixedPool(4)
     site(tp0)(
-      _go { case c(_) => val x = g(); g2(); e(x) }, // e(0) should never be emitted because this thread is deadlocked
-      _go { case g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
-      _go { case e(x) + h(_,r) =>  r(x) },
-      _go { case d(_) + f(_) => e(2) },
-      _go { case f(_) + e(_) => e(1) }
+      go { case c(_) => val x = g(); g2(); e(x) }, // e(0) should never be emitted because this thread is deadlocked
+      go { case g(_,r) + g2(_,r2) => r(0) + r2(0) } onThreads tp,
+      go { case e(x) + h(_,r) =>  r(x) },
+      go { case d(_) + f(_) => e(2) },
+      go { case f(_) + e(_) => e(1) }
     )
 
     c()
@@ -342,9 +342,9 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val g2 = new EB[Int]("g2")
     val tp = new FixedPool(2)
     site(tp)(
-      _go { case d(_) => g() }, // this will be used to emit g() and blocked
-      _go { case c(_) + g(_,r) => r(0) }, // this will not start because we have no c()
-      _go { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
+      go { case d(_) => g() }, // this will be used to emit g() and blocked
+      go { case c(_) + g(_,r) => r(0) }, // this will not start because we have no c()
+      go { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // do not emit c(). Now the first reaction is blocked because second reaction cannot start.
@@ -360,9 +360,9 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val tp = new FixedPool(1)
     val tp1 = new FixedPool(1)
     site(tp,tp1)(
-      _go { case d(_) => g() }, // this will be used to emit g() and block one thread
-      _go { case c(_) + g(_,r) => r(0) }, // this will not start because we have no c()
-      _go { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
+      go { case d(_) => g() }, // this will be used to emit g() and block one thread
+      go { case c(_) + g(_,r) => r(0) }, // this will not start because we have no c()
+      go { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work
     d() // do not emit c(). Now the first reaction is blocked because second reaction cannot start.
@@ -377,11 +377,11 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val g = new EE("g")
     val g2 = new EB[Int]("g2")
 
-    site(tp0)( _go { case c(_) + g(_, r) => r() } ) // we will use this to monitor the d() reaction
+    site(tp0)( go { case c(_) + g(_, r) => r() } ) // we will use this to monitor the d() reaction
 
     site(tp1,tp0)(
-      _go { case d(_) => c(); sleeping; c() }, // this thread is blocked by sleeping
-      _go { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
+      go { case d(_) => c(); sleeping; c() }, // this thread is blocked by sleeping
+      go { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
     )
     g2() shouldEqual 1 // this should initially work, since d() has not yet been emitted.
     d() // Now the first reaction will be starting soon.
@@ -435,11 +435,11 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val started = new EE("started")
 
     site(tp1,tp0)(
-      _go { case g(_, r) => r() }, // and so this reaction will be blocked forever
-      _go { case c(_) => cStarted(); println(f()) }, // this reaction is blocked forever because f() does not reply
-      _go { case cStarted(_) + started(_, r) => r(); println(f2()) }, // this reaction is blocked forever because f2() does not reply
-      _go { case f(_, r) + never(_) => r(0)}, // this will never reply since "never" is never emitted
-      _go { case f2(_, r) + never(_) => r(0)} // this will never reply since "never" is never emitted
+      go { case g(_, r) => r() }, // and so this reaction will be blocked forever
+      go { case c(_) => cStarted(); println(f()) }, // this reaction is blocked forever because f() does not reply
+      go { case cStarted(_) + started(_, r) => r(); println(f2()) }, // this reaction is blocked forever because f2() does not reply
+      go { case f(_, r) + never(_) => r(0)}, // this will never reply since "never" is never emitted
+      go { case f2(_, r) + never(_) => r(0)} // this will never reply since "never" is never emitted
     )
 
     c()
