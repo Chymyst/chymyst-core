@@ -82,31 +82,55 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         else None
       }
 
-    case _ => // Unapply with List() doesn't work - can't be matched with pq"$extr(..$xs)" or pq"$extr(...$xs)". Do it by hand.
-      val extrCode = showCode(exprTree.asInstanceOf[Tree])
-      val cleanedCode = extrCode.substring(0, 1 + extrCode.indexOf("("))
-      seqExtractorCodes.get(cleanedCode).flatMap { extractor =>
-        val childrenOpt: Option[List[Trees#Tree]] = exprTree.children.headOption flatMap {
-          case pq"$e(..$x)"
-            if seqExtractorHeads.contains(e.symbol.fullName) &&
-              x.headOption.exists(_.symbol.toString === "value <unapply-selector>") &&
-              exprTree.children.nonEmpty =>
-            Some(exprTree.children.drop(1))
-          case _ => None // not sure what that is!
-        }
+    // Unapply with List() doesn't work - can't be matched with pq"$extr(..$xs)" or pq"$extr(...$xs)". Do it by hand via exprTree.children and its children.
+    case _ => exprTree.children match {
+      case firstChild :: restOfChildren => for {
+        extractorHead <- firstChild.children.headOption
+        if seqExtractorHeads.contains(extractorHead.symbol.fullName)
+        unapplySelector <- firstChild.children.zipWithIndex.find(_._2 === 1).map(_._1) // safe on empty lists
+        if unapplySelector.symbol.toString === "value <unapply-selector>"
+        extrCode = showCode(exprTree.asInstanceOf[Tree])
+        cleanedCode = extrCode.substring(0, 1 + extrCode.indexOf("("))
+        extractor <- seqExtractorCodes.get(cleanedCode)
+        trees = for {
+          child <- restOfChildren
+          childConst <- getConstantTree(child).map(_.asInstanceOf[Tree])
+        } yield childConst.asInstanceOf[Tree]
+        if trees.size === restOfChildren.size
 
-        val resultTree: Option[Tree] = for {
-          children <- childrenOpt
-          trees = for {
-            child <- children
-            childConst <- getConstantTree(child).map(_.asInstanceOf[Tree])
-          } yield childConst.asInstanceOf[Tree]
-          if trees.size === children.size
-        } yield q"$extractor(..$trees)"
-        resultTree
-      }
+      } yield q"$extractor(..$trees)"
 
+      case Nil => None
+    }
   }
+//      if exprTree.children.headOption.exists(_.children.size >= 2) =>
+//      val extrCode = showCode(exprTree.asInstanceOf[Tree])
+//      val cleanedCode = extrCode.substring(0, 1 + extrCode.indexOf("("))
+//      seqExtractorCodes.get(cleanedCode).flatMap { extractor =>
+//        val childrenOpt: Option[List[Trees#Tree]] = exprTree.children.headOption flatMap { firstChild =>
+          // firstChild.children == List(e,x) now.
+
+
+//          case pq"$e(..$x)"
+//            if seqExtractorHeads.contains(e.symbol.fullName) &&
+//              x.headOption.exists(_.symbol.toString === "value <unapply-selector>") &&
+//              exprTree.children.nonEmpty =>
+//            Some(exprTree.children.drop(1))
+//          case _ => None // not sure what that is!
+
+
+//        val resultTree: Option[Tree] = for {
+//          children <- childrenOpt
+//          trees = for {
+//            child <- children
+//            childConst <- getConstantTree(child).map(_.asInstanceOf[Tree])
+//          } yield childConst.asInstanceOf[Tree]
+//          if trees.size === children.size
+//        } yield q"$extractor(..$trees)"
+//        resultTree
+//      }
+
+
 
   def identToScalaSymbol(ident: Ident): scala.Symbol = ident.name.decodedName.toString.toScalaSymbol
 
