@@ -159,30 +159,27 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "run reactions on a thread with reaction info" in {
-    withPool(new FixedPool(2)){ tp =>
-      val waiter = new Waiter
-      val a = new E("a")
+    val res = withPool(new FixedPool(2)) { tp =>
+      val a = m[Unit]
+      val result = b[Unit, Option[ReactionInfo]]
 
       site(tp)(
-        go { case a(_) =>
+        go { case a(_) + result(_, r) =>
           val reactionInfo = Thread.currentThread match {
             case t: ThreadWithInfo => t.reactionInfo
             case _ => None
           }
-
-          waiter {
-            (reactionInfo match {
-              case Some(ReactionInfo(List(InputMoleculeInfo(a, Wildcard, _)), None, GuardAbsent, _)) => true
-              case _ => false
-            }) shouldEqual true; ()
-          }
-          waiter.dismiss()
+          r(reactionInfo)
         }
       )
 
       a()
-      waiter.await()(patienceConfig, implicitly[Position])
-    }.get shouldEqual (())
+      result()
+    }.get
+    println(res)
+    res should matchPattern {
+      case Some(ReactionInfo(List(InputMoleculeInfo(_, Wildcard, _), InputMoleculeInfo(_, Wildcard, _)), List(), AllMatchersAreTrivial, _)) =>
+    }
   }
 
 }

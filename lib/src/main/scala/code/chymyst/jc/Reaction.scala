@@ -42,7 +42,7 @@ sealed trait GuardPresenceFlag {
     * can be split into a conjunction of guard conditions that each constrain the value of a single molecule.
     *
     * @return {{{true}}} if the reaction has no guard condition, or if it has guard conditions that can be split between molecules;
-    *         {{{false}}} if the reaction has a cross-molecule guard condition, or if it is unknown whether the reaction has a guard condition at all.
+    *         {{{false}}} if the reaction has a cross-molecule guard condition.
     */
   def effectivelyAbsent: Boolean = this match {
     case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => true
@@ -189,7 +189,7 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
 }
 
 // This class is immutable.
-final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[List[OutputMoleculeInfo]], guardPresence: GuardPresenceFlag, sha1: String) {
+final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: List[OutputMoleculeInfo], guardPresence: GuardPresenceFlag, sha1: String) {
 
   // The input pattern sequence is pre-sorted for further use.
   private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
@@ -217,10 +217,7 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: Option[L
         val crossGuardsInfo = crossGuards.flatMap(_._1).map(_.name).mkString(",")
         s" if($crossGuardsInfo)"
     }
-    val outputsInfo = outputs match {
-      case Some(outputMoleculeInfos) => outputMoleculeInfos.map(_.toString).mkString(" + ")
-      case None => "?"
-    }
+    val outputsInfo = outputs.map(_.toString).mkString(" + ")
     s"$inputsInfo$guardInfo => $outputsInfo"
   }
 }
