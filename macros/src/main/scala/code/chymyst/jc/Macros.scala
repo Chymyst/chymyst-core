@@ -53,7 +53,7 @@ class CommonMacros(val c: blackbox.Context) {
       *
       * @return true or false
       */
-    def hasSubtree: Boolean = false
+    def needTraversing: Boolean = false
 
     def varNames: List[Ident] = Nil
   }
@@ -95,7 +95,7 @@ class CommonMacros(val c: blackbox.Context) {
     * @param vars    List of pattern variable names in the order of their appearance in the syntax tree.
     */
   final case class OtherPatternF(matcher: Tree, guard: Tree, vars: List[Ident]) extends InputPatternFlag {
-    override def hasSubtree: Boolean = true
+    override def needTraversing: Boolean = true
 
     override def varNames: List[Ident] = vars
 
@@ -179,16 +179,17 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
     val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
 
-    val (patternIn, patternOut, patternReply) = moleculeInfoMaker.from(pattern) // patternOut and patternReply should be empty
+    val (patternIn, patternOut, patternReply, wrongMoleculesInInput) = moleculeInfoMaker.from(pattern) // patternOut and patternReply should be empty
     maybeError("input molecule patterns", "emits output molecules", patternOut)
     maybeError("input molecule patterns", "perform any reply actions", patternReply, "not")
+    maybeError("input molecules", "uses other molecules inside molecule values", wrongMoleculesInInput)
 
-    val (guardIn, guardOut, guardReply) = moleculeInfoMaker.from(guard) // guard in/out/reply lists should be all empty
+    val (guardIn, guardOut, guardReply, _) = moleculeInfoMaker.from(guard) // guard in/out/reply lists should be all empty
     maybeError("input guard", "matches on additional input molecules", guardIn.map(_._1))
     maybeError("input guard", "emit any output molecules", guardOut.map(_._1), "not")
     maybeError("input guard", "perform any reply actions", guardReply.map(_._1), "not")
 
-    val (bodyIn, bodyOut, bodyReply) = moleculeInfoMaker.from(body) // bodyIn should be empty
+    val (bodyIn, bodyOut, bodyReply, _) = moleculeInfoMaker.from(body) // bodyIn should be empty
     maybeError("reaction body", "matches on additional input molecules", bodyIn.map(_._1))
 
     val guardCNF: List[List[Tree]] = convertToCNF(guard) // Conjunctive normal form of the guard condition. In this CNF, `true` is List() and `false` is List(List()).

@@ -154,4 +154,18 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
   }
 
+  it should "refuse reactions that match on other molecules in molecule input values" in {
+    val a = m[Any]
+    val f = b[Any, Any]
+    a.name shouldEqual "a"
+    f.name shouldEqual "f"
+
+    go { case a(1) => a(a(1)) } // OK
+
+    "val r = go { case a(a(1)) => }" shouldNot compile
+    "val r = go { case f(_, 123) => }" shouldNot compile
+    "val r = go { case f(a(1), r) => r(1) }" shouldNot compile
+
+  }
+
 }
