@@ -26,17 +26,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * So, the code (1 to 10).foreach (_ => singleton() ) will put (singleton -> 1) into `singletonsDeclared` but (singleton -> 10) into `singletonsEmitted`.
     */
   private[jc] val singletonsDeclared: Map[Molecule, Int] =
-    singletonReactions.flatMap(_.info.outputs)
+    singletonReactions.map(_.info.outputs)
       .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
       .groupBy(identity)
       .mapValues(_.size)
 
   /** The table of singleton molecules actually emitted when singleton reactions are first run.
-    *
-    */
-
-  /** For each declared singleton molecule, store the value it carried when it was last emitted.
-    *
+    * For each declared singleton molecule, the table stores the value it carried when it was last emitted.
     */
   private val singletonValues: ConcurrentMap[Molecule, AbsMolValue[_]] = new ConcurrentHashMap()
 
@@ -46,7 +42,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private[jc] val reactionInfos: Map[Reaction, List[InputMoleculeInfo]] = nonSingletonReactions.map { r => (r, r.info.inputs) }(scala.collection.breakOut)
 
   // TODO: implement
-  private val quiescenceCallbacks: mutable.Set[E] = mutable.Set.empty
+//  private val quiescenceCallbacks: mutable.Set[E] = mutable.Set.empty
 
   private lazy val knownReactions: Seq[Reaction] = reactionInfos.keys.toSeq
 
@@ -66,10 +62,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     s"${this.toString}\n$moleculesPrettyPrinted"
   }
 
-  private[jc] def setQuiescenceCallback(callback: E): Unit = {
-    quiescenceCallbacks.add(callback)
-    ()
-  }
+//  private[jc] def setQuiescenceCallback(callback: E): Unit = {
+//    quiescenceCallbacks.add(callback)
+//    ()
+//  }
 
   private lazy val possibleReactions: Map[Molecule, Seq[Reaction]] = reactionInfos.toSeq
     .flatMap { case (r, ms) => ms.map { info => (info.molecule, r) } }
@@ -336,7 +332,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // check if we had any errors, and that we have a result value
     emitAndAwaitReplyInternal(timeoutOpt = Some(timeout), bm, v, replyValueWrapper) match {
       case ErrorNoReply(message) => throw new Exception(message)
-      case HaveReply(res) => if (replyValueWrapper.isTimedOut()) None else Some(res.asInstanceOf[R]) // Cannot guarantee type safety due to type erasure of `R`.
+      case HaveReply(res) => if (replyValueWrapper.isTimedOut) None else Some(res.asInstanceOf[R]) // Cannot guarantee type safety due to type erasure of `R`.
     }
   }
 
@@ -365,11 +361,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
 
     // Add output reactions to molecules that may be bound to other reaction sites later.
-    nonSingletonReactions
-      .foreach { r =>
-        r.info.outputs.foreach {
-          _.foreach { _.molecule.addEmittingReaction(r) }
-        }
+    nonSingletonReactions.foreach { r =>
+        r.info.outputs.foreach(_.molecule.addEmittingReaction(r))
       }
 
     // Perform static analysis.

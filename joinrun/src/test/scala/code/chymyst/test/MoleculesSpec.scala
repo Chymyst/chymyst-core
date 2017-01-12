@@ -1,7 +1,6 @@
-package code.chymyst.jc
+package code.chymyst.test
 
-import Core._
-
+import code.chymyst.jc._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
@@ -32,40 +31,12 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   behavior of "reaction site"
 
-  it should "track whether molecule emitters are bound" in {
-    val a = new E("a123")
-    val b = new E("b")
-    val c = new E("")
-
-    a.toString shouldEqual "a123"
-    b.toString shouldEqual "b"
-    c.toString shouldEqual "<no name>"
-
-    a.isBound shouldEqual false
-    b.isBound shouldEqual false
-    c.isBound shouldEqual false
-
-    site(_go { case a(_) + c(_) => b() })
-
-    a.isBound shouldEqual true
-    b.isBound shouldEqual false
-    c.isBound shouldEqual true
-
-    a.emittingReactions shouldEqual Set()
-    b.emittingReactions shouldEqual Set() // we don't use macros here, so we don't know which molecules are emitted as output
-    c.emittingReactions shouldEqual Set()
-    a.consumingReactions.get.size shouldEqual 1
-    a.consumingReactions.get.head.toString shouldEqual "<no name> + a123 => ..."
-    b.consumingReactions shouldEqual None
-    c.consumingReactions.get shouldEqual a.consumingReactions.get
-  }
-
   it should "define a reaction with correct inputs" in {
     val a = new E("a")
     val b = new E("b")
     val c = new E("c")
 
-    site(tp0)(_go { case a(_) + b(_) + c(_) => })
+    site(tp0)(go { case a(_) + b(_) + c(_) => })
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
 
   }
@@ -79,8 +50,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val g = new EE("g")
 
     site(tp0)(
-      _go { case g(_, r) + d(_) => r() },
-      _go { case a(_) + b(_) + c(_) + f(_, r) => r() }
+      go { case g(_, r) + d(_) => r() },
+      go { case a(_) + b(_) + c(_) + f(_, r) => r() }
     )
     a.logSoup shouldEqual "Site{a + b + c + f/B => ...; d + g/B => ...}\nNo molecules"
 
@@ -101,7 +72,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val b = new E("b")
     val c = new E("c")
 
-    site(_go { case b(_) + c(_) + a(Some(x)) => })
+    site(go { case b(_) + c(_) + a(Some(x)) => })
 
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
@@ -111,7 +82,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val b = new E("b")
     val c = new E("c")
 
-    site(_go { case a(0) + b(_) + c(_) => })
+    site(go { case a(0) + b(_) + c(_) => })
 
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
@@ -121,7 +92,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val b = new E("b")
     val c = new E("c")
 
-    site(_go { case b(_) + c(_) + a(1) => })
+    site(go { case b(_) + c(_) + a(1) => })
 
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
   }
@@ -131,7 +102,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val waiter = new Waiter
 
     val a = new E("a")
-    site(tp0)( _go { case a(_) => waiter.dismiss() })
+    site(tp0)( go { case a(_) => waiter.dismiss() })
 
     a()
     waiter.await()
@@ -142,7 +113,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val waiter = new Waiter
 
     val a = new E("a")
-    site(tp0)( _go { case a(_) => waiter.dismiss() })
+    site(tp0)( go { case a(_) => waiter.dismiss() })
 
     a()
     waiter.await()
@@ -154,7 +125,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     val a = new E("a")
     val b = new E("b")
-    site(tp0)( _go { case a(_) => b() }, _go { case b(_) => waiter.dismiss() })
+    site(tp0)( go { case a(_) => b() }, go { case b(_) => waiter.dismiss() })
 
     a()
     waiter.await()
@@ -167,34 +138,27 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val a = new M[Int]("a")
     val b = new M[Int]("b")
     val c = new M[Int]("c")
-    site(tp0)( _go { case a(x) + b(y) => c(x+y) }, _go { case c(z) => waiter { z shouldEqual 3; () }; waiter.dismiss() })
+    site(tp0)( go { case a(x) + b(y) => c(x+y) }, go { case c(z) => waiter { z shouldEqual 3; () }; waiter.dismiss() })
     a(1)
     b(2)
     waiter.await()
   }
 
-  it should "throw exception when join pattern is nonlinear" in {
-    val thrown = intercept[Exception] {
-      val a = new E("a")
-      site( _go { case a(_) + a(_) => () })
-    }
-    thrown.getMessage shouldEqual "Nonlinear pattern: a used twice"
-
+  it should "accept nonlinear input patterns" in {
+    val a = new E("a")
+    site(go { case a(_) + a(_) => () })
   }
 
-  it should "throw exception when join pattern is nonlinear, with blocking molecule" in {
-    val thrown = intercept[Exception] {
-      val a = new EE("a")
-      site( _go { case a(_,r) + a(_,s) => () })
-    }
-    thrown.getMessage shouldEqual "Nonlinear pattern: a/B used twice"
+  it should "accept nonlinear input patterns, with blocking molecule" in {
+    val a = new EE("a")
+    site(go { case a(_, r) + a(_, s) => r() + s() })
   }
 
   it should "throw exception when join pattern attempts to redefine a blocking molecule" in {
     val thrown = intercept[Exception] {
       val a = new EE("a")
-      site( _go { case a(_,_) => () })
-      site( _go { case a(_,_) => () })
+      site( go { case a(_,r) => r() })
+      site( go { case a(_,r) => r() })
     }
     thrown.getMessage shouldEqual "Molecule a/B cannot be used as input in Site{a/B => ...} since it is already bound to Site{a/B => ...}"
   }
@@ -203,8 +167,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val thrown = intercept[Exception] {
       val a = new E("x")
       val b = new E("y")
-      site( _go { case a(_) + b(_) => () })
-      site( _go { case a(_) => () })
+      site( go { case a(_) + b(_) => () })
+      site( go { case a(_) => () })
     }
     thrown.getMessage shouldEqual "Molecule x cannot be used as input in Site{x => ...} since it is already bound to Site{x + y => ...}"
   }
@@ -247,7 +211,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val b = new M[Int]("b")
     val f = new EB[Int]("f")
 
-    site(tp0)( _go { case a(x) + b(0) => a(x+1) }, _go { case a(z) + f(_, r) => r(z) })
+    site(tp0)( go { case a(x) + b(0) => a(x+1) }, go { case a(z) + f(_, r) => r(z) })
     a(1)
     b(2)
     f() shouldEqual 1
@@ -258,8 +222,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val d = new E("decrement")
     val g = new EB[Int]("getValue")
     site(tp0)(
-      _go { case c(n) + d(_) => c(n-1) },
-      _go { case c(0) + g(_,r) => r(0) }
+      go { case c(n) + d(_) => c(n-1) },
+      go { case c(0) + g(_,r) => r(0) }
     )
     c(2) + d() + d()
     g() shouldEqual 0
@@ -275,9 +239,9 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val tp = new FixedPool(1)
 
     site(tp0)(
-      _go { case c(x) + d(_) => Thread.sleep(300); c(x-1) + f() } onThreads tp,
-      _go { case a(x) + g(_, r) => a(x); r(x) },
-      _go { case f(_) + a(x) => a(x+1) }
+      go { case c(x) + d(_) => Thread.sleep(300); c(x-1) + f() } onThreads tp,
+      go { case a(x) + g(_, r) => a(x); r(x) },
+      go { case f(_) + a(x) => a(x+1) }
     )
     a(0) + c(1) + c(1) + d() + d()
     g() shouldEqual 0
@@ -302,9 +266,9 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val tp = new FixedPool(2)
 
     site(tp0)(
-      _go { case c(_) + d(_) => Thread.sleep(300); f() } onThreads tp,
-      _go { case a(x) + g(_, r) => r(x) },
-      _go { case f(_) + a(x) => a(x+1) }
+      go { case c(_) + d(_) => Thread.sleep(300); f() } onThreads tp,
+      go { case a(x) + g(_, r) => r(x) },
+      go { case f(_) + a(x) => a(x+1) }
     )
     a(0) + c() + c() + d() + d()
     Thread.sleep(500) // This is less than 2*300ms, and the test fails unless we use 2 threads concurrently.
@@ -324,10 +288,10 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val tp = new FixedPool(2)
 
     site(tp0)(
-      _go  { case c(x) + d(_) =>
+      go  { case c(x) + d(_) =>
         if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
       }.noRetry onThreads tp,
-      _go  { case c(0) + g(_, r) => r() }
+      go  { case c(0) + g(_, r) => r() }
     )
     c(n)
     (1 to n).foreach { _ => d() }
@@ -348,10 +312,10 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val tp = new FixedPool(2)
 
     site(tp0)(
-      _go  { case c(x) + d(_) =>
+      go  { case c(x) + d(_) =>
         if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
       }.withRetry onThreads tp,
-      _go  { case c(0) + g(_, r) => r() }
+      go  { case c(0) + g(_, r) => r() }
     )
     c(n)
     (1 to n).foreach { _ => d() }
@@ -372,20 +336,20 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val tp = new FixedPool(2)
 
     site(tp0)(
-      _go  { case c(x) + d(_, r) =>
+      go  { case c(x) + d(_, r) =>
         if (scala.util.Random.nextDouble >= probabilityOfCrash) { c(x - 1); r() } else throw new Exception("crash! (it's OK, ignore this)")
       }.withRetry onThreads tp,
-      _go  { case c(0) + g(_, r) => r() }
+      go  { case c(0) + g(_, r) => r() }
     )
     c(n)
     (1 to n).foreach { _ =>
       if (d.timeout(1500 millis)().isEmpty) {
-        println(globalErrorLog.toList) // this should not happen, but will be helpful for debugging
+        println(Core.globalErrorLog.toList) // this should not happen, but will be helpful for debugging
       }
     }
 
     val result = g.timeout(1500 millis)()
-    globalErrorLog.exists(_.contains("Message: crash! (it's OK, ignore this)"))
+    Core.globalErrorLog.exists(_.contains("Message: crash! (it's OK, ignore this)"))
     tp.shutdownNow()
     result shouldEqual Some(())
   }

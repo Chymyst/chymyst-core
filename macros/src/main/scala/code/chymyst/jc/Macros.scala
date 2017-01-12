@@ -528,7 +528,7 @@ class BlackboxMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       val guardFunction = cond.map(c => matcherFunction(binder, c, List(v)))
       q"_root_.code.chymyst.jc.SimpleVar(${identToScalaSymbol(v)}, $guardFunction)"
     case OtherPatternF(matcherTree, guardTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTree, vars)}, ${vars.map(identToScalaSymbol)})"
-    case _ => q"_root_.code.chymyst.jc.UnknownInputPattern"
+    case _ => q"_root_.code.chymyst.jc.Wildcard" // this case will not be encountered here; we are conflating InputPatternFlag and ReplyInputPatternFlag
   }
 
   implicit val liftableOutputPatternFlag: Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
@@ -775,7 +775,7 @@ class BlackboxMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     val reactionSha1 = getSha1String(patternInWithMergedGuards.map(_._2.patternSha1(t => showCode(t))).sorted.mkString(",") + crossGuards.map(_._2).map(t => showCode(t)).sorted.mkString(",") + showCode(body))
 
     // Prepare the ReactionInfo structure.
-    val result = q"Reaction(ReactionInfo($inputMolecules, Some(List(..$outputMolecules)), $guardPresenceFlag, $reactionSha1), ${reactionBody.tree}, None, false)"
+    val result = q"Reaction(ReactionInfo($inputMolecules, List(..$outputMolecules), $guardPresenceFlag, $reactionSha1), ${reactionBody.tree}, None, false)"
     //    println(s"debug: ${showCode(result)}")
     //    println(s"debug raw: ${showRaw(result)}")
     //    c.untypecheck(result) // this fails
