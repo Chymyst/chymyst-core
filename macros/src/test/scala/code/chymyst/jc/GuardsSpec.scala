@@ -82,7 +82,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y)), _)
       ) =>
     }
-    result.info.toString shouldEqual "a(<FD6F...>) + bb(<DBA9...>) => "
+    result.info.toString shouldEqual "a(?x) + bb(?list,y) => "
   }
 
   it should "use parameterized types in cross-guard condition" in {
@@ -116,7 +116,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y)), _)
       ) =>
     }
-    result.info.toString shouldEqual "a(<643A...>) + bb(<9D3F...>) if(x,list,y) => "
+    result.info.toString shouldEqual "a(?x) + bb(?list,y) if(x,list,y) => "
   }
 
   it should "correctly recognize an indentically false guard condition" in {
@@ -256,7 +256,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a((x, y, z)) if x > y => }
 
     result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x, 'y)), None, Array()) => }
-    result.info.toString should fullyMatch regex "a\\(<[A-F0-9]{4}\\.\\.\\.>\\) => "
+    result.info.toString shouldEqual "a(?x,y,z) => "
   }
 
   behavior of "cross-molecule guards"
@@ -315,7 +315,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case _ => false
     }) shouldEqual true
 
-    result.info.toString shouldEqual "a(1) + a(y if ?) + a(p) + bb(<26CD...>) + bb(<85B4...>) + f/B(_) if(t,p) => "
+    result.info.toString shouldEqual "a(1) + a(y if ?) + a(p) + bb(?z) + bb(?t,qwerty) + f/B(_) if(t,p) => "
   }
 
   it should "correctly flatten a guard condition with complicated nested clauses" in {
@@ -328,7 +328,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.guardPresence should matchPattern {
       case GuardPresent(Array(Array('p), Array('t, 'q), Array('y), Array('q), Array('t, 'p), Array('y, 'q)), None, Array(CrossMoleculeGuard(Array(0, 4), Array('t, 'p), _), CrossMoleculeGuard(Array(1, 4), Array('y, 'q), _))) =>
     }
-    result.info.toString shouldEqual "a(1) + a(p if ?) + a(y if ?) + bb(<26CD...>) + bb(<E0BD...>) if(t,p,y,q) => "
+    result.info.toString shouldEqual "a(1) + a(p if ?) + a(y if ?) + bb(?z) + bb(?t,q) if(t,p,y,q) => "
   }
 
   it should "simplify a guard with an if clause and a negation of one term" in {
