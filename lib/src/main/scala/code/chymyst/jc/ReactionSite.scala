@@ -39,7 +39,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** Complete information about reactions declared in this reaction site.
     * Singleton-declaring reactions are not included here.
     */
-  private[jc] val reactionInfos: Map[Reaction, List[InputMoleculeInfo]] = nonSingletonReactions.map { r => (r, r.info.inputs) }(scala.collection.breakOut)
+  private[jc] val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonSingletonReactions.map { r => (r, r.info.inputs) }(scala.collection.breakOut)
 
   // TODO: implement
 //  private val quiescenceCallbacks: mutable.Set[E] = mutable.Set.empty
