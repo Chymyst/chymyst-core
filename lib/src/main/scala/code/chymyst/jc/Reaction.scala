@@ -45,10 +45,7 @@ sealed trait GuardPresenceFlag {
     * @return {{{true}}} if the reaction has no guard condition, or if it has guard conditions that can be split between molecules;
     *         {{{false}}} if the reaction has a cross-molecule guard condition.
     */
-  def effectivelyAbsent: Boolean = this match {
-    case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => true
-    case _ => false
-  }
+  def effectivelyAbsent: Boolean = true
 }
 
 /** Indicates whether guard conditions are required for this reaction to start.
@@ -64,7 +61,9 @@ sealed trait GuardPresenceFlag {
   * @param crossGuards A list of functions that represent the clauses of the guard that relate values of different molecules. The partial function `Any => Unit` should be called with the arguments representing the tuples of pattern variables from each molecule used by the cross guard.
   *                    In the present example, the value of {{{crossGuards}}} will be {{{List((List('y, 'z), { case List(y: Int, z: Int) if y > z => () }))}}}.
   */
-final case class GuardPresent(vars: List[List[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: List[CrossMoleculeGuard]) extends GuardPresenceFlag
+final case class GuardPresent(vars: Array[Array[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: Array[CrossMoleculeGuard]) extends GuardPresenceFlag {
+  override def effectivelyAbsent: Boolean = staticGuard.isEmpty && crossGuards.isEmpty
+}
 
 /** Indicates that a guard was initially present but has been simplified, or it was absent but some molecules have nontrivial pattern matchers (not a wildcard and not a simple variable).
   * Nevertheless, no cross-molecule guard conditions need to be checked for this reaction to start.
@@ -76,7 +75,7 @@ case object GuardAbsent extends GuardPresenceFlag
   */
 case object AllMatchersAreTrivial extends GuardPresenceFlag
 
-final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSymbol], cond: PartialFunction[List[Any], Unit])
+final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSymbol], cond: PartialFunction[List[Any], Unit], condCode: String)
 
 /** Compile-time information about an input molecule pattern in a reaction.
   * This class is immutable.
@@ -214,8 +213,8 @@ final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[O
   override val toString: String = {
     val inputsInfo = inputsSorted.map(_.toString).mkString(" + ")
     val guardInfo = guardPresence match {
-      case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => ""
-      case GuardPresent(_, Some(_), List()) => " if(?)"
+      case _ if guardPresence.effectivelyAbsent => ""
+      case GuardPresent(_, Some(_), Array()) => " if(?)" // There is a static guard but no cross-molecule guards.
       case GuardPresent(_, _, crossGuards) =>
         val crossGuardsInfo = crossGuards.flatMap(_.symbols).map(_.name).mkString(",")
         s" if($crossGuardsInfo)"
