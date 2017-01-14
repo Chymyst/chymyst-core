@@ -143,25 +143,16 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     */
   def convertToCNF(term: Tree): List[List[Tree]] = {
 
-    def disjunctionOneTerm(a: Tree, b: List[List[Tree]]): List[List[Tree]] = b.map(y => (a :: y).distinct).distinct
+    import ConjunctiveNormalForm._
 
-    def disjunctionOneClause(a: List[Tree], b: List[List[Tree]]): List[List[Tree]] = b.map(y => (a ++ y).distinct).distinct
-
-    def disjunction(a: List[List[Tree]], b: List[List[Tree]]): List[List[Tree]] = a.flatMap(x => disjunctionOneClause(x, b)).distinct
-
-    def conjunction(a: List[List[Tree]], b: List[List[Tree]]): List[List[Tree]] = (a ++ b).distinct
-
-    def negation(a: List[List[Tree]]): List[List[Tree]] = a match {
-      case x :: xs =>
-        val nxs = negation(xs)
-        x.flatMap(t => disjunctionOneTerm(q"! $t", nxs))
-      case Nil => List(List()) // negation of true is false
-    }
+    def negationOneTerm(t: Tree): Tree = q"! $t"
 
     def normalize(a: Trees#Tree): List[List[Tree]] = convertToCNF(a.asInstanceOf[Tree])
 
+    val ourNegation = negation(negationOneTerm)
+    
     term match {
-      case EmptyTree => List()
+      case EmptyTree => trueConstant[Tree]
       case q"$a && $b" =>
         val aN = normalize(a)
         val bN = normalize(b)
@@ -176,17 +167,20 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         val aN = normalize(a)
         val bN = normalize(b)
         val cN = normalize(c)
-        conjunction(disjunction(negation(aN), bN), disjunction(aN, cN))
+        conjunction(disjunction(ourNegation(aN), bN), disjunction(aN, cN))
 
       case q"$a ^ $b" => // (a+b)(a'+b')
         val aN = normalize(a)
         val bN = normalize(b)
-        conjunction(disjunction(aN, bN), disjunction(negation(aN), negation(bN)))
+        conjunction(disjunction(aN, bN), disjunction(ourNegation(aN), ourNegation(bN)))
 
-      case q"! $a" => negation(normalize(a))
-      case q"true" => List()
-      case q"false" => List(List())
-      case _ => List(List(term))
+      case q"! $a" => ourNegation(normalize(a))
+
+      case q"true" => trueConstant[Tree]
+
+      case q"false" => falseConstant[Tree]
+
+      case _ => oneTerm(term)
     }
   }
 
