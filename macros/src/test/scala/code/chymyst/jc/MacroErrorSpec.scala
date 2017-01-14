@@ -27,7 +27,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
   it should "fail to compile a reaction that is not defined inline" in {
     val a = m[Unit]
     val body: ReactionBody = { case _ => a() }
-    body.isInstanceOf[PartialFunction[UnapplyArg, Any]] shouldEqual true
+    body.isInstanceOf[ReactionBody] shouldEqual true
 
     "val r = go(body)" shouldNot compile
   }

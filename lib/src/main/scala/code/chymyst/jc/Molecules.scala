@@ -7,10 +7,6 @@ import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 
-sealed trait UnapplyArg // The disjoint union type for arguments passed to the unapply methods.
-private[jc] final case class UnapplyRunCheck(moleculeValues: MoleculeBag, usedInputs: MutableLinearMoleculeBag) extends UnapplyArg // used for checking that reaction values pass the pattern-matching, before running the reaction
-private[jc] final case class UnapplyRun(moleculeValues: LinearMoleculeBag) extends UnapplyArg // used for running the reaction
-
 /**
   * Convenience syntax: users can write a(x) + b(y) in reaction patterns.
   * Pattern-matching can be extended to molecule values as well, for example
@@ -19,7 +15,11 @@ private[jc] final case class UnapplyRun(moleculeValues: LinearMoleculeBag) exten
   * @return an unapply operation
   */
 object + {
-  def unapply(attr:UnapplyArg): Option[(UnapplyArg, UnapplyArg)] = Some((attr,attr))
+  def unapply(inputs: InputMoleculeList): Option[(InputMoleculeList, InputMoleculeList)] =
+    for {
+      leftPortion <- getLeftPortion(inputs)
+      rightMolecule <- getRightMolecule(inputs)
+    } yield (leftPortion, rightMolecule)
 }
 
 /** Abstract container for molecule values. This is a common wrapper for values of blocking and non-blocking molecules.
@@ -99,9 +99,9 @@ trait Molecule extends PersistentHashCode {
     *
     * @return {{{None}}} if the molecule emitter is not yet bound to any reaction site.
     */
-  private[jc] def consumingReactions: Option[Set[Reaction]] = reactionSiteOpt.map(_ => consumingReactionsSet)
+  private[jc] def consumingReactions: Option[List[Reaction]] = reactionSiteOpt.map(_ => consumingReactionsSet)
 
-  private lazy val consumingReactionsSet: Set[Reaction] = reactionSiteOpt.get.reactionInfos.keys.filter(_.inputMolecules contains this).toSet
+  private lazy val consumingReactionsSet: List[Reaction] = reactionSiteOpt.get.reactionInfos.keys.filter(_.inputMolecules contains this).toList
 
   /** The set of all reactions that *potentially* emit this molecule as output.
     * Some of these reactions may evaluate a runtime condition to decide whether to emit the molecule; so emission is not guaranteed.
@@ -134,26 +134,9 @@ private[jc] trait NonblockingMolecule[T] extends Molecule {
 
   val isBlocking = false
 
-  def unapplyInternal(arg: UnapplyArg): Option[T] = arg match {
-
-    // When we are gathering information about the input molecules, `unapply` will always return Some(...),
-    // so that any pattern-matching on arguments will continue with null (since, at this point, we have no values).
-    // Any pattern-matching will work unless null fails.
-    // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
-    // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
-    case UnapplyRunCheck(moleculeValues, usedInputs) =>
-      for {
-        v <- moleculeValues.getOne(this)
-      } yield {
-        usedInputs += (this -> v)
-        v.asInstanceOf[AbsMolValue[T]].getValue // need the type cast due to erasure of type T
-      }
-
-    // This is used when running the chosen reaction.
-    case UnapplyRun(moleculeValues) => moleculeValues.get(this)
-      .map(_.asInstanceOf[MolValue[T]].getValue) // need the type cast due to erasure of type T
-  }
-
+  def unapplyInternal(arg: InputMoleculeList): Option[T] =
+    arg.headOption
+      .map { case (mol, MolValue(v)) => v.asInstanceOf[T] }
 }
 
 private[jc] trait BlockingMolecule[T, R] extends Molecule {
@@ -183,7 +166,10 @@ private[jc] trait BlockingMolecule[T, R] extends Molecule {
     *         Also note that a side effect is performed on the mutable data inside UnapplyArg.
     *         In this way, {{{isDefinedAt}}} is used to gather data about the input molecule values.
     */
-  def unapplyInternal(arg: UnapplyArg): Option[(T, Reply)] = arg match {
+  def unapplyInternal(arg: InputMoleculeList): Option[(T, Reply)] =
+    arg.headOption
+      .map { case (mol, BlockingMolValue(v, replyValueWrapper)) => (v.asInstanceOf[T], replyValueWrapper.asInstanceOf[Reply]) }
+  /*  arg match {
 
     // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
     // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
@@ -203,7 +189,7 @@ private[jc] trait BlockingMolecule[T, R] extends Molecule {
         throw new ExceptionNoWrapper(s"Internal error: molecule $this with no value wrapper around value $m")
     }
   }
-
+*/
 }
 
 /** Specialized class for non-blocking molecule emitters with empty value.
@@ -248,7 +234,7 @@ final class BE[T](name: String) extends B[T, Unit](name) {
   override def timeout(duration: Duration)(v: T): Option[Unit] =
     site.emitAndAwaitReplyWithTimeout[T, Unit](duration.toNanos, this, v, new EmptyReplyValue[T])
 
-  override def unapply(arg: UnapplyArg): Option[(T, EmptyReplyValue[T])] = unapplyInternal(arg)
+  override def unapply(arg: InputMoleculeList): Option[(T, EmptyReplyValue[T])] = unapplyInternal(arg)
 }
 
 /**Specialized class for blocking molecule emitters with empty value and empty reply.
@@ -269,7 +255,7 @@ final class EE(name: String) extends B[Unit, Unit](name) {
   def timeout(duration: Duration)(): Option[Unit] =
     site.emitAndAwaitReplyWithTimeout[Unit, Unit](duration.toNanos, this, (), new EmptyReplyValue[Unit])
 
-  override def unapply(arg: UnapplyArg): Option[(Unit, EmptyReplyValue[Unit])] = unapplyInternal(arg)
+  override def unapply(arg: InputMoleculeList): Option[(Unit, EmptyReplyValue[Unit])] = unapplyInternal(arg)
 }
 
 /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -293,7 +279,7 @@ class M[T](val name: String) extends (T => Unit) with NonblockingMolecule[T] {
 
   def hasVolatileValue: Boolean = site.hasVolatileValue(this)
 
-  def unapply(arg: UnapplyArg): Option[T] = unapplyInternal(arg)
+  def unapply(arg: InputMoleculeList): Option[T] = unapplyInternal(arg)
 }
 
 /** Represent the different states of the reply process.
@@ -482,7 +468,7 @@ class B[T, R](val name: String) extends (T => R) with BlockingMolecule[T, R] {
   def apply(v: T): R =
     site.emitAndAwaitReply[T,R](this, v, new ReplyValue[T,R])
 
-  def unapply(arg: UnapplyArg): Option[(T, Reply)] = unapplyInternal(arg)
+  def unapply(arg: InputMoleculeList): Option[(T, Reply)] = unapplyInternal(arg)
 }
 
 /** Mix this trait into your class to make the has code persistent after the first time it's computed.
