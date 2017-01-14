@@ -92,7 +92,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
   private[jc] def admitsValue(molValue: AbsMolValue[_]): Boolean = flag match {
     case Wildcard | SimpleVar(_, None) => true
     case SimpleVar(v, Some(cond)) => cond.isDefinedAt(molValue.getValue)
-    case SimpleConst(v) => v == molValue.getValue
+    case SimpleConst(v) => v === molValue.getValue
     case OtherInputPattern(matcher, _) => matcher.isDefinedAt(molValue.getValue)
   }
 
@@ -121,7 +121,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
         case _ => Some(false) // Here we can reliably determine that this matcher is not weaker.
       }
       case SimpleConst(c) => Some(info.flag match {
-        case SimpleConst(c1) => c == c1
+        case SimpleConst(c1) => c === c1
         case _ => false
       })
     }
@@ -282,7 +282,7 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
   private def remove(relevantMap: BagMap, molecule: Molecule, molValue: AbsMolValue[_]) = {
     val valuesMap = relevantMap.getOrElse(molecule, Map())
     val count = valuesMap.getOrElse(molValue, 0)
-    if (count == 0)
+    if (count === 0)
       relevantMap.filterKeys( _ != molecule)
     else
       relevantMap.updated(molecule, valuesMap.updated(molValue, count - 1))
@@ -298,9 +298,10 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
       val inputs = new InputMoleculeList(info.inputs.length)
       // For each input molecule used by the reaction, find a random value of this molecule and evaluate the conditional.
       val inputMoleculeInfos = info.inputsSorted
+      val inputMolecules = inputMoleculeInfos.map(_.molecule)
 
       // Map of molecule values for molecules that are inputs to this reaction.
-      val relevantMap = moleculesPresent.getMap.filterKeys(m => inputMoleculeInfos.map(_.molecule).contains(m))
+      val relevantMap = moleculesPresent.getMap.filterKeys(m => inputMolecules.contains(m))
 
       val found = inputMoleculeInfos.foldLeft[Iterable[(Map[Int, AbsMolValue[_]], BagMap)]](Iterable((Map(), relevantMap))) { (prev, inputInfo) =>
         // `prev` contains the molecule value assignments we have found so far, as well as the molecule values that would remain in the soup after these previous molecule values were removed.
@@ -308,7 +309,7 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
           case (prevValues, prevRelevantMap) =>
             val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
             val newFound = for {
-              newMolValue <- valuesMap.keys
+              newMolValue <- valuesMap.keysIterator // Do not eagerly evaluate the list of all possible values.
               if inputInfo.admitsValue(newMolValue)
               newRelevantMap = remove(prevRelevantMap, inputInfo.molecule, newMolValue)
               newValues = prevValues.updated(inputInfo.index, newMolValue)
