@@ -121,7 +121,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   it should "correctly sort input molecules with compound values" in {
     val bb = m[(Int, Int)]
     val reaction = go { case bb((1, 2)) + bb((0, 3)) + bb((4, _)) => }
-    reaction.info.toString shouldEqual "bb((0,3)) + bb((1,2)) + bb(<33E4...>) => "
+    reaction.info.toString shouldEqual "bb((0,3)) + bb((1,2)) + bb(?) => "
   }
 
   it should "inspect reaction body with default clause that declares a singleton" in {
@@ -324,7 +324,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }
     result.info.outputs shouldEqual List(OutputMoleculeInfo(s, SimpleConstOutput(())), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qq, SimpleConstOutput(())))
 
-    result.info.toString shouldEqual "a(1) + a(p) + a(y) + bb((0,None)) + bb((1,Some(2))) + bb(<26CD...>) + bb(<5158...>) + bb(<F81F...>) + c(_) + c(_) + s/B(_) => s/B() + a(?) + qq()"
+    result.info.toString shouldEqual "a(1) + a(p) + a(y) + bb((0,None)) + bb((1,Some(2))) + bb(?z) + bb(?) + bb(?t,q) + c(_) + c(_) + s/B(_) => s/B() + a(?) + qq()"
   }
 
   it should "not fail to define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
@@ -489,7 +489,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       InputMoleculeInfo(`bb`, 2, OtherInputPattern(_, List('p, 'ytt, 's, 't)), _)
       ) =>
     }
-    result.info.toString shouldEqual "a(<43E7...>) + bb(<117C...>) + c(_) => "
+    result.info.toString shouldEqual "a(?) + bb(?p,ytt,s,t) + c(_) => "
   }
 
   it should "create partial functions for matching from reaction body" in {
