@@ -109,7 +109,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     a.isInstanceOf[E] shouldEqual true
 
     "val r = go { case a(_) + (a(_) + a(_)) => }" shouldNot compile
-    "val r = go { case (a(_) + a(_)) + a(_) => }" should compile
+    "val r = go { case a(_) + (a(_) + a(_)) + a(_) => }" shouldNot compile
+    "val r = go { case (a(_) + a(_)) + a(_) + a(_) => }" should compile
   }
 
   it should "correctly sort input molecules with compound values and Option" in {
@@ -397,7 +398,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     waitSome()
     waitSome()
     a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(1))"
-    f() shouldEqual 1
+    f.timeout(2.second)() shouldEqual Some(1)
     a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
   }
 

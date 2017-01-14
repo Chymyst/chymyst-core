@@ -222,7 +222,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         } yield inputCandidates
         ).headOption
 
-        found.foreach{ case (r, inputsFound)  =>
+        found.foreach{ case (_, inputsFound)  =>
           inputsFound.foreach { case (k, v) => moleculesPresent.removeFromBag(k, v) }
         }
         found

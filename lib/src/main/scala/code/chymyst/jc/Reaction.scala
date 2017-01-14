@@ -91,9 +91,9 @@ final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSym
 final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPatternType, sha1: String) {
   private[jc] def admitsValue(molValue: AbsMolValue[_]): Boolean = flag match {
     case Wildcard | SimpleVar(_, None) => true
-    case SimpleVar(v, Some(cond)) => cond.isDefinedAt(molValue)
-    case SimpleConst(v) => v == molValue
-    case OtherInputPattern(matcher, _) => matcher.isDefinedAt(molValue)
+    case SimpleVar(v, Some(cond)) => cond.isDefinedAt(molValue.getValue)
+    case SimpleConst(v) => v == molValue.getValue
+    case OtherInputPattern(matcher, _) => matcher.isDefinedAt(molValue.getValue)
   }
 
   /** Determine whether this input molecule pattern is weaker than another pattern.
@@ -279,8 +279,17 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
 
   type BagMap = Map[Molecule, Map[AbsMolValue[_], Int]]
 
+  private def remove(relevantMap: BagMap, molecule: Molecule, molValue: AbsMolValue[_]) = {
+    val valuesMap = relevantMap.getOrElse(molecule, Map())
+    val count = valuesMap.getOrElse(molValue, 0)
+    if (count == 0)
+      relevantMap.filterKeys( _ != molecule)
+    else
+      relevantMap.updated(molecule, valuesMap.updated(molValue, count - 1))
+  }
+
   private[jc] def findInputMolecules(moleculesPresent: MoleculeBag): Option[(Reaction, InputMoleculeList)] = {
-    // Evaluate the static guard.
+    // Evaluate the static guard first.
     val staticGuardPasses = info.guardPresence match {
       case GuardPresent(_, Some(staticGuard), _) => staticGuard()
       case _ => true
@@ -290,19 +299,10 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
       // For each input molecule used by the reaction, find a random value of this molecule and evaluate the conditional.
       val inputMoleculeInfos = info.inputsSorted
 
-      def remove(relevantMap: BagMap, molecule: Molecule, molValue: AbsMolValue[_]) = {
-        val valuesMap = relevantMap.getOrElse(molecule, Map())
-        val count = valuesMap.getOrElse(molValue, 0)
-        if (count == 0)
-          relevantMap.filterKeys( _ != molecule)
-        else
-          relevantMap.updated(molecule, valuesMap.updated(molValue, count - 1))
-      }
-
       // Map of molecule values for molecules that are inputs to this reaction.
       val relevantMap = moleculesPresent.getMap.filterKeys(m => inputMoleculeInfos.map(_.molecule).contains(m))
 
-      val found = inputMoleculeInfos.foldLeft[Iterable[(Map[Int, AbsMolValue[_]], BagMap)]](List((Map(), relevantMap))) { (prev, inputInfo) =>
+      val found = inputMoleculeInfos.foldLeft[Iterable[(Map[Int, AbsMolValue[_]], BagMap)]](Iterable((Map(), relevantMap))) { (prev, inputInfo) =>
         // `prev` contains the molecule value assignments we have found so far, as well as the molecule values that would remain in the soup after these previous molecule values were removed.
         prev.flatMap {
           case (prevValues, prevRelevantMap) =>
@@ -319,27 +319,27 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
 
       // The reaction can run if `found` contains at least one admissible list of input molecules; just one is sufficient.
 
-      // Evaluate all cross-molecule guards.
+      // Evaluate all cross-molecule guards: they must all pass on the chosen molecule values.
       val filteredAfterCrossGuards = found.filter {
         case (inputValues, _) => info.guardPresence match {
           case GuardPresent(_, _, crossGuards) =>
             crossGuards.forall {
               case CrossMoleculeGuard(indices, _, cond) =>
-                cond.isDefinedAt(indices.flatMap(i => inputValues.get(i)).toList)
+                cond.isDefinedAt(indices.flatMap(i => inputValues.get(i).map(_.getValue)).toList)
             }
           case _ => true
         }
       }
 
       // Return result if found something. Assign the found molecule values into the `inputs` array.
-          filteredAfterCrossGuards.headOption.map {
+      filteredAfterCrossGuards.headOption.map {
         case (inputValues, _) =>
-        inputValues.foreach {
-          case (i, molValue) =>
-            val mol = info.inputs(i).molecule
-            inputs.update(i, (mol, molValue))
-        }
-        (this, inputs)
+          inputValues.foreach {
+            case (i, molValue) =>
+              val mol = info.inputs(i).molecule
+              inputs.update(i, (mol, molValue))
+          }
+          (this, inputs)
       }
     } else None
   }
