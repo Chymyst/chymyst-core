@@ -64,7 +64,7 @@ sealed trait GuardPresenceFlag {
   * @param crossGuards A list of functions that represent the clauses of the guard that relate values of different molecules. The partial function `Any => Unit` should be called with the arguments representing the tuples of pattern variables from each molecule used by the cross guard.
   *                    In the present example, the value of {{{crossGuards}}} will be {{{List((List('y, 'z), { case List(y: Int, z: Int) if y > z => () }))}}}.
   */
-final case class GuardPresent(vars: List[List[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: List[(List[ScalaSymbol], PartialFunction[List[Any], Unit])]) extends GuardPresenceFlag
+final case class GuardPresent(vars: List[List[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: List[CrossMoleculeGuard]) extends GuardPresenceFlag
 
 /** Indicates that a guard was initially present but has been simplified, or it was absent but some molecules have nontrivial pattern matchers (not a wildcard and not a simple variable).
   * Nevertheless, no cross-molecule guard conditions need to be checked for this reaction to start.
@@ -75,6 +75,8 @@ case object GuardAbsent extends GuardPresenceFlag
   *
   */
 case object AllMatchersAreTrivial extends GuardPresenceFlag
+
+final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSymbol], cond: PartialFunction[List[Any], Unit])
 
 /** Compile-time information about an input molecule pattern in a reaction.
   * This class is immutable.
@@ -215,7 +217,7 @@ final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[O
       case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => ""
       case GuardPresent(_, Some(_), List()) => " if(?)"
       case GuardPresent(_, _, crossGuards) =>
-        val crossGuardsInfo = crossGuards.flatMap(_._1).map(_.name).mkString(",")
+        val crossGuardsInfo = crossGuards.flatMap(_.symbols).map(_.name).mkString(",")
         s" if($crossGuardsInfo)"
     }
     val outputsInfo = outputs.map(_.toString).mkString(" + ")

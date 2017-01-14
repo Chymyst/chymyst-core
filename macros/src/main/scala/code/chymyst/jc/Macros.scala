@@ -273,24 +273,24 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       case _ => false
     }
 
-    val crossGuards = moleculeGuardVarsSeq // List[(List[scala.Symbol], Tree)]. The "cross guards" are guard clauses whose variables do not all belong to any single molecule's matcher.
-      .filter { case (_, vars) => patternIn.forall { case (_, flag, _) => !guardVarsConstrainOnlyThisMolecule(vars, flag) } }
-      // We need to produce a closure that starts with all the vars as parameters, and evaluates the guardTree.
+    val crossGuards: List[(Array[ScalaSymbol], Array[Int], Tree)] = moleculeGuardVarsSeq // The "cross guards" are guard clauses whose variables do not all belong to any single molecule's matcher.
+      .filter { case (_, vars) => patternInWithMergedGuardsAndIndex.forall { case (_, _, flag, _) => !guardVarsConstrainOnlyThisMolecule(vars, flag) } }
+      // We need to produce a closure that takes all the vars as parameters and evaluates the guardTree.
       .map {
       case (guardTree, vars) =>
-        // Determine which molecules we are constraining in this guard. Collect the binders from all these molecules.
-        val binders = patternIn.flatMap {
-          case (_, flag, _) => flag match {
-            case SimpleVarF(v, binder, _) => Some((flag, binder, List(v)))
-            case OtherPatternF(matcher, _, vs) => Some((flag, matcher, vs))
+        // Determine which molecules we are constraining in this guard. Collect the binders and the indices of all these molecules.
+        val indicesAndBinders : List[(Int, Tree)] = patternIn.zipWithIndex.flatMap {
+          case ((_, flag, _), i) => flag match {
+            case SimpleVarF(v, binder, _) => Some((flag, i, binder, List(v)))
+            case OtherPatternF(matcher, _, vs) => Some((flag, i, matcher, vs))
             case _ => None
           }
         }
-          .filter { case (flag, _, vs) => guardVarsConstrainThisMolecule(vs, flag) }
-          .map { case (_, binder, _) => binder }
+          .filter { case (flag, _, _, vs) => guardVarsConstrainThisMolecule(vs, flag) }
+          .map { case (_, i, binder, _) => (i, binder) }
 
         // To avoid problems with macros, we nneed to put types on binder variables and remove owners from guard tree symbols.
-        val bindersWithTypedVars = binders.map(b => replaceVarsInBinder(b))
+        val bindersWithTypedVars = indicesAndBinders.map { case (_, b) => replaceVarsInBinder(b) }
         val guardWithReplacedVars = replaceVarsInGuardTree(guardTree)
 
         val caseDefs = List(cq"List(..$bindersWithTypedVars) if $guardWithReplacedVars => ")
