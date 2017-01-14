@@ -305,7 +305,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
         val indices = indicesAndBinders.map(_._1).toArray
         val varSymbols = vars.map(identToScalaSymbol).distinct.toArray
 
-        (q"CrossMoleculeGuard($indices, $varSymbols, $pfTree, $pfTreeCode)", pfTreeCode)
+        (q"CrossMoleculeGuard($indices, $varSymbols, $pfTree)", pfTreeCode)
       }
 
     val crossGuards = crossGuardsAndCodes.map(_._1).toArray

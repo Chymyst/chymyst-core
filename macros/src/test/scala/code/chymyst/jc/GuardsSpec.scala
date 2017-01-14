@@ -74,7 +74,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(Some(x)) + bb((list, Some(y))) if x == 1 && list.isEmpty && y == "abc" => }
     result.info.guardPresence.effectivelyAbsent shouldEqual true
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x), Array('Array), Array('y)), None, Array()) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x), Array('list), Array('y)), None, Array()) => }
 
     result.info.inputs should matchPattern {
       case Array(
@@ -91,7 +91,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(xOpt) + bb(y) if xOpt.isEmpty || y._2.isEmpty => }
     result.info.guardPresence.effectivelyAbsent shouldEqual false
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('xOpt, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('xOpt, 'y), _, _))) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('xOpt, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('xOpt, 'y), _))) => }
 
     result.info.inputs should matchPattern {
       case Array(
@@ -108,7 +108,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(Some(x)) + bb((list, Some(y))) if x == 1 || list.isEmpty || y == "abc" => }
     result.info.guardPresence.effectivelyAbsent shouldEqual false
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x, 'list, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'Array, 'y), _, _))) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x, 'list, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'list, 'y), _))) => }
 
     result.info.inputs should matchPattern {
       case Array(
@@ -181,7 +181,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val reaction = go { case a((x, y, z, t)) if x > y => }
 
-    reaction.info.guardPresence shouldEqual GuardPresent(Array(Array('x, 'y)), None, Array())
+    reaction.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x, 'y)), None, Array()) => }
 
     (reaction.info.inputs.head.flag match {
       case OtherInputPattern(cond, vars) =>
@@ -255,7 +255,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a((x, y, z)) if x > y => }
 
-    result.info.guardPresence shouldEqual GuardPresent(Array(Array('x, 'y)), None, Array())
+    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x, 'y)), None, Array()) => }
     result.info.toString should fullyMatch regex "a\\(<[A-F0-9]{4}\\.\\.\\.>\\) => "
   }
 
@@ -267,10 +267,9 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a(x) + a(y) if x > y => }
 
     (result.info.guardPresence match {
-      case GuardPresent(Array(Array('x, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), cond, condCode))) =>
+      case GuardPresent(Array(Array('x, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), cond))) =>
         cond.isDefinedAt(List(0, 0)) shouldEqual false
         cond.isDefinedAt(List(1, 0)) shouldEqual true
-        condCode shouldEqual ""
         true
       case _ => false
     }) shouldEqual true
@@ -286,10 +285,9 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a(x) + a(y) if x > n + y => }
 
     (result.info.guardPresence match {
-      case GuardPresent(Array(Array('x, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), cond, condCode))) =>
+      case GuardPresent(Array(Array('x, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), cond))) =>
         cond.isDefinedAt(List(10, 0)) shouldEqual false
         cond.isDefinedAt(List(11, 0)) shouldEqual true
-        condCode shouldEqual ""
         true
       case _ => false
     }) shouldEqual true
@@ -309,10 +307,9 @@ class GuardsSpec extends FlatSpec with Matchers {
       case a(p) + a(y) + a(1) + bb((1, z)) + bb((t, Some(qwerty))) + f(_, r) if y > 0 && n == 10 && qwerty == n && t > p && k < n => r()
     }
     (result.info.guardPresence match {
-      case GuardPresent(Array(Array('y), Array('qwerty), Array('t, 'p)), Some(staticGuard), Array(CrossMoleculeGuard(Array(0, 4), Array('t, 'p), cond, condCode))) =>
+      case GuardPresent(Array(Array('y), Array('qwerty), Array('t, 'p)), Some(staticGuard), Array(CrossMoleculeGuard(Array(0, 4), Array('t, 'p), cond))) =>
         cond.isDefinedAt(List(1, (2, Some(3)))) shouldEqual true
         cond.isDefinedAt(List(2, (2, Some(3)))) shouldEqual false
-        condCode shouldEqual ""
         staticGuard() shouldEqual true
         true
       case _ => false
@@ -329,7 +326,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case a(p) + a(y) + a(1) + bb((1, z)) + bb((t, Some(q))) if p == 3 && ((t == q && y > 0) && q > 0) && (t == p && y == q) =>
     }
     result.info.guardPresence should matchPattern {
-      case GuardPresent(Array(Array('p), Array('t, 'q), Array('y), Array('q), Array('t, 'p), Array('y, 'q)), None, Array(CrossMoleculeGuard(Array(0, 4), Array('t, 'p), _, _), CrossMoleculeGuard(Array(1, 4), Array('y, 'z), _, _))) =>
+      case GuardPresent(Array(Array('p), Array('t, 'q), Array('y), Array('q), Array('t, 'p), Array('y, 'q)), None, Array(CrossMoleculeGuard(Array(0, 4), Array('t, 'p), _), CrossMoleculeGuard(Array(1, 4), Array('y, 'q), _))) =>
     }
     result.info.toString shouldEqual "a(1) + a(p if ?) + a(y if ?) + bb(<26CD...>) + bb(<E0BD...>) if(t,p,y,q) => "
   }
@@ -341,7 +338,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(x) + a(y) if x > n && (if (y > n) 1 > n else !(x == y)) => }
 
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x), Array('y), Array('y, 'x)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('y, 'x), _, _))) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x), Array('y), Array('y, 'x)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('y, 'x), _))) => }
     result.info.toString shouldEqual "a(x if ?) + a(y if ?) if(y,x) => "
   }
 
