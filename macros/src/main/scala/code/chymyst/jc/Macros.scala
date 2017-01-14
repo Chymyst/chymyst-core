@@ -169,13 +169,16 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
     // Note: `caseDefs` should not be an empty list because that's a typecheck error (`go` only accepts a partial function, so at least one `case` needs to be given).
     // However, the user could be clever and write `val body = new PartialFunction...; go(body)`. We do not allow this because `go` needs to see the entire reaction body.
-    if (caseDefs.isEmpty) reportError("No `case` clauses found: Reactions must be defined inline with the `go { case ... => ... }` syntax")
+    if (caseDefs.isEmpty)
+      reportError("No `case` clauses found: Reactions must be defined inline with the `go { case ... => ... }` syntax")
 
-    if (caseDefs.length > 1) reportError("Reactions must contain only one `case` clause")
+    if (caseDefs.length > 1)
+      reportError("Reactions must contain only one `case` clause")
 
     val Some((pattern, guard, body)) = caseDefs.headOption
 
-    if (DetectInvalidInputGrouping.in(pattern)) reportError("Reaction's input molecules must be grouped to the left in chemical notation")
+    if (DetectInvalidInputGrouping.in(pattern))
+      reportError("Reaction's input molecules must be grouped to the left in chemical notation")
 
     val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
 
@@ -228,8 +231,10 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     //
     // The variables in the binder are replaced by explicit typed match, e.g. a(Some(x)) is replaced by a(Some(x: Int)).
     def replaceVarsInBinder(binderTree: Tree): Tree = ReplaceVars.in(binderTree, allGuardVars, inBinder = true)
+
     // The variables in the guard are replaced by variable Idents from the binder. This hopefully resolves the ownership problems (although I need to look further into that).
     def replaceVarsInGuardTree(guardTree: Tree): Tree = ReplaceVars.in(guardTree, allBinderVars, inBinder = false)
+
     // Eventually it will be necessary to go through the source code of scala/async and through the "Macrology 201" course here, https://github.com/scalamacros/macrology201/commits/part1
     // And perhaps use https://github.com/scalamacros/resetallattrs
 
@@ -239,9 +244,9 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       .map(guardTree => q"() => $guardTree")
 
     // Merge the guard information into the individual input molecule infos. The result, patternInWithMergedGuards, replaces patternIn.
-    val patternInWithMergedGuards = patternIn // patternInWithMergedGuards has same type as patternIn
+    val patternInWithMergedGuardsAndIndex = patternIn.zipWithIndex // patternInWithMergedGuards has same type as patternIn, except for the index
       .map {
-      case (mol, flag, replyFlag) =>
+      case ((mol, flag, replyFlag), i) =>
         val mergedGuardOpt = moleculeGuardVarsSeq
           .filter { case (g, vars) => guardVarsConstrainOnlyThisMolecule(vars, flag) }
           .map(_._1)
@@ -249,17 +254,22 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
           .map(t => replaceVarsInGuardTree(t))
 
         val mergedFlag = flag match {
-          case SimpleVarF(v, binder, _) => mergedGuardOpt.map(guardTree => SimpleVarF(v, binder, Some(guardTree))).getOrElse(flag) // a(x) if x>0 is replaced with a(x : check if x>0). Let's not replace vars in binder in this case?
-          case OtherPatternF(matcher, _, vars) => mergedGuardOpt.map(guardTree => OtherPatternF(replaceVarsInBinder(matcher), guardTree, vars)).getOrElse(flag) // We can't have a nontrivial guardTree in patternIn, so we replace it here with the new guardTree.
-          case SimpleConstF(Literal(Constant(()))) => WildcardF // Replace Unit constant values with wildcards.
+          case SimpleVarF(v, binder, _) =>
+            mergedGuardOpt.map(guardTree => SimpleVarF(v, binder, Some(guardTree))).getOrElse(flag) // a(x) if x>0 is replaced with a(x : check if x>0). Let's not replace vars in binder in this case?
+          case OtherPatternF(matcher, _, vars) =>
+            mergedGuardOpt.map(guardTree => OtherPatternF(replaceVarsInBinder(matcher), guardTree, vars)).getOrElse(flag) // We can't have a nontrivial guardTree in patternIn, so we replace it here with the new guardTree.
+          case SimpleConstF(Literal(Constant(()))) =>
+            WildcardF // Replace Unit constant values with wildcards.
           case _ => flag
         }
 
-        (mol, mergedFlag, replyFlag)
+        (mol, i, mergedFlag, replyFlag)
     }
 
-    val allInputMatchersAreTrivial = patternInWithMergedGuards.forall {
-      case (_, SimpleVarF(_, _, None), _) | (_, WildcardF, _) => true
+    val allInputMatchersAreTrivial = patternInWithMergedGuardsAndIndex.forall {
+      case (_, _, SimpleVarF(_, _, None), _)
+           | (_, _, WildcardF, _) =>
+        true
       case _ => false
     }
 
@@ -287,15 +297,24 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
         val partialFunctionTree = q"{ case ..$caseDefs }"
         //        val pfTree = c.parse(showCode(partialFunctionTree)) // This works but it's an overkill.
         val pfTree = c.untypecheck(partialFunctionTree)
-        (vars.map(identToScalaSymbol).distinct, pfTree)
+        // It's important to untypecheck here.
+        val indices = indicesAndBinders.map(_._1).toArray
+        val varSymbols = vars.map(identToScalaSymbol).distinct.toArray
+
+        (varSymbols, indices, pfTree)
     }
 
     // We lift the GuardPresenceFlag values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceFlag].
     val guardPresenceFlag = if (isGuardAbsent) {
-      if (allInputMatchersAreTrivial) q"AllMatchersAreTrivial"
+      if (allInputMatchersAreTrivial)
+        q"AllMatchersAreTrivial"
       else q"GuardAbsent"
-    } else
-      q"GuardPresent(${guardVarsSeq.map(_._2.map(identToScalaSymbol).distinct).filter(_.nonEmpty)}, $staticGuardTree, $crossGuards)"
+    } else {
+      val allGuardSymbols = guardVarsSeq
+        .map(_._2.map(identToScalaSymbol).distinct)
+        .filter(_.nonEmpty)
+      q"GuardPresent($allGuardSymbols, $staticGuardTree, $crossGuards)"
+    }
 
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
     // It is an error to have reply molecules that do not match on a simple variable.
@@ -321,14 +340,14 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     if (isSingletonReaction(pattern, guard, body) && bodyOut.isEmpty)
       reportError("Reaction must not have an empty list of input molecules and no output molecules")
 
-    val inputMolecules = patternInWithMergedGuards.map { case (s, p, _) => q"InputMoleculeInfo(${s.asTerm}, $p, ${p.patternSha1(t => showCode(t))})" }
+    val inputMolecules = patternInWithMergedGuardsAndIndex.map { case (s, i, p, _) => q"InputMoleculeInfo(${s.asTerm}, $i, $p, ${p.patternSha1(t => showCode(t))})" }.toArray
 
     // Note: the output molecules could be sometimes not emitted according to a runtime condition.
     // We do not try to examine the reaction body to determine which output molecules are always emitted.
     // However, the order of output molecules corresponds to the order in which they might be emitted.
     val allOutputInfo = bodyOut
     // Neither the pattern nor the guard can emit output molecules.
-    val outputMolecules = allOutputInfo.map { case (m, p) => q"OutputMoleculeInfo(${m.asTerm}, $p)" }
+    val outputMolecules = allOutputInfo.map { case (m, p) => q"OutputMoleculeInfo(${m.asTerm}, $p)" }.toArray
 
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of output molecules.
@@ -338,11 +357,16 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
     }
 
-    // Compute reaction sha1 from simplified inputlist
-    val reactionSha1 = getSha1String(patternInWithMergedGuards.map(_._2.patternSha1(t => showCode(t))).sorted.mkString(",") + crossGuards.map(_._2).map(t => showCode(t)).sorted.mkString(",") + showCode(body))
+    // Compute reaction sha1 from simplified inputlist.
+    val reactionBodyCode = showCode(body)
+    val reactionSha1 = getSha1String(
+      patternInWithMergedGuardsAndIndex.map(_._3.patternSha1(t => showCode(t))).sorted.mkString(",") +
+        crossGuards.map(_._3).map(t => showCode(t)).sorted.mkString(",") +
+        reactionBodyCode
+    )
 
     // Prepare the ReactionInfo structure.
-    val result = q"Reaction(ReactionInfo($inputMolecules, List(..$outputMolecules), $guardPresenceFlag, $reactionSha1), ${reactionBody.tree}, None, false)"
+    val result = q"Reaction(ReactionInfo($inputMolecules, $outputMolecules, $guardPresenceFlag, $reactionSha1), $reactionBody, None, false)"
     //    println(s"debug: ${showCode(result)}")
     //    println(s"debug raw: ${showRaw(result)}")
     //    c.untypecheck(result) // this fails

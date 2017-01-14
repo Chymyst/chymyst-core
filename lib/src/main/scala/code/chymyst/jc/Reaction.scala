@@ -83,7 +83,7 @@ case object AllMatchersAreTrivial extends GuardPresenceFlag
   * @param flag     Type of the input pattern: wildcard, constant match, etc.
   * @param sha1     Hash sum of the source code (AST tree) of the input pattern.
   */
-final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, sha1: String) {
+final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPatternType, sha1: String) {
   /** Determine whether this input molecule pattern is weaker than another pattern.
     * Pattern a(xxx) is weaker than b(yyy) if a==b and if anything matched by yyy will also be matched by xxx.
     *
@@ -190,10 +190,10 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
 }
 
 // This class is immutable.
-final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: List[OutputMoleculeInfo], guardPresence: GuardPresenceFlag, sha1: String) {
+final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[OutputMoleculeInfo], guardPresence: GuardPresenceFlag, sha1: String) {
 
   // The input pattern sequence is pre-sorted for further use.
-  private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
+  private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha) =>
     // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers
     val patternPrecedence = flag match {
       case Wildcard | SimpleVar(_, None) => 3
@@ -207,7 +207,7 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: List[Out
       case _ => ""
     }
     (mol.toString, patternPrecedence, molValueString, sha)
-  }
+  }.toList
 
   override val toString: String = {
     val inputsInfo = inputsSorted.map(_.toString).mkString(" + ")

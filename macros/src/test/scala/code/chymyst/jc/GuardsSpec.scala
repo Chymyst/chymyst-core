@@ -12,18 +12,20 @@ class GuardsSpec extends FlatSpec with Matchers {
     val bb = m[scala.Symbol]
     val ccc = m[List[Int]]
 
-    val result = go { case ccc(Nil) + ccc(List()) + ccc(List(1)) + ccc(List(1,2,3)) + bb('input) + a(Right("input")) =>
-      bb('output); ccc(Nil); ccc(List()); ccc(List(1)); ccc(List(1,2,3)); a(Right("output")) }
+    val result = go { case ccc(Nil) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) + bb('input) + a(Right("input")) =>
+      bb('output); ccc(Nil); ccc(List()); ccc(List(1)); ccc(List(1, 2, 3)); a(Right("output"))
+    }
 
     result.info.toString shouldEqual "a(Right(input)) + bb('input) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) => bb('output) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) + a(Right(output))"
 
     result.info.inputs should matchPattern {
-      case List(InputMoleculeInfo(`ccc`, SimpleConst(Nil), _),
-        InputMoleculeInfo(`ccc`, SimpleConst(List()), _),
-        InputMoleculeInfo(`ccc`, SimpleConst(List(1)), _),
-        InputMoleculeInfo(`ccc`, SimpleConst(List(1, 2, 3)), _),
-        InputMoleculeInfo(`bb`, SimpleConst('input), _),
-        InputMoleculeInfo(`a`, SimpleConst(Right("input")), _)
+      case Array(
+      InputMoleculeInfo(`ccc`, 0, SimpleConst(Nil), _),
+      InputMoleculeInfo(`ccc`, 1, SimpleConst(List()), _),
+      InputMoleculeInfo(`ccc`, 2, SimpleConst(List(1)), _),
+      InputMoleculeInfo(`ccc`, 3, SimpleConst(List(1, 2, 3)), _),
+      InputMoleculeInfo(`bb`, 4, SimpleConst('input), _),
+      InputMoleculeInfo(`a`, 5, SimpleConst(Right("input")), _)
       ) =>
     }
 
@@ -39,11 +41,11 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(Left(1)) + a(Right(input)) + bb((0,None)) + bb((2,Some(3))) => a(Right(output)) + bb((1,None))"
 
     result.info.inputs should matchPattern {
-      case List(
-      InputMoleculeInfo(`a`, SimpleConst(Left(1)), _),
-      InputMoleculeInfo(`a`, SimpleConst(Right("input")), _),
-      InputMoleculeInfo(`bb`, SimpleConst((2, Some(3))), _),
-      InputMoleculeInfo(`bb`, SimpleConst((0, None)), _)
+      case Array(
+      InputMoleculeInfo(`a`, 0, SimpleConst(Left(1)), _),
+      InputMoleculeInfo(`a`, 1, SimpleConst(Right("input")), _),
+      InputMoleculeInfo(`bb`, 2, SimpleConst((2, Some(3))), _),
+      InputMoleculeInfo(`bb`, 3, SimpleConst((0, None)), _)
       ) =>
     }
 
@@ -58,9 +60,9 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.guardPresence should matchPattern { case GuardPresent(List(List('xOpt), List('y)), None, List()) => }
 
     result.info.inputs should matchPattern {
-      case List(
-      InputMoleculeInfo(`a`, SimpleVar('xOpt, Some(_)), _),
-      InputMoleculeInfo(`bb`, SimpleVar('y, Some(_)), _)
+      case Array(
+      InputMoleculeInfo(`a`, 0, SimpleVar('xOpt, Some(_)), _),
+      InputMoleculeInfo(`bb`, 1, SimpleVar('y, Some(_)), _)
       ) =>
     }
     result.info.toString shouldEqual "a(xOpt if ?) + bb(y if ?) => "
@@ -75,9 +77,9 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.guardPresence should matchPattern { case GuardPresent(List(List('x), List('list), List('y)), None, List()) => }
 
     result.info.inputs should matchPattern {
-      case List(
-      InputMoleculeInfo(`a`, OtherInputPattern(_, List('x)), _),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_, List('list, 'y)), _)
+      case Array(
+      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x)), _),
+      InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y)), _)
       ) =>
     }
     result.info.toString shouldEqual "a(<FD6F...>) + bb(<DBA9...>) => "
@@ -92,9 +94,9 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.guardPresence should matchPattern { case GuardPresent(List(List('xOpt, 'y)), None, List((List('xOpt, 'y), _))) => }
 
     result.info.inputs should matchPattern {
-      case List(
-      InputMoleculeInfo(`a`, SimpleVar('xOpt, None), _),
-      InputMoleculeInfo(`bb`, SimpleVar('y, None), _)
+      case Array(
+      InputMoleculeInfo(`a`, 0, SimpleVar('xOpt, None), _),
+      InputMoleculeInfo(`bb`, 1, SimpleVar('y, None), _)
       ) =>
     }
     result.info.toString shouldEqual "a(xOpt) + bb(y) if(xOpt,y) => "
@@ -109,9 +111,9 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.guardPresence should matchPattern { case GuardPresent(List(List('x, 'list, 'y)), None, List((List('x, 'list, 'y), _))) => }
 
     result.info.inputs should matchPattern {
-      case List(
-      InputMoleculeInfo(`a`, OtherInputPattern(_, List('x)), _),
-      InputMoleculeInfo(`bb`, OtherInputPattern(_, List('list, 'y)), _)
+      case Array(
+      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x)), _),
+      InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y)), _)
       ) =>
     }
     result.info.toString shouldEqual "a(<643A...>) + bb(<9D3F...>) if(x,list,y) => "
@@ -137,7 +139,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
 
-    result.info.inputs should matchPattern { case List(InputMoleculeInfo(`a`, SimpleVar('x, None), _)) => }
+    result.info.inputs should matchPattern { case Array(InputMoleculeInfo(`a`, 0, SimpleVar('x, None), _)) => }
     result.info.toString shouldEqual "a(x) => "
   }
 
@@ -155,7 +157,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case _ => false
     }) shouldEqual true
 
-    result.info.inputs should matchPattern { case List(InputMoleculeInfo(`a`, SimpleVar('x, None), _)) => }
+    result.info.inputs should matchPattern { case Array(InputMoleculeInfo(`a`, 0, SimpleVar('x, None), _)) => }
     result.info.toString shouldEqual "a(x) if(?) => "
   }
 
@@ -202,7 +204,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     }
     result.info.toString shouldEqual "a(xyz if ?) => "
     (result.info.inputs match {
-      case List(InputMoleculeInfo(`a`, SimpleVar('xyz, Some(cond)), _)) =>
+      case Array(InputMoleculeInfo(`a`, 0, SimpleVar('xyz, Some(cond)), _)) =>
         cond.isDefinedAt(n + 1) shouldEqual true
         cond.isDefinedAt(n) shouldEqual false
         true
