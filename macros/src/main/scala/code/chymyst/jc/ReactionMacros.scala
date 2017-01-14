@@ -168,7 +168,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
       case q"$a ^ $b" => // (a+b)(a'+b')
         val aN = normalize(a)
-        val bN: List[List[Tree]] = normalize(b)
+        val bN = normalize(b)
         conjunction(disjunction(aN, bN), disjunction(ourNegation(aN), ourNegation(bN)))
 
       case q"! $a" =>
