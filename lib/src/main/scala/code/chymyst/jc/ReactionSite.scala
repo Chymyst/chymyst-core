@@ -218,8 +218,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
         val found = (for {
           candidateReactions <- flatten(m.consumingReactions)
-          inputCandidates <- candidateReactions.findInputMolecules(moleculesPresent)
-        } yield inputCandidates
+          // This is the main function of the reaction site scheduler. It determines which of the available molecules can be consumed by the candidate reactions.
+          reactionWithInputMolecules <- candidateReactions.findInputMolecules(moleculesPresent)
+        } yield reactionWithInputMolecules
         ).headOption
 
         found.foreach{ case (_, inputsFound)  =>
