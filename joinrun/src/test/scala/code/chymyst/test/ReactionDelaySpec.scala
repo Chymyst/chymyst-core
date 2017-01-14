@@ -13,6 +13,8 @@ class ReactionDelaySpec extends FlatSpec with Matchers {
 
   val safeSize: Int => Float = x => if (x==0) 1.0f else x.toFloat
 
+  behavior of "reaction overhead and delay times"
+
   it should "measure simple statistics on reaction delay" in {
     val f = b[Unit,Unit]
     val tp = new SmartPool(4)
@@ -60,9 +62,9 @@ class ReactionDelaySpec extends FlatSpec with Matchers {
 
     val timeInit = LocalDateTime.now
     (1 to trials).foreach { _ => begin() }
-    val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
     val result = all_done()
     val meanReplyDelay = result.sum / safeSize(result.size) / 1000 - 1
+    val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
     println(s"Parallel test: Mean reply delay is $meanReplyDelay ms out of $trials trials; the test took $timeElapsed ms")
     tp.shutdownNow()
   }
@@ -76,7 +78,7 @@ class ReactionDelaySpec extends FlatSpec with Matchers {
     val counter = m[(Int, List[Result])]
     val all_done = b[Unit, List[Result]]
     val done = m[Result]
-    val begin = m[Unit]
+    val begin = m[Int]
 
     site(tp)(
       go { case begin(_) =>
@@ -93,7 +95,7 @@ class ReactionDelaySpec extends FlatSpec with Matchers {
     )
 
     counter((trials, Nil))
-    (1 to trials).foreach(_ => begin())
+    (1 to trials).foreach(begin)
 
     all_done()
   }
@@ -125,15 +127,17 @@ class ReactionDelaySpec extends FlatSpec with Matchers {
   }
 
   it should "measure the timeout delay in parallel threads" in {
-    val trials = 900
+    val trials = 500
     val maxTimeout = 500
 
     val tp = new SmartPool(4)
+    val timeInit = LocalDateTime.now
 
     val result = processResults(measureTimeoutDelays(trials, maxTimeout, tp))
 
+    val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
+    println(s"Random timeout delay, parallel test ($trials trials, $maxTimeout max timeout) took $timeElapsed ms:")
     println(result.printout)
-
     tp.shutdownNow()
   }
 
@@ -142,11 +146,13 @@ class ReactionDelaySpec extends FlatSpec with Matchers {
     val maxTimeout = 200
 
     val tp = new FixedPool(4)
+    val timeInit = LocalDateTime.now
 
     val result = processResults(measureTimeoutDelays(trials, maxTimeout, tp))
 
+    val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
+    println(s"Random timeout delay, single-thread test ($trials trials, $maxTimeout max timeout) took $timeElapsed ms:")
     println(result.printout)
-
     tp.shutdownNow()
   }
 
