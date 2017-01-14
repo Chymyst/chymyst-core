@@ -328,6 +328,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.guardPresence should matchPattern {
       case GuardPresent(Array(Array('p), Array('t, 'q), Array('y), Array('q), Array('t, 'p), Array('y, 'q)), None, Array(CrossMoleculeGuard(Array(0, 4), Array('t, 'p), _), CrossMoleculeGuard(Array(1, 4), Array('y, 'q), _))) =>
     }
+    result.info.guardPresence.toString shouldEqual "GuardPresent([['p], ['t,'q], ['y], ['q], ['t,'p], ['y,'q]], None, [CrossMoleculeGuard([0,4], ['t,'p]); CrossMoleculeGuard([1,4], ['y,'q])])"
     result.info.toString shouldEqual "a(1) + a(p if ?) + a(y if ?) + bb(?z) + bb(?t,q) if(t,p,y,q) => "
   }
 
