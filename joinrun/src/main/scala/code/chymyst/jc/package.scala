@@ -7,7 +7,7 @@ import scala.language.experimental.macros
   */
 package object jc {
 
-  private[jc] type ReactionBody = PartialFunction[UnapplyArg, Any]
+  private[jc] type ReactionBody = Core.ReactionBody
 
   def site(reactions: Reaction*): WarningsAndErrors = Core.site(Core.defaultReactionPool, Core.defaultSitePool)(reactions: _*)
   def site(reactionPool: Pool)(reactions: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(reactions: _*)
