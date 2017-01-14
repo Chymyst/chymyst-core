@@ -11,6 +11,10 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   import c.universe._
 
+  // Must avoid confusing these types.
+  type MacroSymbol = c.Symbol
+  type ScalaSymbol = scala.Symbol
+
   // A singleton reaction must start with _ and must emit some output molecules (which we check later).
   def isSingletonReaction(pattern: Tree, guard: Tree, body: Tree): Boolean = pattern match {
     case Ident(termNames.WILDCARD) => true
@@ -130,9 +134,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 //        resultTree
 //      }
 
-
-
-  def identToScalaSymbol(ident: Ident): scala.Symbol = ident.name.decodedName.toString.toScalaSymbol
+  def identToScalaSymbol(ident: Ident): ScalaSymbol = ident.name.decodedName.toString.toScalaSymbol
 
   /** Convert a term to conjunctive normal form (CNF).
     * CNF is represented as a list of lists of Boolean term trees.
@@ -145,23 +147,18 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     import ConjunctiveNormalForm._
 
-    def negationOneTerm(t: Tree): Tree = q"! $t"
-
     def normalize(a: Trees#Tree): List[List[Tree]] = convertToCNF(a.asInstanceOf[Tree])
 
-    val ourNegation = negation(negationOneTerm)
-    
+    val ourNegation: (List[List[Tree]]) => List[List[Tree]] = negation((t: Tree) => q"! $t") _
+
     term match {
-      case EmptyTree => trueConstant[Tree]
+      case EmptyTree =>
+        trueConstant[Tree]
       case q"$a && $b" =>
-        val aN = normalize(a)
-        val bN = normalize(b)
-        conjunction(aN, bN)
+        conjunction(normalize(a), normalize(b))
 
       case q"$a || $b" =>
-        val aN = normalize(a)
-        val bN = normalize(b)
-        disjunction(aN, bN)
+        disjunction(normalize(a), normalize(b))
 
       case q"if ($a) $b else $c" => // (a' + b)(a + c)
         val aN = normalize(a)
@@ -171,16 +168,20 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
       case q"$a ^ $b" => // (a+b)(a'+b')
         val aN = normalize(a)
-        val bN = normalize(b)
+        val bN: List[List[Tree]] = normalize(b)
         conjunction(disjunction(aN, bN), disjunction(ourNegation(aN), ourNegation(bN)))
 
-      case q"! $a" => ourNegation(normalize(a))
+      case q"! $a" =>
+        ourNegation(normalize(a))
 
-      case q"true" => trueConstant[Tree]
+      case q"true" =>
+        trueConstant[Tree]
 
-      case q"false" => falseConstant[Tree]
+      case q"false" =>
+        falseConstant[Tree]
 
-      case _ => oneTerm(term)
+      case _ =>
+        oneTerm(term)
     }
   }
 
@@ -197,7 +198,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     *
     * @return The owner symbol of the current macro call site.
     */
-  def getCurrentSymbolOwner: c.Symbol = {
+  def getCurrentSymbolOwner: MacroSymbol = {
     val freshName = c.freshName(TypeName("Probe$"))
     val probe = c.typecheck(q""" {class $freshName; ()} """)
     probe match {
@@ -331,14 +332,14 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     }
   }
 
-  class MoleculeInfo(reactionBodyOwner: c.Symbol) extends Traverser {
+  class MoleculeInfo(reactionBodyOwner: MacroSymbol) extends Traverser {
 
     /** Examine an expression tree, looking for molecule expressions.
       *
       * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
       * @return A 4-tuple: List of input molecule patterns, list of output molecule patterns, list of reply action patterns, and list of molecules erroneously used inside pattern matching expressions.
       */
-    def from(reactionPart: Tree): (List[(c.Symbol, InputPatternFlag, Option[InputPatternFlag])], List[(c.Symbol, OutputPatternFlag)], List[(c.Symbol, OutputPatternFlag)], List[c.Symbol]) = {
+    def from(reactionPart: Tree): (List[(MacroSymbol, InputPatternFlag, Option[InputPatternFlag])], List[(MacroSymbol, OutputPatternFlag)], List[(MacroSymbol, OutputPatternFlag)], List[MacroSymbol]) = {
       inputMolecules = mutable.ArrayBuffer()
       outputMolecules = mutable.ArrayBuffer()
       replyActions = mutable.ArrayBuffer()
@@ -349,10 +350,10 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     }
 
     private var traversingBinderNow: Boolean = _
-    private var moleculesInBinder: mutable.ArrayBuffer[c.Symbol] = _
-    private var inputMolecules: mutable.ArrayBuffer[(c.Symbol, InputPatternFlag, Option[InputPatternFlag])] = _
-    private var outputMolecules: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = _
-    private var replyActions: mutable.ArrayBuffer[(c.Symbol, OutputPatternFlag)] = _
+    private var moleculesInBinder: mutable.ArrayBuffer[MacroSymbol] = _
+    private var inputMolecules: mutable.ArrayBuffer[(MacroSymbol, InputPatternFlag, Option[InputPatternFlag])] = _
+    private var outputMolecules: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag)] = _
+    private var replyActions: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag)] = _
 
     /** Detect whether the symbol {{{s}}} is defined inside the scope of the symbol {{{owner}}}.
       * Will return true for code like {{{ val owner = .... { val s = ... }  }}}
@@ -362,7 +363,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       * @return True if {{{s}}} is defined inside the scope of {{{owner}}}.
       */
     @tailrec
-    private def isOwnedBy(s: c.Symbol, owner: c.Symbol): Boolean = s.owner match {
+    private def isOwnedBy(s: MacroSymbol, owner: MacroSymbol): Boolean = s.owner match {
       case `owner` => owner =!= NoSymbol
       case `NoSymbol` => false
       case o@_ => isOwnedBy(o, owner)
