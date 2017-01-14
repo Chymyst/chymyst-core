@@ -10,8 +10,9 @@ object Core {
   // List of molecules used as inputs by a reaction.
   type InputMoleculeList = Array[(Molecule, AbsMolValue[_])]
 
-  def getRightMolecule(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(inputs.length - 1, inputs.length))
-  def getLeftPortion(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(0, inputs.length - 1))
+  private[jc] def getRightMolecule(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(inputs.length - 1, inputs.length))
+
+  private[jc] def getLeftPortion(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(0, inputs.length - 1))
 
   /** A special value for {{{ReactionInfo}}} to signal that we are not running a reaction.
     *
@@ -26,7 +27,8 @@ object Core {
 
   // not sure if this will be useful:
   //  def flatten[T](optionSet: Option[Set[T]]): Set[T] = optionSet.getOrElse(Set())
-    def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
+
+  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 
   implicit class SeqWithOption[S](s: Seq[S]) {
     def toOptionSeq: Option[Seq[S]] = if (s.isEmpty) None else Some(s)

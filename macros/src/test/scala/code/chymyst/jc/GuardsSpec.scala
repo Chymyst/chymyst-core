@@ -85,7 +85,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(?x) + bb(?list,y) => "
   }
 
-  it should "use parameterized types in cross-guard condition" in {
+  it should "use parameterized types in cross-molecule guard condition" in {
     val a = m[Option[Int]]
     val bb = m[(Int, Option[String])]
 
@@ -102,7 +102,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(xOpt) + bb(y) if(xOpt,y) => "
   }
 
-  it should "use parameterized types and tuple in cross-guard condition" in {
+  it should "use parameterized types and tuple in cross-molecule guard condition" in {
     val a = m[Option[Int]]
     val bb = m[(List[Int], Option[String])]
 

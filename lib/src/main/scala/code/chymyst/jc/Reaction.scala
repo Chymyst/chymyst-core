@@ -39,7 +39,7 @@ case object OtherOutputPattern extends OutputPatternType
 sealed trait GuardPresenceFlag {
   /** Checks whether the reaction has no cross-molecule guard conditions.
     * For example, {{{go { case a(x) + b(y) if x > y => } }}} has a cross-molecule guard condition,
-    * whereas {{{go { case a(x) + b(y) if x == 1 && y == 2 => } }}} has no cross-guard conditions because its guard condition
+    * whereas {{{go { case a(x) + b(y) if x == 1 && y == 2 => } }}} has no cross-molecule guard conditions because its guard condition
     * can be split into a conjunction of guard conditions that each constrain the value of a single molecule.
     *
     * @return {{{true}}} if the reaction has no guard condition, or if it has guard conditions that can be split between molecules;
@@ -89,6 +89,13 @@ final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSym
   * @param sha1     Hash sum of the source code (AST tree) of the input pattern.
   */
 final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPatternType, sha1: String) {
+  private[jc] def admitsValue(molValue: AbsMolValue[_]): Boolean = flag match {
+    case Wildcard | SimpleVar(_, None) => true
+    case SimpleVar(v, Some(cond)) => cond.isDefinedAt(molValue)
+    case SimpleConst(v) => v == molValue
+    case OtherInputPattern(matcher, _) => matcher.isDefinedAt(molValue)
+  }
+
   /** Determine whether this input molecule pattern is weaker than another pattern.
     * Pattern a(xxx) is weaker than b(yyy) if a==b and if anything matched by yyy will also be matched by xxx.
     *
@@ -259,7 +266,7 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
   def noRetry: Reaction = copy(retry = false)
 
   // Optimization: this is used often.
-  val inputMolecules: Seq[Molecule] = info.inputs.map(_.molecule).sortBy(_.toString)
+  private[jc] lazy val inputMolecules: Seq[Molecule] = info.inputs.map(_.molecule).sortBy(_.toString)
 
   /** Convenience method for debugging.
     *
@@ -270,8 +277,71 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
       "/R" else ""
   }"
 
-  def findInputMolecules(moleculesPresent: MoleculeBag): Option[(Reaction, InputMoleculeList)] = {
-    Some((this, ???))
+  type BagMap = Map[Molecule, Map[AbsMolValue[_], Int]]
+
+  private[jc] def findInputMolecules(moleculesPresent: MoleculeBag): Option[(Reaction, InputMoleculeList)] = {
+    // Evaluate the static guard.
+    val staticGuardPasses = info.guardPresence match {
+      case GuardPresent(_, Some(staticGuard), _) => staticGuard()
+      case _ => true
+    }
+    if (staticGuardPasses) {
+      val inputs = new InputMoleculeList(info.inputs.length)
+      // For each input molecule used by the reaction, find a random value of this molecule and evaluate the conditional.
+      val inputMoleculeInfos = info.inputsSorted
+
+      def remove(relevantMap: BagMap, molecule: Molecule, molValue: AbsMolValue[_]) = {
+        val valuesMap = relevantMap.getOrElse(molecule, Map())
+        val count = valuesMap.getOrElse(molValue, 0)
+        if (count == 0)
+          relevantMap.filterKeys( _ != molecule)
+        else
+          relevantMap.updated(molecule, valuesMap.updated(molValue, count - 1))
+      }
+
+      // Map of molecule values for molecules that are inputs to this reaction.
+      val relevantMap = moleculesPresent.getMap.filterKeys(m => inputMoleculeInfos.map(_.molecule).contains(m))
+
+      val found = inputMoleculeInfos.foldLeft[Iterable[(Map[Int, AbsMolValue[_]], BagMap)]](List((Map(), relevantMap))) { (prev, inputInfo) =>
+        // `prev` contains the molecule value assignments we have found so far, as well as the molecule values that would remain in the soup after these previous molecule values were removed.
+        prev.flatMap {
+          case (prevValues, prevRelevantMap) =>
+            val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
+            val newFound = for {
+              newMolValue <- valuesMap.keys
+              if inputInfo.admitsValue(newMolValue)
+              newRelevantMap = remove(prevRelevantMap, inputInfo.molecule, newMolValue)
+              newValues = prevValues.updated(inputInfo.index, newMolValue)
+            } yield (newValues, newRelevantMap)
+            newFound
+        }
+      }
+
+      // The reaction can run if `found` contains at least one admissible list of input molecules; just one is sufficient.
+
+      // Evaluate all cross-molecule guards.
+      val filteredAfterCrossGuards = found.filter {
+        case (inputValues, _) => info.guardPresence match {
+          case GuardPresent(_, _, crossGuards) =>
+            crossGuards.forall {
+              case CrossMoleculeGuard(indices, _, cond) =>
+                cond.isDefinedAt(indices.flatMap(i => inputValues.get(i)).toList)
+            }
+          case _ => true
+        }
+      }
+
+      // Return result if found something. Assign the found molecule values into the `inputs` array.
+          filteredAfterCrossGuards.headOption.map {
+        case (inputValues, _) =>
+        inputValues.foreach {
+          case (i, molValue) =>
+            val mol = info.inputs(i).molecule
+            inputs.update(i, (mol, molValue))
+        }
+        (this, inputs)
+      }
+    } else None
   }
 
 }
