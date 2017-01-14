@@ -541,10 +541,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
           a(2)
       }
     )
-    a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(List(OutputMoleculeInfo(a, SimpleConstOutput(2))))
-    a.consumingReactions.get.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, 0, SimpleConst(1), constantOneSha1)))
-    a.emittingReactions.map(_.info.outputs) shouldEqual Set(List(OutputMoleculeInfo(a, SimpleConstOutput(2))))
-    a.emittingReactions.map(_.info.inputs) shouldEqual Set(List(InputMoleculeInfo(a, 0, SimpleConst(1), constantOneSha1)))
+    a.consumingReactions.get.size shouldEqual 1
+    a.emittingReactions.size shouldEqual 1
+    a.consumingReactions.get.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, SimpleConstOutput(2)))
+    a.consumingReactions.get.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, SimpleConst(1), constantOneSha1))
+    a.emittingReactions.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, SimpleConstOutput(2)))
+    a.emittingReactions.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, SimpleConst(1), constantOneSha1))
   }
 
   it should "not fail to compute outputs correctly for an inline nested reaction" in {
@@ -569,11 +571,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     site(
       go { case a(2) => b(2); a(1); b(1) }
     )
-    a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(List(
+    a.consumingReactions.get.size shouldEqual 1
+    a.consumingReactions.get.map(_.info.outputs).head shouldEqual List(
       OutputMoleculeInfo(b, SimpleConstOutput(2)),
       OutputMoleculeInfo(a, SimpleConstOutput(1)),
       OutputMoleculeInfo(b, SimpleConstOutput(1))
-    ))
+    )
   }
 
   it should "correctly recognize nested emissions of non-blocking molecules" in {

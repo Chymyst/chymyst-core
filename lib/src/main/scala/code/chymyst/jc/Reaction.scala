@@ -63,6 +63,8 @@ sealed trait GuardPresenceFlag {
   */
 final case class GuardPresent(vars: Array[Array[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: Array[CrossMoleculeGuard]) extends GuardPresenceFlag {
   override def effectivelyAbsent: Boolean = staticGuard.isEmpty && crossGuards.isEmpty
+
+  override def toString: String = s"GuardPresent([${vars.map(vs => s"[${vs.mkString(",")}]").mkString(", ")}], ${staticGuard.map(_ => "")}, [${crossGuards.map(_.toString).mkString("; ")}])"
 }
 
 /** Indicates that a guard was initially present but has been simplified, or it was absent but some molecules have nontrivial pattern matchers (not a wildcard and not a simple variable).
@@ -75,7 +77,9 @@ case object GuardAbsent extends GuardPresenceFlag
   */
 case object AllMatchersAreTrivial extends GuardPresenceFlag
 
-final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSymbol], cond: PartialFunction[List[Any], Unit], condCode: String)
+final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSymbol], cond: PartialFunction[List[Any], Unit]) {
+  override def toString: String = s"CrossMoleculeGuard([${indices.mkString(",")}], [${symbols.mkString(",")}])"
+}
 
 /** Compile-time information about an input molecule pattern in a reaction.
   * This class is immutable.
