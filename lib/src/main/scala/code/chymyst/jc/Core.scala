@@ -7,6 +7,12 @@ import scala.collection.mutable
 
 object Core {
 
+  // List of molecules used as inputs by a reaction.
+  type InputMoleculeList = Array[(Molecule, AbsMolValue[_])]
+
+  def getRightMolecule(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(inputs.length - 1, inputs.length))
+  def getLeftPortion(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(0, inputs.length - 1))
+
   /** A special value for {{{ReactionInfo}}} to signal that we are not running a reaction.
     *
     */
@@ -20,7 +26,7 @@ object Core {
 
   // not sure if this will be useful:
   //  def flatten[T](optionSet: Option[Set[T]]): Set[T] = optionSet.getOrElse(Set())
-  //  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
+    def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 
   implicit class SeqWithOption[S](s: Seq[S]) {
     def toOptionSeq: Option[Seq[S]] = if (s.isEmpty) None else Some(s)
@@ -71,13 +77,12 @@ object Core {
   /** Type alias for reaction body.
     *
     */
-  private[jc] type ReactionBody = PartialFunction[UnapplyArg, Any]
+  private[jc] type ReactionBody = PartialFunction[InputMoleculeList, Any]
 
   // for M[T] molecules, the value inside AbsMolValue[T] is of type T; for B[T,R] molecules, the value is of type
   // ReplyValue[T,R]. For now, we don't use shapeless to enforce this typing relation.
   private[jc] type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
   private[jc] type MutableLinearMoleculeBag = mutable.Map[Molecule, AbsMolValue[_]]
-  private[jc] type LinearMoleculeBag = Map[Molecule, AbsMolValue[_]]
 
   private[jc] def moleculeBagToString(mb: MoleculeBag): String =
     mb.getMap.toSeq
@@ -90,8 +95,8 @@ object Core {
         }
       }.sorted.mkString(", ")
 
-  private[jc] def moleculeBagToString(mb: LinearMoleculeBag): String =
-    mb.map {
+  private[jc] def moleculeBagToString(inputs: InputMoleculeList): String =
+    inputs.map {
       case (m, jmv) => s"$m($jmv)"
     }.toSeq.sorted.mkString(", ")
 

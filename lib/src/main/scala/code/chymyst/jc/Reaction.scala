@@ -269,5 +269,10 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
     if (retry)
       "/R" else ""
   }"
+
+  def findInputMolecules(moleculesPresent: MoleculeBag): Option[(Reaction, InputMoleculeList)] = {
+    Some((this, ???))
+  }
+
 }
 
