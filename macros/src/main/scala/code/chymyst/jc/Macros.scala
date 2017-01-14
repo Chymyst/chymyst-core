@@ -273,20 +273,23 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       case _ => false
     }
 
-    val crossGuards: List[(Array[ScalaSymbol], Array[Int], Tree)] = moleculeGuardVarsSeq // The "cross guards" are guard clauses whose variables do not all belong to any single molecule's matcher.
-      .filter { case (_, vars) => patternInWithMergedGuardsAndIndex.forall { case (_, _, flag, _) => !guardVarsConstrainOnlyThisMolecule(vars, flag) } }
-      // We need to produce a closure that takes all the vars as parameters and evaluates the guardTree.
-      .map {
-      case (guardTree, vars) =>
+    val crossGuardsAndCodes: List[(Tree, String)] = moleculeGuardVarsSeq // The "cross guards" are guard clauses whose variables do not all belong to any single molecule's matcher.
+      .filter { case (_, vars) => patternIn.forall { case (_, flag, _) => !guardVarsConstrainOnlyThisMolecule(vars, flag) } }
+      .map { case (guardTree, vars) =>
+        // At this point, we map over only the cross-molecule guard clauses.
+        // For each guard clause, we will produce a closure that takes all the vars as parameters and evaluates the guardTree.
+
+        // TODO: collect all guard clauses that pertain to the same subset of molecules into one guard clause.
         // Determine which molecules we are constraining in this guard. Collect the binders and the indices of all these molecules.
-        val indicesAndBinders : List[(Int, Tree)] = patternIn.zipWithIndex.flatMap {
+        val indicesAndBinders: List[(Int, Tree)] = patternIn.zipWithIndex.flatMap {
+          // Find all input molecules that have some pattern variables; omit wildcards and constants here.
           case ((_, flag, _), i) => flag match {
             case SimpleVarF(v, binder, _) => Some((flag, i, binder, List(v)))
             case OtherPatternF(matcher, _, vs) => Some((flag, i, matcher, vs))
             case _ => None
           }
-        }
-          .filter { case (flag, _, _, vs) => guardVarsConstrainThisMolecule(vs, flag) }
+        } // Find all input molecules constrained by the guard (guardTree, vars) that we are iterating with.
+          .filter { case (flag, _, _, _) => guardVarsConstrainThisMolecule(vars, flag) }
           .map { case (_, i, binder, _) => (i, binder) }
 
         // To avoid problems with macros, we nneed to put types on binder variables and remove owners from guard tree symbols.
@@ -295,14 +298,18 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
         val caseDefs = List(cq"List(..$bindersWithTypedVars) if $guardWithReplacedVars => ")
         val partialFunctionTree = q"{ case ..$caseDefs }"
-        //        val pfTree = c.parse(showCode(partialFunctionTree)) // This works but it's an overkill.
-        val pfTree = c.untypecheck(partialFunctionTree)
-        // It's important to untypecheck here.
+        //        val pfTree = c.parse(showCode(partialFunctionTree)) // This works but it's perhaps an overkill.
+        val pfTreeCode = showCode(partialFunctionTree)
+        val pfTree = c.untypecheck(partialFunctionTree) // It's important to untypecheck here.
+
         val indices = indicesAndBinders.map(_._1).toArray
         val varSymbols = vars.map(identToScalaSymbol).distinct.toArray
 
-        (varSymbols, indices, pfTree)
-    }
+        (q"CrossMoleculeGuard($indices, $varSymbols, $pfTree, $pfTreeCode)", pfTreeCode)
+      }
+
+    val crossGuards = crossGuardsAndCodes.map(_._1).toArray
+    val crossGuardsCodes = crossGuardsAndCodes.map(_._2)
 
     // We lift the GuardPresenceFlag values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceFlag].
     val guardPresenceFlag = if (isGuardAbsent) {
@@ -311,8 +318,8 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       else q"GuardAbsent"
     } else {
       val allGuardSymbols = guardVarsSeq
-        .map(_._2.map(identToScalaSymbol).distinct)
-        .filter(_.nonEmpty)
+        .map(_._2.map(identToScalaSymbol).distinct.toArray)
+        .filter(_.nonEmpty).toArray
       q"GuardPresent($allGuardSymbols, $staticGuardTree, $crossGuards)"
     }
 
@@ -361,7 +368,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     val reactionBodyCode = showCode(body)
     val reactionSha1 = getSha1String(
       patternInWithMergedGuardsAndIndex.map(_._3.patternSha1(t => showCode(t))).sorted.mkString(",") +
-        crossGuards.map(_._3).map(t => showCode(t)).sorted.mkString(",") +
+        crossGuardsCodes.sorted.mkString(",") +
         reactionBodyCode
     )
 
