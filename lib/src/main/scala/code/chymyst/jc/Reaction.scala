@@ -237,7 +237,7 @@ final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[O
 
 /** Represents a reaction body. This class is immutable.
   *
-  * @param body       Partial function of type {{{ UnapplyArg => Any }}}
+  * @param body       Partial function of type {{{ InputMoleculeList => Any }}}
   * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
   * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is false.
   */

@@ -158,38 +158,15 @@ private[jc] trait BlockingMolecule[T, R] extends Molecule {
   def timeout(duration: Duration)(v: T): Option[R] =
     site.emitAndAwaitReplyWithTimeout[T,R](duration.toNanos, this, v, new ReplyValue[T,R])
 
-  /** Perform the unapply matching and return a generic ReplyValue.
+  /** Perform the unapply matching and return a generic ReplyValue on success.
     * The specific implementation of unapply will possibly downcast this to EmptyReplyValue.
     *
-    * @param arg One of the UnapplyArg case classes supplied by the reaction site at different phases of making decisions about what reactions to run.
+    * @param arg The input molecule list, which should be a one-element list.
     * @return None if there was no match; Some(...) if the reaction inputs matched.
-    *         Also note that a side effect is performed on the mutable data inside UnapplyArg.
-    *         In this way, {{{isDefinedAt}}} is used to gather data about the input molecule values.
     */
   def unapplyInternal(arg: InputMoleculeList): Option[(T, Reply)] =
     arg.headOption
       .map { case (mol, BlockingMolValue(v, replyValueWrapper)) => (v.asInstanceOf[T], replyValueWrapper.asInstanceOf[Reply]) }
-  /*  arg match {
-
-    // This is used just before running the actual reactions, to determine which ones pass all the pattern-matching tests.
-    // We also gather the information about the molecule values actually used by the reaction, in case the reaction can start.
-    case UnapplyRunCheck(moleculeValues, usedInputs) =>
-      for {
-        v <- moleculeValues.getOne(this)
-      } yield {
-        usedInputs += (this -> v)
-        (v.getValue, null).asInstanceOf[(T, Reply)] // hack for verifying isDefinedAt:
-        // The null value will not be used, since the reply value is always matched unconditionally.
-      }
-
-    // This is used when running the chosen reaction.
-    case UnapplyRun(moleculeValues) => moleculeValues.get(this).map {
-      case BlockingMolValue(v, srv) => (v.asInstanceOf[T], srv.asInstanceOf[Reply]) // need this type cast because of erasure of types T and Reply
-      case m@_ =>
-        throw new ExceptionNoWrapper(s"Internal error: molecule $this with no value wrapper around value $m")
-    }
-  }
-*/
 }
 
 /** Specialized class for non-blocking molecule emitters with empty value.
