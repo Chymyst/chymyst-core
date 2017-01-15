@@ -71,7 +71,7 @@ private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: AbsReplyVal
   * This class is not parameterized by type and is used in collections of molecules that do not require knowledge of molecule types.
   *
   */
-trait Molecule extends PersistentHashCode {
+sealed trait Molecule extends PersistentHashCode {
 
   val name: String
 
@@ -99,9 +99,11 @@ trait Molecule extends PersistentHashCode {
     *
     * @return {{{None}}} if the molecule emitter is not yet bound to any reaction site.
     */
-  private[jc] def consumingReactions: Option[List[Reaction]] = reactionSiteOpt.map(_ => consumingReactionsSet)
+  private[jc] def consumingReactions: Option[List[Reaction]] =
+    reactionSiteOpt.map(_ => consumingReactionsSet)
 
-  private lazy val consumingReactionsSet: List[Reaction] = reactionSiteOpt.get.reactionInfos.keys.filter(_.inputMolecules contains this).toList
+  private lazy val consumingReactionsSet: List[Reaction] =
+    reactionSiteOpt.get.reactionInfos.keys.filter(_.inputMolecules contains this).toList
 
   /** The set of all reactions that *potentially* emit this molecule as output.
     * Some of these reactions may evaluate a runtime condition to decide whether to emit the molecule; so emission is not guaranteed.
@@ -127,10 +129,11 @@ trait Molecule extends PersistentHashCode {
 
   val isBlocking: Boolean
 
-  lazy val isSingleton: Boolean = reactionSiteOpt.exists(_.singletonsDeclared.contains(this))
+  lazy val isSingleton: Boolean =
+    reactionSiteOpt.exists(_.singletonsDeclared.contains(this))
 }
 
-private[jc] trait NonblockingMolecule[T] extends Molecule {
+private[jc] sealed trait NonblockingMolecule[T] extends Molecule {
 
   val isBlocking = false
 
@@ -139,7 +142,7 @@ private[jc] trait NonblockingMolecule[T] extends Molecule {
       .map { case (mol, MolValue(v)) => v.asInstanceOf[T] }
 }
 
-private[jc] trait BlockingMolecule[T, R] extends Molecule {
+private[jc] sealed trait BlockingMolecule[T, R] extends Molecule {
 
   /** This type will be ReplyValue[T,R] or EmptyReplyValue[R] depending on the class that inherits from BlockingMolecule.
     */
@@ -240,7 +243,7 @@ final class EE(name: String) extends B[Unit, Unit](name) {
   * @param name Name of the molecule, used for debugging only.
   * @tparam T Type of the value carried by the molecule.
   */
-class M[T](val name: String) extends (T => Unit) with NonblockingMolecule[T] {
+sealed class M[T](val name: String) extends (T => Unit) with NonblockingMolecule[T] {
   /** Emit a non-blocking molecule.
     *
     * @param v Value to be put onto the emitted molecule.
@@ -252,9 +255,16 @@ class M[T](val name: String) extends (T => Unit) with NonblockingMolecule[T] {
     *
     * @return The value carried by the singleton when it was last emitted. Will throw exception if the singleton has not yet been emitted.
     */
-  def volatileValue: T = site.getVolatileValue(this)
+  def volatileValue: T = reactionSiteOpt match {
+    case Some(reactionSite) =>
+      if (isSingleton)
+        volatileValueContainer
+      else throw new Exception(s"In $reactionSite: volatile reader requested for non-singleton ($this)")
 
-  def hasVolatileValue: Boolean = site.hasVolatileValue(this)
+    case None => throw new Exception("Molecule c is not bound to any reaction site")
+  }
+
+  @volatile private[jc] var volatileValueContainer: T = _
 
   def unapply(arg: InputMoleculeList): Option[T] = unapplyInternal(arg)
 }
@@ -433,7 +443,7 @@ private[jc] class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[T, R] 
   * @tparam T Type of the value carried by the molecule.
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
-class B[T, R](val name: String) extends (T => R) with BlockingMolecule[T, R] {
+sealed class B[T, R](val name: String) extends (T => R) with BlockingMolecule[T, R] {
 
   type Reply <: ReplyValue[T, R]
 
