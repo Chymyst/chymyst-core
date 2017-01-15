@@ -716,4 +716,24 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     y2 should fullyMatch regex "x\\$[0-9]+"
   }
 
+  it should "refuse to emit singleton from non-reaction thread" in {
+    val dIncorrectSingleton = m[Unit]
+    val e = m[Unit]
+
+    val r1 = go { case dIncorrectSingleton(_) + e(_) => dIncorrectSingleton(); 123 }
+
+    site(tp0)(
+      r1,
+      go { case _ => dIncorrectSingleton() }
+    )
+
+    val inputs = new InputMoleculeList(2)
+    inputs(0) = (dIncorrectSingleton, MolValue(()))
+    inputs(1) = (e, MolValue(()))
+    r1.body.apply(inputs) shouldEqual 123 // Reaction ran and attempted to emit the singleton.
+    waitSome()
+    globalErrorLog.exists(_.contains(s"In Site{${dIncorrectSingleton.name} + ${e.name} => ...}: Refusing to emit singleton ${dIncorrectSingleton.name}() because this thread does not run a chemical reaction")) shouldEqual true
+    e.logSoup shouldEqual s"Site{${dIncorrectSingleton.name} + ${e.name} => ...}\nMolecules: ${dIncorrectSingleton.name}()"
+  }
+
 }
