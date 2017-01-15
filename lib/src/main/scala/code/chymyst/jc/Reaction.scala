@@ -314,13 +314,13 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
       // Map of molecule values for molecules that are inputs to this reaction.
       val relevantMap = moleculesPresent.getMap.filterKeys(m => inputMolecules.contains(m))
 
-      val found = inputMoleculeInfos.foldLeft[Iterable[(Map[Int, AbsMolValue[_]], BagMap)]](Iterable((Map(), relevantMap))) { (prev, inputInfo) =>
+      val found = inputMoleculeInfos.toStream.foldLeft[Stream[(Map[Int, AbsMolValue[_]], BagMap)]](Stream((Map(), relevantMap))) { (prev, inputInfo) =>
         // `prev` contains the molecule value assignments we have found so far, as well as the molecule values that would remain in the soup after these previous molecule values were removed.
         prev.flatMap {
           case (prevValues, prevRelevantMap) =>
             val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
             val newFound = for {
-              newMolValue <- valuesMap.keysIterator // Do not eagerly evaluate the list of all possible values.
+              newMolValue <- valuesMap.keysIterator.toStream // Do not eagerly evaluate the list of all possible values.
               if inputInfo.admitsValue(newMolValue)
               newRelevantMap = remove(prevRelevantMap, inputInfo.molecule, newMolValue)
               newValues = prevValues.updated(inputInfo.index, newMolValue)

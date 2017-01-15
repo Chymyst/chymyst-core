@@ -3,6 +3,7 @@ table {
     border:#ccc 1px solid;
     border-radius:3px;
     border-collapse: separate;
+    margin: 1em;
 }
 table th {
     padding:21px 25px 22px 25px;

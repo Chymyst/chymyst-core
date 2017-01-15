@@ -1,8 +1,7 @@
 [![Build Status](https://travis-ci.org/Chymyst/joinrun-scala.svg?branch=master)](https://travis-ci.org/Chymyst/joinrun-scala)
 [![Coverage Status](https://codecov.io/gh/Chymyst/joinrun-scala/coverage.svg?branch=master)](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master)
-[![Version](http://img.shields.io/badge/version-0.1.4-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
-[![License](https://img.shields.io/github/license/mashape/apistatus.svg)](https://opensource.org/licenses/MIT)
-
+[![Version](http://img.shields.io/badge/version-0.1.5-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Join the chat at https://gitter.im/joinrun-scala/Lobby](https://badges.gitter.im/joinrun-scala/Lobby.svg)](https://gitter.im/joinrun-scala/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 # `JoinRun` and `Chymyst` - declarative concurrency in Scala
@@ -148,6 +147,8 @@ Main differences between the chemical machine and the Actor model:
 | messages are held in an unordered bag and processed in random order | messages are held in an ordered queue and processed in the order received |
 | message data is statically typed | message data is untyped |
 
+## Comparison: chemical machine vs. academic Join Calculus
+
 In talking about `Chymyst`, I follow the chemical machine metaphor and terminology, which differs from the terminology usually employed in academic papers on JC.
 Here is a dictionary:
 
@@ -265,7 +266,7 @@ Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` an
 
 # Status
 
-Current released version is `0.1.4`.
+Current released version is `0.1.5`.
 The semantics of the chemical machine (restricted to single-host, multicore computations) is fully implemented and tested.
 
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.

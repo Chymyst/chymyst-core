@@ -2,7 +2,7 @@
 
 # Version history
 
-- 0.1.5 Bug fix for a rare race condition with time-out on blocking molecules. Error reporting via data structures rather than flat strings. New `B#checkTimeout` API to make a clean distinction between replies that need to check the timeout status and replies that don't. Documentation was improved. Code cleanups resulted in 98% test coverage.
+- 0.1.5 Bug fix for a rare race condition with time-out on blocking molecules. New `checkTimeout` API to make a clean distinction between replies that need to check the timeout status and replies that don't. Documentation was improved. Code cleanups resulted in 100% test coverage. Revamped reaction site code now supports nonlinear input patterns.
 
 - 0.1.4 Simplify API: now users need only one package import. Many more tutorial examples of chemical machine concurrency. Test code coverage is 97%. More compiler warnings enabled (including deprecation warnings). There are now more intelligent "whitebox" macros that generate different subclasses of `M[T]` and `B[T,R]` when `T` or `R` are the `Unit` type, to avoid deprecation warnings with the syntax `f()`.
 
@@ -34,10 +34,10 @@ Version 0.2: Rework the decisions to start reactions.
 In particular, do not lock the entire molecule bag - only lock some groups of molecules that have contention on certain molecule inputs (decide this using static analysis information).
 This will allow us to implement interesting features such as:
 
-- fairness with respect to molecules (random choice of input molecules for reactions)
+- fairness with respect to molecules (random choice of input molecules for reactions). Not sure if this is important!
 - start many reactions at once when possible
-- emit many molecules at once, rather than one by one
-- allow nonlinear input patterns
+- emit many molecules at once, rather than one by one (not sure if this is important!)
+- allow nonlinear input patterns (done in 0.1.5)
 
 Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka Streaming, Kafka, Heron.
 
@@ -110,6 +110,30 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
 
  3 * 5 - implement automatic thread fusion for singletons
  
- 3 * 3 - allow several `case` clauses in a reaction, but only when the result is a total (not partial) function that will accept any molecule values.
+ 3 * 5 - consider whether we would like to prohibit emitting molecules from non-reaction code. Maybe with a construct such as `withMolecule{ ... }` where the special molecule will be emitted by the system? Can we rewrite tests so that everything happens only inside reactions?
+
+ 3 * 3 - perhaps prohibit using explicit thread pools? It's error-prone because the user can forget to stop a pool. Perhaps only expose an API such as `withPool(...)`?
+  
+ 3 * 3 - implement "one-off" molecules that are emitted once (like singletons, from the reaction site itself) and never emitted again
+  
+ 2 * 2 - If a blocking molecule was emitted without a timeout, we don't need the second semaphore
  
- 3 * 5 - consider whether we would like to prohibit emitting molecules from non-reaction code. Maybe with a construct such as `withMolecule{ ... }`?
+ 2 * 2 - Add tests to make sure that the 2nd and all subsequent replies with .checkTimeout return False
+ 
+ 2 * 2 - Can we consolidate all code into a single SBT project rather than use 3 projects?
+ 
+ 3 * 3 - Can we use macros to rewrite f() into f(()) inside reactions, and thus avoid using subclasses such as E, EE, etc.?
+ 
+ 5 * 5 - How to rewrite reaction sites so that blocking molecules are transparently replaced by a pair of non-blocking molecules? Can this be done even if blocking emitters are used inside functions? (Perhaps with extra molecules emitted at the end of the function call?) Is it useful to emit an auxiliary molecule at the end of an "if" expression, to avoid code duplication? How can we continue to support real blocking emitters when used outside of macro code? 
+ 
+ 2 * 2 - Support timers: recurrent or one-off, cancelable molecule emission
+ 
+ 2 * 2 - Revisit Philippe's error reporting branch, perhaps salvage some code
+ 
+ 3 * 3 - How to implement "Wavefront" computations such as Game of Life efficiently with more concurrency?
+ 
+ 3 * 3 - Replace some timed tests by probabilistic tests that run multiple times and fail much less often
+ 
+ 2 * 2 - If the RS is busy, leave a "bump" message and still append a molecule to a queue; or, RS can continually check the queue of new molecules until it's empty
+  
+ 3 * 3 - Implement "streamable" molecules, detect them automatically
