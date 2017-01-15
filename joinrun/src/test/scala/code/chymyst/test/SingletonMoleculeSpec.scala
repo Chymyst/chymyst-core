@@ -27,7 +27,10 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     )
 
     (1 to 200).foreach { i =>
-      d(s"bad $i") // this "d" should not be emitted, even though "d" is sometimes not in the soup due to reactions!
+      val thrown = intercept[Exception] {
+        d(s"bad $i") // this "d" should not be emitted, even though "d" is sometimes not in the soup due to reactions!
+      }
+      thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit singleton d(bad $i) because this thread does not run a chemical reaction"
       f.timeout(500 millis)() shouldEqual Some("ok")
     }
 
@@ -49,8 +52,11 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
       // Warning: the timeouts might fail the test due to timed tests.
       (1 to 20).foreach { j =>
+        val thrown = intercept[Exception] {
         d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
         // and even if the initial d() emission was done late
+        }
+        thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit singleton d(bad $i $j) because this thread does not run a chemical reaction"
         f.timeout(500 millis)() shouldEqual Some("ok")
       }
 

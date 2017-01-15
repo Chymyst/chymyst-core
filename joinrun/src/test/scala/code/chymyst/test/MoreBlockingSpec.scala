@@ -100,7 +100,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "return true for many blocking molecules with successful reply" in {
     val a = m[Boolean]
     val collect = m[Int]
-    val f = b[Unit,Int]
+    val f = b[Unit, Int]
     val get = b[Unit, Int]
 
     val tp = new FixedPool(6)
@@ -118,9 +118,9 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     // we used to have about 4% numberOfFailures (but we get zero failures if we do not nullify the semaphore!) and about 4 numberOfFalseReplies in 100,000.
     // now it seems to pass even with a million iterations (but that's too long for Travis).
-    val numberOfFalseReplies = get()
+    val numberOfFalseReplies = get.timeout(2000 millis)()
 
-    (numberOfFailures, numberOfFalseReplies) shouldEqual ((0,0))
+    (numberOfFailures, numberOfFalseReplies) shouldEqual ((0, Some(0)))
 
     tp.shutdownNow()
   }
