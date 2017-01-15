@@ -148,6 +148,8 @@ Main differences between the chemical machine and the Actor model:
 | messages are held in an unordered bag and processed in random order | messages are held in an ordered queue and processed in the order received |
 | message data is statically typed | message data is untyped |
 
+## Comparison: chemical machine vs. academic Join Calculus
+
 In talking about `Chymyst`, I follow the chemical machine metaphor and terminology, which differs from the terminology usually employed in academic papers on JC.
 Here is a dictionary:
 
