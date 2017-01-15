@@ -402,6 +402,54 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
   }
 
+  it should "not run a reaction whose static guard is false" in {
+    val a = m[Option[Int]]
+    val f = b[Unit, Int]
+
+    val n = 1
+
+    site(tp0)(go { case a(Some(x)) + f(_, r) if n < 1 => r(x) })
+
+    a(Some(1))
+    waitSome()
+    waitSome()
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(1))"
+    f.timeout(2.second)() shouldEqual None
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(1))"
+  }
+
+  it should "not run a reaction whose cross-molecule guard is false" in {
+    val a = m[Option[Int]]
+    val f = b[Int, Int]
+
+    val n = 2
+
+    site(tp0)(go { case a(Some(x)) + f(y, r) if x < y + n => r(x) })
+
+    a(Some(10))
+    waitSome()
+    waitSome()
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(10))"
+    f.timeout(2.second)(0) shouldEqual None
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(10))"
+  }
+
+  it should "run a reaction whose cross-molecule guard is true" in {
+    val a = m[Option[Int]]
+    val f = b[Int, Int]
+
+    val n = 2
+
+    site(tp0)(go { case a(Some(x)) + f(y, r) if x < y + n => r(x) })
+
+    a(Some(1))
+    waitSome()
+    waitSome()
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(1))"
+    f.timeout(2.second)(0) shouldEqual Some(1)
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
+  }
+
   it should "define a reaction with correct inputs with constant non-default pattern-matching at start of reaction" in {
     val a = new M[Int]("a")
     val b = new E("b")

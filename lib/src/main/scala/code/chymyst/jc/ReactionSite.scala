@@ -177,6 +177,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
   }
 
+  private def findReaction(m: Molecule): Option[(Reaction, InputMoleculeList)] = {
+    val candidateReactions: Seq[Reaction] = flatten(m.consumingReactions).shuffle // The shuffle will ensure fairness across reactions.
+    val found = candidateReactions.iterator.flatMap(_.findInputMolecules(moleculesPresent)).toIterable.headOption
+    found
+  }
+
   /** Add a new molecule to the bag of molecules at its reaction site.
     * Then decide on which reaction can be started, and schedule that reaction on the reaction pool.
     * Adding a molecule may trigger at most one reaction, due to linearity of input patterns.
@@ -216,12 +222,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         moleculesPresent.addToBag(m, molValue)
         if (logLevel > 0) println(s"Debug: $this emitting $m($molValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]")
 
-        val found = (for {
-          candidateReactions <- flatten(m.consumingReactions).shuffle // Fairness across reactions.
-          // This is the main function of the reaction site scheduler. It determines which of the available molecules can be consumed by the candidate reactions.
-          reactionWithInputMolecules <- candidateReactions.findInputMolecules(moleculesPresent)
-        } yield reactionWithInputMolecules
-        ).headOption
+        val found = findReaction(m) // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
 
         found.foreach{ case (_, inputsFound)  =>
           inputsFound.foreach { case (k, v) => moleculesPresent.removeFromBag(k, v) }
