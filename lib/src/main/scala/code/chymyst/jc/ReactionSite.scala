@@ -171,8 +171,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   private def findReaction(m: Molecule): Option[(Reaction, InputMoleculeList)] = {
     val candidateReactions: Seq[Reaction] = flatten(m.consumingReactions).shuffle // The shuffle will ensure fairness across reactions.
-    val found = candidateReactions.toStream.flatMap(_.findInputMolecules(moleculesPresent))
-    found.headOption
+    candidateReactions.toStream
+      .flatMap(_.findInputMolecules(moleculesPresent)) // Finding the input molecules may be expensive. We use a stream to avoid doing this for all reactions in advance.
+      .headOption // We need only one reaction.
   }
 
   private def assignSingletonValue[T](m: M[T], molValue: AbsMolValue[T]): Unit =
