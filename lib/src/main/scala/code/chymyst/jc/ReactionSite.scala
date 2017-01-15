@@ -7,9 +7,9 @@ import StaticAnalysis._
   * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
   * The user will never see any instances of this class.
   *
-  * @param reactions List of reactions as defined by the user.
+  * @param reactions    List of reactions as defined by the user.
   * @param reactionPool The thread pool on which reactions will be scheduled.
-  * @param sitePool The thread pool on which the reaction site will decide reactions and manage the molecule bag.
+  * @param sitePool     The thread pool on which the reaction site will decide reactions and manage the molecule bag.
   */
 private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, sitePool: Pool) {
 
@@ -32,7 +32,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private[jc] val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonSingletonReactions.map { r => (r, r.info.inputs) }(scala.collection.breakOut)
 
   // TODO: implement
-//  private val quiescenceCallbacks: mutable.Set[E] = mutable.Set.empty
+  //  private val quiescenceCallbacks: mutable.Set[E] = mutable.Set.empty
 
   private lazy val knownReactions: Seq[Reaction] = reactionInfos.keys.toSeq
 
@@ -42,7 +42,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * The sha1 hash of each reaction is computed from the Scala syntax tree of the reaction's source code.
     * The result is implementation-dependent and is guaranteed to be the same only for reaction sites compiled from exactly the same source code with the same version of Scala compiler.
     */
-//  private lazy val sha1 = getSha1(knownReactions.map(_.info.sha1).sorted.mkString(","))
+  //  private lazy val sha1 = getSha1String(knownReactions.map(_.info.sha1).sorted.mkString(","))
 
   private[jc] var logLevel = 0
 
@@ -73,15 +73,18 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private sealed trait ReactionExitStatus {
     def reactionSucceededOrFailedWithoutRetry: Boolean = true
   }
+
   private case object ReactionExitSuccess extends ReactionExitStatus
+
   private case object ReactionExitFailure extends ReactionExitStatus
+
   private case object ReactionExitRetryFailure extends ReactionExitStatus {
     override def reactionSucceededOrFailedWithoutRetry: Boolean = false
   }
 
   /** This closure will be run on the reaction thread pool to start a new reaction.
     *
-    * @param reaction Reaction to run.
+    * @param reaction   Reaction to run.
     * @param usedInputs Molecules (with values) that are consumed by the reaction.
     */
   private def buildReactionClosure(reaction: Reaction, usedInputs: InputMoleculeList): Unit = {
@@ -126,7 +129,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       .filter(_._2.reactionSentNoReply)
       .map(_._1).toSeq.toOptionSeq.map(_.map(_.toString).sorted.mkString(", "))
 
-    val messageNoReply = blockingMoleculesWithNoReply.map{ s => s"Error: In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] finished without replying to $s" }
+    val messageNoReply = blockingMoleculesWithNoReply.map { s => s"Error: In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] finished without replying to $s" }
 
     val blockingMoleculesWithMultipleReply = usedInputs
       .filter(_._2.reactionSentRepeatedReply)
@@ -160,7 +163,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   /** Determine whether the current thread is running a reaction, and if so, fetch the reaction info.
     *
-    * @return {{{None}}} if the current thread is not running a reaction.
+    * @return `None` if the current thread is not running a reaction.
     */
   private def currentReactionInfo: Option[ReactionInfo] = {
     Thread.currentThread match {
@@ -209,7 +212,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     * This method could be scheduled to run on a separate thread.
     *
-    * @param m Molecule to be emitted (can be blocking or non-blocking).
+    * @param m        Molecule to be emitted (can be blocking or non-blocking).
     * @param molValue Wrapper for the molecule's value. (This is either a blocking molecule value wrapper or a non-blocking molecule value wrapper.)
     * @tparam T The type of value carried by the molecule.
     */
@@ -247,8 +250,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           else
             s"Debug: In $this: remaining molecules [${moleculeBagToString(moleculesPresent)}]"
         )
-          // Schedule the reaction now. Provide reaction info to the thread.
-          poolForReaction.runClosure(buildReactionClosure(reaction, usedInputs), reaction.info)
+        // Schedule the reaction now. Provide reaction info to the thread.
+        poolForReaction.runClosure(buildReactionClosure(reaction, usedInputs), reaction.info)
 
       case None =>
         if (logLevel > 2) println(s"Debug: In $this: no reactions started")
@@ -282,7 +285,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   // Remove a blocking molecule if it is present.
-  private def removeBlockingMolecule[T,R](bm: BlockingMolecule[T,R], blockingMolValue: BlockingMolValue[T,R]): Unit = {
+  private def removeBlockingMolecule[T, R](bm: BlockingMolecule[T, R], blockingMolValue: BlockingMolValue[T, R]): Unit = {
     moleculesPresent.synchronized {
       moleculesPresent.removeFromBag(bm, blockingMolValue)
       if (logLevel > 0) println(s"Debug: $this removed $bm($blockingMolValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]")
@@ -291,15 +294,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   /** Common code for [[emitAndAwaitReply]] and [[emitAndAwaitReplyWithTimeout]].
     *
-    * @param timeoutOpt Timeout value in nanoseconds, or None if no timeout is requested.
-    * @param bm A blocking molecule to be emitted.
-    * @param v Value that the newly emitted molecule should carry.
+    * @param timeoutOpt        Timeout value in nanoseconds, or None if no timeout is requested.
+    * @param bm                A blocking molecule to be emitted.
+    * @param v                 Value that the newly emitted molecule should carry.
     * @param replyValueWrapper The reply value wrapper for the blocking molecule.
     * @tparam T Type of the value carried by the blocking molecule.
     * @tparam R Type of the reply value.
     * @return Reply status for the reply action.
     */
-  private def emitAndAwaitReplyInternal[T,R](timeoutOpt: Option[Long], bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): ReplyStatus = {
+  private def emitAndAwaitReplyInternal[T, R](timeoutOpt: Option[Long], bm: BlockingMolecule[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]): ReplyStatus = {
     val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
     emit(bm, blockingMolValue)
     val timedOut: Boolean = !BlockingIdle {
@@ -316,7 +319,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
   // We must make this a blocking call, so we acquire a semaphore (with or without timeout).
-  private[jc] def emitAndAwaitReply[T,R](bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]): R = {
+  private[jc] def emitAndAwaitReply[T, R](bm: BlockingMolecule[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]): R = {
     // check if we had any errors, and that we have a result value
     emitAndAwaitReplyInternal(timeoutOpt = None, bm, v, replyValueWrapper) match {
       case ErrorNoReply(message) => throw new Exception(message)
@@ -325,7 +328,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   // This is a separate method because it has a different return type than [[emitAndAwaitReply]].
-  private[jc] def emitAndAwaitReplyWithTimeout[T,R](timeout: Long, bm: BlockingMolecule[T,R], v: T, replyValueWrapper: AbsReplyValue[T,R]):
+  private[jc] def emitAndAwaitReplyWithTimeout[T, R](timeout: Long, bm: BlockingMolecule[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]):
   Option[R] = {
     // check if we had any errors, and that we have a result value
     emitAndAwaitReplyInternal(timeoutOpt = Some(timeout), bm, v, replyValueWrapper) match {
@@ -352,8 +355,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // Add output reactions to molecules that may be bound to other reaction sites later.
     nonSingletonReactions.foreach { r =>
-        r.info.outputs.foreach(_.molecule.addEmittingReaction(r))
-      }
+      r.info.outputs.foreach(_.molecule.addEmittingReaction(r))
+    }
 
     // Perform static analysis.
     val foundWarnings = findSingletonWarnings(singletonsDeclared, nonSingletonReactions) ++ findStaticWarnings(nonSingletonReactions)
@@ -369,7 +372,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // Emit singleton molecules (note: this is on the same thread as the call to `site`!).
     // This must be done without starting any reactions.
     emittingSingletonsNow = true
-    singletonReactions.foreach { reaction => reaction.body.apply(null.asInstanceOf[InputMoleculeList]) }    // It is OK that the argument is `null` because singleton reactions match on the wildcard: { case _ => ... }
+    singletonReactions.foreach { reaction => reaction.body.apply(null.asInstanceOf[InputMoleculeList]) } // It is OK that the argument is `null` because singleton reactions match on the wildcard: { case _ => ... }
     emittingSingletonsNow = false
 
     val singletonsActuallyEmitted = moleculesPresent.getCountMap
@@ -408,11 +411,19 @@ final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], r
 
 
 private[jc] sealed class ExceptionInJoinRun(message: String) extends Exception(message)
+
 private[jc] final class ExceptionNoReactionSite(message: String) extends ExceptionInJoinRun(message)
+
 private[jc] final class ExceptionMoleculeAlreadyBound(message: String) extends ExceptionInJoinRun(message)
+
 private[jc] final class ExceptionNoSitePool(message: String) extends ExceptionInJoinRun(message)
+
 private[jc] final class ExceptionEmittingSingleton(message: String) extends ExceptionInJoinRun(message)
+
 private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInJoinRun(message)
+
 private[jc] final class ExceptionNoWrapper(message: String) extends ExceptionInJoinRun(message)
+
 private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInJoinRun(message)
+
 private[jc] final class ExceptionNoSingleton(message: String) extends ExceptionInJoinRun(message)

@@ -5,11 +5,11 @@ import scala.{Symbol => ScalaSymbol}
 
 /** Represents compile-time information about the pattern matching for values carried by input molecules.
   * Possibilities:
-  * {{{a(_)}}} is represented by [[Wildcard]]
-  * {{{a(x)}}} is represented by [[SimpleVar]] with value {{{SimpleVar(v = 'x, cond = None)}}}
-  * {{{a(x) if x > 0}}} is represented by [[SimpleVar]] with value {{{SimpleVar(v = 'x, cond = Some({ case x if x > 0 => }))}}}
-  * {{{a(Some(1))}}} is represented by [[SimpleConst]] with value {{{SimpleConst(v = Some(1))}}}
-  * {{{a( (x, Some((y,z)))) ) if x > y}}} is represented by [[OtherInputPattern]] with value {{{OtherInputPattern(matcher = { case (x, Some((y,z)))) if x > y => }, vars = List('x, 'y, 'z))}}}
+  * `a(_)` is represented by [[Wildcard]]
+  * `a(x)` is represented by [[SimpleVar]] with value `SimpleVar(v = 'x, cond = None)`
+  * `a(x) if x > 0` is represented by [[SimpleVar]] with value `SimpleVar(v = 'x, cond = Some({ case x if x > 0 => }))`
+  * `a(Some(1))` is represented by [[SimpleConst]] with value `SimpleConst(v = Some(1))`
+  * `a( (x, Some((y,z)))) ) if x > y` is represented by [[OtherInputPattern]] with value `OtherInputPattern(matcher = { case (x, Some((y,z)))) if x > y => }, vars = List('x, 'y, 'z))`
   */
 sealed trait InputPatternType
 
@@ -17,11 +17,11 @@ case object Wildcard extends InputPatternType
 
 final case class SimpleVar(v: ScalaSymbol, cond: Option[PartialFunction[Any, Unit]]) extends InputPatternType
 
-/** Represents molecules that have constant pattern matchers, such as {{{a(1)}}}.
+/** Represents molecules that have constant pattern matchers, such as `a(1)`.
   * Constant pattern matchers are either literal values (Int, String, Sembol, etc.) or special values such as None, Nil, (),
-  * as well as {{{Some}}}, {{{Left}}}, {{{Right}}}, {{{List}}}, and tuples of constant matchers.
+  * as well as `Some`, `Left`, `Right`, `List`, and tuples of constant matchers.
   *
-  * @param v Value of the constant. This is nominally of type {{{Any}}} but actually is of the molecule value type {{{T}}}.
+  * @param v Value of the constant. This is nominally of type `Any` but actually is of the molecule value type `T`.
   */
 final case class SimpleConst(v: Any) extends InputPatternType
 
@@ -37,31 +37,39 @@ case object OtherOutputPattern extends OutputPatternType
   *
   */
 sealed trait GuardPresenceFlag {
+  /** Checks whether the reaction should not start because its static guard is present and returns `false`.
+    *
+    * @return `true` if the reaction's static guard returns `false`.
+    *         `false` if the reaction has no static guard, or if the static guard returns `true`.
+    */
   def staticGuardFails: Boolean = false
 
   /** Checks whether the reaction has no cross-molecule guard conditions.
-    * For example, {{{go { case a(x) + b(y) if x > y => } }}} has a cross-molecule guard condition,
-    * whereas {{{go { case a(x) + b(y) if x == 1 && y == 2 => } }}} has no cross-molecule guard conditions because its guard condition
+    *
+    * For example, `go { case a(x) + b(y) if x > y => }` has a cross-molecule guard condition,
+    * whereas `go { case a(x) + b(y) if x == 1 && y == 2 => }` has no cross-molecule guard conditions because its guard condition
     * can be split into a conjunction of guard conditions that each constrain the value of a single molecule.
     *
-    * @return {{{true}}} if the reaction has no guard condition, or if it has guard conditions that can be split between molecules;
-    *         {{{false}}} if the reaction has a cross-molecule guard condition.
+    * @return `true` if the reaction has no guard condition, or if it has guard conditions that can be split between molecules;
+    *         `false` if the reaction has a cross-molecule guard condition.
     */
   def effectivelyAbsent: Boolean = true
 }
 
 /** Indicates whether guard conditions are required for this reaction to start.
+  *
   * The guard is parsed into a flat conjunction of guard clauses, which are then analyzed for cross-dependencies between molecules.
   *
-  * For example, consider the reaction {{{go { case a(x) + b(y) + c(z) if x > n && y > 0 && y > z && n > 1 => ...} }}}. Here {{{n}}} is an integer constant defined outside the reaction.
+  * For example, consider the reaction {{{ go { case a(x) + b(y) + c(z) if x > n && y > 0 && y > z && n > 1 => ...} }}}
+  * Here `n` is an integer constant defined outside the reaction.
   * The conditions for starting this reaction is that a(x) has value x > n; that b(y) has value y > 0; that c(z) has value such that y > z; and finally that n > 1, independently of any molecule values.
   * The condition n > 1 is a static guard. The condition x > n restricts only the molecule a(x) and therefore can be moved out of the guard into the InputMoleculeInfo for that molecule. Similarly, the condition y > 0 can be moved out of the guard.
   * However, the condition y > z relates two different molecule values; it is a cross guard.
   *
-  * @param vars        The list of all pattern variables used by the guard condition. Each element of this list is a list of variables used by one guard clause. In the example shown above, this will be {{{List(List('y, 'z))}}} because all other conditions are moved out of the guard.
-  * @param staticGuard The conjunction of all the clauses of the guard that are independent of pattern variables. This closure can be called in order to determine whether the reaction should even be considered to start, regardless of the presence of molecules. In this example, the value of {{{staticGuard}}} will be {{{Some(() => n > 1)}}}.
+  * @param vars        The list of all pattern variables used by the guard condition. Each element of this list is a list of variables used by one guard clause. In the example shown above, this will be `List(List('y, 'z))` because all other conditions are moved out of the guard.
+  * @param staticGuard The conjunction of all the clauses of the guard that are independent of pattern variables. This closure can be called in order to determine whether the reaction should even be considered to start, regardless of the presence of molecules. In this example, the value of `staticGuard` will be `Some(() => n > 1)`.
   * @param crossGuards A list of functions that represent the clauses of the guard that relate values of different molecules. The partial function `Any => Unit` should be called with the arguments representing the tuples of pattern variables from each molecule used by the cross guard.
-  *                    In the present example, the value of {{{crossGuards}}} will be {{{List((List('y, 'z), { case List(y: Int, z: Int) if y > z => () }))}}}.
+  *                    In the present example, the value of `crossGuards` will be `List((List('y, 'z), { case List(y: Int, z: Int) if y > z => () }))`.
   */
 final case class GuardPresent(vars: Array[Array[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: Array[CrossMoleculeGuard]) extends GuardPresenceFlag {
   override def staticGuardFails: Boolean = staticGuard.exists(guardFunction => !guardFunction())
@@ -177,7 +185,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
       case Wildcard => "_"
       case SimpleVar(v, None) => v.name
       case SimpleVar(v, Some(_)) => s"${v.name} if ?"
-//      case SimpleConst(()) => ""  // We eliminated this case by converting constants of Unit type to Wildcard input flag.
+      //      case SimpleConst(()) => ""  // We eliminated this case by converting constants of Unit type to Wildcard input flag.
       case SimpleConst(c) => c.toString
       case OtherInputPattern(_, vars) => s"?${vars.map(_.name).mkString(",")}"
     }
@@ -241,7 +249,7 @@ final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[O
 
 /** Represents a reaction body. This class is immutable.
   *
-  * @param body       Partial function of type {{{ InputMoleculeList => Any }}}
+  * @param body       Partial function of type ` InputMoleculeList => Any `
   * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
   * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is false.
   */

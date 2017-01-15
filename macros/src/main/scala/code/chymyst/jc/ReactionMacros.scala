@@ -50,7 +50,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     * A constant expression is either a literal constant (Int, String, Symbol, etc.), (), None, Nil, or Some(...), Left(...), Right(...), List(...), and tuples of constant expressions.
     *
     * @param exprTree Binder pattern tree or expression tree.
-    * @return {{{Some(tree)}}} if the expression represents a constant of the recognized form. Here {{{tree}}} will be a quoted expression tree (not a binder tree). {{{None}}} otherwise.
+    * @return `Some(tree)` if the expression represents a constant of the recognized form. Here `tree` will be a quoted expression tree (not a binder tree). `None` otherwise.
     */
   def getConstantTree(exprTree: Trees#Tree): Option[Trees#Tree] = exprTree match {
 
@@ -138,7 +138,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   /** Convert a term to conjunctive normal form (CNF).
     * CNF is represented as a list of lists of Boolean term trees.
-    * For example, {{{List( List(q"x>0", q"y<x"), List(q"x>z", q"z<1") )}}} represents {{{( x > 0 || y < x ) && ( x > z || z < 1)}}}.
+    * For example, `List( List(q"x>0", q"y<x"), List(q"x>z", q"z<1") )` represents `( x > 0 || y < x ) && ( x > z || z < 1)`.
     *
     * @param term Initial expression tree.
     * @return Equivalent expression in CNF. Terms will be duplicated when necessary. No simplification is performed on terms.
@@ -355,12 +355,12 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     private var outputMolecules: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag)] = _
     private var replyActions: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag)] = _
 
-    /** Detect whether the symbol {{{s}}} is defined inside the scope of the symbol {{{owner}}}.
-      * Will return true for code like {{{ val owner = .... { val s = ... }  }}}
+    /** Detect whether the symbol `s` is defined inside the scope of the symbol `owner`.
+      * Will return true for code like ` val owner = .... { val s = ... }  `
       *
       * @param s     Symbol to be examined.
       * @param owner Owner symbol of the scope to be examined.
-      * @return True if {{{s}}} is defined inside the scope of {{{owner}}}.
+      * @return True if `s` is defined inside the scope of `owner`.
       */
     @tailrec
     private def isOwnedBy(s: MacroSymbol, owner: MacroSymbol): Boolean = s.owner match {
@@ -495,7 +495,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     * @param what        Beginning of phrase.
     * @param patternWhat What was incorrect about the molecule usage.
     * @param molecules   List of molecules (or other objects) that were incorrectly used.
-    * @param connector   Phrase connector. By default: {{{"not contain a pattern that"}}}.
+    * @param connector   Phrase connector. By default: `"not contain a pattern that"`.
     * @param method      How to report the error; by default using [[blackbox.Context.error]].
     * @tparam T Type of molecule or other object.
     */
