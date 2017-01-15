@@ -13,7 +13,21 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
-  behavior of "thread with info"
+  behavior of "smart pool"
+
+  it should "refuse to increase the thread pool beyond its limit" in {
+    val n = 1065
+    val tp = new SmartPool(2)
+
+    tp.maxPoolSize should be < n
+    tp.currentPoolSize shouldEqual 2
+
+    (1 to tp.maxPoolSize + 2).foreach (_ => tp.startedBlockingCall())
+
+    tp.currentPoolSize shouldEqual tp.maxPoolSize
+
+    tp.shutdownNow()
+  }
 
   behavior of "fixed thread pool"
 

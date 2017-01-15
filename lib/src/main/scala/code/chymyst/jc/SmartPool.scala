@@ -22,16 +22,18 @@ class SmartPool(parallelism: Int) extends Pool {
     override def newThread(r: Runnable): Thread = new SmartThread(r, SmartPool.this)
   }
 
+  // Looks like we will die hard at about 2021 threads...
+  val maxPoolSize = 1000 + 2*parallelism
+
   def currentPoolSize: Int = executor.getCorePoolSize
 
   private[jc] def startedBlockingCall() = synchronized {
-    val maxThreads = 1000 + 2*parallelism // Looks like we will die hard at about 2021 threads...
-    val newPoolSize = math.min(currentPoolSize + 1, maxThreads)
+    val newPoolSize = math.min(currentPoolSize + 1, maxPoolSize)
     if (newPoolSize > currentPoolSize) {
       executor.setMaximumPoolSize(newPoolSize)
       executor.setCorePoolSize(newPoolSize)
     } else {
-      println(s"JoinRun warning:In $this: It is dangerous to increase the pool size, which is now $currentPoolSize. Memory is ${Runtime.getRuntime.maxMemory}")
+      println(s"JoinRun warning: In $this: It is dangerous to increase the pool size, which is now $currentPoolSize. Memory is ${Runtime.getRuntime.maxMemory}")
     }
   }
 
