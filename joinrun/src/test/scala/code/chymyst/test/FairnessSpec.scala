@@ -77,7 +77,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val counters = 20
 
-    val cycles = 4000
+    val cycles = 10000
 
     val c = m[Int]
     val done = m[List[Int]]
