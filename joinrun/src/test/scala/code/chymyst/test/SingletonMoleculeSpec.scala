@@ -177,7 +177,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     val c = m[Int]
 
     val thrown = intercept[Exception] {
-      c.volatileValue
+      c.volatileValue shouldEqual null.asInstanceOf[Int] // If this passes, we are not detecting the fact that c is not bound.
     }
 
     thrown.getMessage shouldEqual "Molecule c is not bound to any reaction site"
@@ -255,7 +255,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
         go { case _ => d(i) }
       )
 
-      if (d.hasVolatileValue) 0 else 1
+      if (d.volatileValue > 0) 0 else 1
     }
 
     val result = (1 to 100).map { i =>
@@ -279,7 +279,6 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       go { case _ => d(123) } // singleton
     )
     stabilize_d()
-    d.hasVolatileValue shouldEqual true
     d.volatileValue shouldEqual 123
 
     tp.shutdownNow()

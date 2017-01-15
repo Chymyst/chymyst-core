@@ -3,9 +3,6 @@ package code.chymyst.jc
 import Core._
 import StaticAnalysis._
 
-import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
-
-
 /** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
   * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
   * The user will never see any instances of this class.
@@ -28,11 +25,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
       .groupBy(identity)
       .mapValues(_.size)
-
-  /** The table of singleton molecules actually emitted when singleton reactions are first run.
-    * For each declared singleton molecule, the table stores the value it carried when it was last emitted.
-    */
-  private val singletonValues: ConcurrentMap[Molecule, AbsMolValue[_]] = new ConcurrentHashMap()
 
   /** Complete information about reactions declared in this reaction site.
     * Singleton-declaring reactions are not included here.
@@ -183,7 +175,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     found.headOption
   }
 
-  private def handleSingleton[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
+  private def assignSingletonValue[T](m: M[T], molValue: AbsMolValue[T]): Unit =
+    m.volatileValueContainer = molValue.getValue
+
+  private def handleSingleton[T](m: M[T], molValue: AbsMolValue[T]): Unit = {
     if (singletonsDeclared.get(m).isEmpty) throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) not declared in this reaction site")
 
     // This thread is allowed to emit this singleton only if it is a ThreadWithInfo and the reaction running on this thread has consumed this singleton.
@@ -204,8 +199,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     if (oldCount + 1 > maxCount) throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) having current count $oldCount, max count $maxCount")
 
     // OK, we can proceed to emit this singleton molecule.
-    singletonValues.put(m, molValue)
-    ()
+    assignSingletonValue(m, molValue)
   }
 
   /** Add a new molecule to the bag of molecules at its reaction site.
@@ -222,7 +216,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val foundReactionAndInputs =
       synchronized {
         if (m.isSingleton)
-          handleSingleton(m, molValue)
+          handleSingleton(m.asInstanceOf[M[T]], molValue)
 
         moleculesPresent.addToBag(m, molValue)
 
@@ -276,7 +270,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // Emit them on the same thread, and do not start any reactions.
         if (m.isSingleton) {
           moleculesPresent.addToBag(m, molValue)
-          singletonValues.put(m, molValue)
+          assignSingletonValue(m.asInstanceOf[M[T]], molValue)
         } else {
           throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit molecule $m($molValue) as a singleton (must be a non-blocking molecule)")
         }
@@ -341,18 +335,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         else
           Some(res.asInstanceOf[R]) // Cannot guarantee type safety due to type erasure of `R`.
     }
-  }
-
-  private[jc] def hasVolatileValue[T](m: M[T]): Boolean = m.isSingleton && singletonValues.containsKey(m)
-
-  private[jc] def getVolatileValue[T](m: M[T]): T = {
-    if (m.isSingleton) {
-      if (singletonValues.containsKey(m)) {
-        singletonValues.get(m).asInstanceOf[AbsMolValue[T]].getValue // need this type cast because of erasure of type T
-      } else throw new Exception(s"Internal error: In $this: The volatile reader for singleton ($m) is not yet ready")
-    }
-    else
-      throw new ExceptionNoSingleton(s"In $this: volatile reader requested for non-singleton ($m)")
   }
 
   private def initializeReactionSite(): (Map[Molecule, Int], WarningsAndErrors) = {
