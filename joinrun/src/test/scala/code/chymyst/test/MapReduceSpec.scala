@@ -104,4 +104,41 @@ class MapReduceSpec extends FlatSpec with Matchers {
     println(s"map/reduce test with n=$count took ${elapsed(initTime)} ms")
   }
 
+  it should "compute the sum of numbers on molecules using nonlinear input pattern and branching emitters" in {
+    val a = m[Int]
+    val c = m[(Int, Int)]
+    val done = m[Int]
+    val f = b[Unit, Int]
+
+    val count = 1000
+
+    val tp = new FixedPool(cpuCores + 1)
+    val initTime = LocalDateTime.now
+
+    site(tp)(
+      go {
+        case a(x) if x <= count =>
+          c((1, x * x)) + a(x * 2) + a(x * 2 + 1)
+        // TODO: when this IF condition is restored, performance improves 2x; this needs to be fixed
+        //          if (x * 2 <= count) a(x * 2)
+        //          if (x * 2 + 1 <= count) a(x * 2 + 1)
+      },
+      go { case f(_, r) + done(x) => r(x) },
+      go { case c((n, x)) + c((m, y)) =>
+        val p = n + m
+        val z = x + y
+        if (p == count)
+          done(z)
+        else
+          c((n + m, x + y))
+      }
+    )
+
+    a(1)
+    f() shouldEqual (1 to count).map(i => i * i).sum
+
+    tp.shutdownNow()
+    println(s"map/reduce test with n=$count took ${elapsed(initTime)} ms")
+  }
+
 }
