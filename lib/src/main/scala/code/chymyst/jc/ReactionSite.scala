@@ -1,5 +1,8 @@
 package code.chymyst.jc
 
+import java.util.concurrent.ConcurrentLinkedQueue
+import scala.collection.JavaConverters.asScalaIteratorConverter
+
 import Core._
 import StaticAnalysis._
 
@@ -52,23 +55,35 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     s"${this.toString}\n$moleculesPrettyPrinted"
   }
 
-//  private[jc] def setQuiescenceCallback(callback: E): Unit = {
-//    quiescenceCallbacks.add(callback)
-//    ()
-//  }
-//
-//  private lazy val possibleReactions: Map[Molecule, Seq[Reaction]] = reactionInfos.toSeq
-//    .flatMap { case (r, ms) => ms.map { info => (info.molecule, r) } }
-//    .groupBy { case (m, r) => m }
-//    .map { case (m, rs) => (m, rs.map(_._2)) }
+  private val newMoleculeQueue: ConcurrentLinkedQueue[(Molecule, AbsMolValue[_])] = new ConcurrentLinkedQueue()
+
+  private val emissionRunnable: Runnable = new Runnable {
+    override def run(): Unit = {
+      if (newMoleculeQueue.isEmpty) sitePool.drainQueue()
+      // Now the queue could be again not empty, so continue.
+      newMoleculeQueue.iterator().asScala.foreach { case (mol, molValue) =>
+        ???
+      }
+    }
+  }
+
+  //  private[jc] def setQuiescenceCallback(callback: E): Unit = {
+  //    quiescenceCallbacks.add(callback)
+  //    ()
+  //  }
+  //
+  //  private lazy val possibleReactions: Map[Molecule, Seq[Reaction]] = reactionInfos.toSeq
+  //    .flatMap { case (r, ms) => ms.map { info => (info.molecule, r) } }
+  //    .groupBy { case (m, r) => m }
+  //    .map { case (m, rs) => (m, rs.map(_._2)) }
 
   // Initially, there are no molecules present.
   private val moleculesPresent: MoleculeBag = new MutableBag[Molecule, AbsMolValue[_]]
 
-//  private[jc] def emitMulti(moleculesAndValues: Seq[(M[_], Any)]): Unit = {
-    // TODO: implement correct semantics
-//    moleculesAndValues.foreach{ case (m, v) => m(v) }
-//  }
+  //  private[jc] def emitMulti(moleculesAndValues: Seq[(M[_], Any)]): Unit = {
+  // TODO: implement correct semantics
+  //    moleculesAndValues.foreach{ case (m, v) => m(v) }
+  //  }
 
   private sealed trait ReactionExitStatus {
     def reactionSucceededOrFailedWithoutRetry: Boolean = true
@@ -187,7 +202,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // This thread is allowed to emit this singleton only if it is a ThreadWithInfo and the reaction running on this thread has consumed this singleton.
     val reactionInfoOpt = currentReactionInfo
-    val isAllowedToEmit = reactionInfoOpt.exists(_.inputs.map(_.molecule).contains(m))
+    val isAllowedToEmit = reactionInfoOpt.exists(_.inputMoleculesSet.contains(m))
     if (!isAllowedToEmit) {
       val refusalReason = reactionInfoOpt match {
         case Some(`emptyReactionInfo`) | None => "this thread does not run a chemical reaction"
@@ -278,8 +293,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         } else {
           throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit molecule $m($molValue) as a singleton (must be a non-blocking molecule)")
         }
-      } else
-        sitePool.runClosure(buildEmitClosure(m, molValue), currentReactionInfo.getOrElse(emptyReactionInfo))
+      } else {
+        // Check singleton permissions etc., throw exceptions on errors, set volatileValueContainer already, but do not add anything to moleculesPresent
+        newMoleculeQueue.add((m, molValue))
+        sitePool.runRunnable(emissionRunnable)
+        // emissionRunnable will do most of the job in buildEmitClosure
+        //        sitePool.runClosure(buildEmitClosure(m, molValue), currentReactionInfo.getOrElse(emptyReactionInfo))
+      }
     }
     ()
   }
