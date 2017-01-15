@@ -161,7 +161,7 @@ object Benchmarks9 {
 
       join {
         case all_done(0) and f(tInit) => f.reply(elapsed(tInit))
-        case all_done(x) + done(_) if x > 0 => all_done(x-1)
+        case all_done(x) and done(_) if x > 0 => all_done(x-1)
       }
     }
 
