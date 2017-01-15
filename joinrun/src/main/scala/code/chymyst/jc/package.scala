@@ -7,9 +7,11 @@ import scala.language.experimental.macros
   */
 package object jc {
 
+  /** A convenience method that fetches the number of CPU cores of the current machine.
+    *
+    * @return The number of available CPU cores.
+    */
   def cpuCores: Int = Runtime.getRuntime.availableProcessors()
-
-  private[jc] type ReactionBody = Core.ReactionBody
 
   def site(reactions: Reaction*): WarningsAndErrors = Core.site(Core.defaultReactionPool, Core.defaultSitePool)(reactions: _*)
   def site(reactionPool: Pool)(reactions: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(reactions: _*)
