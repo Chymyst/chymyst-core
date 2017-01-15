@@ -7,6 +7,7 @@ import scala.reflect.macros.{blackbox, whitebox}
 import scala.reflect.NameTransformer.LOCAL_SUFFIX_STRING
 
 class CommonMacros(val c: blackbox.Context) {
+
   import c.universe._
 
   def rawTreeImpl(x: c.Expr[Any]): Tree = {
@@ -123,6 +124,7 @@ class CommonMacros(val c: blackbox.Context) {
 }
 
 final class WhiteboxMacros(override val c: whitebox.Context) extends CommonMacros(c) {
+
   import c.universe._
 
   def mImpl[T: c.WeakTypeTag]: c.universe.Tree = {
@@ -160,22 +162,24 @@ final class WhiteboxMacros(override val c: whitebox.Context) extends CommonMacro
 }
 
 final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMacros(c) {
+
   import c.universe._
 
   // This is the main method that gathers the reaction info and performs some preliminary static analysis.
-  def buildReactionImpl(reactionBody: c.Expr[ReactionBody]): c.Expr[Reaction] = {
-
-    val caseDefs = GetReactionCases.from(reactionBody.tree)
-
+  def buildReactionImpl(reactionBody: c.Expr[ReactionBody]): c.Expr[Reaction] = GetReactionCases.from(reactionBody.tree) match {
     // Note: `caseDefs` should not be an empty list because that's a typecheck error (`go` only accepts a partial function, so at least one `case` needs to be given).
     // However, the user could be clever and write `val body = new PartialFunction...; go(body)`. We do not allow this because `go` needs to see the entire reaction body.
-    if (caseDefs.isEmpty)
+    case List((pattern, guard, body)) =>
+      buildReactionValueImpl(reactionBody, pattern, guard, body)
+    case Nil =>
       reportError("No `case` clauses found: Reactions must be defined inline with the `go { case ... => ... }` syntax")
-
-    if (caseDefs.length > 1)
+      null
+    case _ =>
       reportError("Reactions must contain only one `case` clause")
+      null
+  }
 
-    val Some((pattern, guard, body)) = caseDefs.headOption
+  def buildReactionValueImpl(reactionBody: c.Expr[ReactionBody], pattern: Tree, guard: Tree, body: Tree): c.Expr[Reaction] = {
 
     if (DetectInvalidInputGrouping.in(pattern))
       reportError("Reaction's input molecules must be grouped to the left in chemical notation")
