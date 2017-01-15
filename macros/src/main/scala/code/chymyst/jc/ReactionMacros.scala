@@ -492,11 +492,11 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   /** Build an error message about incorrect usage of chemical notation.
     * The phrase looks like this: (Beginning of phrase) must (Phrase connector) (What was incorrect) (molecule list)
     *
-    * @param what Beginning of phrase.
+    * @param what        Beginning of phrase.
     * @param patternWhat What was incorrect about the molecule usage.
-    * @param molecules List of molecules (or other objects) that were incorrectly used.
-    * @param connector Phrase connector. By default: {{{"not contain a pattern that"}}}.
-    * @param method How to report the error; by default using [[c.error]].
+    * @param molecules   List of molecules (or other objects) that were incorrectly used.
+    * @param connector   Phrase connector. By default: {{{"not contain a pattern that"}}}.
+    * @param method      How to report the error; by default using [[blackbox.Context.error]].
     * @tparam T Type of molecule or other object.
     */
   def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error): Unit = {

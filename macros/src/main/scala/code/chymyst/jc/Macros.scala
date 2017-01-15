@@ -415,7 +415,7 @@ object Macros {
     * The macro also obtains statically checkable information about input and output molecules in the reaction.
     *
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
-    * @return A reaction value, to be used later in [[site]].
+    * @return A reaction value, to be used later in [[Core.site(Reaction*)]].
     */
   def go(reactionBody: ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl
 

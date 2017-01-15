@@ -1,8 +1,8 @@
+[![Join the chat at https://gitter.im/joinrun-scala/Lobby](https://badges.gitter.im/joinrun-scala/Lobby.svg)](https://gitter.im/joinrun-scala/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/Chymyst/joinrun-scala.svg?branch=master)](https://travis-ci.org/Chymyst/joinrun-scala)
 [![Coverage Status](https://codecov.io/gh/Chymyst/joinrun-scala/coverage.svg?branch=master)](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master)
-[![Version](http://img.shields.io/badge/version-0.1.5-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Join the chat at https://gitter.im/joinrun-scala/Lobby](https://badges.gitter.im/joinrun-scala/Lobby.svg)](https://gitter.im/joinrun-scala/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Version](http://img.shields.io/badge/version-0.1.5-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
 
 # `JoinRun` and `Chymyst` - declarative concurrency in Scala
 
@@ -276,7 +276,7 @@ Performance tests indicate that the runtime can schedule about 300,000 reactions
 
 Known limitations:
 
-- `JoinRun` is about 3x slower than `ScalaJoin` on the blocking molecule benchmark (but faster on non-blocking molecules).
+- `JoinRun` is about 3x slower than `ScalaJoin` on the blocking molecule benchmark, and about 1.5x slower on non-blocking molecule benchmarks.
 - `JoinRun` has no fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random.
 - `JoinRun` has no distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`, and probably will not be).
 Distributed computation should be implemented in a better way than posting channel names on an HTTP server.
