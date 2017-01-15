@@ -179,8 +179,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   private def findReaction(m: Molecule): Option[(Reaction, InputMoleculeList)] = {
     val candidateReactions: Seq[Reaction] = flatten(m.consumingReactions).shuffle // The shuffle will ensure fairness across reactions.
-    val found = candidateReactions.iterator.flatMap(_.findInputMolecules(moleculesPresent)).toIterable.headOption
-    found
+    val found = candidateReactions.toStream.flatMap(_.findInputMolecules(moleculesPresent))
+    found.headOption
   }
 
   /** Add a new molecule to the bag of molecules at its reaction site.
