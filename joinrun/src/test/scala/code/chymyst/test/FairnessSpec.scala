@@ -135,7 +135,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
-  // interestingly, this test fails to complete in 500ms on Travis CI with Scala 2.10, but succeeds with 2.11
+  // This test failed to complete in 500ms on Travis CI with Scala 2.10, but succeeds with 2.11. However, this could have been a fluctuation.
   it should "fail to schedule reactions fairly after multiple emission into separate RSs" in {
 
     val tp = new FixedPool(8)

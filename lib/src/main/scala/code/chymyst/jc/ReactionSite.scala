@@ -217,7 +217,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         if (logLevel > 0) println(s"Debug: $this emitting $m($molValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]")
 
         val found = (for {
-          candidateReactions <- flatten(m.consumingReactions)
+          candidateReactions <- flatten(m.consumingReactions).shuffle // Fairness across reactions.
           // This is the main function of the reaction site scheduler. It determines which of the available molecules can be consumed by the candidate reactions.
           reactionWithInputMolecules <- candidateReactions.findInputMolecules(moleculesPresent)
         } yield reactionWithInputMolecules
