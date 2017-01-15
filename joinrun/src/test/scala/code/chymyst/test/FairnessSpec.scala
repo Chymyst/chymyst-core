@@ -7,7 +7,7 @@ import org.scalatest.{FlatSpec, Matchers}
 
 class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(2000, Millis)
+  val timeLimit = Span(5000, Millis)
 
   behavior of "reaction site"
 
@@ -36,23 +36,35 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     site(tp, tp1)(
       go { case getC(_, r) + done(arr) => r(arr) },
-      go { case a0(_) + c((n,arr)) => if (n > 0) { arr(0) += 1; c((n-1,arr)) + a0() } else done(arr) },
-      go { case a1(_) + c((n,arr)) => if (n > 0) { arr(1) += 1; c((n-1,arr)) + a1() } else done(arr) },
-      go { case a2(_) + c((n,arr)) => if (n > 0) { arr(2) += 1; c((n-1,arr)) + a2() } else done(arr) },
-      go { case a3(_) + c((n,arr)) => if (n > 0) { arr(3) += 1; c((n-1,arr)) + a3() } else done(arr) }
+      go { case a0(_) + c((n, arr)) => if (n > 0) {
+        arr(0) += 1; c((n - 1, arr)) + a0()
+      } else done(arr)
+      },
+      go { case a1(_) + c((n, arr)) => if (n > 0) {
+        arr(1) += 1; c((n - 1, arr)) + a1()
+      } else done(arr)
+      },
+      go { case a2(_) + c((n, arr)) => if (n > 0) {
+        arr(2) += 1; c((n - 1, arr)) + a2()
+      } else done(arr)
+      },
+      go { case a3(_) + c((n, arr)) => if (n > 0) {
+        arr(3) += 1; c((n - 1, arr)) + a3()
+      } else done(arr)
+      }
     )
 
     a0() + a1() + a2() + a3()
     c((N, Array.fill[Int](reactions)(0)))
 
     val result = getC()
-//    println(result.mkString(", "))
+    //    println(result.mkString(", "))
 
     tp.shutdownNow()
     tp1.shutdownNow()
 
-    result.min should be > (0.75*N/reactions).toInt
-    result.max should be < (1.25*N/reactions).toInt
+    result.min should be > (0.75 * N / reactions).toInt
+    result.max should be < (1.25 * N / reactions).toInt
 
   }
 
@@ -77,11 +89,12 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     site(tp, tp)(
       go { case done(arr) + getC(_, r) => r(arr) },
-      go { case c(n) + a(i) if n>0 => a(i+1) + c(n-1) },
+      go { case c(n) + a(i) if n > 0 => a(i + 1) + c(n - 1) },
       go { case c(0) + a(i) => a(i) + gather(List()) },
       go { case gather(arr) + a(i) =>
         val newArr = i :: arr
-        if (newArr.size < counters) gather(newArr) else done(newArr) }
+        if (newArr.size < counters) gather(newArr) else done(newArr)
+      }
     )
 
     (1 to counters).foreach(_ => a(0))
@@ -93,8 +106,8 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     tp.shutdownNow()
 
-    result.min should be < (cycles/counters/2)
-    result.max should be > (cycles/counters*2)
+    result.min should be < (cycles / counters / 2)
+    result.max should be > (cycles / counters * 2)
   }
 
   behavior of "multiple emission"
@@ -108,24 +121,24 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = m[Unit]
     val d = m[Unit]
     val e = m[Unit]
-    val f = m[(Int,Int,Int)]
-    val g = b[Unit, (Int,Int)]
+    val f = m[(Int, Int, Int)]
+    val g = b[Unit, (Int, Int)]
 
     val tp = new FixedPool(8)
 
     site(tp, tp)(
       go { case a(_) + bb(_) => d() },
       go { case bb(_) + c(_) => e() },
-      go { case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
-      go { case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
-      go { case g(_,r) + f((x,y,0)) => r((x,y)) }
+      go { case d(_) + f((x, y, t)) => f((x + 1, y, t - 1)) },
+      go { case e(_) + f((x, y, t)) => f((x, y + 1, t - 1)) },
+      go { case g(_, r) + f((x, y, 0)) => r((x, y)) }
     )
 
     val n = 1000
 
-    f((0,0, n))
+    f((0, 0, n))
 
-    (1 to n).foreach{ _ => a()+bb()+c() }
+    (1 to n).foreach { _ => a() + bb() + c() }
 
     val (ab, bc) = g()
     ab + bc shouldEqual n
@@ -140,7 +153,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(8)
 
-    def makeRS(d1: E, d2: E): (E,E,E) = {
+    def makeRS(d1: E, d2: E): (E, E, E) = {
       val a = m[Unit]
       val b = m[Unit]
       val c = m[Unit]
@@ -149,27 +162,27 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
         go { case a(_) + b(_) => d1() },
         go { case b(_) + c(_) => d2() }
       )
-      (a,b,c)
+      (a, b, c)
     }
 
     val d = m[Unit]
     val e = m[Unit]
-    val f = m[(Int,Int,Int)]
-    val g = b[Unit, (Int,Int)]
+    val f = m[(Int, Int, Int)]
+    val g = b[Unit, (Int, Int)]
 
     site(tp, tp)(
-      go { case d(_) + f((x,y,t)) => f((x+1,y,t-1)) },
-      go { case e(_) + f((x,y,t)) => f((x,y+1,t-1)) },
-      go { case g(_,r) + f((x,y,0)) => r((x,y)) }
+      go { case d(_) + f((x, y, t)) => f((x + 1, y, t - 1)) },
+      go { case e(_) + f((x, y, t)) => f((x, y + 1, t - 1)) },
+      go { case g(_, r) + f((x, y, 0)) => r((x, y)) }
     )
 
     val n = 400
 
-    f((0,0, n))
+    f((0, 0, n))
 
-    (1 to n).foreach{ _ =>
-      val (a,b,c) = makeRS(d,e)
-      a()+b()+c() // at the moment, this is equivalent to a(); b(); c.
+    (1 to n).foreach { _ =>
+      val (a, b, c) = makeRS(d, e)
+      a() + b() + c() // at the moment, this is equivalent to a(); b(); c.
       // this test will need to be changed when true multiple emission is implemented.
     }
 

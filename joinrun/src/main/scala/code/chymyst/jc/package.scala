@@ -14,15 +14,16 @@ package object jc {
   def cpuCores: Int = Runtime.getRuntime.availableProcessors()
 
   def site(reactions: Reaction*): WarningsAndErrors = Core.site(Core.defaultReactionPool, Core.defaultSitePool)(reactions: _*)
+
   def site(reactionPool: Pool)(reactions: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(reactions: _*)
 
   /** Create a reaction site with one or more reactions.
     * All input and output molecules in reactions used in this site should have been
     * already defined, and input molecules should not be already bound to another site.
     *
-    * @param reactions One or more reactions of type [[Reaction]]
+    * @param reactions    One or more reactions of type [[Reaction]]
     * @param reactionPool Thread pool for running new reactions.
-    * @param sitePool Thread pool for use when making decisions to schedule reactions.
+    * @param sitePool     Thread pool for use when making decisions to schedule reactions.
     * @return List of warning messages.
     */
   def site(reactionPool: Pool, sitePool: Pool)(reactions: Reaction*): WarningsAndErrors = Core.site(reactionPool, sitePool)(reactions: _*)
@@ -65,8 +66,8 @@ package object jc {
     * @tparam R Type of the reply value.
     * @return A new instance of class [[B]]{{{[T,R]}}} if both {{{T}}} and {{{R}}} are not {{{Unit}}}.
     *         Otherwise will return a new instance of one of the subclasses: [[EB]]{[R]}, [[BE]]{{{[T]}}, or [[EE]].
-    */
-  def b[T, R]: B[T,R] = macro WhiteboxMacros.bImpl[T, R]
+    *                  */
+  def b[T, R]: B[T, R] = macro WhiteboxMacros.bImpl[T, R]
 
   val defaultSitePool: Pool = Core.defaultSitePool
   val defaultReactionPool: Pool = Core.defaultReactionPool
