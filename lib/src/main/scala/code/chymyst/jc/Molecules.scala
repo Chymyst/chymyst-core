@@ -9,7 +9,7 @@ import scala.concurrent.duration.Duration
 
 /** Convenience syntax: users can write a(x) + b(y) in reaction patterns.
   * Pattern-matching can be extended to molecule values as well, for example
-  * {{{ { case a(MyCaseClass(x,y)) + b(Some(z)) => ... } }}}
+  * ` { case a(MyCaseClass(x,y)) + b(Some(z)) => ... } `
   *
   * @return an unapply operation
   */
@@ -33,7 +33,7 @@ object + {
 private[jc] sealed trait AbsMolValue[T] {
   private[jc] def getValue: T
 
-  /** String representation of molecule values will omit printing the {{{Unit}}} values but print all other types normally.
+  /** String representation of molecule values will omit printing the `Unit` values but print all other types normally.
     *
     * @return String representation of molecule value of type T.
     */
@@ -101,13 +101,13 @@ sealed trait Molecule extends PersistentHashCode {
 
   /** The set of reactions that can consume this molecule.
     *
-    * @return {{{None}}} if the molecule emitter is not yet bound to any reaction site.
+    * @return `None` if the molecule emitter is not yet bound to any reaction site.
     */
   private[jc] def consumingReactions: Option[List[Reaction]] =
     reactionSiteOpt.map(_ => consumingReactionsSet)
 
   private lazy val consumingReactionsSet: List[Reaction] =
-    reactionSiteOpt.get.reactionInfos.keys.filter(_.inputMolecules contains this).toList
+    reactionSiteOpt.get.reactionInfos.keys.filter(_.inputMoleculesSet contains this).toList
 
   /** The set of all reactions that *potentially* emit this molecule as output.
     * Some of these reactions may evaluate a runtime condition to decide whether to emit the molecule; so emission is not guaranteed.
@@ -274,10 +274,10 @@ sealed class M[T](val name: String) extends (T => Unit) with NonblockingMolecule
 }
 
 /** Represents the different states of the reply process.
-  * Initially, the status is [[HaveReply]] with a {{{null}}} value.
+  * Initially, the status is [[HaveReply]] with a `null` value.
   * Reply is successful if the emitting call does not time out. In this case, we have a reply value.
   * This is represented by [[HaveReply]] with a non-null value.
-  * If the reply times out, there is still no reply value. This is represented by the AtomicBoolean flag hasTimedOut set to {{{true}}}.
+  * If the reply times out, there is still no reply value. This is represented by the AtomicBoolean flag hasTimedOut set to `true`.
   * If the reaction finished but did not reply, it is an error condition. If the reaction finished and replied more than once, it is also an error condition.
   * After a reaction fails to reply, the emitting closure will put an error message into the status for that molecule. This is represented by [[ErrorNoReply]].
   * When a reaction replies more than once, it is too late to put an error message into the status for that molecule. So we do not have a status value for this situation.
@@ -364,7 +364,7 @@ private[jc] trait AbsReplyValue[T, R] {
     * The reply value will not be received if the emitting process timed out on the blocking call, or if the reply was already made (then it is an error to reply again).
     *
     * @param x Value to reply with.
-    * @return {{{true}}} if the reply was received normally, {{{false}}} if it was not received due to one of the above conditions.
+    * @return `true` if the reply was received normally, `false` if it was not received due to one of the above conditions.
     */
   final protected def performReplyAction(x: R): Boolean = {
 

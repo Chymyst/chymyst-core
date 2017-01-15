@@ -7,7 +7,7 @@ import scala.collection.mutable
 
 object Core {
 
-  /** A special value for {{{ReactionInfo}}} to signal that we are not running a reaction.
+  /** A special value for `ReactionInfo` to signal that we are not running a reaction.
     *
     */
   val emptyReactionInfo = ReactionInfo(Array(), Array(), AllMatchersAreTrivial, "")
