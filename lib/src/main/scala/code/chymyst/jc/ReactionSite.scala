@@ -191,8 +191,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val isAllowedToEmit = reactionInfoOpt.exists(_.inputs.map(_.molecule).contains(m))
     if (!isAllowedToEmit) {
       val refusalReason = reactionInfoOpt match {
+        case Some(`emptyReactionInfo`) | None => "this thread does not run a chemical reaction"
         case Some(info) => s"this reaction {$info} does not consume it"
-        case None => "this thread does not run a chemical reaction"
       }
       val errorMessage = s"In $this: Refusing to emit singleton $m($molValue) because $refusalReason"
       throw new ExceptionEmittingSingleton(errorMessage)
@@ -280,8 +280,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         } else {
           throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit molecule $m($molValue) as a singleton (must be a non-blocking molecule)")
         }
-      }
-      else
+      } else
         sitePool.runClosure(buildEmitClosure(m, molValue), currentReactionInfo.getOrElse(emptyReactionInfo))
     }
     ()
