@@ -37,6 +37,8 @@ case object OtherOutputPattern extends OutputPatternType
   *
   */
 sealed trait GuardPresenceFlag {
+  def staticGuardFails: Boolean = false
+
   /** Checks whether the reaction has no cross-molecule guard conditions.
     * For example, {{{go { case a(x) + b(y) if x > y => } }}} has a cross-molecule guard condition,
     * whereas {{{go { case a(x) + b(y) if x == 1 && y == 2 => } }}} has no cross-molecule guard conditions because its guard condition
@@ -62,6 +64,8 @@ sealed trait GuardPresenceFlag {
   *                    In the present example, the value of {{{crossGuards}}} will be {{{List((List('y, 'z), { case List(y: Int, z: Int) if y > z => () }))}}}.
   */
 final case class GuardPresent(vars: Array[Array[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: Array[CrossMoleculeGuard]) extends GuardPresenceFlag {
+  override def staticGuardFails: Boolean = staticGuard.exists(guardFunction => !guardFunction())
+
   override def effectivelyAbsent: Boolean = staticGuard.isEmpty && crossGuards.isEmpty
 
   override def toString: String = s"GuardPresent([${vars.map(vs => s"[${vs.mkString(",")}]").mkString(", ")}], ${staticGuard.map(_ => "")}, [${crossGuards.map(_.toString).mkString("; ")}])"
@@ -289,12 +293,10 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
   }
 
   private[jc] def findInputMolecules(moleculesPresent: MoleculeBag): Option[(Reaction, InputMoleculeList)] = {
-    // Evaluate the static guard first.
-    val staticGuardPasses = info.guardPresence match {
-      case GuardPresent(_, Some(staticGuard), _) => staticGuard()
-      case _ => true
-    }
-    if (staticGuardPasses) {
+    // Evaluate the static guard first. If the static guard fails, we don't need to run the reaction or look for any input molecules.
+    if (info.guardPresence.staticGuardFails)
+      None
+    else {
       val inputs = new InputMoleculeList(info.inputs.length)
       // For each input molecule used by the reaction, find a random value of this molecule and evaluate the conditional.
       val inputMoleculeInfos = info.inputsSorted
@@ -342,7 +344,7 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
           }
           (this, inputs)
       }
-    } else None
+    }
   }
 
 }
