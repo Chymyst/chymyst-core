@@ -295,10 +295,6 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
       else
         relevantMap.updated(molecule, newValuesMap)
     }
-//    if (count <= 1)
-//      relevantMap.filterKeys( _ != molecule)
-//    else
-//      relevantMap.updated(molecule, valuesMap.updated(molValue, count - 1))
   }
 
   private[jc] def findInputMolecules(moleculesPresent: MoleculeBag): Option[(Reaction, InputMoleculeList)] = {
