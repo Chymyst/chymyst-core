@@ -32,38 +32,34 @@ private[jc] object StaticAnalysis {
   }
 
   @tailrec
-  private def inputMatchersAreWeakerThanOutput(input: List[InputMoleculeInfo], output: List[OutputMoleculeInfo]): Boolean = {
+  private def inputMatchersAreWeakerThanOutput(input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean = {
     input match {
       case Nil => true
-      case info :: rest => output match {
-        case Nil => false
-        case _ =>
+      case info :: rest =>
           val isWeaker: OutputMoleculeInfo => Boolean =
             i => info.matcherIsWeakerThanOutput(i).getOrElse(false)
 
           output.find(isWeaker) match {
-            case Some(correspondingMatcher) => inputMatchersAreWeakerThanOutput(rest, output difff List(correspondingMatcher))
+            case Some(correspondingMatcher) => inputMatchersAreWeakerThanOutput(rest, output diff Array(correspondingMatcher))
             case None => false
           }
-      }
+
     }
   }
 
   @tailrec
-  private def inputMatchersAreSimilarToOutput(input: List[InputMoleculeInfo], output: List[OutputMoleculeInfo]): Boolean = {
+  private def inputMatchersAreSimilarToOutput(input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean = {
     input match {
       case Nil => true
-      case info :: rest => output match {
-        case Nil => false
-        case _ =>
+      case info :: rest =>
           val isWeaker: OutputMoleculeInfo => Boolean =
             i => info.matcherIsSimilarToOutput(i).getOrElse(false)
 
           output.find(isWeaker) match {
-            case Some(correspondingMatcher) => inputMatchersAreSimilarToOutput(rest, output difff List(correspondingMatcher))
+            case Some(correspondingMatcher) => inputMatchersAreSimilarToOutput(rest, output diff Array(correspondingMatcher))
             case None => false
           }
-      }
+
     }
   }
 
@@ -156,10 +152,10 @@ private[jc] object StaticAnalysis {
     val possibleDeadlocks: Seq[(OutputMoleculeInfo, List[OutputMoleculeInfo])] =
       reactions.map(_.info.outputs)
         .flatMap {
-          _.tails.flatMap {
+          _.tails.flatMap( _.toList match {
             case t :: ts => if (t.molecule.isBlocking) Some((t, ts)) else None
             case Nil => None
-          }
+          })
         }
     // The chemistry is likely to be a deadlock if at least one the other output molecules are consumed together with the blocking molecule in the same reaction.
     val likelyDeadlocks = possibleDeadlocks.map {

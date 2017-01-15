@@ -47,11 +47,12 @@ object MainApp extends App {
 //  "(this deadlocks) many concurrent counters with non-blocking access, using Jiansen's Join.scala" -> benchmark8 _,
 
     s"${Benchmarks9.numberOfCounters} concurrent counters with blocking access" -> benchmark9_1 _,
-    s"${Benchmarks9.numberOfCounters} concurrent counters with blocking access, using Jiansen's Join.scala" -> benchmark9_1_Jiansen _,
 
     s"${Benchmarks9.pingPongCalls} blocked threads with ping-pong calls" -> benchmark9_2 _,
 
-    s"count to ${counterMultiplier*n} using blocking access with checking reply status" -> benchmark10 _
+    s"count to ${counterMultiplier*n} using blocking access with checking reply status" -> benchmark10 _,
+
+    s"${Benchmarks9.numberOfCounters} concurrent counters with blocking access, using Jiansen's Join.scala" -> benchmark9_1_Jiansen _
   ).zipWithIndex.foreach {
     case ((message, benchmark), i) => println(s"Benchmark ${i+1} took ${run3times {
       val tp = new FixedPool(threads)

@@ -37,18 +37,17 @@ case object OtherOutputPattern extends OutputPatternType
   *
   */
 sealed trait GuardPresenceFlag {
+  def staticGuardFails: Boolean = false
+
   /** Checks whether the reaction has no cross-molecule guard conditions.
     * For example, {{{go { case a(x) + b(y) if x > y => } }}} has a cross-molecule guard condition,
-    * whereas {{{go { case a(x) + b(y) if x == 1 && y == 2 => } }}} has no cross-guard conditions because its guard condition
+    * whereas {{{go { case a(x) + b(y) if x == 1 && y == 2 => } }}} has no cross-molecule guard conditions because its guard condition
     * can be split into a conjunction of guard conditions that each constrain the value of a single molecule.
     *
     * @return {{{true}}} if the reaction has no guard condition, or if it has guard conditions that can be split between molecules;
     *         {{{false}}} if the reaction has a cross-molecule guard condition.
     */
-  def effectivelyAbsent: Boolean = this match {
-    case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => true
-    case _ => false
-  }
+  def effectivelyAbsent: Boolean = true
 }
 
 /** Indicates whether guard conditions are required for this reaction to start.
@@ -64,7 +63,13 @@ sealed trait GuardPresenceFlag {
   * @param crossGuards A list of functions that represent the clauses of the guard that relate values of different molecules. The partial function `Any => Unit` should be called with the arguments representing the tuples of pattern variables from each molecule used by the cross guard.
   *                    In the present example, the value of {{{crossGuards}}} will be {{{List((List('y, 'z), { case List(y: Int, z: Int) if y > z => () }))}}}.
   */
-final case class GuardPresent(vars: List[List[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: List[(List[ScalaSymbol], PartialFunction[List[Any], Unit])]) extends GuardPresenceFlag
+final case class GuardPresent(vars: Array[Array[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: Array[CrossMoleculeGuard]) extends GuardPresenceFlag {
+  override def staticGuardFails: Boolean = staticGuard.exists(guardFunction => !guardFunction())
+
+  override def effectivelyAbsent: Boolean = staticGuard.isEmpty && crossGuards.isEmpty
+
+  override def toString: String = s"GuardPresent([${vars.map(vs => s"[${vs.mkString(",")}]").mkString(", ")}], ${staticGuard.map(_ => "")}, [${crossGuards.map(_.toString).mkString("; ")}])"
+}
 
 /** Indicates that a guard was initially present but has been simplified, or it was absent but some molecules have nontrivial pattern matchers (not a wildcard and not a simple variable).
   * Nevertheless, no cross-molecule guard conditions need to be checked for this reaction to start.
@@ -76,6 +81,10 @@ case object GuardAbsent extends GuardPresenceFlag
   */
 case object AllMatchersAreTrivial extends GuardPresenceFlag
 
+final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSymbol], cond: PartialFunction[List[Any], Unit]) {
+  override def toString: String = s"CrossMoleculeGuard([${indices.mkString(",")}], [${symbols.mkString(",")}])"
+}
+
 /** Compile-time information about an input molecule pattern in a reaction.
   * This class is immutable.
   *
@@ -83,7 +92,14 @@ case object AllMatchersAreTrivial extends GuardPresenceFlag
   * @param flag     Type of the input pattern: wildcard, constant match, etc.
   * @param sha1     Hash sum of the source code (AST tree) of the input pattern.
   */
-final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, sha1: String) {
+final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPatternType, sha1: String) {
+  private[jc] def admitsValue(molValue: AbsMolValue[_]): Boolean = flag match {
+    case Wildcard | SimpleVar(_, None) => true
+    case SimpleVar(v, Some(cond)) => cond.isDefinedAt(molValue.getValue)
+    case SimpleConst(v) => v === molValue.getValue
+    case OtherInputPattern(matcher, _) => matcher.isDefinedAt(molValue.getValue)
+  }
+
   /** Determine whether this input molecule pattern is weaker than another pattern.
     * Pattern a(xxx) is weaker than b(yyy) if a==b and if anything matched by yyy will also be matched by xxx.
     *
@@ -109,7 +125,7 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
         case _ => Some(false) // Here we can reliably determine that this matcher is not weaker.
       }
       case SimpleConst(c) => Some(info.flag match {
-        case SimpleConst(c1) => c == c1
+        case SimpleConst(c1) => c === c1
         case _ => false
       })
     }
@@ -161,9 +177,9 @@ final case class InputMoleculeInfo(molecule: Molecule, flag: InputPatternType, s
       case Wildcard => "_"
       case SimpleVar(v, None) => v.name
       case SimpleVar(v, Some(_)) => s"${v.name} if ?"
-//      case SimpleConst(()) => ""  // we now eliminated this case by converting it to Wildcard
+//      case SimpleConst(()) => ""  // We eliminated this case by converting constants of Unit type to Wildcard input flag.
       case SimpleConst(c) => c.toString
-      case OtherInputPattern(_, _) => s"<${sha1.substring(0, 4)}...>"
+      case OtherInputPattern(_, vars) => s"?${vars.map(_.name).mkString(",")}"
     }
 
     s"$molecule($printedPattern)"
@@ -190,10 +206,10 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
 }
 
 // This class is immutable.
-final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: List[OutputMoleculeInfo], guardPresence: GuardPresenceFlag, sha1: String) {
+final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[OutputMoleculeInfo], guardPresence: GuardPresenceFlag, sha1: String) {
 
   // The input pattern sequence is pre-sorted for further use.
-  private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, flag, sha) =>
+  private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha) =>
     // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers
     val patternPrecedence = flag match {
       case Wildcard | SimpleVar(_, None) => 3
@@ -207,15 +223,15 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: List[Out
       case _ => ""
     }
     (mol.toString, patternPrecedence, molValueString, sha)
-  }
+  }.toList
 
   override val toString: String = {
     val inputsInfo = inputsSorted.map(_.toString).mkString(" + ")
     val guardInfo = guardPresence match {
-      case GuardAbsent | AllMatchersAreTrivial | GuardPresent(_, None, List()) => ""
-      case GuardPresent(_, Some(_), List()) => " if(?)"
+      case _ if guardPresence.effectivelyAbsent => ""
+      case GuardPresent(_, Some(_), Array()) => " if(?)" // There is a static guard but no cross-molecule guards.
       case GuardPresent(_, _, crossGuards) =>
-        val crossGuardsInfo = crossGuards.flatMap(_._1).map(_.name).mkString(",")
+        val crossGuardsInfo = crossGuards.flatMap(_.symbols).map(_.name).mkString(",")
         s" if($crossGuardsInfo)"
     }
     val outputsInfo = outputs.map(_.toString).mkString(" + ")
@@ -225,11 +241,11 @@ final case class ReactionInfo(inputs: List[InputMoleculeInfo], outputs: List[Out
 
 /** Represents a reaction body. This class is immutable.
   *
-  * @param body       Partial function of type {{{ UnapplyArg => Any }}}
+  * @param body       Partial function of type {{{ InputMoleculeList => Any }}}
   * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
   * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is false.
   */
-final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Option[Pool], retry: Boolean) {
+final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody, threadPool: Option[Pool], retry: Boolean) {
 
   /** Convenience method to specify thread pools per reaction.
     *
@@ -254,7 +270,7 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
   def noRetry: Reaction = copy(retry = false)
 
   // Optimization: this is used often.
-  val inputMolecules: Seq[Molecule] = info.inputs.map(_.molecule).sortBy(_.toString)
+  private[jc] lazy val inputMolecules: Seq[Molecule] = info.inputs.map(_.molecule).sortBy(_.toString)
 
   /** Convenience method for debugging.
     *
@@ -264,5 +280,72 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
     if (retry)
       "/R" else ""
   }"
+
+  type BagMap = Map[Molecule, Map[AbsMolValue[_], Int]]
+
+  private def remove(relevantMap: BagMap, molecule: Molecule, molValue: AbsMolValue[_]) = {
+    val valuesMap = relevantMap.getOrElse(molecule, Map())
+    val count = valuesMap.getOrElse(molValue, 0)
+    if (count <= 1)
+      relevantMap.filterKeys( _ != molecule)
+    else
+      relevantMap.updated(molecule, valuesMap.updated(molValue, count - 1))
+  }
+
+  private[jc] def findInputMolecules(moleculesPresent: MoleculeBag): Option[(Reaction, InputMoleculeList)] = {
+    // Evaluate the static guard first. If the static guard fails, we don't need to run the reaction or look for any input molecules.
+    if (info.guardPresence.staticGuardFails)
+      None
+    else {
+      val inputs = new InputMoleculeList(info.inputs.length)
+      // For each input molecule used by the reaction, find a random value of this molecule and evaluate the conditional.
+      val inputMoleculeInfos = info.inputsSorted
+      val inputMolecules = inputMoleculeInfos.map(_.molecule)
+
+      // Map of molecule values for molecules that are inputs to this reaction.
+      val relevantMap = moleculesPresent.getMap.filterKeys(m => inputMolecules.contains(m))
+
+      val found = inputMoleculeInfos.foldLeft[Iterable[(Map[Int, AbsMolValue[_]], BagMap)]](Iterable((Map(), relevantMap))) { (prev, inputInfo) =>
+        // `prev` contains the molecule value assignments we have found so far, as well as the molecule values that would remain in the soup after these previous molecule values were removed.
+        prev.flatMap {
+          case (prevValues, prevRelevantMap) =>
+            val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
+            val newFound = for {
+              newMolValue <- valuesMap.keysIterator // Do not eagerly evaluate the list of all possible values.
+              if inputInfo.admitsValue(newMolValue)
+              newRelevantMap = remove(prevRelevantMap, inputInfo.molecule, newMolValue)
+              newValues = prevValues.updated(inputInfo.index, newMolValue)
+            } yield (newValues, newRelevantMap)
+            newFound
+        }
+      }
+
+      // The reaction can run if `found` contains at least one admissible list of input molecules; just one is sufficient.
+
+      // Evaluate all cross-molecule guards: they must all pass on the chosen molecule values.
+      val filteredAfterCrossGuards = found.filter {
+        case (inputValues, _) => info.guardPresence match {
+          case GuardPresent(_, _, crossGuards) =>
+            crossGuards.forall {
+              case CrossMoleculeGuard(indices, _, cond) =>
+                cond.isDefinedAt(indices.flatMap(i => inputValues.get(i).map(_.getValue)).toList)
+            }
+          case _ => true
+        }
+      }
+
+      // Return result if found something. Assign the found molecule values into the `inputs` array.
+      filteredAfterCrossGuards.headOption.map {
+        case (inputValues, _) =>
+          inputValues.foreach {
+            case (i, molValue) =>
+              val mol = info.inputs(i).molecule
+              inputs.update(i, (mol, molValue))
+          }
+          (this, inputs)
+      }
+    }
+  }
+
 }
 

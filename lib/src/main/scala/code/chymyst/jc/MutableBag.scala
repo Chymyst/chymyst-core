@@ -77,10 +77,6 @@ class MutableBag[K,V] {
       vs += (v -> newCount)
     if (vs.isEmpty) bag -= k
   }
-
-  def removeFromBag(anotherBag: mutable.Map[K,V]): Unit =
-    anotherBag.foreach { case (k, v) => removeFromBag(k, v) }
-
 }
 /*
 // about 30% slower than MutableBag, and not sure we need it, since all operations with molecule bag are synchronized now.

@@ -175,7 +175,7 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
     }.get
     println(res)
     res should matchPattern {
-      case Some(ReactionInfo(List(InputMoleculeInfo(_, Wildcard, _), InputMoleculeInfo(_, Wildcard, _)), List(), AllMatchersAreTrivial, _)) =>
+      case Some(ReactionInfo(Array(InputMoleculeInfo(_, _, Wildcard, _), InputMoleculeInfo(_, _, Wildcard, _)), Array(), AllMatchersAreTrivial, _)) =>
     }
   }
 
