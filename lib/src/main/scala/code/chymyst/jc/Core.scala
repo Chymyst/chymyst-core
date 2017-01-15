@@ -7,13 +7,6 @@ import scala.collection.mutable
 
 object Core {
 
-  // List of molecules used as inputs by a reaction.
-  type InputMoleculeList = Array[(Molecule, AbsMolValue[_])]
-
-  private[jc] def getRightMolecule(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(inputs.length - 1, inputs.length))
-
-  private[jc] def getLeftPortion(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(0, inputs.length - 1))
-
   /** A special value for {{{ReactionInfo}}} to signal that we are not running a reaction.
     *
     */
@@ -24,9 +17,6 @@ object Core {
   def getSha1String(c: String): String = sha1Digest.digest(c.getBytes("UTF-8")).map("%02X".format(_)).mkString
 
   def getSha1(c: Any): String = getSha1String(c.toString)
-
-  // not sure if this will be useful:
-  //  def flatten[T](optionSet: Option[Set[T]]): Set[T] = optionSet.getOrElse(Set())
 
   def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 
@@ -68,13 +58,13 @@ object Core {
     def toScalaSymbol: scala.Symbol = scala.Symbol(s)
   }
 
-  val defaultSitePool = new FixedPool(2)
-  val defaultReactionPool = new FixedPool(4)
-
-
   // Wait until the reaction site to which `molecule` is bound becomes quiescent, then emit `callback`.
   // TODO: implement
 //  def waitUntilQuiet[T](molecule: M[T], callback: E): Unit = molecule.site.setQuiescenceCallback(callback)
+
+
+  val defaultSitePool = new FixedPool(2)
+  val defaultReactionPool = new FixedPool(4)
 
   /** Type alias for reaction body.
     *
@@ -132,4 +122,8 @@ object Core {
 
   def globalErrorLog: Iterable[String] = errorLog.iterator().asScala.toIterable
 
+  // List of molecules used as inputs by a reaction.
+  type InputMoleculeList = Array[(Molecule, AbsMolValue[_])]
+
 }
+

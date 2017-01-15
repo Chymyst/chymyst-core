@@ -14,6 +14,11 @@ import scala.concurrent.duration.Duration
   * @return an unapply operation
   */
 object + {
+
+  private def getRightMolecule(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(inputs.length - 1, inputs.length))
+
+  private def getLeftPortion(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(0, inputs.length - 1))
+
   def unapply(inputs: InputMoleculeList): Option[(InputMoleculeList, InputMoleculeList)] =
     for {
       leftPortion <- getLeftPortion(inputs)
@@ -268,7 +273,7 @@ sealed class M[T](val name: String) extends (T => Unit) with NonblockingMolecule
   @volatile private[jc] var volatileValueContainer: T = _
 }
 
-/** Represent the different states of the reply process.
+/** Represents the different states of the reply process.
   * Initially, the status is [[HaveReply]] with a {{{null}}} value.
   * Reply is successful if the emitting call does not time out. In this case, we have a reply value.
   * This is represented by [[HaveReply]] with a non-null value.
