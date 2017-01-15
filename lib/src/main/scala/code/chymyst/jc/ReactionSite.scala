@@ -61,8 +61,62 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     override def run(): Unit = {
       if (newMoleculeQueue.isEmpty) sitePool.drainQueue()
       // Now the queue could be again not empty, so continue.
-      newMoleculeQueue.iterator().asScala.foreach { case (mol, molValue) =>
-        ???
+      newMoleculeQueue.iterator().asScala.foreach { case (m, molValue) =>
+
+        try {
+          val foundReactionAndInputs =
+            moleculesPresent.synchronized {
+              if (m.isSingleton) {
+                // This thread is allowed to emit a singleton; but are there already enough copies of this singleton?
+                // TODO: Move this to emit() once we can determine the singleton count outside of this synchronized block
+                val oldCount = moleculesPresent.getCount(m)
+                val maxCount = singletonsEmitted.getOrElse(m, 0)
+                if (oldCount + 1 > maxCount) throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) having current count $oldCount, max count $maxCount")
+
+                // OK, we can proceed to emit this singleton molecule.
+                // Assign the volatile value.
+                m.assignSingletonVolatileValue(molValue)
+              }
+
+              moleculesPresent.addToBag(m, molValue)
+
+              if (logLevel > 0) println(s"Debug: $this emitting $m($molValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]")
+
+              val found = findReaction(m) // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
+
+              found.foreach {
+                case (_, inputsFound) =>
+                  inputsFound.foreach { case (k, v) => moleculesPresent.removeFromBag(k, v) }
+              }
+              found
+            } // End of synchronized block.
+
+          // We already decided on starting a reaction, so we don't hold the `synchronized` lock on the molecule bag any more.
+          foundReactionAndInputs match {
+            case Some((reaction, usedInputs)) =>
+              // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
+              val poolForReaction = reaction.threadPool.getOrElse(reactionPool)
+              if (poolForReaction.isInactive)
+                throw new ExceptionNoReactionPool(s"In $this: cannot run reaction {${reaction.info}} since reaction pool is not active")
+              else if (!Thread.currentThread().isInterrupted)
+                if (logLevel > 1) println(s"Debug: In $this: starting reaction {${reaction.info}} on thread pool $poolForReaction while on thread pool $sitePool with inputs [${moleculeBagToString(usedInputs)}]")
+              if (logLevel > 2) println(
+                if (moleculesPresent.isEmpty)
+                  s"Debug: In $this: no molecules remaining"
+                else
+                  s"Debug: In $this: remaining molecules [${moleculeBagToString(moleculesPresent)}]"
+              )
+              // Schedule the reaction now. Provide reaction info to the thread.
+              poolForReaction.runClosure(buildReactionClosure(reaction, usedInputs), reaction.info)
+
+            case None =>
+              if (logLevel > 2) println(s"Debug: In $this: no reactions started")
+          }
+
+        } catch {
+          case e: ExceptionInJoinRun => reportError(e.getMessage)
+        }
+
       }
     }
   }
@@ -194,87 +248,20 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       .headOption // We need only one reaction.
   }
 
-  private def assignSingletonValue[T](m: M[T], molValue: AbsMolValue[T]): Unit =
-    m.volatileValueContainer = molValue.getValue
-
-  private def handleSingleton[T](m: M[T], molValue: AbsMolValue[T]): Unit = {
-    if (singletonsDeclared.get(m).isEmpty) throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) not declared in this reaction site")
+  private[jc] def checkSingletonPermissionToEmit(m: Molecule): Either[String, Unit] = for {
+    _ <- if (singletonsDeclared.get(m).isEmpty) Left("not declared in this reaction site") else Right(())
 
     // This thread is allowed to emit this singleton only if it is a ThreadWithInfo and the reaction running on this thread has consumed this singleton.
-    val reactionInfoOpt = currentReactionInfo
-    val isAllowedToEmit = reactionInfoOpt.exists(_.inputMoleculesSet.contains(m))
-    if (!isAllowedToEmit) {
+    reactionInfoOpt = currentReactionInfo
+    isAllowedToEmit = reactionInfoOpt.exists(_.inputMoleculesSet.contains(m))
+    _ <- if (!isAllowedToEmit) {
       val refusalReason = reactionInfoOpt match {
-        case Some(`emptyReactionInfo`) | None => "this thread does not run a chemical reaction"
-        case Some(info) => s"this reaction {$info} does not consume it"
+        case Some(`emptyReactionInfo`) | None => "because this thread does not run a chemical reaction"
+        case Some(info) => s"because this reaction {$info} does not consume it"
       }
-      val errorMessage = s"In $this: Refusing to emit singleton $m($molValue) because $refusalReason"
-      throw new ExceptionEmittingSingleton(errorMessage)
-    }
-
-    // This thread is allowed to emit a singleton; but are there already enough copies of this singleton?
-    val oldCount = moleculesPresent.getCount(m)
-    val maxCount = singletonsEmitted.getOrElse(m, 0)
-    if (oldCount + 1 > maxCount) throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) having current count $oldCount, max count $maxCount")
-
-    // OK, we can proceed to emit this singleton molecule.
-    assignSingletonValue(m, molValue)
-  }
-
-  /** Add a new molecule to the bag of molecules at its reaction site.
-    * Then decide on which reaction can be started, and schedule that reaction on the reaction pool.
-    * Adding a molecule may trigger at most one reaction, due to linearity of input patterns.
-    *
-    * This method could be scheduled to run on a separate thread.
-    *
-    * @param m        Molecule to be emitted (can be blocking or non-blocking).
-    * @param molValue Wrapper for the molecule's value. (This is either a blocking molecule value wrapper or a non-blocking molecule value wrapper.)
-    * @tparam T The type of value carried by the molecule.
-    */
-  private def buildEmitClosure[T](m: Molecule, molValue: AbsMolValue[T]): Unit = try {
-    val foundReactionAndInputs =
-      synchronized {
-        if (m.isSingleton)
-          handleSingleton(m.asInstanceOf[M[T]], molValue)
-
-        moleculesPresent.addToBag(m, molValue)
-
-        if (logLevel > 0) println(s"Debug: $this emitting $m($molValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]")
-
-        val found = findReaction(m) // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
-
-        found.foreach {
-          case (_, inputsFound) =>
-            inputsFound.foreach { case (k, v) => moleculesPresent.removeFromBag(k, v) }
-        }
-        found
-      } // End of synchronized block.
-
-    // We already decided on starting a reaction, so we don't hold the `synchronized` lock on the molecule bag any more.
-    foundReactionAndInputs match {
-      case Some((reaction, usedInputs)) =>
-        // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
-        val poolForReaction = reaction.threadPool.getOrElse(reactionPool)
-        if (poolForReaction.isInactive)
-          throw new ExceptionNoReactionPool(s"In $this: cannot run reaction {${reaction.info}} since reaction pool is not active")
-        else if (!Thread.currentThread().isInterrupted)
-          if (logLevel > 1) println(s"Debug: In $this: starting reaction {${reaction.info}} on thread pool $poolForReaction while on thread pool $sitePool with inputs [${moleculeBagToString(usedInputs)}]")
-        if (logLevel > 2) println(
-          if (moleculesPresent.isEmpty)
-            s"Debug: In $this: no molecules remaining"
-          else
-            s"Debug: In $this: remaining molecules [${moleculeBagToString(moleculesPresent)}]"
-        )
-        // Schedule the reaction now. Provide reaction info to the thread.
-        poolForReaction.runClosure(buildReactionClosure(reaction, usedInputs), reaction.info)
-
-      case None =>
-        if (logLevel > 2) println(s"Debug: In $this: no reactions started")
-    }
-
-  } catch {
-    case e: ExceptionInJoinRun => reportError(e.getMessage)
-  }
+      Left(refusalReason)
+    } else Right(())
+  } yield ()
 
   /** This variable is true only at the initial stage of building the reaction site,
     * when singleton reactions are run (on the same thread as the `site()` call) in order to emit the initial singletons.
@@ -289,19 +276,22 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // Emit them on the same thread, and do not start any reactions.
         if (m.isSingleton) {
           moleculesPresent.addToBag(m, molValue)
-          assignSingletonValue(m.asInstanceOf[M[T]], molValue)
+          m.asInstanceOf[M[T]].assignSingletonVolatileValue(molValue)
         } else {
           throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit molecule $m($molValue) as a singleton (must be a non-blocking molecule)")
         }
       } else {
-        // Check singleton permissions etc., throw exceptions on errors, set volatileValueContainer already, but do not add anything to moleculesPresent
+        if (m.isSingleton) {
+          // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
+          checkSingletonPermissionToEmit(m) match {
+            case Left(refusalReason) => throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) $refusalReason")
+            case Right(_) =>
+          }
+        }
         newMoleculeQueue.add((m, molValue))
         sitePool.runRunnable(emissionRunnable)
-        // emissionRunnable will do most of the job in buildEmitClosure
-        //        sitePool.runClosure(buildEmitClosure(m, molValue), currentReactionInfo.getOrElse(emptyReactionInfo))
       }
     }
-    ()
   }
 
   // Remove a blocking molecule if it is present.
