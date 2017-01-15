@@ -7,6 +7,8 @@ import scala.language.experimental.macros
   */
 package object jc {
 
+  def cpuCores: Int = Runtime.getRuntime.availableProcessors()
+
   private[jc] type ReactionBody = Core.ReactionBody
 
   def site(reactions: Reaction*): WarningsAndErrors = Core.site(Core.defaultReactionPool, Core.defaultSitePool)(reactions: _*)
