@@ -7,14 +7,18 @@ import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 
-/**
-  * Convenience syntax: users can write a(x) + b(y) in reaction patterns.
+/** Convenience syntax: users can write a(x) + b(y) in reaction patterns.
   * Pattern-matching can be extended to molecule values as well, for example
   * {{{ { case a(MyCaseClass(x,y)) + b(Some(z)) => ... } }}}
   *
   * @return an unapply operation
   */
 object + {
+
+  private def getRightMolecule(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(inputs.length - 1, inputs.length))
+
+  private def getLeftPortion(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(0, inputs.length - 1))
+
   def unapply(inputs: InputMoleculeList): Option[(InputMoleculeList, InputMoleculeList)] =
     for {
       leftPortion <- getLeftPortion(inputs)
@@ -117,6 +121,7 @@ sealed trait Molecule extends PersistentHashCode {
 
   private val emittingReactionsSet: mutable.Set[Reaction] = mutable.Set()
 
+  // This is called by the reaction site only during the initial setup. Once the reaction site is activated, the set of emitting reactions will never change.
   private[jc] def addEmittingReaction(r: Reaction): Unit = {
     emittingReactionsSet += r
     ()
@@ -137,9 +142,9 @@ private[jc] sealed trait NonblockingMolecule[T] extends Molecule {
 
   val isBlocking = false
 
-  def unapplyInternal(arg: InputMoleculeList): Option[T] =
+  def unapply(arg: InputMoleculeList): Option[T] =
     arg.headOption
-      .map { case (mol, MolValue(v)) => v.asInstanceOf[T] }
+      .map(_._2.asInstanceOf[MolValue[T]].v)
 }
 
 private[jc] sealed trait BlockingMolecule[T, R] extends Molecule {
@@ -155,11 +160,11 @@ private[jc] sealed trait BlockingMolecule[T, R] extends Molecule {
   /** Emit a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
     *
     * @param duration Timeout in any time interval.
-    * @param v Value to be put onto the emitted molecule.
+    * @param v        Value to be put onto the emitted molecule.
     * @return Non-empty option if the reply was received; None on timeout.
     */
   def timeout(duration: Duration)(v: T): Option[R] =
-    site.emitAndAwaitReplyWithTimeout[T,R](duration.toNanos, this, v, new ReplyValue[T,R])
+    site.emitAndAwaitReplyWithTimeout[T, R](duration.toNanos, this, v, new ReplyValue[T, R])
 
   /** Perform the unapply matching and return a generic ReplyValue on success.
     * The specific implementation of unapply will possibly downcast this to EmptyReplyValue.
@@ -169,7 +174,8 @@ private[jc] sealed trait BlockingMolecule[T, R] extends Molecule {
     */
   def unapplyInternal(arg: InputMoleculeList): Option[(T, Reply)] =
     arg.headOption
-      .map { case (mol, BlockingMolValue(v, replyValueWrapper)) => (v.asInstanceOf[T], replyValueWrapper.asInstanceOf[Reply]) }
+      .map(_._2.asInstanceOf[BlockingMolValue[T, R]])
+      .map { bmv => (bmv.v, bmv.replyValue.asInstanceOf[Reply]) }
 }
 
 /** Specialized class for non-blocking molecule emitters with empty value.
@@ -265,11 +271,9 @@ sealed class M[T](val name: String) extends (T => Unit) with NonblockingMolecule
   }
 
   @volatile private[jc] var volatileValueContainer: T = _
-
-  def unapply(arg: InputMoleculeList): Option[T] = unapplyInternal(arg)
 }
 
-/** Represent the different states of the reply process.
+/** Represents the different states of the reply process.
   * Initially, the status is [[HaveReply]] with a {{{null}}} value.
   * Reply is successful if the emitting call does not time out. In this case, we have a reply value.
   * This is represented by [[HaveReply]] with a non-null value.

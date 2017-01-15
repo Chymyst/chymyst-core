@@ -41,10 +41,10 @@ val count = m[Int]
 val check = new EE("check") 
 
 site(tp) ( // reactions
-      go { case pusher(???) + count(n) if n >= 1 => ??? // the supply reaction TBD
-             count(n-1) // let us include this decrement now.
-         },
-      go { case count(0) + check(_, r) => r() }  // note that we use mutually exclusive conditions on count in the two reactions.
+  go { case pusher(???) + count(n) if n >= 1 => ??? // the supply reaction TBD
+       count(n-1) // let us include this decrement now.
+  },
+  go { case count(0) + check(_, r) => r() }  // note that we use mutually exclusive conditions on count in the two reactions.
 )
 // emission of initial molecules in chemistry follows
 // other molecules to emit as necessary for the specifics of this problem
@@ -68,11 +68,11 @@ Here, we write up a helper function `enjoyAndResume` that is a refactored piece 
  manufacturing).
 
 ```scala
- def smokingBreak(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
- def enjoyAndResume(s: ShippedInventory) = {
+def smokingBreak(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
+def enjoyAndResume(s: ShippedInventory) = {
    smokingBreak()
    pusher(s)
- }
+}
 site(tp) ( // reactions
   // other reactions ...
    go { case Keith(_) + tobacco(s) + matches(_) => enjoyAndResume(s); Keith() },
@@ -209,7 +209,7 @@ We need to log events as we go along. What needs to be captured is the identity 
  we do with methods `visitCriticalSection` and `leaveCriticalSection` tracking such events in a `logFile = new ConcurrentLinkedQueue[LockEvent]` for debugging or unit testing.
 
 ```scala
- sealed trait LockEvent {
+sealed trait LockEvent {
   val name: String
   def toString: String
 }
@@ -331,6 +331,7 @@ molecules are reacting all the time continuously but the `writer` molecule never
 
 Let us have an exiting reader molecule yield by waiting for more incoming work to arrive before getting itself to read again, so we introduce 
 `waitForUserRequest()` before emitting `reader(name)`:
+
 ```scala
 go { case readerCount(n) + readerExit(name)  =>
   readerCount(n - 1)
