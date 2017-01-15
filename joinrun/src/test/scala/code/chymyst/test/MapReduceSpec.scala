@@ -10,6 +10,8 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
   def elapsed(initTime: LocalDateTime): Long = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
 
+  behavior of "map-reduce-like reactions"
+
   it should "perform a map/reduce-like computation" in {
     val count = 10
 
@@ -70,6 +72,36 @@ class MapReduceSpec extends FlatSpec with Matchers {
     arr.foreach(i => carrier(i))
     val result = fetch()
     result shouldEqual arr.map(f).reduce(reduceB) // 338350
+    tp.shutdownNow()
+  }
+
+  it should "compute the sum of numbers on molecules using nonlinear input pattern" in {
+    val c = m[(Int, Int)]
+    val done = m[Int]
+    val f = b[Unit, Int]
+
+    val count = 10
+
+    val tp = new FixedPool(4)
+    val initTime = LocalDateTime.now
+
+    site(tp)(
+      go { case f(_, r) + done(x) => r(x) },
+      go { case c((n, x)) + c((m, y)) =>
+        val p = n + m
+        val z = x + y
+        if (p == count)
+          done(z)
+        else
+          c((n+m, x+y))
+      }
+    )
+f.setLogLevel(2)
+    (1 to count).foreach(i => c((1, i * i)))
+    f() shouldEqual (1 to count).map(i => i * i).sum
+
+    tp.shutdownNow()
+    println(s"map/reduce test with n=$count took ${elapsed(initTime)} ms")
   }
 
 }
