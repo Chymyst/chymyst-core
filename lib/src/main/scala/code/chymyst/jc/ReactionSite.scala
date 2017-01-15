@@ -183,6 +183,31 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     found.headOption
   }
 
+  private def handleSingleton[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
+    if (singletonsDeclared.get(m).isEmpty) throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) not declared in this reaction site")
+
+    // This thread is allowed to emit this singleton only if it is a ThreadWithInfo and the reaction running on this thread has consumed this singleton.
+    val reactionInfoOpt = currentReactionInfo
+    val isAllowedToEmit = reactionInfoOpt.exists(_.inputs.map(_.molecule).contains(m))
+    if (!isAllowedToEmit) {
+      val refusalReason = reactionInfoOpt match {
+        case Some(info) => s"this reaction {$info} does not consume it"
+        case None => "this thread does not run a chemical reaction"
+      }
+      val errorMessage = s"In $this: Refusing to emit singleton $m($molValue) because $refusalReason"
+      throw new ExceptionEmittingSingleton(errorMessage)
+    }
+
+    // This thread is allowed to emit a singleton; but are there already enough copies of this singleton?
+    val oldCount = moleculesPresent.getCount(m)
+    val maxCount = singletonsEmitted.getOrElse(m, 0)
+    if (oldCount + 1 > maxCount) throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) having current count $oldCount, max count $maxCount")
+
+    // OK, we can proceed to emit this singleton molecule.
+    singletonValues.put(m, molValue)
+    ()
+  }
+
   /** Add a new molecule to the bag of molecules at its reaction site.
     * Then decide on which reaction can be started, and schedule that reaction on the reaction pool.
     * Adding a molecule may trigger at most one reaction, due to linearity of input patterns.
@@ -196,36 +221,18 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def buildEmitClosure[T](m: Molecule, molValue: AbsMolValue[T]): Unit = try {
     val foundReactionAndInputs =
       synchronized {
-        if (m.isSingleton) {
-          if (singletonsDeclared.get(m).isEmpty) throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) not declared in this reaction site")
+        if (m.isSingleton)
+          handleSingleton(m, molValue)
 
-          // This thread is allowed to emit this singleton only if it is a ThreadWithInfo and the reaction running on this thread has consumed this singleton.
-          val reactionInfoOpt = currentReactionInfo
-          val isAllowedToEmit = reactionInfoOpt.exists(_.inputs.map(_.molecule).contains(m))
-          if (!isAllowedToEmit) {
-            val refusalReason = reactionInfoOpt match {
-              case Some(info) => s"this reaction {$info} does not consume it"
-              case None => "this thread does not run a chemical reaction"
-            }
-            val errorMessage = s"In $this: Refusing to emit singleton $m($molValue) because $refusalReason"
-            throw new ExceptionEmittingSingleton(errorMessage)
-          }
-
-          // This thread is allowed to emit a singleton; but are there already enough copies of this singleton?
-          val oldCount = moleculesPresent.getCount(m)
-          val maxCount = singletonsEmitted.getOrElse(m, 0)
-          if (oldCount + 1 > maxCount) throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) having current count $oldCount, max count $maxCount")
-
-          // OK, we can proceed to emit this singleton molecule.
-          singletonValues.put(m, molValue)
-        }
         moleculesPresent.addToBag(m, molValue)
+
         if (logLevel > 0) println(s"Debug: $this emitting $m($molValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]")
 
         val found = findReaction(m) // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
 
-        found.foreach{ case (_, inputsFound)  =>
-          inputsFound.foreach { case (k, v) => moleculesPresent.removeFromBag(k, v) }
+        found.foreach {
+          case (_, inputsFound) =>
+            inputsFound.foreach { case (k, v) => moleculesPresent.removeFromBag(k, v) }
         }
         found
       } // End of synchronized block.
@@ -250,7 +257,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
       case None =>
         if (logLevel > 2) println(s"Debug: In $this: no reactions started")
-        ()
     }
 
   } catch {
