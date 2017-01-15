@@ -23,7 +23,7 @@ class SmartPool(parallelism: Int) extends Pool {
   }
 
   // Looks like we will die hard at about 2021 threads...
-  val maxPoolSize = 1000 + 2*parallelism
+  val maxPoolSize: Int = 1000 + 2*parallelism
 
   def currentPoolSize: Int = executor.getCorePoolSize
 
@@ -65,10 +65,12 @@ class SmartPool(parallelism: Int) extends Pool {
     }
   }.start()
 
-  override def runClosure(closure: => Unit, info: ReactionInfo): Unit = {
-    executor.submit(new RunnableWithInfo(closure, info))
-    ()
-  }
+  override def runClosure(closure: => Unit, info: ReactionInfo): Unit =
+    executor.execute(new RunnableWithInfo(closure, info))
+
+  override def runRunnable(runnable: Runnable): Unit = executor.execute(runnable)
 
   override def isInactive: Boolean = executor.isShutdown || executor.isTerminated
+
+  override def drainQueue(): Unit = queue.clear()
 }
