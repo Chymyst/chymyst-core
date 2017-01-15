@@ -80,9 +80,9 @@ class MapReduceSpec extends FlatSpec with Matchers {
     val done = m[Int]
     val f = b[Unit, Int]
 
-    val count = 10
+    val count = 1000
 
-    val tp = new FixedPool(4)
+    val tp = new FixedPool(cpuCores + 1)
     val initTime = LocalDateTime.now
 
     site(tp)(
@@ -96,7 +96,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
           c((n+m, x+y))
       }
     )
-f.setLogLevel(2)
+
     (1 to count).foreach(i => c((1, i * i)))
     f() shouldEqual (1 to count).map(i => i * i).sum
 

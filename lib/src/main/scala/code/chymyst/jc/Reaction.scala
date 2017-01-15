@@ -286,10 +286,19 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
   private def remove(relevantMap: BagMap, molecule: Molecule, molValue: AbsMolValue[_]) = {
     val valuesMap = relevantMap.getOrElse(molecule, Map())
     val count = valuesMap.getOrElse(molValue, 0)
-    if (count <= 1)
-      relevantMap.filterKeys( _ != molecule)
-    else
+    if (count >= 2)
       relevantMap.updated(molecule, valuesMap.updated(molValue, count - 1))
+    else {
+      val newValuesMap = valuesMap.filterKeys(_ != molValue)
+      if (newValuesMap.isEmpty)
+        relevantMap.filterKeys(_ != molecule)
+      else
+        relevantMap.updated(molecule, newValuesMap)
+    }
+//    if (count <= 1)
+//      relevantMap.filterKeys( _ != molecule)
+//    else
+//      relevantMap.updated(molecule, valuesMap.updated(molValue, count - 1))
   }
 
   private[jc] def findInputMolecules(moleculesPresent: MoleculeBag): Option[(Reaction, InputMoleculeList)] = {
