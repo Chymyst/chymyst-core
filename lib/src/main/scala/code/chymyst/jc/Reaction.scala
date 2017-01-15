@@ -215,6 +215,10 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
 
 // This class is immutable.
 final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[OutputMoleculeInfo], guardPresence: GuardPresenceFlag, sha1: String) {
+  // Optimization: this is used often.
+  private[jc] lazy val inputMolecules: Seq[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
+
+  private[jc] lazy val inputMoleculesSet: Set[Molecule] = inputMolecules.toSet
 
   // The input pattern sequence is pre-sorted for further use.
   private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha) =>
@@ -278,7 +282,9 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
   def noRetry: Reaction = copy(retry = false)
 
   // Optimization: this is used often.
-  private[jc] lazy val inputMolecules: Seq[Molecule] = info.inputs.map(_.molecule).sortBy(_.toString)
+  private[jc] lazy val inputMolecules: Seq[Molecule] = info.inputMolecules
+
+  private[jc] lazy val inputMoleculesSet: Set[Molecule] = info.inputMoleculesSet
 
   /** Convenience method for debugging.
     *
@@ -313,10 +319,9 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
       val inputs = new InputMoleculeList(info.inputs.length)
       // For each input molecule used by the reaction, find a random value of this molecule and evaluate the conditional.
       val inputMoleculeInfos = info.inputsSorted
-      val inputMolecules = inputMoleculeInfos.map(_.molecule)
 
       // Map of molecule values for molecules that are inputs to this reaction.
-      val relevantMap = moleculesPresent.getMap.filterKeys(m => inputMolecules.contains(m))
+      val relevantMap = moleculesPresent.getMap.filterKeys(m => inputMoleculesSet.contains(m))
 
       val found = inputMoleculeInfos.toStream.foldLeft[Stream[(Map[Int, AbsMolValue[_]], BagMap)]](Stream((Map(), relevantMap))) { (prev, inputInfo) =>
         // `prev` contains the molecule value assignments we have found so far, as well as the molecule values that would remain in the soup after these previous molecule values were removed.
