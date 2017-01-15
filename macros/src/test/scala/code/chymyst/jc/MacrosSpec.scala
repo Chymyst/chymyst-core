@@ -736,4 +736,21 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     e.logSoup shouldEqual s"Site{${dIncorrectSingleton.name} + ${e.name} => ...}\nMolecules: ${dIncorrectSingleton.name}()"
   }
 
+  it should "refuse to emit singleton from a reaction that did not consume it when this cannot be determined statically" in {
+    val c = m[Unit]
+    val dIncorrectSingleton = m[Unit]
+    val e = m[E]
+
+    site(tp0)(
+      go { case e(s) => s() },
+      go { case dIncorrectSingleton(_) + c(_) => dIncorrectSingleton() },
+      go { case _ => dIncorrectSingleton() }
+    )
+
+    e(dIncorrectSingleton)
+    waitSome()
+    e.logSoup shouldEqual s"Site{c + ${dIncorrectSingleton.name} => ...; ${e.name} => ...}\nMolecules: ${dIncorrectSingleton.name}()"
+    globalErrorLog.exists(_.contains(s"In Site{c + ${dIncorrectSingleton.name} => ...; ${e.name} => ...}: Refusing to emit singleton ${dIncorrectSingleton.name}() because this reaction {${e.name}(s) => } does not consume it")) shouldEqual true
+  }
+
 }
