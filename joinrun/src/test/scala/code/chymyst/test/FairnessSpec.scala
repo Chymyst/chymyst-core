@@ -75,9 +75,9 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   it should "fail to implement fairness across molecules" in {
 
-    val counters = 10
+    val counters = 20
 
-    val cycles = 1000
+    val cycles = 10000
 
     val c = m[Int]
     val done = m[List[Int]]

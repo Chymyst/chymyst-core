@@ -21,7 +21,7 @@ package object jc {
     * All input and output molecules in reactions used in this site should have been
     * already defined, and input molecules should not be already bound to another site.
     *
-    * @param reactions    One or more reactions of type [[Reaction]]
+    * @param reactions    One or more reactions of type [[Reaction]].
     * @param reactionPool Thread pool for running new reactions.
     * @param sitePool     Thread pool for use when making decisions to schedule reactions.
     * @return List of warning messages.
@@ -36,7 +36,7 @@ package object jc {
     * The macro also obtains statically checkable information about input and output molecules in the reaction.
     *
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
-    * @return A reaction value, to be used later in [[site]].
+    * @return A reaction value, to be used later in [[site(Reaction*)]].
     */
   def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl
 
@@ -55,7 +55,7 @@ package object jc {
     * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
     *
     * @tparam T Type of the value carried by the molecule.
-    * @return A new instance of class [[M]]{{{[T]}}} if {{{T}}} is not {{{Unit}}}, or of class [[E]] if {{{T}}} is {{{Unit}}}.
+    * @return A new instance of class [[[M[T]]]] if {{{T}}} is not {{{Unit}}}, or of class [[E]] if {{{T}}} is {{{Unit}}}.
     */
   def m[T]: M[T] = macro WhiteboxMacros.mImpl[T]
 
@@ -65,7 +65,7 @@ package object jc {
     * @tparam T Type of the value carried by the molecule.
     * @tparam R Type of the reply value.
     * @return A new instance of class [[B]]{{{[T,R]}}} if both {{{T}}} and {{{R}}} are not {{{Unit}}}.
-    *         Otherwise will return a new instance of one of the subclasses: [[EB]]{[R]}, [[BE]]{{{[T]}}, or [[EE]].
+    *         Otherwise will return a new instance of one of the subclasses: [[EB]]{{{[R]}}}, [[BE]]{{{[T]}}}, or [[EE]].
     *                  */
   def b[T, R]: B[T, R] = macro WhiteboxMacros.bImpl[T, R]
 
