@@ -76,6 +76,7 @@ private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: AbsReplyVal
   *
   */
 sealed trait Molecule extends PersistentHashCode {
+  private[jc] def assignSingletonVolatileValue(molValue: AbsMolValue[_]): Unit = ()
 
   val name: String
 
@@ -270,7 +271,10 @@ sealed class M[T](val name: String) extends (T => Unit) with NonblockingMolecule
     case None => throw new Exception("Molecule c is not bound to any reaction site")
   }
 
-  @volatile private[jc] var volatileValueContainer: T = _
+  override private[jc] def assignSingletonVolatileValue(molValue: AbsMolValue[_]) =
+    volatileValueContainer = molValue.asInstanceOf[MolValue[T]].getValue
+
+  @volatile private var volatileValueContainer: T = _
 }
 
 /** Represents the different states of the reply process.
