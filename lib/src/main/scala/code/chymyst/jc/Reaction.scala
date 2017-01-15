@@ -282,7 +282,7 @@ final case class Reaction(info: ReactionInfo, body: ReactionBody, threadPool: Op
   private def remove(relevantMap: BagMap, molecule: Molecule, molValue: AbsMolValue[_]) = {
     val valuesMap = relevantMap.getOrElse(molecule, Map())
     val count = valuesMap.getOrElse(molValue, 0)
-    if (count === 0)
+    if (count <= 1)
       relevantMap.filterKeys( _ != molecule)
     else
       relevantMap.updated(molecule, valuesMap.updated(molValue, count - 1))
