@@ -401,7 +401,7 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
               } else prev
             } else prev
           }
-          if (foundValues.keys.size == info.inputs.length)
+          if (foundValues.keys.size === info.inputs.length)
             Some((foundValues, lastMap))
           else None
         } else {
