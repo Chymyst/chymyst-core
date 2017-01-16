@@ -2,6 +2,7 @@ package code.chymyst.jc
 
 import java.util.concurrent.ConcurrentLinkedQueue
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.collection.mutable
 import scala.util.{Left, Right}
@@ -137,6 +138,33 @@ object Core {
     def flatMap[S](f: R => Either[L, S]): Either[L, S] = e match {
       case Right(r) => f(r)
       case Left(l) => Left(l)
+    }
+  }
+
+  implicit class SeqWithFlatFoldLeft[T](s: Seq[T]) {
+
+    /** "flat foldLeft" will perform a `foldLeft` unless the function `op` returns `None` at some point in the sequence.
+      *
+      * @param z Initial value of type `R`.
+      * @param op Binary operation, returns an `Option[R]`.
+      * @tparam R Type of the return value `r` under option.
+      * @return Result value `Some(r)`, having folded to the end of the sequence. Will return `None` if `op` returned `None` at any point.
+      */
+    def flatFoldLeft[R](z: R)(op: (R, T) => Option[R]): Option[R] = {
+
+      @tailrec
+      def flatFoldLeftImpl(z: R, xs: Seq[T]): Option[R] =
+        xs.headOption match {
+          case Some(h) =>
+            op(z, h) match {
+              case Some(newZ) => flatFoldLeftImpl(newZ, xs.drop(1))
+              case None => None
+            }
+          case None => Some(z)
+
+        }
+
+      flatFoldLeftImpl(z, s)
     }
   }
 

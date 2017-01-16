@@ -359,6 +359,9 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
       !indices.contains(index)
   }
 
+  /** Convert a Map[Int, AbsMolValue[_]] to an array of AbsMolValue[_] using these indices.
+    * The map should contain all indices from 0 to (info.inputs.length - 1) and no other indices.
+    */
   private def assignInputsToArray(valuesMap: Map[Int, AbsMolValue[_]]): InputMoleculeList = {
     val requiredLength = info.inputs.length
 
@@ -369,7 +372,6 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
         val mol = info.inputs(i).molecule
         inputs.update(i, (mol, molValue))
     }
-
     inputs
   }
 
@@ -385,28 +387,24 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
       // Map of molecule values for molecules that are inputs to this reaction.
       val initRelevantMap = moleculesPresent.getMap.filterKeys(m => inputMoleculesSet.contains(m))
 
-      // A simpler, non-flatMap version for the case when all matchers are trivial.
-      val foundResult: Option[(Map[Int, AbsMolValue[_]], BagMap)] =
+      // A simpler, non-flatMap algorithm for the case when all matchers are trivial.
+      val foundResult: Option[Map[Int, AbsMolValue[_]]] =
         if (info.crossGuards.isEmpty && info.crossConditionals.isEmpty) {
-          val (foundValues, lastMap) = inputMoleculeInfos.foldLeft[(Map[Int, AbsMolValue[_]], BagMap)]((Map(), initRelevantMap)) { (prev, inputInfo) =>
+          inputMoleculeInfos.flatFoldLeft[(Map[Int, AbsMolValue[_]], BagMap)]((Map(), initRelevantMap)) { (prev, inputInfo) =>
+            // Since we are in a flatFoldLeft, we need to return Some(...) if we found a new value, or else return None.
             val (prevValues, prevRelevantMap) = prev
             val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
-            val keysIterator = valuesMap.keysIterator
-            if (keysIterator.hasNext) {
-              val newMolValue = valuesMap.keysIterator.next()
-              if (inputInfo.admitsValue(newMolValue)) {
+            valuesMap.keysIterator
+              .find(v => inputInfo.admitsValue(v))
+              .map { newMolValue =>
                 val newRelevantMap = removeFromBagMap(prevRelevantMap, inputInfo.molecule, newMolValue)
                 val newValues = prevValues.updated(inputInfo.index, newMolValue)
                 (newValues, newRelevantMap)
-              } else prev
-            } else prev
-          }
-          if (foundValues.keys.size === info.inputs.length)
-            Some((foundValues, lastMap))
-          else None
+              }
+          }.map(_._1) // Get rid of BagMap and tuple.
         } else {
           // TODO: only use flatmap separately for the clusters of interdependent molecules
-          val found: Stream[(Map[Int, AbsMolValue[_]], BagMap)] =
+          val found: Stream[Map[Int, AbsMolValue[_]]] =
             inputMoleculeInfos.toStream
               .foldLeft[Stream[(Map[Int, AbsMolValue[_]], BagMap)]](Stream((Map(), initRelevantMap))) { (prev, inputInfo) =>
               // In this `foldLeft` closure:
@@ -432,13 +430,13 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
                   } yield (newValues, newRelevantMap)
                   newFound
               }
-            }
+            }.map(_._1) // Get rid of BagMap and tuple.
 
           // The reaction can run if `found` contains at least one admissible list of input molecules; just one is sufficient.
 
           // Evaluate all cross-molecule guards: they must all pass on the chosen molecule values.
-          val filteredAfterCrossGuards = if (info.crossGuards.nonEmpty) found.filter {
-            case (inputValues, _) => info.crossGuards.forall {
+          val filteredAfterCrossGuards = if (info.crossGuards.nonEmpty) found.filter { inputValues =>
+            info.crossGuards.forall {
               case CrossMoleculeGuard(indices, _, cond) =>
                 cond.isDefinedAt(indices.flatMap(i => inputValues.get(i).map(_.getValue)).toList)
             }
@@ -447,10 +445,9 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
           // Return result if found something. Assign the found molecule values into the `inputs` array.
           filteredAfterCrossGuards.headOption
         }
-      foundResult.map {
-        case (inputValues, _) =>
-          val inputs = assignInputsToArray(inputValues)
-          (this, inputs)
+      foundResult.map { inputValues =>
+        val inputs = assignInputsToArray(inputValues)
+        (this, inputs)
       }
     }
   }
