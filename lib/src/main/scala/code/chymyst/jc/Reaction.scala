@@ -222,15 +222,33 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType)
 
 // This class is immutable.
 final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[OutputMoleculeInfo], guardPresence: GuardPresenceFlag, sha1: String) {
-  // Optimization: this is used often.
-  private[jc] lazy val inputMolecules: Seq[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
 
-  private[jc] lazy val inputMoleculesSet: Set[Molecule] = inputMolecules.toSet
-
+  // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
     case GuardPresent(_, _, guards) => guards
     case _ => Array[CrossMoleculeGuard]()
   }
+
+  /** Cross-conditionals are repeated input molecules, such that one of them has a conditional or participates in a cross-molecule guard.
+    * This value holds the set of indices for all such molecules, for quick access.
+    */
+  private[jc] val crossConditionals: Set[Int] = {
+    inputs
+      .groupBy(_.molecule)
+      .filter(_._2.length > 1)
+      .values
+      .filter { repeatedInput =>
+        crossGuards.exists { case CrossMoleculeGuard(indices, _, _) => (indices intersect repeatedInput.map(_.index)).nonEmpty } ||
+          repeatedInput.exists { case InputMoleculeInfo(_, _, flag, _) => !flag.isTrivial }
+      }
+      .flatMap(_.map(_.index))
+      .toSet
+  }
+
+  // Optimization: this is used often.
+  private[jc] lazy val inputMolecules: Seq[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
+
+  private[jc] lazy val inputMoleculesSet: Set[Molecule] = inputMolecules.toSet
 
   // The input pattern sequence is pre-sorted for further use.
   private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha) =>
@@ -334,11 +352,25 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
       case _ => Array[Int]()
     }
   */
-  /** Check whether the molecule given by inputInfo has no cross-dependencies, including cross-dependences or conditionals from a repeated input molecule. */
+  /** Check whether the molecule given by inputInfo has no cross-dependencies, including cross-conditionals implied by a repeated input molecule. */
   // TODO: Implement fully!
-  private def moleculeIsIndependent(index: Int): Boolean = info.crossGuards.forall {
+  private def moleculeIsIndependent(index: Int): Boolean = !info.crossConditionals.contains(index) && info.crossGuards.forall {
     case CrossMoleculeGuard(indices, _, _) =>
       !indices.contains(index)
+  }
+
+  private def assignInputsToArray(valuesMap: Map[Int, AbsMolValue[_]]): InputMoleculeList = {
+    val requiredLength = info.inputs.length
+
+    val inputs = new InputMoleculeList(requiredLength)
+
+    valuesMap.foreach {
+      case (i, molValue) =>
+        val mol = info.inputs(i).molecule
+        inputs.update(i, (mol, molValue))
+    }
+
+    inputs
   }
 
   /** Find a set of input molecules for this reaction, under the condition that `m(molValue)` must be one of the input molecules. */
@@ -347,61 +379,77 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
     if (info.guardPresence.staticGuardFails)
       None
     else {
-      val inputs = new InputMoleculeList(info.inputs.length)
       // For each input molecule used by the reaction, find a random value of this molecule and evaluate the conditional.
       val inputMoleculeInfos = info.inputsSorted
 
       // Map of molecule values for molecules that are inputs to this reaction.
       val initRelevantMap = moleculesPresent.getMap.filterKeys(m => inputMoleculesSet.contains(m))
 
-      // TODO: implement a simpler, non-flatMap version for the case when all matchers are trivial
-
-      // TODO: only use flatmap separately for the clusters of interdependent molecules
-
-      val found = inputMoleculeInfos.toStream.foldLeft[Stream[(Map[Int, AbsMolValue[_]], BagMap)]](Stream((Map(), initRelevantMap))) { (prev, inputInfo) =>
-        // In this `foldLeft` closure:
-        // `prev` contains the molecule value assignments we have found so far (`prevValues`), as well as the map `prevRelevantMap` containing molecule values that would remain in the soup after these previous molecule values were removed.
-        // `inputInfo` describes the pattern matcher for the input molecule we are currently required to find.
-        // We need to find all admissible assignments of values for that input molecule, and return them as a stream of pairs (newValues, newRelevantMap).
-        prev.flatMap {
-          case (prevValues, prevRelevantMap) =>
+      // A simpler, non-flatMap version for the case when all matchers are trivial.
+      val foundResult: Option[(Map[Int, AbsMolValue[_]], BagMap)] =
+        if (info.crossGuards.isEmpty && info.crossConditionals.isEmpty) {
+          val (foundValues, lastMap) = inputMoleculeInfos.foldLeft[(Map[Int, AbsMolValue[_]], BagMap)]((Map(), initRelevantMap)) { (prev, inputInfo) =>
+            val (prevValues, prevRelevantMap) = prev
             val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
-            val newFound = for {
-              newMolValue <-
-              // This does not work... not sure why.
-              //if (inputInfo.molecule === m) Some(molValue).toStream // In this case, we need to use the given value, which is guaranteed to be in the value map.
-              //              else
-              if (inputInfo.flag.isTrivial && moleculeIsIndependent(inputInfo.index))
-              // If this molecule is independent of others and has a trivial matcher, it suffices to select any of the existing values for that molecule.
-                valuesMap.headOption.map(_._1).toStream
-              else // Do not eagerly evaluate the list of all possible values.
-                valuesMap.keysIterator.toStream.filter(v => inputInfo.admitsValue(v))
-
-              newRelevantMap = removeFromBagMap(prevRelevantMap, inputInfo.molecule, newMolValue)
-              newValues = prevValues.updated(inputInfo.index, newMolValue)
-            } yield (newValues, newRelevantMap)
-            newFound
-        }
-      }
-
-      // The reaction can run if `found` contains at least one admissible list of input molecules; just one is sufficient.
-
-      // Evaluate all cross-molecule guards: they must all pass on the chosen molecule values.
-      val filteredAfterCrossGuards = if (info.crossGuards.nonEmpty) found.filter {
-        case (inputValues, _) => info.crossGuards.forall {
-          case CrossMoleculeGuard(indices, _, cond) =>
-            cond.isDefinedAt(indices.flatMap(i => inputValues.get(i).map(_.getValue)).toList)
-        }
-      } else found
-
-      // Return result if found something. Assign the found molecule values into the `inputs` array.
-      filteredAfterCrossGuards.headOption.map {
-        case (inputValues, _) =>
-          inputValues.foreach {
-            case (i, molValue) =>
-              val mol = info.inputs(i).molecule
-              inputs.update(i, (mol, molValue))
+            val keysIterator = valuesMap.keysIterator
+            if (keysIterator.hasNext) {
+              val newMolValue = valuesMap.keysIterator.next()
+              if (inputInfo.admitsValue(newMolValue)) {
+                val newRelevantMap = removeFromBagMap(prevRelevantMap, inputInfo.molecule, newMolValue)
+                val newValues = prevValues.updated(inputInfo.index, newMolValue)
+                (newValues, newRelevantMap)
+              } else prev
+            } else prev
           }
+          if (foundValues.keys.size == info.inputs.length)
+            Some((foundValues, lastMap))
+          else None
+        } else {
+          // TODO: only use flatmap separately for the clusters of interdependent molecules
+          val found: Stream[(Map[Int, AbsMolValue[_]], BagMap)] =
+            inputMoleculeInfos.toStream
+              .foldLeft[Stream[(Map[Int, AbsMolValue[_]], BagMap)]](Stream((Map(), initRelevantMap))) { (prev, inputInfo) =>
+              // In this `foldLeft` closure:
+              // `prev` contains the molecule value assignments we have found so far (`prevValues`), as well as the map `prevRelevantMap` containing molecule values that would remain in the soup after these previous molecule values were removed.
+              // `inputInfo` describes the pattern matcher for the input molecule we are currently required to find.
+              // We need to find all admissible assignments of values for that input molecule, and return them as a stream of pairs (newValues, newRelevantMap).
+              prev.flatMap {
+                case (prevValues, prevRelevantMap) =>
+                  val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
+                  val newFound = for {
+                    newMolValue <-
+                    // This does not work... not sure why.
+                    //if (inputInfo.molecule === m) Some(molValue).toStream // In this case, we need to use the given value, which is guaranteed to be in the value map.
+                    //              else
+                    if (inputInfo.flag.isTrivial && moleculeIsIndependent(inputInfo.index))
+                    // If this molecule is independent of others and has a trivial matcher, it suffices to select any of the existing values for that molecule.
+                      valuesMap.headOption.map(_._1).toStream
+                    else // Do not eagerly evaluate the list of all possible values.
+                      valuesMap.keysIterator.toStream.filter(v => inputInfo.admitsValue(v))
+
+                    newRelevantMap = removeFromBagMap(prevRelevantMap, inputInfo.molecule, newMolValue)
+                    newValues = prevValues.updated(inputInfo.index, newMolValue)
+                  } yield (newValues, newRelevantMap)
+                  newFound
+              }
+            }
+
+          // The reaction can run if `found` contains at least one admissible list of input molecules; just one is sufficient.
+
+          // Evaluate all cross-molecule guards: they must all pass on the chosen molecule values.
+          val filteredAfterCrossGuards = if (info.crossGuards.nonEmpty) found.filter {
+            case (inputValues, _) => info.crossGuards.forall {
+              case CrossMoleculeGuard(indices, _, cond) =>
+                cond.isDefinedAt(indices.flatMap(i => inputValues.get(i).map(_.getValue)).toList)
+            }
+          } else found
+
+          // Return result if found something. Assign the found molecule values into the `inputs` array.
+          filteredAfterCrossGuards.headOption
+        }
+      foundResult.map {
+        case (inputValues, _) =>
+          val inputs = assignInputsToArray(inputValues)
           (this, inputs)
       }
     }
