@@ -177,6 +177,26 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
+  it should "signal error when a singleton is defined by a reaction with guard" in {
+
+    val tp = new FixedPool(3)
+
+    val thrown = intercept[Exception] {
+      val c = b[Unit, String]
+      val d = m[Unit]
+
+      val n = 1
+
+      site(tp)(
+        go { case c(_, r) + d(_) => r("ok") + d() },
+        go { case _ if n > 0 => d() } // singleton
+      )
+    }
+    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Singleton reaction { if(?) => d()} should not have a guard condition"
+
+    tp.shutdownNow()
+  }
+
   behavior of "volatile reader"
 
   it should "refuse to read the value of a molecule not bound to a reaction site" in {
