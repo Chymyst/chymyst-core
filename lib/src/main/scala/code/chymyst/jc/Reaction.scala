@@ -238,8 +238,8 @@ final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[O
       .filter(_._2.length > 1)
       .values
       .filter { repeatedInput =>
-        crossGuards.exists { case CrossMoleculeGuard(indices, _, _) => (indices intersect repeatedInput.map(_.index)).nonEmpty } ||
-          repeatedInput.exists { case InputMoleculeInfo(_, _, flag, _) => !flag.isTrivial }
+        crossGuards.exists { guard => (guard.indices intersect repeatedInput.map(_.index)).nonEmpty } ||
+          repeatedInput.exists { info => !info.flag.isTrivial }
       }
       .flatMap(_.map(_.index))
       .toSet
