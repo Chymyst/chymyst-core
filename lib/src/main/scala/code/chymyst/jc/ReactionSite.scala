@@ -124,14 +124,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private val emissionRunnable: Runnable = new Runnable {
-    override def run(): Unit = {
-      // If there are no new molecules, we don't need to keep running this `emissionRunnable`. So we drain the site pool's queue.
-      if (newMoleculeQueue.isEmpty)
-        sitePool.drainQueue()
-
-      // After this, `newMoleculeQueue` could be again not empty, so continue.
-      dequeueNewMolecules()
-    }
+    override def run(): Unit = dequeueNewMolecules()
   }
 
   //  private[jc] def setQuiescenceCallback(callback: E): Unit = {
