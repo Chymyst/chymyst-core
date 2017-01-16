@@ -76,7 +76,6 @@ private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: AbsReplyVal
   *
   */
 sealed trait Molecule extends PersistentHashCode {
-  private[jc] def assignSingletonVolatileValue(molValue: AbsMolValue[_]): Unit = ()
 
   val name: String
 
@@ -107,7 +106,7 @@ sealed trait Molecule extends PersistentHashCode {
   private[jc] def consumingReactions: Option[List[Reaction]] =
     reactionSiteOpt.map(_ => consumingReactionsSet)
 
-  private lazy val consumingReactionsSet: List[Reaction] =
+  private[jc] lazy val consumingReactionsSet: List[Reaction] =
     reactionSiteOpt.get.reactionInfos.keys.filter(_.inputMoleculesSet contains this).toList
 
   /** The set of all reactions that *potentially* emit this molecule as output.
@@ -271,7 +270,7 @@ sealed class M[T](val name: String) extends (T => Unit) with NonblockingMolecule
     case None => throw new Exception("Molecule c is not bound to any reaction site")
   }
 
-  override private[jc] def assignSingletonVolatileValue(molValue: AbsMolValue[_]) =
+  private[jc] def assignSingletonVolatileValue(molValue: AbsMolValue[_]) =
     volatileValueContainer = molValue.asInstanceOf[MolValue[T]].getValue
 
   @volatile private var volatileValueContainer: T = _
