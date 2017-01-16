@@ -143,6 +143,13 @@ object Core {
 
   implicit class SeqWithFlatFoldLeft[T](s: Seq[T]) {
 
+    def findAfterMap[R](f: T => Option[R]): Option[R] = {
+      var result: R = null.asInstanceOf[R]
+      s.find { t =>
+        f(t).exists { r => result = r; true }
+      }.map(_ => result)
+    }
+
     /** "flat foldLeft" will perform a `foldLeft` unless the function `op` returns `None` at some point in the sequence.
       *
       * @param z Initial value of type `R`.

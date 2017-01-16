@@ -250,9 +250,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def findReaction(m: Molecule, molValue: AbsMolValue[_]): Option[(Reaction, InputMoleculeList)] = {
     m.consumingReactionsSet
       .shuffle // The shuffle will ensure fairness across reactions.
-      .toStream
-      .flatMap(_.findInputMolecules(m, molValue, moleculesPresent)) // Finding the input molecules may be expensive. We use a stream to avoid doing this for all reactions in advance.
-      .headOption // We need only one reaction.
+      // We only need to find one reaction whose input molecules are available. For this, we use the special `Core.findAfterMap`.
+      .findAfterMap(_.findInputMolecules(m, molValue, moleculesPresent))
   }
 
   private[jc] def checkSingletonPermissionToEmit(m: Molecule): Either[String, Unit] = for {
