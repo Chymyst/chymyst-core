@@ -730,9 +730,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val inputs = new InputMoleculeList(2)
     inputs(0) = (dIncorrectSingleton, MolValue(()))
     inputs(1) = (e, MolValue(()))
-    r1.body.apply(inputs) shouldEqual 123 // Reaction ran and attempted to emit the singleton.
+    val thrown = intercept[Exception] {
+      r1.body.apply(inputs) shouldEqual 123 // Reaction ran on a non-reaction thread (i.e. on this thread) and attempted to emit the singleton.
+    }
+    val expectedMessage = s"In Site{${dIncorrectSingleton.name} + ${e.name} => ...}: Refusing to emit singleton ${dIncorrectSingleton.name}() because this thread does not run a chemical reaction"
+    thrown.getMessage shouldEqual expectedMessage
     waitSome()
-    globalErrorLog.exists(_.contains(s"In Site{${dIncorrectSingleton.name} + ${e.name} => ...}: Refusing to emit singleton ${dIncorrectSingleton.name}() because this thread does not run a chemical reaction")) shouldEqual true
     e.logSoup shouldEqual s"Site{${dIncorrectSingleton.name} + ${e.name} => ...}\nMolecules: ${dIncorrectSingleton.name}()"
   }
 
