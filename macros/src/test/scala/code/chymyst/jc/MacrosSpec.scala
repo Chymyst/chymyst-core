@@ -450,6 +450,24 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
   }
 
+  it should "run a reaction with cross-molecule guards and some independent molecules" in {
+    val a = m[Option[Int]]
+    val f = b[Int, Int]
+    val c = m[Int]
+
+    val n = 2
+
+    site(tp0)(go { case a(Some(x)) + c(z) + f(y, r) if x < y + n => r(x + z) })
+
+    a(Some(1))
+    c(123)
+    waitSome()
+    waitSome()
+    a.logSoup shouldEqual "Site{a + c + f/B => ...}\nMolecules: a(Some(1)), c(123)"
+    f.timeout(2.second)(0) shouldEqual Some(124)
+    a.logSoup shouldEqual "Site{a + c + f/B => ...}\nNo molecules"
+  }
+
   it should "define a reaction with correct inputs with constant non-default pattern-matching at start of reaction" in {
     val a = new M[Int]("a")
     val b = new E("b")
