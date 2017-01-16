@@ -70,14 +70,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
           // OK, we can proceed to emit this singleton molecule.
           // Assign the volatile value.
-          m.assignSingletonVolatileValue(molValue)
+          m.asInstanceOf[M[_]].assignSingletonVolatileValue(molValue)
         }
 
         moleculesPresent.addToBag(m, molValue)
 
         if (logLevel > 0) println(s"Debug: $this emitting $m($molValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]")
 
-        val found = findReaction(m) // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
+        val found = findReaction(m, molValue) // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction, and that consume `m(molValue)`.
 
         found.foreach {
           case (_, inputsFound) =>
@@ -247,10 +247,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
   }
 
-  private def findReaction(m: Molecule): Option[(Reaction, InputMoleculeList)] = {
-    val candidateReactions: Seq[Reaction] = flatten(m.consumingReactions).shuffle // The shuffle will ensure fairness across reactions.
-    candidateReactions.toStream
-      .flatMap(_.findInputMolecules(moleculesPresent)) // Finding the input molecules may be expensive. We use a stream to avoid doing this for all reactions in advance.
+  private def findReaction(m: Molecule, molValue: AbsMolValue[_]): Option[(Reaction, InputMoleculeList)] = {
+    m.consumingReactionsSet
+      .shuffle // The shuffle will ensure fairness across reactions.
+      .toStream
+      .flatMap(_.findInputMolecules(m, molValue, moleculesPresent)) // Finding the input molecules may be expensive. We use a stream to avoid doing this for all reactions in advance.
       .headOption // We need only one reaction.
   }
 
