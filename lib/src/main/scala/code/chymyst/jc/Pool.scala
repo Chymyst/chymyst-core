@@ -20,8 +20,6 @@ trait Pool {
   def runRunnable(runnable: Runnable): Unit
 
   def isInactive: Boolean
-
-  def drainQueue(): Unit
 }
 
 /** Basic implementation of a thread pool.
@@ -36,6 +34,7 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => (ExecutorSe
 
   def shutdownNow(): Unit = new Thread {
     try {
+      queue.clear()
       execService.shutdown()
       execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
     } finally {
@@ -52,8 +51,6 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => (ExecutorSe
   override def isInactive: Boolean = execService.isShutdown || execService.isTerminated
 
   override def runRunnable(runnable: Runnable): Unit = execService.execute(runnable)
-
-  override def drainQueue(): Unit = queue.clear()
 }
 
 /** Create a pool from a Handler interface. The pool will submit tasks using a Handler.post() method.

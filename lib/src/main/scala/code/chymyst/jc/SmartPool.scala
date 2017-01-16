@@ -55,6 +55,7 @@ class SmartPool(parallelism: Int) extends Pool {
 
   override def shutdownNow(): Unit = new Thread {
     try {
+      queue.clear()
       executor.shutdown()
       executor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
     } finally {
@@ -71,6 +72,4 @@ class SmartPool(parallelism: Int) extends Pool {
   override def runRunnable(runnable: Runnable): Unit = executor.execute(runnable)
 
   override def isInactive: Boolean = executor.isShutdown || executor.isTerminated
-
-  override def drainQueue(): Unit = queue.clear()
 }
