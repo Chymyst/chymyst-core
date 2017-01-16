@@ -3,32 +3,41 @@ package code.chymyst.jc
 
 import java.util.concurrent._
 
-class FixedPool(threads: Int) extends PoolExecutor(threads,
-  t => new ThreadPoolExecutor(t, t, 0L, TimeUnit.SECONDS, new LinkedBlockingQueue[Runnable], new ThreadFactoryWithInfo)
-)
+class FixedPool(threads: Int) extends PoolExecutor(threads, { t =>
+  val queue = new LinkedBlockingQueue[Runnable]
+  (new ThreadPoolExecutor(t, t, 0L, TimeUnit.SECONDS, queue, new ThreadFactoryWithInfo), queue)
+})
 
 /** A pool of execution threads, or another way of running tasks (could use actors or whatever else).
-  *  Tasks submitted for execution can have an optional name (useful for debugging).
-  *  The pool can be shut down, in which case all further tasks will be refused.
+  * Tasks submitted for execution can have an optional name (useful for debugging).
+  * The pool can be shut down, in which case all further tasks will be refused.
   */
 trait Pool {
   def shutdownNow(): Unit
 
   def runClosure(closure: => Unit, info: ReactionInfo): Unit
 
+  def runRunnable(runnable: Runnable): Unit
+
   def isInactive: Boolean
 }
 
-private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorService) extends Pool {
-  protected val execService: ExecutorService = execFactory(threads)
+/** Basic implementation of a thread pool.
+  *
+  * @param threads     Initial number of threads.
+  * @param execFactory Dependency injection closure.
+  */
+private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => (ExecutorService, BlockingQueue[Runnable])) extends Pool {
+  protected val (execService: ExecutorService, queue: BlockingQueue[Runnable]) = execFactory(threads)
 
   val sleepTime = 200L
 
   def shutdownNow(): Unit = new Thread {
-    try{
+    try {
+      queue.clear()
       execService.shutdown()
       execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
-    } finally  {
+    } finally {
       execService.shutdownNow()
       execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
       execService.shutdownNow()
@@ -40,6 +49,8 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => ExecutorSer
     execService.execute(new RunnableWithInfo(closure, info))
 
   override def isInactive: Boolean = execService.isShutdown || execService.isTerminated
+
+  override def runRunnable(runnable: Runnable): Unit = execService.execute(runnable)
 }
 
 /** Create a pool from a Handler interface. The pool will submit tasks using a Handler.post() method.

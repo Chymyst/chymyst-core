@@ -36,7 +36,7 @@ package object jc {
     * The macro also obtains statically checkable information about input and output molecules in the reaction.
     *
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
-    * @return A reaction value, to be used later in [[site(Reaction*)]].
+    * @return A reaction value, to be used later in [[code.chymyst.jc.site(Reaction*)]].
     */
   def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl
 
@@ -55,7 +55,7 @@ package object jc {
     * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
     *
     * @tparam T Type of the value carried by the molecule.
-    * @return A new instance of class [[[M[T]]]] if {{{T}}} is not {{{Unit}}}, or of class [[E]] if {{{T}}} is {{{Unit}}}.
+    * @return A new instance of class [[code.chymyst.jc.M]] if `T` is not `Unit`, or of class [[code.chymyst.jc.E]] if `T` is `Unit`.
     */
   def m[T]: M[T] = macro WhiteboxMacros.mImpl[T]
 
@@ -64,8 +64,8 @@ package object jc {
     *
     * @tparam T Type of the value carried by the molecule.
     * @tparam R Type of the reply value.
-    * @return A new instance of class [[B]]{{{[T,R]}}} if both {{{T}}} and {{{R}}} are not {{{Unit}}}.
-    *         Otherwise will return a new instance of one of the subclasses: [[EB]]{{{[R]}}}, [[BE]]{{{[T]}}}, or [[EE]].
+    * @return A new instance of class [[code.chymyst.jc.B]]`[T,R]` if both `T` and `R` are not `Unit`.
+    *         Otherwise will return a new instance of one of the subclasses: [[code.chymyst.jc.EB]]`[R]`, [[code.chymyst.jc.BE]]`[T]`, or [[code.chymyst.jc.EE]].
     *                  */
   def b[T, R]: B[T, R] = macro WhiteboxMacros.bImpl[T, R]
 

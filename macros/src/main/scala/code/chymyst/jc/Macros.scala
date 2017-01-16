@@ -23,7 +23,7 @@ class CommonMacros(val c: blackbox.Context) {
   }
 
   /** Detect the enclosing name of an expression.
-    * For example: {{{val x = "name is " + getName}}} will set x to the string "name is x".
+    * For example: `val x = "name is " + getName` will set x to the string "name is x".
     *
     * @return String that represents the name of the enclosing value.
     */
@@ -34,7 +34,7 @@ class CommonMacros(val c: blackbox.Context) {
   // Classes need to be defined at top level because we can't have case classes local to a function scope.
   // However, we need to use path-dependent types such as `Ident` and `Tree`.
   // We could use type parameters for every path-dependent type, but it's unwieldy (although it works).
-  // Instead, we just put them inside the {{{CommonMacros}}} class. The price for this is a warning "The outer reference in this type test cannot be checked at run time."
+  // Instead, we just put them inside the `CommonMacros` class. The price for this is a warning "The outer reference in this type test cannot be checked at run time."
   // This warning is discussed here, http://stackoverflow.com/questions/16450008/typesafe-swing-events-the-outer-reference-in-this-type-test-cannot-be-checked-a
 
   /** Describes the pattern matcher for input molecules.
@@ -409,8 +409,8 @@ object Macros {
 
   /**
     * Users will define reactions using this function.
-    * Examples: {{{ go { a(_) => ... } }}}
-    * {{{ go { a (_) => ...}.withRetry onThreads threadPool }}}
+    * Examples: ` go { a(_) => ... } `
+    * ` go { a (_) => ...}.withRetry onThreads threadPool `
     *
     * The macro also obtains statically checkable information about input and output molecules in the reaction.
     *

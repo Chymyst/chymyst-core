@@ -5,8 +5,8 @@ import java.util.concurrent.ThreadFactory
 class SmartThread(runnable: Runnable, pool: SmartPool) extends ThreadWithInfo(runnable) {
   private var inBlockingCall: Boolean = false
 
-  /** Given that the expression {{{expr}}} is "idle blocking", the thread pool will increase the parallelism.
-    * This method always runs on {{{this}}} thread, so no need to synchronize the mutation of {{{var inBlockingCall}}}.
+  /** Given that the expression `expr` is "idle blocking", the thread pool will increase the parallelism.
+    * This method always runs on `this` thread, so no need to synchronize the mutation of `var inBlockingCall`.
     *
     * @param expr Expression that will be idle blocking.
     * @tparam T Type of value of this expression.
@@ -24,7 +24,7 @@ class SmartThread(runnable: Runnable, pool: SmartPool) extends ThreadWithInfo(ru
 }
 
 /** Thread that knows how JoinRun uses it at any time.
-  * The {{{reactionInfo}}} variable is initially set to None, and will be set to Some(...) whenever JoinRun task runs on this thread.
+  * The `reactionInfo` variable is initially set to None, and will be set to Some(...) whenever JoinRun task runs on this thread.
   *
   * @param runnable The initial task given to the thread. (Required by the Thread interface.)
   */

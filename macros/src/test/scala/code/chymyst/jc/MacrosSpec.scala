@@ -450,6 +450,24 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
   }
 
+  it should "run a reaction with cross-molecule guards and some independent molecules" in {
+    val a = m[Option[Int]]
+    val f = b[Int, Int]
+    val c = m[Int]
+
+    val n = 2
+
+    site(tp0)(go { case a(Some(x)) + c(z) + f(y, r) if x < y + n => r(x + z) })
+
+    a(Some(1))
+    c(123)
+    waitSome()
+    waitSome()
+    a.logSoup shouldEqual "Site{a + c + f/B => ...}\nMolecules: a(Some(1)), c(123)"
+    f.timeout(2.second)(0) shouldEqual Some(124)
+    a.logSoup shouldEqual "Site{a + c + f/B => ...}\nNo molecules"
+  }
+
   it should "define a reaction with correct inputs with constant non-default pattern-matching at start of reaction" in {
     val a = new M[Int]("a")
     val b = new E("b")
@@ -730,9 +748,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val inputs = new InputMoleculeList(2)
     inputs(0) = (dIncorrectSingleton, MolValue(()))
     inputs(1) = (e, MolValue(()))
-    r1.body.apply(inputs) shouldEqual 123 // Reaction ran and attempted to emit the singleton.
+    val thrown = intercept[Exception] {
+      r1.body.apply(inputs) shouldEqual 123 // Reaction ran on a non-reaction thread (i.e. on this thread) and attempted to emit the singleton.
+    }
+    val expectedMessage = s"In Site{${dIncorrectSingleton.name} + ${e.name} => ...}: Refusing to emit singleton ${dIncorrectSingleton.name}() because this thread does not run a chemical reaction"
+    thrown.getMessage shouldEqual expectedMessage
     waitSome()
-    globalErrorLog.exists(_.contains(s"In Site{${dIncorrectSingleton.name} + ${e.name} => ...}: Refusing to emit singleton ${dIncorrectSingleton.name}() because this thread does not run a chemical reaction")) shouldEqual true
     e.logSoup shouldEqual s"Site{${dIncorrectSingleton.name} + ${e.name} => ...}\nMolecules: ${dIncorrectSingleton.name}()"
   }
 

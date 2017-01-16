@@ -121,7 +121,7 @@ class MergesortSpec extends FlatSpec with Matchers {
 
   it should "sort an array using concurrent merge-sort more quickly with many threads than with one thread" in {
 
-    val count = 100000 // 1000000
+    val count = 20000 // 1000000
     val threads = 8 // typical thread utilization at 600%
 
     val arr = Array.fill[Int](count)(scala.util.Random.nextInt(count))

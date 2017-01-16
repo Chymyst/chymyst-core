@@ -60,10 +60,10 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     b()
     Thread.sleep(100)
     d()
-    g()
+    g.timeout(1.second)() shouldEqual Some(())
     a.logSoup shouldEqual "Site{a + b + c + f/B => ...; d + g/B => ...}\nMolecules: a() * 2, b()"
     c()
-    f()
+    f.timeout(1.second)() shouldEqual Some(())
     a.logSoup shouldEqual "Site{a + b + c + f/B => ...; d + g/B => ...}\nMolecules: a()"
   }
 
@@ -226,7 +226,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       go { case c(0) + g(_,r) => r(0) }
     )
     c(2) + d() + d()
-    g() shouldEqual 0
+    g.timeout(1.second)() shouldEqual Some(0)
   }
 
   it should "use only one thread for concurrent computations" in {
@@ -244,13 +244,13 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       go { case f(_) + a(x) => a(x+1) }
     )
     a(0) + c(1) + c(1) + d() + d()
-    g() shouldEqual 0
+    g.timeout(1.second)() shouldEqual Some(0)
     Thread.sleep(150) // This is less than 300ms, so we have not yet finished the first computation.
-    g() shouldEqual 0
+    g.timeout(1.second)() shouldEqual Some(0)
     Thread.sleep(300) // Now we should have finished the first computation.
-    g() shouldEqual 1
+    g.timeout(1.second)() shouldEqual Some(1)
     Thread.sleep(300) // Now we should have finished the second computation.
-    g() shouldEqual 2
+    g.timeout(1.second)() shouldEqual Some(2)
 
     tp.shutdownNow()
   }
@@ -272,7 +272,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     )
     a(0) + c() + c() + d() + d()
     Thread.sleep(500) // This is less than 2*300ms, and the test fails unless we use 2 threads concurrently.
-    g() shouldEqual 2
+    g.timeout(1.second)() shouldEqual Some(2)
 
     tp.shutdownNow()
   }
@@ -344,7 +344,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     c(n)
     (1 to n).foreach { _ =>
       if (d.timeout(1500 millis)().isEmpty) {
-        println(Core.globalErrorLog.toList) // this should not happen, but will be helpful for debugging
+        println(Core.globalErrorLog.take(50).toList) // this should not happen, but will be helpful for debugging
       }
     }
 
