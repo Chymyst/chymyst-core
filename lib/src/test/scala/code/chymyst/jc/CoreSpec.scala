@@ -41,4 +41,48 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     getSha1(A(123,456)) shouldEqual "7E4D82CC624252B788D54BCE49D0A1380436E846"
   }
 
+  behavior of "monadic Either"
+
+  it should "perform monadic operations on Either" in {
+    val b: Either[String, Int] = Left("bad")
+    val c: Either[String, Int] = Right(123)
+
+    b.map(x => x + 1) shouldEqual Left("bad")
+    c.map(x => x + 1) shouldEqual Right(124)
+    b.flatMap(x => Right(x + 1)) shouldEqual Left("bad")
+    c.flatMap(x => Right(x + 1)) shouldEqual Right(124)
+    c.flatMap(x => Left("no")) shouldEqual Left("no")
+  }
+
+  it should "support monadic for blocks on Either" in {
+    val a = for {
+      c <- if (3 > 0) Right(123) else Left("bad")
+      d <- if (c > 0) Right(456) else Left("no")
+    } yield c + d
+    a shouldEqual Right(123 + 456)
+
+    var notLazy: Boolean = false
+
+    val q = for {
+      c <- if (3 < 0) Right(123) else Left("bad")
+    _ = { notLazy = true}
+      d <- if (c > 0) Right(456) else Left("no")
+    } yield c + d
+
+    q shouldEqual Left("bad")
+
+    notLazy shouldEqual false
+  }
+
+  it should "support flatFoldLeft for Seq" in {
+    Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual Some(6)
+    Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual None
+  }
+
+  it should "support findAfterMap for Seq" in {
+    Seq(1, 2, 3).findAfterMap(x => if (x % 2 == 0) Some(x) else None) shouldEqual Some(2)
+    Seq(1, 2, 3).findAfterMap(x => if (x % 2 != 0) Some(x) else None) shouldEqual Some(1)
+    Seq(1, 2, 3).findAfterMap(x => if (x == 0) Some(x) else None) shouldEqual None
+  }
+
 }

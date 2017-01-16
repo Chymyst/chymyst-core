@@ -2,12 +2,14 @@ package code.chymyst.jc
 
 import java.util.concurrent.ConcurrentLinkedQueue
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.collection.mutable
+import scala.util.{Left, Right}
 
 object Core {
 
-  /** A special value for {{{ReactionInfo}}} to signal that we are not running a reaction.
+  /** A special value for `ReactionInfo` to signal that we are not running a reaction.
     *
     */
   val emptyReactionInfo = ReactionInfo(Array(), Array(), AllMatchersAreTrivial, "")
@@ -36,6 +38,7 @@ object Core {
       */
     def shuffle: Seq[T] = scala.util.Random.shuffle(a)
   }
+
   @SuppressWarnings(Array("org.wartremover.warts.Equals"))
   implicit final class AnyOpsEquals[@specialized A](self: A) {
     def ===(other: A): Boolean = self == other
@@ -60,7 +63,7 @@ object Core {
 
   // Wait until the reaction site to which `molecule` is bound becomes quiescent, then emit `callback`.
   // TODO: implement
-//  def waitUntilQuiet[T](molecule: M[T], callback: E): Unit = molecule.site.setQuiescenceCallback(callback)
+  //  def waitUntilQuiet[T](molecule: M[T], callback: E): Unit = molecule.site.setQuiescenceCallback(callback)
 
 
   val defaultSitePool = new FixedPool(2)
@@ -78,7 +81,7 @@ object Core {
 
   private[jc] def moleculeBagToString(mb: MoleculeBag): String =
     mb.getMap.toSeq
-      .map{ case (m, vs) => (m.toString, vs) }
+      .map { case (m, vs) => (m.toString, vs) }
       .sortBy(_._1)
       .flatMap {
         case (m, vs) => vs.map {
@@ -93,15 +96,16 @@ object Core {
     }.toSeq.sorted.mkString(", ")
 
   def site(reactions: Reaction*): WarningsAndErrors = site(defaultReactionPool, defaultSitePool)(reactions: _*)
+
   def site(reactionPool: Pool)(reactions: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(reactions: _*)
 
   /** Create a reaction site with one or more reactions.
     * All input and output molecules in reactions used in this site should have been
     * already defined, and input molecules should not be already bound to another site.
     *
-    * @param reactions One or more reactions of type [[Reaction]]
+    * @param reactions    One or more reactions of type [[Reaction]]
     * @param reactionPool Thread pool for running new reactions.
-    * @param sitePool Thread pool for use when making decisions to schedule reactions.
+    * @param sitePool     Thread pool for use when making decisions to schedule reactions.
     * @return List of warning messages.
     */
   def site(reactionPool: Pool, sitePool: Pool)(reactions: Reaction*): WarningsAndErrors = {
@@ -124,6 +128,52 @@ object Core {
 
   // List of molecules used as inputs by a reaction.
   type InputMoleculeList = Array[(Molecule, AbsMolValue[_])]
+
+  implicit class EitherMonad[L, R](e: Either[L, R]) {
+    def map[S](f: R => S): Either[L, S] = e match {
+      case Right(r) => Right(f(r))
+      case Left(l) => Left(l)
+    }
+
+    def flatMap[S](f: R => Either[L, S]): Either[L, S] = e match {
+      case Right(r) => f(r)
+      case Left(l) => Left(l)
+    }
+  }
+
+  implicit class SeqWithFlatFoldLeft[T](s: Seq[T]) {
+
+    def findAfterMap[R](f: T => Option[R]): Option[R] = {
+      var result: R = null.asInstanceOf[R]
+      s.find { t =>
+        f(t).exists { r => result = r; true }
+      }.map(_ => result)
+    }
+
+    /** "flat foldLeft" will perform a `foldLeft` unless the function `op` returns `None` at some point in the sequence.
+      *
+      * @param z Initial value of type `R`.
+      * @param op Binary operation, returns an `Option[R]`.
+      * @tparam R Type of the return value `r` under option.
+      * @return Result value `Some(r)`, having folded to the end of the sequence. Will return `None` if `op` returned `None` at any point.
+      */
+    def flatFoldLeft[R](z: R)(op: (R, T) => Option[R]): Option[R] = {
+
+      @tailrec
+      def flatFoldLeftImpl(z: R, xs: Seq[T]): Option[R] =
+        xs.headOption match {
+          case Some(h) =>
+            op(z, h) match {
+              case Some(newZ) => flatFoldLeftImpl(newZ, xs.drop(1))
+              case None => None
+            }
+          case None => Some(z)
+
+        }
+
+      flatFoldLeftImpl(z, s)
+    }
+  }
 
 }
 

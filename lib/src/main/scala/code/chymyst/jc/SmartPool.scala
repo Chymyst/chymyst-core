@@ -3,7 +3,7 @@ package code.chymyst.jc
 import java.util.concurrent._
 
 /** This is similar to scala.concurrent.blocking and is used to annotate expressions that should lead to a possible increase of thread count.
-  * Multiple nested calls to {{{BlockingIdle}}} are equivalent to one call.
+  * Multiple nested calls to `BlockingIdle` are equivalent to one call.
   */
 object BlockingIdle {
   def apply[T](expr: => T): T =
@@ -14,7 +14,7 @@ object BlockingIdle {
 }
 
 /** A cached pool that increases its thread count whenever a blocking molecule is emitted, and decreases afterwards.
-  * The {{{BlockingIdle}}} function, similar to {{{scala.concurrent.blocking}}}, is used to annotate expressions that should lead to an increase of thread count, and to a decrease of thread count once the idle blocking call returns.
+  * The `BlockingIdle` function, similar to `scala.concurrent.blocking`, is used to annotate expressions that should lead to an increase of thread count, and to a decrease of thread count once the idle blocking call returns.
   */
 class SmartPool(parallelism: Int) extends Pool {
 
@@ -23,7 +23,7 @@ class SmartPool(parallelism: Int) extends Pool {
   }
 
   // Looks like we will die hard at about 2021 threads...
-  val maxPoolSize = 1000 + 2*parallelism
+  val maxPoolSize: Int = 1000 + 2*parallelism
 
   def currentPoolSize: Int = executor.getCorePoolSize
 
@@ -55,6 +55,7 @@ class SmartPool(parallelism: Int) extends Pool {
 
   override def shutdownNow(): Unit = new Thread {
     try {
+      queue.clear()
       executor.shutdown()
       executor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
     } finally {
@@ -65,10 +66,10 @@ class SmartPool(parallelism: Int) extends Pool {
     }
   }.start()
 
-  override def runClosure(closure: => Unit, info: ReactionInfo): Unit = {
-    executor.submit(new RunnableWithInfo(closure, info))
-    ()
-  }
+  override def runClosure(closure: => Unit, info: ReactionInfo): Unit =
+    executor.execute(new RunnableWithInfo(closure, info))
+
+  override def runRunnable(runnable: Runnable): Unit = executor.execute(runnable)
 
   override def isInactive: Boolean = executor.isShutdown || executor.isTerminated
 }

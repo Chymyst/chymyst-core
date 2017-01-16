@@ -11,7 +11,7 @@ import scala.util.Random.nextInt
 
 class ReactionDelaySpec extends FlatSpec with Matchers {
 
-  val safeSize: Int => Float = x => if (x==0) 1.0f else x.toFloat
+  val safeSize: Int => Double = x => if (x==0) 1.0f else x.toDouble
 
   behavior of "reaction overhead and delay times"
 
@@ -32,6 +32,50 @@ class ReactionDelaySpec extends FlatSpec with Matchers {
     val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
     val meanReplyDelay = results.sum / safeSize(results.size) / 1000 - 1
     println(s"Sequential test: Mean reply delay is $meanReplyDelay ms out of $trials trials; the test took $timeElapsed ms")
+    tp.shutdownNow()
+  }
+
+  def getStats(d: Seq[Double]): (Double, Double) = {
+    val size = safeSize(d.size)
+    val mean = d.sum / size
+    val std = math.sqrt( d.map(x => x - mean).map(x => x * x).sum / size )
+    (mean, std)
+  }
+
+  def formatNanos(x: Double): String = f"${x/1000000}%1.3f"
+
+  it should "measure statistics on reaction scheduling for non-blocking molecules" in {
+    val a = m[Long]
+    val c = m[Long]
+    val f = b[Unit, Long]
+    val tp = new SmartPool(4)
+    site(tp)(
+      go { case c(x) + f(_, r) => r(x) },
+      go { case a(d) =>
+        val elapsed = System.nanoTime() - d
+        c(elapsed)
+      }
+    )
+    val trials = 10000
+    val timeInit = LocalDateTime.now
+    val resultsRaw = (1 to trials).map { _ =>
+      val timeInit = System.nanoTime()
+      a(timeInit)
+      val timeAfterA = System.nanoTime() - timeInit
+      val res = f()
+      val timeElapsed = System.nanoTime() - timeInit
+      (res, timeAfterA, timeElapsed)
+    }
+    val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
+
+    val results = resultsRaw.drop(resultsRaw.size/2) // Drop first half of values due to warm-up of JVM.
+
+    val (meanReactionStartDelay, stdevReactionStartDelay) = getStats(results.map(_._1.toDouble))
+    val (meanEmitDelay, stdevEmitDelay) = getStats(results.map(_._2.toDouble))
+    val (meanReplyDelay, stdevReplyDelay) = getStats(results.map(_._3.toDouble))
+
+    println(s"Sequential test of emission and reaction delay: trials = ${results.size}, meanReactionStartDelay = ${formatNanos(meanReactionStartDelay)} ms +- ${formatNanos(stdevReactionStartDelay)} ms, meanEmitDelay = ${formatNanos(meanEmitDelay)} ms +- ${formatNanos(stdevEmitDelay)} ms, meanReplyDelay = ${formatNanos(meanReplyDelay)} ms +- ${formatNanos(stdevReplyDelay)} ms; the test took $timeElapsed ms")
+
     tp.shutdownNow()
   }
 
@@ -71,7 +115,7 @@ class ReactionDelaySpec extends FlatSpec with Matchers {
 
   type Result = (Int, Int, Long, Boolean)
 
-  case class MeasurementResult(resultTrueSize: Int, resultFalseSize: Int, timeoutDelayArraySize: Int, noTimeoutMeanShiftArraySize: Int, timeoutDelay: Float, noTimeoutDelay: Float, timeoutMeanShift: Float, noTimeoutMeanShift: Float, printout: String)
+  case class MeasurementResult(resultTrueSize: Int, resultFalseSize: Int, timeoutDelayArraySize: Int, noTimeoutMeanShiftArraySize: Int, timeoutDelay: Double, noTimeoutDelay: Double, timeoutMeanShift: Double, noTimeoutMeanShift: Double, printout: String)
 
   def measureTimeoutDelays(trials: Int, maxTimeout: Int, tp: Pool): List[(Int, Int, Long, Boolean)] = {
     val f = b[Long, Unit]

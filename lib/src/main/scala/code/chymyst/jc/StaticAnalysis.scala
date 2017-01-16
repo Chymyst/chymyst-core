@@ -16,15 +16,18 @@ private[jc] object StaticAnalysis {
   @tailrec
   private def allMatchersAreWeakerThan(input1: List[InputMoleculeInfo], input2: List[InputMoleculeInfo]): Boolean = {
     input1 match {
-      case Nil => true // input1 has no matchers left
+      case Nil =>
+        true // input1 has no matchers left
       case info1 :: rest1 => input2 match {
-        case Nil => false // input1 has matchers but input2 has no matchers left
+        case Nil =>
+          false // input1 has matchers but input2 has no matchers left
         case _ =>
           val isWeaker: InputMoleculeInfo => Boolean =
             i => info1.matcherIsWeakerThan(i).getOrElse(false)
 
           input2.find(isWeaker) match {
-            case Some(correspondingMatcher) => allMatchersAreWeakerThan(rest1, input2 difff List(correspondingMatcher))
+            case Some(correspondingMatcher) =>
+              allMatchersAreWeakerThan(rest1, input2 difff List(correspondingMatcher))
             case None => false
           }
       }
@@ -40,7 +43,8 @@ private[jc] object StaticAnalysis {
             i => info.matcherIsWeakerThanOutput(i).getOrElse(false)
 
           output.find(isWeaker) match {
-            case Some(correspondingMatcher) => inputMatchersAreWeakerThanOutput(rest, output diff Array(correspondingMatcher))
+            case Some(correspondingMatcher) =>
+              inputMatchersAreWeakerThanOutput(rest, output diff Array(correspondingMatcher))
             case None => false
           }
 
@@ -56,7 +60,8 @@ private[jc] object StaticAnalysis {
             i => info.matcherIsSimilarToOutput(i).getOrElse(false)
 
           output.find(isWeaker) match {
-            case Some(correspondingMatcher) => inputMatchersAreSimilarToOutput(rest, output diff Array(correspondingMatcher))
+            case Some(correspondingMatcher) =>
+              inputMatchersAreSimilarToOutput(rest, output diff Array(correspondingMatcher))
             case None => false
           }
 
@@ -211,15 +216,19 @@ private[jc] object StaticAnalysis {
 
     val wrongConsumed = singletonsConsumedMaxTimes
       .flatMap {
-        case (mol, (reaction, 0)) => Some(s"singleton ($mol) not consumed by any reactions")
-        case (mol, (reaction, 1)) => None
-        case (mol, (reaction, countConsumed)) => Some(s"singleton ($mol) consumed $countConsumed times by reaction ${reaction.info}")
+        case (mol, (reaction, 0)) =>
+          Some(s"singleton ($mol) not consumed by any reactions")
+        case (mol, (reaction, 1)) =>
+          None
+        case (mol, (reaction, countConsumed)) =>
+          Some(s"singleton ($mol) consumed $countConsumed times by reaction ${reaction.info}")
       }
 
     val wrongOutput = singletons.map {
       case (m, _) => m -> reactions.find(r => r.inputMolecules.count(_ === m) == 1 && !r.info.outputs.exists(_.molecule === m))
     }.flatMap {
-      case (mol, Some(r)) => Some(s"singleton ($mol) consumed but not emitted by reaction ${r.info}")
+      case (mol, Some(r)) =>
+        Some(s"singleton ($mol) consumed but not emitted by reaction ${r.info}")
       case _ => None
     }
 
@@ -240,7 +249,7 @@ private[jc] object StaticAnalysis {
             val outputTimes = r.info.outputs.count(_.molecule === m)
             if (outputTimes > 1)
               Some(s"singleton ($m) emitted more than once by reaction ${r.info}")
-            else if (outputTimes == 1 && !r.inputMolecules.contains(m))
+            else if (outputTimes == 1 && !r.inputMoleculesSet.contains(m))
               Some(s"singleton ($m) emitted but not consumed by reaction ${r.info}")
             else None
         }
@@ -266,7 +275,8 @@ private[jc] object StaticAnalysis {
 
   private[jc] def findSingletonDeclarationErrors(singletonReactions: Seq[Reaction]): Seq[String] = {
     val foundErrors = singletonReactions.map(_.info).filterNot(_.guardPresence.effectivelyAbsent)
-    if (foundErrors.nonEmpty) foundErrors.map { info => s"Singleton reaction {$info} should not have a guard condition" }
+    if (foundErrors.nonEmpty)
+      foundErrors.map { info => s"Singleton reaction {$info} should not have a guard condition" }
     else Seq()
   }
 
@@ -278,7 +288,8 @@ private[jc] object StaticAnalysis {
         val countEmitted = singletonsEmitted.getOrElse(mol, 0)
         s"$mol emitted $countEmitted times instead of $count"
       }
-    if (foundErrors.nonEmpty) Seq(s"Too few singletons emitted: ${foundErrors.toList.sorted.mkString(", ")}")
+    if (foundErrors.nonEmpty)
+      Seq(s"Too few singletons emitted: ${foundErrors.toList.sorted.mkString(", ")}")
     else Seq()
   }
 
@@ -290,7 +301,8 @@ private[jc] object StaticAnalysis {
         val countEmitted = singletonsEmitted.getOrElse(mol, 0)
         s"$mol emitted $countEmitted times instead of $count"
       }
-    if (foundErrors.nonEmpty) Seq(s"Possibly too many singletons emitted: ${foundErrors.toList.sorted.mkString(", ")}")
+    if (foundErrors.nonEmpty)
+      Seq(s"Possibly too many singletons emitted: ${foundErrors.toList.sorted.mkString(", ")}")
     else Seq()
   }
 

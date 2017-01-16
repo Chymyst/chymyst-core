@@ -27,7 +27,10 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     )
 
     (1 to 200).foreach { i =>
-      d(s"bad $i") // this "d" should not be emitted, even though "d" is sometimes not in the soup due to reactions!
+      val thrown = intercept[Exception] {
+        d(s"bad $i") // this "d" should not be emitted, even though "d" is sometimes not in the soup due to reactions!
+      }
+      thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit singleton d(bad $i) because this thread does not run a chemical reaction"
       f.timeout(500 millis)() shouldEqual Some("ok")
     }
 
@@ -49,8 +52,11 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
       // Warning: the timeouts might fail the test due to timed tests.
       (1 to 20).foreach { j =>
+        val thrown = intercept[Exception] {
         d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
         // and even if the initial d() emission was done late
+        }
+        thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit singleton d(bad $i $j) because this thread does not run a chemical reaction"
         f.timeout(500 millis)() shouldEqual Some("ok")
       }
 
@@ -167,6 +173,26 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       )
     }
     thrown.getMessage shouldEqual "In Site{c/B => ...}: Incorrect singleton declaration: singleton (d) emitted but not consumed by reaction c/B(_) => d(); Incorrect singleton declaration: singleton (d) not consumed by any reactions"
+
+    tp.shutdownNow()
+  }
+
+  it should "signal error when a singleton is defined by a reaction with guard" in {
+
+    val tp = new FixedPool(3)
+
+    val thrown = intercept[Exception] {
+      val c = b[Unit, String]
+      val d = m[Unit]
+
+      val n = 1
+
+      site(tp)(
+        go { case c(_, r) + d(_) => r("ok") + d() },
+        go { case _ if n > 0 => d() } // singleton
+      )
+    }
+    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Singleton reaction { if(?) => d()} should not have a guard condition"
 
     tp.shutdownNow()
   }
