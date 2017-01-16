@@ -20,7 +20,7 @@ object Core {
 
   def getSha1(c: Any): String = getSha1String(c.toString)
 
-  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
+//  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 
   implicit class SeqWithOption[S](s: Seq[S]) {
     def toOptionSeq: Option[Seq[S]] = if (s.isEmpty) None else Some(s)
