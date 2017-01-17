@@ -344,12 +344,12 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     c(n)
     (1 to n).foreach { _ =>
       if (d.timeout(1500 millis)().isEmpty) {
-        println(Core.globalErrorLog.take(50).toList) // this should not happen, but will be helpful for debugging
+        println(globalErrorLog.take(50).toList) // this should not happen, but will be helpful for debugging
       }
     }
 
     val result = g.timeout(1500 millis)()
-    Core.globalErrorLog.exists(_.contains("Message: crash! (it's OK, ignore this)"))
+    globalErrorLog.exists(_.contains("Message: crash! (it's OK, ignore this)"))
     tp.shutdownNow()
     result shouldEqual Some(())
   }

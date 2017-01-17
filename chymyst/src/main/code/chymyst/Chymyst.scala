@@ -1,7 +1,7 @@
-package code.chymyst.jc
+package code.chymyst
 
+import jc._
 import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.{Failure, Success, Try}
 
 object Chymyst {
   /** Create a non-blocking molecule that, when emitted, will resolve the future.
@@ -47,25 +47,6 @@ object Chymyst {
     def +(u: => Unit): Future[T] = f map { x =>
       u
       x
-    }
-  }
-
-  def withPool[T](pool: => Pool)(doWork: Pool => T): Try[T] = cleanup(pool)(_.shutdownNow())(doWork)
-
-  def cleanup[T,R](resource: => T)(cleanup: T => Unit)(doWork: T => R): Try[R] = {
-    try {
-      Success(doWork(resource))
-    } catch {
-      case e: Exception => Failure(e)
-    }
-    finally {
-      try {
-        if (Option(resource).isDefined) {
-          cleanup(resource)
-        }
-      } catch {
-        case e: Exception => e.printStackTrace()
-      }
     }
   }
 
