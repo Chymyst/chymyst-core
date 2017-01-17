@@ -15,11 +15,6 @@ package object jc {
     */
   def cpuCores: Int = Runtime.getRuntime.availableProcessors()
 
-
-  def site(reactions: Reaction*): WarningsAndErrors = site(defaultReactionPool, defaultSitePool)(reactions: _*)
-
-  def site(reactionPool: Pool)(reactions: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(reactions: _*)
-
   /** Create a reaction site with one or more reactions.
     * All input and output molecules in reactions used in this site should have been
     * already defined, and input molecules should not be already bound to another site.
@@ -38,6 +33,10 @@ package object jc {
     reactionSite.checkWarningsAndErrors()
   }
 
+  def site(reactions: Reaction*): WarningsAndErrors = site(defaultReactionPool, defaultSitePool)(reactions: _*)
+
+  def site(reactionPool: Pool)(reactions: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(reactions: _*)
+
   /**
     * Users will define reactions using this function.
     * Examples: {{{ go { a(_) => ... } }}}
@@ -46,7 +45,7 @@ package object jc {
     * The macro also obtains statically checkable information about input and output molecules in the reaction.
     *
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
-    * @return A reaction value, to be used later in [[code.chymyst.jc.site(Reaction*)]].
+    * @return A [[Reaction]] value, containing the reaction body as well as static information about input and output molecules.
     */
   def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl
 

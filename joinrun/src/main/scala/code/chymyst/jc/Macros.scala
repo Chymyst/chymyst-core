@@ -403,20 +403,4 @@ object Macros {
     */
   private[jc] def getName: String = macro CommonMacros.getNameImpl
 
-  def m[T]: M[T] = macro WhiteboxMacros.mImpl[T]
-
-  def b[T, R]: B[T, R] = macro WhiteboxMacros.bImpl[T, R]
-
-  /**
-    * Users will define reactions using this function.
-    * Examples: ` go { a(_) => ... } `
-    * ` go { a (_) => ...}.withRetry onThreads threadPool `
-    *
-    * The macro also obtains statically checkable information about input and output molecules in the reaction.
-    *
-    * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
-    * @return A reaction value, to be used later in [[Core.site(Reaction*)]].
-    */
-  def go(reactionBody: ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl
-
 }
