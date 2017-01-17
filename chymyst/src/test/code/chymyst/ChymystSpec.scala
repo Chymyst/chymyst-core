@@ -1,7 +1,7 @@
-package code.chymyst.test
+package code.chymyst
 
 import code.chymyst.jc._
-import code.chymyst.jc.Chymyst._
+import code.chymyst.Chymyst._
 import code.chymyst.jc.Core.emptyReactionInfo
 import org.scalactic.source.Position
 import org.scalatest.concurrent.TimeLimitedTests

@@ -3,9 +3,8 @@ package code.chymyst.jc
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import scala.annotation.tailrec
-import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.collection.mutable
-import scala.util.{Left, Right}
+import scala.util.{Failure, Left, Right, Success, Try}
 
 object Core {
 
@@ -65,10 +64,6 @@ object Core {
   // TODO: implement
   //  def waitUntilQuiet[T](molecule: M[T], callback: E): Unit = molecule.site.setQuiescenceCallback(callback)
 
-
-  val defaultSitePool = new FixedPool(2)
-  val defaultReactionPool = new FixedPool(4)
-
   /** Type alias for reaction body.
     *
     */
@@ -95,36 +90,12 @@ object Core {
       case (m, jmv) => s"$m($jmv)"
     }.toSeq.sorted.mkString(", ")
 
-  def site(reactions: Reaction*): WarningsAndErrors = site(defaultReactionPool, defaultSitePool)(reactions: _*)
-
-  def site(reactionPool: Pool)(reactions: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(reactions: _*)
-
-  /** Create a reaction site with one or more reactions.
-    * All input and output molecules in reactions used in this site should have been
-    * already defined, and input molecules should not be already bound to another site.
-    *
-    * @param reactions    One or more reactions of type [[Reaction]]
-    * @param reactionPool Thread pool for running new reactions.
-    * @param sitePool     Thread pool for use when making decisions to schedule reactions.
-    * @return List of warning messages.
-    */
-  def site(reactionPool: Pool, sitePool: Pool)(reactions: Reaction*): WarningsAndErrors = {
-
-    // Create a reaction site object holding the given local chemistry.
-    // The constructor of ReactionSite will perform static analysis of all given reactions.
-    val reactionSite = new ReactionSite(reactions, reactionPool, sitePool)
-
-    reactionSite.checkWarningsAndErrors()
-  }
-
-  private val errorLog = new ConcurrentLinkedQueue[String]
+  private[jc] val errorLog = new ConcurrentLinkedQueue[String]
 
   private[jc] def reportError(message: String): Unit = {
     errorLog.add(message)
     ()
   }
-
-  def globalErrorLog: Iterable[String] = errorLog.iterator().asScala.toIterable
 
   // List of molecules used as inputs by a reaction.
   type InputMoleculeList = Array[(Molecule, AbsMolValue[_])]
@@ -172,6 +143,25 @@ object Core {
         }
 
       flatFoldLeftImpl(z, s)
+    }
+  }
+
+  def withPool[T](pool: => Pool)(doWork: Pool => T): Try[T] = cleanup(pool)(_.shutdownNow())(doWork)
+
+  def cleanup[T,R](resource: => T)(cleanup: T => Unit)(doWork: T => R): Try[R] = {
+    try {
+      Success(doWork(resource))
+    } catch {
+      case e: Exception => Failure(e)
+    }
+    finally {
+      try {
+        if (Option(resource).isDefined) {
+          cleanup(resource)
+        }
+      } catch {
+        case e: Exception => e.printStackTrace()
+      }
     }
   }
 

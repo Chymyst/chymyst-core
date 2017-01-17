@@ -2,6 +2,8 @@ package code.chymyst
 
 import scala.language.experimental.macros
 
+import scala.collection.JavaConverters.asScalaIteratorConverter
+
 /** This is a pure interface to other functions to make them visible to users.
   * This object does not contain any new code.
   */
@@ -13,7 +15,8 @@ package object jc {
     */
   def cpuCores: Int = Runtime.getRuntime.availableProcessors()
 
-  def site(reactions: Reaction*): WarningsAndErrors = Core.site(Core.defaultReactionPool, Core.defaultSitePool)(reactions: _*)
+
+  def site(reactions: Reaction*): WarningsAndErrors = site(defaultReactionPool, defaultSitePool)(reactions: _*)
 
   def site(reactionPool: Pool)(reactions: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(reactions: _*)
 
@@ -21,12 +24,19 @@ package object jc {
     * All input and output molecules in reactions used in this site should have been
     * already defined, and input molecules should not be already bound to another site.
     *
-    * @param reactions    One or more reactions of type [[Reaction]].
+    * @param reactions    One or more reactions of type [[Reaction]]
     * @param reactionPool Thread pool for running new reactions.
     * @param sitePool     Thread pool for use when making decisions to schedule reactions.
     * @return List of warning messages.
     */
-  def site(reactionPool: Pool, sitePool: Pool)(reactions: Reaction*): WarningsAndErrors = Core.site(reactionPool, sitePool)(reactions: _*)
+  def site(reactionPool: Pool, sitePool: Pool)(reactions: Reaction*): WarningsAndErrors = {
+
+    // Create a reaction site object holding the given local chemistry.
+    // The constructor of ReactionSite will perform static analysis of all given reactions.
+    val reactionSite = new ReactionSite(reactions, reactionPool, sitePool)
+
+    reactionSite.checkWarningsAndErrors()
+  }
 
   /**
     * Users will define reactions using this function.
@@ -69,7 +79,8 @@ package object jc {
     *                  */
   def b[T, R]: B[T, R] = macro WhiteboxMacros.bImpl[T, R]
 
-  val defaultSitePool: Pool = Core.defaultSitePool
-  val defaultReactionPool: Pool = Core.defaultReactionPool
+  val defaultSitePool = new FixedPool(2)
+  val defaultReactionPool = new FixedPool(4)
 
+  def globalErrorLog: Iterable[String] = Core.errorLog.iterator().asScala.toIterable
 }

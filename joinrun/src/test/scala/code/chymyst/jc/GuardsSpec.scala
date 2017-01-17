@@ -1,6 +1,5 @@
 package code.chymyst.jc
 
-import Macros.{m, b, go}
 import org.scalatest.{FlatSpec, Matchers}
 
 class GuardsSpec extends FlatSpec with Matchers {
