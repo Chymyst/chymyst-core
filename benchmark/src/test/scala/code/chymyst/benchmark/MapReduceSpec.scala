@@ -1,4 +1,4 @@
-package code.chymyst.test
+package code.chymyst.benchmark
 
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit

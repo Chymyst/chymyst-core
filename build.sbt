@@ -1,7 +1,7 @@
 /*
 Root project: buildAll (not executable)
-Depends on: lib, macros, joinrun, benchmark
-Aggregates: lib, macros, joinrun
+Depends on: joinrun, benchmark, chymyst
+Aggregates: joinrun, chymyst
 
 Benchmark: executable (sbt benchmark/run)
 
@@ -30,7 +30,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     "-unchecked",
     "-encoding", "UTF-8",
     "-feature",
-//    "-language:existentials",
+    //    "-language:existentials",
     "-language:higherKinds",
     "-language:implicitConversions",
     // "-Xfatal-warnings",
@@ -42,21 +42,21 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     "-Xfuture",
     "-Ywarn-unused"
   ) ++ ( //target:jvm-1.8 supported from 2.11.5, warn-unused-import deprecated in 2.12
-        if (scalaVersion.value startsWith "2.11") {
-          val revision = scalaVersion.value.split('.').last.toInt
-          Seq("-Ywarn-unused-import") ++ (
-            if (revision >= 5) {
-              Seq("-target:jvm-1.8")
-            }
-            else {
-              Nil
-            })
+    if (scalaVersion.value startsWith "2.11") {
+      val revision = scalaVersion.value.split('.').last.toInt
+      Seq("-Ywarn-unused-import") ++ (
+        if (revision >= 5) {
+          Seq("-target:jvm-1.8")
         }
-        else Nil
+        else {
+          Nil
+        })
+    }
+    else Nil
     )
     ++ (
-        if (scalaVersion.value startsWith "2.12") Seq("-target:jvm-1.8","-Ypartial-unification") // (SI-2712 pertains to partial-unification)
-        else Nil
+    if (scalaVersion.value startsWith "2.12") Seq("-target:jvm-1.8","-Ypartial-unification") // (SI-2712 pertains to partial-unification)
+    else Nil
     )
 )
 
@@ -73,52 +73,24 @@ lazy val buildAll = (project in file("."))
   .settings(
     name := "buildAll"
   )
-  .aggregate(lib, macros, joinrun, benchmark)
+  .aggregate(joinrun, benchmark, chymyst)
 
 lazy val joinrun = (project in file("joinrun"))
   .settings(commonSettings: _*)
   .settings(
-  	name := "joinrun",
-  	libraryDependencies ++= Seq(
-    	"org.scala-lang" % "scala-reflect" % scalaVersion.value % "test",
-    	"org.scalatest" %% "scalatest" % "3.0.0" % "test"
-    ),
-    parallelExecution in Test := false,
-    concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
-  )
-  .dependsOn(lib, macros)
-
-// Macros for the JoinRun library.
-lazy val macros = (project in file("macros"))
-  .settings(commonSettings: _*)
-  .settings(
-    name := "macros",
+    name := "joinrun",
     wartremoverWarnings in (Compile, compile) ++= warningsForWartRemover,
     wartremoverErrors in (Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
-
+      "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
       // the "scala-compiler" is a necessary dependency only if we want to debug macros;
       // the project does not actually depend on scala-compiler.
       "org.scala-lang" % "scala-compiler" % scalaVersion.value % "test"
-    )
-  ).dependsOn(lib)
-
-// The core JoinRun library without macros.
-lazy val lib = (project in file("lib"))
-  .settings(commonSettings: _*)
-  .settings(
-    name := "lib",
+    ),
     parallelExecution in Test := false,
-    concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
-    wartremoverWarnings in (Compile, compile) ++= warningsForWartRemover,
-    wartremoverErrors in (Compile, compile) ++= errorsForWartRemover,
-    libraryDependencies ++= Seq(
-      //        "com.typesafe.akka" %% "akka-actor" % "2.4.12",
-      "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
-      "org.scalatest" %% "scalatest" % "3.0.0" % "test"
-    )
+    concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
   )
 
 // Benchmarks - users do not need to depend on this.
@@ -127,7 +99,7 @@ lazy val benchmark = (project in file("benchmark"))
   .settings(
     name := "benchmark",
     aggregate in assembly := false,
-//    unmanagedJars in Compile += file("lib/JiansenJoin-0.3.6-JoinRun-0.1.0.jar"),// they say it's no longer needed
+    //    unmanagedJars in Compile += file("lib/JiansenJoin-0.3.6-JoinRun-0.1.0.jar"),// they say it's no longer needed
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
     parallelExecution in Test := false,
     libraryDependencies ++= Seq(
@@ -135,3 +107,12 @@ lazy val benchmark = (project in file("benchmark"))
     )
   ).dependsOn(joinrun)
 
+lazy val chymyst = (project in file("chymyst"))
+.settings(commonSettings: _*)
+.settings(
+  name := "benchmark",
+  aggregate in assembly := true,
+  libraryDependencies ++= Seq(
+    "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+  )
+).dependsOn(joinrun)
