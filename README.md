@@ -276,7 +276,7 @@ Performance tests indicate that the runtime can schedule about 300,000 reactions
 
 Known limitations:
 
-- `JoinRun` is about 3x slower than `ScalaJoin` on the blocking molecule benchmark, and about 1.5x slower on non-blocking molecule benchmarks.
+- `JoinRun` is about 2x slower than `ScalaJoin` on the blocking molecule benchmark, and about 1.5x slower on non-blocking molecule benchmarks.
 - `JoinRun` has no fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random.
 - `JoinRun` has no distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`, and probably will not be).
 Distributed computation should be implemented in a better way than posting channel names on an HTTP server.
@@ -294,17 +294,24 @@ Some tests are timed and will fail on a slow machine.
 
 `sbt benchmark/run` will run the benchmark application.
 
-# Build the library
+To build as a fat JAR, run
 
-To build all JARs:
+`sbt benchmark/assembly`
+
+Then run the benchmark application as
+
+`java -jar benchmark/target/scala-2.11/benchmark-assembly-*.jar`
+
+# Build the library JARs
+
+To build the library JARs:
 
 ```
-sbt assembly
+sbt package package-doc
 
 ```
 
-This will prepare a `joinrun`, `benchmark`, `lib`, and `macros` JAR assemblies.
+This will prepare `joinrun`, `benchmark`, and `chymyst` JAR assemblies as well as their Scaladoc documentation packages.
 
-The main library is in the `joinrun` JAR assembly (`joinrun/target/scala-2.11/joinrun-assembly-*.jar`).
+The main library is in the `joinrun` JAR assembly (`joinrun/target/scala-2.11/joinrun-*.jar`).
 User code should depend on that JAR only.
-

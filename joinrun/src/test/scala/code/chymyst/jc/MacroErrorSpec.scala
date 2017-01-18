@@ -1,7 +1,5 @@
 package code.chymyst.jc
 
-
-import Macros.{b, m, go}
 import code.chymyst.jc.Core.ReactionBody
 import org.scalatest.{FlatSpec, Matchers}
 

@@ -1,7 +1,7 @@
 package code.chymyst.jc
 
 import Core._
-import Macros.{getName, rawTree, m, b, go}
+import Macros.{getName, rawTree}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 import scala.concurrent.duration.DurationInt

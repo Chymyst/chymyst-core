@@ -85,4 +85,18 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     Seq(1, 2, 3).findAfterMap(x => if (x == 0) Some(x) else None) shouldEqual None
   }
 
+  behavior of "cleanup utility"
+
+  it should "react to exception during doWork" in {
+    val tryResult = cleanup{123}{_ => ()}{ _ => throw new Exception("ignore this exception")}
+    tryResult.isFailure shouldEqual true
+    tryResult.failed.get.getMessage shouldEqual "ignore this exception"
+  }
+
+  it should "react to exception during resource cleanup" in {
+    val tryResult = cleanup{123}{_ => throw new Exception("failed to cleanup - ignore this exception")}{ _ => throw new Exception("ignore this exception")}
+    tryResult.isFailure shouldEqual true
+    tryResult.failed.get.getMessage shouldEqual "ignore this exception"
+  }
+
 }

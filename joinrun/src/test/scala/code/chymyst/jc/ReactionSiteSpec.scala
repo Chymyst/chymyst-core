@@ -1,6 +1,5 @@
 package code.chymyst.jc
 
-import Macros.{m, go}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {

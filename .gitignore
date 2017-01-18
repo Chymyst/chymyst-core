@@ -21,7 +21,7 @@ project/project
 project/target
 .idea*
 .iml*
-root.ipr
-root.iws
+*.ipr
+*.iws
 
 benchmark*.txt
