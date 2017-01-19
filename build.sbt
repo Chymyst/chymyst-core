@@ -23,9 +23,10 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases"),
-    "Typesafe releases" at "http://repo.typesafe.com/typesafe/releases"),
+    "Typesafe releases" at "http://repo.typesafe.com/typesafe/releases"
+  ),
 
-  scalacOptions ++= Seq( // https://tpolecat.github.io/2014/04/11/scalac-flags.html
+  scalacOptions ++= Seq(// https://tpolecat.github.io/2014/04/11/scalac-flags.html
     "-deprecation",
     "-unchecked",
     "-encoding", "UTF-8",
@@ -41,7 +42,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     "-Ywarn-value-discard",
     "-Xfuture",
     "-Ywarn-unused"
-  ) ++ ( //target:jvm-1.8 supported from 2.11.5, warn-unused-import deprecated in 2.12
+  ) ++ (//target:jvm-1.8 supported from 2.11.5, warn-unused-import deprecated in 2.12
     if (scalaVersion.value startsWith "2.11") {
       val revision = scalaVersion.value.split('.').last.toInt
       Seq("-Ywarn-unused-import") ++ (
@@ -55,7 +56,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     else Nil
     )
     ++ (
-    if (scalaVersion.value startsWith "2.12") Seq("-target:jvm-1.8","-Ypartial-unification") // (SI-2712 pertains to partial-unification)
+    if (scalaVersion.value startsWith "2.12") Seq("-target:jvm-1.8", "-Ypartial-unification") // (SI-2712 pertains to partial-unification)
     else Nil
     )
 )
@@ -73,14 +74,14 @@ lazy val buildAll = (project in file("."))
   .settings(
     name := "buildAll"
   )
-  .aggregate(joinrun, benchmark, chymyst)
+  .aggregate(joinrun, benchmark, chymyst, helloworld)
 
 lazy val joinrun = (project in file("joinrun"))
   .settings(commonSettings: _*)
   .settings(
     name := "joinrun",
-    wartremoverWarnings in (Compile, compile) ++= warningsForWartRemover,
-    wartremoverErrors in (Compile, compile) ++= errorsForWartRemover,
+    wartremoverWarnings in(Compile, compile) ++= warningsForWartRemover,
+    wartremoverErrors in(Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
       "org.scalatest" %% "scalatest" % "3.0.0" % "test",
@@ -108,11 +109,20 @@ lazy val benchmark = (project in file("benchmark"))
   ).dependsOn(joinrun)
 
 lazy val chymyst = (project in file("chymyst"))
-.settings(commonSettings: _*)
-.settings(
-  name := "benchmark",
-  aggregate in assembly := true,
-  libraryDependencies ++= Seq(
-    "org.scalatest" %% "scalatest" % "3.0.0" % "test"
-  )
-).dependsOn(joinrun)
+  .settings(commonSettings: _*)
+  .settings(
+    name := "chymyst",
+    libraryDependencies ++= Seq(
+      "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+    )
+  ).dependsOn(joinrun)
+
+lazy val helloworld = (project in file("helloworld"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "helloworld",
+    libraryDependencies ++= Seq(
+      "org.scalatest" %% "scalatest" % "3.0.0" % "test",
+      "org.scala-lang" % "scala-compiler" % scalaVersion.value % "test"
+    )
+  ).dependsOn(joinrun)
