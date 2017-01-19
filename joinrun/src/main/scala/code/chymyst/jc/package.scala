@@ -1,8 +1,8 @@
 package code.chymyst
 
 import scala.language.experimental.macros
-
 import scala.collection.JavaConverters.asScalaIteratorConverter
+import scala.util.{Failure, Success, Try}
 
 /** This is a pure interface to other functions to make them visible to users.
   * This object does not contain any new code.
@@ -82,4 +82,24 @@ package object jc {
   val defaultReactionPool = new FixedPool(4)
 
   def globalErrorLog: Iterable[String] = Core.errorLog.iterator().asScala.toIterable
+
+  def withPool[T](pool: => Pool)(doWork: Pool => T): Try[T] = cleanup(pool)(_.shutdownNow())(doWork)
+
+  def cleanup[T,R](resource: => T)(cleanup: T => Unit)(doWork: T => R): Try[R] = {
+    try {
+      Success(doWork(resource))
+    } catch {
+      case e: Exception => Failure(e)
+    }
+    finally {
+      try {
+        if (Option(resource).isDefined) {
+          cleanup(resource)
+        }
+      } catch {
+        case e: Exception => e.printStackTrace()
+      }
+    }
+  }
+
 }
