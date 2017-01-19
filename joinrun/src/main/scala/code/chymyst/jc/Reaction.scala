@@ -24,14 +24,16 @@ final case class SimpleVar(v: ScalaSymbol, cond: Option[PartialFunction[Any, Uni
 }
 
 /** Represents molecules that have constant pattern matchers, such as `a(1)`.
-  * Constant pattern matchers are either literal values (Int, String, Sembol, etc.) or special values such as None, Nil, (),
+  * Constant pattern matchers are either literal values (Int, String, Symbol, etc.) or special values such as None, Nil, (),
   * as well as `Some`, `Left`, `Right`, `List`, and tuples of constant matchers.
   *
-  * @param v Value of the constant. This is nominally of type `Any` but actually is of the molecule value type `T`.
+  * @param v Value of the constant. This is nominally of type `Any` but actually is of the molecule's value type `T`.
   */
 final case class SimpleConst(v: Any) extends InputPatternType
 
-final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: List[ScalaSymbol], isIrrefutable: Boolean) extends InputPatternType
+final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: List[ScalaSymbol], isIrrefutable: Boolean) extends InputPatternType {
+  override def isTrivial: Boolean = isIrrefutable
+}
 
 sealed trait OutputPatternType
 
