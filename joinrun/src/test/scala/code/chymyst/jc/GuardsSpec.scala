@@ -77,8 +77,8 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x)), _),
-      InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y)), _)
+      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x), false), _),
+      InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y), false), _)
       ) =>
     }
     result.info.toString shouldEqual "a(?x) + bb(?list,y) => "
@@ -111,8 +111,8 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x)), _),
-      InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y)), _)
+      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x), false), _),
+      InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y), false), _)
       ) =>
     }
     result.info.toString shouldEqual "a(?x) + bb(?list,y) if(x,list,y) => "
@@ -182,14 +182,25 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     reaction.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x, 'y)), None, Array()) => }
 
+    reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, _, false) => }
     (reaction.info.inputs.head.flag match {
-      case OtherInputPattern(cond, vars) =>
+      case OtherInputPattern(cond, vars, false) =>
         cond.isDefinedAt((1, 2, 0, 0)) shouldEqual false
         cond.isDefinedAt((2, 1, 0, 0)) shouldEqual true
         vars shouldEqual List('x, 'y, 'z, 't)
         true
       case _ => false
     }) shouldEqual true
+  }
+
+  it should "compute reaction info with compound irrefutable matcher" in {
+    val a = m[(Int, (Int, Int), Int)]
+
+    val reaction = go { case a(x@(_, (y@_, z), t)) => }
+
+    reaction.info.guardPresence should matchPattern { case AllMatchersAreTrivial => }
+
+    reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List('x, 'y, 'z, 't), true) => }
   }
 
   it should "recognize a guard condition with captured non-molecule variables" in {
@@ -256,6 +267,16 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x, 'y)), None, Array()) => }
     result.info.toString shouldEqual "a(?x,y,z) => "
+  }
+
+  it should "compile a guard that references a variable via library functions" in {
+    val done = m[Array[Int]]
+    /* The guard `if arr.nonEmpty` is not compiled correctly: it generates the partial function
+      { case (arr @ _) if scala.Predef.intArrayOps(arr).nonEmpty => () }
+      which gives a type error: `arr` is typed as `Any` instead of `Array[Int]` as required.
+    */
+//    val reaction = go { case done(arr) if arr.nonEmpty => }
+//    reaction.info.inputs.head.flag should matchPattern { case InputMoleculeInfo(`done`, 0, SimpleVar('arr, Some(_)), _) => }
   }
 
   behavior of "cross-molecule guards"
