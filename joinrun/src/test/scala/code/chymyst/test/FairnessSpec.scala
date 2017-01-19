@@ -35,20 +35,21 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp1 = new FixedPool(1)
 
     site(tp, tp1)(
+      // The guard `if arr.nonEmpty` is needed to prevent the livelock error.
       go { case getC(_, r) + done(arr) => r(arr) },
-      go { case a0(_) + c((n, arr)) => if (n > 0) {
+      go { case a0(_) + c((n, arr)) if arr.nonEmpty => if (n > 0) {
         arr(0) += 1; c((n - 1, arr)) + a0()
       } else done(arr)
       },
-      go { case a1(_) + c((n, arr)) => if (n > 0) {
+      go { case a1(_) + c((n, arr)) if arr.nonEmpty => if (n > 0) {
         arr(1) += 1; c((n - 1, arr)) + a1()
       } else done(arr)
       },
-      go { case a2(_) + c((n, arr)) => if (n > 0) {
+      go { case a2(_) + c((n, arr)) if arr.nonEmpty => if (n > 0) {
         arr(2) += 1; c((n - 1, arr)) + a2()
       } else done(arr)
       },
-      go { case a3(_) + c((n, arr)) => if (n > 0) {
+      go { case a3(_) + c((n, arr)) if arr.nonEmpty => if (n > 0) {
         arr(3) += 1; c((n - 1, arr)) + a3()
       } else done(arr)
       }

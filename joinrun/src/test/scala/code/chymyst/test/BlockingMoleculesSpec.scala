@@ -1,7 +1,6 @@
 package code.chymyst.test
 
 import code.chymyst.jc._
-import Core._
 import org.scalatest.{FlatSpec, Matchers, BeforeAndAfterEach, Args, Status}
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
