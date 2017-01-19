@@ -54,9 +54,13 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     * @return `true` or `false`
     */
   def isIrrefutablePattern(binderTerm: Tree): Boolean = binderTerm match {
-    case pq"_" => true
-    case pq"$x @ _" => true
-    case pq"(..$exprs)" if exprs.size >= 2 => exprs.forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
+    case Ident(termNames.WILDCARD) =>
+      true
+    case pq"$x @ $y" =>
+      isIrrefutablePattern(y.asInstanceOf[Tree])
+    case pq"(..$exprs)"
+      if exprs.size >= 2 =>
+      exprs.forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
     case _ => false
   }
 
@@ -420,7 +424,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
             }
             inputMolecules.append((t.symbol, flag1, Some(flag2)))
           }
-          // We do not need to traverse binder2 since it's an error (WrongReplyVarF) to have anything other than a SimpleVarF there.
+        // We do not need to traverse binder2 since it's an error (WrongReplyVarF) to have anything other than a SimpleVarF there.
 
         // After traversing the subtree, we append this molecule information.
 
