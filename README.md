@@ -27,6 +27,8 @@ I gave a presentation on an early version of `JoinRun` at [Scalæ by the Bay 201
 
 There is some [technical documentation for `JoinRun` library](docs/joinrun.md).
 
+A complete minimal "Hello, world" project can be found at [https://github.com/Chymyst/helloworld](https://github.com/Chymyst/helloworld)
+
 # Example: "dining philosophers"
 
 This is a complete runnable example.
