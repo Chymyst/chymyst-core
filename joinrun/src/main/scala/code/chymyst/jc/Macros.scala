@@ -79,12 +79,15 @@ class CommonMacros(val c: blackbox.Context) {
     override def patternSha1(showCode: Tree => String): String = cond.map(c => getSha1String(showCode(c))).getOrElse("")
   }
 
+  /** Represents an error situation.
+    * The reply pseudo-molecule must be bound to a simple variable, but we found another pattern instead.
+    */
   case object WrongReplyVarF extends InputPatternFlag
 
-  // the reply pseudo-molecule must be bound to a simple variable, but we found another pattern
-
-  // the value v represents a value of the [T] type of M[T] or B[T,R]
-  final case class SimpleConstF(v: Tree) extends InputPatternFlag {
+  /** The pattern represents a constant, which can be a literal constant such as "abc" or a compound type such as (2,3) or (Some(2),3,4).
+    * The value v represents a value of the [T] type of M[T] or B[T,R].
+    */
+  final case class ConstantPatternF(v: Tree) extends InputPatternFlag {
     override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(v))
   }
 
@@ -93,21 +96,22 @@ class CommonMacros(val c: blackbox.Context) {
     * In that case, vars = List("z", "x", "y") and matcher = { case z@(x, Some(y)) => (z, x, y) }
     *
     * @param matcher Tree of a partial function of type Any => Any.
+    * @param guard   `None` if the pattern is irrefutable; `Some(guard expression tree)` if the pattern is not irrefutable and potentially requires a guard condition.
     * @param vars    List of pattern variable names in the order of their appearance in the syntax tree.
     */
-  final case class OtherPatternF(matcher: Tree, guard: Tree, vars: List[Ident]) extends InputPatternFlag {
+  final case class OtherInputPatternF(matcher: Tree, guard: Option[Tree], vars: List[Ident]) extends InputPatternFlag {
     override def needTraversing: Boolean = true
 
     override def varNames: List[Ident] = vars
 
-    override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(matcher) + showCode(guard))
+    override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(matcher) + showCode(guard.getOrElse(EmptyTree)))
   }
 
   /** Describes the pattern matcher for output molecules.
     * Possible values:
-    * ConstOutputPatternF(x): a(123)
-    * EmptyOutputPatternF: a()
-    * OtherOutputPatternF: a(x+y) or anything else
+    * ConstOutputPatternF(x): a(123) or a(Some(4)), etc.
+    * EmptyOutputPatternF: a() - this only happens with `Unit` values.
+    * OtherOutputPatternF: a(x), a(x+y), or any other kind of expression.
     */
   sealed trait OutputPatternFlag {
     def needTraversal: Boolean = false
@@ -260,9 +264,9 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
         val mergedFlag = flag match {
           case SimpleVarF(v, binder, _) =>
             mergedGuardOpt.map(guardTree => SimpleVarF(v, binder, Some(guardTree))).getOrElse(flag) // a(x) if x>0 is replaced with a(x : check if x>0). Let's not replace vars in binder in this case?
-          case OtherPatternF(matcher, _, vars) =>
-            mergedGuardOpt.map(guardTree => OtherPatternF(replaceVarsInBinder(matcher), guardTree, vars)).getOrElse(flag) // We can't have a nontrivial guardTree in patternIn, so we replace it here with the new guardTree.
-          case SimpleConstF(Literal(Constant(()))) =>
+          case OtherInputPatternF(matcher, _, vars) =>
+            mergedGuardOpt.map(guardTree => OtherInputPatternF(replaceVarsInBinder(matcher), Some(guardTree), vars)).getOrElse(flag) // We can't have a nontrivial guardTree in patternIn, so we replace it here with the new guardTree.
+          case ConstantPatternF(Literal(Constant(()))) =>
             WildcardF // Replace Unit constant values with wildcards.
           case _ => flag
         }
@@ -272,7 +276,8 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
     val allInputMatchersAreTrivial = patternInWithMergedGuardsAndIndex.forall {
       case (_, _, SimpleVarF(_, _, None), _)
-           | (_, _, WildcardF, _) =>
+           | (_, _, WildcardF, _)
+           | (_, _, OtherInputPatternF(_, None, _), _) =>
         true
       case _ => false
     }
@@ -289,14 +294,14 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
           // Find all input molecules that have some pattern variables; omit wildcards and constants here.
           case ((_, flag, _), i) => flag match {
             case SimpleVarF(v, binder, _) => Some((flag, i, binder, List(v)))
-            case OtherPatternF(matcher, _, vs) => Some((flag, i, matcher, vs))
+            case OtherInputPatternF(matcher, _, vs) => Some((flag, i, matcher, vs))
             case _ => None
           }
         } // Find all input molecules constrained by the guard (guardTree, vars) that we are iterating with.
           .filter { case (flag, _, _, _) => guardVarsConstrainThisMolecule(vars, flag) }
           .map { case (_, i, binder, _) => (i, binder) }
 
-        // To avoid problems with macros, we nneed to put types on binder variables and remove owners from guard tree symbols.
+        // To avoid problems with macros, we need to put types on binder variables and remove owners from guard tree symbols.
         val bindersWithTypedVars = indicesAndBinders.map { case (_, b) => replaceVarsInBinder(b) }
         val guardWithReplacedVars = replaceVarsInGuardTree(guardTree)
 

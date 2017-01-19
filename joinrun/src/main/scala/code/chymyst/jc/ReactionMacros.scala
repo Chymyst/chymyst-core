@@ -46,6 +46,24 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   private val seqExtractorHeads = Set("scala.collection.generic.SeqFactory.unapplySeq")
 
+  /** Detect whether a pattern-matcher expression tree represents an irrefutable pattern.
+    * For example, Some(_) is refutable because it does not match None.
+    * The pattern (_, x, y, (z, _)) is irrefutable.
+    *
+    * @param binderTerm Binder pattern tree.
+    * @return `true` or `false`
+    */
+  def isIrrefutablePattern(binderTerm: Tree): Boolean = binderTerm match {
+    case Ident(termNames.WILDCARD) =>
+      true
+    case pq"$x @ $y" =>
+      isIrrefutablePattern(y.asInstanceOf[Tree])
+    case pq"(..$exprs)"
+      if exprs.size >= 2 =>
+      exprs.forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
+    case _ => false
+  }
+
   /** Detect whether an expression tree represents a constant expression.
     * A constant expression is either a literal constant (Int, String, Symbol, etc.), (), None, Nil, or Some(...), Left(...), Right(...), List(...), and tuples of constant expressions.
     *
@@ -107,32 +125,6 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       case Nil => None
     }
   }
-//      if exprTree.children.headOption.exists(_.children.size >= 2) =>
-//      val extrCode = showCode(exprTree.asInstanceOf[Tree])
-//      val cleanedCode = extrCode.substring(0, 1 + extrCode.indexOf("("))
-//      seqExtractorCodes.get(cleanedCode).flatMap { extractor =>
-//        val childrenOpt: Option[List[Trees#Tree]] = exprTree.children.headOption flatMap { firstChild =>
-          // firstChild.children == List(e,x) now.
-
-
-//          case pq"$e(..$x)"
-//            if seqExtractorHeads.contains(e.symbol.fullName) &&
-//              x.headOption.exists(_.symbol.toString === "value <unapply-selector>") &&
-//              exprTree.children.nonEmpty =>
-//            Some(exprTree.children.drop(1))
-//          case _ => None // not sure what that is!
-
-
-//        val resultTree: Option[Tree] = for {
-//          children <- childrenOpt
-//          trees = for {
-//            child <- children
-//            childConst <- getConstantTree(child).map(_.asInstanceOf[Tree])
-//          } yield childConst.asInstanceOf[Tree]
-//          if trees.size === children.size
-//        } yield q"$extractor(..$trees)"
-//        resultTree
-//      }
 
   def identToScalaSymbol(ident: Ident): ScalaSymbol = ident.name.decodedName.toString.toScalaSymbol
 
@@ -373,10 +365,15 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       case Ident(termNames.WILDCARD) => WildcardF
       case Bind(t@TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF(Ident(t), binderTerm, None)
       case _ => getConstantTree(binderTerm)
-        .map(t => SimpleConstF(t.asInstanceOf[Tree]))
+        .map(t => ConstantPatternF(t.asInstanceOf[Tree]))
         .getOrElse {
+          // If we are here, we do not have a constant pattern. It could be either an irrefutable compound pattern such as (_, x, (a,b,_)), or a general other pattern.
           val vars = PatternVars.from(binderTerm)
-          OtherPatternF(binderTerm, EmptyTree, vars)
+          val guardTreeOpt = if (isIrrefutablePattern(binderTerm))
+            None
+          else
+            Some(EmptyTree)
+          OtherInputPatternF(binderTerm, guardTreeOpt, vars)
         }
     }
 
@@ -427,7 +424,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
             }
             inputMolecules.append((t.symbol, flag1, Some(flag2)))
           }
-          // We do not need to traverse binder2 since it's an error (WrongReplyVarF) to have anything other than a SimpleVarF there.
+        // We do not need to traverse binder2 since it's an error (WrongReplyVarF) to have anything other than a SimpleVarF there.
 
         // After traversing the subtree, we append this molecule information.
 
@@ -465,7 +462,6 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     }
   }
 
-
   def guardVarsConstrainOnlyThisMolecule(guardVarList: List[Ident], moleculeFlag: InputPatternFlag): Boolean =
     guardVarList.forall(v => moleculeFlag.varNames.exists(mv => mv.name === v.name))
 
@@ -475,11 +471,11 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   // This boilerplate is necessary for being able to use PatternType values in quasiquotes.
   implicit val liftableInputPatternFlag: Liftable[InputPatternFlag] = Liftable[InputPatternFlag] {
     case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
-    case SimpleConstF(tree) => q"_root_.code.chymyst.jc.SimpleConst($tree)"
+    case ConstantPatternF(tree) => q"_root_.code.chymyst.jc.SimpleConst($tree)"
     case SimpleVarF(v, binder, cond) =>
       val guardFunction = cond.map(c => matcherFunction(binder, c, List(v)))
       q"_root_.code.chymyst.jc.SimpleVar(${identToScalaSymbol(v)}, $guardFunction)"
-    case OtherPatternF(matcherTree, guardTree, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTree, vars)}, ${vars.map(identToScalaSymbol)})"
+    case OtherInputPatternF(matcherTree, guardTreeOpt, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTreeOpt.getOrElse(EmptyTree), vars)}, ${vars.map(identToScalaSymbol)}, ${guardTreeOpt.isEmpty})"
     case _ => q"_root_.code.chymyst.jc.Wildcard" // this case will not be encountered here; we are conflating InputPatternFlag and ReplyInputPatternFlag
   }
 
@@ -496,7 +492,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     * @param patternWhat What was incorrect about the molecule usage.
     * @param molecules   List of molecules (or other objects) that were incorrectly used.
     * @param connector   Phrase connector. By default: `"not contain a pattern that"`.
-    * @param method      How to report the error; by default using [[scala.reflect.macros.blackbox.Context.error]].
+    * @param method      How to report the error; by default using [[scala.reflect.macros.FrontEnds.error]].
     * @tparam T Type of molecule or other object.
     */
   def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error): Unit = {

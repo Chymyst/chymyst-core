@@ -68,4 +68,20 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     r.info.inputs.head.admitsValue(MolValue((0, Some(0)))) shouldEqual false
     r.info.inputs.head.admitsValue(MolValue((1, None))) shouldEqual false
   }
+
+  it should "run reactions with cross-molecule conditionals but without cross-molecule guards" in {
+    val result = withPool(new FixedPool(2)) { tp =>
+      val a = m[Int]
+      val f = b[Unit, Int]
+      site(
+        go { case a(x) + a(y) + f(_, r) if x > 0 => r(x + y) }
+      )
+      a(1)
+      a(2)
+      f() shouldEqual 3 // If this fails, a message will be printed below.
+    }
+    if (result.isFailure) println(s"Test failed with message: ${result.failed.get.getMessage}")
+    result.isSuccess shouldEqual true
+    result.isFailure shouldEqual false
+  }
 }

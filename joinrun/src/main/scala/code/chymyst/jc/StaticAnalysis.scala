@@ -39,14 +39,14 @@ private[jc] object StaticAnalysis {
     input match {
       case Nil => true
       case info :: rest =>
-          val isWeaker: OutputMoleculeInfo => Boolean =
-            i => info.matcherIsWeakerThanOutput(i).getOrElse(false)
+        val isWeaker: OutputMoleculeInfo => Boolean =
+          i => info.matcherIsWeakerThanOutput(i).getOrElse(false)
 
-          output.find(isWeaker) match {
-            case Some(correspondingMatcher) =>
-              inputMatchersAreWeakerThanOutput(rest, output diff Array(correspondingMatcher))
-            case None => false
-          }
+        output.find(isWeaker) match {
+          case Some(correspondingMatcher) =>
+            inputMatchersAreWeakerThanOutput(rest, output diff Array(correspondingMatcher))
+          case None => false
+        }
 
     }
   }
@@ -56,14 +56,14 @@ private[jc] object StaticAnalysis {
     input match {
       case Nil => true
       case info :: rest =>
-          val isWeaker: OutputMoleculeInfo => Boolean =
-            i => info.matcherIsSimilarToOutput(i).getOrElse(false)
+        val isWeaker: OutputMoleculeInfo => Boolean =
+          i => info.matcherIsSimilarToOutput(i).getOrElse(false)
 
-          output.find(isWeaker) match {
-            case Some(correspondingMatcher) =>
-              inputMatchersAreSimilarToOutput(rest, output diff Array(correspondingMatcher))
-            case None => false
-          }
+        output.find(isWeaker) match {
+          case Some(correspondingMatcher) =>
+            inputMatchersAreSimilarToOutput(rest, output diff Array(correspondingMatcher))
+          case None => false
+        }
 
     }
   }
@@ -71,13 +71,15 @@ private[jc] object StaticAnalysis {
   // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
   private def checkReactionShadowing(reactions: Seq[Reaction]): Option[String] = {
     val suspiciousReactions = for {
-      r1 <- reactions.withFilter(_.info.guardPresence.effectivelyAbsent)
-      r2 <- reactions.withFilter(_ =!= r1)
+      r1 <- reactions
+      if r1.info.guardPresence.effectivelyAbsent
+      r2 <- reactions
+      if r2 =!= r1
       if allMatchersAreWeakerThan(r1.info.inputsSorted, r2.info.inputsSorted)
     } yield (r1, r2)
 
     if (suspiciousReactions.nonEmpty) {
-      val errorList = suspiciousReactions.map{ case (r1, r2) =>
+      val errorList = suspiciousReactions.map { case (r1, r2) =>
         s"reaction {${r2.info}} is shadowed by {${r1.info}}"
       }.mkString(", ")
       Some(s"Unavoidable nondeterminism: $errorList")
@@ -88,17 +90,17 @@ private[jc] object StaticAnalysis {
   private def findIdenticalReactions(reactions: Seq[Reaction]): Option[String] = {
     val reactionsSha1 = reactions.map(_.info.sha1)
     val repeatedReactionSha1 = (reactionsSha1 difff reactionsSha1.distinct).distinct
-    val repeatedReactions = repeatedReactionSha1.flatMap(sha1 => reactions.find(_.info.sha1 == sha1) )
+    val repeatedReactions = repeatedReactionSha1.flatMap(sha1 => reactions.find(_.info.sha1 == sha1))
 
     if (repeatedReactions.nonEmpty) {
-      val errorList = repeatedReactions.map{ r => s"{${r.info}}" }.mkString(", ")
+      val errorList = repeatedReactions.map { r => s"{${r.info}}" }.mkString(", ")
       Some(s"Identical repeated reactions: $errorList")
     } else None
   }
 
   private def checkSingleReactionLivelock(reactions: Seq[Reaction]): Option[String] = {
     val errorList = reactions
-      .filter { r => r.info.guardPresence.effectivelyAbsent && inputMatchersAreWeakerThanOutput(r.info.inputsSorted, r.info.outputs)}
+      .filter { r => r.info.guardPresence.effectivelyAbsent && inputMatchersAreWeakerThanOutput(r.info.inputsSorted, r.info.outputs) }
       .map(r => s"{${r.info.toString}}")
     if (errorList.nonEmpty)
       Some(s"Unavoidable livelock: reaction${if (errorList.size == 1) "" else "s"} ${errorList.mkString(", ")}")
@@ -112,7 +114,7 @@ private[jc] object StaticAnalysis {
 
   private def checkSingleReactionLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
     val warningList = reactions
-      .filter { r => inputMatchersAreSimilarToOutput(r.info.inputsSorted, r.info.outputs)}
+      .filter { r => inputMatchersAreSimilarToOutput(r.info.inputsSorted, r.info.outputs) }
       .map(r => s"{${r.info.toString}}")
     if (warningList.nonEmpty)
       Some(s"Possible livelock: reaction${if (warningList.size == 1) "" else "s"} ${warningList.mkString(", ")}")
@@ -146,7 +148,7 @@ private[jc] object StaticAnalysis {
     }
 
     val warningList = likelyDeadlocks
-      .map { case (bInput, mInput, reaction) => s"molecule (${bInput.molecule}) may deadlock due to (${mInput.molecule}) among the outputs of {${reaction.info}}"}
+      .map { case (bInput, mInput, reaction) => s"molecule (${bInput.molecule}) may deadlock due to (${mInput.molecule}) among the outputs of {${reaction.info}}" }
     if (warningList.nonEmpty)
       Some(s"Possible deadlock${if (warningList.size == 1) "" else "s"}: ${warningList.mkString("; ")}")
     else None
@@ -157,7 +159,7 @@ private[jc] object StaticAnalysis {
     val possibleDeadlocks: Seq[(OutputMoleculeInfo, List[OutputMoleculeInfo])] =
       reactions.map(_.info.outputs)
         .flatMap {
-          _.tails.flatMap( _.toList match {
+          _.tails.flatMap(_.toList match {
             case t :: ts => if (t.molecule.isBlocking) Some((t, ts)) else None
             case Nil => None
           })
@@ -193,7 +195,7 @@ private[jc] object StaticAnalysis {
       checkReactionShadowing _,
       checkSingleReactionLivelock _,
       checkMultiReactionLivelock _
-    ).flatMap(_(reactions))
+    ).flatMap(_ (reactions))
   }
 
   private[jc] def findStaticWarnings(reactions: Seq[Reaction]) = {
@@ -202,17 +204,17 @@ private[jc] object StaticAnalysis {
       checkOutputsForDeadlockWarning _,
       checkInputsForDeadlockWarning _,
       checkSingleReactionLivelockWarning _
-    ).flatMap(_(reactions))
+    ).flatMap(_ (reactions))
   }
 
   // Each singleton should occur in some reaction as an input. No singleton should be consumed twice by a reaction.
   // Each singleton that is consumed by a reaction should also be emitted by the same reaction.
   private def checkInputsForSingletons(singletons: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
     val singletonsConsumedMaxTimes: Map[Molecule, (Reaction, Int)] =
-    if (reactions.isEmpty)
-      Map()
-    else
-      singletons.map { case (m, _) => m -> reactions.map(r => (r, r.inputMolecules.count(_ === m))).maxBy(_._2) }
+      if (reactions.isEmpty)
+        Map()
+      else
+        singletons.map { case (m, _) => m -> reactions.map(r => (r, r.inputMolecules.count(_ === m))).maxBy(_._2) }
 
     val wrongConsumed = singletonsConsumedMaxTimes
       .flatMap {
@@ -242,7 +244,7 @@ private[jc] object StaticAnalysis {
   // No singleton should be output by a reaction that does not consume it.
   // No singleton should be output more than once by a reaction.
   private def checkOutputsForSingletons(singletons: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
-      val errorList = singletons.flatMap {
+    val errorList = singletons.flatMap {
       case (m, _) =>
         reactions.flatMap {
           r =>
@@ -264,7 +266,7 @@ private[jc] object StaticAnalysis {
     Seq(
       checkOutputsForSingletons _,
       checkInputsForSingletons _
-    ).flatMap(_(singletons, reactions))
+    ).flatMap(_ (singletons, reactions))
   }
 
   private[jc] def findSingletonWarnings(singletons: Map[Molecule, Int], reactions: Seq[Reaction]) = {

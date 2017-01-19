@@ -14,7 +14,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
   }
 
   it should "fail to compile a guard that replies" in {
-    val f = b[Unit,Unit]
+    val f = b[Unit, Unit]
     val x = 2
     x shouldEqual 2
     f.isInstanceOf[EE] shouldEqual true
@@ -24,7 +24,9 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
   it should "fail to compile a reaction that is not defined inline" in {
     val a = m[Unit]
-    val body: ReactionBody = { case _ => a() }
+    val body: ReactionBody = {
+      case _ => a()
+    }
     body.isInstanceOf[ReactionBody] shouldEqual true
 
     "val r = go(body)" shouldNot compile
@@ -60,8 +62,8 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val c = b[Unit, Unit]
     val e = m[Unit]
 
-    a.isInstanceOf[B[Unit,Unit]] shouldEqual true
-    c.isInstanceOf[B[Unit,Unit]] shouldEqual true
+    a.isInstanceOf[B[Unit, Unit]] shouldEqual true
+    c.isInstanceOf[B[Unit, Unit]] shouldEqual true
     e.isInstanceOf[M[Unit]] shouldEqual true
 
     // Note: these tests will produce several warnings "expects 2 patterns to hold but crushing into 2-tuple to fit single pattern".
@@ -105,12 +107,12 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val bb = m[Int]
     val bbb = m[Int]
 
-    a.isInstanceOf[M[(Int,Int)]] shouldEqual true
+    a.isInstanceOf[M[(Int, Int)]] shouldEqual true
     bb.isInstanceOf[M[Int]] shouldEqual true
     bbb.isInstanceOf[M[Int]] shouldEqual true
 
-    "val r = go { case a((x,y)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
-    "val r = go { case a((_,x)) => a((x,x)) }" should compile // cannot detect unconditional livelock here
+    "val r = go { case a((x,y)) => a((1,1)) }" shouldNot compile
+    "val r = go { case a((_,x)) => a((x,x)) }" shouldNot compile
     "val r = go { case a((1,_)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
     "val r = go { case bb(x) if x > 0 => bb(1) }" should compile // no unconditional livelock due to guard
     "val r = go { case bbb(1) => bbb(2) }" should compile // no unconditional livelock
@@ -122,6 +124,21 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     "val r = go { case bbb(_) => bbb(0) }" shouldNot compile // unconditional livelock
     "val r = go { case bbb(x) => bbb(x) + bb(x) }" shouldNot compile
     "val r = go { case bbb(x) + bb(y) => bbb(x) + bb(x) + bb(y) }" shouldNot compile
+  }
+
+  it should "inspect a pattern with a compound constant" in {
+    val a = m[(Int, Int)]
+    val c = m[Unit]
+    val reaction = go { case a((1, _)) + c(_) => a((1, 1)) }
+    reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List(), false) => }
+    (reaction.info.inputs.head.flag match {
+      case OtherInputPattern(matcher, List(), false) =>
+        matcher.isDefinedAt((1,1)) shouldEqual true
+        matcher.isDefinedAt((1,2)) shouldEqual true
+        matcher.isDefinedAt((0,1)) shouldEqual false
+        true
+      case _ => false
+    }) shouldEqual true
   }
 
   it should "inspect a pattern with a crushed tuple" in {
