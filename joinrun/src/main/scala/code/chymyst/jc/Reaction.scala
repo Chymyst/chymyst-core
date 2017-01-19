@@ -31,7 +31,7 @@ final case class SimpleVar(v: ScalaSymbol, cond: Option[PartialFunction[Any, Uni
   */
 final case class SimpleConst(v: Any) extends InputPatternType
 
-final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: List[ScalaSymbol]) extends InputPatternType
+final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: List[ScalaSymbol], isIrrefutable: Boolean) extends InputPatternType
 
 sealed trait OutputPatternType
 
@@ -112,7 +112,8 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
     case Wildcard | SimpleVar(_, None) => true
     case SimpleVar(v, Some(cond)) => cond.isDefinedAt(molValue.getValue)
     case SimpleConst(v) => v === molValue.getValue
-    case OtherInputPattern(matcher, _) => matcher.isDefinedAt(molValue.getValue)
+    case OtherInputPattern(_, _, true) => true
+    case OtherInputPattern(matcher, _, _) => matcher.isDefinedAt(molValue.getValue)
   }
 
   /** Determine whether this input molecule pattern is weaker than another pattern.
@@ -126,15 +127,15 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
   private[jc] def matcherIsWeakerThan(info: InputMoleculeInfo): Option[Boolean] = {
     if (molecule =!= info.molecule) Some(false)
     else flag match {
-      case Wildcard | SimpleVar(_, None) => Some(true)
+      case Wildcard | SimpleVar(_, None) | OtherInputPattern(_, _, true) => Some(true)
       case SimpleVar(_, Some(matcher1)) => info.flag match {
         case SimpleConst(c) => Some(matcher1.isDefinedAt(c))
-        case SimpleVar(_, Some(_)) | OtherInputPattern(_, _) => None // Cannot reliably determine a weaker matcher.
+        case SimpleVar(_, Some(_)) | OtherInputPattern(_, _, false) => None // Cannot reliably determine a weaker matcher.
         case _ => Some(false)
       }
-      case OtherInputPattern(matcher1, _) => info.flag match {
+      case OtherInputPattern(matcher1, _, false) => info.flag match {
         case SimpleConst(c) => Some(matcher1.isDefinedAt(c))
-        case OtherInputPattern(_, _) =>
+        case OtherInputPattern(_, _, false) =>
           if (sha1 === info.sha1) Some(true)
           else None // We can reliably determine identical matchers.
         case _ => Some(false) // Here we can reliably determine that this matcher is not weaker.
@@ -149,12 +150,12 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
   private[jc] def matcherIsWeakerThanOutput(info: OutputMoleculeInfo): Option[Boolean] = {
     if (molecule =!= info.molecule) Some(false)
     else flag match {
-      case Wildcard | SimpleVar(_, None) => Some(true)
+      case Wildcard | SimpleVar(_, None) | OtherInputPattern(_, _, true) => Some(true)
       case SimpleVar(_, Some(matcher1)) => info.flag match {
         case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
         case _ => None // Here we can't reliably determine whether this matcher is weaker.
       }
-      case OtherInputPattern(matcher1, _) => info.flag match {
+      case OtherInputPattern(matcher1, _, false) => info.flag match {
         case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
         case _ => None // Here we can't reliably determine whether this matcher is weaker.
       }
@@ -170,12 +171,12 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
   private[jc] def matcherIsSimilarToOutput(info: OutputMoleculeInfo): Option[Boolean] = {
     if (molecule =!= info.molecule) Some(false)
     else flag match {
-      case Wildcard | SimpleVar(_, None) => Some(true)
+      case Wildcard | SimpleVar(_, None) | OtherInputPattern(_, _, true) => Some(true)
       case SimpleVar(_, Some(matcher1)) => info.flag match {
         case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
         case _ => Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
       }
-      case OtherInputPattern(matcher1, _) => info.flag match {
+      case OtherInputPattern(matcher1, _, false) => info.flag match {
         case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
         case _ => Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
       }
@@ -194,7 +195,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
       case SimpleVar(v, Some(_)) => s"${v.name} if ?"
       //      case SimpleConst(()) => ""  // We eliminated this case by converting constants of Unit type to Wildcard input flag.
       case SimpleConst(c) => c.toString
-      case OtherInputPattern(_, vars) => s"?${vars.map(_.name).mkString(",")}"
+      case OtherInputPattern(_, vars, isIrrefutable) => s"${if (isIrrefutable) "" else "?"}${vars.map(_.name).mkString(",")}"
     }
 
     s"$molecule($printedPattern)"
@@ -254,8 +255,8 @@ final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[O
   private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha) =>
     // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers
     val patternPrecedence = flag match {
-      case Wildcard | SimpleVar(_, None) => 3
-      case OtherInputPattern(_, _) | SimpleVar(_, Some(_)) => 2
+      case Wildcard | SimpleVar(_, None) | OtherInputPattern(_, _, true) => 3
+      case OtherInputPattern(_, _, false) | SimpleVar(_, Some(_)) => 2
       case SimpleConst(_) => 1
     }
 

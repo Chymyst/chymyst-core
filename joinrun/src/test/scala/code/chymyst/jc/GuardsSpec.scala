@@ -77,8 +77,8 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x)), _),
-      InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y)), _)
+      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x), false), _),
+      InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y), false), _)
       ) =>
     }
     result.info.toString shouldEqual "a(?x) + bb(?list,y) => "
@@ -111,8 +111,8 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x)), _),
-      InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y)), _)
+      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x), false), _),
+      InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y), false), _)
       ) =>
     }
     result.info.toString shouldEqual "a(?x) + bb(?list,y) if(x,list,y) => "
@@ -182,8 +182,9 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     reaction.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x, 'y)), None, Array()) => }
 
+    reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, _, true) => }
     (reaction.info.inputs.head.flag match {
-      case OtherInputPattern(cond, vars) =>
+      case OtherInputPattern(cond, vars, true) =>
         cond.isDefinedAt((1, 2, 0, 0)) shouldEqual false
         cond.isDefinedAt((2, 1, 0, 0)) shouldEqual true
         vars shouldEqual List('x, 'y, 'z, 't)

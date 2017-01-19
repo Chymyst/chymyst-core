@@ -317,9 +317,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       InputMoleculeInfo(`c`, 4, Wildcard, _),
       InputMoleculeInfo(`bb`, 5, SimpleConst((0, None)), _),
       InputMoleculeInfo(`bb`, 6, SimpleConst((1, Some(2))), _),
-      InputMoleculeInfo(`bb`, 7, OtherInputPattern(_, List('z)), _),
-      InputMoleculeInfo(`bb`, 8, OtherInputPattern(_, List()), _),
-      InputMoleculeInfo(`bb`, 9, OtherInputPattern(_, List('t, 'q)), _),
+      InputMoleculeInfo(`bb`, 7, OtherInputPattern(_, List('z), false), _),
+      InputMoleculeInfo(`bb`, 8, OtherInputPattern(_, List(), false), _),
+      InputMoleculeInfo(`bb`, 9, OtherInputPattern(_, List('t, 'q), false), _),
       InputMoleculeInfo(`s`, 10, Wildcard, _)
       ) =>
     }
@@ -551,9 +551,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val result = go { case a(1|2) + c(()) + bb(p@(ytt, 1, None, (s, Some(t)))) => }
     result.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List()), _),
+      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List(), false), _),
       InputMoleculeInfo(`c`, 1, Wildcard, _),
-      InputMoleculeInfo(`bb`, 2, OtherInputPattern(_, List('p, 'ytt, 's, 't)), _)
+      InputMoleculeInfo(`bb`, 2, OtherInputPattern(_, List('p, 'ytt, 's, 't), false), _)
       ) =>
     }
     result.info.toString shouldEqual "a(?) + bb(?p,ytt,s,t) + c(_) => "
@@ -573,7 +573,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     pat_bb.molecule shouldEqual bb
 
     (pat_aa.flag match {
-      case OtherInputPattern(matcher, vars) =>
+      case OtherInputPattern(matcher, vars, false) =>
         matcher.isDefinedAt(Some(1)) shouldEqual true
         matcher.isDefinedAt(None) shouldEqual false
         vars shouldEqual List('x)
