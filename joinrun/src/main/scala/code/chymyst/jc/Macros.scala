@@ -276,7 +276,8 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
     val allInputMatchersAreTrivial = patternInWithMergedGuardsAndIndex.forall {
       case (_, _, SimpleVarF(_, _, None), _)
-           | (_, _, WildcardF, _) =>
+           | (_, _, WildcardF, _)
+           | (_, _, OtherInputPatternF(_, None, _), _) =>
         true
       case _ => false
     }
