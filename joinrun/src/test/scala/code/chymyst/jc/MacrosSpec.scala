@@ -734,6 +734,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     y2 should fullyMatch regex "x\\$[0-9]+"
   }
 
+  behavior of "errors while emitting singletons"
+
   it should "refuse to emit singleton from non-reaction thread" in {
     val dIncorrectSingleton = m[Unit]
     val e = m[Unit]
