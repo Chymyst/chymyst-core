@@ -406,7 +406,7 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
               }
           }.map(_._1) // Get rid of BagMap and tuple.
         } else {
-          // TODO: only use flatmap separately for the clusters of interdependent molecules
+          // TODO: only use the `flatMap-fold` separately for the clusters of interdependent molecules
           val found: Stream[Map[Int, AbsMolValue[_]]] =
             inputMoleculeInfos.toStream
               .foldLeft[Stream[(Map[Int, AbsMolValue[_]], BagMap)]](Stream((Map(), initRelevantMap))) { (prev, inputInfo) =>
@@ -443,7 +443,11 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
               case CrossMoleculeGuard(indices, _, cond) =>
                 cond.isDefinedAt(indices.flatMap(i => inputValues.get(i).map(_.getValue)).toList)
             }
-          } else found
+          } else {
+            // Here, we don't have any cross-molecule guards, but we do have some cross-molecule conditionals.
+            // Those are already taken into account by the `flatMap-fold`. So, we don't need to filter the `found` result any further.
+            found
+          }
 
           // Return result if found something. Assign the found molecule values into the `inputs` array.
           filteredAfterCrossGuards.headOption
