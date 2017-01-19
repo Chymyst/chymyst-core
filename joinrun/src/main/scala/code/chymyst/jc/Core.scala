@@ -4,7 +4,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
 
 import scala.annotation.tailrec
 import scala.collection.mutable
-import scala.util.{Failure, Left, Right, Success, Try}
+import scala.util.{Left, Right}
 
 object Core {
 
@@ -146,24 +146,4 @@ object Core {
     }
   }
 
-  def withPool[T](pool: => Pool)(doWork: Pool => T): Try[T] = cleanup(pool)(_.shutdownNow())(doWork)
-
-  def cleanup[T,R](resource: => T)(cleanup: T => Unit)(doWork: T => R): Try[R] = {
-    try {
-      Success(doWork(resource))
-    } catch {
-      case e: Exception => Failure(e)
-    }
-    finally {
-      try {
-        if (Option(resource).isDefined) {
-          cleanup(resource)
-        }
-      } catch {
-        case e: Exception => e.printStackTrace()
-      }
-    }
-  }
-
 }
-
