@@ -5,7 +5,7 @@ Aggregates: joinrun, chymyst
 
 Benchmark: executable (sbt benchmark/run)
 
-Main JAR of the library: sbt joinrun/assembly
+Main JAR of the library: sbt joinrun/package
  */
 
 /* To compile with printed names and types:
@@ -74,7 +74,7 @@ lazy val buildAll = (project in file("."))
   .settings(
     name := "buildAll"
   )
-  .aggregate(joinrun, benchmark, chymyst, helloworld)
+  .aggregate(joinrun, benchmark, chymyst)
 
 lazy val joinrun = (project in file("joinrun"))
   .settings(commonSettings: _*)
@@ -114,15 +114,5 @@ lazy val chymyst = (project in file("chymyst"))
     name := "chymyst",
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.0" % "test"
-    )
-  ).dependsOn(joinrun)
-
-lazy val helloworld = (project in file("helloworld"))
-  .settings(commonSettings: _*)
-  .settings(
-    name := "helloworld",
-    libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.0.0" % "test",
-      "org.scala-lang" % "scala-compiler" % scalaVersion.value % "test"
     )
   ).dependsOn(joinrun)
