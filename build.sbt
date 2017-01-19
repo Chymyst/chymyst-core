@@ -74,7 +74,7 @@ lazy val buildAll = (project in file("."))
   .settings(
     name := "buildAll"
   )
-  .aggregate(joinrun, benchmark, chymyst)
+  .aggregate(joinrun, benchmark, chymyst, helloworld)
 
 lazy val joinrun = (project in file("joinrun"))
   .settings(commonSettings: _*)
