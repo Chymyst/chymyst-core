@@ -84,4 +84,15 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     result.isSuccess shouldEqual true
     result.isFailure shouldEqual false
   }
+
+  it should "support concise syntax for Unit-typed molecules" in {
+    val a = new M[Unit]("a")
+    val f = new B[Unit, Unit]("f")
+    val g = b[Unit, Unit]
+    a.name shouldEqual "a"
+    f.name shouldEqual "f"
+    g.name shouldEqual "g"
+    // This should compile without any argument adaptation warnings or errors:
+    "val r = go { case a(_) + f(_, r) + g(_, s) => a() + s() + f(); val status = r.checkTimeout() }" should compile
+  }
 }

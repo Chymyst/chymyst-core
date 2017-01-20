@@ -322,7 +322,7 @@ We will now describe these features in more detail.
 By default, a blocking emitter will emit a new molecule and block until a reply action is performed for that molecule by a reaction that consumes that molecule.
 If no reaction can be started that consumes the blocking molecule, the emitter will block and wait indefinitely.
 It is often useful to limit the waiting time to a fixed timeout value.
-`JoinRun` implements the timeout as an additional argument to the blocking emitter:
+`JoinRun` implements timeouts by an additional method `timeout` on the blocking emitter:
 
 ```scala
 val f = b[Unit, Int]
@@ -330,14 +330,18 @@ val f = b[Unit, Int]
 site(...)
 
 // call the emitter `f` with 200ms timeout:
-val x: Option[Int] = f.timeout(200 millis)()
+val x: Option[Int] = f.timeout()(200 millis)
 
 ```
 
-Here, if the emitter times out before a reply action is performed, the value of `x` will be `None`, and the blocking molecule `f()` will be removed from the soup (so that reactions will not start with it and attempt to reply).
-If a reaction already started and attempts to reply to a blocking molecule that already timed out, the reply action will have no effect.
-
+The `timeout` method returns an `Option` value.
 If the emitter received a reply value `v` before the timeout expired, the value of `x` will become `Some(v)`.
+
+If the emitter times out before a reply action is performed, the value of `x` will be set to `None`, and the blocking molecule `f()` will be removed from the soup.
+If the timeout occurred because no reaction started with `f()`, which is the usual reason, the removal of `f()` makes sense because no further reactions should try to consume `f()` and reply.
+
+A less frequent situation is when a reaction already started, consuming `f()` and is about to reply to `f()`, but it just happens to time out at that moment.
+In that case, the reply action to `f()` will have no effect.
 
 Is the timeout feature required?
 The timeout functionality can be simulated, for instance, using the “First Reply” construction.

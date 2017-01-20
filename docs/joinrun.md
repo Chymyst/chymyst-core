@@ -98,7 +98,7 @@ import scala.concurrent.duration.DurationInt
 
 val f = b[Int, String]
 
-val result: Option[String] = f.timeout(100 millis)(10)
+val result: Option[String] = f.timeout(10)(100 millis)
 
 ```
 
@@ -124,7 +124,7 @@ val f = b[Int, String]
 
 site ( go { case f(x, r) + a(_) => val status = r.checkTimeout(x); b(status) } )
 
-val result: Option[String] = f.timeout(100 millis)(10)
+val result: Option[String] = f.timeout(10)(100 millis)
 
 ```
 

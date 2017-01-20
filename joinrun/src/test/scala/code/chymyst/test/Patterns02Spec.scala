@@ -34,15 +34,16 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     // pusher means drug dealer, in classic Comp Sci, we'd call this producer or publisher.
     val count = m[Int]
     // giving description to the three E smokers molecules below makes for more vivid tracing, could be plainly m[Unit] instead.
-    val Keith = new E("Keith obtained tobacco and matches to get his fix")
-    val Slash = new E("Slash obtained tobacco and matches to get his fix")
-    val Jimi = new E("Jimi obtained tobacco and matches to get his fix")
+    val Keith = new M[Unit]("Keith obtained tobacco and matches to get his fix")
+    val Slash = new M[Unit]("Slash obtained tobacco and matches to get his fix")
+    val Jimi = new M[Unit]("Jimi obtained tobacco and matches to get his fix")
 
-    val tobacco = m[ShippedInventory] // this is not particularly elegant, ideally this should carry Unit but pusher needs to obtain current state
+    val tobacco = m[ShippedInventory]
+    // this is not particularly elegant, ideally this should carry Unit but pusher needs to obtain current state
     val matches = m[ShippedInventory]
     val paper = m[ShippedInventory]
 
-    val check = new EE("check") // blocking Unit, only blocking molecule of the example.
+    val check = new B[Unit, Unit]("check") // blocking Unit, only blocking molecule of the example.
 
     val logFile = new ConcurrentLinkedQueue[String]
 
@@ -58,15 +59,15 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
           // select the 2 ingredients randomly
           case 0 =>
             val s = ShippedInventory(t + 1, p, m + 1)
-            tobacco(s);
+            tobacco(s)
             matches(s)
           case 1 =>
             val s = ShippedInventory(t + 1, p + 1, m)
-            tobacco(s);
+            tobacco(s)
             paper(s)
           case _ =>
             val s = ShippedInventory(t, p + 1, m + 1)
-            matches(s);
+            matches(s)
             paper(s)
         }
         count(n - 1)
@@ -104,15 +105,15 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val pusher = m[ShippedInventory]
     val count = m[Int]
-    val Keith = new E("Keith obtained tobacco and matches to get his fix")
-    val Slash = new E("Slash obtained tobacco and paper to get his fix")
-    val Jimi = new E("Jimi obtained matches and paper to get his fix")
+    val Keith = new M[Unit]("Keith obtained tobacco and matches to get his fix")
+    val Slash = new M[Unit]("Slash obtained tobacco and paper to get his fix")
+    val Jimi = new M[Unit]("Jimi obtained matches and paper to get his fix")
 
     val tobacco = m[Unit]
     val matches = m[Unit]
     val paper = m[Unit]
 
-    val check = new EE("check") // blocking Unit, only blocking molecule of the example.
+    val check = new B[Unit, Unit]("check") // blocking Unit, only blocking molecule of the example.
 
     val logFile = new ConcurrentLinkedQueue[String]
 
@@ -124,15 +125,15 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
           // select the 2 ingredients randomly
           case 0 =>
             s = ShippedInventory(t + 1, p, m + 1)
-            tobacco();
+            tobacco()
             matches()
           case 1 =>
             s = ShippedInventory(t + 1, p + 1, m)
-            tobacco();
+            tobacco()
             paper()
           case _ =>
             s = ShippedInventory(t, p + 1, m + 1)
-            matches();
+            matches()
             paper()
         }
         waitSome()
@@ -152,7 +153,7 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
     )
 
-    Keith(()) + Slash(()) + Jimi(())
+    Keith() + Slash() + Jimi(())
     pusher(ShippedInventory(0, 0, 0))
     count(supplyLineSize)
 
@@ -166,10 +167,14 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "implement dining savages" in {
-    val maxPerPot = 7 // number of consecutive ingredients added to the pot (each ingredient is a prisoner of the tribe and takes time to add in)
-    val batches = 10 // number of times the cook will fill in the pot with all required ingredients
-    val supplyLineSize = maxPerPot * batches // number of ingredients cook puts in the pot over time of the simulation (excludes initial state with pot full)
-    val savages = List("Anita", "Patrick", "Ivan", "Manfred" ).toIndexedSeq // population of savages taking turn in eating from the pot
+    val maxPerPot = 7
+    // number of consecutive ingredients added to the pot (each ingredient is a prisoner of the tribe and takes time to add in)
+    val batches = 10
+    // number of times the cook will fill in the pot with all required ingredients
+    val supplyLineSize = maxPerPot * batches
+    // number of ingredients cook puts in the pot over time of the simulation (excludes initial state with pot full)
+    val savages = List("Anita", "Patrick", "Ivan", "Manfred").toIndexedSeq
+    // population of savages taking turn in eating from the pot
     val check = b[Unit, Unit] // molecule used to determine end of simulation
 
     sealed trait StoryEvent {
@@ -198,7 +203,8 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       override def toString: String = s"$name about to eat ingredient # $batchVictim"
     }
 
-    val Cook = m[Int] // counts ingredients to be consumed, so after a while decides it's enough.
+    val Cook = m[Int]
+    // counts ingredients to be consumed, so after a while decides it's enough.
     val CookHadEnough = m[Unit]
     val busyCookingIngredientsInPot = m[Int]
     val savage = m[String]
@@ -208,6 +214,7 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val userStory = new ConcurrentLinkedQueue[StoryEvent]
 
     def pauseForIngredient(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
+
     def eatSingleServing(name: String, batchVictim: Int): Unit = {
       userStory.add(SavageEating(name, batchVictim))
       Thread.sleep(math.floor(scala.util.Random.nextDouble * 20.0 + 2.0).toLong)
@@ -259,12 +266,12 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     // Unit test validation follows
     val result = userStory.iterator().asScala.toSeq
     // result.foreach(println) // to look at it.
-    val retireCount = result.collect{ case (CookRetires) => 1 }.sum
-    val batchStartsCount = result.collect{ case (CookStartsToWork) => 1 }.sum
-    val simulationCount = result.collect{ case (EndOfSimulation) => 1 }.sum
-    val victimsCount = result.collect{ case (CookAddsVictim(_,_)) => 1 }.sum
-    val batchCompletionsCount = result.collect{ case (CookCompletedBatch(_)) => 1 }.sum
-    val savageEatingCount = result.collect{ case (SavageEating(_,_)) => 1 }.sum
+    val retireCount = result.collect { case (CookRetires) => 1 }.sum
+    val batchStartsCount = result.collect { case (CookStartsToWork) => 1 }.sum
+    val simulationCount = result.collect { case (EndOfSimulation) => 1 }.sum
+    val victimsCount = result.collect { case (CookAddsVictim(_, _)) => 1 }.sum
+    val batchCompletionsCount = result.collect { case (CookCompletedBatch(_)) => 1 }.sum
+    val savageEatingCount = result.collect { case (SavageEating(_, _)) => 1 }.sum
 
     retireCount shouldEqual 1
     simulationCount shouldEqual 1
