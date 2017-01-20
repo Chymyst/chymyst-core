@@ -6,6 +6,24 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.util.{Left, Right}
 
+
+/** Syntax helper for zero-argument molecule emitters.
+  *
+  * @tparam A Type of the molecule value. If this is `Unit`, we will have an implicit value of type `TypeIsUnit[A]`, which will provide extra functionality.
+  */
+sealed trait TypeIsUnit[A] {
+  type UnapplyType
+  def get: A
+}
+
+/** Syntax helper for molecules with unit values.
+  *
+  */
+object TypeIsUnitValue extends TypeIsUnit[Unit] {
+  override type UnapplyType = Boolean
+  override def get: Unit = ()
+}
+
 object Core {
 
   /** A special value for `ReactionInfo` to signal that we are not running a reaction.
