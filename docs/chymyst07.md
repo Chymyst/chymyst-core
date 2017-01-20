@@ -949,7 +949,7 @@ We also note that the number `n` needs to be given in advance, before creating t
 Therefore, we write a function with an integer argument `n`:
 
 ```scala
-def makeRendezvous(n: Int): EE = { // We are returning EE, which is a subclass of B[Unit,Unit]
+def makeRendezvous(n: Int): B[Unit, Unit] = {
   val barrier = b[Unit,Unit]
   val counterInit = m[Unit]
   val counter = b[Int,Unit]
