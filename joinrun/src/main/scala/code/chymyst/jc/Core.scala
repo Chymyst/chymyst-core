@@ -13,7 +13,8 @@ import scala.util.{Left, Right}
   */
 sealed trait TypeIsUnit[A] {
   type UnapplyType
-  def get: A
+
+  def getUnit: A
 }
 
 /** Syntax helper for molecules with unit values.
@@ -21,7 +22,8 @@ sealed trait TypeIsUnit[A] {
   */
 object TypeIsUnitValue extends TypeIsUnit[Unit] {
   override type UnapplyType = Boolean
-  override def get: Unit = ()
+
+  override def getUnit: Unit = ()
 }
 
 object Core {
@@ -37,7 +39,7 @@ object Core {
 
   def getSha1(c: Any): String = getSha1String(c.toString)
 
-//  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
+  //  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 
   implicit class SeqWithOption[S](s: Seq[S]) {
     def toOptionSeq: Option[Seq[S]] = if (s.isEmpty) None else Some(s)
@@ -141,7 +143,7 @@ object Core {
 
     /** "flat foldLeft" will perform a `foldLeft` unless the function `op` returns `None` at some point in the sequence.
       *
-      * @param z Initial value of type `R`.
+      * @param z  Initial value of type `R`.
       * @param op Binary operation, returns an `Option[R]`.
       * @tparam R Type of the return value `r` under option.
       * @return Result value `Some(r)`, having folded to the end of the sequence. Will return `None` if `op` returned `None` at any point.

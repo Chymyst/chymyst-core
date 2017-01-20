@@ -26,9 +26,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   behavior of "reaction site"
 
   it should "track whether molecule emitters are bound" in {
-    val a = new E("a123")
-    val b = new E("b")
-    val c = new E("")
+    val a = new M[Unit]("a123")
+    val b = new M[Unit]("b")
+    val c = new M[Unit]("")
 
     a.toString shouldEqual "a123"
     b.toString shouldEqual "b"
@@ -70,43 +70,39 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val a = m[Option[(Int, Int, Map[String, Boolean])]] // complicated type
 
     a.isInstanceOf[M[_]] shouldEqual true
-    a.isInstanceOf[E] shouldEqual false
     a.toString shouldEqual "a"
 
     val s = b[Map[(Boolean, Unit), Seq[Int]], Option[List[(Int, Option[Map[Int, String]])]]] // complicated type
 
     s.isInstanceOf[B[_, _]] shouldEqual true
-    s.isInstanceOf[EB[_]] shouldEqual false
-    s.isInstanceOf[BE[_]] shouldEqual false
-    s.isInstanceOf[EE] shouldEqual false
     s.toString shouldEqual "s/B"
   }
 
-  it should "create an emitter of class E for m[Unit]" in {
+  it should "create an emitter of class M[Unit] for m[Unit]" in {
     val a = m[Unit]
-    a.isInstanceOf[E] shouldEqual true
+    a.isInstanceOf[M[Unit]] shouldEqual true
   }
 
-  it should "create an emitter of class BE[Int] for b[Int, Unit]" in {
+  it should "create an emitter of class B[Int, Unit] for b[Int, Unit]" in {
     val a = b[Int, Unit]
-    a.isInstanceOf[BE[Int]] shouldEqual true
+    a.isInstanceOf[B[Int, Unit]] shouldEqual true
   }
 
-  it should "create an emitter of class EB[Int] for b[Unit, Int]" in {
+  it should "create an emitter of class B[Unit, Int] for b[Unit, Int]" in {
     val a = b[Unit, Int]
-    a.isInstanceOf[EB[Int]] shouldEqual true
+    a.isInstanceOf[B[Unit, Int]] shouldEqual true
   }
 
-  it should "create an emitter of class EE for b[Unit, Unit]" in {
+  it should "create an emitter of class B[Unit, Unit] for b[Unit, Unit]" in {
     val a = b[Unit, Unit]
-    a.isInstanceOf[EE] shouldEqual true
+    a.isInstanceOf[B[Unit, Unit]] shouldEqual true
   }
 
   behavior of "macros for inspecting a reaction body"
 
   it should "fail to compile a reaction with regrouped inputs" in {
     val a = m[Unit]
-    a.isInstanceOf[E] shouldEqual true
+    a.isInstanceOf[M[Unit]] shouldEqual true
 
     "val r = go { case a(_) + (a(_) + a(_)) => }" shouldNot compile
     "val r = go { case a(_) + (a(_) + a(_)) + a(_) => }" shouldNot compile
@@ -140,8 +136,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val reaction =
       go { case a(x) =>
-        val q = new M[Int]("q")
-        val s = new E("s")
+        val q = m[Int]
+        val s = m[Unit]
         go { case q(_) + s(_) => }
         q(0)
       }
@@ -162,7 +158,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
     )
     a(1)
-    f.timeout(1000 millis)() shouldEqual Some(2)
+    f.timeout()(1000 millis) shouldEqual Some(2)
   }
 
   it should "inspect reaction body with embedded join and go" in {
@@ -178,7 +174,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
     )
     a(1)
-    f.timeout(1000 millis)() shouldEqual Some(2)
+    f.timeout()(1000 millis) shouldEqual Some(2)
   }
 
   val simpleVarXSha1 = ""
@@ -329,9 +325,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "not fail to define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new E("b")
-    val c = new E("c")
+    val a = m[Option[Int]]
+    val b = m[Unit]
+    val c = m[Unit]
 
     site(tp0)(go { case b(_) + a(Some(x)) + c(_) => })
 
@@ -339,9 +335,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "define a reaction with correct inputs with default pattern-matching in the middle of reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new E("b")
-    val c = new E("c")
+    val a = m[Option[Int]]
+    val b = m[Unit]
+    val c = m[Unit]
 
     site(tp0)(go { case b(_) + a(None) + c(_) => })
 
@@ -349,9 +345,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "define a reaction with correct inputs with non-simple default pattern-matching in the middle of reaction" in {
-    val a = new M[Seq[Int]]("a")
-    val b = new E("b")
-    val c = new E("c")
+    val a = m[Seq[Int]]
+    val b = m[Unit]
+    val c = m[Unit]
 
     site(go { case b(_) + a(List()) + c(_) => })
 
@@ -359,9 +355,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "not fail to define a simple reaction with correct inputs with empty option pattern-matching at start of reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new E("b")
-    val c = new E("c")
+    val a = m[Option[Int]]
+    val b = m[Unit]
+    val c = m[Unit]
 
     site(tp0)(go { case a(None) + b(_) + c(_) => })
 
@@ -369,9 +365,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "define a reaction with correct inputs with empty option pattern-matching at start of reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new E("b")
-    val c = new E("c")
+    val a = m[Option[Int]]
+    val b = m[Unit]
+    val c = m[Unit]
 
     site(tp0)(go { case a(None) + b(_) + c(_) => })
 
@@ -379,9 +375,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at start of reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new E("b")
-    val c = new E("c")
+    val a = m[Option[Int]]
+    val b = m[Unit]
+    val c = m[Unit]
 
     site(tp0)(go { case a(Some(x)) + b(_) + c(_) => })
 
@@ -398,7 +394,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     waitSome()
     waitSome()
     a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(1))"
-    f.timeout(2.second)() shouldEqual Some(1)
+    f.timeout()(2.second) shouldEqual Some(1)
     a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
   }
 
@@ -414,7 +410,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     waitSome()
     waitSome()
     a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(1))"
-    f.timeout(2.second)() shouldEqual None
+    f.timeout()(2.second) shouldEqual None
     a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(1))"
   }
 
@@ -430,7 +426,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     waitSome()
     waitSome()
     a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(10))"
-    f.timeout(2.second)(0) shouldEqual None
+    f.timeout(0)(2.second) shouldEqual None
     a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(10))"
   }
 
@@ -446,7 +442,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     waitSome()
     waitSome()
     a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(1))"
-    f.timeout(2.second)(0) shouldEqual Some(1)
+    f.timeout(0)(2.second) shouldEqual Some(1)
     a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
   }
 
@@ -464,14 +460,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     waitSome()
     waitSome()
     a.logSoup shouldEqual "Site{a + c + f/B => ...}\nMolecules: a(Some(1)), c(123)"
-    f.timeout(2.second)(0) shouldEqual Some(124)
+    f.timeout(0)(2.second) shouldEqual Some(124)
     a.logSoup shouldEqual "Site{a + c + f/B => ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant non-default pattern-matching at start of reaction" in {
-    val a = new M[Int]("a")
-    val b = new E("b")
-    val c = new E("c")
+    val a = m[Int]
+    val b = m[Unit]
+    val c = m[Unit]
 
     site(tp0)(go { case a(1) + b(_) + c(_) => })
 
@@ -479,9 +475,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "define a reaction with correct inputs with constant default option pattern-matching at start of reaction" in {
-    val a = new M[Option[Int]]("a")
-    val b = new E("b")
-    val c = new E("c")
+    val a = m[Option[Int]]
+    val b = m[Unit]
+    val c = m[Unit]
 
     site(tp0)(go { case a(None) + b(_) + c(_) => })
 
@@ -489,10 +485,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "determine constant input and output patterns correctly" in {
-    val a = new M[Option[Int]]("a")
-    val b = new M[String]("b")
-    val c = new M[(Int, Int)]("c")
-    val d = new E("d")
+    val a = m[Option[Int]]
+    val b = m[String]
+    val c = m[(Int, Int)]
+    val d = m[Unit]
     val e = m[Either[Option[Int],String]]
 
     val r = go { case a(Some(1)) + b("xyz") + d(()) + c((2, 3)) + e(Left(Some(1))) + e(Right("input")) =>
@@ -753,16 +749,16 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val thrown = intercept[Exception] {
       r1.body.apply(inputs) shouldEqual 123 // Reaction ran on a non-reaction thread (i.e. on this thread) and attempted to emit the singleton.
     }
-    val expectedMessage = s"In Site{${dIncorrectSingleton.name} + ${e.name} => ...}: Refusing to emit singleton ${dIncorrectSingleton.name}() because this thread does not run a chemical reaction"
+    val expectedMessage = s"In Site{${dIncorrectSingleton.name} + e => ...}: Refusing to emit singleton ${dIncorrectSingleton.name}() because this thread does not run a chemical reaction"
     thrown.getMessage shouldEqual expectedMessage
     waitSome()
-    e.logSoup shouldEqual s"Site{${dIncorrectSingleton.name} + ${e.name} => ...}\nMolecules: ${dIncorrectSingleton.name}()"
+    e.logSoup shouldEqual s"Site{${dIncorrectSingleton.name} + e => ...}\nMolecules: ${dIncorrectSingleton.name}()"
   }
 
   it should "refuse to emit singleton from a reaction that did not consume it when this cannot be determined statically" in {
-    val c = m[Unit]
+    val c = new M[Unit]("c")
     val dIncorrectSingleton = m[Unit]
-    val e = m[E]
+    val e = new M[M[Unit]]("e")
 
     site(tp0)(
       go { case e(s) => s() },
@@ -772,8 +768,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     e(dIncorrectSingleton)
     waitSome()
-    e.logSoup shouldEqual s"Site{c + ${dIncorrectSingleton.name} => ...; ${e.name} => ...}\nMolecules: ${dIncorrectSingleton.name}()"
-    globalErrorLog.exists(_.contains(s"In Site{c + ${dIncorrectSingleton.name} => ...; ${e.name} => ...}: Refusing to emit singleton ${dIncorrectSingleton.name}() because this reaction {${e.name}(s) => } does not consume it")) shouldEqual true
+    e.logSoup shouldEqual s"Site{c + ${dIncorrectSingleton.name} => ...; e => ...}\nMolecules: ${dIncorrectSingleton.name}()"
+    globalErrorLog.exists(_.contains(s"In Site{c + ${dIncorrectSingleton.name} => ...; e => ...}: Refusing to emit singleton ${dIncorrectSingleton.name}() because this reaction {e(s) => } does not consume it")) shouldEqual true
   }
 
 }

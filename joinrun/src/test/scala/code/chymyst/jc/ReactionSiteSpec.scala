@@ -1,6 +1,5 @@
 package code.chymyst.jc
 
-import code.chymyst.jc.Core.ReactionBody
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
@@ -89,7 +88,9 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   it should "support concise syntax for Unit-typed molecules" in {
     val a = new M[Unit]("a")
     val f = new B[Unit, Unit]("f")
+    a.name shouldEqual "a"
+    f.name shouldEqual "f"
     // This should compile without any argument adaptation warnings or errors:
-    val pf: ReactionBody = { case a(_) + f(_, r) => a() + r() + f(); val status = r.checkTimeout() }
+    "val r = go { case a(_) + f(_, r) => a() + r() + f(); val status = r.checkTimeout() }" should compile
   }
 }

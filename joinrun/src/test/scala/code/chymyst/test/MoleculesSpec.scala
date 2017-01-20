@@ -32,9 +32,9 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
   behavior of "reaction site"
 
   it should "define a reaction with correct inputs" in {
-    val a = new E("a")
-    val b = new E("b")
-    val c = new E("c")
+    val a = m[Unit]
+    val b = m[Unit]
+    val c = m[Unit]
 
     site(tp0)(go { case a(_) + b(_) + c(_) => })
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
@@ -42,35 +42,35 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
   }
 
   it should "correctly list molecules present in soup" in {
-    val a = new E("a")
-    val b = new E("b")
-    val c = new E("c")
-    val d = new E("d")
-    val f = new EE("f")
-    val g = new EE("g")
+    val a = m[Unit]
+    val bb = m[Unit]
+    val c = m[Unit]
+    val d = m[Unit]
+    val f = b[Unit, Unit]
+    val g = b[Unit, Unit]
 
     site(tp0)(
       go { case g(_, r) + d(_) => r() },
-      go { case a(_) + b(_) + c(_) + f(_, r) => r() }
+      go { case a(_) + bb(_) + c(_) + f(_, r) => r() }
     )
-    a.logSoup shouldEqual "Site{a + b + c + f/B => ...; d + g/B => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + bb + c + f/B => ...; d + g/B => ...}\nNo molecules"
 
     a()
     a()
-    b()
+    bb()
     Thread.sleep(100)
     d()
-    g.timeout(1.second)() shouldEqual Some(())
-    a.logSoup shouldEqual "Site{a + b + c + f/B => ...; d + g/B => ...}\nMolecules: a() * 2, b()"
+    g.timeout()(1.second) shouldEqual Some(())
+    a.logSoup shouldEqual "Site{a + bb + c + f/B => ...; d + g/B => ...}\nMolecules: a() * 2, bb()"
     c()
-    f.timeout(1.second)() shouldEqual Some(())
-    a.logSoup shouldEqual "Site{a + b + c + f/B => ...; d + g/B => ...}\nMolecules: a()"
+    f.timeout()(1.second) shouldEqual Some(())
+    a.logSoup shouldEqual "Site{a + bb + c + f/B => ...; d + g/B => ...}\nMolecules: a()"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at end of reaction" in {
     val a = new M[Option[Int]]("a")
-    val b = new E("b")
-    val c = new E("c")
+    val b = new M[Unit]("b")
+    val c = new M[Unit]("c")
 
     site(go { case b(_) + c(_) + a(Some(x)) => })
 
@@ -79,8 +79,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   it should "define a reaction with correct inputs with zero default pattern-matching at start of reaction" in {
     val a = new M[Int]("a")
-    val b = new E("b")
-    val c = new E("c")
+    val b = new M[Unit]("b")
+    val c = new M[Unit]("c")
 
     site(go { case a(0) + b(_) + c(_) => })
 
@@ -89,8 +89,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   it should "define a reaction with correct inputs with constant non-default pattern-matching at end of reaction" in {
     val a = new M[Int]("a")
-    val b = new E("b")
-    val c = new E("c")
+    val b = new M[Unit]("b")
+    val c = new M[Unit]("c")
 
     site(go { case b(_) + c(_) + a(1) => })
 
@@ -101,7 +101,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     val waiter = new Waiter
 
-    val a = new E("a")
+    val a = new M[Unit]("a")
     site(tp0)( go { case a(_) => waiter.dismiss() })
 
     a()
@@ -112,7 +112,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     val waiter = new Waiter
 
-    val a = new E("a")
+    val a = new M[Unit]("a")
     site(tp0)( go { case a(_) => waiter.dismiss() })
 
     a()
@@ -123,8 +123,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     val waiter = new Waiter
 
-    val a = new E("a")
-    val b = new E("b")
+    val a = new M[Unit]("a")
+    val b = new M[Unit]("b")
     site(tp0)( go { case a(_) => b() }, go { case b(_) => waiter.dismiss() })
 
     a()
@@ -145,18 +145,18 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
   }
 
   it should "accept nonlinear input patterns" in {
-    val a = new E("a")
+    val a = new M[Unit]("a")
     site(go { case a(_) + a(_) => () })
   }
 
   it should "accept nonlinear input patterns, with blocking molecule" in {
-    val a = new EE("a")
+    val a = new B[Unit, Unit]("a")
     site(go { case a(_, r) + a(_, s) => r() + s() })
   }
 
   it should "throw exception when join pattern attempts to redefine a blocking molecule" in {
     val thrown = intercept[Exception] {
-      val a = new EE("a")
+      val a = new B[Unit, Unit]("a")
       site( go { case a(_,r) => r() })
       site( go { case a(_,r) => r() })
     }
@@ -165,8 +165,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   it should "throw exception when join pattern attempts to redefine a non-blocking molecule" in {
     val thrown = intercept[Exception] {
-      val a = new E("x")
-      val b = new E("y")
+      val a = new M[Unit]("x")
+      val b = new M[Unit]("y")
       site( go { case a(_) + b(_) => () })
       site( go { case a(_) => () })
     }
@@ -175,7 +175,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   it should "throw exception when trying to emit a blocking molecule that has no join" in {
     val thrown = intercept[Exception] {
-      val a = new EE("x")
+      val a = new B[Unit, Unit]("x")
       a()
     }
     thrown.getMessage shouldEqual "Molecule x/B is not bound to any reaction site"
@@ -183,7 +183,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   it should "throw exception when trying to emit a non-blocking molecule that has no join" in {
     val thrown = intercept[Exception] {
-      val a = new E("x")
+      val a = new M[Unit]("x")
       a()
     }
     thrown.getMessage shouldEqual "Molecule x is not bound to any reaction site"
@@ -191,7 +191,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   it should "throw exception when trying to log soup of a blocking molecule that has no join" in {
     val thrown = intercept[Exception] {
-      val a = new EE("x")
+      val a = new B[Unit, Unit]("x")
       a.logSoup
     }
     thrown.getMessage shouldEqual "Molecule x/B is not bound to any reaction site"
@@ -199,7 +199,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   it should "throw exception when trying to log soup a non-blocking molecule that has no join" in {
     val thrown = intercept[Exception] {
-      val a = new E("x")
+      val a = new M[Unit]("x")
       a.logSoup
     }
     thrown.getMessage shouldEqual "Molecule x is not bound to any reaction site"
@@ -209,7 +209,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     val a = new M[Int]("a")
     val b = new M[Int]("b")
-    val f = new EB[Int]("f")
+    val f = new B[Unit, Int]("f")
 
     site(tp0)( go { case a(x) + b(0) => a(x+1) }, go { case a(z) + f(_, r) => r(z) })
     a(1)
@@ -219,22 +219,22 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   it should "implement the non-blocking single-access counter" in {
     val c = new M[Int]("c")
-    val d = new E("decrement")
-    val g = new EB[Int]("getValue")
+    val d = new M[Unit]("decrement")
+    val g = new B[Unit, Int]("getValue")
     site(tp0)(
       go { case c(n) + d(_) => c(n-1) },
       go { case c(0) + g(_,r) => r(0) }
     )
     c(2) + d() + d()
-    g.timeout(1.second)() shouldEqual Some(0)
+    g.timeout()(1.second) shouldEqual Some(0)
   }
 
   it should "use only one thread for concurrent computations" in {
     val c = new M[Int]("counter")
-    val d = new E("decrement")
-    val f = new E("finished")
+    val d = new M[Unit]("decrement")
+    val f = new M[Unit]("finished")
     val a = new M[Int]("all_finished")
-    val g = new EB[Int]("getValue")
+    val g = new B[Unit, Int]("getValue")
 
     val tp = new FixedPool(1)
 
@@ -244,24 +244,24 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       go { case f(_) + a(x) => a(x+1) }
     )
     a(0) + c(1) + c(1) + d() + d()
-    g.timeout(1.second)() shouldEqual Some(0)
+    g.timeout()(1.second) shouldEqual Some(0)
     Thread.sleep(150) // This is less than 300ms, so we have not yet finished the first computation.
-    g.timeout(1.second)() shouldEqual Some(0)
+    g.timeout()(1.second) shouldEqual Some(0)
     Thread.sleep(300) // Now we should have finished the first computation.
-    g.timeout(1.second)() shouldEqual Some(1)
+    g.timeout()(1.second) shouldEqual Some(1)
     Thread.sleep(300) // Now we should have finished the second computation.
-    g.timeout(1.second)() shouldEqual Some(2)
+    g.timeout()(1.second) shouldEqual Some(2)
 
     tp.shutdownNow()
   }
 
   // this test sometimes fails
   it should "use two threads for concurrent computations" in {
-    val c = new E("counter")
-    val d = new E("decrement")
-    val f = new E("finished")
+    val c = new M[Unit]("counter")
+    val d = new M[Unit]("decrement")
+    val f = new M[Unit]("finished")
     val a = new M[Int]("all_finished")
-    val g = new EB[Int]("getValue")
+    val g = new B[Unit, Int]("getValue")
 
     val tp = new FixedPool(2)
 
@@ -272,7 +272,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     )
     a(0) + c() + c() + d() + d()
     Thread.sleep(500) // This is less than 2*300ms, and the test fails unless we use 2 threads concurrently.
-    g.timeout(1.second)() shouldEqual Some(2)
+    g.timeout()(1.second) shouldEqual Some(2)
 
     tp.shutdownNow()
   }
@@ -283,8 +283,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val probabilityOfCrash = 0.5
 
     val c = new M[Int]("counter")
-    val d = new E("decrement")
-    val g = new EE("getValue")
+    val d = new M[Unit]("decrement")
+    val g = new B[Unit, Unit]("getValue")
     val tp = new FixedPool(2)
 
     site(tp0)(
@@ -296,7 +296,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     c(n)
     (1 to n).foreach { _ => d() }
 
-    val result = g.timeout(1500 millis)()
+    val result = g.timeout()(1500 millis)
     tp.shutdownNow()
     result shouldEqual None
   }
@@ -307,8 +307,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val probabilityOfCrash = 0.5
 
     val c = new M[Int]("counter")
-    val d = new E("decrement")
-    val g = new EE("getValue")
+    val d = new M[Unit]("decrement")
+    val g = new B[Unit, Unit]("getValue")
     val tp = new FixedPool(2)
 
     site(tp0)(
@@ -320,7 +320,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     c(n)
     (1 to n).foreach { _ => d() }
 
-    val result = g.timeout(1500 millis)()
+    val result = g.timeout()(1500 millis)
     tp.shutdownNow()
     result shouldEqual Some(())
   }
@@ -331,8 +331,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val probabilityOfCrash = 0.5
 
     val c = new M[Int]("counter")
-    val d = new EE("decrement")
-    val g = new EE("getValue")
+    val d = new B[Unit, Unit]("decrement")
+    val g = new B[Unit, Unit]("getValue")
     val tp = new FixedPool(2)
 
     site(tp0)(
@@ -343,12 +343,12 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     )
     c(n)
     (1 to n).foreach { _ =>
-      if (d.timeout(1500 millis)().isEmpty) {
+      if (d.timeout()(1500 millis).isEmpty) {
         println(globalErrorLog.take(50).toList) // this should not happen, but will be helpful for debugging
       }
     }
 
-    val result = g.timeout(1500 millis)()
+    val result = g.timeout()(1500 millis)
     globalErrorLog.exists(_.contains("Message: crash! (it's OK, ignore this)"))
     tp.shutdownNow()
     result shouldEqual Some(())

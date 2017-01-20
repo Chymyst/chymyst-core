@@ -11,7 +11,7 @@ object Benchmarks9 {
 
   val numberOfCounters = 5
 
-  def make_counter_1(done: M[Unit], counters: Int, init: Int, tp: Pool): EE = {
+  def make_counter_1(done: M[Unit], counters: Int, init: Int, tp: Pool): B = {
     val c = m[Int]
     val d = b[Unit, Unit]
 
@@ -47,7 +47,7 @@ object Benchmarks9 {
   }
 
 
-  def make_ping_pong_stack(done: E, tp: Pool): B[Int,Int] = {
+  def make_ping_pong_stack(done: M, tp: Pool): B[Int,Int] = {
     val c = m[Unit]
     val d = b[Int, Int]
     val e = b[Int, Int]
@@ -123,7 +123,7 @@ object Benchmarks9 {
     collect(0)
 
     val numberOfFailures = (1 to count*counterMultiplier).map { _ =>
-      if (f.timeout(200.millis)().isEmpty) 1 else 0
+      if (f.timeout()(200.millis).isEmpty) 1 else 0
     }.sum
 
     // In this benchmark, we used to have about 4% numberOfFailures and about 2 numberOfFalseReplies in 100,000

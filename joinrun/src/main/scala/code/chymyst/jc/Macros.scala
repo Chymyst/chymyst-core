@@ -3,7 +3,7 @@ package code.chymyst.jc
 import Core._
 
 import scala.language.experimental.macros
-import scala.reflect.macros.{blackbox, whitebox}
+import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer.LOCAL_SUFFIX_STRING
 
 class CommonMacros(val c: blackbox.Context) {
@@ -127,40 +127,24 @@ class CommonMacros(val c: blackbox.Context) {
 
 }
 
-final class WhiteboxMacros(override val c: whitebox.Context) extends CommonMacros(c) {
+final class MoleculeMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   import c.universe._
 
   def mImpl[T: c.WeakTypeTag]: c.universe.Tree = {
     val moleculeName = getEnclosingName
-
     val moleculeValueType = c.weakTypeOf[T]
-    if (moleculeValueType =:= typeOf[Unit])
-      q"new E($moleculeName)"
-    else
-      q"new M[$moleculeValueType]($moleculeName)"
+    q"new M[$moleculeValueType]($moleculeName)"
   }
 
   // Does providing an explicit return type here as c.Expr[...] helps anything? Looks like it doesn't, so far.
   def bImpl[T: c.WeakTypeTag, R: c.WeakTypeTag]: Tree = {
 
     val moleculeName = getEnclosingName
-
     val moleculeValueType = c.weakTypeOf[T]
     val replyValueType = c.weakTypeOf[R]
 
-    if (replyValueType =:= typeOf[Unit]) {
-      if (moleculeValueType =:= typeOf[Unit])
-        q"new EE($moleculeName)"
-      else
-        q"new BE[$moleculeValueType]($moleculeName)"
-    } else {
-      // reply type is not Unit
-      if (moleculeValueType =:= typeOf[Unit])
-        q"new EB[$replyValueType]($moleculeName)"
-      else
-        q"new B[$moleculeValueType,$replyValueType]($moleculeName)"
-    }
+    q"new B[$moleculeValueType,$replyValueType]($moleculeName)"
   }
 
 }

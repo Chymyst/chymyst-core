@@ -129,7 +129,7 @@ class ReactionDelaySpec extends FlatSpec with Matchers {
         val t1 = nextInt(maxTimeout)
         val t2 = nextInt(maxTimeout)
         val timeInit = LocalDateTime.now
-        val res = f.timeout(t1.millis)(t2.toLong).isEmpty
+        val res = f.timeout(t2.toLong)(t1.millis).isEmpty
         val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
         done((t1, t2, timeElapsed, res))
       },

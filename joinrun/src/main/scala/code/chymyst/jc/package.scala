@@ -64,9 +64,9 @@ package object jc {
     * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
     *
     * @tparam T Type of the value carried by the molecule.
-    * @return A new instance of class [[code.chymyst.jc.M]] if `T` is not `Unit`, or of class [[code.chymyst.jc.E]] if `T` is `Unit`.
+    * @return A new instance of class [[code.chymyst.jc.M]] if `T` is not `Unit`, or of class [[code.chymyst.jc.M]] if `T` is `Unit`.
     */
-  def m[T]: M[T] = macro WhiteboxMacros.mImpl[T]
+  def m[T]: M[T] = macro MoleculeMacros.mImpl[T]
 
   /** Declare a new blocking molecule emitter.
     * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
@@ -74,9 +74,9 @@ package object jc {
     * @tparam T Type of the value carried by the molecule.
     * @tparam R Type of the reply value.
     * @return A new instance of class [[code.chymyst.jc.B]]`[T,R]` if both `T` and `R` are not `Unit`.
-    *         Otherwise will return a new instance of one of the subclasses: [[code.chymyst.jc.EB]]`[R]`, [[code.chymyst.jc.BE]]`[T]`, or [[code.chymyst.jc.EE]].
+    *         Otherwise will return a new instance of one of the subclasses: [[code.chymyst.jc.EB]]`[R]`, [[code.chymyst.jc.BE]]`[T]`, or [[code.chymyst.jc.B]].
     *                  */
-  def b[T, R]: B[T, R] = macro WhiteboxMacros.bImpl[T, R]
+  def b[T, R]: B[T, R] = macro MoleculeMacros.bImpl[T, R]
 
   val defaultSitePool = new FixedPool(2)
   val defaultReactionPool = new FixedPool(4)

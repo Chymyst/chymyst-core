@@ -186,7 +186,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     (1 to n).foreach(i => begin((f(i),g(i))))
     counterInit()
     endCounter(n)
-    done.timeout(1000 millis)() shouldEqual Some(())
+    done.timeout()(1000 millis) shouldEqual Some(())
 
     val result: Seq[String] = logFile.iterator().asScala.toSeq
     result.size shouldEqual 2*n
