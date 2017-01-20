@@ -317,7 +317,7 @@ private[jc] sealed trait AbsReplyValue[T, R] {
   * @tparam T Type of the value carried by the molecule.
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
-private[jc] class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[T, R] {
+private[jc] final class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[T, R] {
 
   /** Perform a reply action for a blocking molecule without checking the timeout status (this is slightly faster).
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
@@ -346,7 +346,7 @@ private[jc] class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[T, R] 
   * @tparam T Type of the value carried by the molecule.
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
-sealed class B[T, R](val name: String) extends (T => R) with Molecule {
+final class B[T, R](val name: String) extends (T => R) with Molecule {
 
   val isBlocking = true
 
@@ -385,7 +385,7 @@ sealed class B[T, R](val name: String) extends (T => R) with Molecule {
 /** Mix this trait into your class to make the has code persistent after the first time it's computed.
   *
   */
-trait PersistentHashCode {
+sealed trait PersistentHashCode {
   private lazy val hashCodeValue: Int = super.hashCode()
 
   override def hashCode(): Int = hashCodeValue
