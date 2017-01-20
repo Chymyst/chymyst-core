@@ -58,12 +58,12 @@ private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
 
 /** Container for the value of a blocking molecule.
   *
-  * @param v The value of type T carried by the molecule.
+  * @param v          The value of type T carried by the molecule.
   * @param replyValue The wrapper for the reply value, which will ultimately return a value of type R.
   * @tparam T The type of the value carried by the molecule.
   * @tparam R The type of the reply value.
   */
-private[jc] final case class BlockingMolValue[T,R](v: T, replyValue: AbsReplyValue[T,R]) extends AbsMolValue[T] with PersistentHashCode {
+private[jc] final case class BlockingMolValue[T, R](v: T, replyValue: AbsReplyValue[T, R]) extends AbsMolValue[T] with PersistentHashCode {
   override private[jc] def getValue: T = v
 
   override private[jc] def reactionSentNoReply: Boolean = replyValue.noReplyAttemptedYet // no value, no error, and no timeout
@@ -134,114 +134,8 @@ sealed trait Molecule extends PersistentHashCode {
 
   val isBlocking: Boolean
 
-  lazy val isSingleton: Boolean =
-    reactionSiteOpt.exists(_.singletonsDeclared.contains(this))
-}
-
-private[jc] sealed trait NonblockingMolecule[T] extends Molecule {
-
-  val isBlocking = false
-
-  def unapply(arg: InputMoleculeList): Option[T] =
-    arg.headOption
-      .map(_._2.asInstanceOf[MolValue[T]].v)
-}
-
-private[jc] sealed trait BlockingMolecule[T, R] extends Molecule {
-
-  /** This type will be ReplyValue[T,R] or EmptyReplyValue[R] depending on the class that inherits from BlockingMolecule.
-    */
-  type Reply <: AbsReplyValue[T, R]
-
-  val isBlocking = true
-
-  override lazy val isSingleton = false
-
-  /** Emit a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
-    *
-    * @param duration Timeout in any time interval.
-    * @param v        Value to be put onto the emitted molecule.
-    * @return Non-empty option if the reply was received; None on timeout.
-    */
-  def timeout(duration: Duration)(v: T): Option[R] =
-    site.emitAndAwaitReplyWithTimeout[T, R](duration.toNanos, this, v, new ReplyValue[T, R])
-
-  /** Perform the unapply matching and return a generic ReplyValue on success.
-    * The specific implementation of unapply will possibly downcast this to EmptyReplyValue.
-    *
-    * @param arg The input molecule list, which should be a one-element list.
-    * @return None if there was no match; Some(...) if the reaction inputs matched.
-    */
-  def unapplyInternal(arg: InputMoleculeList): Option[(T, Reply)] =
-    arg.headOption
-      .map(_._2.asInstanceOf[BlockingMolValue[T, R]])
-      .map { bmv => (bmv.v, bmv.replyValue.asInstanceOf[Reply]) }
-}
-
-/** Specialized class for non-blocking molecule emitters with empty value.
-  * These molecules can be emitted with syntax a() without a deprecation warning.
-  * Macro call m[Unit] returns this type.
-  *
-  * @param name Name of the molecule, used for debugging only.
-  */
-final class E(name: String) extends M[Unit](name) {
-  def apply(): Unit = site.emit[Unit](this, MolValue(()))
-}
-
-/** Specialized class for blocking molecule emitters with empty value (but non-empty reply).
-  * These molecules can be emitted with syntax f() without a deprecation warning.
-  * Macro call b[Unit, T] returns this type when T is not Unit.
-  *
-  * @param name Name of the molecule, used for debugging only.
-  * @tparam R Type of the value replied to the caller via the "reply" action.
-  */
-final class EB[R](name: String) extends B[Unit, R](name) {
-  def apply(): R = site.emitAndAwaitReply[Unit, R](this, (), new ReplyValue[Unit, R])
-
-  def timeout(duration: Duration)(): Option[R] =
-    site.emitAndAwaitReplyWithTimeout[Unit, R](duration.toNanos, this, (), new ReplyValue[Unit, R])
-}
-
-/** Specialized class for blocking molecule emitters with non-empty value and empty reply.
-  * The reply action for these molecules can be performed with syntax r() without a deprecation warning.
-  * Example: go { case ef(x, r) => r() }
-  *
-  * Macro call b[T, Unit] returns this type when T is not Unit.
-  *
-  * @param name Name of the molecule, used for debugging only.
-  * @tparam T Type of the value carried by the molecule.
-  */
-final class BE[T](name: String) extends B[T, Unit](name) {
-
-  override type Reply = EmptyReplyValue[T]
-
-  override def apply(v: T): Unit = site.emitAndAwaitReply[T, Unit](this, v, new EmptyReplyValue[T])
-
-  override def timeout(duration: Duration)(v: T): Option[Unit] =
-    site.emitAndAwaitReplyWithTimeout[T, Unit](duration.toNanos, this, v, new EmptyReplyValue[T])
-
-  override def unapply(arg: InputMoleculeList): Option[(T, EmptyReplyValue[T])] = unapplyInternal(arg)
-}
-
-/**Specialized class for blocking molecule emitters with empty value and empty reply.
-  * These molecules can be emitted with syntax fe() without a deprecation warning.
-  * The reply action for these molecules can be performed with syntax r() without a deprecation warning.
-  * Example: go { case ef(x, r) => r() }
-  *
-  * Macro call b[Unit, Unit] returns this type.
-  *
-  * @param name Name of the molecule, used for debugging only.
-  */
-final class EE(name: String) extends B[Unit, Unit](name) {
-
-  type Reply = EmptyReplyValue[Unit]
-
-  def apply(): Unit = site.emitAndAwaitReply[Unit, Unit](this, (), new EmptyReplyValue[Unit])
-
-  def timeout(duration: Duration)(): Option[Unit] =
-    site.emitAndAwaitReplyWithTimeout[Unit, Unit](duration.toNanos, this, (), new EmptyReplyValue[Unit])
-
-  override def unapply(arg: InputMoleculeList): Option[(Unit, EmptyReplyValue[Unit])] = unapplyInternal(arg)
+  /** This is `lazy` because we will only know whether this molecule is a singleton after this molecule is bound to a reaction site, at run time. */
+  lazy val isSingleton: Boolean = false
 }
 
 /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -249,14 +143,21 @@ final class EE(name: String) extends B[Unit, Unit](name) {
   * @param name Name of the molecule, used for debugging only.
   * @tparam T Type of the value carried by the molecule.
   */
-sealed class M[T](val name: String) extends (T => Unit) with NonblockingMolecule[T] {
+final class M[T](val name: String) extends (T => Unit) with Molecule {
+
+  val isBlocking = false
+
+  def unapply(arg: InputMoleculeList): Option[T] =
+    arg.headOption
+      .map(_._2.asInstanceOf[MolValue[T]].v)
+
   /** Emit a non-blocking molecule.
     *
     * @param v Value to be put onto the emitted molecule.
     */
   def apply(v: T): Unit = site.emit[T](this, MolValue(v))
 
-  def apply()(implicit ev: TypeIsUnit[T]): Unit = apply(ev.get)
+  def apply()(implicit ev: TypeIsUnit[T]): Unit = apply(ev.getUnit)
 
   /** Volatile reader for a molecule.
     * The molecule must be declared as a singleton.
@@ -276,6 +177,10 @@ sealed class M[T](val name: String) extends (T => Unit) with NonblockingMolecule
     volatileValueContainer = molValue.asInstanceOf[MolValue[T]].getValue
 
   @volatile private var volatileValueContainer: T = _
+
+  override lazy val isSingleton: Boolean =
+    reactionSiteOpt.exists(_.singletonsDeclared.contains(this))
+
 }
 
 /** Represents the different states of the reply process.
@@ -303,12 +208,12 @@ private[jc] final case class ErrorNoReply(message: String) extends ReplyStatus
   */
 private[jc] final case class HaveReply[R](result: R) extends ReplyStatus
 
-/** This trait contains the implementations of most methods for the [[ReplyValue]] and [[EmptyReplyValue]] classes.
+/** This trait contains the implementations of most methods for [[ReplyValue]] class.
   *
   * @tparam T Type of the value that the molecule carries.
   * @tparam R Type of the reply value.
   */
-private[jc] trait AbsReplyValue[T, R] {
+private[jc] sealed trait AbsReplyValue[T, R] {
 
   @volatile private var replyStatus: ReplyStatus = HaveReply[R](null.asInstanceOf[R]) // the `null` and the typecast will not be used because `replyStatus` will be either overwritten or ignored on timeout. This avoids a third case class in ReplyStatus, and the code can now be completely covered by tests.
 
@@ -392,7 +297,7 @@ private[jc] trait AbsReplyValue[T, R] {
       // After acquiring this semaphore, it is safe to read the reply status.
       !isTimedOut
     } else
-      false  // We already tried to reply, so nothing to be done now.
+      false // We already tried to reply, so nothing to be done now.
 
     status
   }
@@ -405,21 +310,6 @@ private[jc] trait AbsReplyValue[T, R] {
       releaseSemaphoreForEmitter() // Unblock the reaction that emitted this blocking molecule.
     }
   }
-}
-
-/** Specialized reply-value wrapper for blocking molecules with Unit reply values. This is a mutable class.
-  *
-  * @tparam T Type of the value carried by the molecule.
-  */
-private[jc] final class EmptyReplyValue[T] extends ReplyValue[T, Unit] with (() => Unit) {
-  /** Perform a reply action for blocking molecules with Unit reply values. The reply action can use the syntax `r()` without deprecation warnings.
-    * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
-    *
-    * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
-    */
-  override def apply(): Unit = performReplyActionWithoutTimeoutCheck(())
-
-  def checkTimeout(): Boolean = performReplyAction(())
 }
 
 /** Reply-value wrapper for blocking molecules. This is a mutable class.
@@ -437,7 +327,7 @@ private[jc] class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[T, R] 
     */
   def apply(x: R): Unit = performReplyActionWithoutTimeoutCheck(x)
 
-  def apply()(implicit ev: TypeIsUnit[R]): Unit = apply(ev.get)
+  def apply()(implicit ev: TypeIsUnit[R]): Unit = apply(ev.getUnit)
 
   /** Perform a reply action for a blocking molecule while checking the timeout status.
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
@@ -447,7 +337,7 @@ private[jc] class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[T, R] 
     */
   def checkTimeout(x: R): Boolean = performReplyAction(x)
 
-  def checkTimeout()(implicit ev: TypeIsUnit[R]): Boolean = checkTimeout(ev.get)
+  def checkTimeout()(implicit ev: TypeIsUnit[R]): Boolean = checkTimeout(ev.getUnit)
 }
 
 /** Blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -456,21 +346,40 @@ private[jc] class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[T, R] 
   * @tparam T Type of the value carried by the molecule.
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
-sealed class B[T, R](val name: String) extends (T => R) with BlockingMolecule[T, R] {
+sealed class B[T, R](val name: String) extends (T => R) with Molecule {
 
-  type Reply <: ReplyValue[T, R]
+  val isBlocking = true
+
+  /** Emit a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
+    *
+    * @param duration Timeout in any time interval.
+    * @param v        Value to be put onto the emitted molecule.
+    * @return Non-empty option if the reply was received; None on timeout.
+    */
+  def timeout(v: T)(duration: Duration): Option[R] =
+    site.emitAndAwaitReplyWithTimeout[T, R](duration.toNanos, this, v, new ReplyValue[T, R])
+
+  def timeout()(duration: Duration)(implicit ev: TypeIsUnit[T]): Option[R] = timeout(ev.getUnit)(duration)
+
+  /** Perform the unapply matching and return a wrapped ReplyValue on success.
+    *
+    * @param arg The input molecule list, which should be a one-element list.
+    * @return None if there was no match; Some(...) if the reaction inputs matched.
+    */
+  def unapply(arg: InputMoleculeList): Option[(T, ReplyValue[T, R])] =
+    arg.headOption
+      .map(_._2.asInstanceOf[BlockingMolValue[T, R]])
+      .map { bmv => (bmv.v, bmv.replyValue.asInstanceOf[ReplyValue[T, R]]) }
 
   /** Emit a blocking molecule and receive a value when the reply action is performed.
     *
     * @param v Value to be put onto the emitted molecule.
     * @return The "reply" value.
     */
-  def apply(v: T): R =
-    site.emitAndAwaitReply[T,R](this, v, new ReplyValue[T,R])
+  def apply(v: T): R = site.emitAndAwaitReply[T, R](this, v, new ReplyValue[T, R])
 
-  def apply()(implicit ev: TypeIsUnit[T]): R = apply(ev.get)
-
-  def unapply(arg: InputMoleculeList): Option[(T, Reply)] = unapplyInternal(arg)
+  /** This enables the short syntax `b()` and will only work when `T == Unit`. */
+  def apply()(implicit ev: TypeIsUnit[T]): R = apply(ev.getUnit)
 }
 
 /** Mix this trait into your class to make the has code persistent after the first time it's computed.
@@ -478,5 +387,6 @@ sealed class B[T, R](val name: String) extends (T => R) with BlockingMolecule[T,
   */
 trait PersistentHashCode {
   private lazy val hashCodeValue: Int = super.hashCode()
+
   override def hashCode(): Int = hashCodeValue
 }

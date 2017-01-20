@@ -21,7 +21,7 @@ class ParallelOrSpec extends FlatSpec with Matchers {
     * @param tp Thread pool on which to run this.
     * @return New blocking molecule emitter that will return the desired result or block.
     */
-  def parallelOr(f: EB[Boolean], g: EB[Boolean], tp: Pool): EB[Boolean] = {
+  def parallelOr(f: B[Unit, Boolean], g: B[Unit, Boolean], tp: Pool): B[Unit, Boolean] = {
     val c = m[Unit]
     val d = m[Unit]
     val done = m[Boolean]
@@ -79,8 +79,8 @@ class ParallelOrSpec extends FlatSpec with Matchers {
     parallelOr(slowFalse, fastFalse, tp)() shouldEqual false
     parallelOr(fastFalse, slowTrue, tp)() shouldEqual true
 
-    parallelOr(never, fastFalse, tp).timeout(200 millis)() shouldEqual None
-    parallelOr(never, slowFalse, tp).timeout(200 millis)() shouldEqual None
+    parallelOr(never, fastFalse, tp).timeout()(200 millis) shouldEqual None
+    parallelOr(never, slowFalse, tp).timeout()(200 millis) shouldEqual None
 
     tp.shutdownNow()
   }
@@ -94,7 +94,7 @@ class ParallelOrSpec extends FlatSpec with Matchers {
     * @tparam T Type of the return value.
     * @return New blocking molecule emitter that will return the desired result.
     */
-  def firstResult[T](b1: EB[T], b2: EB[T], tp: Pool): EB[T] = {
+  def firstResult[T](b1: B[Unit, T], b2: B[Unit, T], tp: Pool): B[Unit, T] = {
     val get = b[Unit, T]
     val res = b[Unit, T]
     val res1 = m[Unit]
@@ -115,7 +115,8 @@ class ParallelOrSpec extends FlatSpec with Matchers {
 
   @tailrec
   final def neverReturn[T]: T = {
-    Thread.sleep(1000000); neverReturn[T]
+    Thread.sleep(1000000)
+    neverReturn[T]
   }
 
   it should "implement the First Result operation correctly" in {

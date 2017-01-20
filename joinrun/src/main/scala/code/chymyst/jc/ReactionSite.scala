@@ -301,7 +301,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   // Remove a blocking molecule if it is present.
-  private def removeBlockingMolecule[T, R](bm: BlockingMolecule[T, R], blockingMolValue: BlockingMolValue[T, R]): Unit = {
+  private def removeBlockingMolecule[T, R](bm: B[T, R], blockingMolValue: BlockingMolValue[T, R]): Unit = {
     moleculesPresent.synchronized {
       moleculesPresent.removeFromBag(bm, blockingMolValue)
       if (logLevel > 0) println(s"Debug: $this removed $bm($blockingMolValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]")
@@ -318,7 +318,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @tparam R Type of the reply value.
     * @return Reply status for the reply action.
     */
-  private def emitAndAwaitReplyInternal[T, R](timeoutOpt: Option[Long], bm: BlockingMolecule[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]): ReplyStatus = {
+  private def emitAndAwaitReplyInternal[T, R](timeoutOpt: Option[Long], bm: B[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]): ReplyStatus = {
     val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
     emit(bm, blockingMolValue)
     val timedOut: Boolean = !BlockingIdle {
@@ -335,7 +335,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
   // We must make this a blocking call, so we acquire a semaphore (with or without timeout).
-  private[jc] def emitAndAwaitReply[T, R](bm: BlockingMolecule[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]): R = {
+  private[jc] def emitAndAwaitReply[T, R](bm: B[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]): R = {
     // check if we had any errors, and that we have a result value
     emitAndAwaitReplyInternal(timeoutOpt = None, bm, v, replyValueWrapper) match {
       case ErrorNoReply(message) => throw new Exception(message)
@@ -344,7 +344,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   // This is a separate method because it has a different return type than [[emitAndAwaitReply]].
-  private[jc] def emitAndAwaitReplyWithTimeout[T, R](timeout: Long, bm: BlockingMolecule[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]):
+  private[jc] def emitAndAwaitReplyWithTimeout[T, R](timeout: Long, bm: B[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]):
   Option[R] = {
     // check if we had any errors, and that we have a result value
     emitAndAwaitReplyInternal(timeoutOpt = Some(timeout), bm, v, replyValueWrapper) match {

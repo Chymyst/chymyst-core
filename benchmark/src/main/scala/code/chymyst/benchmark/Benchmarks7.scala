@@ -58,7 +58,7 @@ object Benchmarks7 {
     j8.f(initialTime)
   }
 
-  private def make_counters(done: E, counters: Int, init: Int, tp: Pool) = {
+  private def make_counters(done: M, counters: Int, init: Int, tp: Pool) = {
     val c = m[Int]
     val d = m[Unit]
 

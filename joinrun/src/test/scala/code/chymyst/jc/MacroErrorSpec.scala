@@ -17,7 +17,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val f = b[Unit, Unit]
     val x = 2
     x shouldEqual 2
-    f.isInstanceOf[EE] shouldEqual true
+    f.isInstanceOf[B[Unit,Unit]] shouldEqual true
 
     "val r = go { case f(_, r) if r() && x == 2 => }" shouldNot compile
   }
@@ -36,8 +36,8 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val a = m[Unit]
     val b = m[Unit]
 
-    a.isInstanceOf[E] shouldEqual true
-    b.isInstanceOf[E] shouldEqual true
+    a.isInstanceOf[M[Unit]] shouldEqual true
+    b.isInstanceOf[M[Unit]] shouldEqual true
 
     "val r = go { case a(_) =>; case b(_) => }" shouldNot compile
   }
@@ -47,7 +47,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val qq = m[Unit]
 
     a.isInstanceOf[M[Int]] shouldEqual true
-    qq.isInstanceOf[E] shouldEqual true
+    qq.isInstanceOf[M[Unit]] shouldEqual true
 
     """val result = go {
       case a(x) => qq()

@@ -26,8 +26,8 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   it should "emit a molecule from a future computed out of a given future" in {
 
-    val c = new E("c")
-    val f = new EE("f")
+    val c = new M("c")
+    val f = new B("f")
 
     val tp = new FixedPool(2)
     site(tp)(
@@ -60,9 +60,9 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "not emit a molecule from a future prematurely" in {
     val waiter = new Waiter
 
-    val c = new E("c")
-    val d = new E("d")
-    val e = new E("e")
+    val c = new M("c")
+    val d = new M("d")
+    val e = new M("e")
     val f = new EB[String]("f")
     val f2 = new EB[String]("f2")
 
@@ -95,7 +95,7 @@ class ChymystSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val waiter = new Waiter
     val tp = new FixedPool(4)
 
-    val b = new E("b")
+    val b = new M("b")
 
     // "fut" will succeed when "c" is emitted
     val (c, fut) = moleculeFuture[String](tp)
