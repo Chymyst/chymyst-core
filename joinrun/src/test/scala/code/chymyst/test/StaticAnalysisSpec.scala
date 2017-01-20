@@ -223,6 +223,17 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(?x) => a(?)}"), List(), "Site{a => ...}")
   }
 
+  it should "detect unavoidable livelock in a single reaction due to nontrivial matcher and constant output" in {
+    val thrown = intercept[Exception] {
+      val a = m[(Int, Int)]
+      val result = site(
+        go { case a((_, 1)) => a((1, 1)) }
+      )
+      result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(?) => a((1,1))}"), List(), "Site{a => ...}") // If this passes, we confused possible livelock with unavoidable livelock
+    }
+    thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction {a(?) => a((1,1))}"
+  }
+
   it should "detect livelock in a single reaction due to constant output values with nontrivial matchers" in {
     val thrown = intercept[Exception] {
       val a = m[Option[Int]]
