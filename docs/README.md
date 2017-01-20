@@ -16,3 +16,6 @@ The code of `Chymyst Core` is based on previous Join Calculus implementations by
 Begin with this [tutorial introduction](chymyst00.md).
 
 I gave a presentation on an early version of `Chymyst Core`, at that time called `JoinRun`, at [Scala by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
+
+Here is a minimal "Hello, world" project that uses `Chymyst`:
+[https://github.com/Chymyst/helloworld](https://github.com/Chymyst/helloworld)

@@ -106,3 +106,25 @@ lazy val benchmark = (project in file("benchmark"))
       "org.scalatest" %% "scalatest" % "3.0.0" % "test"
     )
   ).dependsOn(core)
+
+lazy val chymyst = (project in file("chymyst"))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "chymyst",
+    libraryDependencies ++= Seq(
+      "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+    )
+  ).dependsOn(joinrun)
+
+// Publishing to Sonatype Maven repository
+publishMavenStyle := true
+
+publishTo := {
+  val nexus = "https://oss.sonatype.org/"
+  if (isSnapshot.value)
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  else
+    Some("releases" at nexus + "service/local/staging/deploy/maven2")
+}
+
+publishArtifact in Test := false
