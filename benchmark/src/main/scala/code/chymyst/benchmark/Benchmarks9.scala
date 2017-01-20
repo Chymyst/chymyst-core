@@ -11,7 +11,7 @@ object Benchmarks9 {
 
   val numberOfCounters = 5
 
-  def make_counter_1(done: M[Unit], counters: Int, init: Int, tp: Pool): B = {
+  def make_counter_1(done: M[Unit], counters: Int, init: Int, tp: Pool): B[Unit, Unit] = {
     val c = m[Int]
     val d = b[Unit, Unit]
 
@@ -47,7 +47,7 @@ object Benchmarks9 {
   }
 
 
-  def make_ping_pong_stack(done: M, tp: Pool): B[Int,Int] = {
+  def make_ping_pong_stack(done: M[Unit], tp: Pool): B[Int,Int] = {
     val c = m[Unit]
     val d = b[Int, Int]
     val e = b[Int, Int]
