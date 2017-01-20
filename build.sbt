@@ -1,11 +1,10 @@
 /*
 Root project: buildAll (not executable)
-Depends on: joinrun, benchmark, chymyst
-Aggregates: joinrun, chymyst
+Aggregates: joinrun, benchmark
 
 Benchmark: executable (sbt benchmark/run)
 
-Main JAR of the library: sbt joinrun/package
+Make the main JAR of the JoinRun library: sbt joinrun/package
  */
 
 /* To compile with printed names and types:
@@ -74,7 +73,7 @@ lazy val buildAll = (project in file("."))
   .settings(
     name := "buildAll"
   )
-  .aggregate(joinrun, benchmark, chymyst)
+  .aggregate(joinrun, benchmark)
 
 lazy val joinrun = (project in file("joinrun"))
   .settings(commonSettings: _*)
@@ -103,15 +102,6 @@ lazy val benchmark = (project in file("benchmark"))
     //    unmanagedJars in Compile += file("lib/JiansenJoin-0.3.6-JoinRun-0.1.0.jar"),// they say it's no longer needed
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
     parallelExecution in Test := false,
-    libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.0.0" % "test"
-    )
-  ).dependsOn(joinrun)
-
-lazy val chymyst = (project in file("chymyst"))
-  .settings(commonSettings: _*)
-  .settings(
-    name := "chymyst",
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.0" % "test"
     )
