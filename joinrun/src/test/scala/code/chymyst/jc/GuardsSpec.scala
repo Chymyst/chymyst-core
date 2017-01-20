@@ -270,13 +270,19 @@ class GuardsSpec extends FlatSpec with Matchers {
   }
 
   it should "compile a guard that references a variable via library functions" in {
-    val done = m[Array[Int]]
+    val c = m[(Int, Array[Int])]
+    val d = m[Array[Int]]
+
+    /* This works correctly. */
+    val reaction1 = go { case c((_, arr)) if arr.nonEmpty => }
+    reaction1.info.inputs.head should matchPattern { case InputMoleculeInfo(`c`, 0, OtherInputPattern(_, List('arr), false), _) => }
+
     /* The guard `if arr.nonEmpty` is not compiled correctly: it generates the partial function
       { case (arr @ _) if scala.Predef.intArrayOps(arr).nonEmpty => () }
       which gives a type error: `arr` is typed as `Any` instead of `Array[Int]` as required.
     */
-//    val reaction = go { case done(arr) if arr.nonEmpty => }
-//    reaction.info.inputs.head.flag should matchPattern { case InputMoleculeInfo(`done`, 0, SimpleVar('arr, Some(_)), _) => }
+    val reaction2 = go { case d(arr) if arr.nonEmpty => }
+    reaction2.info.inputs.head should matchPattern { case InputMoleculeInfo(`d`, 0, SimpleVar('arr, Some(_)), _) => }
   }
 
   behavior of "cross-molecule guards"
