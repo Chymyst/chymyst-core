@@ -102,4 +102,6 @@ package object jc {
     }
   }
 
+  implicit val typeIsUnit = TypeIsUnitValue
+
 }

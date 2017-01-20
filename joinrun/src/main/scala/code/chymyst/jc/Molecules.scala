@@ -256,6 +256,8 @@ sealed class M[T](val name: String) extends (T => Unit) with NonblockingMolecule
     */
   def apply(v: T): Unit = site.emit[T](this, MolValue(v))
 
+  def apply()(implicit ev: TypeIsUnit[T]): Unit = apply(ev.get)
+
   /** Volatile reader for a molecule.
     * The molecule must be declared as a singleton.
     *
@@ -435,6 +437,8 @@ private[jc] class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[T, R] 
     */
   def apply(x: R): Unit = performReplyActionWithoutTimeoutCheck(x)
 
+  def apply()(implicit ev: TypeIsUnit[R]): Unit = apply(ev.get)
+
   /** Perform a reply action for a blocking molecule while checking the timeout status.
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
     *
@@ -442,6 +446,8 @@ private[jc] class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[T, R] 
     * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
     */
   def checkTimeout(x: R): Boolean = performReplyAction(x)
+
+  def checkTimeout()(implicit ev: TypeIsUnit[R]): Boolean = checkTimeout(ev.get)
 }
 
 /** Blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -461,6 +467,8 @@ sealed class B[T, R](val name: String) extends (T => R) with BlockingMolecule[T,
     */
   def apply(v: T): R =
     site.emitAndAwaitReply[T,R](this, v, new ReplyValue[T,R])
+
+  def apply()(implicit ev: TypeIsUnit[T]): R = apply(ev.get)
 
   def unapply(arg: InputMoleculeList): Option[(T, Reply)] = unapplyInternal(arg)
 }
