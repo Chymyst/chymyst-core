@@ -38,7 +38,7 @@ For counting, we will use a distinct molecule `count` dedicated just to that and
 
 ```scala
 val count = m[Int]
-val check = new EE("check") 
+val check = b[Unit, Unit]
 
 site(tp) ( // reactions
   go { case pusher(???) + count(n) if n >= 1 => ??? // the supply reaction TBD
@@ -132,15 +132,15 @@ case class ShippedInventory(tobacco: Int, paper: Int, matches: Int)
 
 val pusher = m[ShippedInventory] // pusher means drug dealer, in classic Comp Sci, we'd call this producer or publisher.
 val count = m[Int]
-val KeithInNeed = new E("Keith obtained tobacco and matches to get his fix") // makes for more vivid tracing, could be plainly m[Unit]
-val SlashInNeed = new E("Slash obtained tobacco and matches to get his fix") // same
-val JimiInNeed = new E("Jimi obtained tobacco and matches to get his fix") // same
+val KeithInNeed = new M[Unit]("Keith obtained tobacco and matches to get his fix") // makes for more vivid tracing, could be plainly m[Unit]
+val SlashInNeed = new M[Unit]("Slash obtained tobacco and matches to get his fix") // same
+val JimiInNeed = new M[Unit]("Jimi obtained tobacco and matches to get his fix") // same
 
 val tobaccoShipment = m[ShippedInventory] // this is not particularly elegant, ideally this should carry Unit but pusher needs to obtain current state
 val matchesShipment = m[ShippedInventory] // same
 val paperShipment = m[ShippedInventory] // same
 
-val check = new EE("check") // blocking Unit, only blocking molecule of the example.
+val check = b[Unit, Unit] // blocking Unit, only blocking molecule of the example.
 
 val logFile = new ConcurrentLinkedQueue[String]
 
