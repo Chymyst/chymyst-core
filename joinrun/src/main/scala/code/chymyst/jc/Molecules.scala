@@ -7,11 +7,13 @@ import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
 
-/** Convenience syntax: users can write a(x) + b(y) in reaction patterns.
-  * Pattern-matching can be extended to molecule values as well, for example
-  * ` { case a(MyCaseClass(x,y)) + b(Some(z)) => ... } `
+/** Convenience syntax: provides an `unapply` operation, so that users can write the chemical notation, such as
+  * `a(x) + b(y) + ...`, in reaction input patterns.
+  * Pattern-matching can be used on molecule values at will, for example:
+  * {{{go { case a(MyCaseClass(x, y)) + b(Some(z)) if x > z => ... } }}}
   *
-  * @return an unapply operation
+  * The chemical notation should be used only with the left-associative `+` operator grouped to the left.
+  * Input patterns with a right-associative grouping of the `+` operator, for example `a(x) + ( b(y) + c(z) )`, are refused.
   */
 object + {
 
@@ -35,9 +37,9 @@ private[jc] sealed trait AbsMolValue[T] {
 
   /** String representation of molecule values will omit printing the `Unit` values but print all other types normally.
     *
-    * @return String representation of molecule value of type T.
+    * @return String representation of molecule value of type T. Unit values are printed as empty strings.
     */
-  override def toString: String = getValue match {
+  override final def toString: String = getValue match {
     case () => ""
     case v => v.toString
   }
@@ -71,12 +73,15 @@ private[jc] final case class BlockingMolValue[T, R](v: T, replyValue: AbsReplyVa
   override private[jc] def reactionSentRepeatedReply: Boolean = replyValue.replyWasRepeated
 }
 
-/** Abstract molecule emitter class.
-  * This class is not parameterized by type and is used in collections of molecules that do not require knowledge of molecule types.
-  *
+/** Abstract molecule emitter trait.
+  * This trait is not parameterized by type and is used in collections of molecules that do not require knowledge of molecule types.
+  * Its only implementations are the classes [[B]] and [[M]].
   */
 sealed trait Molecule extends PersistentHashCode {
 
+  /** The name of the molecule. Used only for debugging.
+    * This will be assigned automatically if using the [[b]] or [[m]] macros.
+    */
   val name: String
 
   override def toString: String = (if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "")
@@ -86,7 +91,7 @@ sealed trait Molecule extends PersistentHashCode {
     *
     * @return True if already bound, false otherwise.
     */
-  def isBound: Boolean = reactionSiteOpt.nonEmpty
+  final def isBound: Boolean = reactionSiteOpt.nonEmpty
 
   // This is @volatile because the reaction site will assign this variable possibly from another thread.
   @volatile private[jc] var reactionSiteOpt: Option[ReactionSite] = None
@@ -96,17 +101,17 @@ sealed trait Molecule extends PersistentHashCode {
     *
     * @return The reaction site to which the molecule is bound. If not yet bound, throws an exception.
     */
-  private[jc] def site: ReactionSite =
+  final private[jc] def site: ReactionSite =
     reactionSiteOpt.getOrElse(throw new ExceptionNoReactionSite(s"Molecule $this is not bound to any reaction site"))
 
   /** The set of reactions that can consume this molecule.
     *
     * @return `None` if the molecule emitter is not yet bound to any reaction site.
     */
-  private[jc] def consumingReactions: Option[List[Reaction]] =
+  final private[jc] def consumingReactions: Option[List[Reaction]] =
     reactionSiteOpt.map(_ => consumingReactionsSet)
 
-  private[jc] lazy val consumingReactionsSet: List[Reaction] =
+  final private[jc] lazy val consumingReactionsSet: List[Reaction] =
     reactionSiteOpt.get.reactionInfos.keys.filter(_.inputMoleculesSet contains this).toList
 
   /** The set of all reactions that *potentially* emit this molecule as output.
@@ -117,20 +122,20 @@ sealed trait Molecule extends PersistentHashCode {
     *
     * @return Empty set if the molecule is not yet bound to any reaction site.
     */
-  private[jc] def emittingReactions: Set[Reaction] = emittingReactionsSet.toSet
+  final private[jc] def emittingReactions: Set[Reaction] = emittingReactionsSet.toSet
 
-  private val emittingReactionsSet: mutable.Set[Reaction] = mutable.Set()
+  final private val emittingReactionsSet: mutable.Set[Reaction] = mutable.Set()
 
   // This is called by the reaction site only during the initial setup. Once the reaction site is activated, the set of emitting reactions will never change.
-  private[jc] def addEmittingReaction(r: Reaction): Unit = {
+  final private[jc] def addEmittingReaction(r: Reaction): Unit = {
     emittingReactionsSet += r
     ()
   }
 
-  def setLogLevel(logLevel: Int): Unit =
+  final def setLogLevel(logLevel: Int): Unit =
     site.logLevel = logLevel
 
-  def logSoup: String = site.printBag
+  final def logSoup: String = site.printBag
 
   val isBlocking: Boolean
 
@@ -187,7 +192,7 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
   * Initially, the status is [[HaveReply]] with a `null` value.
   * Reply is successful if the emitting call does not time out. In this case, we have a reply value.
   * This is represented by [[HaveReply]] with a non-null value.
-  * If the reply times out, there is still no reply value. This is represented by the AtomicBoolean flag hasTimedOut set to `true`.
+  * If the reply times out, there is still no reply value. This is represented by the AtomicBoolean flag [[AbsReplyValue.hasTimedOut]] set to `true`.
   * If the reaction finished but did not reply, it is an error condition. If the reaction finished and replied more than once, it is also an error condition.
   * After a reaction fails to reply, the emitting closure will put an error message into the status for that molecule. This is represented by [[ErrorNoReply]].
   * When a reaction replies more than once, it is too late to put an error message into the status for that molecule. So we do not have a status value for this situation.
@@ -215,58 +220,59 @@ private[jc] final case class HaveReply[R](result: R) extends ReplyStatus
   */
 private[jc] sealed trait AbsReplyValue[T, R] {
 
-  @volatile private var replyStatus: ReplyStatus = HaveReply[R](null.asInstanceOf[R]) // the `null` and the typecast will not be used because `replyStatus` will be either overwritten or ignored on timeout. This avoids a third case class in ReplyStatus, and the code can now be completely covered by tests.
+  @volatile final private var replyStatus: ReplyStatus = HaveReply[R](null.asInstanceOf[R]) // the `null` and the typecast will not be used because `replyStatus` will be either overwritten or ignored on timeout. This avoids a third case class in ReplyStatus, and the code can now be completely covered by tests.
 
-  private[jc] def getReplyStatus = replyStatus
+  final private[jc] def getReplyStatus = replyStatus
 
-  private[jc] def setErrorStatus(message: String) = {
+  /** This is set by the reaction site in case there was a user error, such as not replying to a blocking molecule. */
+  final private[jc] def setErrorStatus(message: String) = {
     replyStatus = ErrorNoReply(message)
   }
 
   /** This atomic mutable value is read and written only by reactions that perform reply actions.
     * Access to this variable must be guarded by [[semaphoreForReplyStatus]].
     */
-  private val numberOfReplies = new AtomicInteger(0)
+  final private val numberOfReplies = new AtomicInteger(0)
 
   /** This atomic mutable value is written only by the reaction that emitted the blocking molecule,
     * but read by reactions that perform the reply action with timeout checking.
     * Access to this variable must be guarded by [[semaphoreForReplyStatus]].
     */
-  private val hasTimedOut = new AtomicBoolean(false)
+  final private val hasTimedOut = new AtomicBoolean(false)
 
-  private[jc] def setTimedOut() = hasTimedOut.set(true)
+  final private[jc] def setTimedOut() = hasTimedOut.set(true)
 
-  private[jc] def isTimedOut: Boolean = hasTimedOut.get
+  final private[jc] def isTimedOut: Boolean = hasTimedOut.get
 
-  private[jc] def noReplyAttemptedYet: Boolean = numberOfReplies.get === 0
+  final private[jc] def noReplyAttemptedYet: Boolean = numberOfReplies.get === 0
 
-  private[jc] def replyWasRepeated: Boolean = numberOfReplies.get >= 2
+  final private[jc] def replyWasRepeated: Boolean = numberOfReplies.get >= 2
 
   /** This semaphore blocks the emitter of a blocking molecule until a reply is received.
     * This semaphore is initialized only once when creating an instance of this
     * class. The semaphore will be acquired when emitting the molecule and released by the "reply"
     * action. The semaphore will never be used again once a reply is received.
     */
-  private val semaphoreForEmitter = new Semaphore(0, false)
+  final private val semaphoreForEmitter = new Semaphore(0, false)
 
   /** This is used by the reaction that replies to the blocking molecule, in order to obtain
     * the reply status safely (without race conditions).
     * Initially, the semaphore has 1 permits.
     * The reaction that replies will use 2 permits. Therefore, one additional permit will be given by the emitter after the reply is received.
     */
-  private val semaphoreForReplyStatus = new Semaphore(1, false)
+  final private val semaphoreForReplyStatus = new Semaphore(1, false)
 
-  private[jc] def acquireSemaphoreForEmitter(timeoutNanos: Option[Long]): Boolean =
+  final private[jc] def acquireSemaphoreForEmitter(timeoutNanos: Option[Long]): Boolean =
     timeoutNanos match {
       case Some(nanos) => semaphoreForEmitter.tryAcquire(nanos, TimeUnit.NANOSECONDS)
       case None => semaphoreForEmitter.acquire(); true
     }
 
-  private[jc] def releaseSemaphoreForEmitter(): Unit = semaphoreForEmitter.release()
+  final private[jc] def releaseSemaphoreForEmitter(): Unit = semaphoreForEmitter.release()
 
-  private[jc] def releaseSemaphoreForReply(): Unit = semaphoreForReplyStatus.release()
+  final private[jc] def releaseSemaphoreForReply(): Unit = semaphoreForReplyStatus.release()
 
-  private[jc] def acquireSemaphoreForReply() = semaphoreForReplyStatus.acquire()
+  final private[jc] def acquireSemaphoreForReply() = semaphoreForReplyStatus.acquire()
 
   /** Perform the reply action for a blocking molecule.
     * This is called by a reaction that consumed the blocking molecule.
@@ -302,6 +308,7 @@ private[jc] sealed trait AbsReplyValue[T, R] {
     status
   }
 
+  /** This is similar to [[performReplyAction]] except that user did not request the timeout checking, so we have fewer semaphores to deal with. */
   final protected def performReplyActionWithoutTimeoutCheck(x: R): Unit = {
     val replyWasNotRepeated = numberOfReplies.getAndIncrement() === 0
     if (replyWasNotRepeated) {
@@ -327,6 +334,7 @@ private[jc] final class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[
     */
   def apply(x: R): Unit = performReplyActionWithoutTimeoutCheck(x)
 
+  /** Same but for molecules with type `R = Unit`. */
   def apply()(implicit ev: TypeIsUnit[R]): Unit = apply(ev.getUnit)
 
   /** Perform a reply action for a blocking molecule while checking the timeout status.
@@ -337,6 +345,7 @@ private[jc] final class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[
     */
   def checkTimeout(x: R): Boolean = performReplyAction(x)
 
+  /** Same but for molecules with type `R = Unit`, with shorter syntax. */
   def checkTimeout()(implicit ev: TypeIsUnit[R]): Boolean = checkTimeout(ev.getUnit)
 }
 
@@ -359,6 +368,7 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
   def timeout(v: T)(duration: Duration): Option[R] =
     site.emitAndAwaitReplyWithTimeout[T, R](duration.toNanos, this, v, new ReplyValue[T, R])
 
+  /** Same but for molecules with type `T = Unit`, with shorter syntax. */
   def timeout()(duration: Duration)(implicit ev: TypeIsUnit[T]): Option[R] = timeout(ev.getUnit)(duration)
 
   /** Perform the unapply matching and return a wrapped ReplyValue on success.
