@@ -42,7 +42,7 @@ Here is example usage:
 ```scala
 val never = wait_forever() // Declare a new blocking emitter of type B[Unit, Unit].
 
-never.timeout(1 second)() // this will time out in 1 seconds
+never.timeout()(1 second) // this will time out in 1 seconds
 never() // this will never return
 
 ```
