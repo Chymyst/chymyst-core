@@ -113,7 +113,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
     "val r = go { case a((x,y)) => a((1,1)) }" shouldNot compile
     "val r = go { case a((_,x)) => a((x,x)) }" shouldNot compile
-    "val r = go { case a((1,_)) => a((1,1)) }" should compile // cannot detect unconditional livelock here
+    "val r = go { case a((1,_)) => a((1,1)) }" should compile // cannot detect unconditional livelock here at compile time, since we can't evaluate the binder yet
     "val r = go { case bb(x) if x > 0 => bb(1) }" should compile // no unconditional livelock due to guard
     "val r = go { case bbb(1) => bbb(2) }" should compile // no unconditional livelock
 
