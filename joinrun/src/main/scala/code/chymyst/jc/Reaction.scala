@@ -7,11 +7,20 @@ import scala.{Symbol => ScalaSymbol}
   * Possibilities:
   * `a(_)` is represented by [[Wildcard]]
   * `a(x)` is represented by [[SimpleVar]] with value `SimpleVar(v = 'x, cond = None)`
-  * `a(x) if x > 0` is represented by [[SimpleVar]] with value `SimpleVar(v = 'x, cond = Some({ case x if x > 0 => }))`
+  * `a(x) if x > 0` is represented by [[SimpleVar]] with value `SimpleVar(v = 'x, cond = Some({ case x : Int if x > 0 => }))`
   * `a(Some(1))` is represented by [[SimpleConst]] with value `SimpleConst(v = Some(1))`
-  * `a( (x, Some((y,z)))) ) if x > y` is represented by [[OtherInputPattern]] with value `OtherInputPattern(matcher = { case (x, Some((y,z)))) if x > y => }, vars = List('x, 'y, 'z))`
+  * `a( (x, Some((y,z)))) ) if x > y` is represented by [[OtherInputPattern]] with value
+  * {{{OtherInputPattern(matcher = { case (x, Some((y,z)))) if x > y => }, vars = List('x, 'y, 'z), isIrrefutable = false)}}}
   */
 sealed trait InputPatternType {
+  /** Detect whether the input pattern will always match any given value.
+    * In other words, a pattern is considered "trivial" if it does not constrain the value but merely puts variables on its parts.
+    *
+    * Examples of trivial patterns are `a(_)`, `a(x)`, and `a( z@(x,y,_) )`, where `a(...)` is a molecule with a suitable value type.
+    * Examples of nontrivial patterns are `a(1)`, `a(Some(x))`, `a( (_, None) )`.
+    *
+    * @return `true` if the pattern always matches, `false` otherwise.
+    */
   def isTrivial: Boolean = false
 }
 
@@ -24,13 +33,24 @@ final case class SimpleVar(v: ScalaSymbol, cond: Option[PartialFunction[Any, Uni
 }
 
 /** Represents molecules that have constant pattern matchers, such as `a(1)`.
-  * Constant pattern matchers are either literal values (Int, String, Symbol, etc.) or special values such as None, Nil, (),
+  * Constant pattern matchers are either literal values (`Int`, `String`, `Symbol`, etc.) or special values such as `None`, `Nil`, `()`,
   * as well as `Some`, `Left`, `Right`, `List`, and tuples of constant matchers.
   *
   * @param v Value of the constant. This is nominally of type `Any` but actually is of the molecule's value type `T`.
   */
 final case class SimpleConst(v: Any) extends InputPatternType
 
+/** Represents a general pattern that is neither a wildcard nor a single variable nor a constant.
+  * Examples of such patterns are `a(Some(x))` and `a( (x, _, 2, List(a, b)) )`.
+  *
+  * A pattern is recognized to be _irrefutable_ when it is a tuple (or several nested tuples) where all places are either simple variables or wildcards.
+  * For example, `a( z@(x, y, _) )` is an irrefutable pattern for a 3-tuple type.
+  * On the other hand, `a( (x, _, Some(_) ) )` is not irrefutable because it fails to match `a( (_, _, None) )`.
+  *
+  * @param matcher       Partial function that applies to the argument when the pattern matches.
+  * @param vars          List of symbols representing the variables used in the pattern, in the left-to-right order.
+  * @param isIrrefutable `true` if the pattern will always match the argument of the correct type, `false` otherwise.
+  */
 final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: List[ScalaSymbol], isIrrefutable: Boolean) extends InputPatternType {
   override def isTrivial: Boolean = isIrrefutable
 }
@@ -68,23 +88,30 @@ sealed trait GuardPresenceFlag {
   *
   * The guard is parsed into a flat conjunction of guard clauses, which are then analyzed for cross-dependencies between molecules.
   *
-  * For example, consider the reaction {{{ go { case a(x) + b(y) + c(z) if x > n && y > 0 && y > z && n > 1 => ...} }}}
+  * For example, consider the reaction
+  * {{{ go { case a(x) + b(y) + c(z) if x > n && y > 0 && y > z && n > 1 => ...} }}}
   * Here `n` is an integer constant defined outside the reaction.
-  * The conditions for starting this reaction is that a(x) has value x > n; that b(y) has value y > 0; that c(z) has value such that y > z; and finally that n > 1, independently of any molecule values.
-  * The condition n > 1 is a static guard. The condition x > n restricts only the molecule a(x) and therefore can be moved out of the guard into the InputMoleculeInfo for that molecule. Similarly, the condition y > 0 can be moved out of the guard.
-  * However, the condition y > z relates two different molecule values; it is a cross guard.
+  * The conditions for starting this reaction is that `a(x)` has value `x` such that `x > n`; that `b(y)` has value `y` such that `y > 0`;
+  * that `c(z)` has value `z` such that `y > z`; and finally that `n > 1`, independently of any molecule values.
+  * The condition `n > 1` is a static guard. The condition `x > n` restricts only the molecule `a(x)` and therefore can be moved out of the guard
+  * into the per-molecule conditional inside [[InputMoleculeInfo]] for that molecule. Similarly, the condition `y > 0` can be moved out of the guard.
+  * However, the condition `y > z` relates two different molecule values; it is a cross-molecule guard.
+  *
+  * Any guard condition given by the reaction code will be converted to the Conjunctive Normal Form, and split into a static guard,
+  * a set of per-molecule conditionals, and a set of cross-molecule guards.
   *
   * @param vars        The list of all pattern variables used by the guard condition. Each element of this list is a list of variables used by one guard clause. In the example shown above, this will be `List(List('y, 'z))` because all other conditions are moved out of the guard.
   * @param staticGuard The conjunction of all the clauses of the guard that are independent of pattern variables. This closure can be called in order to determine whether the reaction should even be considered to start, regardless of the presence of molecules. In this example, the value of `staticGuard` will be `Some(() => n > 1)`.
-  * @param crossGuards A list of functions that represent the clauses of the guard that relate values of different molecules. The partial function `Any => Unit` should be called with the arguments representing the tuples of pattern variables from each molecule used by the cross guard.
-  *                    In the present example, the value of `crossGuards` will be `List((List('y, 'z), { case List(y: Int, z: Int) if y > z => () }))`.
+  * @param crossGuards A list of values of type [[CrossMoleculeGuard]], each representing one cross-molecule clauses of the guard. The partial function `Any => Unit` should be called with the arguments representing the tuples of pattern variables from each molecule used by the cross guard.
+  *                    In the present example, the value of `crossGuards` will be
+  *                    {{{indices = Array(1, 2), List((List('y, 'z), { case List(y: Int, z: Int) if y > z => () })) }}}.
   */
 final case class GuardPresent(vars: Array[Array[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: Array[CrossMoleculeGuard]) extends GuardPresenceFlag {
   override def staticGuardFails: Boolean = staticGuard.exists(guardFunction => !guardFunction())
 
   override def effectivelyAbsent: Boolean = staticGuard.isEmpty && crossGuards.isEmpty
 
-  override def toString: String =
+  override val toString: String =
     s"GuardPresent([${vars.map(vs => s"[${vs.mkString(",")}]").mkString(", ")}], ${staticGuard.map(_ => "")}, [${crossGuards.map(_.toString).mkString("; ")}])"
 }
 
@@ -94,12 +121,19 @@ final case class GuardPresent(vars: Array[Array[ScalaSymbol]], staticGuard: Opti
 case object GuardAbsent extends GuardPresenceFlag
 
 /** Indicates that a guard was initially absent and, in addition, all molecules have trivial matchers - this reaction can start with any molecule values.
-  *
   */
 case object AllMatchersAreTrivial extends GuardPresenceFlag
 
+/** Represents the structure of the cross-molecule guard condition for a reaction.
+  * A cross-molecule guard constrains values of several molecules at once.
+  *
+  * @param indices Integer indices of affected molecules in the reaction input.
+  * @param symbols Symbols of variables used by the guard condition.
+  * @param cond    Partial function that applies to its argument, of type `List[Any]`, if the cross-molecule guard evaluates to `true` on these values.
+  *                The arguments of the partial function must correspond to the values of the affected molecules, in the order of the reaction input.
+  */
 final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSymbol], cond: PartialFunction[List[Any], Unit]) {
-  override def toString: String = s"CrossMoleculeGuard([${indices.mkString(",")}], [${symbols.mkString(",")}])"
+  override val toString: String = s"CrossMoleculeGuard([${indices.mkString(",")}], [${symbols.mkString(",")}])"
 }
 
 /** Compile-time information about an input molecule pattern in a reaction.
@@ -190,7 +224,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
     }
   }
 
-  override def toString: String = {
+  override val toString: String = {
     val printedPattern = flag match {
       case Wildcard => "_"
       case SimpleVar(v, None) => v.name
@@ -212,7 +246,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
   * @param flag     Type of the output pattern: either a constant value or other value.
   */
 final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType) {
-  override def toString: String = {
+  override val toString: String = {
     val printedPattern = flag match {
       case SimpleConstOutput(()) => ""
       case SimpleConstOutput(c) => c.toString
