@@ -56,7 +56,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       go { case f(_, r) + a(true) => Thread.sleep(500); a(r.checkTimeout(123)) }
     )
     a(true)
-    f.timeout(300.millis)() shouldEqual None // should give enough time so that the reaction can start
+    f.timeout()(300.millis) shouldEqual None // should give enough time so that the reaction can start
     g() shouldEqual false  // will be `true` when the `f` reaction did not start before timeout
 
     tp.shutdownNow()
@@ -74,7 +74,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       go { case f(_, r) + a(true) => Thread.sleep(500); a(r.checkTimeout()) }
     )
     a(true)
-    f.timeout(300.millis)() shouldEqual None // should give enough time so that the reaction can start
+    f.timeout()(300.millis) shouldEqual None // should give enough time so that the reaction can start
     g() shouldEqual false
 
     tp.shutdownNow()
@@ -90,7 +90,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     site(tp)(
       go { case f(_, r) => val res = r.checkTimeout(123); waiter { res shouldEqual true; ()}; waiter.dismiss() }
     )
-    f.timeout(10.seconds)() shouldEqual Some(123)
+    f.timeout()(10.seconds) shouldEqual Some(123)
 
     waiter.await()
     tp.shutdownNow()
@@ -113,12 +113,12 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     collect(0)
 
     val numberOfFailures = (1 to 1000).map { _ =>
-      if (f.timeout(1000 millis)().isEmpty) 1 else 0
+      if (f.timeout()(1000 millis).isEmpty) 1 else 0
     }.sum
 
     // we used to have about 4% numberOfFailures (but we get zero failures if we do not nullify the semaphore!) and about 4 numberOfFalseReplies in 100,000.
     // now it seems to pass even with a million iterations (but that's too long for Travis).
-    val numberOfFalseReplies = get.timeout(2000 millis)()
+    val numberOfFalseReplies = get.timeout()(2000 millis)
 
     (numberOfFailures, numberOfFalseReplies) shouldEqual ((0, Some(0)))
 
@@ -136,7 +136,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     )
     a.setLogLevel(4)
     a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
-    f.timeout(100 millis)() shouldEqual None
+    f.timeout()(100 millis) shouldEqual None
     // TODO: this test sometimes fails because f is not withdrawn and reacts with a(123) - even though logSoup prints "No molecules"!
     // there should be no a(0) now, because the reaction has not yet run ("f" timed out and was withdrawn, so no molecules)
     a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
@@ -165,7 +165,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     )
 
     a.logSoup shouldEqual "Site{a + g/B => ...; f/B => ...}\nNo molecules"
-    f.timeout(300 millis)() shouldEqual None // this times out because the f => ... reaction is blocked by g(), which is waiting for a()
+    f.timeout()(300 millis) shouldEqual None // this times out because the f => ... reaction is blocked by g(), which is waiting for a()
     a.logSoup shouldEqual "Site{a + g/B => ...; f/B => ...}\nMolecules: g/B()" // f() should have been removed but g() remains
     a(123) // Now g() starts reacting with a() and unblocks the "f" reaction, which should try to reply to "f" after "f" timed out.
     // The attempt to reply to "f" should fail, which is indicated by returning "false" from "r(x)". This is verified by the "waiter".
@@ -208,9 +208,9 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     )
     d(100)
     incr() // reaction 3 started and is waiting for e()
-    get_d.timeout(400 millis)() shouldEqual None
+    get_d.timeout()(400 millis) shouldEqual None
     e()
-    get_d.timeout(800 millis)() shouldEqual Some(101)
+    get_d.timeout()(800 millis) shouldEqual Some(101)
 
     tp.shutdownNow()
   }
@@ -259,7 +259,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     d.setLogLevel(4)
     d(100)
     c() // update started and is waiting for e(), which should come after incr() gets its reply
-    get_f.timeout(400 millis)() shouldEqual None
+    get_f.timeout()(400 millis) shouldEqual None
 
     tp.shutdownNow()
   }

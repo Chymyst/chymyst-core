@@ -44,8 +44,8 @@ class DiningPhilosophersSpec extends FlatSpec with Matchers {
     val fork45 = m[Unit]
     val fork51 = m[Unit]
 
-    val done = new E("done")
-    val check = new EE("check")
+    val done = m[Unit]
+    val check = b[Unit, Unit]
 
     site(tp) (
       go { case thinking1(n) => thinking(1); hungry1(n - 1) },
