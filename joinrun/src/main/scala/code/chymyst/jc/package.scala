@@ -50,11 +50,12 @@ package object jc {
   def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl
 
   /**
-    * Convenience syntax: users can write a(x)+b(y) to emit several molecules at once.
-    * (However, the molecules are emitted one by one in the present implementation.)
+    * Convenience syntax: users can write `a(x) + b(y)` to emit several molecules at once.
+    * However, the molecules are still emitted one by one in the present implementation.
+    * So, `a(x) + b(y) + c(z)` is equivalent to `a(x); b(y); c(z)`.
     *
     * @param x the first emitted molecule
-    * @return a class with a + operator
+    * @return An auxiliary class with a `+` operation.
     */
   implicit final class EmitMultiple(x: Unit) {
     def +(n: Unit): Unit = ()
@@ -64,7 +65,7 @@ package object jc {
     * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
     *
     * @tparam T Type of the value carried by the molecule.
-    * @return A new instance of class [[code.chymyst.jc.M]] if `T` is not `Unit`, or of class [[code.chymyst.jc.M]] if `T` is `Unit`.
+    * @return A new instance of class [[code.chymyst.jc.M]]`[T]`.
     */
   def m[T]: M[T] = macro MoleculeMacros.mImpl[T]
 
@@ -73,9 +74,8 @@ package object jc {
     *
     * @tparam T Type of the value carried by the molecule.
     * @tparam R Type of the reply value.
-    * @return A new instance of class [[code.chymyst.jc.B]]`[T,R]` if both `T` and `R` are not `Unit`.
-    *         Otherwise will return a new instance of one of the subclasses: [[code.chymyst.jc.EB]]`[R]`, [[code.chymyst.jc.BE]]`[T]`, or [[code.chymyst.jc.B]].
-    *                  */
+    * @return A new instance of class [[code.chymyst.jc.B]]`[T,R]`.
+    */
   def b[T, R]: B[T, R] = macro MoleculeMacros.bImpl[T, R]
 
   val defaultSitePool = new FixedPool(2)
