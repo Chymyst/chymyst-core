@@ -220,7 +220,7 @@ private[jc] final case class HaveReply[R](result: R) extends ReplyStatus
   */
 private[jc] sealed trait AbsReplyValue[T, R] {
 
-  @volatile final private var replyStatus: ReplyStatus = HaveReply[R](null.asInstanceOf[R]) // the `null` and the typecast will not be used because `replyStatus` will be either overwritten or ignored on timeout. This avoids a third case class in ReplyStatus, and the code can now be completely covered by tests.
+  @volatile private var replyStatus: ReplyStatus = HaveReply[R](null.asInstanceOf[R]) // the `null` and the typecast will not be used because `replyStatus` will be either overwritten or ignored on timeout. This avoids a third case class in ReplyStatus, and the code can now be completely covered by tests.
 
   final private[jc] def getReplyStatus = replyStatus
 
@@ -232,13 +232,13 @@ private[jc] sealed trait AbsReplyValue[T, R] {
   /** This atomic mutable value is read and written only by reactions that perform reply actions.
     * Access to this variable must be guarded by [[semaphoreForReplyStatus]].
     */
-  final private val numberOfReplies = new AtomicInteger(0)
+  private val numberOfReplies = new AtomicInteger(0)
 
   /** This atomic mutable value is written only by the reaction that emitted the blocking molecule,
     * but read by reactions that perform the reply action with timeout checking.
     * Access to this variable must be guarded by [[semaphoreForReplyStatus]].
     */
-  final private val hasTimedOut = new AtomicBoolean(false)
+  private val hasTimedOut = new AtomicBoolean(false)
 
   final private[jc] def setTimedOut() = hasTimedOut.set(true)
 
@@ -253,14 +253,14 @@ private[jc] sealed trait AbsReplyValue[T, R] {
     * class. The semaphore will be acquired when emitting the molecule and released by the "reply"
     * action. The semaphore will never be used again once a reply is received.
     */
-  final private val semaphoreForEmitter = new Semaphore(0, false)
+  private val semaphoreForEmitter = new Semaphore(0, false)
 
   /** This is used by the reaction that replies to the blocking molecule, in order to obtain
     * the reply status safely (without race conditions).
     * Initially, the semaphore has 1 permits.
     * The reaction that replies will use 2 permits. Therefore, one additional permit will be given by the emitter after the reply is received.
     */
-  final private val semaphoreForReplyStatus = new Semaphore(1, false)
+  private val semaphoreForReplyStatus = new Semaphore(1, false)
 
   final private[jc] def acquireSemaphoreForEmitter(timeoutNanos: Option[Long]): Boolean =
     timeoutNanos match {
