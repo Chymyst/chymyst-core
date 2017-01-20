@@ -263,7 +263,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
         val mergedFlag = flag match {
           case SimpleVarF(v, binder, _) =>
-            mergedGuardOpt.map(guardTree => SimpleVarF(v, binder, Some(guardTree))).getOrElse(flag) // a(x) if x>0 is replaced with a(x : check if x>0). Let's not replace vars in binder in this case?
+            mergedGuardOpt.map(guardTree => SimpleVarF(v, replaceVarsInBinder(binder), Some(guardTree))).getOrElse(flag) // a(x) if x>0 is replaced with a(x : check if x>0). Let's not replace vars in binder in this case?
           case OtherInputPatternF(matcher, _, vars) =>
             mergedGuardOpt.map(guardTree => OtherInputPatternF(replaceVarsInBinder(matcher), Some(guardTree), vars)).getOrElse(flag) // We can't have a nontrivial guardTree in patternIn, so we replace it here with the new guardTree.
           case ConstantPatternF(Literal(Constant(()))) =>
