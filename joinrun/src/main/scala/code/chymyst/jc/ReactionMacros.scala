@@ -320,9 +320,6 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       case pq"$extr1($_, $extr2($_, $_))"
         if extr1.symbol.fullName === "code.chymyst.jc.$plus" && extr2.symbol.fullName === "code.chymyst.jc.$plus" =>
         found = true
-      case pq"$extr1($_, $_ @ $extr2($_, $_))"
-        if extr1.symbol.fullName === "code.chymyst.jc.$plus" && extr2.symbol.fullName === "code.chymyst.jc.$plus" =>
-        found = true
       case _ =>
         super.traverse(tree)
     }
