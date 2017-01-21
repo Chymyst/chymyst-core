@@ -99,7 +99,7 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
 
  5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
  and be able to better reason about our declarative reactions. First, need to understand what is to be asserted.
- Can we assert non-contention on certain molecules? Can we assert deterministic choice of some reactions? Should we assert the number of certain molecules present (precisely N`, or at most N)?
+ Can we assert non-contention on certain molecules? Can we assert deterministic choice of some reactions? Should we assert the number of certain molecules present (precisely N, or at most N)?
 
  2 * 4 - allow molecule values to be parameterized types or even higher-kinded types? Need to test this.
 
