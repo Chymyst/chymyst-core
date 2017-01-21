@@ -314,15 +314,17 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     var found: Boolean = _
 
     override def traverse(tree: c.universe.Tree): Unit = tree match {
-      case pq"$name @ $pat" =>
-        true
+      case pq"$_ @ $extr1(..$_)"
+        if extr1.symbol.fullName === "code.chymyst.jc.$plus" || extr1.tpe <:< typeOf[Molecule] =>
+        found = true
       case pq"$extr1($_, $extr2($_, $_))"
         if extr1.symbol.fullName === "code.chymyst.jc.$plus" && extr2.symbol.fullName === "code.chymyst.jc.$plus" =>
         found = true
       case pq"$extr1($_, $_ @ $extr2($_, $_))"
         if extr1.symbol.fullName === "code.chymyst.jc.$plus" && extr2.symbol.fullName === "code.chymyst.jc.$plus" =>
         found = true
-      case _ => super.traverse(tree)
+      case _ =>
+        super.traverse(tree)
     }
 
     /** Detect invalid groupings in a pattern matching tree.
@@ -408,7 +410,9 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     override def traverse(tree: Tree): Unit = {
       tree match {
         // avoid traversing nested reactions: check whether this subtree is a Reaction() value
-        case q"code.chymyst.jc.Reaction.apply(..$_)" | q"Reaction.apply(..$_)"  =>
+        case q"code.chymyst.jc.Reaction.apply(..$_)"  =>
+          ()
+        case q"Reaction.apply(..$_)" => // Is this clause ever used?
           ()
 
         // matcher with a single argument: a(x)
@@ -431,8 +435,10 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         // matcher with two arguments: a(x, y)
         case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
           val flag2 = getInputFlag(binder2) match {
-            case SimpleVarF(_, _, _) => ReplyVarF(getSimpleVar(binder2))
-            case f@_ => WrongReplyVarF // this is an error that we should report later
+            case SimpleVarF(_, _, _) =>
+              ReplyVarF(getSimpleVar(binder2))
+            case f@_ =>
+              WrongReplyVarF // this is an error that we should report later
           }
           val flag1 = getInputFlag(binder1)
           // Perhaps we need to continue to analyze the "binder" (it could be another molecule, which is an error).
