@@ -422,7 +422,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     override def traverse(tree: Tree): Unit = {
       tree match {
         // avoid traversing nested reactions: check whether this subtree is a Reaction() value
-        case q"code.chymyst.jc.Reaction.apply(..$_)"  =>
+        case q"code.chymyst.jc.Reaction.apply(..$_)" =>
           ()
         case q"Reaction.apply(..$_)" => // Is this clause ever used?
           ()
@@ -475,19 +475,19 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
             inputMolecules.append((t.symbol, WrongReplyVarF, None, getSha1(t)))
           */
 
-          // Anonymous function
+        // Anonymous function
         case q"(..$_) => $body" =>
           outputEnvId += 1
           traverseWithOutputEnv(body, FuncLambda(outputEnvId))
 
-          // if-then-else
+        // if-then-else
         case q"if($cond) $clause0 else $clause1" =>
           traverse(cond.asInstanceOf[Tree])
           outputEnvId += 1
           traverseWithOutputEnv(clause0, ChooserBlock(outputEnvId, 0))
           traverseWithOutputEnv(clause1, ChooserBlock(outputEnvId, 1))
 
-          // match-case
+        // match-case
         case q"$expr0 match { case ..$cases }" =>
           traverse(expr0.asInstanceOf[Tree])
           outputEnvId += 1
@@ -500,8 +500,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
               traversingBinderNow = false
               traverse(expr2.asInstanceOf[Tree])
               outputEnv.pop()
-        }
-          // Anonymous partial function
+          }
+        // Anonymous partial function
         case q"{ case ..$cases }" =>
           outputEnvId += 1
           outputEnv.push(FuncLambda(outputEnvId))
@@ -520,30 +520,43 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           ()
 
         // possibly a molecule emission, but could be any function call
-        case Apply(Select(t@Ident(TermName(_)), TermName(f)), argumentList)
+        case Apply(Select(t@Ident(TermName(name)), TermName(f)), argumentList)
           if f === "apply" || f === "checkTimeout" =>
 
           // In the output list, we do not include any molecule emitters defined in the inner scope of the reaction.
           val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
-
+          val thisSymbolIsAMolecule = t.tpe <:< typeOf[Molecule]
+          val thisSymbolIsAReply = t.tpe <:< weakTypeOf[AbsReplyValue[_, _]]
           val flag1 = getOutputFlag(argumentList)
           if (flag1.needTraversal) {
             // Traverse the trees of the argument list elements (molecules should only have one argument anyway).
-            outputEnvId += 1
-            outputEnv.push(FuncBlock(outputEnvId, name = f))
-            argumentList.foreach(traverse)
-            outputEnv.pop()
-            ()
+            if (thisSymbolIsAMolecule || thisSymbolIsAReply) {
+              argumentList.foreach(traverse)
+            } else {
+              outputEnvId += 1
+              outputEnv.push(FuncBlock(outputEnvId, name = s"$name.$f"))
+              argumentList.foreach(traverse)
+              outputEnv.pop()
+              ()
+            }
           }
 
           if (includeThisSymbol) {
-            if (t.tpe <:< typeOf[Molecule]) {
+            if (thisSymbolIsAMolecule) {
               outputMolecules.append((t.symbol, flag1, outputEnv.toList))
             }
           }
-          if (t.tpe <:< weakTypeOf[AbsReplyValue[_, _]]) {
+          if (thisSymbolIsAReply) {
             replyActions.append((t.symbol, flag1, outputEnv.toList))
           }
+
+          // other function applications
+        case q"$f[..$_](..$args)" =>
+          outputEnvId += 1
+          outputEnv.push(FuncBlock(outputEnvId, name = f.asInstanceOf[Tree].symbol.fullName))
+          args.map(_.asInstanceOf[Tree]).foreach(traverse)
+          outputEnv.pop()
+          ()
 
         case _ => super.traverse(tree)
 
@@ -579,6 +592,15 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       q"_root_.code.chymyst.jc.SimpleConstOutput(())"
     case _ =>
       q"_root_.code.chymyst.jc.OtherOutputPattern"
+  }
+
+  implicit val liftableOutputEnvironment: Liftable[OutputEnvironment] = Liftable[OutputEnvironment] {
+    case ChooserBlock(id, clause) =>
+      q"_root_.code.chymyst.jc.ChooserBlock($id, $clause)"
+    case FuncBlock(id, name) =>
+      q"_root_.code.chymyst.jc.FuncBlock($id, $name)"
+    case FuncLambda(id) =>
+      q"_root_.code.chymyst.jc.FuncLambda($id)"
   }
 
   /** Build an error message about incorrect usage of chemical notation.

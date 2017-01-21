@@ -55,11 +55,30 @@ final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: Li
   override def isTrivial: Boolean = isIrrefutable
 }
 
+/** Represents the value pattern of an emitted output molecule.
+  * We distinguish only constant value patterns and all other patterns.
+  */
 sealed trait OutputPatternType
 
 final case class SimpleConstOutput(v: Any) extends OutputPatternType
 
 case object OtherOutputPattern extends OutputPatternType
+
+/** Describe the code environment within which an output molecule is being emitted.
+  * Possible environments are [[ChooserBlock]] describing an `if` or `match` expression with clauses,
+  * and a function call [[FuncBlock]].
+  *
+  * For example, `if (x>0) a(x) else b(x)` is a chooser block environment with 2 clauses,
+  * while `(1 to 10).foreach(a)` is a function block environment
+  * and `(x) => a(x)` is a [[FuncLambda]] environment.
+  */
+sealed trait OutputEnvironment
+
+final case class ChooserBlock(id: Int, clause: Int) extends OutputEnvironment
+
+final case class FuncBlock(id: Int, name: String) extends OutputEnvironment
+
+final case class FuncLambda(id: Int) extends OutputEnvironment
 
 /** Indicates whether a reaction has a guard condition.
   *
@@ -242,10 +261,11 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
 /** Compile-time information about an output molecule pattern in a reaction.
   * This class is immutable.
   *
-  * @param molecule The molecule emitter value that represents the output molecule.
-  * @param flag     Type of the output pattern: either a constant value or other value.
+  * @param molecule     The molecule emitter value that represents the output molecule.
+  * @param flag         Type of the output pattern: either a constant value or other value.
+  * @param environments The code environment in which this output molecule was emitted.
   */
-final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType) {
+final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType, environments: List[OutputEnvironment]) {
   override val toString: String = {
     val printedPattern = flag match {
       case SimpleConstOutput(()) => ""
