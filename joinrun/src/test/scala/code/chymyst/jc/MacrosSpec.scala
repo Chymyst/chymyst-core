@@ -100,15 +100,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "macros for inspecting a reaction body"
 
-  it should "fail to compile a reaction with regrouped inputs" in {
-    val a = m[Unit]
-    a.isInstanceOf[M[Unit]] shouldEqual true
-
-    "val r = go { case a(_) + (a(_) + a(_)) => }" shouldNot compile
-    "val r = go { case a(_) + (a(_) + a(_)) + a(_) => }" shouldNot compile
-    "val r = go { case (a(_) + a(_)) + a(_) + a(_) => }" should compile
-  }
-
   it should "correctly sort input molecules with compound values and Option" in {
     val bb = m[(Int, Option[Int])]
     val reaction = go { case bb((1, Some(2))) + bb((0, None)) => }

@@ -170,7 +170,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
   def buildReactionValueImpl(reactionBody: c.Expr[ReactionBody], pattern: Tree, guard: Tree, body: Tree): c.Expr[Reaction] = {
 
     if (DetectInvalidInputGrouping.in(pattern))
-      reportError("Reaction's input molecules must be grouped to the left in chemical notation")
+      reportError("Reaction's input molecules must be grouped to the left in chemical notation, and have no @-pattern variables")
 
     val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
 
