@@ -37,6 +37,21 @@ class CommonMacros(val c: blackbox.Context) {
   // Instead, we just put them inside the `CommonMacros` class. The price for this is a warning "The outer reference in this type test cannot be checked at run time."
   // This warning is discussed here, http://stackoverflow.com/questions/16450008/typesafe-swing-events-the-outer-reference-in-this-type-test-cannot-be-checked-a
 
+  /** Describe the environment within which an output molecule was emitted.
+    * Possible environments are [[ChooserBlock]] describing an `if` or `match` expression with clauses,
+    * and a function call [[FuncBlock]].
+    *
+    * For example, `if (x>0) a(x) else b(x)` is a chooser block environment with 2 clauses,
+    * while `(1 to 10).foreach(a)` is a function call environment.
+    */
+  sealed trait OutputEnvironment
+
+  final case class ChooserBlock(id: Int, clause: Int) extends OutputEnvironment
+
+  final case class FuncBlock(id: Int, name: String) extends OutputEnvironment
+
+  final case class FuncLambda(id: Int) extends OutputEnvironment
+
   /** Describes the pattern matcher for input molecules.
     * Possible values:
     * Wildcard: a(_)
@@ -177,15 +192,17 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     val (patternIn, patternOut, patternReply, wrongMoleculesInInput) = moleculeInfoMaker.from(pattern) // patternOut and patternReply should be empty
     maybeError("input molecule patterns", "emits output molecules", patternOut)
     maybeError("input molecule patterns", "perform any reply actions", patternReply, "not")
-    maybeError("input molecules", "uses other molecules inside molecule values", wrongMoleculesInInput)
+    maybeError("input molecules", "uses other molecules inside molecule value patterns", wrongMoleculesInInput)
 
-    val (guardIn, guardOut, guardReply, _) = moleculeInfoMaker.from(guard) // guard in/out/reply lists should be all empty
+    val (guardIn, guardOut, guardReply, wrongMoleculesInGuard) = moleculeInfoMaker.from(guard) // guard in/out/reply lists should be all empty
     maybeError("input guard", "matches on additional input molecules", guardIn.map(_._1))
     maybeError("input guard", "emit any output molecules", guardOut.map(_._1), "not")
     maybeError("input guard", "perform any reply actions", guardReply.map(_._1), "not")
+    maybeError("input guard", "uses other molecules inside molecule value patterns", wrongMoleculesInGuard)
 
-    val (bodyIn, bodyOut, bodyReply, _) = moleculeInfoMaker.from(body) // bodyIn should be empty
+    val (bodyIn, bodyOut, bodyReply, wrongMoleculesInBody) = moleculeInfoMaker.from(body) // bodyIn should be empty
     maybeError("reaction body", "matches on additional input molecules", bodyIn.map(_._1))
+    maybeError("reaction body", "uses other molecules inside molecule value patterns", wrongMoleculesInBody)
 
     val guardCNF: List[List[Tree]] = convertToCNF(guard) // Conjunctive normal form of the guard condition. In this CNF, `true` is List() and `false` is List(List()).
 
@@ -347,7 +364,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     // However, the order of output molecules corresponds to the order in which they might be emitted.
     val allOutputInfo = bodyOut
     // Neither the pattern nor the guard can emit output molecules.
-    val outputMolecules = allOutputInfo.map { case (m, p) => q"OutputMoleculeInfo(${m.asTerm}, $p)" }.toArray
+    val outputMolecules = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p)" }.toArray
 
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of output molecules.

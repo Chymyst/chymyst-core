@@ -13,13 +13,19 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     "val r = go { case _ => }" shouldNot compile
   }
 
-  it should "fail to compile a guard that replies" in {
+  it should "fail to compile a guard that replies to molecules" in {
     val f = b[Unit, Unit]
     val x = 2
     x shouldEqual 2
     f.isInstanceOf[B[Unit, Unit]] shouldEqual true
 
     "val r = go { case f(_, r) if r() && x == 2 => }" shouldNot compile
+  }
+
+  it should "fail to compile a guard that emits molecules" in {
+    val f = b[Unit, Boolean]
+    f.isInstanceOf[B[Unit, Boolean]] shouldEqual true
+    "val r = go { case f(_, r) if f() => r(true) }" shouldNot compile
   }
 
   it should "fail to compile a reaction that is not defined inline" in {

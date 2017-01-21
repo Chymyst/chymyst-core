@@ -343,21 +343,29 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
       * @return A 4-tuple: List of input molecule patterns, list of output molecule patterns, list of reply action patterns, and list of molecules erroneously used inside pattern matching expressions.
       */
-    def from(reactionPart: Tree): (List[(MacroSymbol, InputPatternFlag, Option[InputPatternFlag])], List[(MacroSymbol, OutputPatternFlag)], List[(MacroSymbol, OutputPatternFlag)], List[MacroSymbol]) = {
+    def from(reactionPart: Tree): (List[(MacroSymbol, InputPatternFlag, Option[InputPatternFlag])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[MacroSymbol]) = {
       inputMolecules = mutable.ArrayBuffer()
       outputMolecules = mutable.ArrayBuffer()
       replyActions = mutable.ArrayBuffer()
       moleculesInBinder = mutable.ArrayBuffer()
       traversingBinderNow = false
+
+      outputEnvId = 0
+      outputEnv = mutable.Stack()
+
       traverse(reactionPart)
+
       (inputMolecules.toList, outputMolecules.toList, replyActions.toList, moleculesInBinder.toList)
     }
 
     private var traversingBinderNow: Boolean = _
     private var moleculesInBinder: mutable.ArrayBuffer[MacroSymbol] = _
     private var inputMolecules: mutable.ArrayBuffer[(MacroSymbol, InputPatternFlag, Option[InputPatternFlag])] = _
-    private var outputMolecules: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag)] = _
-    private var replyActions: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag)] = _
+    private var outputMolecules: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])] = _
+    private var replyActions: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])] = _
+
+    private var outputEnvId: Int = _
+    private var outputEnv: mutable.Stack[OutputEnvironment] = _
 
     /** Detect whether the symbol `s` is defined inside the scope of the symbol `owner`.
       * Will return true for code like ` val owner = .... { val s = ... }  `
@@ -402,6 +410,13 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         EmptyOutputPatternF
       case _ =>
         OtherOutputPatternF
+    }
+
+    private def traverseWithOutputEnv(tree: Trees#Tree, env: OutputEnvironment): Unit = {
+      outputEnv.push(env)
+      traverse(tree.asInstanceOf[Tree])
+      outputEnv.pop()
+      ()
     }
 
     override def traverse(tree: Tree): Unit = {
@@ -460,25 +475,74 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
             inputMolecules.append((t.symbol, WrongReplyVarF, None, getSha1(t)))
           */
 
-        // possibly a molecule emission
-        case Apply(Select(t@Ident(TermName(_)), TermName(f)), binderList)
+          // Anonymous function
+        case q"(..$_) => $body" =>
+          outputEnvId += 1
+          traverseWithOutputEnv(body, FuncLambda(outputEnvId))
+
+          // if-then-else
+        case q"if($cond) $clause0 else $clause1" =>
+          traverse(cond.asInstanceOf[Tree])
+          outputEnvId += 1
+          traverseWithOutputEnv(clause0, ChooserBlock(outputEnvId, 0))
+          traverseWithOutputEnv(clause1, ChooserBlock(outputEnvId, 1))
+
+          // match-case
+        case q"$expr0 match { case ..$cases }" =>
+          traverse(expr0.asInstanceOf[Tree])
+          outputEnvId += 1
+          cases.zipWithIndex.foreach {
+            case (cq"$pat if $expr1 => $expr2", index) =>
+              outputEnv.push(ChooserBlock(outputEnvId, index))
+              traversingBinderNow = true
+              traverse(pat.asInstanceOf[Tree])
+              traverse(expr1.asInstanceOf[Tree])
+              traversingBinderNow = false
+              traverse(expr2.asInstanceOf[Tree])
+              outputEnv.pop()
+        }
+          // Anonymous partial function
+        case q"{ case ..$cases }" =>
+          outputEnvId += 1
+          outputEnv.push(FuncLambda(outputEnvId))
+          outputEnvId += 1
+          cases.zipWithIndex.foreach {
+            case (cq"$pat if $expr1 => $expr2", index) =>
+              outputEnv.push(ChooserBlock(outputEnvId, index))
+              traversingBinderNow = true
+              traverse(pat.asInstanceOf[Tree])
+              traverse(expr1.asInstanceOf[Tree])
+              traversingBinderNow = false
+              traverse(expr2.asInstanceOf[Tree])
+              outputEnv.pop()
+          }
+          outputEnv.pop()
+          ()
+
+        // possibly a molecule emission, but could be any function call
+        case Apply(Select(t@Ident(TermName(_)), TermName(f)), argumentList)
           if f === "apply" || f === "checkTimeout" =>
 
           // In the output list, we do not include any molecule emitters defined in the inner scope of the reaction.
           val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
 
-          val flag1 = getOutputFlag(binderList)
-          if (flag1.needTraversal)
-          // Traverse the tree of the first binder element (molecules should only have one binder element anyway).
-            binderList.headOption.foreach(traverse)
+          val flag1 = getOutputFlag(argumentList)
+          if (flag1.needTraversal) {
+            // Traverse the trees of the argument list elements (molecules should only have one argument anyway).
+            outputEnvId += 1
+            outputEnv.push(FuncBlock(outputEnvId, name = f))
+            argumentList.foreach(traverse)
+            outputEnv.pop()
+            ()
+          }
 
           if (includeThisSymbol) {
             if (t.tpe <:< typeOf[Molecule]) {
-              outputMolecules.append((t.symbol, flag1))
+              outputMolecules.append((t.symbol, flag1, outputEnv.toList))
             }
           }
           if (t.tpe <:< weakTypeOf[AbsReplyValue[_, _]]) {
-            replyActions.append((t.symbol, flag1))
+            replyActions.append((t.symbol, flag1, outputEnv.toList))
           }
 
         case _ => super.traverse(tree)
