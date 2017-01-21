@@ -118,7 +118,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(?x) + bb(?list,y) if(x,list,y) => "
   }
 
-  it should "correctly recognize an indentically false guard condition" in {
+  it should "correctly recognize an identically false guard condition" in {
     val a = m[Int]
     val n = 10
     a.isInstanceOf[M[Int]] shouldEqual true

@@ -176,17 +176,17 @@ Note: Although molecules with `Unit` type can be emitted as `a()`, the pattern-m
 ### Pattern-matching in reactions
 
 Each molecule carries one value of a fixed type.
-This type can be arbitrary -- a tuple, a case class, etc.
+This type can be arbitrary -- a simple type such as `Int`, a tuple, a case class, etc.
 
-The values carried by input molecules in reactions can be pattern-matched using all available features of the `case` clause in Scala.
-For example, reactions can match on a constant, destructure a case class, and use guards.
-A reaction will start only if all matchers succeed and the guard returns `true`.
+The values carried by input molecules in reactions can be pattern-matched using all the features of the `case` clause in Scala.
+For example, reactions can match on a constant, destructure a case class, and use guard conditions.
+A reaction will start only if all matchers succeed and the guard condition returns `true`.
 
 Here is an example with pattern-matching on non-blocking molecules `c` and `d` that carry non-simple types:
 
 ```scala
-val c = new M[Option[Int]]("c") // non-blocking molecule
-val d = new M[(Int, String, Boolean)]("d") // non-blocking molecule
+val c = m[Option[Int]] // non-blocking molecule
+val d = m[(Int, String, Boolean)] // non-blocking molecule
 
 val reaction = go { case c(Some(x)) + d((y, "hello", true)) if x == y => c(Some(y)) }
 
@@ -197,8 +197,8 @@ val reaction = go { case c(Some(x)) + d((y, "hello", true)) if x == y => c(Some(
 The syntax for matching on blocking molecules requires a two-place matcher, such as `f(x,y)`, unlike the one-place matchers for non-blocking molecules such as `c(x)`.
 
 ```scala
-val c = new M[Option[Int]]("c") // non-blocking molecule
-val f = new B[Int, String]("f") // blocking molecule
+val c = m[Option[Int]] // non-blocking molecule
+val f = b[Int, String] // blocking molecule
 
 val reaction2 = go { case c(Some(x)) + f(y, r) => r(x.toString) + c(Some(y)) }
 
@@ -206,10 +206,11 @@ val result = f(123) // emit f(123), get reply value of type String
 
 ```
 
-In this reaction, the pattern-match on `f(y, r)` involves two pattern variables:
+In this reaction, the pattern-match on `f(y, r)` involves _two_ pattern variables:
 
 - The pattern variable `y` is of type `Int` and matches the value carried by the emitted molecule `f(123)`
 - The pattern variable `r` is of type `Int => String` and matches a function object that performs the reply action aimed at the caller of `f(123)`.
+
 Calling `r` as `r(x.toString)` will perform the reply action, sending the value of `x.toString` back to the calling process, which has been blocked by emitting `f(123)`.
 The reply action will unblock the calling process concurrently with the reaction body.
 
@@ -251,8 +252,9 @@ With Scala's `:_*` syntax, an RS can also take a sequence of reactions.
 All reactions listed in the RS will be activated at once.
 
 Whenever we emit any molecule that is used as input to one of these reactions, it is _this_ RS (and no other) that will decide which reactions to run.
-For this reason, we say that those molecules are "bound" to this RS, or that they are "consumed" at that RS, or that they are "input molecules" at this RS.
-To build intuition, we can imagine that each molecule must travel to its reaction site in order to start a reaction, or to wait there for other molecules, if a reaction requires several input molecules.
+For this reason, we say that those molecules are **bound** to this RS, or that they are **consumed** at that RS, or that they are **input molecules** at this RS.
+To build intuition, we can imagine that each molecule must travel to its reaction site in order to start a reaction.
+When a reaction requires several input molecules, the molecule will wait at the reaction site for the arrival of other molecules.
 
 Here is an example of an RS:
 
@@ -270,12 +272,12 @@ site(
 ```
 
 In this RS, the input molecules are `c`, `d`, and `i`, while the output molecules are `c` and `f`.
-We say that the molecules `c`, `d`, and `i` are consumed in this RS, or that they are bound to it.
+We say that the molecules `c`, `d`, and `i` are consumed at this RS, or that they are bound to it.
 
-Note that `f` is not an input molecule here; we will need to write another RS to which `f` will be bound.
+Note that `f` is not consumed at this RS; we will need to write another RS where `f` will be consumed.
 
-It is perfectly acceptable for a reaction to output a molecule such as `f` that is not consumed by any reaction in this RS.
-However, if we forget to write any other RS that consumes `f`, it will be a runtime error to emit `f`.
+It is perfectly acceptable for a reaction to emit a molecule such as `f` that is not consumed by any reaction in this RS.
+However, if we forget to write any _other_ RS that consumes `f`, it will be a runtime error to emit `f`.
 
 As a warning, note that in the present example the molecule `f` will be emitted only if `x == 1` (and it is impossible to determine at compile time whether `x == 1` will be true at runtime).
 So, if we forget to write an RS to which `f` is bound, it will be not necessarily easy to detect the error at runtime!
@@ -444,7 +446,7 @@ Example:
 
 ```scala
 ... go { case a(url) + b(_) =>
-      val result = BlockingIdle{ callSyncHttpApi(url) }
+      val result = BlockingIdle { callSyncHttpApi(url) }
       c(result)
     }
 
@@ -459,7 +461,7 @@ Example:
 val pool = new SmartPool(8)
   ...
 site(pool, defaultReactionPool)(
-  go { case a(url) if BlockingIdle{ callSyncHttpApi(url).isSuccessful } => ...}
+  go { case a(url) if BlockingIdle { callSyncHttpApi(url).isSuccessful } => ...}
 )
 
 ```
@@ -499,29 +501,36 @@ In this case, the retry mechanism will be able to restart the reaction without r
 
 # Limitations in the current version of `JoinRun`
 
-- only linear input patterns are supported (no `a(x) + a(y) + a(z) => ...`)
-- when a thread pool's queue is full, new reactions cannot be run, - this situation is not processed well
+- when a thread pool's queue is full, new reactions cannot be run, - this situation is not processed well, exceptions are thrown and not handled
 
-# Troubleshooting
+# Troubleshooting and known bugs
 
 ## scalac: Error: Could not find proxy for value `x`
 
-This error occurs when the macro expansion tries to use wrong scope for molecule emitters.
-At the moment, this can happen with `scalatest` with code like this:
-
-```scala
-val x = m[Int]
-site( go { case x(_) => } ) shouldEqual (())
+This compile-time error is generated after macro expansion. The message is similar to this:
+ 
+```
+scalac: Error: Could not find proxy for val x2: Tuple2 in List(value x2, method applyOrElse, ...)"
 
 ```
 
-The error "Could not find proxy for value x" is generated during macro expansion.
-
-A workaround is to assign a separate value to the reaction site result, and apply `shouldEqual` to that value:
+With `JoinRun` 0.1.5, this error occurs with certain complicated pattern matching constructions involving tuples.
+A typical example is a tuple with a pattern variable that scopes over a compound value inside the tuple:
 
 ```scala
-val x = m[Int]
-val result = site( go { case x(_) => } )
-result shouldEqual (())
+val d = m[(Int, Option[Int])]
+go { case d((x, z@Some(_))) => }
 
 ```
+
+In this example, the pattern variable `z` scopes over a sub-pattern `Some(_)` that contains a compound value.
+
+As a workaround to make the error disappear, remove `z@` from the pattern, or match on `z@_` or just on `z` but add a guard condition, for example like this:
+
+```scala
+val d = m[(Int, Option[Int])]
+go { case d((x, z)) if z.nonEmpty => }
+
+```
+
+This code compiles and works, and is equivalent to the more complicated pattern match.

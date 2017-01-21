@@ -141,7 +141,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     def normalize(a: Trees#Tree): List[List[Tree]] = convertToCNF(a.asInstanceOf[Tree])
 
-    val ourNegation: (List[List[Tree]]) => List[List[Tree]] = negation((t: Tree) => q"! $t") _
+    val ourNegation: (List[List[Tree]]) => List[List[Tree]] = negation((t: Tree) => q"! $t")
 
     term match {
       case EmptyTree =>

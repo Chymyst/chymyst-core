@@ -193,8 +193,8 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     // Now, there must be f_1, ..., f_n (in any order) before g_1, ..., g_n (also in any order).
     // We use sets to verify this.
 
-    val setF = (0 to n-1).map(result.apply).toSet
-    val setG = (n to 2*n-1).map(result.apply).toSet
+    val setF = (0 until n).map(result.apply).toSet
+    val setG = (n until 2*n).map(result.apply).toSet
 
     val expectedSetF = (1 to n).map(i => s"f$i").toSet
     val expectedSetG = (1 to n).map(i => s"g$i").toSet
