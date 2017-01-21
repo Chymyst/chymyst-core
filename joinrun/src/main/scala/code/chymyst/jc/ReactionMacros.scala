@@ -25,14 +25,14 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     case Bind(t@TermName(n), Ident(termNames.WILDCARD)) => Ident(t)
   }
 
-  private val extractorCodes = Map(
+  private val constantExtractorCodes = Map(
     "scala.Some" -> q"Some",
     "scala.Symbol" -> q"Symbol",
     "scala.`package`.Left" -> q"Left",
     "scala.`package`.Right" -> q"Right"
   )
 
-  private val applierCodes = Set(
+  private val constantApplierCodes = Set(
     "scala.Some.apply",
     "scala.util.Left.apply",
     "scala.util.Right.apply",
@@ -40,11 +40,15 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     "scala.collection.immutable.List.apply"
   )
 
-  private val seqExtractorCodes = Map(
+  private val seqConstantExtractorCodes = Map(
     "scala.collection.immutable.List(" -> q"List"
   )
 
-  private val seqExtractorHeads = Set("scala.collection.generic.SeqFactory.unapplySeq")
+  private val seqConstantExtractorHeads = Set("scala.collection.generic.SeqFactory.unapplySeq")
+
+  private val eagerFunctionCodes = constantApplierCodes ++ Set(
+    "code.chymyst.jc.EmitMultiple.$plus"
+  )
 
   /** Detect whether a pattern-matcher expression tree represents an irrefutable pattern.
     * For example, Some(_) is refutable because it does not match None.
@@ -89,7 +93,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         Some(q"(..$trees)")
       else None
 
-    case q"$applier[..$ts](..$xs)" if applierCodes.contains(applier.symbol.fullName) =>
+    case q"$applier[..$_](..$xs)" if constantApplierCodes.contains(applier.symbol.fullName) =>
       val trees = xs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
       if (trees.size === xs.size)
         Some(q"$applier(..$trees)")
@@ -97,7 +101,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     case pq"$extr(..$xs)" =>
       val extrCode = showCode(extr.asInstanceOf[Tree])
-      extractorCodes.get(extrCode).flatMap { extractor =>
+      constantExtractorCodes.get(extrCode).flatMap { extractor =>
         val trees = xs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
         if (trees.size === xs.size)
           Some(q"$extractor(..$trees)")
@@ -108,12 +112,12 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     case _ => exprTree.children match {
       case firstChild :: restOfChildren => for {
         extractorHead <- firstChild.children.headOption
-        if seqExtractorHeads.contains(extractorHead.symbol.fullName)
+        if seqConstantExtractorHeads.contains(extractorHead.symbol.fullName)
         unapplySelector <- firstChild.children.zipWithIndex.find(_._2 === 1).map(_._1) // safe on empty lists
         if unapplySelector.symbol.toString === "value <unapply-selector>"
         extrCode = showCode(exprTree.asInstanceOf[Tree])
         cleanedCode = extrCode.substring(0, 1 + extrCode.indexOf("("))
-        extractor <- seqExtractorCodes.get(cleanedCode)
+        extractor <- seqConstantExtractorCodes.get(cleanedCode)
         trees = for {
           child <- restOfChildren
           childConst <- getConstantTree(child).map(_.asInstanceOf[Tree])
@@ -501,6 +505,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
               traverse(expr2.asInstanceOf[Tree])
               outputEnv.pop()
           }
+
         // Anonymous partial function
         case q"{ case ..$cases }" =>
           outputEnvId += 1
@@ -551,10 +556,12 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           }
 
           // other function applications
-        case q"$f[..$_](..$args)" =>
+        case q"$f[..$_](..$args)"
+        if args.nonEmpty && !eagerFunctionCodes.contains(f.symbol.asTerm.fullName) =>
+          traverse(f.asInstanceOf[Tree])
           outputEnvId += 1
           outputEnv.push(FuncBlock(outputEnvId, name = f.asInstanceOf[Tree].symbol.fullName))
-          args.map(_.asInstanceOf[Tree]).foreach(traverse)
+          args.foreach(t => traverse(t.asInstanceOf[Tree]))
           outputEnv.pop()
           ()
 
