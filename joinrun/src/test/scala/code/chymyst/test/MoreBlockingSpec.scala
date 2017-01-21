@@ -150,7 +150,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
-  it should "ignore reply to blocking molecule after timeout" in {
+  it should "ignore reply to blocking molecule after timeout, and check that all subsequent replies return false" in {
     val a = m[Int]
     val f = b[Unit,Int]
     val g = b[Unit,Int]
@@ -160,7 +160,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(20)
 
     site(tp)(
-      go { case f(_, r) => val x = g(); val res = r.checkTimeout(x); waiter { res shouldEqual false; () }; waiter.dismiss() },
+      go { case f(_, r) => val x = g(); val res = (1 to 20).map(_ => r.checkTimeout(x)).forall(s => !s); waiter { res shouldEqual true; () }; waiter.dismiss() },
       go { case g(_, r) + a(x) => r(x) }
     )
 
