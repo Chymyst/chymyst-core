@@ -2,7 +2,7 @@
 
 # Previous work
 
-Here are previous implementations of Join Calculus that I was able to find.
+Here are some previous implementations of Join Calculus that I was able to find.
 
 - The `Funnel` programming language: [M. Odersky et al., 2000](http://lampwww.epfl.ch/funnel/). This project was discontinued.
 - _Join Java_: [von Itzstein et al., 2001-2005](http://www.vonitzstein.com/Project_JoinJava.html). This was a modified Java language compiler, with support for certain Join Calculus constructions. The project is not maintained.
@@ -18,7 +18,7 @@ The implementation in `JoinRun` is based on ideas from Jiansen He's `ScalaJoin` 
 
 # Other tutorials on Join Calculus
 
-The present “chemical machine” tutorial is a non-theoretical introduction to Join Calculus for beginners.
+The present “chemical machine” tutorial is a non-theoretical introduction to Join Calculus for programmers.
 
 This tutorial is based on my [earlier tutorial for JoCaml](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml). (However, be warned that the JoCaml tutorial is unfinished and probably contains some mistakes in some of the more advanced code examples.)
 
@@ -27,11 +27,11 @@ See also [my recent presentation at _Scala by the Bay 2016_](https://scalaebythe
 That presentation covered an early version of `JoinRun`.
 
 There are a few academic papers on Join Calculus and a few expository descriptions, such as the Wikipedia article or the JoCaml documentation.
-Unfortunately, I cannot recommend reading them - they are unsuitable for learning about the chemical paradigm.
+Unfortunately, I cannot recommend reading them because they are unsuitable for learning about the chemical machine / Join Calculus paradigm.
 
 I learned about the “Reflexive Chemical Abstract Machine” from the introduction in one of the [early papers on Join Calculus](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.32.3078&rep=rep1&type=pdf).
 
-Do not start by reading academic papers if you are a beginner in Join Calculus - you will only be unnecessarily confused, because those texts are intended for advanced computer scientists and not pedagogically appropriate for beginners.
+Do not start by reading academic papers if you never studied Join Calculus - you will be unnecessarily confused, because those texts are not pedagogical but intended for advanced computer scientists.
 
 As another comparison, here is some code in academic Join Calculus, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
 
