@@ -268,13 +268,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }) shouldEqual true
     result.info.outputs should matchPattern { case Array(
     OutputMoleculeInfo(`a`, OtherOutputPattern, List()),
-    OutputMoleculeInfo(`a`, OtherOutputPattern, _),
+    OutputMoleculeInfo(`a`, OtherOutputPattern, List(ChooserBlock(_, 0))),
     OutputMoleculeInfo(`qqq`, SimpleConstOutput(""), List())
     ) =>
     }
 
     result.info.guardPresence shouldEqual GuardAbsent
-    result.info.outputs(1).environments should matchPattern { case  List(ChooserBlock(_, 0)) => }
   }
 
   it should "inspect reaction body with embedded reaction" in {
@@ -582,6 +581,58 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     pat_bb.flag shouldEqual SimpleConst((0, None))
   }
 
+  behavior of "output environment computation"
+
+  it should "ignore + and some other functions" in {
+    val a = m[Unit]
+    val c = m[Unit]
+    val f = b[Unit, String]
+
+    val r = go { case c(_) =>
+      a() + a()
+      a()
+      Some(a())
+      List(a(), a(), a())
+      Left(a())
+      Right(a())
+      (a(), a(), a())
+      Symbol(f.timeout()(1.second).get)
+      val x = f()
+      if (f() == x) ()
+      f() match {
+        case "" => true
+      }
+    }
+
+    r.info.outputs shouldEqual Array(
+      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(f, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(f, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(f, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(f, SimpleConstOutput(()), List())
+    )
+  }
+
+  it should "detect f.timeout()()" in {
+    val a = m[Unit]
+    val f = b[Unit, Unit]
+    val r = go { case a(_) => Some(f.timeout()(1.second).get).foreach(_ => ()) }
+    r.info.outputs shouldEqual Array(
+      OutputMoleculeInfo(f, SimpleConstOutput(()), List())
+    )
+  }
+
   behavior of "output value computation"
 
   it should "not fail to compute outputs for an inline reaction" in {
@@ -667,7 +718,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     reaction.info.inputs should matchPattern {
       case Array(InputMoleculeInfo(`a`, 0, SimpleVar('x, _), `simpleVarXSha1`), InputMoleculeInfo(`d`, 1, Wildcard, `wildcardSha1`)) =>
     }
-    println(reaction.info.outputs(0).environments)
     reaction.info.outputs shouldEqual List(
       OutputMoleculeInfo(a, SimpleConstOutput(1), List()),
       OutputMoleculeInfo(c, OtherOutputPattern, List())
