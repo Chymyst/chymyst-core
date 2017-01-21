@@ -205,52 +205,83 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
   private[jc] def matcherIsWeakerThanOutput(info: OutputMoleculeInfo): Option[Boolean] = {
     if (molecule =!= info.molecule) Some(false)
     else flag match {
-      case Wildcard | SimpleVar(_, None) | OtherInputPattern(_, _, true) => Some(true)
-      case SimpleVar(_, Some(matcher1)) => info.flag match {
-        case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
-        case _ => None // Here we can't reliably determine whether this matcher is weaker.
+      case Wildcard |
+           SimpleVar(_, None) |
+           OtherInputPattern(_, _, true) =>
+        Some(true)
+      case SimpleVar(_, Some(matcher1)) =>
+        info.flag match {
+        case SimpleConstOutput(c) =>
+          Some(matcher1.isDefinedAt(c))
+        case _ =>
+          None // Here we can't reliably determine whether this matcher is weaker.
       }
-      case OtherInputPattern(matcher1, _, false) => info.flag match {
-        case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
-        case _ => None // Here we can't reliably determine whether this matcher is weaker.
+      case OtherInputPattern(matcher1, _, false) =>
+        info.flag match {
+        case SimpleConstOutput(c) =>
+          Some(matcher1.isDefinedAt(c))
+        case _ =>
+          None // Here we can't reliably determine whether this matcher is weaker.
       }
       case SimpleConst(c) => info.flag match {
-        case SimpleConstOutput(`c`) => Some(true)
-        case SimpleConstOutput(_) => Some(false) // definitely not the same constant
-        case _ => None // Otherwise, it could be this constant but we can't determine.
+        case SimpleConstOutput(`c`) =>
+          Some(true)
+        case SimpleConstOutput(_) =>
+          Some(false) // definitely not the same constant
+        case _ =>
+          None // Otherwise, it could be this constant but we can't determine.
       }
     }
   }
 
   // Here "similar" means either it's definitely weaker or it could be weaker (but it is definitely not stronger).
   private[jc] def matcherIsSimilarToOutput(info: OutputMoleculeInfo): Option[Boolean] = {
-    if (molecule =!= info.molecule) Some(false)
+    if (molecule =!= info.molecule)
+      Some(false)
     else flag match {
-      case Wildcard | SimpleVar(_, None) | OtherInputPattern(_, _, true) => Some(true)
-      case SimpleVar(_, Some(matcher1)) => info.flag match {
-        case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
-        case _ => Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
+      case Wildcard |
+           SimpleVar(_, None) |
+           OtherInputPattern(_, _, true) =>
+        Some(true)
+      case SimpleVar(_, Some(matcher1)) =>
+        info.flag match {
+        case SimpleConstOutput(c) =>
+          Some(matcher1.isDefinedAt(c))
+        case _ =>
+          Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
       }
-      case OtherInputPattern(matcher1, _, false) => info.flag match {
-        case SimpleConstOutput(c) => Some(matcher1.isDefinedAt(c))
-        case _ => Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
+      case OtherInputPattern(matcher1, _, false) =>
+        info.flag match {
+        case SimpleConstOutput(c) =>
+          Some(matcher1.isDefinedAt(c))
+        case _ =>
+          Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
       }
-      case SimpleConst(c) => Some(info.flag match {
-        case SimpleConstOutput(`c`) => true
-        case SimpleConstOutput(_) => false // definitely not the same constant
-        case _ => true // Otherwise, it could be this constant.
+      case SimpleConst(c) =>
+        Some(info.flag match {
+        case SimpleConstOutput(`c`) =>
+          true
+        case SimpleConstOutput(_) =>
+          false // definitely not the same constant
+        case _ =>
+          true // Otherwise, it could be this constant.
       })
     }
   }
 
   override val toString: String = {
     val printedPattern = flag match {
-      case Wildcard => "_"
-      case SimpleVar(v, None) => v.name
-      case SimpleVar(v, Some(_)) => s"${v.name} if ?"
+      case Wildcard =>
+        "_"
+      case SimpleVar(v, None) =>
+        v.name
+      case SimpleVar(v, Some(_)) =>
+        s"${v.name} if ?"
       //      case SimpleConst(()) => ""  // We eliminated this case by converting constants of Unit type to Wildcard input flag.
-      case SimpleConst(c) => c.toString
-      case OtherInputPattern(_, vars, isIrrefutable) => s"${if (isIrrefutable) "" else "?"}${vars.map(_.name).mkString(",")}"
+      case SimpleConst(c) =>
+        c.toString
+      case OtherInputPattern(_, vars, isIrrefutable) =>
+        s"${if (isIrrefutable) "" else "?"}${vars.map(_.name).mkString(",")}"
     }
 
     s"$molecule($printedPattern)"
@@ -268,9 +299,12 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
 final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType, environments: List[OutputEnvironment]) {
   override val toString: String = {
     val printedPattern = flag match {
-      case SimpleConstOutput(()) => ""
-      case SimpleConstOutput(c) => c.toString
-      case OtherOutputPattern => "?"
+      case SimpleConstOutput(()) =>
+        ""
+      case SimpleConstOutput(c) =>
+        c.toString
+      case OtherOutputPattern =>
+        "?"
     }
 
     s"$molecule($printedPattern)"
@@ -282,8 +316,10 @@ final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[O
 
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
-    case GuardPresent(_, _, guards) => guards
-    case _ => Array[CrossMoleculeGuard]()
+    case GuardPresent(_, _, guards) =>
+      guards
+    case _ =>
+      Array[CrossMoleculeGuard]()
   }
 
   /** Cross-conditionals are repeated input molecules, such that one of them has a conditional or participates in a cross-molecule guard.
@@ -311,15 +347,24 @@ final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[O
   private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha) =>
     // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers
     val patternPrecedence = flag match {
-      case Wildcard | SimpleVar(_, None) | OtherInputPattern(_, _, true) => 3
-      case OtherInputPattern(_, _, false) | SimpleVar(_, Some(_)) => 2
-      case SimpleConst(_) => 1
+      case Wildcard |
+           SimpleVar(_, None) |
+           OtherInputPattern(_, _, true) =>
+        3
+      case OtherInputPattern(_, _, false) |
+           SimpleVar(_, Some(_)) =>
+        2
+      case SimpleConst(_) =>
+        1
     }
 
     val molValueString = flag match {
-      case SimpleConst(v) => v.toString
-      case SimpleVar(v, _) => v.name
-      case _ => ""
+      case SimpleConst(v) =>
+        v.toString
+      case SimpleVar(v, _) =>
+        v.name
+      case _ =>
+        ""
     }
     (mol.toString, patternPrecedence, molValueString, sha)
   }.toList
@@ -327,8 +372,11 @@ final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[O
   override val toString: String = {
     val inputsInfo = inputsSorted.map(_.toString).mkString(" + ")
     val guardInfo = guardPresence match {
-      case _ if guardPresence.effectivelyAbsent => ""
-      case GuardPresent(_, Some(_), Array()) => " if(?)" // There is a static guard but no cross-molecule guards.
+      case _
+        if guardPresence.effectivelyAbsent =>
+        ""
+      case GuardPresent(_, Some(_), Array()) =>
+        " if(?)" // There is a static guard but no cross-molecule guards.
       case GuardPresent(_, _, guards) =>
         val crossGuardsInfo = guards.flatMap(_.symbols).map(_.name).mkString(",")
         s" if($crossGuardsInfo)"
