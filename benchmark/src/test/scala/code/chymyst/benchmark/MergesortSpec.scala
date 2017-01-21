@@ -127,13 +127,13 @@ class MergesortSpec extends FlatSpec with Matchers {
     val arr = Array.fill[Int](count)(scala.util.Random.nextInt(count))
 
     val result = timeWithPriming {
-      performMergeSort(arr, threads);
+      performMergeSort(arr, threads)
       ()
     }
     println(s"concurrent merge-sort test with count=$count and $threads threads took $result ms")
 
     val result1 = timeWithPriming {
-      performMergeSort(arr, 1);
+      performMergeSort(arr, 1)
       ()
     }
     println(s"concurrent merge-sort test with count=$count and 1 threads took $result1 ms")

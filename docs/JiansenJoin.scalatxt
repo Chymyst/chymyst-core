@@ -4,10 +4,10 @@ package code.jiansen.scalajoin
 This file is not a part of JoinRun. Only the benchmark application uses this file
 for performance comparisons between JoinRun and ScalaJoin.
 
-Some minor changes were made to accomodate updates in the Scala standard library since 2011.
+Some minor changes were made to accommodate updates in the Scala standard library since 2011.
 */
 
-/** A module providing constracts for join patterns.
+/** A module providing constructs for join patterns.
   *  Based on Philipp Haller's Scala Joins library <a href="http://lamp.epfl.ch/~phaller/joins/index.html"></a> with following improvements
   *
   *  -- providing uniform 'and' operator
@@ -24,7 +24,7 @@ Some minor changes were made to accomodate updates in the Scala standard library
   *     (a) if the body contains a reply to a synchronous channel which does not appear in the pattern part
   *     (b) if the all synchronous channels in the pattern part will get a reply.
   *
-  *  @author  Jiansen HE
+  *  @author Jiansen HE
   *  @version 0.3.6, 14/11/2011
   */
 

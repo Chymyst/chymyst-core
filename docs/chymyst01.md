@@ -492,7 +492,7 @@ The error message means that the reaction `sum => ...` will sometimes prevent `d
 and that the programmer _has no control_ over this nondeterminism.
 
 The correct implementation needs to keep track of how many `data(...)` molecules we already consumed,
-and to print the final reasult only when we reach the total expected number of the `data(...)` molecules.
+and to print the final result only when we reach the total expected number of the `data(...)` molecules.
 Since reactions do not have mutable state, the information about the remaining `data(...)` molecules has to be carried on the `sum(...)` molecule.
 So, we will define the `sum(...)` molecule with type `(Int, Int)`, where the second integer will be the number of `data(...)` molecules that remain to be consumed.
 
