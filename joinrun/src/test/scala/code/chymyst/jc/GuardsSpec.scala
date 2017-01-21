@@ -4,7 +4,7 @@ import org.scalatest.{FlatSpec, Matchers}
 
 class GuardsSpec extends FlatSpec with Matchers {
 
-  behavior of "guard conditions"
+  behavior of "miscellaneous"
 
   it should "correctly recognize constants of various kinds" in {
     val a = m[Either[Int, String]]
@@ -27,8 +27,9 @@ class GuardsSpec extends FlatSpec with Matchers {
       InputMoleculeInfo(`a`, 5, SimpleConst(Right("input")), _)
       ) =>
     }
-
   }
+
+  behavior of "guard conditions"
 
   it should "correctly recognize a trivial true guard condition" in {
     val a = m[Either[Int, String]]
