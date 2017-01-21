@@ -604,23 +604,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
     }
 
+    val aOut = OutputMoleculeInfo(a, SimpleConstOutput(()), List())
+    val fOut = OutputMoleculeInfo(f, SimpleConstOutput(()), List())
+
     r.info.outputs shouldEqual Array(
-      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(a, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(f, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(f, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(f, SimpleConstOutput(()), List()),
-      OutputMoleculeInfo(f, SimpleConstOutput(()), List())
+      aOut, aOut, aOut, aOut, aOut, aOut, aOut, aOut, aOut, aOut, aOut, aOut, fOut, fOut, fOut, fOut
     )
   }
 
@@ -633,9 +621,172 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     )
   }
 
+  it should "detect molecules emitted in if-then-else blocks" in {
+    val a = m[Int]
+    val c = m[Unit]
+    val d = m[Unit]
+    val r = go { case a(x) => if (x > 0) c() else d() }
+
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(_, 0)) => }
+    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(_, 1)) => }
+  }
+
+  it should "detect molecules emitted in several if-then-else blocks" in {
+    val a = m[Int]
+    val c = m[Unit]
+    val d = m[Unit]
+    val r = go { case a(x) => if (x > 0) c() else d(); if (x<0) c() else d() }
+
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0)) => }
+    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(2, 1)) => }
+    r.info.outputs(2).environments should matchPattern { case List(ChooserBlock(4, 0)) => }
+    r.info.outputs(3).environments should matchPattern { case List(ChooserBlock(4, 1)) => }
+  }
+
+  it should "detect molecules emitted in foreach blocks" in {
+    val a = m[Int]
+    val c = m[Int]
+
+    val r = go { case a(x) => if (x > 0) (1 to 10).foreach(i => c(i)) }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(ChooserBlock(2, 0), FuncBlock(5, "scala.collection.immutable.Range.foreach"), FuncLambda(6)) =>
+    }
+  }
+
+  it should "detect molecules emitted in foreach blocks with short apply syntax" in {
+    val a = m[Int]
+    val c = m[Int]
+
+    val r = go { case a(x) => if (x > 0) (1 to 10).foreach(c) }
+
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(_, 0), FuncBlock(_, "foreach")) => }
+  }
+
+  it should "detect molecules emitted in map blocks" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    val r = go { case a(x) => if (x > 0) (1 to 10).map(i => c(i)) }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(ChooserBlock(2, 0), FuncBlock(5, "scala.collection.TraversableLike.map"), FuncLambda(6)) =>
+    }
+  }
+
+  it should "detect molecules emitted in arguments of other molecules" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    def f(x: Int): Int = x + 1
+
+    val r = go { case a(x) => c(if (x > 0) c(x) else c(x + 1)) }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(ChooserBlock(2, 0), FuncBlock(5, "scala.collection.TraversableLike.map"), FuncLambda(6)) =>
+    }
+  }
+
+  it should "detect molecules emitted in user-defined methods" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    def f(x: Int): Int = x + 1
+
+    val r = go { case a(x) => c(if (x > 0) f(c(x)) else c(x)) }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(ChooserBlock(2, 0), FuncBlock(5, "scala.collection.TraversableLike.map"), FuncLambda(6)) =>
+    }
+  }
+
+  it should "detect molecules emitted in user-defined methods within reaction scope" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+
+    val r = go { case a(x) =>
+      def f(x: Int): Int = x + 1
+
+      c(if (x > 0) f(c(x)) else c(x))
+    }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(ChooserBlock(2, 0), FuncBlock(5, "scala.collection.TraversableLike.map"), FuncLambda(6)) =>
+    }
+  }
+
+  it should "detect molecules emitted in while loops" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    val r = go { case a(x) => if (x > 0)
+      while (x > 0) {
+        c(x)
+      }
+    }
+
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0), ChooserBlock(4, 0)) => }
+  }
+
+  it should "detect molecules emitted in do-while loops" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    val r = go { case a(x) => if (x > 0)
+      do {
+        c(x)
+      } while (x > 0)
+    }
+
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0), EmitOneOrMore(_, "do while")) => }
+  }
+
+  it should "detect molecules emitted in match-case blocks with nested if-then-else" in {
+    val a = m[Int]
+    val c = m[Unit]
+    val d = m[Unit]
+    val r = go { case a(x) =>
+      x match {
+        case 0 => c(); if (x > 0) c()
+        case 1 => d()
+        case 2 => c(); if (x > 0) d() else c()
+      }
+    }
+    println(r.info.outputs.map(_.environments).toList)
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(1, 0)) => }
+    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(1, 0), ChooserBlock(3, 0)) => }
+    r.info.outputs(2).environments should matchPattern { case List(ChooserBlock(1, 1)) => }
+    r.info.outputs(3).environments should matchPattern { case List(ChooserBlock(1, 2)) => }
+    r.info.outputs(4).environments should matchPattern { case List(ChooserBlock(1, 2), ChooserBlock(5, 0)) => }
+    r.info.outputs(6).environments should matchPattern { case List(ChooserBlock(1, 2), ChooserBlock(5, 1)) => }
+  }
+
+  it should "detect molecules emitted in anonymous functions" in {
+    val a = m[Int]
+    val c = m[Unit]
+    val r = go { case a(x) =>
+      val pf: Int => Unit = { x => c() }
+      pf(0)
+    }
+    r.info.outputs(0).environments should matchPattern { case List(FuncLambda(_)) => }
+  }
+
+  it should "detect molecules emitted in partial functions" in {
+    val a = m[Int]
+    val c = m[Unit]
+    val r = go { case a(x) =>
+      val pf: PartialFunction[Int, Unit] = {
+        case 123 => c()
+      }
+      pf(0)
+    }
+    r.info.outputs(0).environments should matchPattern { case List(FuncLambda(1), ChooserBlock(2, 0)) => }
+  }
+
   behavior of "output value computation"
 
-  it should "not fail to compute outputs for an inline reaction" in {
+  it should "compute outputs for an inline reaction" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
       site(
@@ -646,7 +797,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction {a(1) => a(1)}"
   }
 
-  it should "compute inputs and outputs correctly for an inline nested reaction" in {
+  it should "compute inputs and outputs for an inline nested reaction" in {
     val a = m[Int]
     site(
       go {
@@ -665,7 +816,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     a.emittingReactions.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, SimpleConst(1), constantOneSha1))
   }
 
-  it should "not fail to compute outputs correctly for an inline nested reaction" in {
+  it should "compute outputs for an inline nested reaction" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
       site(
@@ -695,7 +846,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     )
   }
 
-  it should "correctly recognize nested emissions of non-blocking molecules" in {
+  it should "recognize nested emissions of non-blocking molecules in the correct order" in {
     val a = m[Int]
     val c = m[Int]
     val d = m[Boolean]
@@ -724,7 +875,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     )
   }
 
-  it should "correctly recognize nested emissions of blocking molecules and reply values" in {
+  it should "recognize nested emissions of blocking molecules and reply values" in {
     val a = b[Int, Int]
     val c = m[Int]
     val d = m[Unit]

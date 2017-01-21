@@ -80,6 +80,8 @@ final case class FuncBlock(id: Int, name: String) extends OutputEnvironment
 
 final case class FuncLambda(id: Int) extends OutputEnvironment
 
+final case class EmitOneOrMore(id: Int, name: String) extends OutputEnvironment
+
 /** Indicates whether a reaction has a guard condition.
   *
   */
