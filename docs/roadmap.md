@@ -2,6 +2,8 @@
 
 # Version history
 
+- 0.1.6 A different mechanism now implements the syntax `a()` for emitting molecules with `Unit` values; no more auxiliary classes `E`, `BE`, `EB`, `EE`, which simplifies code and eliminates the need for whitebox macros. Breaking change: `timeout(value)(duraction)` instead of `timeout(duraction)(value)` as before. An optimization for the reaction scheduler now makes simple reactions start faster. The project build has been revamped: now there is a single JAR artifact and a single SBT project for `JoinRun`, rather than 3 as before. A skeleton "hello-world" project is available in a separate repository. `Chymyst` has been moved to a separate repository as well. Various improvements in the compile-time analysis of reactions.
+
 - 0.1.5 Bug fix for a rare race condition with time-out on blocking molecules. New `checkTimeout` API to make a clean distinction between replies that need to check the timeout status and replies that don't. Documentation was improved. Code cleanups resulted in 100% test coverage. Revamped reaction site code now supports nonlinear input patterns.
 
 - 0.1.4 Simplify API: now users need only one package import. Many more tutorial examples of chemical machine concurrency. Test code coverage is 97%. More compiler warnings enabled (including deprecation warnings). There are now more intelligent "whitebox" macros that generate different subclasses of `M[T]` and `B[T,R]` when `T` or `R` are the `Unit` type, to avoid deprecation warnings with the syntax `f()`.
