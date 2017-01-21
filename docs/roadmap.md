@@ -53,21 +53,20 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
 
  value * difficulty - description
 
- 2 * 3 - investigate using wait/notify instead of semaphore; does it give better performance? This depends on benchmarking of blocking molecules. - So far, attempts to do this failed.
+ 2 * 3 - investigate using wait/notify instead of semaphore; does it give better performance? - So far, attempts to do this failed.
 
  2 * 3 - detect livelock due to singleton emission (at the moment, they are not considered as present inputs)
 
  3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
  Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.
 
- 5 * 5 - implement fairness with respect to molecules
- * - go through possible values when matching (can do?) Important: reactions can get stuck when molecules are in different order. Or need to shuffle.
+ 5 * 5 - implement fairness with respect to molecules. - Will not do now. If reactions depend on fairness, something is probably wrong with the chemistry.
 
  3 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping? This should help fetch random molecules out of the soup.
 
  2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
 
- 4 * 5 - implement multiple emission construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. Implement starting many reactions concurrently at once, rather than one by one.
+ 4 * 5 - implement multiple emission construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. - Will not do now. Not sure what this accomplishes. The user can randomize the order of emission, if this is crucial for an application.
  
  4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same reaction site, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on reaction site information gleaned using a macro.
 
@@ -83,9 +82,11 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
 
  3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is emitted from a thread T and the corresponding reaction site runs on the same thread T, do not schedule a task but simply run the reaction site synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a reaction site that runs on thread T and the reaction is configured to run on the same thread, do not schedule a task but simply run the reaction synchronously.
 
+ 3 * 5 - implement automatic thread fusion for singletons
+ 
  5 * 5 - is it possible to implement distributed execution by sharing the join pool with another machine (but running the reaction sites only on the master node)?
 
- 3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic.
+ 3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic. -- Will not do now. Not sure that lazy values on molecules are important as a primitive. We can always simulate them using closures.
 
  3 * 5 - Can we implement JoinRun using Future / Promise and remove all blocking and all semaphores?
 
@@ -108,25 +109,19 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
 
  2 * 2 - add tests for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
 
- 3 * 5 - implement automatic thread fusion for singletons
- 
  3 * 5 - consider whether we would like to prohibit emitting molecules from non-reaction code. Maybe with a construct such as `withMolecule{ ... }` where the special molecule will be emitted by the system? Can we rewrite tests so that everything happens only inside reactions?
 
- 3 * 3 - perhaps prohibit using explicit thread pools? It's error-prone because the user can forget to stop a pool. Perhaps only expose an API such as `withPool(...)`?
+ 3 * 3 - perhaps prohibit using explicit thread pools? It's error-prone because the user can forget to stop a pool. Perhaps only expose an API such as `withFixedPool(4){ implicit tp => ...}`? Investigate using implicit values for pools.
   
  3 * 3 - implement "one-off" molecules that are emitted once (like singletons, from the reaction site itself) and never emitted again
   
- 2 * 2 - If a blocking molecule was emitted without a timeout, we don't need the second semaphore
- 
- 2 * 2 - Add tests to make sure that the 2nd and all subsequent replies with .checkTimeout return False
- 
- 2 * 2 - Can we consolidate all code into a single SBT project rather than use 3 projects?
- 
- 3 * 3 - Can we use macros to rewrite f() into f(()) inside reactions, and thus avoid using subclasses such as E, EE, etc.?
+ 2 * 2 - If a blocking molecule was emitted without a timeout, we don't need the second semaphore, and checkTimeout() should return `true`
+  
+ 3 * 3 - Can we use macros to rewrite f() into f(_) inside reactions for Unit types? Otherwise it seems impossible to implement short syntax `case a() + b() => ` in the input patterns.
  
  5 * 5 - How to rewrite reaction sites so that blocking molecules are transparently replaced by a pair of non-blocking molecules? Can this be done even if blocking emitters are used inside functions? (Perhaps with extra molecules emitted at the end of the function call?) Is it useful to emit an auxiliary molecule at the end of an "if" expression, to avoid code duplication? How can we continue to support real blocking emitters when used outside of macro code? 
  
- 2 * 2 - Support timers: recurrent or one-off, cancelable molecule emission
+ 2 * 2 - Support timers: recurrent or one-off, cancelable molecule emission. -- Will not do now. This can be done by user code, unless timers require an explicit thread pool or executor.
  
  2 * 2 - Revisit Philippe's error reporting branch, perhaps salvage some code
  
@@ -134,6 +129,7 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
  
  3 * 3 - Replace some timed tests by probabilistic tests that run multiple times and fail much less often
  
- 2 * 2 - If the RS is busy, leave a "bump" message and still append a molecule to a queue; or, RS can continually check the queue of new molecules until it's empty
-  
  3 * 3 - Implement "streamable" molecules, detect them automatically
+
+ 3 * 3 - SmartThread should keep information about which RS and which reaction is now running. This can be used both for monitoring and for automatic assignment of thread pools for reactions defined in the scope of another reaction. 
+ 
