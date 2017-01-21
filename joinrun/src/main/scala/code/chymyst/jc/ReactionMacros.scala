@@ -307,16 +307,29 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     }
   }
 
+  /** Input molecules in a reaction must be given using a chemical notation such as `a(x) + b(y) + c(z) => ...`.
+    * It is an error to group input molecules such as `a(x) + (b(y) + c(z)) => ...`, or to use pattern grouping such as `q @ a(x) + ...`
+    */
   object DetectInvalidInputGrouping extends Traverser {
     var found: Boolean = _
 
     override def traverse(tree: c.universe.Tree): Unit = tree match {
-      case pq"$extr1($_,$extr2($_,$_))"
+      case pq"$name @ $pat" =>
+        true
+      case pq"$extr1($_, $extr2($_, $_))"
+        if extr1.symbol.fullName === "code.chymyst.jc.$plus" && extr2.symbol.fullName === "code.chymyst.jc.$plus" =>
+        found = true
+      case pq"$extr1($_, $_ @ $extr2($_, $_))"
         if extr1.symbol.fullName === "code.chymyst.jc.$plus" && extr2.symbol.fullName === "code.chymyst.jc.$plus" =>
         found = true
       case _ => super.traverse(tree)
     }
 
+    /** Detect invalid groupings in a pattern matching tree.
+      *
+      * @param tree A pattern matching tree.
+      * @return `true` if an invalid grouping is detected, `false` otherwise.
+      */
     def in(tree: Tree): Boolean = {
       found = false
       traverse(tree)
@@ -356,38 +369,47 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       */
     @tailrec
     private def isOwnedBy(s: MacroSymbol, owner: MacroSymbol): Boolean = s.owner match {
-      case `owner` => owner =!= NoSymbol
-      case `NoSymbol` => false
-      case o@_ => isOwnedBy(o, owner)
+      case `owner` =>
+        owner =!= NoSymbol
+      case `NoSymbol` =>
+        false
+      case o@_ =>
+        isOwnedBy(o, owner)
     }
 
     private def getInputFlag(binderTerm: Tree): InputPatternFlag = binderTerm match {
-      case Ident(termNames.WILDCARD) => WildcardF
-      case Bind(t@TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF(Ident(t), binderTerm, None)
-      case _ => getConstantTree(binderTerm)
-        .map(t => ConstantPatternF(t.asInstanceOf[Tree]))
-        .getOrElse {
-          // If we are here, we do not have a constant pattern. It could be either an irrefutable compound pattern such as (_, x, (a,b,_)), or a general other pattern.
-          val vars = PatternVars.from(binderTerm)
-          val guardTreeOpt = if (isIrrefutablePattern(binderTerm))
-            None
-          else
-            Some(EmptyTree)
-          OtherInputPatternF(binderTerm, guardTreeOpt, vars)
-        }
+      case Ident(termNames.WILDCARD) =>
+        WildcardF
+      case Bind(t@TermName(_), Ident(termNames.WILDCARD)) =>
+        SimpleVarF(Ident(t), binderTerm, None)
+      case _ =>
+        getConstantTree(binderTerm)
+          .map(t => ConstantPatternF(t.asInstanceOf[Tree]))
+          .getOrElse {
+            // If we are here, we do not have a constant pattern. It could be either an irrefutable compound pattern such as (_, x, (a,b,_)), or a general other pattern.
+            val vars = PatternVars.from(binderTerm)
+            val guardTreeOpt = if (isIrrefutablePattern(binderTerm))
+              None
+            else
+              Some(EmptyTree)
+            OtherInputPatternF(binderTerm, guardTreeOpt, vars)
+          }
     }
 
     private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag = binderTerms match {
-      case List(t) => getConstantTree(t).map(tree => ConstOutputPatternF(tree.asInstanceOf[Tree])).getOrElse(OtherOutputPatternF)
-      case Nil => EmptyOutputPatternF
-      case _ => OtherOutputPatternF
+      case List(t) =>
+        getConstantTree(t).map(tree => ConstOutputPatternF(tree.asInstanceOf[Tree])).getOrElse(OtherOutputPatternF)
+      case Nil =>
+        EmptyOutputPatternF
+      case _ =>
+        OtherOutputPatternF
     }
 
     override def traverse(tree: Tree): Unit = {
       tree match {
         // avoid traversing nested reactions: check whether this subtree is a Reaction() value
-        case q"code.chymyst.jc.Reaction.apply(..$_)" => ()
-        case q"Reaction.apply(..$_)" => ()
+        case q"code.chymyst.jc.Reaction.apply(..$_)" | q"Reaction.apply(..$_)"  =>
+          ()
 
         // matcher with a single argument: a(x)
         case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
@@ -470,19 +492,26 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   // This boilerplate is necessary for being able to use PatternType values in quasiquotes.
   implicit val liftableInputPatternFlag: Liftable[InputPatternFlag] = Liftable[InputPatternFlag] {
-    case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
-    case ConstantPatternF(tree) => q"_root_.code.chymyst.jc.SimpleConst($tree)"
+    case WildcardF =>
+      q"_root_.code.chymyst.jc.Wildcard"
+    case ConstantPatternF(tree) =>
+      q"_root_.code.chymyst.jc.SimpleConst($tree)"
     case SimpleVarF(v, binder, cond) =>
       val guardFunction = cond.map(c => matcherFunction(binder, c, List(v)))
       q"_root_.code.chymyst.jc.SimpleVar(${identToScalaSymbol(v)}, $guardFunction)"
-    case OtherInputPatternF(matcherTree, guardTreeOpt, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTreeOpt.getOrElse(EmptyTree), vars)}, ${vars.map(identToScalaSymbol)}, ${guardTreeOpt.isEmpty})"
-    case _ => q"_root_.code.chymyst.jc.Wildcard" // this case will not be encountered here; we are conflating InputPatternFlag and ReplyInputPatternFlag
+    case OtherInputPatternF(matcherTree, guardTreeOpt, vars) =>
+      q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTreeOpt.getOrElse(EmptyTree), vars)}, ${vars.map(identToScalaSymbol)}, ${guardTreeOpt.isEmpty})"
+    case _ =>
+      q"_root_.code.chymyst.jc.Wildcard" // this case will not be encountered here; we are conflating InputPatternFlag and ReplyInputPatternFlag
   }
 
   implicit val liftableOutputPatternFlag: Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
-    case ConstOutputPatternF(tree) => q"_root_.code.chymyst.jc.SimpleConstOutput($tree)"
-    case EmptyOutputPatternF => q"_root_.code.chymyst.jc.SimpleConstOutput(())"
-    case _ => q"_root_.code.chymyst.jc.OtherOutputPattern"
+    case ConstOutputPatternF(tree) =>
+      q"_root_.code.chymyst.jc.SimpleConstOutput($tree)"
+    case EmptyOutputPatternF =>
+      q"_root_.code.chymyst.jc.SimpleConstOutput(())"
+    case _ =>
+      q"_root_.code.chymyst.jc.OtherOutputPattern"
   }
 
   /** Build an error message about incorrect usage of chemical notation.
