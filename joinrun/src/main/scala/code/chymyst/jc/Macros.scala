@@ -349,7 +349,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     // However, the order of output molecules corresponds to the order in which they might be emitted.
     val allOutputInfo = bodyOut
     // Neither the pattern nor the guard can emit output molecules.
-    val outputMolecules = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, $envs)" }.toArray
+    val outputMolecules = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
 
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of output molecules.
