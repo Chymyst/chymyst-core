@@ -47,6 +47,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   private val seqConstantExtractorHeads = Set("scala.collection.generic.SeqFactory.unapplySeq")
 
   private val eagerFunctionCodes = constantApplierCodes ++ Set(
+    "code.chymyst.jc.EmitMultiple",
     "code.chymyst.jc.EmitMultiple.$plus"
   )
 
@@ -526,7 +527,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
         // possibly a molecule emission, but could be any function call
         case Apply(Select(t@Ident(TermName(name)), TermName(f)), argumentList)
-          if f === "apply" || f === "checkTimeout" =>
+          if f === "apply" || f === "checkTimeout" || f === "timeout" =>
 
           // In the output list, we do not include any molecule emitters defined in the inner scope of the reaction.
           val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
@@ -555,9 +556,14 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
             replyActions.append((t.symbol, flag1, outputEnv.toList))
           }
 
-          // other function applications
+        // tuple
+        case q"(..$args)"
+          if args.size >= 2 =>
+          args.foreach(t => traverse(t.asInstanceOf[Tree]))
+
+        // other function applications
         case q"$f[..$_](..$args)"
-        if args.nonEmpty && !eagerFunctionCodes.contains(f.symbol.asTerm.fullName) =>
+          if args.nonEmpty && !eagerFunctionCodes.contains(f.symbol.asTerm.fullName) =>
           traverse(f.asInstanceOf[Tree])
           outputEnvId += 1
           outputEnv.push(FuncBlock(outputEnvId, name = f.asInstanceOf[Tree].symbol.fullName))
