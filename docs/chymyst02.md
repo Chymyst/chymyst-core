@@ -67,7 +67,7 @@ Both `c(123)` and `f()` will be consumed by the reaction.
 The reaction will then perform the reply action `reply(n)` with `n = 123`.
 Only at this point the calling process will get unblocked and receive `123` as the return value of the function call `f()`.
 
-From the point of view of the reaction that consumea a blocking molecule, the reply action is a non-blocking (i.e. a very fast) function call.
+From the point of view of the reaction that consumes a blocking molecule, the reply action is a non-blocking (i.e. a very fast) function call.
 The reaction will continue evaluating its reaction body, _concurrently_ with the newly unblocked process that received the reply value and can also continue its computations.
 
 This is how the chemical machine implements blocking molecules.

@@ -12,7 +12,7 @@ needs which ingredients, he just supplies two ingredients at a time. We assume t
 ingredients available to him. The real life example is that of a core operating systems service having to schedule and provide limited distinct resources to 
 other services where coordination of scarce resources is required.
  
-Each smoker selects two ingredients, rolls up a cigarette using the third ingredient that complements the list, lits it up and smokes it. It is necessary
+Each smoker selects two ingredients, rolls up a cigarette using the third ingredient that complements the list, lights it up and smokes it. It is necessary
 for the smoker to finish his cigarette before the pusher supplies the next two ingredients (a timer can simulate the smoking activity). We can think of the 
 smoker shutting down the assembly line operation until he is done smoking.
 

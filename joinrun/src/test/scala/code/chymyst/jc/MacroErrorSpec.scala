@@ -17,7 +17,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val f = b[Unit, Unit]
     val x = 2
     x shouldEqual 2
-    f.isInstanceOf[B[Unit,Unit]] shouldEqual true
+    f.isInstanceOf[B[Unit, Unit]] shouldEqual true
 
     "val r = go { case f(_, r) if r() && x == 2 => }" shouldNot compile
   }
@@ -42,6 +42,26 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     "val r = go { case a(_) =>; case b(_) => }" shouldNot compile
   }
 
+  it should "compile a reaction within scalatest scope" in {
+    val x = m[Int]
+    site(go { case x(_) => }) shouldEqual WarningsAndErrors(List(), List(), "Site{x => ...}")
+  }
+
+  it should "compile a reaction with scoped pattern variables" in {
+    val a = m[(Int, Int)]
+    site(go { case a(y@(_, q@_)) => }) shouldEqual WarningsAndErrors(List(), List(), "Site{a => ...}")
+
+    val c = m[(Int, (Int, Int))]
+    c.name shouldEqual "c"
+    // TODO: make this compile in actual code, not just inside scalatest macro
+    "val r1 = go { case c(y@(_, z@(_, _))) => }" should compile // But this actually fails to compile when used in the code!
+
+    val d = m[(Int, Option[Int])]
+    "val r2 = go { case d((x, z@Some(_))) => }" should compile // But this actually fails to compile when used in the code!
+
+    site(go { case d((x, z)) if z.nonEmpty => }) shouldEqual WarningsAndErrors(List(), List(), "Site{d => ...}")
+  }
+
   it should "inspect reaction body with two cases" in {
     val a = m[Int]
     val qq = m[Unit]
@@ -53,8 +73,6 @@ class MacroErrorSpec extends FlatSpec with Matchers {
       case a(x) => qq()
       case qq(_) + a(y) => qq()
     }""" shouldNot compile
-
-
   }
 
   it should "fail to compile reactions with incorrect pattern matching" in {
@@ -133,9 +151,9 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List(), false) => }
     (reaction.info.inputs.head.flag match {
       case OtherInputPattern(matcher, List(), false) =>
-        matcher.isDefinedAt((1,1)) shouldEqual true
-        matcher.isDefinedAt((1,2)) shouldEqual true
-        matcher.isDefinedAt((0,1)) shouldEqual false
+        matcher.isDefinedAt((1, 1)) shouldEqual true
+        matcher.isDefinedAt((1, 2)) shouldEqual true
+        matcher.isDefinedAt((0, 1)) shouldEqual false
         true
       case _ => false
     }) shouldEqual true
