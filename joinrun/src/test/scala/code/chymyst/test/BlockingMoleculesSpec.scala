@@ -248,7 +248,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val tp = new FixedPool(4)
     site(tp)(
       go { case d(_) => g2() } onThreads tp,
-      go { case c(_) + g(_, r) + g2(_, s) => c();
+      go { case c(_) + g(_, r) + g2(_, s) => c()
         if (false) {
           r(0) + s(0)
         }
