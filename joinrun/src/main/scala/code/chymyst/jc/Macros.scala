@@ -110,18 +110,15 @@ class CommonMacros(val c: blackbox.Context) {
   /** Describes the pattern matcher for output molecules.
     * Possible values:
     * ConstOutputPatternF(x): a(123) or a(Some(4)), etc.
-    * EmptyOutputPatternF: a() - this only happens with `Unit` values.
     * OtherOutputPatternF: a(x), a(x+y), or any other kind of expression.
     */
   sealed trait OutputPatternFlag {
-    def needTraversal: Boolean = false
+    val needTraversal: Boolean = false
   }
 
   case object OtherOutputPatternF extends OutputPatternFlag {
-    override def needTraversal: Boolean = true
+    override val needTraversal: Boolean = true
   }
-
-  case object EmptyOutputPatternF extends OutputPatternFlag
 
   final case class ConstOutputPatternF(v: Tree) extends OutputPatternFlag
 
