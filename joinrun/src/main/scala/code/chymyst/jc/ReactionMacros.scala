@@ -419,11 +419,12 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           }
     }
 
-    private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag = binderTerms match {
+    /** We only support one-argument molecules, so here we only inspect the first element in the list of terms. */
+    private def getOutputFlag(outputTerms: List[Tree]): OutputPatternFlag = outputTerms match {
       case List(t) =>
         getConstantTree(t).map(tree => ConstOutputPatternF(tree.asInstanceOf[Tree])).getOrElse(OtherOutputPatternF)
       case Nil =>
-        EmptyOutputPatternF
+        ConstOutputPatternF(q"()")
       case _ =>
         OtherOutputPatternF
     }
@@ -652,9 +653,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   implicit val liftableOutputPatternFlag: Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
     case ConstOutputPatternF(tree) =>
       q"_root_.code.chymyst.jc.SimpleConstOutput($tree)"
-    case EmptyOutputPatternF =>
-      q"_root_.code.chymyst.jc.SimpleConstOutput(())"
-    case _ =>
+    case OtherOutputPatternF =>
       q"_root_.code.chymyst.jc.OtherOutputPattern"
   }
 
