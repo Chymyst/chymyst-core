@@ -936,7 +936,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "detect simple constant due to perfect if-then-else shrinkage" in {
     val a = m[Int]
-    val r = go { case a(1) => if (true) a(1) else a(1) }
+    val r = go { case a(1) => if (true) a(1) else a(1) } // This livelock cannot be detected at compile time because it can't evaluate constants.
     r.info.shrunkOutputs shouldEqual Array(OutputMoleculeInfo(a, SimpleConstOutput(1), Nil))
   }
 
