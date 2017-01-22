@@ -95,4 +95,45 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     // This should compile without any argument adaptation warnings or errors:
     "val r = go { case a(_) + f(_, r) + g(_, s) => a() + s() + f(); val status = r.checkTimeout() }" should compile
   }
+
+  behavior of "shrinkage algorithm"
+
+  it should "shrink empty lists" in {
+    val outputs = Nil
+    val expectedShrunkOutputs = Nil
+    OutputEnvironment.shrink[Int](outputs) shouldEqual expectedShrunkOutputs
+  }
+
+  it should "shrink if-then-else to unconditional with OtherOutputPattern" in {
+    val item1: OutputEnvironment.OutputItem[Int] = (100, OtherOutputPattern, List(ChooserBlock(1, 0, 2)))
+    val item2: OutputEnvironment.OutputItem[Int] = (100, OtherOutputPattern, List(ChooserBlock(1, 1, 2)))
+    val outputs: OutputEnvironment.OutputList[Int]  = List(item1, item2)
+    val expectedShrunkOutputs = List((100, OtherOutputPattern, Nil))
+    OutputEnvironment.shrink[Int](outputs) shouldEqual expectedShrunkOutputs
+  }
+
+  it should "shrink if-then-else to unconditional with SimpleConstOutput" in {
+    val item1: OutputEnvironment.OutputItem[Int] = (100, SimpleConstOutput(123), List(ChooserBlock(1, 0, 2)))
+    val item2: OutputEnvironment.OutputItem[Int] = (100, OtherOutputPattern, List(ChooserBlock(1, 1, 2)))
+    val outputs: OutputEnvironment.OutputList[Int]  = List(item1, item2)
+    val expectedShrunkOutputs = List((100, OtherOutputPattern, Nil))
+    OutputEnvironment.shrink[Int](outputs) shouldEqual expectedShrunkOutputs
+  }
+
+  it should "shrink if-then-else to unconditional with 2 unequal SimpleConstOutput" in {
+    val item1: OutputEnvironment.OutputItem[Int] = (100, SimpleConstOutput(123), List(ChooserBlock(1, 0, 2)))
+    val item2: OutputEnvironment.OutputItem[Int] = (100, SimpleConstOutput(124), List(ChooserBlock(1, 1, 2)))
+    val outputs: OutputEnvironment.OutputList[Int]  = List(item1, item2)
+    val expectedShrunkOutputs = List((100, OtherOutputPattern, Nil))
+    OutputEnvironment.shrink[Int](outputs) shouldEqual expectedShrunkOutputs
+  }
+
+  it should "shrink if-then-else to unconditional with 2 equal SimpleConstOutput" in {
+    val item1: OutputEnvironment.OutputItem[Int] = (100, SimpleConstOutput(123), List(ChooserBlock(1, 0, 2)))
+    val item2: OutputEnvironment.OutputItem[Int] = (100, SimpleConstOutput(123), List(ChooserBlock(1, 1, 2)))
+    val outputs: OutputEnvironment.OutputList[Int]  = List(item1, item2)
+    val expectedShrunkOutputs = List((100, SimpleConstOutput(123), Nil))
+    OutputEnvironment.shrink[Int](outputs) shouldEqual expectedShrunkOutputs
+  }
+
 }
