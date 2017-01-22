@@ -569,7 +569,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
               argumentList.foreach(traverse)
             } else {
               renewOutputEnvId()
-              outputEnv.push(FuncBlock(currentOutputEnvId, name = s"$name###$f"))
+              outputEnv.push(FuncBlock(currentOutputEnvId, name = s"${t.symbol.fullName}.$f"))
               argumentList.foreach(traverse)
               finishTraverseWithOutputEnv()
             }

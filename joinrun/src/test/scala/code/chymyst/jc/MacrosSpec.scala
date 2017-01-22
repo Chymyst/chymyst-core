@@ -698,6 +698,17 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     r.info.outputs(2).environments shouldEqual List()
   }
 
+  it should "detect molecules emitted in custom apply()" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    val r = go { case a(x) => FuncLambda(c(x)) }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(FuncBlock(1, "code.chymyst.jc.FuncLambda.apply")) =>
+    }
+  }
+
   it should "detect molecules emitted in user-defined methods" in {
     val a = m[Int]
     val c = b[Int, Int]
