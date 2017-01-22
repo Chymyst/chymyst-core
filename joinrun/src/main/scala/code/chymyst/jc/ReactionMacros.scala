@@ -51,6 +51,11 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     "code.chymyst.jc.EmitMultiple.$plus"
   )
 
+  private val iteratingFunctionCodes = Set(
+    "scala.collection.TraversableLike.map",
+    "scala.collection.immutable.Range.foreach"
+  )
+
   /** Detect whether a pattern-matcher expression tree represents an irrefutable pattern.
     * For example, Some(_) is refutable because it does not match None.
     * The pattern (_, x, y, (z, _)) is irrefutable.
@@ -503,7 +508,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         case q"while($cond) $body" =>
           renewOutputEnvId()
           traverseWithOutputEnv(cond, AtLeastOneEmitted(currentOutputEnvId, "condition of while"))
-          traverseWithOutputEnv(body, ZeroOrMoreEmitted(currentOutputEnvId, "while"))
+          traverseWithOutputEnv(body, FuncBlock(currentOutputEnvId, "while"))
 
         // Anonymous function
         case q"(..$_) => $body" =>
@@ -583,21 +588,37 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           if args.size >= 2 =>
           args.foreach(t => traverse(t.asInstanceOf[Tree]))
 
-        // other function applications that are not one of the known once-only evaluating functions such as Some(), List(), etc.
+        // other function applications
         case q"$f[..$_](..$args)"
-          if args.nonEmpty && !onceOnlyFunctionCodes.contains(f.symbol.asTerm.fullName) =>
-          traverse(f.asInstanceOf[Tree])
-          renewOutputEnvId()
-          outputEnv.push(FuncBlock(currentOutputEnvId, name = f.asInstanceOf[Tree].symbol.fullName))
-          args.foreach { t =>
-            // Detect whether the function takes a function type, and whether `t` is a molecule emitter.
-            if (isMolecule(t) || isReplyValue(t)) {
-              // In that case, the molecule could be emitted zero or more times.
-              outputMolecules.append((t.asInstanceOf[Tree].symbol, OtherOutputPatternF, outputEnv.toList))
-            } else
-              traverse(t.asInstanceOf[Tree])
+          if args.nonEmpty =>
+          val fullName = f.asInstanceOf[Tree].symbol.fullName
+          if (onceOnlyFunctionCodes.contains(fullName))
+          // The function is one of the known once-only evaluating functions such as Some(), List(), etc.
+          // In that case, we don't need to do anything special - just traverse the tree and harvest the molecules normally.
+            super.traverse(tree)
+
+          else {
+            traverse(f.asInstanceOf[Tree])
+            renewOutputEnvId()
+            val isIterating = iteratingFunctionCodes.contains(fullName)
+            val newEnv =
+              if (isIterating) {
+                FuncBlock(currentOutputEnvId, name = fullName)
+              } else {
+                FuncBlock(currentOutputEnvId, name = fullName)
+              }
+            outputEnv.push(newEnv)
+
+            args.foreach { t =>
+              // Detect whether the function takes a function type, and whether `t` is a molecule emitter.
+              if (isIterating && (isMolecule(t) || isReplyValue(t))) {
+                // In that case, the molecule could be emitted zero or more times.
+                outputMolecules.append((t.asInstanceOf[Tree].symbol, OtherOutputPatternF, outputEnv.toList))
+              } else
+                traverse(t.asInstanceOf[Tree])
+            }
+            finishTraverseWithOutputEnv()
           }
-          finishTraverseWithOutputEnv()
 
         case _ => super.traverse(tree)
       }
@@ -643,8 +664,6 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       q"_root_.code.chymyst.jc.FuncLambda($id)"
     case AtLeastOneEmitted(id, name) =>
       q"_root_.code.chymyst.jc.AtLeastOneEmitted($id, $name)"
-    case ZeroOrMoreEmitted(id, name) =>
-      q"_root_.code.chymyst.jc.ZeroOrMoreEmitted($id, $name)"
   }
 
   /** Build an error message about incorrect usage of chemical notation.
