@@ -1056,7 +1056,7 @@ One receiver is available to process one of these calls at a time.
 
 TODO
 
-## Concurrent recursive traversal
+## Concurrent recursive traversal ("fork/join")
 
 TODO
 
