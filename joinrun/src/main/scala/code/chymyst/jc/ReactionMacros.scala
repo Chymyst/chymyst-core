@@ -355,12 +355,17 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       moleculesInBinder = mutable.ArrayBuffer()
       traversingBinderNow = false
 
-      outputEnvId = 0
+      lastOutputEnvId = 0
       outputEnv = mutable.Stack()
 
       traverse(reactionPart)
 
       (inputMolecules.toList, outputMolecules.toList, replyActions.toList, moleculesInBinder.toList)
+    }
+
+    private def renewOutputEnvId(): Unit = {
+      lastOutputEnvId += 1
+      currentOutputEnvId = lastOutputEnvId
     }
 
     private var traversingBinderNow: Boolean = _
@@ -369,7 +374,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     private var outputMolecules: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])] = _
     private var replyActions: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])] = _
 
-    private var outputEnvId: Int = _
+    private var lastOutputEnvId: Int = 0
+    private var currentOutputEnvId: Int = 0
     private var outputEnv: mutable.Stack[OutputEnvironment] = _
 
     /** Detect whether the symbol `s` is defined inside the scope of the symbol `owner`.
@@ -420,8 +426,11 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     private def traverseWithOutputEnv(tree: Trees#Tree, env: OutputEnvironment): Unit = {
       outputEnv.push(env)
       traverse(tree.asInstanceOf[Tree])
-      outputEnv.pop()
-      ()
+      finishTraverseWithOutputEnv()
+    }
+
+    private def finishTraverseWithOutputEnv(): Unit = {
+      currentOutputEnvId = outputEnv.pop().id
     }
 
     override def traverse(tree: Tree): Unit = {
@@ -480,50 +489,60 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
             inputMolecules.append((t.symbol, WrongReplyVarF, None, getSha1(t)))
           */
 
+        // do-while construction
+        case q"do $body while($cond)" =>
+          renewOutputEnvId()
+          traverseWithOutputEnv(body, AtLeastOneEmitted(currentOutputEnvId, "do while"))
+          traverseWithOutputEnv(cond, AtLeastOneEmitted(currentOutputEnvId, "condition of do while"))
+
+        // while construction
+        case q"while($cond) $body" =>
+          renewOutputEnvId()
+          traverseWithOutputEnv(cond, AtLeastOneEmitted(currentOutputEnvId, "condition of while"))
+          traverseWithOutputEnv(body, ZeroOrMoreEmitted(currentOutputEnvId, "while"))
+
         // Anonymous function
         case q"(..$_) => $body" =>
-          outputEnvId += 1
-          traverseWithOutputEnv(body, FuncLambda(outputEnvId))
+          renewOutputEnvId()
+          traverseWithOutputEnv(body, FuncLambda(currentOutputEnvId))
 
         // if-then-else
         case q"if($cond) $clause0 else $clause1" =>
           traverse(cond.asInstanceOf[Tree])
-          outputEnvId += 1
-          traverseWithOutputEnv(clause0, ChooserBlock(outputEnvId, 0))
-          traverseWithOutputEnv(clause1, ChooserBlock(outputEnvId, 1))
+          renewOutputEnvId()
+          traverseWithOutputEnv(clause0, ChooserBlock(currentOutputEnvId, 0))
+          traverseWithOutputEnv(clause1, ChooserBlock(currentOutputEnvId, 1))
 
         // match-case
-        case q"$expr0 match { case ..$cases }" =>
-          traverse(expr0.asInstanceOf[Tree])
-          outputEnvId += 1
-          cases.zipWithIndex.foreach {
-            case (cq"$pat if $expr1 => $expr2", index) =>
-              outputEnv.push(ChooserBlock(outputEnvId, index))
-              traversingBinderNow = true
-              traverse(pat.asInstanceOf[Tree])
-              traverse(expr1.asInstanceOf[Tree])
-              traversingBinderNow = false
-              traverse(expr2.asInstanceOf[Tree])
-              outputEnv.pop()
+        case q"$matchExpr match { case ..$cases }" =>
+          traverse(matchExpr.asInstanceOf[Tree])
+          renewOutputEnvId()
+          cases.zipWithIndex.foreach { case (cq"$pat if $guardExpr => $bodyExpr", index) =>
+            outputEnv.push(ChooserBlock(currentOutputEnvId, index))
+            traversingBinderNow = true
+            traverse(pat.asInstanceOf[Tree])
+            traverse(guardExpr.asInstanceOf[Tree])
+            traversingBinderNow = false
+            traverse(bodyExpr.asInstanceOf[Tree])
+            finishTraverseWithOutputEnv()
           }
 
         // Anonymous partial function
         case q"{ case ..$cases }" =>
-          outputEnvId += 1
-          outputEnv.push(FuncLambda(outputEnvId))
-          outputEnvId += 1
+          renewOutputEnvId()
+          outputEnv.push(FuncLambda(currentOutputEnvId))
+          renewOutputEnvId()
           cases.zipWithIndex.foreach {
             case (cq"$pat if $expr1 => $expr2", index) =>
-              outputEnv.push(ChooserBlock(outputEnvId, index))
+              outputEnv.push(ChooserBlock(currentOutputEnvId, index))
               traversingBinderNow = true
               traverse(pat.asInstanceOf[Tree])
               traverse(expr1.asInstanceOf[Tree])
               traversingBinderNow = false
               traverse(expr2.asInstanceOf[Tree])
-              outputEnv.pop()
+              finishTraverseWithOutputEnv()
           }
-          outputEnv.pop()
-          ()
+          finishTraverseWithOutputEnv()
 
         // possibly a molecule emission, but could be any function call
         case Apply(Select(t@Ident(TermName(name)), TermName(f)), argumentList)
@@ -539,11 +558,10 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
             if (thisSymbolIsAMolecule || thisSymbolIsAReply) {
               argumentList.foreach(traverse)
             } else {
-              outputEnvId += 1
-              outputEnv.push(FuncBlock(outputEnvId, name = s"$name.$f"))
+              renewOutputEnvId()
+              outputEnv.push(FuncBlock(currentOutputEnvId, name = s"$name###$f"))
               argumentList.foreach(traverse)
-              outputEnv.pop()
-              ()
+              finishTraverseWithOutputEnv()
             }
           }
 
@@ -565,14 +583,12 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         case q"$f[..$_](..$args)"
           if args.nonEmpty && !eagerFunctionCodes.contains(f.symbol.asTerm.fullName) =>
           traverse(f.asInstanceOf[Tree])
-          outputEnvId += 1
-          outputEnv.push(FuncBlock(outputEnvId, name = f.asInstanceOf[Tree].symbol.fullName))
+          renewOutputEnvId()
+          outputEnv.push(FuncBlock(currentOutputEnvId, name = f.asInstanceOf[Tree].symbol.fullName))
           args.foreach(t => traverse(t.asInstanceOf[Tree]))
-          outputEnv.pop()
-          ()
+          finishTraverseWithOutputEnv()
 
         case _ => super.traverse(tree)
-
       }
     }
   }
@@ -614,6 +630,10 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       q"_root_.code.chymyst.jc.FuncBlock($id, $name)"
     case FuncLambda(id) =>
       q"_root_.code.chymyst.jc.FuncLambda($id)"
+    case AtLeastOneEmitted(id, name) =>
+      q"_root_.code.chymyst.jc.AtLeastOneEmitted($id, $name)"
+    case ZeroOrMoreEmitted(id, name) =>
+      q"_root_.code.chymyst.jc.ZeroOrMoreEmitted($id, $name)"
   }
 
   /** Build an error message about incorrect usage of chemical notation.

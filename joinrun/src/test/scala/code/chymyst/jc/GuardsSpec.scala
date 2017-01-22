@@ -6,6 +6,15 @@ class GuardsSpec extends FlatSpec with Matchers {
 
   behavior of "miscellaneous"
 
+  it should "detect molecules emitted in foreach blocks with short apply syntax" in {
+    val a = m[Int]
+    val c = m[Int]
+
+    val r = go { case a(x) => if (x > 0) (1 to 10).foreach(c) }
+
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(_, 0), FuncBlock(_, "foreach")) => }
+  }
+
   it should "correctly recognize constants of various kinds" in {
     val a = m[Either[Int, String]]
     val bb = m[scala.Symbol]
