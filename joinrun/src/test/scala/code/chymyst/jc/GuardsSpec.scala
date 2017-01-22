@@ -204,6 +204,16 @@ class GuardsSpec extends FlatSpec with Matchers {
     reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List('x, 'y, 'z, 't), true) => }
   }
 
+  it should "compute reaction info with alternative irrefutable matcher" in {
+    val a = m[(Int, Int)]
+
+    val reaction = go { case a((_, _) | (_, _)) => }
+
+    reaction.info.guardPresence should matchPattern { case AllMatchersAreTrivial => }
+
+    reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List(), true) => }
+  }
+
   it should "recognize a guard condition with captured non-molecule variables" in {
     val a = m[Int]
 
