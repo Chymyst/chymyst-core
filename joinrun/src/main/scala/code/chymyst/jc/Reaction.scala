@@ -84,8 +84,6 @@ final case class FuncLambda(id: Int) extends OutputEnvironment
 
 final case class AtLeastOneEmitted(id: Int, name: String) extends OutputEnvironment
 
-final case class ZeroOrMoreEmitted(id: Int, name: String) extends OutputEnvironment
-
 /** Indicates whether a reaction has a guard condition.
   *
   */

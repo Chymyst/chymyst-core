@@ -676,6 +676,17 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }
   }
 
+  it should "detect molecules emitted in map blocks with short syntax" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    val r = go { case a(x) => (1 to 10).map(c).sum }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(FuncBlock(3, "scala.collection.TraversableLike.map")) =>
+    }
+  }
+
   it should "detect molecules emitted in arguments of other molecules" in {
     val a = m[Int]
     val c = b[Int, Int]
