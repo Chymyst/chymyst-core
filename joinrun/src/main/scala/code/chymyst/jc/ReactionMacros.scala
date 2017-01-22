@@ -657,6 +657,13 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       q"_root_.code.chymyst.jc.OtherOutputPattern"
   }
 
+  implicit val liftableOutputPatternType: Liftable[OutputPatternType] = Liftable[OutputPatternType] {
+    case SimpleConstOutput(v) =>
+      q"_root_.code.chymyst.jc.SimpleConstOutput(${v.asInstanceOf[Tree]})" // When we lift it here, it always has type `Tree`.
+    case OtherOutputPattern =>
+      q"_root_.code.chymyst.jc.OtherOutputPattern"
+  }
+
   implicit val liftableOutputEnvironment: Liftable[OutputEnvironment] = Liftable[OutputEnvironment] {
     case ChooserBlock(id, clause, total) =>
       q"_root_.code.chymyst.jc.ChooserBlock($id, $clause, $total)"

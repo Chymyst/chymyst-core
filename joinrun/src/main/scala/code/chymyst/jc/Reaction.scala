@@ -58,11 +58,26 @@ final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: Li
 /** Represents the value pattern of an emitted output molecule.
   * We distinguish only constant value patterns and all other patterns.
   */
-sealed trait OutputPatternType
+sealed trait OutputPatternType {
+  val specificity: Int
 
-final case class SimpleConstOutput(v: Any) extends OutputPatternType
+  def merge(other: OutputPatternType): OutputPatternType = OtherOutputPattern
+}
 
-case object OtherOutputPattern extends OutputPatternType
+final case class SimpleConstOutput(v: Any) extends OutputPatternType {
+  override def merge(other: OutputPatternType): OutputPatternType = other match {
+    case SimpleConstOutput(`v`) =>
+      this
+    case _ =>
+      OtherOutputPattern
+  }
+
+  override val specificity = 0
+}
+
+case object OtherOutputPattern extends OutputPatternType {
+  override val specificity = 1
+}
 
 /** Describe the code environment within which an output molecule is being emitted.
   * Possible environments are [[ChooserBlock]] describing an `if` or `match` expression with clauses,
@@ -83,6 +98,8 @@ sealed trait OutputEnvironment {
     * @return The Id number of the output environment.
     */
   def id: Int
+
+  val shrinkable: Boolean = false
 }
 
 /** Describes a molecule emitted in a chooser clause, that is, in an `if-then-else` or `match-case` construct.
@@ -91,7 +108,10 @@ sealed trait OutputEnvironment {
   * @param clause Zero-based index of the clause.
   * @param total  Total number of clauses in the chooser constructs (2 for `if-then-else`, 2 or greater for `match-case`).
   */
-final case class ChooserBlock(id: Int, clause: Int, total: Int) extends OutputEnvironment
+final case class ChooserBlock(id: Int, clause: Int, total: Int) extends OutputEnvironment {
+  override val atLeastOne: Boolean = total === 1
+  override val shrinkable: Boolean = true
+}
 
 /** Describes a molecule emitted under a function call.
   *
@@ -113,6 +133,68 @@ final case class FuncLambda(id: Int) extends OutputEnvironment
   */
 final case class AtLeastOneEmitted(id: Int, name: String) extends OutputEnvironment {
   override val atLeastOne: Boolean = true
+  override val shrinkable: Boolean = true
+}
+
+private[jc] object OutputEnvironment {
+  private type OutputItem[T] = (T, OutputPatternType, List[OutputEnvironment])
+  private type OutputList[T] = List[OutputItem[T]]
+
+  private[jc] def shrink[T](outputs: OutputList[T]): OutputList[T] = {
+    outputs.foldLeft[(OutputList[T], OutputList[T])]((Nil, outputs)) { (accOutputs, outputInfo) =>
+      val (outputList, remaining) = accOutputs
+      if (remaining contains outputInfo) {
+        // TODO: make this algorithm general. Support all possible environments.
+        // In the `remaining`, find all other molecules of the same sort that could help us shrink `outputInfo`.
+        // Remove those molecules from `remaining`. Merge our flag with their flags.
+        // When we are done merging (can't shrink any more), add the new molecule info to `outputList`.
+
+        val newRemaining = remaining difff List(outputInfo)
+        // Is this molecule already assured? If so, skip it and continue.
+        val isAssured = outputInfo._3.forall(_.atLeastOne)
+        // Is this molecule shrinkable? If not, we have to skip it and continue.
+        val isShrinkable = outputInfo._3.forall(_.shrinkable)
+        if (isAssured || !isShrinkable) {
+          (outputList :+ outputInfo, newRemaining)
+        } else {
+          // First approximation to the full shrinkage algorithm: Only process one level of `ChooserBlock`.
+          outputInfo._3.headOption match {
+            case Some(ChooserBlock(id, clause, total)) if outputInfo._3.size === 1 =>
+              // Find all other output molecules with the same id of ChooserBlock. Include this molecule too (so we use `remaining` here, instead of `newRemaining`).
+              val others = remaining.filter { case (t, _, envs) =>
+                t === outputInfo._1 &&
+                  envs.headOption.exists(_.id === id) &&
+                  envs.size === 1
+              }.sortBy { case (_, outPattern, _) => outPattern.merge(outputInfo._2).specificity } // This will sort first by clause and then all other molecules that match us if they contain a constant, and then all others.
+              // The molecules in this list are now sorted. We expect to find `total` molecules.
+              // Go through the list in sorted order, removing molecules that have clause number 0, ..., total-1.
+              val res = (0 until total).flatFoldLeft[(OutputList[T], OutputPatternType)]((others, outputInfo._2)) { (acc, newClause) =>
+                val (othersRemaining, newFlag) = acc
+                val found = othersRemaining.find {
+                  case (t, _, List(ChooserBlock(_, `newClause`, `total`))) =>
+                    true;
+                  case _ =>
+                    false
+                }
+                // If `found` == None, we stop. Otherwise, we remove it from `othersRemaining` and merge the obtained flag into `newFlag`.
+                found map {
+                  case item@(t, outputPattern, _) => (othersRemaining difff List(item), newFlag.merge(outputPattern))
+                }
+              }
+              res match {
+                case None =>
+                  (outputList :+ outputInfo, newRemaining)
+                case Some((newRemainingOut, newFlag)) => // New output info contains an empty env since we shrank everything.
+                  (outputList :+ ((outputInfo._1, newFlag, List())), newRemainingOut)
+              }
+            case _ =>
+              (outputList :+ outputInfo, newRemaining)
+          }
+        }
+      } else // This molecule has been used already while shrinking others, so we just skip it and go on.
+        accOutputs
+    }._1
+  }
 }
 
 /** Indicates whether a reaction has a guard condition.
@@ -347,7 +429,7 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType,
 }
 
 // This class is immutable.
-final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[OutputMoleculeInfo], guardPresence: GuardPresenceFlag, sha1: String) {
+final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[OutputMoleculeInfo], shrunkOutputs: Array[OutputMoleculeInfo], guardPresence: GuardPresenceFlag, sha1: String) {
 
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
