@@ -71,6 +71,10 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     case pq"(..$exprs)"
       if exprs.size >= 2 =>
       exprs.forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
+    case pq"$first | ..$rest"
+      if rest.nonEmpty =>
+      (first :: rest.toList).forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
+
     case _ => false
   }
 
