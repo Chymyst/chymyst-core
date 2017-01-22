@@ -83,6 +83,13 @@ sealed trait OutputEnvironment {
     * @return The Id number of the output environment.
     */
   def id: Int
+
+  /** Describes the minimum guaranteed fraction of cases in which the molecule will be emitted.
+    * Exact rational fractions are used.
+    * For example, `if(x>0) a(x)` will yield the value 1/2 represented as `FractionInt(1, 2)`.
+    * A `match-case` construct with 3 case clauses will yield values 1/3 for each molecule emitted in one of the clauses.
+    */
+  val fraction: FractionInt = FractionInt.fromInt(0)
 }
 
 /** Describes a molecule emitted in a chooser clause, that is, in an `if-then-else` or `match-case` construct.
@@ -91,7 +98,9 @@ sealed trait OutputEnvironment {
   * @param clause Zero-based index of the clause.
   * @param total  Total number of clauses in the chooser constructs (2 for `if-then-else`, 2 or greater for `match-case`).
   */
-final case class ChooserBlock(id: Int, clause: Int, total: Int) extends OutputEnvironment
+final case class ChooserBlock(id: Int, clause: Int, total: Int) extends OutputEnvironment {
+  override val fraction: FractionInt = FractionInt(1, total)
+}
 
 /** Describes a molecule emitted under a function call.
   *
@@ -113,6 +122,7 @@ final case class FuncLambda(id: Int) extends OutputEnvironment
   */
 final case class AtLeastOneEmitted(id: Int, name: String) extends OutputEnvironment {
   override val atLeastOne: Boolean = true
+  override val fraction: FractionInt = FractionInt.fromInt(1)
 }
 
 /** Indicates whether a reaction has a guard condition.
