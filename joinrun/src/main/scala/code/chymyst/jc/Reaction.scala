@@ -61,16 +61,17 @@ final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: Li
 sealed trait OutputPatternType {
   val specificity: Int
 
-  def merge(other: OutputPatternType): OutputPatternType = OtherOutputPattern
+  def merge(other: OutputPatternType)(equals: (Any, Any) => Boolean = (a, b) => a === b): OutputPatternType = OtherOutputPattern
 }
 
 final case class SimpleConstOutput(v: Any) extends OutputPatternType {
-  override def merge(other: OutputPatternType): OutputPatternType = other match {
-    case SimpleConstOutput(c) if c === v =>
-      this
-    case _ =>
-      OtherOutputPattern
-  }
+  override def merge(other: OutputPatternType)(equals: (Any, Any) => Boolean = (a, b) => a === b): OutputPatternType =
+    other match {
+      case SimpleConstOutput(c) if equals(c, v) =>
+        this
+      case _ =>
+        OtherOutputPattern
+    }
 
   override val specificity = 0
 }
@@ -140,7 +141,7 @@ private[jc] object OutputEnvironment {
   private[jc] type OutputItem[T] = (T, OutputPatternType, List[OutputEnvironment])
   private[jc] type OutputList[T] = List[OutputItem[T]]
 
-  private[jc] def shrink[T](outputs: OutputList[T]): OutputList[T] = {
+  private[jc] def shrink[T](outputs: OutputList[T], equals: (Any, Any) => Boolean = (a, b) => a === b): OutputList[T] = {
     outputs.foldLeft[(OutputList[T], OutputList[T])]((Nil, outputs)) { (accOutputs, outputInfo) =>
       val (outputList, remaining) = accOutputs
       if (remaining contains outputInfo) {
@@ -165,7 +166,7 @@ private[jc] object OutputEnvironment {
                 t === outputInfo._1 &&
                   envs.headOption.exists(_.id === id) &&
                   envs.size === 1
-              }.sortBy { case (_, outPattern, _) => outPattern.merge(outputInfo._2).specificity }
+              }.sortBy { case (_, outPattern, _) => outPattern.merge(outputInfo._2)(equals).specificity }
               // This will sort first by clause and then all other molecules that match us if they contain a constant, and then all others.
               // The molecules in this list are now sorted. We expect to find `total` molecules.
               // Go through the list in sorted order, removing molecules that have clause number 0, ..., total-1.
@@ -179,7 +180,7 @@ private[jc] object OutputEnvironment {
                 }
                 // If `found` == None, we stop. Otherwise, we remove it from `othersRemaining` and merge the obtained flag into `newFlag`.
                 found map {
-                  case item@(t, outputPattern, _) => (othersRemaining difff List(item), newFlag.merge(outputPattern))
+                  case item@(t, outputPattern, _) => (othersRemaining difff List(item), newFlag.merge(outputPattern)(equals))
                 }
               }
               res match {

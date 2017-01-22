@@ -257,7 +257,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     }
     thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction {a(1) => a(1)}"
   }
-/* TODO: this should pass
+
   it should "detect livelock in a simple reaction due to if-then-else shrinkage" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
@@ -267,7 +267,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     }
     thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction {a(x if ?) => a(1) + a(1)}"
   }
-*/
+
   it should "detect livelock warning in a simple reaction due to if-then-else" in {
     val a = m[Int]
     val result = site(
@@ -276,12 +276,15 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) => a(1)}"), List(), "Site{a => ...}")
   }
 
-  it should "detect livelock warning in a simple reaction due to constant output values and if-then-else shrinkage" in {
+  it should "detect livelock error in a simple reaction due to constant output values and perfect if-then-else shrinkage" in {
     val a = m[(Int, Int)]
-    val result = site(
-      go { case a((1, x)) => if (x > 0) a((1, 2)) else a((1, 2)) }
-    )
-    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(?x) => a((1,2)) + a((1,2))}"), List(), "Site{a => ...}")
+    val thrown = intercept[Exception] {
+      val result = site(
+        go { case a((1, x)) => if (x > 0) a((1, 2)) else a((1, 2)) }
+      )// If this test fails because of no exception, it means this `shouldEqual` passes, so a warning was generated instead of an error.
+      result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(?x) => a((1,2)) + a((1,2))}"), List(), "Site{a => ...}")
+    }
+    thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction {a(?x) => a((1,2)) + a((1,2))}"
   }
 
   it should "detect livelock warning in a simple reaction due to constant output values despite if-then-else shrinkage" in {
