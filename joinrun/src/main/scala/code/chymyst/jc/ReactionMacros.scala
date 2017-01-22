@@ -698,7 +698,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   def equalsInMacro(a: Any, b: Any): Boolean = a match {
     case x: Tree => x.equalsStructure(b.asInstanceOf[Tree])
-    case _ => a === b
+//    case _ => a === b  // this is never used
   }
 
   /* This code has been commented out after a lengthy but fruitless exploration of valid ways of modifying the reaction body.

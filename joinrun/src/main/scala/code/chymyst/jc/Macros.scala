@@ -366,6 +366,9 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
         }.map(_._1)
       ).isEmpty
 
+    // We can detect unconditional livelock at compile time only if no conditions need to be evaluated against e.g. some constant values.
+    // That is, only if all matchers are trivial, and if the guard is absent.
+    // Then it is sufficient to take the shrunk output info list and to see whether enough output molecules are present to cover all input molecules.
     if (isGuardAbsent && allInputMatchersAreTrivial && inputMoleculesAreSubsetOfOutputMolecules) {
       maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
     }
