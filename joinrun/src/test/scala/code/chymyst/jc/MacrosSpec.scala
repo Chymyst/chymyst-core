@@ -635,7 +635,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val a = m[Int]
     val c = m[Unit]
     val d = m[Unit]
-    val r = go { case a(x) => if (x > 0) c() else d(); if (x<0) c() else d() }
+    val r = go { case a(x) => if (x > 0) c() else d(); if (x < 0) c() else d() }
 
     r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0)) => }
     r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(2, 1)) => }
@@ -660,7 +660,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val r = go { case a(x) => if (x > 0) (1 to 10).foreach(c) }
 
-    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(_, 0), FuncBlock(_, "foreach")) => }
+    r.info.outputs(0).environments should matchPattern {
+      case List(ChooserBlock(2, 0), FuncBlock(5, "scala.collection.immutable.Range.foreach")) =>
+    }
   }
 
   it should "detect molecules emitted in map blocks" in {
@@ -724,7 +726,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
     }
 
-    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0), ChooserBlock(4, 0)) => }
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0), AtLeastOneEmitted(3, "condition of while")) => }
   }
 
   it should "detect molecules emitted in do-while loops" in {

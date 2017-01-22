@@ -46,7 +46,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   private val seqConstantExtractorHeads = Set("scala.collection.generic.SeqFactory.unapplySeq")
 
-  private val eagerFunctionCodes = constantApplierCodes ++ Set(
+  private val onceOnlyFunctionCodes = constantApplierCodes ++ Set(
     "code.chymyst.jc.EmitMultiple",
     "code.chymyst.jc.EmitMultiple.$plus"
   )
@@ -433,6 +433,10 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       currentOutputEnvId = outputEnv.pop().id
     }
 
+    private def isMolecule(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< typeOf[Molecule]
+
+    private def isReplyValue(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< weakTypeOf[AbsReplyValue[_, _]]
+
     override def traverse(tree: Tree): Unit = {
       tree match {
         // avoid traversing nested reactions: check whether this subtree is a Reaction() value
@@ -550,8 +554,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
           // In the output list, we do not include any molecule emitters defined in the inner scope of the reaction.
           val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
-          val thisSymbolIsAMolecule = t.tpe <:< typeOf[Molecule]
-          val thisSymbolIsAReply = t.tpe <:< weakTypeOf[AbsReplyValue[_, _]]
+          val thisSymbolIsAMolecule = isMolecule(t)
+          val thisSymbolIsAReply = isReplyValue(t)
           val flag1 = getOutputFlag(argumentList)
           if (flag1.needTraversal) {
             // Traverse the trees of the argument list elements (molecules should only have one argument anyway).
@@ -579,13 +583,20 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           if args.size >= 2 =>
           args.foreach(t => traverse(t.asInstanceOf[Tree]))
 
-        // other function applications
+        // other function applications that are not one of the known once-only evaluating functions such as Some(), List(), etc.
         case q"$f[..$_](..$args)"
-          if args.nonEmpty && !eagerFunctionCodes.contains(f.symbol.asTerm.fullName) =>
+          if args.nonEmpty && !onceOnlyFunctionCodes.contains(f.symbol.asTerm.fullName) =>
           traverse(f.asInstanceOf[Tree])
           renewOutputEnvId()
           outputEnv.push(FuncBlock(currentOutputEnvId, name = f.asInstanceOf[Tree].symbol.fullName))
-          args.foreach(t => traverse(t.asInstanceOf[Tree]))
+          args.foreach { t =>
+            // Detect whether the function takes a function type, and whether `t` is a molecule emitter.
+            if (isMolecule(t) || isReplyValue(t)) {
+              // In that case, the molecule could be emitted zero or more times.
+              outputMolecules.append((t.asInstanceOf[Tree].symbol, OtherOutputPatternF, outputEnv.toList))
+            } else
+              traverse(t.asInstanceOf[Tree])
+          }
           finishTraverseWithOutputEnv()
 
         case _ => super.traverse(tree)
