@@ -61,16 +61,17 @@ final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: Li
 sealed trait OutputPatternType {
   val specificity: Int
 
-  def merge(other: OutputPatternType): OutputPatternType = OtherOutputPattern
+  def merge(other: OutputPatternType)(equals: (Any, Any) => Boolean = (a, b) => a === b): OutputPatternType = OtherOutputPattern
 }
 
 final case class SimpleConstOutput(v: Any) extends OutputPatternType {
-  override def merge(other: OutputPatternType): OutputPatternType = other match {
-    case SimpleConstOutput(`v`) =>
-      this
-    case _ =>
-      OtherOutputPattern
-  }
+  override def merge(other: OutputPatternType)(equals: (Any, Any) => Boolean = (a, b) => a === b): OutputPatternType =
+    other match {
+      case SimpleConstOutput(c) if equals(c, v) =>
+        this
+      case _ =>
+        OtherOutputPattern
+    }
 
   override val specificity = 0
 }
@@ -137,10 +138,10 @@ final case class AtLeastOneEmitted(id: Int, name: String) extends OutputEnvironm
 }
 
 private[jc] object OutputEnvironment {
-  private type OutputItem[T] = (T, OutputPatternType, List[OutputEnvironment])
-  private type OutputList[T] = List[OutputItem[T]]
+  private[jc] type OutputItem[T] = (T, OutputPatternType, List[OutputEnvironment])
+  private[jc] type OutputList[T] = List[OutputItem[T]]
 
-  private[jc] def shrink[T](outputs: OutputList[T]): OutputList[T] = {
+  private[jc] def shrink[T](outputs: OutputList[T], equals: (Any, Any) => Boolean = (a, b) => a === b): OutputList[T] = {
     outputs.foldLeft[(OutputList[T], OutputList[T])]((Nil, outputs)) { (accOutputs, outputInfo) =>
       val (outputList, remaining) = accOutputs
       if (remaining contains outputInfo) {
@@ -165,7 +166,7 @@ private[jc] object OutputEnvironment {
                 t === outputInfo._1 &&
                   envs.headOption.exists(_.id === id) &&
                   envs.size === 1
-              }.sortBy { case (_, outPattern, _) => outPattern.merge(outputInfo._2).specificity }
+              }.sortBy { case (_, outPattern, _) => outPattern.merge(outputInfo._2)(equals).specificity }
               // This will sort first by clause and then all other molecules that match us if they contain a constant, and then all others.
               // The molecules in this list are now sorted. We expect to find `total` molecules.
               // Go through the list in sorted order, removing molecules that have clause number 0, ..., total-1.
@@ -179,7 +180,7 @@ private[jc] object OutputEnvironment {
                 }
                 // If `found` == None, we stop. Otherwise, we remove it from `othersRemaining` and merge the obtained flag into `newFlag`.
                 found map {
-                  case item@(t, outputPattern, _) => (othersRemaining difff List(item), newFlag.merge(outputPattern))
+                  case item@(t, outputPattern, _) => (othersRemaining difff List(item), newFlag.merge(outputPattern)(equals))
                 }
               }
               res match {
@@ -626,16 +627,17 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
     if (info.guardPresence.staticGuardFails)
       None
     else {
-      // For each input molecule used by the reaction, find a random value of this molecule and evaluate the conditional.
-      val inputMoleculeInfos = info.inputsSorted
+      // For each input molecule used by the reaction, find all suitable values of this molecule that fit the conditional.
+      // This builds a sequence of possible molecule sets for this reaction.
+      // Then evaluate cross-guards and filter this sequence. Take `headOption` of the resulting sequence.
 
       // Map of molecule values for molecules that are inputs to this reaction.
       val initRelevantMap = moleculesPresent.getMap.filterKeys(m => inputMoleculesSet.contains(m))
 
-      // A simpler, non-flatMap algorithm for the case when all matchers are trivial.
+      // A simpler, non-flatMap algorithm for the case when there are no cross-dependencies of molecule values.
       val foundResult: Option[Map[Int, AbsMolValue[_]]] =
         if (info.crossGuards.isEmpty && info.crossConditionals.isEmpty) {
-          inputMoleculeInfos.flatFoldLeft[(Map[Int, AbsMolValue[_]], BagMap)]((Map(), initRelevantMap)) { (prev, inputInfo) =>
+          info.inputsSorted.flatFoldLeft[(Map[Int, AbsMolValue[_]], BagMap)]((Map(), initRelevantMap)) { (prev, inputInfo) =>
             // Since we are in a flatFoldLeft, we need to return Some(...) if we found a new value, or else return None.
             val (prevValues, prevRelevantMap) = prev
             val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
@@ -646,11 +648,11 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
                 val newValues = prevValues.updated(inputInfo.index, newMolValue)
                 (newValues, newRelevantMap)
               }
-          }.map(_._1) // Get rid of BagMap and tuple.
+          }.map(_._1) // Now remove BagMap, and only `Option[Map[Int, AbsMolValue[_]]]` is left.
         } else {
-          // TODO: only use the `flatMap-fold` separately for the clusters of interdependent molecules
+          // TODO: only use the `flatMap-fold` separately for the clusters of interdependent molecules, not always for all molecules!
           val found: Stream[Map[Int, AbsMolValue[_]]] =
-            inputMoleculeInfos.toStream
+            info.inputsSorted // We go through all molecules in the order of decreasing strength of conditionals.
               .foldLeft[Stream[(Map[Int, AbsMolValue[_]], BagMap)]](Stream((Map(), initRelevantMap))) { (prev, inputInfo) =>
               // In this `foldLeft` closure:
               // `prev` contains the molecule value assignments we have found so far (`prevValues`), as well as the map `prevRelevantMap` containing molecule values that would remain in the soup after these previous molecule values were removed.
