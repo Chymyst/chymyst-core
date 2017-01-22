@@ -43,8 +43,8 @@ private[jc] object StaticAnalysis {
     }.nonEmpty
   }
 
-  private def inputMatchersAreWeakerThanOutput(input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean =
-    inputMatchersWeakerThanOutput((inputInfo, outputInfo) => inputInfo.matcherIsWeakerThanOutput(outputInfo))(input, output)
+  private def inputMatchersSurelyWeakerThanOutput(input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean =
+    inputMatchersWeakerThanOutput((inputInfo, outputInfo) => inputInfo.matcherIsWeakerThanOutput(outputInfo))(input, output.filter(_.atLeastOnce))
 
   private def inputMatchersAreSimilarToOutput(input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean =
     inputMatchersWeakerThanOutput((inputInfo, outputInfo) => inputInfo.matcherIsSimilarToOutput(outputInfo))(input, output)
@@ -81,7 +81,7 @@ private[jc] object StaticAnalysis {
 
   private def checkSingleReactionLivelock(reactions: Seq[Reaction]): Option[String] = {
     val errorList = reactions
-      .filter { r => r.info.guardPresence.effectivelyAbsent && inputMatchersAreWeakerThanOutput(r.info.inputsSorted, r.info.outputs) }
+      .filter { r => r.info.guardPresence.effectivelyAbsent && inputMatchersSurelyWeakerThanOutput(r.info.inputsSorted, r.info.shrunkOutputs) }
       .map(r => s"{${r.info.toString}}")
     if (errorList.nonEmpty)
       Some(s"Unavoidable livelock: reaction${if (errorList.size == 1) "" else "s"} ${errorList.mkString(", ")}")
