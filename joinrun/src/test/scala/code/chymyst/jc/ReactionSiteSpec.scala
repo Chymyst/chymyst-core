@@ -101,7 +101,8 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   it should "shrink empty lists" in {
     val outputs = Nil
     val expectedShrunkOutputs = Nil
-    OutputEnvironment.shrink[Int](outputs) shouldEqual expectedShrunkOutputs
+    val result = OutputEnvironment.shrink[Int](outputs)
+    result shouldEqual expectedShrunkOutputs
   }
 
   it should "shrink if-then-else to unconditional with OtherOutputPattern" in {

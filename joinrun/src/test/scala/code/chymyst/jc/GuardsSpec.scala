@@ -207,7 +207,7 @@ class GuardsSpec extends FlatSpec with Matchers {
   it should "compute reaction info with alternative irrefutable matcher" in {
     val a = m[(Int, Int)]
 
-    val reaction = go { case a((_,_) | (_,_)) => }
+    val reaction = go { case a((_, _) | (_, _)) => }
 
     reaction.info.guardPresence should matchPattern { case AllMatchersAreTrivial => }
 
