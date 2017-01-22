@@ -352,8 +352,12 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     val outputMolecules = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
 
     // Detect whether this reaction has a simple livelock:
-    // All input molecules have trivial matchers and are a subset of output molecules.
-    val inputMoleculesAreSubsetOfOutputMolecules = (patternIn.map(_._1) difff allOutputInfo.map(_._1)).isEmpty
+    // All input molecules have trivial matchers and are a subset of unconditionally emitted output molecules.
+    val inputMoleculesAreSubsetOfOutputMolecules = (patternIn.map(_._1) difff allOutputInfo
+      .filter {
+        case (_, _, envs) =>
+          envs.forall(_.atLeastOne)
+      }.map(_._1)).isEmpty
 
     if (isGuardAbsent && allInputMatchersAreTrivial && inputMoleculesAreSubsetOfOutputMolecules) {
       maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")

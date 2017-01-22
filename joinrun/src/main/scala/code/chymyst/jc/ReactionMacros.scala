@@ -520,15 +520,16 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         case q"if($cond) $clause0 else $clause1" =>
           traverse(cond.asInstanceOf[Tree])
           renewOutputEnvId()
-          traverseWithOutputEnv(clause0, ChooserBlock(currentOutputEnvId, 0))
-          traverseWithOutputEnv(clause1, ChooserBlock(currentOutputEnvId, 1))
+          traverseWithOutputEnv(clause0, ChooserBlock(currentOutputEnvId, 0, 2))
+          traverseWithOutputEnv(clause1, ChooserBlock(currentOutputEnvId, 1, 2))
 
         // match-case
-        case q"$matchExpr match { case ..$cases }" =>
+        case q"$matchExpr match { case ..$cases }" if cases.size >= 2 =>
           traverse(matchExpr.asInstanceOf[Tree])
           renewOutputEnvId()
+          val total = cases.size
           cases.zipWithIndex.foreach { case (cq"$pat if $guardExpr => $bodyExpr", index) =>
-            outputEnv.push(ChooserBlock(currentOutputEnvId, index))
+            outputEnv.push(ChooserBlock(currentOutputEnvId, index, total))
             traversingBinderNow = true
             traverse(pat.asInstanceOf[Tree])
             traverse(guardExpr.asInstanceOf[Tree])
@@ -542,9 +543,10 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           renewOutputEnvId()
           outputEnv.push(FuncLambda(currentOutputEnvId))
           renewOutputEnvId()
+          val total = cases.size
           cases.zipWithIndex.foreach {
             case (cq"$pat if $expr1 => $expr2", index) =>
-              outputEnv.push(ChooserBlock(currentOutputEnvId, index))
+              outputEnv.push(ChooserBlock(currentOutputEnvId, index, total))
               traversingBinderNow = true
               traverse(pat.asInstanceOf[Tree])
               traverse(expr1.asInstanceOf[Tree])
@@ -657,8 +659,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   }
 
   implicit val liftableOutputEnvironment: Liftable[OutputEnvironment] = Liftable[OutputEnvironment] {
-    case ChooserBlock(id, clause) =>
-      q"_root_.code.chymyst.jc.ChooserBlock($id, $clause)"
+    case ChooserBlock(id, clause, total) =>
+      q"_root_.code.chymyst.jc.ChooserBlock($id, $clause, $total)"
     case FuncBlock(id, name) =>
       q"_root_.code.chymyst.jc.FuncBlock($id, $name)"
     case FuncLambda(id) =>
