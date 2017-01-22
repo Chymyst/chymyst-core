@@ -442,6 +442,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     private def isReplyValue(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< weakTypeOf[AbsReplyValue[_, _]]
 
+    @SuppressWarnings(Array("org.wartremover.warts.Equals"))
     override def traverse(tree: Tree): Unit = {
       tree match {
         // avoid traversing nested reactions: check whether this subtree is a Reaction() value
