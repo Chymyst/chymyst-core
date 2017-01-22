@@ -159,15 +159,15 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     "val r = go { case a((_,x)) => a((x,x)) }" shouldNot compile
     "val r = go { case a((1,_)) => a((1,1)) }" should compile // cannot detect unconditional livelock here at compile time, since we can't evaluate the binder yet
     "val r = go { case bb(x) if x > 0 => bb(1) }" should compile // no unconditional livelock due to guard
+    "val r = go { case bb(x) =>  if (x > 0) bb(1) }" should compile // no unconditional livelock due to `if` in reaction
+    "val r = go { case bb(x) =>  if (x > 0) bbb(1) else bb(2) }" should compile // no unconditional livelock due to `if` in reaction
+    "val r = go { case bb(x) =>  if (x > 0) bb(1) else bb(2) }" shouldNot compile // unconditional livelock due to shrinkage of `if` in reaction
     "val r = go { case bbb(1) => bbb(2) }" should compile // no unconditional livelock
-
     "val r = go { case bb(x) => bb(1) }" shouldNot compile // unconditional livelock
-
     "val r = go { case a(_) => a((1,1)) }" shouldNot compile // unconditional livelock
-
     "val r = go { case bbb(_) => bbb(0) }" shouldNot compile // unconditional livelock
-    "val r = go { case bbb(x) => bbb(x) + bb(x) }" shouldNot compile
-    "val r = go { case bbb(x) + bb(y) => bbb(x) + bb(x) + bb(y) }" shouldNot compile
+    "val r = go { case bbb(x) => bbb(x + 1) + bb(x) }" shouldNot compile
+    "val r = go { case bbb(x) + bb(y) => bbb(x + 1) + bb(x) + bb(y + 1) }" shouldNot compile
   }
 
   it should "inspect a pattern with a compound constant" in {
