@@ -73,16 +73,47 @@ case object OtherOutputPattern extends OutputPatternType
   * and `(x) => a(x)` is a [[FuncLambda]] environment.
   */
 sealed trait OutputEnvironment {
+  /** This is to `true` if the output environment is guaranteed to emit the molecule at least once.
+    * This is `false` for most environments.
+    */
+  val atLeastOne: Boolean = false
+
+  /** Each output environment is identified by an integer Id number.
+    *
+    * @return The Id number of the output environment.
+    */
   def id: Int
 }
 
-final case class ChooserBlock(id: Int, clause: Int) extends OutputEnvironment
+/** Describes a molecule emitted in a chooser clause, that is, in an `if-then-else` or `match-case` construct.
+  *
+  * @param id     Id of the chooser construct.
+  * @param clause Zero-based index of the clause.
+  * @param total  Total number of clauses in the chooser constructs (2 for `if-then-else`, 2 or greater for `match-case`).
+  */
+final case class ChooserBlock(id: Int, clause: Int, total: Int) extends OutputEnvironment
 
+/** Describes a molecule emitted under a function call.
+  *
+  * @param id   Id of the function call construct.
+  * @param name Fully qualified name of the function call, for example `"scala.collection.TraversableLike.map"`.
+  */
 final case class FuncBlock(id: Int, name: String) extends OutputEnvironment
 
+/** Describes a molecule emitted under an anonymous function.
+  *
+  * @param id Id of the anonymous function construct.
+  */
 final case class FuncLambda(id: Int) extends OutputEnvironment
 
-final case class AtLeastOneEmitted(id: Int, name: String) extends OutputEnvironment
+/** Describes an output environment that is guaranteed to emit the molecule at least once. This is currently used only in a do-while construct.
+  *
+  * @param id   Id of the output environment construct.
+  * @param name Name of the construct: one of `"do while"`, `"condition of while"`, or `"condition of do while"`.
+  */
+final case class AtLeastOneEmitted(id: Int, name: String) extends OutputEnvironment {
+  override val atLeastOne: Boolean = true
+}
 
 /** Indicates whether a reaction has a guard condition.
   *
@@ -215,18 +246,18 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
         Some(true)
       case SimpleVar(_, Some(matcher1)) =>
         info.flag match {
-        case SimpleConstOutput(c) =>
-          Some(matcher1.isDefinedAt(c))
-        case _ =>
-          None // Here we can't reliably determine whether this matcher is weaker.
-      }
+          case SimpleConstOutput(c) =>
+            Some(matcher1.isDefinedAt(c))
+          case _ =>
+            None // Here we can't reliably determine whether this matcher is weaker.
+        }
       case OtherInputPattern(matcher1, _, false) =>
         info.flag match {
-        case SimpleConstOutput(c) =>
-          Some(matcher1.isDefinedAt(c))
-        case _ =>
-          None // Here we can't reliably determine whether this matcher is weaker.
-      }
+          case SimpleConstOutput(c) =>
+            Some(matcher1.isDefinedAt(c))
+          case _ =>
+            None // Here we can't reliably determine whether this matcher is weaker.
+        }
       case SimpleConst(c) => info.flag match {
         case SimpleConstOutput(`c`) =>
           Some(true)
@@ -249,27 +280,27 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
         Some(true)
       case SimpleVar(_, Some(matcher1)) =>
         info.flag match {
-        case SimpleConstOutput(c) =>
-          Some(matcher1.isDefinedAt(c))
-        case _ =>
-          Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
-      }
+          case SimpleConstOutput(c) =>
+            Some(matcher1.isDefinedAt(c))
+          case _ =>
+            Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
+        }
       case OtherInputPattern(matcher1, _, false) =>
         info.flag match {
-        case SimpleConstOutput(c) =>
-          Some(matcher1.isDefinedAt(c))
-        case _ =>
-          Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
-      }
+          case SimpleConstOutput(c) =>
+            Some(matcher1.isDefinedAt(c))
+          case _ =>
+            Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
+        }
       case SimpleConst(c) =>
         Some(info.flag match {
-        case SimpleConstOutput(`c`) =>
-          true
-        case SimpleConstOutput(_) =>
-          false // definitely not the same constant
-        case _ =>
-          true // Otherwise, it could be this constant.
-      })
+          case SimpleConstOutput(`c`) =>
+            true
+          case SimpleConstOutput(_) =>
+            false // definitely not the same constant
+          case _ =>
+            true // Otherwise, it could be this constant.
+        })
     }
   }
 

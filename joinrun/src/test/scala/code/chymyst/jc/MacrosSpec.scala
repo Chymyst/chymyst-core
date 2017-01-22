@@ -268,7 +268,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }) shouldEqual true
     result.info.outputs should matchPattern { case Array(
     OutputMoleculeInfo(`a`, OtherOutputPattern, List()),
-    OutputMoleculeInfo(`a`, OtherOutputPattern, List(ChooserBlock(_, 0))),
+    OutputMoleculeInfo(`a`, OtherOutputPattern, List(ChooserBlock(_, 0, 2))),
     OutputMoleculeInfo(`qqq`, SimpleConstOutput(""), List())
     ) =>
     }
@@ -627,8 +627,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val d = m[Unit]
     val r = go { case a(x) => if (x > 0) c() else d() }
 
-    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(_, 0)) => }
-    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(_, 1)) => }
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(_, 0, 2)) => }
+    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(_, 1, 2)) => }
   }
 
   it should "detect molecules emitted in several if-then-else blocks" in {
@@ -637,10 +637,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val d = m[Unit]
     val r = go { case a(x) => if (x > 0) c() else d(); if (x < 0) c() else d() }
 
-    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0)) => }
-    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(2, 1)) => }
-    r.info.outputs(2).environments should matchPattern { case List(ChooserBlock(4, 0)) => }
-    r.info.outputs(3).environments should matchPattern { case List(ChooserBlock(4, 1)) => }
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0, 2)) => }
+    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(2, 1, 2)) => }
+    r.info.outputs(2).environments should matchPattern { case List(ChooserBlock(4, 0, 2)) => }
+    r.info.outputs(3).environments should matchPattern { case List(ChooserBlock(4, 1, 2)) => }
   }
 
   it should "detect molecules emitted in foreach blocks" in {
@@ -650,7 +650,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val r = go { case a(x) => if (x > 0) (1 to 10).foreach(i => c(i)) }
 
     r.info.outputs(0).environments should matchPattern {
-      case List(ChooserBlock(2, 0), FuncBlock(5, "scala.collection.immutable.Range.foreach"), FuncLambda(6)) =>
+      case List(ChooserBlock(2, 0, 2), FuncBlock(5, "scala.collection.immutable.Range.foreach"), FuncLambda(6)) =>
     }
   }
 
@@ -661,7 +661,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val r = go { case a(x) => if (x > 0) (1 to 10).foreach(c) }
 
     r.info.outputs(0).environments should matchPattern {
-      case List(ChooserBlock(2, 0), FuncBlock(5, "scala.collection.immutable.Range.foreach")) =>
+      case List(ChooserBlock(2, 0, 2), FuncBlock(5, "scala.collection.immutable.Range.foreach")) =>
     }
   }
 
@@ -672,7 +672,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val r = go { case a(x) => if (x > 0) (1 to 10).map(i => c(i)) }
 
     r.info.outputs(0).environments should matchPattern {
-      case List(ChooserBlock(2, 0), FuncBlock(5, "scala.collection.TraversableLike.map"), FuncLambda(6)) =>
+      case List(ChooserBlock(2, 0, 2), FuncBlock(5, "scala.collection.TraversableLike.map"), FuncLambda(6)) =>
     }
   }
 
@@ -693,8 +693,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val r = go { case a(x) => c(if (x > 0) c(x) else c(x + 1)) }
 
-    r.info.outputs(0).environments shouldEqual List(ChooserBlock(2, 0))
-    r.info.outputs(1).environments shouldEqual List(ChooserBlock(2, 1))
+    r.info.outputs(0).environments shouldEqual List(ChooserBlock(2, 0, 2))
+    r.info.outputs(1).environments shouldEqual List(ChooserBlock(2, 1, 2))
     r.info.outputs(2).environments shouldEqual List()
   }
 
@@ -718,7 +718,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val r = go { case a(x) => c(if (x > 0) f(c(x)) else c(x)) }
 
     r.info.outputs(0).environments should matchPattern {
-      case List(ChooserBlock(2, 0), FuncBlock(3, "code.chymyst.jc.MacrosSpec.f")) =>
+      case List(ChooserBlock(2, 0, 2), FuncBlock(3, "code.chymyst.jc.MacrosSpec.f")) =>
     }
   }
 
@@ -734,7 +734,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }
 
     r.info.outputs(0).environments should matchPattern {
-      case List(ChooserBlock(3, 0), FuncBlock(4, "code.chymyst.jc.MacrosSpec.$anonfun.f")) =>
+      case List(ChooserBlock(3, 0, 2), FuncBlock(4, "code.chymyst.jc.MacrosSpec.$anonfun.f")) =>
     }
   }
 
@@ -748,7 +748,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
     }
 
-    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0), AtLeastOneEmitted(3, "condition of while")) => }
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0, 2), AtLeastOneEmitted(3, "condition of while")) => }
   }
 
   it should "detect molecules emitted in do-while loops" in {
@@ -761,7 +761,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       } while (x > 0)
     }
 
-    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0), AtLeastOneEmitted(_, "do while")) => }
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0, 2), AtLeastOneEmitted(_, "do while")) => }
   }
 
   it should "detect molecules emitted in match-case blocks with nested if-then-else" in {
@@ -777,13 +777,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
     }
 
-    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(1, 0)) => }
-    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(1, 0), ChooserBlock(3, 0)) => }
-    r.info.outputs(2).environments should matchPattern { case List(ChooserBlock(1, 1)) => }
-    r.info.outputs(3).environments should matchPattern { case List(ChooserBlock(1, 2)) => }
-    r.info.outputs(4).environments should matchPattern { case List(ChooserBlock(1, 2), ChooserBlock(5, 0)) => }
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(1, 0, 3)) => }
+    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(1, 0, 3), ChooserBlock(3, 0, 2)) => }
+    r.info.outputs(2).environments should matchPattern { case List(ChooserBlock(1, 1, 3)) => }
+    r.info.outputs(3).environments should matchPattern { case List(ChooserBlock(1, 2, 3)) => }
+    r.info.outputs(4).environments should matchPattern { case List(ChooserBlock(1, 2, 3), ChooserBlock(5, 0, 2)) => }
     r.info.outputs(5).molecule shouldEqual c
-    r.info.outputs(5).environments should matchPattern { case List(ChooserBlock(1, 2), ChooserBlock(5, 1)) => }
+    r.info.outputs(5).environments should matchPattern { case List(ChooserBlock(1, 2, 3), ChooserBlock(5, 1, 2)) => }
   }
 
   it should "detect molecules emitted in anonymous functions" in {
@@ -805,7 +805,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
       pf(0)
     }
-    r.info.outputs(0).environments should matchPattern { case List(FuncLambda(1), ChooserBlock(2, 0)) => }
+    r.info.outputs(0).environments should matchPattern { case List(FuncLambda(1), ChooserBlock(2, 0, 1)) => }
   }
 
   behavior of "output value computation"
