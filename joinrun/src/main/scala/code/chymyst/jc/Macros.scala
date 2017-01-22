@@ -114,13 +114,17 @@ class CommonMacros(val c: blackbox.Context) {
     */
   sealed trait OutputPatternFlag {
     val needTraversal: Boolean = false
+    val patternType: OutputPatternType
   }
 
   case object OtherOutputPatternF extends OutputPatternFlag {
     override val needTraversal: Boolean = true
+    override val patternType: OutputPatternType = OtherOutputPattern
   }
 
-  final case class ConstOutputPatternF(v: Tree) extends OutputPatternFlag
+  final case class ConstOutputPatternF(v: Tree) extends OutputPatternFlag {
+    override val patternType: OutputPatternType = SimpleConstOutput(v)
+  }
 
 }
 
@@ -345,16 +349,22 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     // We do not try to examine the reaction body to determine which output molecules are always emitted.
     // However, the order of output molecules corresponds to the order in which they might be emitted.
     val allOutputInfo = bodyOut
-    // Neither the pattern nor the guard can emit output molecules.
+    // Output molecule info comes only from the body since neither the pattern nor the guard can emit output molecules.
     val outputMolecules = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
+
+    val outputMoleculeInfoMacro: List[(MacroSymbol, OutputPatternType, List[OutputEnvironment])] =
+      allOutputInfo.map { case (m, p, envs) => (m, p.patternType, envs) }
 
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of unconditionally emitted output molecules.
-    val inputMoleculesAreSubsetOfOutputMolecules = (patternIn.map(_._1) difff allOutputInfo
-      .filter {
-        case (_, _, envs) =>
-          envs.forall(_.atLeastOne)
-      }.map(_._1)).isEmpty
+    val shrunkOutputInfo = OutputEnvironment.shrink(outputMoleculeInfoMacro)
+    val shrunkOutputMolecules = shrunkOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
+    val inputMoleculesAreSubsetOfOutputMolecules = (
+      patternIn.map(_._1) difff
+        shrunkOutputInfo.filter {
+          case (_, _, envs) => envs.forall(_.atLeastOne)
+        }.map(_._1)
+      ).isEmpty
 
     if (isGuardAbsent && allInputMatchersAreTrivial && inputMoleculesAreSubsetOfOutputMolecules) {
       maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
@@ -369,7 +379,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     )
 
     // Prepare the ReactionInfo structure.
-    val result = q"Reaction(ReactionInfo($inputMolecules, $outputMolecules, $guardPresenceFlag, $reactionSha1), $reactionBody, None, false)"
+    val result = q"Reaction(ReactionInfo($inputMolecules, $outputMolecules, $shrunkOutputMolecules, $guardPresenceFlag, $reactionSha1), $reactionBody, None, false)"
     //    println(s"debug: ${showCode(result)}")
     //    println(s"debug raw: ${showRaw(result)}")
     //    c.untypecheck(result) // this fails

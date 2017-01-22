@@ -74,15 +74,21 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     notLazy shouldEqual false
   }
 
+  it should "support findAfterMap for Seq" in {
+    Seq(1, 2, 3).findAfterMap(x => if (x % 2 == 0) Some(x) else None) shouldEqual Some(2)
+    Seq(1, 2, 3).findAfterMap(x => if (x % 2 != 0) Some(x) else None) shouldEqual Some(1)
+    Seq(1, 2, 3).findAfterMap(x => if (x == 0) Some(x) else None) shouldEqual None
+  }
+
   it should "support flatFoldLeft for Seq" in {
     Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual Some(6)
     Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual None
   }
 
-  it should "support findAfterMap for Seq" in {
-    Seq(1, 2, 3).findAfterMap(x => if (x % 2 == 0) Some(x) else None) shouldEqual Some(2)
-    Seq(1, 2, 3).findAfterMap(x => if (x % 2 != 0) Some(x) else None) shouldEqual Some(1)
-    Seq(1, 2, 3).findAfterMap(x => if (x == 0) Some(x) else None) shouldEqual None
+  it should "support earlyFoldLeft for Seq" in {
+    Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual 6
+    Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n == 0) Some(x + n) else None) shouldEqual 0
+    Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual 1
   }
 
   behavior of "cleanup utility"
