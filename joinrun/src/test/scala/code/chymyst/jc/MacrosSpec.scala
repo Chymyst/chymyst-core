@@ -100,15 +100,6 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "macros for inspecting a reaction body"
 
-  it should "fail to compile a reaction with regrouped inputs" in {
-    val a = m[Unit]
-    a.isInstanceOf[M[Unit]] shouldEqual true
-
-    "val r = go { case a(_) + (a(_) + a(_)) => }" shouldNot compile
-    "val r = go { case a(_) + (a(_) + a(_)) + a(_) => }" shouldNot compile
-    "val r = go { case (a(_) + a(_)) + a(_) + a(_) => }" should compile
-  }
-
   it should "correctly sort input molecules with compound values and Option" in {
     val bb = m[(Int, Option[Int])]
     val reaction = go { case bb((1, Some(2))) + bb((0, None)) => }
@@ -128,7 +119,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     reaction.info.inputs shouldEqual Nil
     reaction.info.guardPresence.effectivelyAbsent shouldEqual true
-    reaction.info.outputs shouldEqual List(OutputMoleculeInfo(a, SimpleConstOutput(123)))
+    reaction.info.outputs shouldEqual List(OutputMoleculeInfo(a, SimpleConstOutput(123), List()))
   }
 
   it should "inspect reaction body containing local molecule emitters" in {
@@ -191,8 +182,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     (result.info.inputs match {
       case Array(
-        InputMoleculeInfo(`a`, 0, SimpleVar('x, _), sha_a),
-        InputMoleculeInfo(`bb`, 1, SimpleConst(None), sha_bb)
+      InputMoleculeInfo(`a`, 0, SimpleVar('x, _), sha_a),
+      InputMoleculeInfo(`bb`, 1, SimpleConst(None), sha_bb)
       ) =>
         sha_a shouldEqual simpleVarXSha1
         sha_bb shouldEqual constantNoneSha1
@@ -200,7 +191,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       case _ => false
     }) shouldEqual true
 
-    result.info.outputs shouldEqual List(OutputMoleculeInfo(bb, SimpleConstOutput(None)))
+    result.info.outputs shouldEqual List(OutputMoleculeInfo(bb, SimpleConstOutput(None), List()))
     result.info.guardPresence shouldEqual GuardAbsent
     result.info.sha1 shouldEqual "435CBA662F8A4992849522C11B78BE206E8D29D4"
   }
@@ -222,7 +213,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         true
       case _ => false
     }) shouldEqual true
-    result.info.outputs shouldEqual List(OutputMoleculeInfo(qq, SimpleConstOutput(())))
+    result.info.outputs shouldEqual List(OutputMoleculeInfo(qq, SimpleConstOutput(()), List()))
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
     result.info.sha1 shouldEqual ax_qq_reaction_sha1
   }
@@ -235,17 +226,17 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     result.info.sha1 shouldEqual ax_qq_reaction_sha1
 
     // This reaction is different only in the order of input molecules, so its sha1 must be the same.
-    val result2 = go { case qq(_)  + a(x)  => qq() }
+    val result2 = go { case qq(_) + a(x) => qq() }
     result2.info.sha1 shouldEqual ax_qq_reaction_sha1
   }
 
   it should "compute reaction sha1 independently of guard order" in {
     val a = m[Int]
 
-    val result = go { case a(x) + a(y) if x > 1 && y > 1 => a(x+y) }
+    val result = go { case a(x) + a(y) if x > 1 && y > 1 => a(x + y) }
 
     // This reaction is different only in the order of guards, so its sha1 must be the same.
-    val result2 = go { case a(x) + a(y) if y > 1 && x > 1 => a(x+y) }
+    val result2 = go { case a(x) + a(y) if y > 1 && x > 1 => a(x + y) }
     result.info.sha1 shouldEqual result2.info.sha1
   }
 
@@ -268,14 +259,20 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     (result.info.inputs match {
       case Array(
       InputMoleculeInfo(`a`, 0, Wildcard, `wildcardSha1`),
-      InputMoleculeInfo(`a`, 1,SimpleVar('x, _), `simpleVarXSha1`),
+      InputMoleculeInfo(`a`, 1, SimpleVar('x, _), `simpleVarXSha1`),
       InputMoleculeInfo(`a`, 2, SimpleConst(1), sha_a)
       ) =>
         sha_a shouldEqual constantOneSha1
         true
       case _ => false
     }) shouldEqual true
-    result.info.outputs shouldEqual List(OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qqq, SimpleConstOutput("")))
+    result.info.outputs should matchPattern { case Array(
+    OutputMoleculeInfo(`a`, OtherOutputPattern, List()),
+    OutputMoleculeInfo(`a`, OtherOutputPattern, List(ChooserBlock(_, 0, 2))),
+    OutputMoleculeInfo(`qqq`, SimpleConstOutput(""), List())
+    ) =>
+    }
+
     result.info.guardPresence shouldEqual GuardAbsent
   }
 
@@ -288,7 +285,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     result.info.inputs should matchPattern {
       case Array(InputMoleculeInfo(`a`, 0, SimpleVar('x, _), `simpleVarXSha1`)) =>
     }
-    result.info.outputs shouldEqual List(OutputMoleculeInfo(qq, SimpleConstOutput(())))
+    result.info.outputs shouldEqual List(OutputMoleculeInfo(qq, SimpleConstOutput(()), List()))
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
   }
 
@@ -301,7 +298,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     // reaction contains all kinds of pattern-matching constructions
     val result = go {
-      case a(p) + a(y) + a(1) + c(()) + c(_) + bb( (0, None) ) + bb( (1, Some(2)) ) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) => s(); a(p + 1); qq(); r(p)
+      case a(p) + a(y) + a(1) + c(()) + c(_) + bb((0, None)) + bb((1, Some(2))) + bb((1, z)) + bb((_, None)) + bb((t, Some(q))) + s(_, r) => s(); a(p + 1); qq(); r(p)
     }
 
     result.info.inputs should matchPattern {
@@ -319,7 +316,11 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       InputMoleculeInfo(`s`, 10, Wildcard, _)
       ) =>
     }
-    result.info.outputs shouldEqual List(OutputMoleculeInfo(s, SimpleConstOutput(())), OutputMoleculeInfo(a, OtherOutputPattern), OutputMoleculeInfo(qq, SimpleConstOutput(())))
+    result.info.outputs shouldEqual List(
+      OutputMoleculeInfo(s, SimpleConstOutput(()), List()),
+      OutputMoleculeInfo(a, OtherOutputPattern, List()),
+      OutputMoleculeInfo(qq, SimpleConstOutput(()), List())
+    )
 
     result.info.toString shouldEqual "a(1) + a(p) + a(y) + bb((0,None)) + bb((1,Some(2))) + bb(?z) + bb(?) + bb(?t,q) + c(_) + c(_) + s/B(_) => s/B() + a(?) + qq()"
   }
@@ -489,7 +490,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val b = m[String]
     val c = m[(Int, Int)]
     val d = m[Unit]
-    val e = m[Either[Option[Int],String]]
+    val e = m[Either[Option[Int], String]]
 
     val r = go { case a(Some(1)) + b("xyz") + d(()) + c((2, 3)) + e(Left(Some(1))) + e(Right("input")) =>
       a(Some(2)); e(Left(Some(2))); e(Right("output"))
@@ -500,15 +501,15 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       InputMoleculeInfo(`a`, 0, SimpleConst(Some(1)), _),
       InputMoleculeInfo(`b`, 1, SimpleConst("xyz"), _),
       InputMoleculeInfo(`d`, 2, Wildcard, _),
-      InputMoleculeInfo(`c`, 3, SimpleConst((2,3)), _),
+      InputMoleculeInfo(`c`, 3, SimpleConst((2, 3)), _),
       InputMoleculeInfo(`e`, 4, SimpleConst(Left(Some(1))), _),
       InputMoleculeInfo(`e`, 5, SimpleConst(Right("input")), _)
       ) =>
     }
     r.info.outputs shouldEqual List(
-      OutputMoleculeInfo(a, SimpleConstOutput(Some(2))),
-      OutputMoleculeInfo(e, SimpleConstOutput(Left(Some(2)))),
-      OutputMoleculeInfo(e, SimpleConstOutput(Right("output")))
+      OutputMoleculeInfo(a, SimpleConstOutput(Some(2)), List()),
+      OutputMoleculeInfo(e, SimpleConstOutput(Left(Some(2))), List()),
+      OutputMoleculeInfo(e, SimpleConstOutput(Right("output")), List())
     )
     r.info.guardPresence shouldEqual GuardAbsent
     r.info.sha1 shouldEqual "31B407C84D1871664635F7A7A7DEDF16B7BBE107"
@@ -525,17 +526,17 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val r3 = go { case bbb(x) + c(_) + c(_) => bbb(1); c(x); bbb(2); cc(None); cc(Some(1)) }
 
     r1.info.outputs shouldEqual List(
-      OutputMoleculeInfo(c, OtherOutputPattern),
-      OutputMoleculeInfo(bb, SimpleConstOutput((1, 2))),
-      OutputMoleculeInfo(bb, OtherOutputPattern)
+      OutputMoleculeInfo(c, OtherOutputPattern, List()),
+      OutputMoleculeInfo(bb, SimpleConstOutput((1, 2)), List()),
+      OutputMoleculeInfo(bb, OtherOutputPattern, List())
     )
-    r2.info.outputs shouldEqual List(OutputMoleculeInfo(bbb, SimpleConstOutput(0)))
+    r2.info.outputs shouldEqual List(OutputMoleculeInfo(bbb, SimpleConstOutput(0), List()))
     r3.info.outputs shouldEqual List(
-      OutputMoleculeInfo(bbb, SimpleConstOutput(1)),
-      OutputMoleculeInfo(c, OtherOutputPattern),
-      OutputMoleculeInfo(bbb, SimpleConstOutput(2)),
-      OutputMoleculeInfo(cc, SimpleConstOutput(None)),
-      OutputMoleculeInfo(cc, SimpleConstOutput(Some(1)))
+      OutputMoleculeInfo(bbb, SimpleConstOutput(1), List()),
+      OutputMoleculeInfo(c, OtherOutputPattern, List()),
+      OutputMoleculeInfo(bbb, SimpleConstOutput(2), List()),
+      OutputMoleculeInfo(cc, SimpleConstOutput(None), List()),
+      OutputMoleculeInfo(cc, SimpleConstOutput(Some(1)), List())
     )
   }
 
@@ -544,7 +545,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val bb = m[(Int, Int, Option[Int], (Int, Option[Int]))]
     val c = m[Unit]
 
-    val result = go { case a(1|2) + c(()) + bb(p@(ytt, 1, None, (s, Some(t)))) => }
+    val result = go { case a(1 | 2) + c(()) + bb(p@(ytt, 1, None, (s, Some(t)))) => }
     result.info.inputs should matchPattern {
       case Array(
       InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List(), false), _),
@@ -561,7 +562,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val result = go { case aa(Some(x)) + bb((0, None)) => aa(Some(x + 1)) }
 
-    result.info.outputs shouldEqual List(OutputMoleculeInfo(aa, OtherOutputPattern))
+    result.info.outputs shouldEqual List(OutputMoleculeInfo(aa, OtherOutputPattern, List()))
 
     val pat_aa = result.info.inputs.head
     pat_aa.molecule shouldEqual aa
@@ -577,23 +578,250 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       case _ => false
     }) shouldEqual true
 
-    pat_bb.flag shouldEqual SimpleConst( (0, None) )
+    pat_bb.flag shouldEqual SimpleConst((0, None))
+  }
+
+  behavior of "output environment computation"
+
+  it should "ignore + and some other functions" in {
+    val a = m[Unit]
+    val c = m[Unit]
+    val f = b[Unit, String]
+
+    val r = go { case c(_) =>
+      a() + a()
+      a()
+      Some(a())
+      List(a(), a(), a())
+      Left(a())
+      Right(a())
+      (a(), a(), a())
+      Symbol(f.timeout()(1.second).get)
+      val x = f()
+      if (f() == x) ()
+      f() match {
+        case "" => true
+      }
+    }
+
+    val aOut = OutputMoleculeInfo(a, SimpleConstOutput(()), List())
+    val fOut = OutputMoleculeInfo(f, SimpleConstOutput(()), List())
+
+    r.info.outputs shouldEqual Array(
+      aOut, aOut, aOut, aOut, aOut, aOut, aOut, aOut, aOut, aOut, aOut, aOut, fOut, fOut, fOut, fOut
+    )
+  }
+
+  it should "detect f.timeout()()" in {
+    val a = m[Unit]
+    val f = b[Unit, Unit]
+    val r = go { case a(_) => Some(f.timeout()(1.second).get).foreach(_ => ()) }
+    r.info.outputs shouldEqual Array(
+      OutputMoleculeInfo(f, SimpleConstOutput(()), List())
+    )
+  }
+
+  it should "detect molecules emitted in if-then-else blocks" in {
+    val a = m[Int]
+    val c = m[Unit]
+    val d = m[Unit]
+    val r = go { case a(x) => if (x > 0) c() else d() }
+
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(_, 0, 2)) => }
+    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(_, 1, 2)) => }
+  }
+
+  it should "detect molecules emitted in several if-then-else blocks" in {
+    val a = m[Int]
+    val c = m[Unit]
+    val d = m[Unit]
+    val r = go { case a(x) => if (x > 0) c() else d(); if (x < 0) c() else d() }
+
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0, 2)) => }
+    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(2, 1, 2)) => }
+    r.info.outputs(2).environments should matchPattern { case List(ChooserBlock(4, 0, 2)) => }
+    r.info.outputs(3).environments should matchPattern { case List(ChooserBlock(4, 1, 2)) => }
+  }
+
+  it should "detect molecules emitted in foreach blocks" in {
+    val a = m[Int]
+    val c = m[Int]
+
+    val r = go { case a(x) => if (x > 0) (1 to 10).foreach(i => c(i)) }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(ChooserBlock(2, 0, 2), FuncBlock(5, "scala.collection.immutable.Range.foreach"), FuncLambda(6)) =>
+    }
+  }
+
+  it should "detect molecules emitted in foreach blocks with short apply syntax" in {
+    val a = m[Int]
+    val c = m[Int]
+
+    val r = go { case a(x) => if (x > 0) (1 to 10).foreach(c) }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(ChooserBlock(2, 0, 2), FuncBlock(5, "scala.collection.immutable.Range.foreach")) =>
+    }
+  }
+
+  it should "detect molecules emitted in map blocks" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    val r = go { case a(x) => if (x > 0) (1 to 10).map(i => c(i)) }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(ChooserBlock(2, 0, 2), FuncBlock(5, "scala.collection.TraversableLike.map"), FuncLambda(6)) =>
+    }
+  }
+
+  it should "detect molecules emitted in map blocks with short syntax" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    val r = go { case a(x) => (1 to 10).map(c).sum }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(FuncBlock(3, "scala.collection.TraversableLike.map")) =>
+    }
+  }
+
+  it should "detect molecules emitted in arguments of other molecules" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    val r = go { case a(x) => c(if (x > 0) c(x) else c(x + 1)) }
+
+    r.info.outputs(0).environments shouldEqual List(ChooserBlock(2, 0, 2))
+    r.info.outputs(1).environments shouldEqual List(ChooserBlock(2, 1, 2))
+    r.info.outputs(2).environments shouldEqual List()
+  }
+
+  it should "detect molecules emitted in custom apply()" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    val r = go { case a(x) => FuncLambda(c(x)) }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(FuncBlock(1, "code.chymyst.jc.FuncLambda.apply")) =>
+    }
+  }
+
+  it should "detect molecules emitted in user-defined methods" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    def f(x: Int): Int = x + 1
+
+    val r = go { case a(x) => c(if (x > 0) f(c(x)) else c(x)) }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(ChooserBlock(2, 0, 2), FuncBlock(3, "code.chymyst.jc.MacrosSpec.f")) =>
+    }
+  }
+
+  it should "detect molecules emitted in user-defined methods within reaction scope" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+
+    val r = go { case a(x) =>
+      def f(x: Int): Int = x + 1
+
+      c(if (x > 0) f(c(x)) else c(x))
+    }
+
+    r.info.outputs(0).environments should matchPattern {
+      case List(ChooserBlock(3, 0, 2), FuncBlock(4, "code.chymyst.jc.MacrosSpec.$anonfun.f")) =>
+    }
+  }
+
+  it should "detect molecules emitted in while loops" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    val r = go { case a(x) => if (x > 0)
+      while (c(x) > 0) {
+        c(x)
+      }
+    }
+
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0, 2), AtLeastOneEmitted(3, "condition of while")) => }
+  }
+
+  it should "detect molecules emitted in do-while loops" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+
+    val r = go { case a(x) => if (x > 0)
+      do {
+        c(x)
+      } while (x > 0)
+    }
+
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0, 2), AtLeastOneEmitted(_, "do while")) => }
+  }
+
+  it should "detect molecules emitted in match-case blocks with nested if-then-else" in {
+    val a = m[Int]
+    val c = m[Unit]
+    val d = m[Unit]
+
+    val r = go { case a(x) =>
+      x match {
+        case 0 => c(); if (x > 0) c()
+        case 1 => d()
+        case 2 => c(); if (x > 0) d() else c()
+      }
+    }
+
+    r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(1, 0, 3)) => }
+    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(1, 0, 3), ChooserBlock(3, 0, 2)) => }
+    r.info.outputs(2).environments should matchPattern { case List(ChooserBlock(1, 1, 3)) => }
+    r.info.outputs(3).environments should matchPattern { case List(ChooserBlock(1, 2, 3)) => }
+    r.info.outputs(4).environments should matchPattern { case List(ChooserBlock(1, 2, 3), ChooserBlock(5, 0, 2)) => }
+    r.info.outputs(5).molecule shouldEqual c
+    r.info.outputs(5).environments should matchPattern { case List(ChooserBlock(1, 2, 3), ChooserBlock(5, 1, 2)) => }
+  }
+
+  it should "detect molecules emitted in anonymous functions" in {
+    val a = m[Int]
+    val c = m[Unit]
+    val r = go { case a(x) =>
+      val pf: Int => Unit = { x => c() }
+      pf(0)
+    }
+    r.info.outputs(0).environments should matchPattern { case List(FuncLambda(_)) => }
+  }
+
+  it should "detect molecules emitted in partial functions" in {
+    val a = m[Int]
+    val c = m[Unit]
+    val r = go { case a(x) =>
+      val pf: PartialFunction[Int, Unit] = {
+        case 123 => c()
+      }
+      pf(0)
+    }
+    r.info.outputs(0).environments should matchPattern { case List(FuncLambda(1), ChooserBlock(2, 0, 1)) => }
   }
 
   behavior of "output value computation"
 
-  it should "not fail to compute outputs for an inline reaction" in {
+  it should "compute outputs for an inline reaction" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
       site(
         go { case a(1) => a(1) }
       )
-      a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(List(OutputMoleculeInfo(a, SimpleConstOutput(1))))
+      a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(List(OutputMoleculeInfo(a, SimpleConstOutput(1), List())))
     }
     thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction {a(1) => a(1)}"
   }
 
-  it should "compute inputs and outputs correctly for an inline nested reaction" in {
+  it should "compute inputs and outputs for an inline nested reaction" in {
     val a = m[Int]
     site(
       go {
@@ -606,13 +834,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     )
     a.consumingReactions.get.size shouldEqual 1
     a.emittingReactions.size shouldEqual 1
-    a.consumingReactions.get.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, SimpleConstOutput(2)))
+    a.consumingReactions.get.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, SimpleConstOutput(2), List()))
     a.consumingReactions.get.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, SimpleConst(1), constantOneSha1))
-    a.emittingReactions.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, SimpleConstOutput(2)))
+    a.emittingReactions.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, SimpleConstOutput(2), List()))
     a.emittingReactions.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, SimpleConst(1), constantOneSha1))
   }
 
-  it should "not fail to compute outputs correctly for an inline nested reaction" in {
+  it should "compute outputs for an inline nested reaction" in {
     val thrown = intercept[Exception] {
       val a = m[Int]
       site(
@@ -636,20 +864,21 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     )
     a.consumingReactions.get.size shouldEqual 1
     a.consumingReactions.get.map(_.info.outputs).head shouldEqual List(
-      OutputMoleculeInfo(b, SimpleConstOutput(2)),
-      OutputMoleculeInfo(a, SimpleConstOutput(1)),
-      OutputMoleculeInfo(b, SimpleConstOutput(1))
+      OutputMoleculeInfo(b, SimpleConstOutput(2), List()),
+      OutputMoleculeInfo(a, SimpleConstOutput(1), List()),
+      OutputMoleculeInfo(b, SimpleConstOutput(1), List())
     )
   }
 
-  it should "correctly recognize nested emissions of non-blocking molecules" in {
+  it should "recognize nested emissions of non-blocking molecules in the correct order" in {
     val a = m[Int]
     val c = m[Int]
     val d = m[Boolean]
 
     site(
       go { case a(x) + d(_) => c({
-        a(1); 2
+        a(1)
+        2
       })
       }
     )
@@ -664,10 +893,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     reaction.info.inputs should matchPattern {
       case Array(InputMoleculeInfo(`a`, 0, SimpleVar('x, _), `simpleVarXSha1`), InputMoleculeInfo(`d`, 1, Wildcard, `wildcardSha1`)) =>
     }
-    reaction.info.outputs shouldEqual List(OutputMoleculeInfo(a, SimpleConstOutput(1)), OutputMoleculeInfo(c, OtherOutputPattern))
+    reaction.info.outputs shouldEqual List(
+      OutputMoleculeInfo(a, SimpleConstOutput(1), List()),
+      OutputMoleculeInfo(c, OtherOutputPattern, List())
+    )
   }
 
-  it should "correctly recognize nested emissions of blocking molecules and reply values" in {
+  it should "recognize nested emissions of blocking molecules and reply values" in {
     val a = b[Int, Int]
     val c = m[Int]
     val d = m[Unit]
@@ -689,12 +921,15 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     d.emittingReactions.head shouldEqual reaction2
 
     reaction1.info.inputs shouldEqual List(InputMoleculeInfo(d, 0, Wildcard, wildcardSha1))
-    reaction1.info.outputs shouldEqual List(OutputMoleculeInfo(a, SimpleConstOutput(1)), OutputMoleculeInfo(c, OtherOutputPattern))
+    reaction1.info.outputs shouldEqual Array(
+      OutputMoleculeInfo(a, SimpleConstOutput(1), List()),
+      OutputMoleculeInfo(c, OtherOutputPattern, List())
+    )
 
     reaction2.info.inputs should matchPattern {
       case Array(InputMoleculeInfo(`a`, 0, SimpleVar('x, _), `simpleVarXSha1`)) =>
     }
-    reaction2.info.outputs shouldEqual List(OutputMoleculeInfo(d, OtherOutputPattern))
+    reaction2.info.outputs shouldEqual List(OutputMoleculeInfo(d, OtherOutputPattern, List()))
   }
 
   behavior of "auxiliary functions"

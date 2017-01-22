@@ -68,19 +68,21 @@ class MergesortSpec extends FlatSpec with Matchers {
     val mergesort = m[(Coll[T], M[Coll[T]])]
 
     site(reactionPool, sitePool)(
-      go { case mergesort((arr, resultToYield)) if arr.length <= 1 => resultToYield(arr) },
-      go { case mergesort((arr, resultToYield)) if arr.length > 1 =>
-        val (part1, part2) = arr.splitAt(arr.length / 2)
-        // "sorted1" and "sorted2" will be the sorted results from the lower level
-        val sorted1 = m[Coll[T]]
-        val sorted2 = m[Coll[T]]
-        site(reactionPool, sitePool)(
-          go { case sorted1(x) + sorted2(y) =>
-            resultToYield(arrayMerge(x, y))
-          }
-        )
-        // emit `mergesort` with the lower-level `sorted` result molecules
-        mergesort((part1, sorted1)) + mergesort((part2, sorted2))
+      go { case mergesort((arr, resultToYield)) =>
+        if (arr.length <= 1) resultToYield(arr)
+        else {
+          val (part1, part2) = arr.splitAt(arr.length / 2)
+          // "sorted1" and "sorted2" will be the sorted results from the lower level
+          val sorted1 = m[Coll[T]]
+          val sorted2 = m[Coll[T]]
+          site(reactionPool, sitePool)(
+            go { case sorted1(x) + sorted2(y) =>
+              resultToYield(arrayMerge(x, y))
+            }
+          )
+          // emit `mergesort` with the lower-level `sorted` result molecules
+          mergesort((part1, sorted1)) + mergesort((part2, sorted2))
+        }
       }
     )
     // sort our array: emit `mergesort` at top level
