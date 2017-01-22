@@ -6,7 +6,7 @@ import scala.annotation.tailrec
 
 private[jc] object StaticAnalysis {
 
-  /** Check that every input molecule matcher of one reaction is weaker than a corresponding matcher in another reaction.
+  /** Check that every input molecule matcher of one reaction is weaker than a corresponding input matcher in another reaction.
     * If true, it means that the first reaction can start whenever the second reaction can start, which is an instance of unavoidable nondeterminism.
     *
     * @param input1 Sorted input list for the first reaction.
@@ -34,39 +34,20 @@ private[jc] object StaticAnalysis {
     }
   }
 
-  @tailrec
-  private def inputMatchersAreWeakerThanOutput(input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean = {
-    input match {
-      case Nil => true
-      case info :: rest =>
-        val isWeaker: OutputMoleculeInfo => Boolean =
-          i => info.matcherIsWeakerThanOutput(i).getOrElse(false)
-
-        output.find(isWeaker) match {
-          case Some(correspondingMatcher) =>
-            inputMatchersAreWeakerThanOutput(rest, output diff Array(correspondingMatcher))
-          case None => false
-        }
-
-    }
+  private def inputMatchersWeakerThanOutput(isWeaker: (InputMoleculeInfo, OutputMoleculeInfo) => Option[Boolean])
+                                           (input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean = {
+    input.flatFoldLeft[Array[OutputMoleculeInfo]](output) { (acc, inputInfo) =>
+      output
+        .find(outputInfo => isWeaker(inputInfo, outputInfo).getOrElse(false))
+        .map { correspondingMatcher => acc diff Array(correspondingMatcher) }
+    }.nonEmpty
   }
 
-  @tailrec
-  private def inputMatchersAreSimilarToOutput(input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean = {
-    input match {
-      case Nil => true
-      case info :: rest =>
-        val isWeaker: OutputMoleculeInfo => Boolean =
-          i => info.matcherIsSimilarToOutput(i).getOrElse(false)
+  private def inputMatchersSurelyWeakerThanOutput(input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean =
+    inputMatchersWeakerThanOutput((inputInfo, outputInfo) => inputInfo.matcherIsWeakerThanOutput(outputInfo))(input, output.filter(_.atLeastOnce))
 
-        output.find(isWeaker) match {
-          case Some(correspondingMatcher) =>
-            inputMatchersAreSimilarToOutput(rest, output diff Array(correspondingMatcher))
-          case None => false
-        }
-
-    }
-  }
+  private def inputMatchersAreSimilarToOutput(input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean =
+    inputMatchersWeakerThanOutput((inputInfo, outputInfo) => inputInfo.matcherIsSimilarToOutput(outputInfo))(input, output)
 
   // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
   private def checkReactionShadowing(reactions: Seq[Reaction]): Option[String] = {
@@ -100,7 +81,7 @@ private[jc] object StaticAnalysis {
 
   private def checkSingleReactionLivelock(reactions: Seq[Reaction]): Option[String] = {
     val errorList = reactions
-      .filter { r => r.info.guardPresence.effectivelyAbsent && inputMatchersAreWeakerThanOutput(r.info.inputsSorted, r.info.outputs) }
+      .filter { r => r.info.guardPresence.effectivelyAbsent && inputMatchersSurelyWeakerThanOutput(r.info.inputsSorted, r.info.shrunkOutputs) }
       .map(r => s"{${r.info.toString}}")
     if (errorList.nonEmpty)
       Some(s"Unavoidable livelock: reaction${if (errorList.size == 1) "" else "s"} ${errorList.mkString(", ")}")

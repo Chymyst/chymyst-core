@@ -25,14 +25,14 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     case Bind(t@TermName(n), Ident(termNames.WILDCARD)) => Ident(t)
   }
 
-  private val extractorCodes = Map(
+  private val constantExtractorCodes = Map(
     "scala.Some" -> q"Some",
     "scala.Symbol" -> q"Symbol",
     "scala.`package`.Left" -> q"Left",
     "scala.`package`.Right" -> q"Right"
   )
 
-  private val applierCodes = Set(
+  private val constantApplierCodes = Set(
     "scala.Some.apply",
     "scala.util.Left.apply",
     "scala.util.Right.apply",
@@ -40,11 +40,21 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     "scala.collection.immutable.List.apply"
   )
 
-  private val seqExtractorCodes = Map(
+  private val seqConstantExtractorCodes = Map(
     "scala.collection.immutable.List(" -> q"List"
   )
 
-  private val seqExtractorHeads = Set("scala.collection.generic.SeqFactory.unapplySeq")
+  private val seqConstantExtractorHeads = Set("scala.collection.generic.SeqFactory.unapplySeq")
+
+  private val onceOnlyFunctionCodes = constantApplierCodes ++ Set(
+    "code.chymyst.jc.EmitMultiple",
+    "code.chymyst.jc.EmitMultiple.$plus"
+  )
+
+  private val iteratingFunctionCodes = Set(
+    "scala.collection.TraversableLike.map",
+    "scala.collection.immutable.Range.foreach"
+  )
 
   /** Detect whether a pattern-matcher expression tree represents an irrefutable pattern.
     * For example, Some(_) is refutable because it does not match None.
@@ -89,7 +99,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         Some(q"(..$trees)")
       else None
 
-    case q"$applier[..$ts](..$xs)" if applierCodes.contains(applier.symbol.fullName) =>
+    case q"$applier[..$_](..$xs)" if constantApplierCodes.contains(applier.symbol.fullName) =>
       val trees = xs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
       if (trees.size === xs.size)
         Some(q"$applier(..$trees)")
@@ -97,7 +107,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     case pq"$extr(..$xs)" =>
       val extrCode = showCode(extr.asInstanceOf[Tree])
-      extractorCodes.get(extrCode).flatMap { extractor =>
+      constantExtractorCodes.get(extrCode).flatMap { extractor =>
         val trees = xs.flatMap(getConstantTree).map(_.asInstanceOf[Tree]) // if some exprs are not constant, they will be omitted in this list
         if (trees.size === xs.size)
           Some(q"$extractor(..$trees)")
@@ -108,12 +118,12 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     case _ => exprTree.children match {
       case firstChild :: restOfChildren => for {
         extractorHead <- firstChild.children.headOption
-        if seqExtractorHeads.contains(extractorHead.symbol.fullName)
+        if seqConstantExtractorHeads.contains(extractorHead.symbol.fullName)
         unapplySelector <- firstChild.children.zipWithIndex.find(_._2 === 1).map(_._1) // safe on empty lists
         if unapplySelector.symbol.toString === "value <unapply-selector>"
         extrCode = showCode(exprTree.asInstanceOf[Tree])
         cleanedCode = extrCode.substring(0, 1 + extrCode.indexOf("("))
-        extractor <- seqExtractorCodes.get(cleanedCode)
+        extractor <- seqConstantExtractorCodes.get(cleanedCode)
         trees = for {
           child <- restOfChildren
           childConst <- getConstantTree(child).map(_.asInstanceOf[Tree])
@@ -307,16 +317,28 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     }
   }
 
+  /** Input molecules in a reaction must be given using a chemical notation such as `a(x) + b(y) + c(z) => ...`.
+    * It is an error to group input molecules such as `a(x) + (b(y) + c(z)) => ...`, or to use pattern grouping such as `q @ a(x) + ...`
+    */
   object DetectInvalidInputGrouping extends Traverser {
     var found: Boolean = _
 
     override def traverse(tree: c.universe.Tree): Unit = tree match {
-      case pq"$extr1($_,$extr2($_,$_))"
+      case pq"$_ @ $extr1(..$_)"
+        if extr1.symbol.fullName === "code.chymyst.jc.$plus" || extr1.tpe <:< typeOf[Molecule] =>
+        found = true
+      case pq"$extr1($_, $extr2($_, $_))"
         if extr1.symbol.fullName === "code.chymyst.jc.$plus" && extr2.symbol.fullName === "code.chymyst.jc.$plus" =>
         found = true
-      case _ => super.traverse(tree)
+      case _ =>
+        super.traverse(tree)
     }
 
+    /** Detect invalid groupings in a pattern matching tree.
+      *
+      * @param tree A pattern matching tree.
+      * @return `true` if an invalid grouping is detected, `false` otherwise.
+      */
     def in(tree: Tree): Boolean = {
       found = false
       traverse(tree)
@@ -331,21 +353,35 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
       * @return A 4-tuple: List of input molecule patterns, list of output molecule patterns, list of reply action patterns, and list of molecules erroneously used inside pattern matching expressions.
       */
-    def from(reactionPart: Tree): (List[(MacroSymbol, InputPatternFlag, Option[InputPatternFlag])], List[(MacroSymbol, OutputPatternFlag)], List[(MacroSymbol, OutputPatternFlag)], List[MacroSymbol]) = {
+    def from(reactionPart: Tree): (List[(MacroSymbol, InputPatternFlag, Option[InputPatternFlag])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[MacroSymbol]) = {
       inputMolecules = mutable.ArrayBuffer()
       outputMolecules = mutable.ArrayBuffer()
       replyActions = mutable.ArrayBuffer()
       moleculesInBinder = mutable.ArrayBuffer()
       traversingBinderNow = false
+
+      lastOutputEnvId = 0
+      outputEnv = mutable.Stack()
+
       traverse(reactionPart)
+
       (inputMolecules.toList, outputMolecules.toList, replyActions.toList, moleculesInBinder.toList)
+    }
+
+    private def renewOutputEnvId(): Unit = {
+      lastOutputEnvId += 1
+      currentOutputEnvId = lastOutputEnvId
     }
 
     private var traversingBinderNow: Boolean = _
     private var moleculesInBinder: mutable.ArrayBuffer[MacroSymbol] = _
     private var inputMolecules: mutable.ArrayBuffer[(MacroSymbol, InputPatternFlag, Option[InputPatternFlag])] = _
-    private var outputMolecules: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag)] = _
-    private var replyActions: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag)] = _
+    private var outputMolecules: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])] = _
+    private var replyActions: mutable.ArrayBuffer[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])] = _
+
+    private var lastOutputEnvId: Int = 0
+    private var currentOutputEnvId: Int = 0
+    private var outputEnv: mutable.Stack[OutputEnvironment] = _
 
     /** Detect whether the symbol `s` is defined inside the scope of the symbol `owner`.
       * Will return true for code like ` val owner = .... { val s = ... }  `
@@ -356,38 +392,65 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       */
     @tailrec
     private def isOwnedBy(s: MacroSymbol, owner: MacroSymbol): Boolean = s.owner match {
-      case `owner` => owner =!= NoSymbol
-      case `NoSymbol` => false
-      case o@_ => isOwnedBy(o, owner)
+      case `owner` =>
+        owner =!= NoSymbol
+      case `NoSymbol` =>
+        false
+      case o@_ =>
+        isOwnedBy(o, owner)
     }
 
     private def getInputFlag(binderTerm: Tree): InputPatternFlag = binderTerm match {
-      case Ident(termNames.WILDCARD) => WildcardF
-      case Bind(t@TermName(_), Ident(termNames.WILDCARD)) => SimpleVarF(Ident(t), binderTerm, None)
-      case _ => getConstantTree(binderTerm)
-        .map(t => ConstantPatternF(t.asInstanceOf[Tree]))
-        .getOrElse {
-          // If we are here, we do not have a constant pattern. It could be either an irrefutable compound pattern such as (_, x, (a,b,_)), or a general other pattern.
-          val vars = PatternVars.from(binderTerm)
-          val guardTreeOpt = if (isIrrefutablePattern(binderTerm))
-            None
-          else
-            Some(EmptyTree)
-          OtherInputPatternF(binderTerm, guardTreeOpt, vars)
-        }
+      case Ident(termNames.WILDCARD) =>
+        WildcardF
+      case Bind(t@TermName(_), Ident(termNames.WILDCARD)) =>
+        SimpleVarF(Ident(t), binderTerm, None)
+      case _ =>
+        getConstantTree(binderTerm)
+          .map(t => ConstantPatternF(t.asInstanceOf[Tree]))
+          .getOrElse {
+            // If we are here, we do not have a constant pattern. It could be either an irrefutable compound pattern such as (_, x, (a,b,_)), or a general other pattern.
+            val vars = PatternVars.from(binderTerm)
+            val guardTreeOpt = if (isIrrefutablePattern(binderTerm))
+              None
+            else
+              Some(EmptyTree)
+            OtherInputPatternF(binderTerm, guardTreeOpt, vars)
+          }
     }
 
-    private def getOutputFlag(binderTerms: List[Tree]): OutputPatternFlag = binderTerms match {
-      case List(t) => getConstantTree(t).map(tree => ConstOutputPatternF(tree.asInstanceOf[Tree])).getOrElse(OtherOutputPatternF)
-      case Nil => EmptyOutputPatternF
-      case _ => OtherOutputPatternF
+    /** We only support one-argument molecules, so here we only inspect the first element in the list of terms. */
+    private def getOutputFlag(outputTerms: List[Tree]): OutputPatternFlag = outputTerms match {
+      case List(t) =>
+        getConstantTree(t).map(tree => ConstOutputPatternF(tree.asInstanceOf[Tree])).getOrElse(OtherOutputPatternF)
+      case Nil =>
+        ConstOutputPatternF(q"()")
+      case _ =>
+        OtherOutputPatternF
     }
 
+    private def traverseWithOutputEnv(tree: Trees#Tree, env: OutputEnvironment): Unit = {
+      outputEnv.push(env)
+      traverse(tree.asInstanceOf[Tree])
+      finishTraverseWithOutputEnv()
+    }
+
+    private def finishTraverseWithOutputEnv(): Unit = {
+      currentOutputEnvId = outputEnv.pop().id
+    }
+
+    private def isMolecule(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< typeOf[Molecule]
+
+    private def isReplyValue(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< weakTypeOf[AbsReplyValue[_, _]]
+
+    @SuppressWarnings(Array("org.wartremover.warts.Equals"))
     override def traverse(tree: Tree): Unit = {
       tree match {
         // avoid traversing nested reactions: check whether this subtree is a Reaction() value
-        case q"code.chymyst.jc.Reaction.apply(..$_)" => ()
-        case q"Reaction.apply(..$_)" => ()
+        case q"code.chymyst.jc.Reaction.apply(..$_)" =>
+          ()
+        case q"Reaction.apply(..$_)" => // Is this clause ever used?
+          ()
 
         // matcher with a single argument: a(x)
         case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
@@ -409,8 +472,10 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         // matcher with two arguments: a(x, y)
         case UnApply(Apply(Select(t@Ident(TermName(_)), TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
           val flag2 = getInputFlag(binder2) match {
-            case SimpleVarF(_, _, _) => ReplyVarF(getSimpleVar(binder2))
-            case f@_ => WrongReplyVarF // this is an error that we should report later
+            case SimpleVarF(_, _, _) =>
+              ReplyVarF(getSimpleVar(binder2))
+            case f@_ =>
+              WrongReplyVarF // this is an error that we should report later
           }
           val flag1 = getInputFlag(binder1)
           // Perhaps we need to continue to analyze the "binder" (it could be another molecule, which is an error).
@@ -435,29 +500,131 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
             inputMolecules.append((t.symbol, WrongReplyVarF, None, getSha1(t)))
           */
 
-        // possibly a molecule emission
-        case Apply(Select(t@Ident(TermName(_)), TermName(f)), binderList)
-          if f === "apply" || f === "checkTimeout" =>
+        // do-while construction
+        case q"do $body while($cond)" =>
+          renewOutputEnvId()
+          traverseWithOutputEnv(body, AtLeastOneEmitted(currentOutputEnvId, "do while"))
+          traverseWithOutputEnv(cond, AtLeastOneEmitted(currentOutputEnvId, "condition of do while"))
+
+        // while construction
+        case q"while($cond) $body" =>
+          renewOutputEnvId()
+          traverseWithOutputEnv(cond, AtLeastOneEmitted(currentOutputEnvId, "condition of while"))
+          traverseWithOutputEnv(body, FuncBlock(currentOutputEnvId, "while"))
+
+        // Anonymous function
+        case q"(..$_) => $body" =>
+          renewOutputEnvId()
+          traverseWithOutputEnv(body, FuncLambda(currentOutputEnvId))
+
+        // if-then-else
+        case q"if($cond) $clause0 else $clause1" =>
+          traverse(cond.asInstanceOf[Tree])
+          renewOutputEnvId()
+          traverseWithOutputEnv(clause0, ChooserBlock(currentOutputEnvId, 0, 2))
+          traverseWithOutputEnv(clause1, ChooserBlock(currentOutputEnvId, 1, 2))
+
+        // match-case
+        case q"$matchExpr match { case ..$cases }" if cases.size >= 2 =>
+          traverse(matchExpr.asInstanceOf[Tree])
+          renewOutputEnvId()
+          val total = cases.size
+          cases.zipWithIndex.foreach { case (cq"$pat if $guardExpr => $bodyExpr", index) =>
+            outputEnv.push(ChooserBlock(currentOutputEnvId, index, total))
+            traversingBinderNow = true
+            traverse(pat.asInstanceOf[Tree])
+            traverse(guardExpr.asInstanceOf[Tree])
+            traversingBinderNow = false
+            traverse(bodyExpr.asInstanceOf[Tree])
+            finishTraverseWithOutputEnv()
+          }
+
+        // Anonymous partial function
+        case q"{ case ..$cases }" =>
+          renewOutputEnvId()
+          outputEnv.push(FuncLambda(currentOutputEnvId))
+          renewOutputEnvId()
+          val total = cases.size
+          cases.zipWithIndex.foreach {
+            case (cq"$pat if $expr1 => $expr2", index) =>
+              outputEnv.push(ChooserBlock(currentOutputEnvId, index, total))
+              traversingBinderNow = true
+              traverse(pat.asInstanceOf[Tree])
+              traverse(expr1.asInstanceOf[Tree])
+              traversingBinderNow = false
+              traverse(expr2.asInstanceOf[Tree])
+              finishTraverseWithOutputEnv()
+          }
+          finishTraverseWithOutputEnv()
+
+        // possibly a molecule emission, but could be any function call
+        case Apply(Select(t@Ident(TermName(name)), TermName(f)), argumentList)
+          if f === "apply" || f === "checkTimeout" || f === "timeout" =>
 
           // In the output list, we do not include any molecule emitters defined in the inner scope of the reaction.
           val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
-
-          val flag1 = getOutputFlag(binderList)
-          if (flag1.needTraversal)
-          // Traverse the tree of the first binder element (molecules should only have one binder element anyway).
-            binderList.headOption.foreach(traverse)
-
-          if (includeThisSymbol) {
-            if (t.tpe <:< typeOf[Molecule]) {
-              outputMolecules.append((t.symbol, flag1))
+          val thisSymbolIsAMolecule = isMolecule(t)
+          val thisSymbolIsAReply = isReplyValue(t)
+          val flag1 = getOutputFlag(argumentList)
+          if (flag1.needTraversal) {
+            // Traverse the trees of the argument list elements (molecules should only have one argument anyway).
+            if (thisSymbolIsAMolecule || thisSymbolIsAReply) {
+              argumentList.foreach(traverse)
+            } else {
+              renewOutputEnvId()
+              outputEnv.push(FuncBlock(currentOutputEnvId, name = s"${t.symbol.fullName}.$f"))
+              argumentList.foreach(traverse)
+              finishTraverseWithOutputEnv()
             }
           }
-          if (t.tpe <:< weakTypeOf[AbsReplyValue[_, _]]) {
-            replyActions.append((t.symbol, flag1))
+
+          if (includeThisSymbol) {
+            if (thisSymbolIsAMolecule) {
+              outputMolecules.append((t.symbol, flag1, outputEnv.toList))
+            }
+          }
+          if (thisSymbolIsAReply) {
+            replyActions.append((t.symbol, flag1, outputEnv.toList))
+          }
+
+        // tuple
+        case q"(..$args)"
+          if args.size >= 2 =>
+          args.foreach(t => traverse(t.asInstanceOf[Tree]))
+
+        // other function applications
+        case q"$f[..$_](..$args)"
+          if args.nonEmpty =>
+          val fullName = f.asInstanceOf[Tree].symbol.fullName
+          if (onceOnlyFunctionCodes.contains(fullName))
+          // The function is one of the known once-only evaluating functions such as Some(), List(), etc.
+          // In that case, we don't need to do anything special - just traverse the tree and harvest the molecules normally.
+            super.traverse(tree)
+
+          else {
+            traverse(f.asInstanceOf[Tree])
+            renewOutputEnvId()
+            val isIterating = iteratingFunctionCodes.contains(fullName)
+            val newEnv =
+              if (isIterating) {
+                FuncBlock(currentOutputEnvId, name = fullName)
+              } else {
+                FuncBlock(currentOutputEnvId, name = fullName)
+              }
+            outputEnv.push(newEnv)
+
+            args.foreach { t =>
+              // Detect whether the function takes a function type, and whether `t` is a molecule emitter.
+              if (isIterating && (isMolecule(t) || isReplyValue(t))) {
+                // In that case, the molecule could be emitted zero or more times.
+                outputMolecules.append((t.asInstanceOf[Tree].symbol, OtherOutputPatternF, outputEnv.toList))
+              } else
+                traverse(t.asInstanceOf[Tree])
+            }
+            finishTraverseWithOutputEnv()
           }
 
         case _ => super.traverse(tree)
-
       }
     }
   }
@@ -470,19 +637,42 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   // This boilerplate is necessary for being able to use PatternType values in quasiquotes.
   implicit val liftableInputPatternFlag: Liftable[InputPatternFlag] = Liftable[InputPatternFlag] {
-    case WildcardF => q"_root_.code.chymyst.jc.Wildcard"
-    case ConstantPatternF(tree) => q"_root_.code.chymyst.jc.SimpleConst($tree)"
+    case WildcardF =>
+      q"_root_.code.chymyst.jc.Wildcard"
+    case ConstantPatternF(tree) =>
+      q"_root_.code.chymyst.jc.SimpleConst($tree)"
     case SimpleVarF(v, binder, cond) =>
       val guardFunction = cond.map(c => matcherFunction(binder, c, List(v)))
       q"_root_.code.chymyst.jc.SimpleVar(${identToScalaSymbol(v)}, $guardFunction)"
-    case OtherInputPatternF(matcherTree, guardTreeOpt, vars) => q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTreeOpt.getOrElse(EmptyTree), vars)}, ${vars.map(identToScalaSymbol)}, ${guardTreeOpt.isEmpty})"
-    case _ => q"_root_.code.chymyst.jc.Wildcard" // this case will not be encountered here; we are conflating InputPatternFlag and ReplyInputPatternFlag
+    case OtherInputPatternF(matcherTree, guardTreeOpt, vars) =>
+      q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTreeOpt.getOrElse(EmptyTree), vars)}, ${vars.map(identToScalaSymbol)}, ${guardTreeOpt.isEmpty})"
+    case _ =>
+      q"_root_.code.chymyst.jc.Wildcard" // this case will not be encountered here; we are conflating InputPatternFlag and ReplyInputPatternFlag
   }
 
   implicit val liftableOutputPatternFlag: Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
-    case ConstOutputPatternF(tree) => q"_root_.code.chymyst.jc.SimpleConstOutput($tree)"
-    case EmptyOutputPatternF => q"_root_.code.chymyst.jc.SimpleConstOutput(())"
-    case _ => q"_root_.code.chymyst.jc.OtherOutputPattern"
+    case ConstOutputPatternF(tree) =>
+      q"_root_.code.chymyst.jc.SimpleConstOutput($tree)"
+    case OtherOutputPatternF =>
+      q"_root_.code.chymyst.jc.OtherOutputPattern"
+  }
+
+  implicit val liftableOutputPatternType: Liftable[OutputPatternType] = Liftable[OutputPatternType] {
+    case SimpleConstOutput(v) =>
+      q"_root_.code.chymyst.jc.SimpleConstOutput(${v.asInstanceOf[Tree]})" // When we lift it here, it always has type `Tree`.
+    case OtherOutputPattern =>
+      q"_root_.code.chymyst.jc.OtherOutputPattern"
+  }
+
+  implicit val liftableOutputEnvironment: Liftable[OutputEnvironment] = Liftable[OutputEnvironment] {
+    case ChooserBlock(id, clause, total) =>
+      q"_root_.code.chymyst.jc.ChooserBlock($id, $clause, $total)"
+    case FuncBlock(id, name) =>
+      q"_root_.code.chymyst.jc.FuncBlock($id, $name)"
+    case FuncLambda(id) =>
+      q"_root_.code.chymyst.jc.FuncLambda($id)"
+    case AtLeastOneEmitted(id, name) =>
+      q"_root_.code.chymyst.jc.AtLeastOneEmitted($id, $name)"
   }
 
   /** Build an error message about incorrect usage of chemical notation.

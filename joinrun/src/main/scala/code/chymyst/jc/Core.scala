@@ -31,7 +31,7 @@ object Core {
   /** A special value for `ReactionInfo` to signal that we are not running a reaction.
     *
     */
-  val emptyReactionInfo = ReactionInfo(Array(), Array(), AllMatchersAreTrivial, "")
+  val emptyReactionInfo = ReactionInfo(Array(), Array(), Array(), AllMatchersAreTrivial, "")
 
   private lazy val sha1Digest = java.security.MessageDigest.getInstance("SHA-1")
 
@@ -134,6 +134,14 @@ object Core {
 
   implicit class SeqWithFlatFoldLeft[T](s: Seq[T]) {
 
+    /** A `find` that will return the first value for which `f` returns `Some(...)`.
+      *
+      * This is an optimization over `find`: it does not compute the found value `f(r)` twice.
+      *
+      * @param f Mapping function.
+      * @tparam R Type of the return value `r` under `Option`.
+      * @return `Some(r)` if `f` returned a non-empty option value; `None` otherwise.
+      */
     def findAfterMap[R](f: T => Option[R]): Option[R] = {
       var result: R = null.asInstanceOf[R]
       s.find { t =>
@@ -144,8 +152,8 @@ object Core {
     /** "flat foldLeft" will perform a `foldLeft` unless the function `op` returns `None` at some point in the sequence.
       *
       * @param z  Initial value of type `R`.
-      * @param op Binary operation, returns an `Option[R]`.
-      * @tparam R Type of the return value `r` under option.
+      * @param op Binary operation, returning an `Option[R]`.
+      * @tparam R Type of the return value `r` under `Option`.
       * @return Result value `Some(r)`, having folded to the end of the sequence. Will return `None` if `op` returned `None` at any point.
       */
     def flatFoldLeft[R](z: R)(op: (R, T) => Option[R]): Option[R] = {
@@ -159,10 +167,28 @@ object Core {
               case None => None
             }
           case None => Some(z)
-
         }
 
       flatFoldLeftImpl(z, s)
+    }
+
+    /** "early foldLeft" will perform a `foldLeft` until the function `op` returns `None` at some point in the sequence.
+      * At that point, it stops and returns the last accumulated value.
+      *
+      * This is an optimization: the usual `foldLeft` will continue going through the sequence, but `earlyFoldLeft` cuts short.
+      *
+      * @param z  Initial value of type `R`.
+      * @param op Binary operation, returning an `Option[R]`.
+      * @tparam R Type of the return value `r` under `Option`.
+      * @return Result value `r`, having folded either to the end of the sequence, or to the point in the sequence where `op` first returned `None`, whichever comes first.
+      */
+    @tailrec
+    final def earlyFoldLeft[R](z: R)(op: (R, T) => Option[R]): R = s match {
+      case Nil => z
+      case h :: xs => op(z, h) match {
+        case Some(newZ) => xs.earlyFoldLeft(newZ)(op)
+        case None => z
+      }
     }
   }
 

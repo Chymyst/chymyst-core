@@ -262,8 +262,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     isAllowedToEmit = reactionInfoOpt.exists(_.inputMoleculesSet.contains(m))
     _ <- if (!isAllowedToEmit) {
       val refusalReason = reactionInfoOpt match {
-        case Some(`emptyReactionInfo`) | None => "because this thread does not run a chemical reaction"
-        case Some(info) => s"because this reaction {$info} does not consume it"
+        case Some(`emptyReactionInfo`) | None =>
+          "because this thread does not run a chemical reaction"
+        case Some(info) =>
+          s"because this reaction {$info} does not consume it"
       }
       Left(refusalReason)
     } else Right(())
@@ -338,8 +340,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private[jc] def emitAndAwaitReply[T, R](bm: B[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]): R = {
     // check if we had any errors, and that we have a result value
     emitAndAwaitReplyInternal(timeoutOpt = None, bm, v, replyValueWrapper) match {
-      case ErrorNoReply(message) => throw new Exception(message)
-      case HaveReply(res) => res.asInstanceOf[R] // Cannot guarantee type safety due to type erasure of `R`.
+      case ErrorNoReply(message) =>
+        throw new Exception(message)
+      case HaveReply(res) =>
+        res.asInstanceOf[R] // Cannot guarantee type safety due to type erasure of `R`.
     }
   }
 
@@ -348,7 +352,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   Option[R] = {
     // check if we had any errors, and that we have a result value
     emitAndAwaitReplyInternal(timeoutOpt = Some(timeout), bm, v, replyValueWrapper) match {
-      case ErrorNoReply(message) => throw new Exception(message)
+      case ErrorNoReply(message) =>
+        throw new Exception(message)
       case HaveReply(res) =>
         if (replyValueWrapper.isTimedOut)
           None

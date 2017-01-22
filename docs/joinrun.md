@@ -534,3 +534,29 @@ go { case d((x, z)) if z.nonEmpty => }
 ```
 
 This code compiles and works, and is equivalent to the more complicated pattern match.
+
+# Implementation notes
+
+## Choice of molecules for reactions
+
+At any given time, each reaction site (RS) must decide which reactions can start.
+This decision depends only on the molecule values of molecules bound to this site, since we can decide whether to start a reaction when we know which input molecules are present and with what values.
+
+Therefore, RS maintains a multiset of input molecules present at that site.
+This multiset can be visualized as containing pairs `(molecule emitter, value)`.
+
+Whenever a molecule is emitted, it goes into the multiset at the RS to which the molecule is bound.
+
+At this time, an RS knows that some reaction might become possible that consumes this new molecule.
+We can assume that all other molecules waiting at this RS are "inert" - they do not start any reactions, because if they did, we would have already started those reactions at a previous step when a previous molecule was emitted.
+
+Therefore, at this step we can have at most one reaction that can start, and if so, this reaction will consume the new molecule.
+
+Thus, we take the list of reactions that consume this molecule (this list is known at compile time), and go through this list, checking whether one of these reactions can find its required input molecules among the molecules present at the RS at this time.
+ 
+This is a multiset matching problem: a reaction requires a multiset of input molecules with possibly some conditions on their values, and we have a multiset of available molecules with values.
+We need to find the first reaction that can obtain all its input molecules.
+
+If we find no such reactions, we are done with this step, since we have established that the current multiset of molecules is "inert".
+
+If we find a reaction that can obtain all its input molecules, we atomically remove all these input molecules from the multiset, extract their values, and start the reaction.

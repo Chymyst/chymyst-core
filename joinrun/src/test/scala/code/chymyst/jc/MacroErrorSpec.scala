@@ -13,13 +13,19 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     "val r = go { case _ => }" shouldNot compile
   }
 
-  it should "fail to compile a guard that replies" in {
+  it should "fail to compile a guard that replies to molecules" in {
     val f = b[Unit, Unit]
     val x = 2
     x shouldEqual 2
     f.isInstanceOf[B[Unit, Unit]] shouldEqual true
 
     "val r = go { case f(_, r) if r() && x == 2 => }" shouldNot compile
+  }
+
+  it should "fail to compile a guard that emits molecules" in {
+    val f = b[Unit, Boolean]
+    f.isInstanceOf[B[Unit, Boolean]] shouldEqual true
+    "val r = go { case f(_, r) if f() => r(true) }" shouldNot compile
   }
 
   it should "fail to compile a reaction that is not defined inline" in {
@@ -118,6 +124,26 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     "val r = go { case x => x }" shouldNot compile // no input molecules
   }
 
+  it should "fail to compile a reaction with regrouped inputs" in {
+    val a = m[Unit]
+    a.isInstanceOf[M[Unit]] shouldEqual true
+
+    "val r = go { case a(_) + (a(_) + a(_)) => }" shouldNot compile
+    "val r = go { case a(_) + (a(_) + a(_)) + a(_) => }" shouldNot compile
+    "val r = go { case (a(_) + a(_)) + a(_) + a(_) => }" should compile
+  }
+
+  it should "fail to compile a reaction with grouped pattern variables in inputs" in {
+    val a = m[Unit]
+    a.name shouldEqual "a"
+
+    "val r = go { case a(_) + x@(a(_) + a(_)) => }" shouldNot compile
+    "val r = go { case a(_) + (a(_) + a(_)) + x@a(_) => }" shouldNot compile
+    "val r = go { case x@a(_) + (a(_) + a(_)) + a(_) => }" shouldNot compile
+    "val r = go { case x@(a(_) + a(_)) + a(_) + a(_) => }" shouldNot compile
+    "val r = go { case x@a(_) => }" shouldNot compile
+  }
+
   behavior of "compile-time errors due to chemistry"
 
   it should "fail to compile reactions with unconditional livelock" in {
@@ -165,7 +191,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
     val result = go {
       // This generates a compiler warning "class M expects 2 patterns to hold (Int, Option[Int]) but crushing into 2-tuple to fit single pattern (SI-6675)".
-      // However, this crushing is precisely what this test focuses on, and we cannot tell scalac to ignore this warning.
+      // However, this "crushing" is precisely what this test focuses on, and we cannot tell scalac to ignore this warning.
       case bb(_) + bb(z) if (z match {
         case (1, Some(x)) if x > 0 => true;
         case _ => false
