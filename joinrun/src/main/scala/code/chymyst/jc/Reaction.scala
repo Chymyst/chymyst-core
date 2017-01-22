@@ -66,7 +66,7 @@ sealed trait OutputPatternType {
 
 final case class SimpleConstOutput(v: Any) extends OutputPatternType {
   override def merge(other: OutputPatternType): OutputPatternType = other match {
-    case SimpleConstOutput(`v`) =>
+    case SimpleConstOutput(c) if c === v =>
       this
     case _ =>
       OtherOutputPattern
@@ -137,8 +137,8 @@ final case class AtLeastOneEmitted(id: Int, name: String) extends OutputEnvironm
 }
 
 private[jc] object OutputEnvironment {
-  private type OutputItem[T] = (T, OutputPatternType, List[OutputEnvironment])
-  private type OutputList[T] = List[OutputItem[T]]
+  private[jc] type OutputItem[T] = (T, OutputPatternType, List[OutputEnvironment])
+  private[jc] type OutputList[T] = List[OutputItem[T]]
 
   private[jc] def shrink[T](outputs: OutputList[T]): OutputList[T] = {
     outputs.foldLeft[(OutputList[T], OutputList[T])]((Nil, outputs)) { (accOutputs, outputInfo) =>
