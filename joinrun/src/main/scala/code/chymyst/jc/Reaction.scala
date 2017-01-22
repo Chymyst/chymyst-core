@@ -626,16 +626,17 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
     if (info.guardPresence.staticGuardFails)
       None
     else {
-      // For each input molecule used by the reaction, find a random value of this molecule and evaluate the conditional.
-      val inputMoleculeInfos = info.inputsSorted
+      // For each input molecule used by the reaction, find all suitable values of this molecule that fit the conditional.
+      // This builds a sequence of possible molecule sets for this reaction.
+      // Then evaluate cross-guards and filter this sequence. Take `headOption` of the resulting sequence.
 
       // Map of molecule values for molecules that are inputs to this reaction.
       val initRelevantMap = moleculesPresent.getMap.filterKeys(m => inputMoleculesSet.contains(m))
 
-      // A simpler, non-flatMap algorithm for the case when all matchers are trivial.
+      // A simpler, non-flatMap algorithm for the case when there are no cross-dependencies of molecule values.
       val foundResult: Option[Map[Int, AbsMolValue[_]]] =
         if (info.crossGuards.isEmpty && info.crossConditionals.isEmpty) {
-          inputMoleculeInfos.flatFoldLeft[(Map[Int, AbsMolValue[_]], BagMap)]((Map(), initRelevantMap)) { (prev, inputInfo) =>
+          info.inputsSorted.flatFoldLeft[(Map[Int, AbsMolValue[_]], BagMap)]((Map(), initRelevantMap)) { (prev, inputInfo) =>
             // Since we are in a flatFoldLeft, we need to return Some(...) if we found a new value, or else return None.
             val (prevValues, prevRelevantMap) = prev
             val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
@@ -646,11 +647,11 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
                 val newValues = prevValues.updated(inputInfo.index, newMolValue)
                 (newValues, newRelevantMap)
               }
-          }.map(_._1) // Get rid of BagMap and tuple.
+          }.map(_._1) // Now remove BagMap, and only `Option[Map[Int, AbsMolValue[_]]]` is left.
         } else {
-          // TODO: only use the `flatMap-fold` separately for the clusters of interdependent molecules
+          // TODO: only use the `flatMap-fold` separately for the clusters of interdependent molecules, not always for all molecules!
           val found: Stream[Map[Int, AbsMolValue[_]]] =
-            inputMoleculeInfos.toStream
+            info.inputsSorted // We go through all molecules in the order of decreasing strength of conditionals.
               .foldLeft[Stream[(Map[Int, AbsMolValue[_]], BagMap)]](Stream((Map(), initRelevantMap))) { (prev, inputInfo) =>
               // In this `foldLeft` closure:
               // `prev` contains the molecule value assignments we have found so far (`prevValues`), as well as the map `prevRelevantMap` containing molecule values that would remain in the soup after these previous molecule values were removed.
