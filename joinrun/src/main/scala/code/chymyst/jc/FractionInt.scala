@@ -1,5 +1,5 @@
 package code.chymyst.jc
-
+/*
 import scala.annotation.tailrec
 
 final case class FractionInt(numerator: Int, denominator: Int) {
@@ -53,3 +53,4 @@ object FractionInt extends Fractional[FractionInt] {
 
   override def compare(x: FractionInt, y: FractionInt): Int = (x.numerator * y.denominator) compare (y.numerator * x.denominator)
 }
+*/
