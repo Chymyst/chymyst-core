@@ -72,7 +72,9 @@ case object OtherOutputPattern extends OutputPatternType
   * while `(1 to 10).foreach(a)` is a function block environment
   * and `(x) => a(x)` is a [[FuncLambda]] environment.
   */
-sealed trait OutputEnvironment
+sealed trait OutputEnvironment {
+  def id: Int
+}
 
 final case class ChooserBlock(id: Int, clause: Int) extends OutputEnvironment
 
@@ -80,7 +82,9 @@ final case class FuncBlock(id: Int, name: String) extends OutputEnvironment
 
 final case class FuncLambda(id: Int) extends OutputEnvironment
 
-final case class EmitOneOrMore(id: Int, name: String) extends OutputEnvironment
+final case class AtLeastOneEmitted(id: Int, name: String) extends OutputEnvironment
+
+final case class ZeroOrMoreEmitted(id: Int, name: String) extends OutputEnvironment
 
 /** Indicates whether a reaction has a guard condition.
   *
