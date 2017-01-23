@@ -1037,7 +1037,7 @@ The reaction can start when a man and a woman are present.
 It is clear that we can simulate this via two molecules, `man` and `woman`, whose presence is required to start the reaction.
 
 ```scala
-go { case man(_) + woman(_) => begin_dancing() }
+go { case man(_) + woman(_) => beginDancing() }
 
 ```
 
@@ -1047,7 +1047,82 @@ The problem with the above reaction is that it does not respect the linear natur
 If processes emit several `man()` and `woman()` molecules quickly enough, they will be paired up in random order, rather than in the order of arrival in the queue.
 Also, nothing prevents several pairs to begin dancing at once, regardless of the dancer's positions in the queues.
 
-TODO: expand
+How can we enforce the order of arrival on the pairs?
+
+The only way to do that is to label each `man` and `woman` molecule with an integer that represents their position in the queue.
+However, the external process that emits `man` and `woman` molecules does not know about our ordering requirements.
+Therefore, to ensure that the labels are given out consistently, we need our own reaction that assigns the position labels.
+
+Let us define new molecules, `manL` representing "man with label" and `womanL` for "woman with label".
+The dancing reaction will become
+```scala
+val manL = m[Int]
+val womanL = m[Int]
+go { case manL(m) + womanL(w) if m == w => beginDancing() }
+
+```
+
+The last positions in the men's and women's queues should be maintained and updated as new dancers arrive.
+Since the only way of keeping state is by putting data on molecules, we need new molecules that hold the state of the queue.
+Let us call these molecules `queueMen` and `queueWomen`.
+We can then define reactions that will produce new molecules, `manL` representing "man with label" and `womanL` for "woman with label":
+
+```scala
+val man = m[Unit]
+val manL = m[Int]
+val queueMen = m[Int]
+val woman = m[Unit]
+val womanL = m[Int]
+val queueWomen = m[Int]
+val beginDancing = m[Unit]
+
+site(
+  go { case man(_) + queueMen(n) => queueMen(n+1) + manL(n+1) },
+  go { case woman(_) + queueWomen(n) => queueWomen(n+1) + womanL(n+1) }
+)
+
+```
+
+The result of this chemistry is that a number of `manL` and `womanL` molecules may accumulate at the reaction site, each carrying their position label.
+We now need to make sure they start dancing in the order of their position.
+
+For instance, it could be that we have `manL(0)`, `manL(1)`, `manL(2)`, `womanL(0)`, `womanL(1)`.
+In that case, we should first let `manL(0)` and `womanL(0)` begin dancing, and only when they have done so, we may pair up `manL(1)` and `womanL(1)`.
+
+We might try writing the following reaction,
+
+```scala
+go { case manL(m) + womanL(w) if m == w => beginDancing() }
+
+```
+
+However, this reaction will not enforce the requirement that `manL(0)` and `womanL(0)` should begin dancing first.
+How can we prevent the molecules `manL(1)` and `womanL(1)` from reacting if `manL(0)` and `womanL(0)` have not yet reacted?
+
+In the chemical machine, the only way to prevent reactions is to withhold some input molecules.
+Therefore, the dancing reaction must have _another_ input molecule, say `mayBegin`.
+If the dancing reaction has the form `manL + womanL + mayBegin => ...`, and if `mayBegin` carries value 0,
+we can enforce the requirement that `manL(0)` and `womanL(0)` should begin dancing first.
+
+Now it is clear that the `mayBegin` molecule must carry the most recently used position label, and increment this label every time a new pair goes off to dance:
+
+```scala
+go { case manL(m) + womanL(w) + mayBegin(l) if m == w && w == l => beginDancing(); mayBegin(l + 1) }
+
+```
+
+In order to make sure that the previous pair has actually began dancing, let us make `beginDancing()` a _blocking_ molecule.
+The next `mayBegin` will then be emitted only after `beginDancing` receives a reply, indicating that the dancing process has actually started.
+
+Finally, we must make sure that the auxiliary molecules are emitted only once and with correct values.
+We can declare these molecules as singletons by writing a singleton reaction:
+
+```scala
+go { case _ => queueMen(0) + queueWomen(0) + mayBegin(0) }
+
+```
+
+The complete working code is found in `Patterns01Spec.scala`.
 
 ## Choose and reply to one of many blocking calls (Unix `select`, Actor Model's `receive`)
 

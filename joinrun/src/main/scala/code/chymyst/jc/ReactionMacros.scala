@@ -642,16 +642,16 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   // This boilerplate is necessary for being able to use PatternType values in quasiquotes.
   implicit val liftableInputPatternFlag: Liftable[InputPatternFlag] = Liftable[InputPatternFlag] {
     case WildcardF =>
-      q"_root_.code.chymyst.jc.Wildcard"
+      q"_root_.code.chymyst.jc.WildcardInput"
     case ConstantPatternF(tree) =>
-      q"_root_.code.chymyst.jc.SimpleConst($tree)"
+      q"_root_.code.chymyst.jc.SimpleConstInput($tree)"
     case SimpleVarF(v, binder, cond) =>
       val guardFunction = cond.map(c => matcherFunction(binder, c, List(v)))
-      q"_root_.code.chymyst.jc.SimpleVar(${identToScalaSymbol(v)}, $guardFunction)"
+      q"_root_.code.chymyst.jc.SimpleVarInput(${identToScalaSymbol(v)}, $guardFunction)"
     case OtherInputPatternF(matcherTree, guardTreeOpt, vars) =>
       q"_root_.code.chymyst.jc.OtherInputPattern(${matcherFunction(matcherTree, guardTreeOpt.getOrElse(EmptyTree), vars)}, ${vars.map(identToScalaSymbol)}, ${guardTreeOpt.isEmpty})"
     case _ =>
-      q"_root_.code.chymyst.jc.Wildcard" // this case will not be encountered here; we are conflating InputPatternFlag and ReplyInputPatternFlag
+      q"_root_.code.chymyst.jc.WildcardInput" // this case will not be encountered here; we are conflating InputPatternFlag and ReplyInputPatternFlag
   }
 
   implicit val liftableOutputPatternFlag: Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
