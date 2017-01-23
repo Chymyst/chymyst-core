@@ -57,8 +57,9 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   )
 
   /** Detect whether a pattern-matcher expression tree represents an irrefutable pattern.
-    * For example, Some(_) is refutable because it does not match None.
-    * The pattern (_, x, y, (z, _)) is irrefutable.
+    * For example, `Some(_)` is refutable because it does not match `None`.
+    * The pattern `(_, x, y, (z, _))` is irrefutable.
+    * Patterns with single-case-classes are irrefutable.
     *
     * @param binderTerm Binder pattern tree.
     * @return `true` or `false`
@@ -66,14 +67,21 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   def isIrrefutablePattern(binderTerm: Tree): Boolean = binderTerm match {
     case Ident(termNames.WILDCARD) =>
       true
-    case pq"$x @ $y" =>
+    case pq"$x @ $y" => // Matching by a simple variable `x` is actually `x @ _` and is detected here.
       isIrrefutablePattern(y.asInstanceOf[Tree])
-    case pq"(..$exprs)"
+    case pq"(..$exprs)" // Tuple: all elements must be irrefutable.
       if exprs.size >= 2 =>
       exprs.forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
+    case pq"$extr(..$args)" => // Case class with exactly one case?
+      val classSymbolOfExtr = extr.tpe.resultType.typeSymbol.asClass
+      classSymbolOfExtr.isCaseClass && {
+        val candidateBaseSealedTraits = classSymbolOfExtr.baseClasses.filter(b => b.asClass.isSealed && b.asClass.knownDirectSubclasses.contains(classSymbolOfExtr))
+        candidateBaseSealedTraits.forall(_.asClass.knownDirectSubclasses.size === 1)
+      } && args.forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
+
     case pq"$first | ..$rest"
-      if rest.nonEmpty =>
-      (first :: rest.toList).forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
+      if rest.nonEmpty => // At least one of the alternatives must be irrefutable.
+      (first :: rest.toList).exists(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
 
     case _ => false
   }
