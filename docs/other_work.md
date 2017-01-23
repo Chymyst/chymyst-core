@@ -14,7 +14,67 @@ Here are some previous implementations of Join Calculus that I was able to find.
 - Joinads, a not-quite-Join-Calculus implementation in F# and Haskell: [Petricek and Syme 2011](https://www.microsoft.com/en-us/research/publication/joinads-a-retargetable-control-flow-construct-for-reactive-parallel-and-concurrent-programming/). The project is not maintained.
 - Proof-of-concept implementations of Join Calculus for iOS: [CocoaJoin](https://github.com/winitzki/AndroJoin) and Android: [AndroJoin](https://github.com/winitzki/AndroJoin). These projects are not maintained.
 
-The implementation in `JoinRun` is based on ideas from Jiansen He's `ScalaJoin` as well as on CocoaJoin / AndroJoin.
+The implementation of JC in `JoinRun` is based on ideas from Jiansen He's `ScalaJoin` as well as on CocoaJoin / AndroJoin.
+
+## Improvements with respect to Jiansen He's `ScalaJoin`
+
+Compared to [`ScalaJoin` (Jiansen He's 2011 implementation of JC)](https://github.com/Jiansen/ScalaJoin), `JoinRun` offers the following improvements:
+
+- Lighter syntax for reaction sites (join definitions). Compare:
+
+JoinRun:
+
+```scala
+val a = m[Int]
+val c = b[Int, Int]
+site(
+  go { case a(x) + c(y, reply) =>
+    a(x+y)
+    reply(x)
+  }
+)
+a(1)
+
+```
+
+ScalaJoin:
+
+```scala
+object join1 extends Join {
+  object a extends AsyName[Int]
+  object c extends SynName[Int, Int]
+
+  join {
+    case a(x) and c(y) =>
+      a(x+y)
+      c.reply(x)
+  }
+}
+a(1)
+
+```
+
+- Molecule emitters (“channel names”) are not singleton objects as in `ScalaJoin` but locally scoped values. This is how the semantics of JC is implemented in JoCaml. In this way, we get more flexibility in defining molecules.
+- Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`). `JoinRun` uses macros to perform some static analysis of reactions at compile time and detect some errors.
+- Reaction sites are not explicit objects but are local values(instances of class `ReactionSite`) and are invisible to the user, as they should be according to the semantics of JC.
+
+## Improvements with respect to JoCaml
+
+
+As a baseline reference, the most concise syntax for JC is available in [JoCaml](http://jocaml.inria.fr), which uses a modified OCaml compiler:
+
+```ocaml
+def a(x) & c(y) =  
+   a(x+y) & reply x to c
+spawn a(1)
+
+```
+
+In the JoCaml syntax, `a` and `c` are declared implicitly, together with the reaction.
+Implicit declaration of molecule emitters (“channels”) is not possible in `JoinRun` because Scala macros do not allow us to insert a new top-level name declaration into the code.
+So, declarations need to be explicit and show the types of values (`b[Int, Int]` and so on).
+Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` and JoCaml.
+
 
 # Other tutorials on Join Calculus
 
@@ -70,9 +130,12 @@ As of December 2016, this page says this about Join Calculus:
 > However, as a language for programming, the join-calculus offers at least one convenience over the π-calculus — namely the use of multi-way join patterns, the ability to match against messages from multiple channels simultaneously.
 
 This text is impossible to understand unless you are already well-versed in the research literature.
-(I'm not sure what it means to have "communication on _defined_ names", as opposed to communication on _undefined_ names...)
+(I'm not sure what it means to have “communication on _defined_ names”, as opposed to communication on _undefined_ names...)
 
-Research literature on Join Calculus typically uses terms such as "channel" or "message", which are not very helpful for understanding how to write concurrent programs in JC.
+Academic literature on Join Calculus typically uses terms such as “channel” and “message”, which are not helpful for understanding how to write concurrent programs in JC.
+Indeed, a “channel” in JC holds an _unordered_ collection of messages, rather than an ordered queue or mailbox, as the word “channel” suggests.
+The word “message” again suggests that somewhere a mailbox receives messages one by one.
+This is very different from what happens in JC, where a reaction waits on several “messages” at once, and different reactions can contend on “messages”.
 
 Instead of using academic terminology, I always follow the chemical machine metaphor and terminology when talking about `Chymyst` programming.
 Here is a dictionary:
@@ -80,7 +143,7 @@ Here is a dictionary:
 | Chemical machine  | Academic Join Calculus | `Chymyst` code |
 |---|---|---|
 | input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
-| molecule emitter | channel (port) name | `val a :  M[Int]` |
+| molecule emitter | channel name | `val a :  M[Int]` |
 | blocking emitter | synchronous channel | `val q :  B[Unit, Int]` |
 | reaction | process | `val r1 = go { case a(x) + ... => ... }` |
 | emitting an output molecule | sending a message | `a(123)` _// side effect_ |
