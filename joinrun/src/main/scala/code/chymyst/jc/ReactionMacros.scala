@@ -73,12 +73,15 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       if exprs.size >= 2 =>
       exprs.forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
     case pq"$extr(..$args)" => // Case class with exactly one case?
-      val classSymbolOfExtr = extr.tpe.resultType.typeSymbol.asClass
-      classSymbolOfExtr.isCaseClass && {
-        val candidateBaseSealedTraits = classSymbolOfExtr.baseClasses.filter(b => b.asClass.isSealed && b.asClass.knownDirectSubclasses.contains(classSymbolOfExtr))
-        candidateBaseSealedTraits.forall(_.asClass.knownDirectSubclasses.size === 1)
-      } && args.forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
-
+      val typeSymbolOfExtr = extr.tpe.resultType.typeSymbol // Note: extr.tpe.symbol is NoSymbol since it's a pattern matcher tree.
+      typeSymbolOfExtr.isClass && {
+        val classSymbolOfExtr = typeSymbolOfExtr.asClass
+        classSymbolOfExtr.isCaseClass && {
+          val candidateBaseSealedTraits = classSymbolOfExtr.baseClasses.filter(b => b.asClass.isSealed && b.asClass.knownDirectSubclasses.contains(classSymbolOfExtr))
+          candidateBaseSealedTraits.nonEmpty &&
+            candidateBaseSealedTraits.forall(_.asClass.knownDirectSubclasses.size === 1)
+        } && args.forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
+      }
     case pq"$first | ..$rest"
       if rest.nonEmpty => // At least one of the alternatives must be irrefutable.
       (first :: rest.toList).exists(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
@@ -706,7 +709,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   def equalsInMacro(a: Any, b: Any): Boolean = a match {
     case x: Tree => x.equalsStructure(b.asInstanceOf[Tree])
-//    case _ => a === b  // this is never used
+    //    case _ => a === b  // this is never used
   }
 
   /* This code has been commented out after a lengthy but fruitless exploration of valid ways of modifying the reaction body.
