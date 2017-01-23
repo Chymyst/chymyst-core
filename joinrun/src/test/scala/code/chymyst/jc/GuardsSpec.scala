@@ -19,12 +19,12 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`ccc`, 0, SimpleConst(Nil), _),
-      InputMoleculeInfo(`ccc`, 1, SimpleConst(List()), _),
-      InputMoleculeInfo(`ccc`, 2, SimpleConst(List(1)), _),
-      InputMoleculeInfo(`ccc`, 3, SimpleConst(List(1, 2, 3)), _),
-      InputMoleculeInfo(`bb`, 4, SimpleConst('input), _),
-      InputMoleculeInfo(`a`, 5, SimpleConst(Right("input")), _)
+      InputMoleculeInfo(`ccc`, 0, SimpleConstInput(Nil), _),
+      InputMoleculeInfo(`ccc`, 1, SimpleConstInput(List()), _),
+      InputMoleculeInfo(`ccc`, 2, SimpleConstInput(List(1)), _),
+      InputMoleculeInfo(`ccc`, 3, SimpleConstInput(List(1, 2, 3)), _),
+      InputMoleculeInfo(`bb`, 4, SimpleConstInput('input), _),
+      InputMoleculeInfo(`a`, 5, SimpleConstInput(Right("input")), _)
       ) =>
     }
   }
@@ -42,10 +42,10 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`a`, 0, SimpleConst(Left(1)), _),
-      InputMoleculeInfo(`a`, 1, SimpleConst(Right("input")), _),
-      InputMoleculeInfo(`bb`, 2, SimpleConst((2, Some(3))), _),
-      InputMoleculeInfo(`bb`, 3, SimpleConst((0, None)), _)
+      InputMoleculeInfo(`a`, 0, SimpleConstInput(Left(1)), _),
+      InputMoleculeInfo(`a`, 1, SimpleConstInput(Right("input")), _),
+      InputMoleculeInfo(`bb`, 2, SimpleConstInput((2, Some(3))), _),
+      InputMoleculeInfo(`bb`, 3, SimpleConstInput((0, None)), _)
       ) =>
     }
 
@@ -61,8 +61,8 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`a`, 0, SimpleVar('xOpt, Some(_)), _),
-      InputMoleculeInfo(`bb`, 1, SimpleVar('y, Some(_)), _)
+      InputMoleculeInfo(`a`, 0, SimpleVarInput('xOpt, Some(_)), _),
+      InputMoleculeInfo(`bb`, 1, SimpleVarInput('y, Some(_)), _)
       ) =>
     }
     result.info.toString shouldEqual "a(xOpt if ?) + bb(y if ?) => "
@@ -95,8 +95,8 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`a`, 0, SimpleVar('xOpt, None), _),
-      InputMoleculeInfo(`bb`, 1, SimpleVar('y, None), _)
+      InputMoleculeInfo(`a`, 0, SimpleVarInput('xOpt, None), _),
+      InputMoleculeInfo(`bb`, 1, SimpleVarInput('y, None), _)
       ) =>
     }
     result.info.toString shouldEqual "a(xOpt) + bb(y) if(xOpt,y) => "
@@ -139,7 +139,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
 
-    result.info.inputs should matchPattern { case Array(InputMoleculeInfo(`a`, 0, SimpleVar('x, None), _)) => }
+    result.info.inputs should matchPattern { case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, None), _)) => }
     result.info.toString shouldEqual "a(x) => "
   }
 
@@ -157,7 +157,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case _ => false
     }) shouldEqual true
 
-    result.info.inputs should matchPattern { case Array(InputMoleculeInfo(`a`, 0, SimpleVar('x, None), _)) => }
+    result.info.inputs should matchPattern { case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, None), _)) => }
     result.info.toString shouldEqual "a(x) if(?) => "
   }
 
@@ -168,7 +168,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val reaction = go { case a(1) + b(x) if x > 1 => }
 
     (reaction.info.inputs(1).flag match {
-      case SimpleVar(v, Some(cond)) =>
+      case SimpleVarInput(v, Some(cond)) =>
         cond.isDefinedAt(1) shouldEqual false
         cond.isDefinedAt(2) shouldEqual true
         true
@@ -225,7 +225,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     }
     result.info.toString shouldEqual "a(xyz if ?) => "
     (result.info.inputs match {
-      case Array(InputMoleculeInfo(`a`, 0, SimpleVar('xyz, Some(cond)), _)) =>
+      case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('xyz, Some(cond)), _)) =>
         cond.isDefinedAt(n + 1) shouldEqual true
         cond.isDefinedAt(n) shouldEqual false
         true
@@ -293,7 +293,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       which gives a type error: `arr` is typed as `Any` instead of `Array[Int]` as required.
     */
     val reaction2 = go { case d(arr) if arr.nonEmpty => }
-    reaction2.info.inputs.head should matchPattern { case InputMoleculeInfo(`d`, 0, SimpleVar('arr, Some(_)), _) => }
+    reaction2.info.inputs.head should matchPattern { case InputMoleculeInfo(`d`, 0, SimpleVarInput('arr, Some(_)), _) => }
   }
 
   behavior of "cross-molecule guards"

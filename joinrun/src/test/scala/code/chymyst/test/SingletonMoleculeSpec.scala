@@ -53,8 +53,8 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       // Warning: the timeouts might fail the test due to timed tests.
       (1 to 20).foreach { j =>
         val thrown = intercept[Exception] {
-        d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
-        // and even if the initial d() emission was done late
+          d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
+          // and even if the initial d() emission was done late
         }
         thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit singleton d(bad $i $j) because this thread does not run a chemical reaction"
         f.timeout()(500 millis) shouldEqual Some("ok")
@@ -213,7 +213,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     val c = m[Int]
 
     val tp = new FixedPool(1)
-    site(tp)( go { case c(_) => } )
+    site(tp)(go { case c(_) => })
 
     val thrown = intercept[Exception] {
       c.volatileValue
@@ -238,7 +238,6 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
       d.volatileValue
     }
-
 
     (1 to 100).foreach { i =>
       makeNewVolatile(i) // This should sometimes throw an exception, so let's make sure it does.
@@ -321,14 +320,14 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     val delta_n = 1000
 
     site(tp)(
-      go { case d(x) + incr(_, r) => r(); d(x+1) },
+      go { case d(x) + incr(_, r) => r(); d(x + 1) },
       go { case d(x) + stabilize_d(_, r) => d(x); r() }, // Await stabilizing the presence of d
       go { case _ => d(n) } // singleton
     )
     stabilize_d.timeout()(500 millis)
     d.volatileValue shouldEqual n
 
-    (n+1 to n+delta_n).map { i =>
+    (n + 1 to n + delta_n).map { i =>
       incr.timeout()(500 millis) shouldEqual Some(())
 
       i - d.volatileValue // this is mostly 0 but sometimes 1
@@ -349,7 +348,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     site(tp3)(
       go { case wait(_, r) + e(_) => r() } onThreads tp3,
-      go { case d(x) + incr(_, r) => r(); wait(); d(x+1) } onThreads tp1,
+      go { case d(x) + incr(_, r) => r(); wait(); d(x + 1) } onThreads tp1,
       go { case d(x) + stabilize_d(_, r) => d(x); r() } onThreads tp1, // Await stabilizing the presence of d
       go { case _ => d(100) } // singleton
     )
@@ -376,8 +375,13 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       val f = m[Unit]
 
       site(tp)(
-        go { case d(_) +e(_) + f(_) + c(_, r) => r("ok"); d(); e(); f() },
-        go { case _ => if (false) { d(); e() }; f(); } // singletons d() and e() will actually not be emitted because of a condition
+        go { case d(_) + e(_) + f(_) + c(_, r) => r("ok"); d(); e(); f() },
+        go { case _ => if (false) {
+          d();
+          e()
+        };
+          f();
+        } // singletons d() and e() will actually not be emitted because of a condition
       )
     }
     thrown.getMessage shouldEqual "In Site{c/B + d + e + f => ...}: Too few singletons emitted: d emitted 0 times instead of 1, e emitted 0 times instead of 1"
@@ -403,6 +407,18 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     warnings.warnings shouldEqual Seq("Possibly too many singletons emitted: d emitted 2 times instead of 1, e emitted 2 times instead of 1")
 
     tp.shutdownNow()
+  }
+
+  it should "detect livelock with singletons" in {
+    val a = m[Unit]
+    val c = m[Int]
+    val thrown = intercept[Exception] {
+      site(
+        go { case a(_) + c(x) if x > 0 => c(1) + a() },
+        go { case _ => c(0) }
+      )
+    }
+    thrown.getMessage shouldEqual "In Site{a + c => ...}: Unavoidable livelock: reaction {a(_) + c(x if ?) => c(1) + a()}"
   }
 
 }
