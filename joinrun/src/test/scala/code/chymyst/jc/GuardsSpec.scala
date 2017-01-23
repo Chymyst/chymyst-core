@@ -194,6 +194,8 @@ class GuardsSpec extends FlatSpec with Matchers {
     }) shouldEqual true
   }
 
+  behavior of "detecting irrefutable patterns"
+
   it should "compute reaction info with compound irrefutable matcher" in {
     val a = m[(Int, (Int, Int), Int)]
 
@@ -213,6 +215,27 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List(), true) => }
   }
+
+  it should "recognize irrefutable case class matcher" in {
+    sealed trait MyTrait
+    case class A(x: Int) extends MyTrait
+
+    val a = m[MyTrait]
+    val r = go { case a(A(x)) => }
+    r.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List('x), true) => }
+  }
+
+  it should "recognize refutable case class matcher" in {
+    sealed trait MyTrait
+    case class A(x: Int) extends MyTrait
+    case class B(y: Int) extends MyTrait
+
+    val a = m[MyTrait]
+    val r = go { case a(A(x)) => }
+    r.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List('x), false) => }
+  }
+
+  behavior of "guard conditions without cross-molecule dependencies"
 
   it should "recognize a guard condition with captured non-molecule variables" in {
     val a = m[Int]

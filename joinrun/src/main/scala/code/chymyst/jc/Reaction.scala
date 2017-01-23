@@ -43,9 +43,10 @@ final case class SimpleConstInput(v: Any) extends InputPatternType
 /** Represents a general pattern that is neither a wildcard nor a single variable nor a constant.
   * Examples of such patterns are `a(Some(x))` and `a( (x, _, 2, List(a, b)) )`.
   *
-  * A pattern is recognized to be _irrefutable_ when it is a tuple (or several nested tuples) where all places are either simple variables or wildcards.
+  * A pattern is recognized to be _irrefutable_ when it is a tuple where all places are either simple variables or wildcards.
   * For example, `a( z@(x, y, _) )` is an irrefutable pattern for a 3-tuple type.
   * On the other hand, `a( (x, _, Some(_) ) )` is not irrefutable because it fails to match `a( (_, _, None) )`.
+  * Another recognized case of irrefutable patterns is a single case class that extends a sealed trait.
   *
   * @param matcher       Partial function that applies to the argument when the pattern matches.
   * @param vars          List of symbols representing the variables used in the pattern, in the left-to-right order.
