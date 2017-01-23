@@ -1032,7 +1032,7 @@ Similarly, when a woman is first in the queue at door B and no man is waiting, s
 
 Let us implement a simulation of this problem in the chemical machine.
 
-The problem is about controlling the starting of a reaction (the "dancing" computation).
+The problem is about controlling the starting of a reaction that represents the "dancing" computation.
 The reaction can start when a man and a woman are present.
 It is clear that we can simulate this via two molecules, `man` and `woman`, whose presence is required to start the reaction.
 
@@ -1043,18 +1043,18 @@ go { case man(_) + woman(_) => beginDancing() }
 
 To simplify this example, let us assume that some other reactions will randomly emit `man()` and `woman()` molecules.
 
-The problem with the above reaction is that it does not respect the linear nature of the queue.
-If processes emit several `man()` and `woman()` molecules quickly enough, they will be paired up in random order, rather than in the order of arrival in the queue.
+The problem with the above reaction is that it does not respect the linear order of molecules in the queue.
+If several `man()` and `woman()` molecules are emitted quickly enough, they will be paired up in random order, rather than in the order of arrival in the queue.
 Also, nothing prevents several pairs to begin dancing at once, regardless of the dancer's positions in the queues.
 
 How can we enforce the order of arrival on the pairs?
 
 The only way to do that is to label each `man` and `woman` molecule with an integer that represents their position in the queue.
-However, the external process that emits `man` and `woman` molecules does not know about our ordering requirements.
-Therefore, to ensure that the labels are given out consistently, we need our own reaction that assigns the position labels.
+However, the external reactions that emit `man` and `woman` will not know about our ordering requirements.
+Therefore, to ensure that the labels are given out consistently, we need our own reactions that will assign position labels.
 
 Let us define new molecules, `manL` representing "man with label" and `womanL` for "woman with label".
-The dancing reaction will become
+The dancing reaction will become something like this,
 
 ```scala
 val manL = m[Int]
@@ -1078,8 +1078,8 @@ val queueWomen = m[Int]
 val beginDancing = m[Unit]
 
 site(
-  go { case man(_) + queueMen(n) => queueMen(n+1) + manL(n+1) },
-  go { case woman(_) + queueWomen(n) => queueWomen(n+1) + womanL(n+1) }
+  go { case man(_) + queueMen(n) => manL(n) + queueMen(n+1) },
+  go { case woman(_) + queueWomen(n) => womanL(n) + queueWomen(n+1) }
 )
 
 ```
@@ -1087,20 +1087,20 @@ site(
 The result of this chemistry is that a number of `manL` and `womanL` molecules may accumulate at the reaction site, each carrying their position label.
 We now need to make sure they start dancing in the order of their position.
 
-For instance, it could be that we have `manL(0)`, `manL(1)`, `manL(2)`, `womanL(0)`, `womanL(1)`.
-In that case, we should first let `manL(0)` and `womanL(0)` begin dancing, and only when they have done so, we may pair up `manL(1)` and `womanL(1)`.
+For instance, we could have molecules `manL(0)`, `manL(1)`, `manL(2)`, `womanL(0)`, `womanL(1)` at the reaction site.
+In that case, we should first let `manL(0)` and `womanL(0)` pair up and begin dancing, and only when they have done so, we may pair up `manL(1)` and `womanL(1)`.
 
-We might try writing the following reaction,
+The reaction we thought of,
 
 ```scala
 go { case manL(m) + womanL(w) if m == w => beginDancing() }
 
 ```
 
-However, this reaction will not enforce the requirement that `manL(0)` and `womanL(0)` should begin dancing first.
+does not actually enforce the requirement that `manL(0)` and `womanL(0)` should begin dancing first.
 How can we prevent the molecules `manL(1)` and `womanL(1)` from reacting if `manL(0)` and `womanL(0)` have not yet reacted?
 
-In the chemical machine, the only way to prevent reactions is to withhold some input molecules.
+In the chemical machine, the only way to prevent reactions is to omit some input molecules.
 Therefore, the dancing reaction must have _another_ input molecule, say `mayBegin`.
 If the dancing reaction has the form `manL + womanL + mayBegin => ...`, and if `mayBegin` carries value 0,
 we can enforce the requirement that `manL(0)` and `womanL(0)` should begin dancing first.
@@ -1112,7 +1112,7 @@ go { case manL(m) + womanL(w) + mayBegin(l) if m == w && w == l => beginDancing(
 
 ```
 
-In order to make sure that the previous pair has actually began dancing, let us make `beginDancing()` a _blocking_ molecule.
+In order to make sure that the previous pair has actually began dancing, we can make `beginDancing()` a _blocking_ molecule.
 The next `mayBegin` will then be emitted only after `beginDancing` receives a reply, indicating that the dancing process has actually started.
 
 Finally, we must make sure that the auxiliary molecules are emitted only once and with correct values.
