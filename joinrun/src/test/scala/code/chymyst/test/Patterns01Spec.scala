@@ -23,8 +23,8 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
   behavior of "Chymyst"
 
   it should "implement barrier (rendezvous without data exchange) for two processes" in {
-    val barrier1 = b[Unit,Unit]
-    val barrier2 = b[Unit,Unit]
+    val barrier1 = b[Unit, Unit]
+    val barrier2 = b[Unit, Unit]
 
     val begin1 = m[Unit]
     val begin2 = m[Unit]
@@ -36,8 +36,11 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val logFile = new ConcurrentLinkedQueue[String]
 
     def f1() = logFile.add("f1")
+
     def f2() = logFile.add("f2")
+
     def g1() = logFile.add("g1")
+
     def g2() = logFile.add("g2")
 
     site(tp)(
@@ -58,20 +61,22 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "implement exchanger (rendezvous with data exchange) for two processes" in {
-    val barrier1 = b[Int,Int]
-    val barrier2 = b[Int,Int]
+    val barrier1 = b[Int, Int]
+    val barrier2 = b[Int, Int]
 
     val begin1 = m[Unit]
     val begin2 = m[Unit]
 
     val end1 = m[Int]
     val end2 = m[Int]
-    val done = b[Unit,(Int,Int)]
+    val done = b[Unit, (Int, Int)]
 
     site(tp)(
       go { case begin1(_) =>
-        val x1 = 123  // some computation
-        val y1 = barrier1(x1) // receive value from Process 2
+        val x1 = 123
+        // some computation
+        val y1 = barrier1(x1)
+        // receive value from Process 2
         val z = y1 * y1 // further computation
         end1(z)
       }
@@ -79,8 +84,10 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     site(tp)(
       go { case begin2(_) =>
-        val x2 = 456 // some computation
-        val y2 = barrier2(x2) // receive value from Process 1
+        val x2 = 456
+        // some computation
+        val y2 = barrier2(x2)
+        // receive value from Process 1
         val z = y2 * y2 // further computation
         end2(z)
       }
@@ -92,20 +99,20 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     )
 
     site(tp)(
-      go { case end1(x1) + end2(x2) + done(_, r) => r((x1,x2))}
+      go { case end1(x1) + end2(x2) + done(_, r) => r((x1, x2)) }
     )
 
     begin1() + begin2() // emit both molecules to enable starting the two reactions
 
     val result = done()
-    result shouldEqual ((456*456,123*123))
+    result shouldEqual ((456 * 456, 123 * 123))
   }
 
   it should "implement barrier (rendezvous without data exchange) with 4 processes" in {
-    val barrier1 = b[Unit,Unit]
-    val barrier2 = b[Unit,Unit]
-    val barrier3 = b[Unit,Unit]
-    val barrier4 = b[Unit,Unit]
+    val barrier1 = b[Unit, Unit]
+    val barrier2 = b[Unit, Unit]
+    val barrier3 = b[Unit, Unit]
+    val barrier4 = b[Unit, Unit]
 
     val begin1 = m[Unit]
     val begin2 = m[Unit]
@@ -121,12 +128,19 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val logFile = new ConcurrentLinkedQueue[String]
 
     def f1() = logFile.add("f1")
+
     def f2() = logFile.add("f2")
+
     def f3() = logFile.add("f4")
+
     def f4() = logFile.add("f3")
+
     def g1() = logFile.add("g1")
+
     def g2() = logFile.add("g2")
+
     def g3() = logFile.add("g4")
+
     def g4() = logFile.add("g3")
 
     site(tp)(
@@ -153,48 +167,55 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val n = 100 // The number of rendezvous participants needs to be known in advance, or else we don't know how long still to wait for rendezvous.
 
     // There will be 2*n blocked threads; the test will fail with FixedPool(2*n-1).
-    val pool = new FixedPool(2*n)
+    val pool = new FixedPool(2 * n)
 
-    val barrier = b[Unit,Unit]
+    val barrier = b[Unit, Unit]
     val counterInit = m[Unit]
-    val counter = b[Int,Unit]
+    val counter = b[Int, Unit]
     val endCounter = m[Int]
-    val begin = m[(()=>Unit, ()=>Unit)]
+    val begin = m[(() => Unit, () => Unit)]
     val end = m[Unit]
     val done = b[Unit, Unit]
 
     val logFile = new ConcurrentLinkedQueue[String]
 
-    def f(n: Int)(): Unit = { logFile.add(s"f$n"); () }
-    def g(n: Int)(): Unit = { logFile.add(s"g$n"); () }
+    def f(n: Int)(): Unit = {
+      logFile.add(s"f$n");
+      ()
+    }
+
+    def g(n: Int)(): Unit = {
+      logFile.add(s"g$n");
+      ()
+    }
 
     site(pool)(
-      go { case begin((f,g)) => f(); barrier(); g(); end() }, // this reaction will be run n times because we emit n molecules `begin` with various `f` and `g`
+      go { case begin((f, g)) => f(); barrier(); g(); end() }, // this reaction will be run n times because we emit n molecules `begin` with various `f` and `g`
       go { case barrier(_, replyB) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
         counter(1) // one reaction has reached the rendezvous point
         replyB()
       },
       go { case barrier(_, replyB) + counter(k, replyC) => // the `counter` molecule holds the number (k) of the reactions that have reached the rendezvous before this reaction started.
-        if (k + 1 < n) counter(k+1); else println(s"rendezvous passed by $n reactions")
+        if (k + 1 < n) counter(k + 1); else println(s"rendezvous passed by $n reactions")
         replyC() // `replyC()` must be here. Doing `replyC()` before emitting `counter(k+1)` would have unblocked some reactions and allowed them to proceed beyond the rendezvous point without waiting for all others.
         replyB()
       },
-      go { case end(_) + endCounter(k) => endCounter(k-1) },
-      go { case endCounter(0) + done(_, r) => r()}
+      go { case end(_) + endCounter(k) => endCounter(k - 1) },
+      go { case endCounter(0) + done(_, r) => r() }
     )
 
-    (1 to n).foreach(i => begin((f(i),g(i))))
+    (1 to n).foreach(i => begin((f(i), g(i))))
     counterInit()
     endCounter(n)
     done.timeout()(1000 millis) shouldEqual Some(())
 
     val result: Seq[String] = logFile.iterator().asScala.toSeq
-    result.size shouldEqual 2*n
+    result.size shouldEqual 2 * n
     // Now, there must be f_1, ..., f_n (in any order) before g_1, ..., g_n (also in any order).
     // We use sets to verify this.
 
     val setF = (0 until n).map(result.apply).toSet
-    val setG = (n until 2*n).map(result.apply).toSet
+    val setG = (n until 2 * n).map(result.apply).toSet
 
     val expectedSetF = (1 to n).map(i => s"f$i").toSet
     val expectedSetG = (1 to n).map(i => s"g$i").toSet
@@ -206,6 +227,42 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     expectedSetG diff setG shouldEqual Set()
 
     pool.shutdownNow()
+  }
+
+  it should "implement dance pairing with queue labels" in {
+    val man = m[Unit]
+    val manL = m[Int]
+    val queueMen = m[Int]
+    val woman = m[Unit]
+    val womanL = m[Int]
+    val queueWomen = m[Int]
+    val beginDancing = b[Int, Unit]
+    val mayBegin = m[Int]
+
+    val danceCounter = m[List[Int]]
+    val done = b[Unit, List[Int]]
+
+    val pool = new FixedPool(2)
+
+    site(pool)(
+      go { case man(_) + queueMen(n) => queueMen(n + 1) + manL(n) },
+      go { case woman(_) + queueWomen(n) => queueWomen(n + 1) + womanL(n) },
+      go { case manL(xy) + womanL(xx) + mayBegin(l) if xx == xy && xy == l => beginDancing(l); mayBegin(l + 1) },
+      go { case _ => queueMen(0) + queueWomen(0) + mayBegin(0) }
+    )
+
+    val total = 100
+
+    site(pool)(
+      go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) },
+      go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() },
+      go { case _ => danceCounter(Nil) }
+    )
+
+    (1 to total).map(_ => ()).foreach(man)
+    danceCounter.volatileValue shouldEqual Nil
+    (1 to total).map(_ => ()).foreach(woman)
+    done() shouldEqual (0 until total).toList
   }
 
 }
