@@ -1055,6 +1055,7 @@ Therefore, to ensure that the labels are given out consistently, we need our own
 
 Let us define new molecules, `manL` representing "man with label" and `womanL` for "woman with label".
 The dancing reaction will become
+
 ```scala
 val manL = m[Int]
 val womanL = m[Int]
@@ -1065,7 +1066,7 @@ go { case manL(m) + womanL(w) if m == w => beginDancing() }
 The last positions in the men's and women's queues should be maintained and updated as new dancers arrive.
 Since the only way of keeping state is by putting data on molecules, we need new molecules that hold the state of the queue.
 Let us call these molecules `queueMen` and `queueWomen`.
-We can then define reactions that will produce new molecules, `manL` representing "man with label" and `womanL` for "woman with label":
+We can then define reactions that produce `manL` and `womanL` with correct position labels:
 
 ```scala
 val man = m[Unit]
