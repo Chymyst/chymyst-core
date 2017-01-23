@@ -2,7 +2,7 @@
 [![Build Status](https://travis-ci.org/Chymyst/joinrun-scala.svg?branch=master)](https://travis-ci.org/Chymyst/joinrun-scala)
 [![Coverage Status](https://codecov.io/gh/Chymyst/joinrun-scala/coverage.svg?branch=master)](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](http://img.shields.io/badge/version-0.1.5-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
+[![Version](http://img.shields.io/badge/version-0.1.6-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
 
 # `JoinRun` and `Chymyst` -- declarative concurrency in Scala
 
@@ -364,7 +364,7 @@ In CSP, non-blocking channels need to be simulated by [additional user code](htt
 
 # Status
 
-Current released version is `0.1.5`.
+Current released version is `0.1.6`.
 The semantics of the chemical machine (restricted to single-host, multicore computations) is fully implemented and tested.
 
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
