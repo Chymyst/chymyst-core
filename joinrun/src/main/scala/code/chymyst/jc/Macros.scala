@@ -91,7 +91,7 @@ class CommonMacros(val c: blackbox.Context) {
     override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(v))
   }
 
-  /** Nontrivial pattern matching expression that could contain unapply, destructuring, pattern @ variables, etc.
+  /** Nontrivial pattern matching expression that could contain unapply, destructuring, and pattern @ variables.
     * For example, if c is a molecule then this could be c( z@(x, Some(y)) )
     * In that case, vars = List("z", "x", "y") and matcher = { case z@(x, Some(y)) => (z, x, y) }
     *
