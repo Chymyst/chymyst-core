@@ -5,10 +5,10 @@ import scala.{Symbol => ScalaSymbol}
 
 /** Represents compile-time information about the pattern matching for values carried by input molecules.
   * Possibilities:
-  * `a(_)` is represented by [[Wildcard]]
-  * `a(x)` is represented by [[SimpleVar]] with value `SimpleVar(v = 'x, cond = None)`
-  * `a(x) if x > 0` is represented by [[SimpleVar]] with value `SimpleVar(v = 'x, cond = Some({ case x : Int if x > 0 => }))`
-  * `a(Some(1))` is represented by [[SimpleConst]] with value `SimpleConst(v = Some(1))`
+  * `a(_)` is represented by [[WildcardInput]]
+  * `a(x)` is represented by [[SimpleVarInput]] with value `SimpleVar(v = 'x, cond = None)`
+  * `a(x) if x > 0` is represented by [[SimpleVarInput]] with value `SimpleVar(v = 'x, cond = Some({ case x : Int if x > 0 => }))`
+  * `a(Some(1))` is represented by [[SimpleConstInput]] with value `SimpleConst(v = Some(1))`
   * `a( (x, Some((y,z)))) ) if x > y` is represented by [[OtherInputPattern]] with value
   * {{{OtherInputPattern(matcher = { case (x, Some((y,z)))) if x > y => }, vars = List('x, 'y, 'z), isIrrefutable = false)}}}
   */
@@ -24,11 +24,11 @@ sealed trait InputPatternType {
   def isTrivial: Boolean = false
 }
 
-case object Wildcard extends InputPatternType {
+case object WildcardInput extends InputPatternType {
   override def isTrivial: Boolean = true
 }
 
-final case class SimpleVar(v: ScalaSymbol, cond: Option[PartialFunction[Any, Unit]]) extends InputPatternType {
+final case class SimpleVarInput(v: ScalaSymbol, cond: Option[PartialFunction[Any, Unit]]) extends InputPatternType {
   override def isTrivial: Boolean = cond.isEmpty
 }
 
@@ -38,7 +38,7 @@ final case class SimpleVar(v: ScalaSymbol, cond: Option[PartialFunction[Any, Uni
   *
   * @param v Value of the constant. This is nominally of type `Any` but actually is of the molecule's value type `T`.
   */
-final case class SimpleConst(v: Any) extends InputPatternType
+final case class SimpleConstInput(v: Any) extends InputPatternType
 
 /** Represents a general pattern that is neither a wildcard nor a single variable nor a constant.
   * Examples of such patterns are `a(Some(x))` and `a( (x, _, 2, List(a, b)) )`.
@@ -283,11 +283,11 @@ final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSym
   */
 final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPatternType, sha1: String) {
   private[jc] def admitsValue(molValue: AbsMolValue[_]): Boolean = flag match {
-    case Wildcard | SimpleVar(_, None) =>
+    case WildcardInput | SimpleVarInput(_, None) =>
       true
-    case SimpleVar(v, Some(cond)) =>
+    case SimpleVarInput(v, Some(cond)) =>
       cond.isDefinedAt(molValue.getValue)
-    case SimpleConst(v) =>
+    case SimpleConstInput(v) =>
       v === molValue.getValue
     case OtherInputPattern(_, _, true) =>
       true
@@ -307,15 +307,15 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
     if (molecule =!= info.molecule)
       Some(false)
     else flag match {
-      case Wildcard |
-           SimpleVar(_, None) |
+      case WildcardInput |
+           SimpleVarInput(_, None) |
            OtherInputPattern(_, _, true) =>
         Some(true)
-      case SimpleVar(_, Some(matcher1)) =>
+      case SimpleVarInput(_, Some(matcher1)) =>
         info.flag match {
-          case SimpleConst(c) =>
+          case SimpleConstInput(c) =>
             Some(matcher1.isDefinedAt(c))
-          case SimpleVar(_, Some(_)) |
+          case SimpleVarInput(_, Some(_)) |
                OtherInputPattern(_, _, false) =>
             None // Cannot reliably determine a weaker matcher.
           case _ =>
@@ -323,7 +323,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
         }
       case OtherInputPattern(matcher1, _, false) =>
         info.flag match {
-          case SimpleConst(c) =>
+          case SimpleConstInput(c) =>
             Some(matcher1.isDefinedAt(c))
           case OtherInputPattern(_, _, false) =>
             if (sha1 === info.sha1) Some(true)
@@ -331,9 +331,9 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
           case _ =>
             Some(false) // Here we can reliably determine that this matcher is not weaker.
         }
-      case SimpleConst(c) =>
+      case SimpleConstInput(c) =>
         Some(info.flag match {
-          case SimpleConst(c1) =>
+          case SimpleConstInput(c1) =>
             c === c1
           case _ =>
             false
@@ -344,11 +344,11 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
   private[jc] def matcherIsWeakerThanOutput(info: OutputMoleculeInfo): Option[Boolean] = {
     if (molecule =!= info.molecule) Some(false)
     else flag match {
-      case Wildcard |
-           SimpleVar(_, None) |
+      case WildcardInput |
+           SimpleVarInput(_, None) |
            OtherInputPattern(_, _, true) =>
         Some(true)
-      case SimpleVar(_, Some(matcher1)) =>
+      case SimpleVarInput(_, Some(matcher1)) =>
         info.flag match {
           case SimpleConstOutput(c) =>
             Some(matcher1.isDefinedAt(c))
@@ -362,7 +362,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
           case _ =>
             None // Here we can't reliably determine whether this matcher is weaker.
         }
-      case SimpleConst(c) => info.flag match {
+      case SimpleConstInput(c) => info.flag match {
         case SimpleConstOutput(`c`) =>
           Some(true)
         case SimpleConstOutput(_) =>
@@ -378,11 +378,11 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
     if (molecule =!= info.molecule)
       Some(false)
     else flag match {
-      case Wildcard |
-           SimpleVar(_, None) |
+      case WildcardInput |
+           SimpleVarInput(_, None) |
            OtherInputPattern(_, _, true) =>
         Some(true)
-      case SimpleVar(_, Some(matcher1)) =>
+      case SimpleVarInput(_, Some(matcher1)) =>
         info.flag match {
           case SimpleConstOutput(c) =>
             Some(matcher1.isDefinedAt(c))
@@ -396,7 +396,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
           case _ =>
             Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
         }
-      case SimpleConst(c) =>
+      case SimpleConstInput(c) =>
         Some(info.flag match {
           case SimpleConstOutput(`c`) =>
             true
@@ -410,14 +410,14 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
 
   override val toString: String = {
     val printedPattern = flag match {
-      case Wildcard =>
+      case WildcardInput =>
         "_"
-      case SimpleVar(v, None) =>
+      case SimpleVarInput(v, None) =>
         v.name
-      case SimpleVar(v, Some(_)) =>
+      case SimpleVarInput(v, Some(_)) =>
         s"${v.name} if ?"
       //      case SimpleConst(()) => ""  // We eliminated this case by converting constants of Unit type to Wildcard input flag.
-      case SimpleConst(c) =>
+      case SimpleConstInput(c) =>
         c.toString
       case OtherInputPattern(_, vars, isIrrefutable) =>
         s"${if (isIrrefutable) "" else "?"}${vars.map(_.name).mkString(",")}"
@@ -488,21 +488,21 @@ final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[O
   private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha) =>
     // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers
     val patternPrecedence = flag match {
-      case Wildcard |
-           SimpleVar(_, None) |
+      case WildcardInput |
+           SimpleVarInput(_, None) |
            OtherInputPattern(_, _, true) =>
         3
       case OtherInputPattern(_, _, false) |
-           SimpleVar(_, Some(_)) =>
+           SimpleVarInput(_, Some(_)) =>
         2
-      case SimpleConst(_) =>
+      case SimpleConstInput(_) =>
         1
     }
 
     val molValueString = flag match {
-      case SimpleConst(v) =>
+      case SimpleConstInput(v) =>
         v.toString
-      case SimpleVar(v, _) =>
+      case SimpleVarInput(v, _) =>
         v.name
       case _ =>
         ""
