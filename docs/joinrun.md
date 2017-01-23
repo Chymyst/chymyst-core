@@ -505,6 +505,50 @@ In this case, the retry mechanism will be able to restart the reaction without r
 
 # Troubleshooting and known bugs
 
+## Using single variables to match a tuple
+
+If a molecule carries a tuple but the reaction input pattern matches that tuple with a wildcard or a single variable, the compiler will print a warning.
+
+For example,
+
+```scala
+type Result = (Int, Int, Long, Boolean)
+val a = m[Result]
+
+site( go { case a(x) => ??? } )
+
+```
+
+This code will compile and work correctly but produce a warning such as:
+
+```
+Warning:(137, 43) class M expects 4 patterns to hold (Int, Int, Long, Boolean) but crushing into 4-tuple to fit single pattern (SI-6675)
+      go { case a(x) => ??? }
+
+```
+
+## Using parameterized types in molecule values
+
+If a molecule carries a `List[Int]` and the reaction input pattern matches the entire list, the compiler will print a warning.
+
+For example,
+
+```scala
+val res = m[List[Int]]
+
+site( go { case res(list) => ??? } )
+
+```
+
+This code will compile and work correctly but produce a warning such as:
+
+```
+Warning:(29, 10) non-variable type argument Int in type pattern List[Int] (the underlying of List[Int]) is unchecked since it is eliminated by erasure
+      go { case res(list) => ??? }
+
+```
+
+
 ## scalac: Error: Could not find proxy for value `x`
 
 This compile-time error is generated after macro expansion. The message is similar to this:
