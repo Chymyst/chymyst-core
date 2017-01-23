@@ -4,30 +4,270 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Version](http://img.shields.io/badge/version-0.1.5-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
 
-# `JoinRun` and `Chymyst` - declarative concurrency in Scala
+# `JoinRun` and `Chymyst` -- declarative concurrency in Scala
 
-`JoinRun` is a core library that provides a Scala domain-specific language for declarative concurrency.
-`Chymyst` is a framework-in-planning that will build upon `JoinRun` to enable creating concurrent applications declaratively.
+This repository hosts `JoinRun` -- a core library that provides a Scala domain-specific language for declarative concurrency.
+[`Chymyst`](https://github.com/Chymyst/Chymyst) is a framework-in-planning that will build upon `JoinRun` to enable creating concurrent applications declaratively.
 
-`JoinRun`/`Chymyst` are based on the **chemical machine** paradigm, known in the academic world as Join Calculus (JC).
+`JoinRun`/`Chymyst` are based on the **chemical machine** paradigm, known in the academic world as [Join Calculus (JC)](https://en.wikipedia.org/wiki/Join-calculus).
 JC has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) and [the Actor model](https://en.wikipedia.org/wiki/Actor_model), but is easier to use.
 (See also [Conceptual overview of concurrency](https://chymyst.github.io/joinrun-scala/concurrency.html).)
 
-The initial code of `JoinRun` was based on previous work by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
+The initial code of `JoinRun` was based on previous work by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
 The current implementation is tested under Oracle JDK 8 with Scala 2.11 and 2.12.
 
 [Version history and roadmap](https://chymyst.github.io/joinrun-scala/roadmap.html)
 
-# Overview of `JoinRun`/`Chymyst`
+# Overview of `JoinRun`/`Chymyst` and the chemical machine paradigm
 
 To get started, begin with this [tutorial introduction](https://chymyst.github.io/joinrun-scala/chymyst00.html).
 
-I gave a presentation on an early version of `JoinRun` at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
+I presented an early version of `JoinRun` at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
 There is some [technical documentation for `JoinRun` library](docs/joinrun.md).
 
 A complete minimal "Hello, world" project can be found at [https://github.com/Chymyst/helloworld](https://github.com/Chymyst/helloworld)
+
+# Main features of `JoinRun`
+
+`JoinRun` implements Join Calculus similarly to [JoCaml](http://jocaml.inria.fr), with some extensions in both syntax and semantics.
+
+## Concise declarative syntax 
+
+`JoinRun` provides an embedded Scala DSL for chemical machine definitions. Example:
+
+```scala
+import code.chymyst.jc._
+
+val s = m[Int] // declare a non-blocking molecule s
+val c = b[Int, Int] // declare a blocking molecule c
+site( // declare a reaction site
+  go { case s(x) + c(y, reply) =>
+    s(x + y) + reply(x)
+  }
+)
+s(1) // emit non-blocking molecule s with value 1
+
+```
+
+As a baseline reference, the most concise syntax for JC is available in [JoCaml](http://jocaml.inria.fr), which uses a modified OCaml compiler.
+The equivalent reaction definition in JoCaml looks like this:
+
+```ocaml
+def s(x) & c(y) =  // declare a reaction site as well as molecules s and c
+   s(x + y) & reply x to c
+spawn s(1)  // emit non-blocking molecule s with value 1
+
+```
+
+In the JoCaml syntax, `s` and `c` are declared implicitly, together with the reaction, and type inference fixes the types of their values.
+Implicit declaration of molecule emitters (“channels”) is not possible in `JoinRun` because Scala macros cannot insert new top-level name declarations into the code.
+For this reason, `JoinRun` requires explicit declarations of molecule types (for example, `val c = b[Int, Int]`).
+
+## Arbitrary input patterns
+
+In `JoinRun`'s Scala DSL, a reaction's input patterns is a `case` clause in a partial function.
+Within the limits of the Scala syntax, reactions can define arbitrary input patterns.
+ 
+- Reactions can use pattern matching expressions as well as guard conditions for selecting molecule values:
+
+```scala
+val c = m[Option[Int]]
+val d = m[(String, List[String])]
+
+go { case c(Some(x)) + d( s@("xyz", List(p, q, r)) ) 
+      if x > 0 && p.length > q.length =>
+      // Reaction will start only if the condition holds.
+      // Reaction body can use pattern variables x, s, p, q, r.
+}
+
+```
+
+- Reactions can use repeated input molecules ("nonlinear patterns"):
+
+```scala
+val c = m[Int]
+
+go { case c(x) + c(y) if x > y => c(x - y) }
+
+```
+
+Some concurrent algorithms are more easily expressed using repeated input molecules.
+
+- A reaction can consume any number of blocking molecules at once, and each blocking molecule will receive its own reply.
+
+For example, here is a reaction that consumes 3 blocking molecules `f`, `f`, `g` and exchanges the values caried by the two `f` molecules:
+
+```scala
+val f = b[Int, Int]
+val g = b[Unit, Unit]
+
+go { case f(x1, replyF1) + f(x2, replyF2) + g(_, replyG) =>
+   replyF1(x2) + replyF2(x1) + replyG()
+}
+
+```
+
+This reaction is impossible to write using JoCaml-style syntax `reply x to f`:
+in that syntax, we cannot identify which of the copies of `f` should receive which reply value.
+We can do this in JoCaml:
+
+```ocaml
+def f(x1) + f(x2) + g() =>
+  reply x2 to f; reply x1 to f; reply () to g
+
+```
+
+However, this does not specify that the reply value `x2` should be sent to the process that emitted `f(x1)` rather than to the process that emitted `f(x2)`.
+
+## Reactions are values
+
+Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`):
+
+```scala
+val c = m[Int]
+val reaction = go { case c(x) => println(x) }
+// Declare a reaction, but do not run anything yet.
+
+```
+
+Users can build reaction sites incrementally, constructing, say, an array of `n` reaction values, where `n` is a run-time parameter.
+Then a reaction site can be declared, using the array of reaction values:
+
+```scala
+val reactions: Seq[Reaction] = ???
+site(reactions: _*)
+
+```
+
+Since molecule emitters are local values, one can also define `n` different molecules, where `n` is a run-time parameter.
+There is no limit on the number of reactions in one reaction site, and no limit on the number of different molecules. 
+
+Nevertheless, reactions and reaction sites are immutable once declared.
+
+## Timeouts for blocking molecules
+
+Emitting a blocking molecule will block forever if no reactions can consume that molecule.
+Users can decide to time out on that blocking call:
+
+```scala
+val f = b[Unit, Int]
+
+site(...) // define some reactions that consume f
+
+val result: Option[Int] = f.timeout()(200 millis)
+// will return None on timeout
+
+```
+
+## Static analysis for correctness and optimization
+
+`JoinRun` uses macros to perform extensive static analysis of reactions at compile time.
+This allows `JoinRun` to detect some errors such as deadlock or livelock, and to give warnings for possible deadlock or livelock, before any reactions are started.
+
+```scala
+val a = m[Int]
+val c = m[Unit]
+
+site( go { case a(x) => c() + a(x+1) } )
+// Does not compile: "Unconditional livelock due to a(x)"
+
+```
+
+The static analysis also enforces constraints such as the uniqueness of the reply to blocking molecules.
+
+Common cases of invalid chemical definitions are flagged either at compile time, or as run-time errors that occur after defining a reaction site and before starting any processes.
+Other errors are flagged when reactions are run (e.g. if a blocking molecule gets no reply but static analysis was unable to determine that).
+
+The results of static analysis are used to optimize the scheduling of reactions at runtime.
+For instance, reactions that impose no cross-molecule conditions are scheduled significantly faster.
+
+## Thread pools
+
+`JoinRun` implements fine-grained threading control.
+Each reaction site and each reaction can be run on a different, separate thread pool if required.
+The user can control the number of threads in thread pools.
+
+```scala
+val tp1 = new FixedPool(1)
+val tp8 = new SmartPool(8)
+
+site(tp8)( // reaction site runs on tp8
+  go { case a(x) => ... } onThreads tp1, // this reaction runs on tp1
+  go { ... } // all other reactions run on tp8
+ )
+
+```
+
+Thread pools are "smart" because they will automatically adjust the number of active threads if blocking operations occur.
+So, blocking operations do not decrease the degree of parallelism.
+
+## Graceful shutdown
+
+When a `JoinRun`-based program needs to exit, it can shut down the thread pools that run reactions.
+
+```scala
+val tp = new SmartPool(8)
+
+// define reactions and run them
+
+tp.shutdownNow() // all reactions running on `tp` will stop
+
+```
+
+## Fair nondeterminism
+
+Whenever a molecule can start several reactions, the reaction is chosen at random.
+
+## Fault tolerance
+
+Reactions marked as fault-tolerant will be automatically restarted if exceptions are thrown.
+
+## Debugging
+
+The execution of reactions can be traced via logging levels per reaction site.
+Due to automatic naming of molecules and static analysis, debugging can print information about reaction flow in a visual way.
+
+## Comparison: chemical machine vs. academic Join Calculus
+
+In talking about `Chymyst`, I follow the chemical machine metaphor and terminology, which differs from the terminology usually found in academic papers on JC.
+Here is a dictionary:
+
+| Chemical machine  | Academic Join Calculus | `Chymyst` code |
+|---|---|---|
+| input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
+| molecule emitter | channel name | `val a :  M[Int]` |
+| blocking emitter | synchronous channel | `val q :  B[Unit, Int]` |
+| reaction | process | `val r1 = go { case a(x) + ... => ... }` |
+| emitting an output molecule | sending a message | `a(123)` _// side effect_ |
+| emitting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
+| reaction site | join definition | `site(r1, r2, ...)` |
+
+As another comparison, here is some code in academic Join Calculus, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
+
+<img alt="def newVar(v0) def put(w) etc." src="docs/academic_join_calculus_2.png" width="400" />
+
+This code creates a shared value container `val` with synchronized single access.
+
+The equivalent `Chymyst` code looks like this:
+
+```scala
+def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
+  val put = b[T, Unit] 
+  val get = b[Unit, T]
+  val _val = m[T] // Will use the name `_val` since `val` is a Scala keyword.
+  
+  site(
+    go { case put(w, ret) + _val(v) => _val(w); ret() },
+    go { case get(_, ret) + _val(v) => _val(v); ret(v) }
+  )
+  _val(v0)
+  
+  (put, get)
+}
+
+```
 
 # Example: "dining philosophers"
 
@@ -82,54 +322,9 @@ object Main extends App {
 
 ```
 
-# Example: Basic usage of `JoinRun`
+## Comparison: chemical machine vs. Actor model
 
-Here is an example of “single-access non-blocking counter”.
-There is an integer counter value, to which we have non-blocking access via `incr` and `decr` molecules.
-We can also fetch the current counter value via the `get` molecule, which is blocking.
-The counter is initialized to the number we specify.
-```scala
-import code.chymyst.jc._
-
-// Define the logic of the “non-blocking counter”.
-def makeCounter(initCount: Int)
-              : (M[Unit], M[Unit], B[Unit, Int]) = {
-  val counter = m[Int] // non-blocking molecule with integer value
-  val incr = m[Unit] // non-blocking molecule with empty (i.e. Unit) value
-  val decr = m[Unit] // empty non-blocking molecule
-  val get = b[Unit, Int] // empty blocking molecule returning integer value
-
-  site {
-    go { counter(n) + incr(_) => counter(n + 1) },
-    go { counter(n) + decr(_) => counter(n - 1) },
-    go { counter(n) + get(_,res) => counter(n) + res(n) }
-  }
-
-  counter(initCount) // emit a single “counter(initCount)” molecule
-
-  (incr, decr, get) // return the molecule emitters
-}
-
-// make a new counter: get the emitters
-val (inc, dec, get) = makeCounter(100)
-
-// use the counter: we can be on any thread,
-// we can increment and decrement multiple times,
-// and there will be no race conditions
-
-inc() // non-blocking increment
-      // more code
-
-dec() // non-blocking decrement
-      // more code
-
-val x = get() // blocking call, returns the current value of the counter
-```
-
-
-## Comparison: chemical machine vs. actor model
-
-Chemical machine programming is similar in some aspects to the well-known Actor Model (e.g. the [Akka framework](https://github.com/akka/akka)).
+Chemical machine programming is similar in some aspects to the well-known Actor model (e.g. the [Akka framework](https://github.com/akka/akka)).
 
 | Chemical machine | Actor model |
 |---|---|
@@ -142,52 +337,12 @@ Main differences between the chemical machine and the Actor model:
 
 | Chemical machine | Actor model |
 |---|---|
-| concurrent processes start automatically whenever several input data sets are available | a desired number of concurrent actors must be created and managed manually|
-| processes are implicit, the user's code only manipulates messages | the user's code must manipulate explicit references to actors as well as messages |
-| processes typically wait for (and consume) several input messages at once | actors wait for (and consume) only one input message at a time |
-| processes are immutable and stateless, all data is stored on messages (which are also immutable) | actors can mutate (“become another actor”); actors can hold mutable state |
-| messages are held in an unordered bag and processed in random order | messages are held in an ordered queue and processed in the order received |
-| message data is statically typed | message data is untyped |
-
-## Comparison: chemical machine vs. academic Join Calculus
-
-In talking about `Chymyst`, I follow the chemical machine metaphor and terminology, which differs from the terminology usually employed in academic papers on JC.
-Here is a dictionary:
-
-| Chemical machine  | Academic Join Calculus | `Chymyst` code |
-|---|---|---|
-| input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
-| molecule emitter | channel (port) name | `val a :  M[Int]` |
-| blocking emitter | synchronous channel | `val q :  B[Unit, Int]` |
-| reaction | process | `val r1 = go { case a(x) + ... => ... }` |
-| emitting an output molecule | sending a message | `a(123)` _// side effect_ |
-| emitting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
-| reaction site | join definition | `site(r1, r2, ...)` |
-
-As another comparison, here is some code in academic Join Calculus, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
-
-<img alt="def newVar(v0) def put(w) etc." src="docs/academic_join_calculus_2.png" width="400" />
-
-This code creates a shared value container `val` with synchronized single access.
-
-The equivalent `Chymyst` code looks like this:
-
-```scala
-def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
-  val put = b[T, Unit] 
-  val get = b[Unit, T]
-  val _val = m[T] // have to use `_val` since `val` is a Scala keyword
-  
-  site(
-    go { case put(w, ret) + _val(v) => _val(w); ret() },
-    go { case get(_, ret) + _val(v) => _val(v); ret(v) }
-  )
-  _val(v0)
-  
-  (put, get)
-}
-
-```
+| concurrent processes start automatically whenever several input data sets are available | a desired number of concurrent actors must be created and managed manually |
+| processes are implicit, the user's code only manipulates molecules | the user's code must manipulate explicit references to actors as well as messages |
+| processes typically wait for (and consume) several input molecules at once | actors wait for (and consume) only one input message at a time |
+| processes are immutable and stateless, all data is stored on molecules (which are also immutable) | actors can mutate (“become another actor”); actors can hold mutable state |
+| molecules are held in an unordered bag and processed in random order | messages are held in an ordered queue (mailbox) and processed in the order received |
+| molecule data is statically typed | message data is untyped |
 
 ## Comparison: chemical machine vs. CSP
 
@@ -207,78 +362,20 @@ In CSP, the user needs to create and manage new threads manually.
 JC has non-blocking channels as a primitive construct.
 In CSP, non-blocking channels need to be simulated by [additional user code](https://gobyexample.com/non-blocking-channel-operations).
 
-# Main features of `JoinRun`
-
-Compared to [`ScalaJoin` (Jiansen He's 2011 implementation of JC)](https://github.com/Jiansen/ScalaJoin), `JoinRun` offers the following improvements:
-
-- Lighter syntax for reaction sites (join definitions). Compare:
-
-JoinRun:
-
-```scala
-val a = m[Int]
-val c = m[Int, Int]
-site(
-  go { case a(x) + c(y, reply) =>
-    a(x+y)
-    reply(x)
-  }
-)
-a(1)
-```
-
-ScalaJoin:
-
-```scala
-object join1 extends Join {
-  object a extends AsyName[Int]
-  object c extends SynName[Int, Int]
-
-  join {
-    case a(x) and c(y) =>
-      a(x+y)
-      c.reply(x)
-  }
-}
-a(1)
-```
-
-As a baseline reference, the most concise syntax for JC is available in [JoCaml](http://jocaml.inria.fr), at the price of modifying the OCaml compiler:
-
-```ocaml
-def a(x) & c(y) =  
-   a(x+y) & reply x to c
-spawn a(1)
-```
-
-In the JoCaml syntax, `a` and `c` are declared implicitly, together with the reaction.
-This kind of implicit declaration is not possible in `JoinRun` because Scala macros do not allow us to insert a new top-level name declaration into the code.
-So, declarations of molecule emitters need to be explicit.
-Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` and JoCaml.
-
-- Molecule emitters (or “channels”) are not singleton objects as in `ScalaJoin` but locally scoped values. This is how the semantics of JC is implemented in JoCaml. In this way, we get more flexibility in defining molecules.
-- Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`). `JoinRun` uses macros to perform some static analysis of reactions at compile time and detect some errors.
-- Reactions and molecules are composable: we can begin constructing a reaction site incrementally, until we have `n` reactions and `n` different molecules, where `n` is a runtime parameter, with no limit on the number of reactions in one reaction site, and no limit on the number of different molecules. (However, a reaction site is immutable once it is written.)
-- Reaction sites are instances of class `ReactionSite` and are invisible to the user (as they should be according to the semantics of JC).
-- Some common cases of invalid chemistry are flagged (as run-time errors) before starting any processes; others are flagged when reactions are run (e.g. if a blocking molecule gets no reply).
-- Fine-grained threading control: each reaction site and each reaction can be run on a different, separate thread pool; we can use Akka actor-based or thread-based pools.
-- Fair nondeterminism: whenever a molecule can start several reactions, the reaction is chosen at random.
-- Reactions marked as fault-tolerant will be automatically restarted if exceptions are thrown.
-- Tracing the execution via logging levels; automatic naming of molecules for debugging is available (via macro).
-
 # Status
 
 Current released version is `0.1.5`.
 The semantics of the chemical machine (restricted to single-host, multicore computations) is fully implemented and tested.
 
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
-`JoinRun` is about 50% faster than `ScalaJoin` on certain benchmarks that exercise a very large number of very short reactions.
-Performance tests indicate that the runtime can schedule about 300,000 reactions per second per CPU core, and the performance bottleneck is in submitting jobs to threads (a distant second bottleneck is pattern-matching in the internals of the library).
+Test coverage is 100% according to [codecov.io](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master).
+
+Performance benchmarks indicate that `JoinRun` can schedule about 10,000 reactions per second per CPU core, and the performance bottleneck is in submitting jobs to threads (a distant second bottleneck is pattern-matching in the internals of the library).
 
 
 Known limitations:
 
-- `JoinRun` is about 2x slower than `ScalaJoin` on the blocking molecule benchmark, and about 1.5x slower on non-blocking molecule benchmarks.
+- `JoinRun` is about 2x slower than Jiansen He's `ScalaJoin` on the blocking molecule benchmark, and about 1.2x slower on some non-blocking molecule benchmarks.
 - `JoinRun` has no fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random.
 - `JoinRun` has no distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`, and probably will not be).
 Distributed computation should be implemented in a better way than posting channel names on an HTTP server.
@@ -288,19 +385,19 @@ Distributed computation should be implemented in a better way than posting chann
 
 `sbt test`
 
-The tests will produce some error messages and stack traces - this is normal, as long as all tests pass.
+The tests will print some error messages and exception stack traces - this is normal, as long as all tests pass.
 
 Some tests are timed and will fail on a slow machine.
 
 # Build the benchmark application
 
-`sbt benchmark/run` will run the benchmark application.
+`sbt benchmark/run` will run the benchmarks.
 
-To build as a fat JAR, run
+To build the benchmark application as a self-contained JAR, run
 
 `sbt benchmark/assembly`
 
-Then run the benchmark application as
+Then run it as
 
 `java -jar benchmark/target/scala-2.11/benchmark-assembly-*.jar`
 
@@ -313,7 +410,7 @@ sbt package package-doc
 
 ```
 
-This will prepare `joinrun`, `benchmark`, and `chymyst` JAR assemblies as well as their Scaladoc documentation packages.
+This will prepare JAR assemblies as well as their Scaladoc documentation packages.
 
 The main library is in the `joinrun` JAR assembly (`joinrun/target/scala-2.11/joinrun-*.jar`).
 User code should depend on that JAR only.
