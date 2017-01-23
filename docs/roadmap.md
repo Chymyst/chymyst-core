@@ -54,22 +54,17 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
 # Current To-Do List
 
  value * difficulty - description
-
- 2 * 3 - investigate using wait/notify instead of semaphore; does it give better performance? - So far, attempts to do this failed.
-
+  
  2 * 3 - detect livelock due to singleton emission (at the moment, they are not considered as present inputs)
 
- 3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
+ 2 * 2 - Detect this condition at the reaction site time:
+ A cycle of input molecules being subset of output molecules, possibly spanning several reaction sites (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
+
+ 2 * 3 - understand the "reader-writer" example; implement it as a unit test 3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
  Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.
-
- 5 * 5 - implement fairness with respect to molecules. - Will not do now. If reactions depend on fairness, something is probably wrong with the chemistry.
-
- 3 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping? This should help fetch random molecules out of the soup. - Will not do now. Not sure what value it brings us if molecule values are truly randomly chosen.
 
  2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
 
- 4 * 5 - implement multiple emission construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. - Will not do now. Not sure what this accomplishes. The user can randomize the order of emission, if this is crucial for an application.
- 
  4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same reaction site, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on reaction site information gleaned using a macro.
 
  4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
@@ -92,11 +87,6 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
 
  3 * 5 - Can we implement JoinRun using Future / Promise and remove all blocking and all semaphores?
 
- 2 * 2 - Detect this condition at the reaction site time:
- A cycle of input molecules being subset of output molecules, possibly spanning several reaction sites (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
-
- 2 * 3 - understand the "reader-writer" example; implement it as a unit test
-
  3 * 2 - add per-molecule logging; log to file or to logger function
 
  5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
@@ -118,12 +108,8 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
  3 * 3 - implement "one-off" molecules that are emitted once (like singletons, from the reaction site itself) and never emitted again
   
  2 * 2 - If a blocking molecule was emitted without a timeout, we don't need the second semaphore, and checkTimeout() should return `true`
-  
- 3 * 3 - Can we use macros to rewrite f() into f(_) inside reactions for Unit types? Otherwise it seems impossible to implement short syntax `case a() + b() => ` in the input patterns.
  
  5 * 5 - How to rewrite reaction sites so that blocking molecules are transparently replaced by a pair of non-blocking molecules? Can this be done even if blocking emitters are used inside functions? (Perhaps with extra molecules emitted at the end of the function call?) Is it useful to emit an auxiliary molecule at the end of an "if" expression, to avoid code duplication? How can we continue to support real blocking emitters when used outside of macro code? 
- 
- 2 * 2 - Support timers: recurrent or one-off, cancelable molecule emission. -- Will not do now. This can be done by user code, unless timers require an explicit thread pool or executor.
  
  2 * 2 - Revisit Philippe's error reporting branch, perhaps salvage some code
  
@@ -134,4 +120,18 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
  3 * 3 - Implement "streamable" molecules, detect them automatically
 
  3 * 3 - SmartThread should keep information about which RS and which reaction is now running. This can be used both for monitoring and for automatic assignment of thread pools for reactions defined in the scope of another reaction. 
+ 
+## Will not do for now
+ 
+ 2 * 3 - investigate using wait/notify instead of semaphore; does it give better performance? - So far, attempts to do this failed.
+ 
+ 5 * 5 - implement fairness with respect to molecules. - Will not do now. If reactions depend on fairness, something is probably wrong with the chemistry.
+
+ 3 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping? This should help fetch random molecules out of the soup. - Will not do now. Not sure what value it brings us if molecule values are truly randomly chosen.
+
+ 4 * 5 - implement multiple emission construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. - Will not do now. Not sure what this accomplishes. The user can randomize the order of emission, if this is crucial for an application.
+ 
+ 2 * 2 - Support timers: recurrent or one-off, cancelable molecule emission. -- Will not do now. This can be done by user code, unless timers require an explicit thread pool or executor.
+ 
+ 3 * 3 - Can we use macros to rewrite f() into f(_) inside reactions for Unit types? Otherwise it seems impossible to implement short syntax `case a() + b() => ` in the input patterns. -- No, we can't because { case a() => } doesn't get past the Scala typer, and so macros don't see it at all.
  
