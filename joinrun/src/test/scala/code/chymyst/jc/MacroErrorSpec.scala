@@ -199,21 +199,24 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     f.name shouldEqual "f"
 
     "val r = go { case f(_,r) => if (System.nanoTime() > 0) r(1) else r(2) }" should compile
+    "val r = go { case f(_,r) => r(0); if (System.nanoTime() > 0) r(1) else r(2) }" shouldNot compile
   }
 
   it should "refuse to compile a reaction with two conditional replies" in {
     val f = b[Unit, Int]
     f.name shouldEqual "f"
 
-    "val r = go { case f(_,r) => val x = System.nanoTime() > 0; if (x) r(1); if (x) r(2) }" shouldNot compile
-    "val r = go { case f(_,r) => val x = System.nanoTime() > 0; r(1); if (x) r(2) }" shouldNot compile
+    "val r = go { case f(_,r) => val x = System.nanoTime() > 0; if (x) r(1); if (x) r(2) }" shouldNot compile // reply emitted in only one `if` branch, twice
+    "val r = go { case f(_,r) => val x = System.nanoTime() > 0; r(1); if (x) r(2) }" shouldNot compile // reply emitted once, and then in one `if` branch
+    "val r = go { case f(_,r) => val x = System.nanoTime() > 0; r(1); if (x) r(2) else r(3) }" shouldNot compile // reply emitted once, and then in both `if` branches
   }
 
   it should "refuse to compile a reaction with no unconditional reply" in {
     val f = b[Unit, Unit]
     f.name shouldEqual "f"
 
-    "val r = go { case f(_,r) => if (System.nanoTime() > 0) r() }" shouldNot compile
+    "val r = go { case f(_,r) => if (System.nanoTime() > 0) r() }" shouldNot compile // reply emitted in only one `if` branch
+    "val r = go { case f(_,r) => if (System.nanoTime() > 0) f() else r() }" shouldNot compile // ditto
   }
 
   behavior of "nonlinear output environments"
