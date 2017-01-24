@@ -344,14 +344,18 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     maybeError("blocking input molecules", "matches a reply emitter with anything else than a simple variable", wrongBlockingMolecules)
 
     // If we are here, all reply emitters have correct pattern variables. Now we check that each blocking molecule has one and only one reply.
-    val repliedMolecules = bodyReply.map(_._1.asTerm.name.decodedName)
-    val blockingReplies = blockingMolecules.flatMap(_._3.flatMap {
+    val bodyReplyInfoMacro = bodyReply.map { case (m, p, envs) => (m, p.patternType, envs) }
+    val shrunkReplyInfo: List[(MacroSymbol, OutputPatternType, List[OutputEnvironment])] = OutputEnvironment.shrink(bodyReplyInfoMacro, equalsInMacro)
+
+    val shrunkGuaranteedReplies = shrunkReplyInfo.filter(_._3.forall(_.atLeastOne)).map(_._1.asTerm.name.decodedName)
+    val shrunkPossibleReplies = shrunkReplyInfo.map(_._1.asTerm.name.decodedName)
+    val expectedBlockingReplies = blockingMolecules.flatMap(_._3.flatMap {
       case ReplyVarF(x) => Some(x.name)
       case _ => None
     })
 
-    val blockingMoleculesWithoutReply = blockingReplies difff repliedMolecules
-    val blockingMoleculesWithMultipleReply = repliedMolecules difff blockingReplies
+    val blockingMoleculesWithoutReply = expectedBlockingReplies difff shrunkGuaranteedReplies
+    val blockingMoleculesWithMultipleReply = shrunkPossibleReplies difff expectedBlockingReplies
 
     maybeError("blocking molecules", "but no unconditional reply found for", blockingMoleculesWithoutReply, "receive a reply")
     maybeError("blocking molecules", "but possibly multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
@@ -371,8 +375,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     // Output molecule info comes only from the body since neither the pattern nor the guard can emit output molecules.
     val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
 
-    val outputMoleculeInfoMacro: List[(MacroSymbol, OutputPatternType, List[OutputEnvironment])] =
-      allOutputInfo.map { case (m, p, envs) => (m, p.patternType, envs) }
+    val outputMoleculeInfoMacro = allOutputInfo.map { case (m, p, envs) => (m, p.patternType, envs) }
 
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of unconditionally emitted output molecules.
