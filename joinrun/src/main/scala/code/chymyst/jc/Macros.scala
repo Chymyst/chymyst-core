@@ -201,13 +201,13 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       .map { case (molSymbol, flag, _) => s"${molSymbol.name}($flag)" }
     maybeError("reaction body", "emit blocking molecules inside function blocks", nontrivialEmittedBlockingMoleculeStrings, "not")
 
-    // Reply molecules should not be used under nontrivial output environments.
+    // Reply emitters should not be used under nontrivial output environments.
     val nontrivialEmittedRepliesStrings = bodyReply
       .filter(_._3.exists(!_.linear))
       .map { case (molSymbol, flag, _) => s"${molSymbol.name}($flag)" }
-    maybeError("reaction body", "emit blocking molecule replies inside function blocks", nontrivialEmittedRepliesStrings, "not")
+    maybeError("reaction body", "use reply emitters inside function blocks", nontrivialEmittedRepliesStrings, "not")
 
-    // TODO: Reply molecules should be used only once. This depends on proper shrinkage.
+    // TODO: Reply emitters should be used only once. This depends on proper shrinkage.
 
     val guardCNF: List[List[Tree]] = convertToCNF(guard) // Conjunctive normal form of the guard condition. In this CNF, `true` is List() and `false` is List(List()).
 
@@ -339,11 +339,11 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     }
 
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
-    // It is an error to have reply molecules that do not match on a simple variable.
+    // It is an error to have blocking molecules that do not match on a simple variable.
     val wrongBlockingMolecules = blockingMolecules.filter(_._3.get.notReplyValue).map(_._1)
-    maybeError("blocking input molecules", "matches on anything else than a simple variable", wrongBlockingMolecules)
+    maybeError("blocking input molecules", "matches a reply emitter with anything else than a simple variable", wrongBlockingMolecules)
 
-    // If we are here, all input reply molecules have correct pattern variables. Now we check that each of them has one and only one reply.
+    // If we are here, all reply emitters have correct pattern variables. Now we check that each blocking molecule has one and only one reply.
     val repliedMolecules = bodyReply.map(_._1.asTerm.name.decodedName)
     val blockingReplies = blockingMolecules.flatMap(_._3.flatMap {
       case ReplyVarF(x) => Some(x.name)
