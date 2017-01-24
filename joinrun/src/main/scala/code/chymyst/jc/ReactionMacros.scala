@@ -361,6 +361,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     }
   }
 
+  /** This is the main traverser that gathers information about molecule inputs and outputs in a reaction. */
   class MoleculeInfo(reactionBodyOwner: MacroSymbol) extends Traverser {
 
     /** Examine an expression tree, looking for molecule expressions.
@@ -458,7 +459,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     private def isReplyValue(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< weakTypeOf[AbsReplyValue[_, _]]
 
-    @SuppressWarnings(Array("org.wartremover.warts.Equals"))
+    @SuppressWarnings(Array("org.wartremover.warts.Equals")) // For some reason, q"while($cond) $body" triggers wartremover's error about disabled `==` operator.
     override def traverse(tree: Tree): Unit = {
       tree match {
         // avoid traversing nested reactions: check whether this subtree is a Reaction() value
@@ -619,33 +620,24 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           else {
             traverse(f.asInstanceOf[Tree])
             renewOutputEnvId()
+            outputEnv.push(FuncBlock(currentOutputEnvId, name = fullName))
             val isIterating = iteratingFunctionCodes.contains(fullName)
-            val newEnv =
-              if (isIterating) {
-                FuncBlock(currentOutputEnvId, name = fullName)
-              } else {
-                FuncBlock(currentOutputEnvId, name = fullName)
-              }
-            outputEnv.push(newEnv)
-
             args.foreach { t =>
               // Detect whether the function takes a function type, and whether `t` is a molecule emitter.
-              if (iteratingFunctionCodes.contains(fullName) && isMolecule(t)) {
-                // This is an iterator that takes a molecule emitter, in a short syntax
-                // e.g. `(0 until n).foreach(a)` where `a : M[Int]`
+              if (isIterating && isMolecule(t)) {
+                // This is an iterator that takes a molecule emitter, in a short syntax,
+                // e.g. `(0 until n).foreach(a)` where `a : M[Int]`.
                 // In that case, the molecule could be emitted zero or more times.
                 outputMolecules.append((t.asInstanceOf[Tree].symbol, OtherOutputPatternF, outputEnv.toList))
-              } else if (isReplyValue(t)) {
-                // This is an iterator that takes a molecule emitter, in a short syntax
-                // e.g. `(0 until n).foreach(a)` where `a : M[Int]`
-                // In that case, the molecule could be emitted zero or more times.
-                replyActions.append((t.asInstanceOf[Tree].symbol, OtherOutputPatternF, outputEnv.toList))
               }
-
               traverse(t.asInstanceOf[Tree])
             }
             finishTraverseWithOutputEnv()
           }
+
+        case Ident(TermName(name)) if isReplyValue(tree) =>
+          // All use of reply emitters must be logged.
+          replyActions.append((tree.asInstanceOf[Tree].symbol, OtherOutputPatternF, outputEnv.toList))
 
         case _ => super.traverse(tree)
       }
