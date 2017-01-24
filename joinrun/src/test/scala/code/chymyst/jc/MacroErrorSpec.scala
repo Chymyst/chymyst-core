@@ -207,7 +207,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     f3.name shouldEqual "f3"
     g(()) shouldEqual (())
 
-    go { case c(_) => g(f) }
+    go { case c(_) => g(f) } // OK to apply a function to a blocking molecule emitter?
     "val r = go { case c(_) => (0 until 10).flatMap { _ => f(); List() } }" shouldNot compile // reaction body must not emit blocking molecules inside function blocks
     "val r = go { case c(_) => (0 until 10).foreach(i => f2(i)) }" shouldNot compile // same
     "val r = go { case c(_) => (0 until 10).foreach(_ => c()) }" should compile // `c` is a non-blocking molecule, OK to emit it anywhere
@@ -220,6 +220,28 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     "val r = go { case c(_) => do c() while (f3()) }" shouldNot compile
   }
 
+  it should "refuse putting a reply emitter on another molecule" in {
+    val f = b[Unit, Unit]
+    val d = m[ReplyValue[Unit, Unit]]
+
+    f.name shouldEqual "f"
+    d.name shouldEqual "d"
+
+    "val r = go { case f(_, r) => d(r); r() }" shouldNot compile // can't put the reply emitter onto a molecule
+
+  }
+
+  it should "refuse calling a function on a reply emitter" in {
+    val f = b[Unit, Unit]
+    val g: Any => Any = x => x
+
+    f.name shouldEqual "f"
+    g(()) shouldEqual (())
+
+    "val r = go { case f(_, r) => g(r); r() }" shouldNot compile // can't call a function on a reply emitter
+    "val r = go { case f(_, r) => val x = r; g(x); r() }" shouldNot compile // can't call a function on an alias for reply emitter
+  }
+
   it should "refuse emitting blocking molecule replies" in {
     val f = b[Unit, Unit]
     val f2 = b[Unit, Int]
@@ -229,8 +251,6 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     f2.name shouldEqual "f2"
     g(()) shouldEqual (())
 
-    "val r = go { case f(_, r) => g(r); r() }" shouldNot compile
-    "val r = go { case f(_, r) => val x = r; g(x); r() }" shouldNot compile
     "val r = go { case f(_, r) => (0 until 10).flatMap { _ => r(); List() } }" shouldNot compile // reaction body must not emit blocking molecule replies inside function blocks
     "val r = go { case f2(_, r) => (0 until 10).foreach(i => r(i)) }" shouldNot compile // same
     "val r = go { case f2(_, r) => (0 until 10).foreach(r) }" shouldNot compile // same
