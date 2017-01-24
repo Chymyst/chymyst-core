@@ -28,8 +28,8 @@ class CommonMacros(val c: blackbox.Context) {
     * @return String that represents the name of the enclosing value.
     */
   def getEnclosingName: String =
-    c.internal.enclosingOwner.name.decodedName.toString
-      .stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
+  c.internal.enclosingOwner.name.decodedName.toString
+    .stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
 
   // Classes need to be defined at top level because we can't have case classes local to a function scope.
   // However, we need to use path-dependent types such as `Ident` and `Tree`.
@@ -41,7 +41,7 @@ class CommonMacros(val c: blackbox.Context) {
     * Possible values:
     * Wildcard: a(_)
     * SimpleVar: a(x)
-    * SimpleConst: a(1)
+    * ConstInputPattern: a(1)
     * WrongReplyVar: the second matcher for blocking molecules is not a simple variable
     * OtherPattern: we don't recognize the pattern (could be a case class or a general Unapply expression)
     */
@@ -120,10 +120,14 @@ class CommonMacros(val c: blackbox.Context) {
   case object OtherOutputPatternF extends OutputPatternFlag {
     override val needTraversal: Boolean = true
     override val patternType: OutputPatternType = OtherOutputPattern
+
+    override val toString: String = "?"
   }
 
   final case class ConstOutputPatternF(v: Tree) extends OutputPatternFlag {
-    override val patternType: OutputPatternType = SimpleConstOutput(v)
+    override val patternType: OutputPatternType = ConstOutputPattern(v)
+
+    override val toString: String = showCode(v)
   }
 
 }
@@ -176,19 +180,33 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
 
     val (patternIn, patternOut, patternReply, wrongMoleculesInInput) = moleculeInfoMaker.from(pattern) // patternOut and patternReply should be empty
-    maybeError("input molecule patterns", "emits output molecules", patternOut)
-    maybeError("input molecule patterns", "perform any reply actions", patternReply, "not")
-    maybeError("input molecules", "uses other molecules inside molecule value patterns", wrongMoleculesInInput)
+    maybeError("input molecule patterns", "emits output molecules", patternOut.map(_._1.name))
+    maybeError("input molecule patterns", "perform any reply actions", patternReply.map(_._1.name), "not")
+    maybeError("input molecules", "uses other molecules inside molecule value patterns", wrongMoleculesInInput.map(_.name))
 
     val (guardIn, guardOut, guardReply, wrongMoleculesInGuard) = moleculeInfoMaker.from(guard) // guard in/out/reply lists should be all empty
-    maybeError("input guard", "matches on additional input molecules", guardIn.map(_._1))
-    maybeError("input guard", "emit any output molecules", guardOut.map(_._1), "not")
-    maybeError("input guard", "perform any reply actions", guardReply.map(_._1), "not")
+    maybeError("input guard", "matches on additional input molecules", guardIn.map(_._1.name))
+    maybeError("input guard", "emit any output molecules", guardOut.map(_._1.name), "not")
+    maybeError("input guard", "perform any reply actions", guardReply.map(_._1.name), "not")
     maybeError("input guard", "uses other molecules inside molecule value patterns", wrongMoleculesInGuard)
 
     val (bodyIn, bodyOut, bodyReply, wrongMoleculesInBody) = moleculeInfoMaker.from(body) // bodyIn should be empty
-    maybeError("reaction body", "matches on additional input molecules", bodyIn.map(_._1))
+    maybeError("reaction body", "matches on additional input molecules", bodyIn.map(_._1.name))
     maybeError("reaction body", "uses other molecules inside molecule value patterns", wrongMoleculesInBody)
+
+    // Blocking molecules should not be used under nontrivial output environments.
+    val nontrivialEmittedBlockingMoleculeStrings = bodyOut
+      .filter(_._3.exists(!_.linear))
+      .map { case (molSymbol, flag, _) => s"${molSymbol.name}($flag)" }
+    maybeError("reaction body", "emit blocking molecules inside function blocks", nontrivialEmittedBlockingMoleculeStrings, "not")
+
+    // Reply molecules should not be used under nontrivial output environments.
+    val nontrivialEmittedRepliesStrings = bodyReply
+      .filter(_._3.exists(!_.linear))
+      .map { case (molSymbol, flag, _) => s"${molSymbol.name}($flag)" }
+    maybeError("reaction body", "emit blocking molecule replies inside function blocks", nontrivialEmittedRepliesStrings, "not")
+
+    // TODO: Reply molecules should be used only once. This depends on proper shrinkage.
 
     val guardCNF: List[List[Tree]] = convertToCNF(guard) // Conjunctive normal form of the guard condition. In this CNF, `true` is List() and `false` is List(List()).
 

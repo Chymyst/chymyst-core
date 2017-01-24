@@ -178,6 +178,69 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     "val r = go { case x@a(_) => }" shouldNot compile
   }
 
+  it should "refuse reactions that match on other molecules in molecule input values" in {
+    val a = m[Any]
+    val f = b[Any, Any]
+    a.name shouldEqual "a"
+    f.name shouldEqual "f"
+
+    go { case a(1) => a(a(1)) } // OK
+
+    "val r = go { case a(a(1)) => }" shouldNot compile
+    "val r = go { case f(_, 123) => }" shouldNot compile
+    "val r = go { case f(a(1), r) => r(1) }" shouldNot compile
+    "val r = go { case f(f(1,s), r) => r(1) }" shouldNot compile
+  }
+
+  behavior of "nonlinear output environments"
+
+  it should "refuse emitting blocking molecules" in {
+    val c = m[Unit]
+    val f = b[Unit, Unit]
+    val f2 = b[Int, Unit]
+    val f3 = b[Unit, Boolean]
+    val g: Any => Any = x => x
+
+    c.name shouldEqual "c"
+    f.name shouldEqual "f"
+    f2.name shouldEqual "f2"
+    f3.name shouldEqual "f3"
+    g(()) shouldEqual (())
+
+    go { case c(_) => g(f) }
+    "val r = go { case c(_) => (0 until 10).flatMap { _ => f(); List() } }" shouldNot compile // reaction body must not emit blocking molecules inside function blocks
+    "val r = go { case c(_) => (0 until 10).foreach(i => f2(i)) }" shouldNot compile // same
+    "val r = go { case c(_) => (0 until 10).foreach(_ => c()) }" should compile // `c` is a non-blocking molecule, OK to emit it anywhere
+    "val r = go { case c(_) => (0 until 10).foreach(f2) }" shouldNot compile // same
+    "val r = go { case c(_) => (0 until 10).foreach{_ => g(f); () } }" shouldNot compile
+    "val r = go { case c(_) => while (true) f() }" shouldNot compile
+    "val r = go { case c(_) => while (true) c() }" should compile // `c` is a non-blocking molecule, OK to emit it anywhere
+    "val r = go { case c(_) => while (f3()) { () } }" shouldNot compile
+    "val r = go { case c(_) => do f() while (true) }" shouldNot compile
+    "val r = go { case c(_) => do c() while (f3()) }" shouldNot compile
+  }
+
+  it should "refuse emitting blocking molecule replies" in {
+    val f = b[Unit, Unit]
+    val f2 = b[Unit, Int]
+    val g: Any => Any = x => x
+
+    f.name shouldEqual "f"
+    f2.name shouldEqual "f2"
+    g(()) shouldEqual (())
+
+    "val r = go { case f(_, r) => g(r); r() }" shouldNot compile
+    "val r = go { case f(_, r) => val x = r; g(x); r() }" shouldNot compile
+    "val r = go { case f(_, r) => (0 until 10).flatMap { _ => r(); List() } }" shouldNot compile // reaction body must not emit blocking molecule replies inside function blocks
+    "val r = go { case f2(_, r) => (0 until 10).foreach(i => r(i)) }" shouldNot compile // same
+    "val r = go { case f2(_, r) => (0 until 10).foreach(r) }" shouldNot compile // same
+    "val r = go { case f2(_, r) => (0 until 10).foreach(_ => g(r)); r(0) }" shouldNot compile
+    "val r = go { case f(_, r) => while (true) r() }" shouldNot compile
+    "val r = go { case f(_, r) => while (r.checkTimeout()) { () } }" shouldNot compile
+    "val r = go { case f(_, r) => do r() while (true) }" shouldNot compile
+    "val r = go { case f(_, r) => do () while (r.checkTimeout()) }" shouldNot compile
+  }
+
   behavior of "compile-time errors due to chemistry"
 
   it should "fail to compile reactions with unconditional livelock" in {
@@ -245,20 +308,6 @@ class MacroErrorSpec extends FlatSpec with Matchers {
       case _ => false
     }) shouldEqual true
 
-  }
-
-  it should "refuse reactions that match on other molecules in molecule input values" in {
-    val a = m[Any]
-    val f = b[Any, Any]
-    a.name shouldEqual "a"
-    f.name shouldEqual "f"
-
-    go { case a(1) => a(a(1)) } // OK
-
-    "val r = go { case a(a(1)) => }" shouldNot compile
-    "val r = go { case f(_, 123) => }" shouldNot compile
-    "val r = go { case f(a(1), r) => r(1) }" shouldNot compile
-    "val r = go { case f(f(1,s), r) => r(1) }" shouldNot compile
   }
 
 }
