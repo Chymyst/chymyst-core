@@ -527,6 +527,7 @@ site( go { case f(_,r) + c(n) => c(n + 1) + r(n) + r(n) } ) // replied twice!
 
 The reply could depend on a run-time condition, which is impossible to evaluate at compile time.
 In this case, a reaction must use an `if` expression that calls the reply emitter in each branch.
+It is an error if a reply is emitted in only one of the `if` branches:
 
 ```scala
 val f = b[Unit, Int]
@@ -535,9 +536,43 @@ site( go { case f(_,r) + c(n) => c(n + 1); if (n != 0) r(n) } )
 // compile-time error: "blocking input molecules should receive a reply but no unconditional reply found"
 
 ```
+
+A correct reaction could look like this:
+
+```scala
+val f = b[Unit, Int]
+val c = m[Int]
+site( go { case f(_,r) + c(n) => c(n + 1); if (n != 0) r(n) else r(0) } )
+// reply is always sent, regardless of the value of `n`
+
+```
+
+Finally, a reaction's body could throw an exception before emitting a reply.
+In this case, compile-time analysis will not show that there is a problem.
+The chemical machine will detect the missing reply at runtime and throw an additional exception in the thread that emits `f()`:
+
+```scala
+val f = b[Unit, Int]
+val c = m[Int]
+site( go { case f(_,r) + c(n) => c(n + 1); if (n == 0) throw new Exception("error!"); r(n) } )
+c(0)
+f()
+
+```
+
 `java.lang.Exception: Error: In Site{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B`
 
-Note that this exception will be thrown only when reaction actually starts and the run-time condition `n != 0` is evaluated to `false`.
-Also, the exception may occur on another thread, which will not be immediately visible.
+Generally, whenever some blocking molecules have received no reply by the time the reaction body finished evaluating,
+this exception will be thrown in all threads that are still waiting for replies, unblocking all those threads.
+This feature is designed to reduce deadlocks.
+
+In our example, the additional exception will be thrown only when reaction actually starts and the run-time condition `n == 0` is evaluated to `true`.
+It may not be easy to design unit tests for this condition.
+
+Also, if the blocking molecules are emitted from some reactions, exceptions occurring on those reactions will not necessarily immediately visible.
+
 For these reasons, it is not easy to catch errors of this type, either at compile time or at run time.
-To avoid these problems, it is advisable to reorganize the chemistry such that reply actions are unconditional.
+
+To avoid these problems, it is advisable to design the chemistry such that each reply is guaranteed to be emitted exactly once,
+and that no exceptions can be thrown before emitting the reply.
+If a condition is required before sending a reply, it should be a simple condition that is guaranteed not to throw an exception.
