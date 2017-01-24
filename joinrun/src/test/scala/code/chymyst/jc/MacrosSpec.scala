@@ -667,9 +667,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "detect molecules emitted in map blocks" in {
     val a = m[Int]
-    val c = b[Int, Int]
+    val c = m[Int]
 
-    val r = go { case a(x) => if (x > 0) (1 to 10).map(i => c(i)) }
+    val r = go { case c(x) => if (x > 0) (1 to 10).map { i => a(i); 1 } }
 
     r.info.outputs(0).environments should matchPattern {
       case List(ChooserBlock(2, 0, 2), FuncBlock(5, "scala.collection.TraversableLike.map"), FuncLambda(6)) =>
@@ -678,9 +678,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "detect molecules emitted in map blocks with short syntax" in {
     val a = m[Int]
-    val c = b[Int, Int]
+    val c = m[Int]
 
-    val r = go { case a(x) => (1 to 10).map(c).sum }
+    val r = go { case a(x) => (1 to 10).map(c).forall(_ => true) }
 
     r.info.outputs(0).environments should matchPattern {
       case List(FuncBlock(3, "scala.collection.TraversableLike.map")) =>
@@ -700,9 +700,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "detect molecules emitted in custom apply()" in {
     val a = m[Int]
-    val c = b[Int, Int]
+    val c = m[Int]
 
-    val r = go { case a(x) => FuncLambda(c(x)) }
+    val r = go { case a(x) => FuncLambda {
+      c(x)
+      1
+    }
+    }
 
     r.info.outputs(0).environments should matchPattern {
       case List(FuncBlock(1, "code.chymyst.jc.FuncLambda.apply")) =>
@@ -711,11 +715,16 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "detect molecules emitted in user-defined methods" in {
     val a = m[Int]
-    val c = b[Int, Int]
+    val c = m[Int]
 
-    def f(x: Int): Int = x + 1
+    def f(x: Unit): Int = 1
 
-    val r = go { case a(x) => c(if (x > 0) f(c(x)) else c(x)) }
+    val r = go { case a(x) => c(if (x > 0) f(c(x))
+    else {
+      c(x);
+      2
+    })
+    }
 
     r.info.outputs(0).environments should matchPattern {
       case List(ChooserBlock(2, 0, 2), FuncBlock(3, "code.chymyst.jc.MacrosSpec.f")) =>
@@ -724,13 +733,16 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "detect molecules emitted in user-defined methods within reaction scope" in {
     val a = m[Int]
-    val c = b[Int, Int]
-
+    val c = m[Int]
 
     val r = go { case a(x) =>
-      def f(x: Int): Int = x + 1
+      def f(x: Unit): Int = 1
 
-      c(if (x > 0) f(c(x)) else c(x))
+      c(if (x > 0) f(c(x))
+      else {
+        c(x);
+        2
+      })
     }
 
     r.info.outputs(0).environments should matchPattern {
@@ -740,20 +752,21 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   it should "detect molecules emitted in while loops" in {
     val a = m[Int]
-    val c = b[Int, Int]
+    val c = m[Int]
 
     val r = go { case a(x) => if (x > 0)
-      while (c(x) > 0) {
+      while (c(x) == (())) {
         c(x)
       }
     }
 
     r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0, 2), AtLeastOneEmitted(3, "condition of while")) => }
+    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(2, 0, 2), FuncBlock(3, "blah")) => }
   }
 
   it should "detect molecules emitted in do-while loops" in {
     val a = m[Int]
-    val c = b[Int, Int]
+    val c = m[Int]
 
     val r = go { case a(x) => if (x > 0)
       do {

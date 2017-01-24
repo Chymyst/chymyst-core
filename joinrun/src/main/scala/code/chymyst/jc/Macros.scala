@@ -196,6 +196,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
     // Blocking molecules should not be used under nontrivial output environments.
     val nontrivialEmittedBlockingMoleculeStrings = bodyOut
+      .filter(_._1.typeSignature <:< weakTypeOf[B[_, _]])
       .filter(_._3.exists(!_.linear))
       .map { case (molSymbol, flag, _) => s"${molSymbol.name}($flag)" }
     maybeError("reaction body", "emit blocking molecules inside function blocks", nontrivialEmittedBlockingMoleculeStrings, "not")
