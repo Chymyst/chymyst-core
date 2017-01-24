@@ -721,7 +721,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val r = go { case a(x) => c(if (x > 0) f(c(x))
     else {
-      c(x);
+      c(x)
       2
     })
     }
@@ -740,7 +740,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
       c(if (x > 0) f(c(x))
       else {
-        c(x);
+        c(x)
         2
       })
     }

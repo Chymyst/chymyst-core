@@ -353,8 +353,8 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     val blockingMoleculesWithoutReply = blockingReplies difff repliedMolecules
     val blockingMoleculesWithMultipleReply = repliedMolecules difff blockingReplies
 
-    maybeError("blocking input molecules", "but no reply found for", blockingMoleculesWithoutReply, "receive a reply unconditionally")
-    maybeError("blocking input molecules", "but multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
+    maybeError("blocking molecules", "but no unconditional reply found for", blockingMoleculesWithoutReply, "receive a reply")
+    maybeError("blocking molecules", "but possibly multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
 
     if (patternIn.isEmpty && !isSingletonReaction(pattern, guard, body)) // go { case x => ... }
       reportError("Reaction input must be `_` or must contain some input molecules")
