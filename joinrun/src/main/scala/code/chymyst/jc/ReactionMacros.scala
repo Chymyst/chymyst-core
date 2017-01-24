@@ -630,11 +630,19 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
             args.foreach { t =>
               // Detect whether the function takes a function type, and whether `t` is a molecule emitter.
-              if (isIterating && (isMolecule(t) || isReplyValue(t))) {
+              if (iteratingFunctionCodes.contains(fullName) && isMolecule(t)) {
+                // This is an iterator that takes a molecule emitter, in a short syntax
+                // e.g. `(0 until n).foreach(a)` where `a : M[Int]`
                 // In that case, the molecule could be emitted zero or more times.
                 outputMolecules.append((t.asInstanceOf[Tree].symbol, OtherOutputPatternF, outputEnv.toList))
-              } else
-                traverse(t.asInstanceOf[Tree])
+              } else if (isReplyValue(t)) {
+                // This is an iterator that takes a molecule emitter, in a short syntax
+                // e.g. `(0 until n).foreach(a)` where `a : M[Int]`
+                // In that case, the molecule could be emitted zero or more times.
+                replyActions.append((t.asInstanceOf[Tree].symbol, OtherOutputPatternF, outputEnv.toList))
+              }
+
+              traverse(t.asInstanceOf[Tree])
             }
             finishTraverseWithOutputEnv()
           }
@@ -655,7 +663,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     case WildcardF =>
       q"_root_.code.chymyst.jc.WildcardInput"
     case ConstantPatternF(tree) =>
-      q"_root_.code.chymyst.jc.SimpleConstInput($tree)"
+      q"_root_.code.chymyst.jc.ConstInputPattern($tree)"
     case SimpleVarF(v, binder, cond) =>
       val guardFunction = cond.map(c => matcherFunction(binder, c, List(v)))
       q"_root_.code.chymyst.jc.SimpleVarInput(${identToScalaSymbol(v)}, $guardFunction)"
@@ -667,14 +675,14 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   implicit val liftableOutputPatternFlag: Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
     case ConstOutputPatternF(tree) =>
-      q"_root_.code.chymyst.jc.SimpleConstOutput($tree)"
+      q"_root_.code.chymyst.jc.ConstOutputPattern($tree)"
     case OtherOutputPatternF =>
       q"_root_.code.chymyst.jc.OtherOutputPattern"
   }
 
   implicit val liftableOutputPatternType: Liftable[OutputPatternType] = Liftable[OutputPatternType] {
-    case SimpleConstOutput(v) =>
-      q"_root_.code.chymyst.jc.SimpleConstOutput(${v.asInstanceOf[Tree]})" // When we lift it here, it always has type `Tree`.
+    case ConstOutputPattern(v) =>
+      q"_root_.code.chymyst.jc.ConstOutputPattern(${v.asInstanceOf[Tree]})" // When we lift it here, it always has type `Tree`.
     case OtherOutputPattern =>
       q"_root_.code.chymyst.jc.OtherOutputPattern"
   }

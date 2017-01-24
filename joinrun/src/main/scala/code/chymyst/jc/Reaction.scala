@@ -8,7 +8,7 @@ import scala.{Symbol => ScalaSymbol}
   * `a(_)` is represented by [[WildcardInput]]
   * `a(x)` is represented by [[SimpleVarInput]] with value `SimpleVar(v = 'x, cond = None)`
   * `a(x) if x > 0` is represented by [[SimpleVarInput]] with value `SimpleVar(v = 'x, cond = Some({ case x : Int if x > 0 => }))`
-  * `a(Some(1))` is represented by [[SimpleConstInput]] with value `SimpleConst(v = Some(1))`
+  * `a(Some(1))` is represented by [[ConstInputPattern]] with value `SimpleConst(v = Some(1))`
   * `a( (x, Some((y,z)))) ) if x > y` is represented by [[OtherInputPattern]] with value
   * {{{OtherInputPattern(matcher = { case (x, Some((y,z)))) if x > y => }, vars = List('x, 'y, 'z), isIrrefutable = false)}}}
   */
@@ -38,7 +38,7 @@ final case class SimpleVarInput(v: ScalaSymbol, cond: Option[PartialFunction[Any
   *
   * @param v Value of the constant. This is nominally of type `Any` but actually is of the molecule's value type `T`.
   */
-final case class SimpleConstInput(v: Any) extends InputPatternType
+final case class ConstInputPattern(v: Any) extends InputPatternType
 
 /** Represents a general pattern that is neither a wildcard nor a single variable nor a constant.
   * Examples of such patterns are `a(Some(x))` and `a( (x, _, 2, List(a, b)) )`.
@@ -65,10 +65,10 @@ sealed trait OutputPatternType {
   def merge(other: OutputPatternType)(equals: (Any, Any) => Boolean = (a, b) => a === b): OutputPatternType = OtherOutputPattern
 }
 
-final case class SimpleConstOutput(v: Any) extends OutputPatternType {
+final case class ConstOutputPattern(v: Any) extends OutputPatternType {
   override def merge(other: OutputPatternType)(equals: (Any, Any) => Boolean = (a, b) => a === b): OutputPatternType =
     other match {
-      case SimpleConstOutput(c) if equals(c, v) =>
+      case ConstOutputPattern(c) if equals(c, v) =>
         this
       case _ =>
         OtherOutputPattern
@@ -101,6 +101,7 @@ sealed trait OutputEnvironment {
     */
   def id: Int
 
+  val linear: Boolean = false
   val shrinkable: Boolean = false
 }
 
@@ -112,6 +113,7 @@ sealed trait OutputEnvironment {
   */
 final case class ChooserBlock(id: Int, clause: Int, total: Int) extends OutputEnvironment {
   override val atLeastOne: Boolean = total === 1
+  override val linear: Boolean = true
   override val shrinkable: Boolean = true
 }
 
@@ -288,7 +290,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
       true
     case SimpleVarInput(v, Some(cond)) =>
       cond.isDefinedAt(molValue.getValue)
-    case SimpleConstInput(v) =>
+    case ConstInputPattern(v) =>
       v === molValue.getValue
     case OtherInputPattern(_, _, true) =>
       true
@@ -314,7 +316,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
         Some(true)
       case SimpleVarInput(_, Some(matcher1)) =>
         info.flag match {
-          case SimpleConstInput(c) =>
+          case ConstInputPattern(c) =>
             Some(matcher1.isDefinedAt(c))
           case SimpleVarInput(_, Some(_)) |
                OtherInputPattern(_, _, false) =>
@@ -324,7 +326,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
         }
       case OtherInputPattern(matcher1, _, false) =>
         info.flag match {
-          case SimpleConstInput(c) =>
+          case ConstInputPattern(c) =>
             Some(matcher1.isDefinedAt(c))
           case OtherInputPattern(_, _, false) =>
             if (sha1 === info.sha1) Some(true)
@@ -332,9 +334,9 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
           case _ =>
             Some(false) // Here we can reliably determine that this matcher is not weaker.
         }
-      case SimpleConstInput(c) =>
+      case ConstInputPattern(c) =>
         Some(info.flag match {
-          case SimpleConstInput(c1) =>
+          case ConstInputPattern(c1) =>
             c === c1
           case _ =>
             false
@@ -351,22 +353,22 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
         Some(true)
       case SimpleVarInput(_, Some(matcher1)) =>
         info.flag match {
-          case SimpleConstOutput(c) =>
+          case ConstOutputPattern(c) =>
             Some(matcher1.isDefinedAt(c))
           case _ =>
             None // Here we can't reliably determine whether this matcher is weaker.
         }
       case OtherInputPattern(matcher1, _, false) =>
         info.flag match {
-          case SimpleConstOutput(c) =>
+          case ConstOutputPattern(c) =>
             Some(matcher1.isDefinedAt(c))
           case _ =>
             None // Here we can't reliably determine whether this matcher is weaker.
         }
-      case SimpleConstInput(c) => info.flag match {
-        case SimpleConstOutput(`c`) =>
+      case ConstInputPattern(c) => info.flag match {
+        case ConstOutputPattern(`c`) =>
           Some(true)
-        case SimpleConstOutput(_) =>
+        case ConstOutputPattern(_) =>
           Some(false) // definitely not the same constant
         case _ =>
           None // Otherwise, it could be this constant but we can't determine.
@@ -385,23 +387,23 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
         Some(true)
       case SimpleVarInput(_, Some(matcher1)) =>
         info.flag match {
-          case SimpleConstOutput(c) =>
+          case ConstOutputPattern(c) =>
             Some(matcher1.isDefinedAt(c))
           case _ =>
             Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
         }
       case OtherInputPattern(matcher1, _, false) =>
         info.flag match {
-          case SimpleConstOutput(c) =>
+          case ConstOutputPattern(c) =>
             Some(matcher1.isDefinedAt(c))
           case _ =>
             Some(true) // Here we can't reliably determine whether this matcher is weaker, but it's similar (i.e. could be weaker).
         }
-      case SimpleConstInput(c) =>
+      case ConstInputPattern(c) =>
         Some(info.flag match {
-          case SimpleConstOutput(`c`) =>
+          case ConstOutputPattern(`c`) =>
             true
-          case SimpleConstOutput(_) =>
+          case ConstOutputPattern(_) =>
             false // definitely not the same constant
           case _ =>
             true // Otherwise, it could be this constant.
@@ -417,8 +419,8 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
         v.name
       case SimpleVarInput(v, Some(_)) =>
         s"${v.name} if ?"
-      //      case SimpleConst(()) => ""  // We eliminated this case by converting constants of Unit type to Wildcard input flag.
-      case SimpleConstInput(c) =>
+      //      case ConstInputPattern(()) => ""  // We eliminated this case by converting constants of Unit type to Wildcard input flag.
+      case ConstInputPattern(c) =>
         c.toString
       case OtherInputPattern(_, vars, isIrrefutable) =>
         s"${if (isIrrefutable) "" else "?"}${vars.map(_.name).mkString(",")}"
@@ -441,9 +443,9 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType,
 
   override val toString: String = {
     val printedPattern = flag match {
-      case SimpleConstOutput(()) =>
+      case ConstOutputPattern(()) =>
         ""
-      case SimpleConstOutput(c) =>
+      case ConstOutputPattern(c) =>
         c.toString
       case OtherOutputPattern =>
         "?"
@@ -496,12 +498,12 @@ final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[O
       case OtherInputPattern(_, _, false) |
            SimpleVarInput(_, Some(_)) =>
         2
-      case SimpleConstInput(_) =>
+      case ConstInputPattern(_) =>
         1
     }
 
     val molValueString = flag match {
-      case SimpleConstInput(v) =>
+      case ConstInputPattern(v) =>
         v.toString
       case SimpleVarInput(v, _) =>
         v.name
@@ -569,7 +571,8 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
     */
   override val toString: String = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${
     if (retry)
-      "/R" else ""
+      "/R"
+    else ""
   }"
 
   type BagMap = Map[Molecule, Map[AbsMolValue[_], Int]]
@@ -637,66 +640,66 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
 
       // A simpler, non-flatMap algorithm for the case when there are no cross-dependencies of molecule values.
       val foundResult: Option[Map[Int, AbsMolValue[_]]] =
-        if (info.crossGuards.isEmpty && info.crossConditionals.isEmpty) {
-          info.inputsSorted.flatFoldLeft[(Map[Int, AbsMolValue[_]], BagMap)]((Map(), initRelevantMap)) { (prev, inputInfo) =>
-            // Since we are in a flatFoldLeft, we need to return Some(...) if we found a new value, or else return None.
-            val (prevValues, prevRelevantMap) = prev
-            val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
-            valuesMap.keysIterator
-              .find(v => inputInfo.admitsValue(v))
-              .map { newMolValue =>
-                val newRelevantMap = removeFromBagMap(prevRelevantMap, inputInfo.molecule, newMolValue)
-                val newValues = prevValues.updated(inputInfo.index, newMolValue)
-                (newValues, newRelevantMap)
-              }
-          }.map(_._1) // Now remove BagMap, and only `Option[Map[Int, AbsMolValue[_]]]` is left.
-        } else {
-          // TODO: only use the `flatMap-fold` separately for the clusters of interdependent molecules, not always for all molecules!
-          val found: Stream[Map[Int, AbsMolValue[_]]] =
-            info.inputsSorted // We go through all molecules in the order of decreasing strength of conditionals.
-              .foldLeft[Stream[(Map[Int, AbsMolValue[_]], BagMap)]](Stream((Map(), initRelevantMap))) { (prev, inputInfo) =>
-              // In this `foldLeft` closure:
-              // `prev` contains the molecule value assignments we have found so far (`prevValues`), as well as the map `prevRelevantMap` containing molecule values that would remain in the soup after these previous molecule values were removed.
-              // `inputInfo` describes the pattern matcher for the input molecule we are currently required to find.
-              // We need to find all admissible assignments of values for that input molecule, and return them as a stream of pairs (newValues, newRelevantMap).
-              prev.flatMap {
-                case (prevValues, prevRelevantMap) =>
-                  val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
-                  val newFound = for {
-                    newMolValue <-
-                    // This does not work... not sure why.
-                    //if (inputInfo.molecule === m) Some(molValue).toStream // In this case, we need to use the given value, which is guaranteed to be in the value map.
-                    //              else
-                    if (inputInfo.flag.isTrivial && moleculeIsIndependent(inputInfo.index))
-                    // If this molecule is independent of others and has a trivial matcher, it suffices to select any of the existing values for that molecule.
-                      valuesMap.headOption.map(_._1).toStream
-                    else // Do not eagerly evaluate the list of all possible values.
-                      valuesMap.keysIterator.toStream.filter(v => inputInfo.admitsValue(v))
-
-                    newRelevantMap = removeFromBagMap(prevRelevantMap, inputInfo.molecule, newMolValue)
-                    newValues = prevValues.updated(inputInfo.index, newMolValue)
-                  } yield (newValues, newRelevantMap)
-                  newFound
-              }
-            }.map(_._1) // Get rid of BagMap and tuple.
-
-          // The reaction can run if `found` contains at least one admissible list of input molecules; just one is sufficient.
-
-          // Evaluate all cross-molecule guards: they must all pass on the chosen molecule values.
-          val filteredAfterCrossGuards = if (info.crossGuards.nonEmpty) found.filter { inputValues =>
-            info.crossGuards.forall {
-              case CrossMoleculeGuard(indices, _, cond) =>
-                cond.isDefinedAt(indices.flatMap(i => inputValues.get(i).map(_.getValue)).toList)
+      if (info.crossGuards.isEmpty && info.crossConditionals.isEmpty) {
+        info.inputsSorted.flatFoldLeft[(Map[Int, AbsMolValue[_]], BagMap)]((Map(), initRelevantMap)) { (prev, inputInfo) =>
+          // Since we are in a flatFoldLeft, we need to return Some(...) if we found a new value, or else return None.
+          val (prevValues, prevRelevantMap) = prev
+          val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
+          valuesMap.keysIterator
+            .find(v => inputInfo.admitsValue(v))
+            .map { newMolValue =>
+              val newRelevantMap = removeFromBagMap(prevRelevantMap, inputInfo.molecule, newMolValue)
+              val newValues = prevValues.updated(inputInfo.index, newMolValue)
+              (newValues, newRelevantMap)
             }
-          } else {
-            // Here, we don't have any cross-molecule guards, but we do have some cross-molecule conditionals.
-            // Those are already taken into account by the `flatMap-fold`. So, we don't need to filter the `found` result any further.
-            found
-          }
+        }.map(_._1) // Now remove BagMap, and only `Option[Map[Int, AbsMolValue[_]]]` is left.
+      } else {
+        // TODO: only use the `flatMap-fold` separately for the clusters of interdependent molecules, not always for all molecules!
+        val found: Stream[Map[Int, AbsMolValue[_]]] =
+        info.inputsSorted // We go through all molecules in the order of decreasing strength of conditionals.
+          .foldLeft[Stream[(Map[Int, AbsMolValue[_]], BagMap)]](Stream((Map(), initRelevantMap))) { (prev, inputInfo) =>
+          // In this `foldLeft` closure:
+          // `prev` contains the molecule value assignments we have found so far (`prevValues`), as well as the map `prevRelevantMap` containing molecule values that would remain in the soup after these previous molecule values were removed.
+          // `inputInfo` describes the pattern matcher for the input molecule we are currently required to find.
+          // We need to find all admissible assignments of values for that input molecule, and return them as a stream of pairs (newValues, newRelevantMap).
+          prev.flatMap {
+            case (prevValues, prevRelevantMap) =>
+              val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
+              val newFound = for {
+                newMolValue <-
+                // This does not work... not sure why.
+                //if (inputInfo.molecule === m) Some(molValue).toStream // In this case, we need to use the given value, which is guaranteed to be in the value map.
+                //              else
+                if (inputInfo.flag.isTrivial && moleculeIsIndependent(inputInfo.index))
+                // If this molecule is independent of others and has a trivial matcher, it suffices to select any of the existing values for that molecule.
+                  valuesMap.headOption.map(_._1).toStream
+                else // Do not eagerly evaluate the list of all possible values.
+                  valuesMap.keysIterator.toStream.filter(v => inputInfo.admitsValue(v))
 
-          // Return result if found something. Assign the found molecule values into the `inputs` array.
-          filteredAfterCrossGuards.headOption
+                newRelevantMap = removeFromBagMap(prevRelevantMap, inputInfo.molecule, newMolValue)
+                newValues = prevValues.updated(inputInfo.index, newMolValue)
+              } yield (newValues, newRelevantMap)
+              newFound
+          }
+        }.map(_._1) // Get rid of BagMap and tuple.
+
+        // The reaction can run if `found` contains at least one admissible list of input molecules; just one is sufficient.
+
+        // Evaluate all cross-molecule guards: they must all pass on the chosen molecule values.
+        val filteredAfterCrossGuards = if (info.crossGuards.nonEmpty) found.filter { inputValues =>
+          info.crossGuards.forall {
+            case CrossMoleculeGuard(indices, _, cond) =>
+              cond.isDefinedAt(indices.flatMap(i => inputValues.get(i).map(_.getValue)).toList)
+          }
+        } else {
+          // Here, we don't have any cross-molecule guards, but we do have some cross-molecule conditionals.
+          // Those are already taken into account by the `flatMap-fold`. So, we don't need to filter the `found` result any further.
+          found
         }
+
+        // Return result if found something. Assign the found molecule values into the `inputs` array.
+        filteredAfterCrossGuards.headOption
+      }
       foundResult.map { inputValues =>
         val inputs = assignInputsToArray(inputValues)
         (this, inputs)
