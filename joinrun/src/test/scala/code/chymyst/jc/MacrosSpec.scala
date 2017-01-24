@@ -746,7 +746,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }
 
     r.info.outputs(0).environments should matchPattern {
-      case List(ChooserBlock(3, 0, 2), FuncBlock(4, "code.chymyst.jc.MacrosSpec.$anonfun.f")) =>
+      case List(ChooserBlock(x, 0, 2), FuncBlock(y, "code.chymyst.jc.MacrosSpec.$anonfun.f")) if y > x =>
     }
   }
 
@@ -755,13 +755,13 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val c = m[Int]
 
     val r = go { case a(x) => if (x > 0)
-      while (c(x) == (())) {
+      while ({c(x); true }) {
         c(x)
       }
     }
 
     r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(2, 0, 2), AtLeastOneEmitted(3, "condition of while")) => }
-    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(2, 0, 2), FuncBlock(3, "blah")) => }
+    r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(2, 0, 2), FuncBlock(3, "while")) => }
   }
 
   it should "detect molecules emitted in do-while loops" in {
