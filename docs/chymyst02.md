@@ -2,11 +2,20 @@
 
 # Blocking vs. non-blocking molecules
 
+## Motivation for the blocking molecule feature
+
 So far, we have used molecules whose emission was a non-blocking call.
 Emitting a molecule, such as `a(123)`, immediately returns `Unit` but performs a concurrent side effect, adding a new molecule to the soup.
 Such molecules are called **non-blocking**.
 
-Chemical machine can also define **blocking molecules**.
+When a reaction emits a non-blocking molecule, that molecule could later start another reaction and compute some result.
+However, the emitting reaction has no access to that result.
+It is sometimes convenient to be able to wait until the other reaction starts and computes the result, and then to obtain the result value in the first reaction.
+
+This feature is realized in the chemical machine with help of **blocking molecules**.
+
+## How blocking molecules work
+
 Just like non-blocking molecules, a blocking molecule carries a value and can be emitted into the soup.
 However, there are two major differences:
 
