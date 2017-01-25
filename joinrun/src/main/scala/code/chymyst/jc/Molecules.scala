@@ -45,8 +45,6 @@ private[jc] sealed trait AbsMolValue[T] {
   }
 
   private[jc] def reactionSentNoReply: Boolean = false
-
-  private[jc] def reactionSentRepeatedReply: Boolean = false
 }
 
 /** Container for the value of a non-blocking molecule.
@@ -69,8 +67,6 @@ private[jc] final case class BlockingMolValue[T, R](v: T, replyValue: AbsReplyVa
   override private[jc] def getValue: T = v
 
   override private[jc] def reactionSentNoReply: Boolean = replyValue.noReplyAttemptedYet // no value, no error, and no timeout
-
-  override private[jc] def reactionSentRepeatedReply: Boolean = replyValue.replyWasRepeated
 }
 
 /** Abstract molecule emitter trait.
@@ -232,7 +228,7 @@ private[jc] sealed trait AbsReplyValue[T, R] {
   /** This atomic mutable value is read and written only by reactions that perform reply actions.
     * Access to this variable must be guarded by [[semaphoreForReplyStatus]].
     */
-  private val numberOfReplies = new AtomicInteger(0)
+  private val hasReply = new AtomicBoolean(false)
 
   /** This atomic mutable value is written only by the reaction that emitted the blocking molecule,
     * but read by reactions that perform the reply action with timeout checking.
@@ -244,9 +240,7 @@ private[jc] sealed trait AbsReplyValue[T, R] {
 
   final private[jc] def isTimedOut: Boolean = hasTimedOut.get
 
-  final private[jc] def noReplyAttemptedYet: Boolean = numberOfReplies.get === 0
-
-  final private[jc] def replyWasRepeated: Boolean = numberOfReplies.get >= 2
+  final private[jc] def noReplyAttemptedYet: Boolean = !hasReply.get
 
   /** This semaphore blocks the emitter of a blocking molecule until a reply is received.
     * This semaphore is initialized only once when creating an instance of this
@@ -284,7 +278,7 @@ private[jc] sealed trait AbsReplyValue[T, R] {
     */
   final protected def performReplyAction(x: R): Boolean = {
 
-    val replyWasNotRepeated = numberOfReplies.getAndIncrement() === 0
+    val replyWasNotRepeated = hasReply.compareAndSet(false, true)
 
     val status = if (replyWasNotRepeated) {
       // We have not yet tried to reply.
@@ -310,7 +304,7 @@ private[jc] sealed trait AbsReplyValue[T, R] {
 
   /** This is similar to [[performReplyAction]] except that user did not request the timeout checking, so we have fewer semaphores to deal with. */
   final protected def performReplyActionWithoutTimeoutCheck(x: R): Unit = {
-    val replyWasNotRepeated = numberOfReplies.getAndIncrement() === 0
+    val replyWasNotRepeated = hasReply.compareAndSet(false, true)
     if (replyWasNotRepeated) {
       // We have not yet tried to reply.
       replyStatus = HaveReply(x)
