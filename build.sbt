@@ -110,6 +110,8 @@ lazy val benchmark = (project in file("benchmark"))
 // Publishing to Sonatype Maven repository
 publishMavenStyle := true
 
+// pomIncludeRepository := { _ => false } // not sure we need this. http://www.scala-sbt.org/release/docs/Using-Sonatype.html says we might need it because "sometimes we have optional dependencies for special features".
+
 publishTo := {
   val nexus = "https://oss.sonatype.org/"
   if (isSnapshot.value)
