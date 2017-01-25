@@ -328,7 +328,7 @@ Chemical machine programming is similar in some aspects to the well-known Actor 
 
 | Chemical machine | Actor model |
 |---|---|
-| molecules carry values | messages carry data | 
+| molecules carry values | messages carry values | 
 | reactions wait to receive certain molecules | actors wait to receive certain messages | 
 | synchronization is implicit in molecule emission | synchronization is implicit in message-passing | 
 | reactions start when molecules are available | actors start running when a message is received |
@@ -337,10 +337,10 @@ Main differences between the chemical machine and the Actor model:
 
 | Chemical machine | Actor model |
 |---|---|
-| concurrent processes start automatically whenever several input data sets are available | a desired number of concurrent actors must be created and managed manually |
-| processes are implicit, the user's code only manipulates molecules | the user's code must manipulate explicit references to actors as well as messages |
-| processes typically wait for (and consume) several input molecules at once | actors wait for (and consume) only one input message at a time |
-| processes are immutable and stateless, all data is stored on molecules (which are also immutable) | actors can mutate (“become another actor”); actors can hold mutable state |
+| several concurrent reactions start automatically whenever several input molecules are available | a desired number of concurrent actors must be created and managed manually |
+| the user's code only manipulates molecules | the user's code must manipulate explicit references to actors as well as messages |
+| reactions typically wait for (and consume) several input molecules at once | actors wait for (and consume) only one input message at a time |
+| reactions are immutable and stateless, all data is stored on molecules (which are also immutable) | actors can mutate (“become another actor”); actors can hold mutable state |
 | molecules are held in an unordered bag and processed in random order | messages are held in an ordered queue (mailbox) and processed in the order received |
 | molecule data is statically typed | message data is untyped |
 

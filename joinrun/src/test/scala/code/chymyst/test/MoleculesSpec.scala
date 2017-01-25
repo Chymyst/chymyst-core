@@ -337,7 +337,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     site(tp0)(
       go  { case c(x) + d(_, r) =>
-        if (scala.util.Random.nextDouble >= probabilityOfCrash) { c(x - 1); r() } else throw new Exception("crash! (it's OK, ignore this)")
+        if (scala.util.Random.nextDouble >= probabilityOfCrash) { c(x - 1); r() } else { throw new Exception("crash! (it's OK, ignore this)"); r() }
       }.withRetry onThreads tp,
       go  { case c(0) + g(_, r) => r() }
     )

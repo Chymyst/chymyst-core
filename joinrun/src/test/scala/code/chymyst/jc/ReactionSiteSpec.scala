@@ -1,6 +1,8 @@
 package code.chymyst.jc
 
-import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers, Succeeded}
+
+import scala.concurrent.duration._
 
 class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
@@ -102,28 +104,68 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     OutputEnvironment.shrink[Int](outputs) shouldEqual expectedShrunkOutputs
   }
 
-  it should "shrink if-then-else to unconditional with SimpleConstOutput" in {
-    val item1: OutputEnvironment.OutputItem[Int] = (100, SimpleConstOutput(123), List(ChooserBlock(1, 0, 2)))
+  it should "shrink if-then-else to unconditional with ConstOutputPattern" in {
+    val item1: OutputEnvironment.OutputItem[Int] = (100, ConstOutputPattern(123), List(ChooserBlock(1, 0, 2)))
     val item2: OutputEnvironment.OutputItem[Int] = (100, OtherOutputPattern, List(ChooserBlock(1, 1, 2)))
     val outputs: OutputEnvironment.OutputList[Int]  = List(item1, item2)
     val expectedShrunkOutputs = List((100, OtherOutputPattern, Nil))
     OutputEnvironment.shrink[Int](outputs) shouldEqual expectedShrunkOutputs
   }
 
-  it should "shrink if-then-else to unconditional with 2 unequal SimpleConstOutput" in {
-    val item1: OutputEnvironment.OutputItem[Int] = (100, SimpleConstOutput(123), List(ChooserBlock(1, 0, 2)))
-    val item2: OutputEnvironment.OutputItem[Int] = (100, SimpleConstOutput(124), List(ChooserBlock(1, 1, 2)))
+  it should "shrink if-then-else to unconditional with 2 unequal ConstOutputPattern" in {
+    val item1: OutputEnvironment.OutputItem[Int] = (100, ConstOutputPattern(123), List(ChooserBlock(1, 0, 2)))
+    val item2: OutputEnvironment.OutputItem[Int] = (100, ConstOutputPattern(124), List(ChooserBlock(1, 1, 2)))
     val outputs: OutputEnvironment.OutputList[Int]  = List(item1, item2)
     val expectedShrunkOutputs = List((100, OtherOutputPattern, Nil))
     OutputEnvironment.shrink[Int](outputs) shouldEqual expectedShrunkOutputs
   }
 
-  it should "shrink if-then-else to unconditional with 2 equal SimpleConstOutput" in {
-    val item1: OutputEnvironment.OutputItem[Int] = (100, SimpleConstOutput(123), List(ChooserBlock(1, 0, 2)))
-    val item2: OutputEnvironment.OutputItem[Int] = (100, SimpleConstOutput(123), List(ChooserBlock(1, 1, 2)))
+  it should "shrink if-then-else to unconditional with 2 equal ConstOutputPattern" in {
+    val item1: OutputEnvironment.OutputItem[Int] = (100, ConstOutputPattern(123), List(ChooserBlock(1, 0, 2)))
+    val item2: OutputEnvironment.OutputItem[Int] = (100, ConstOutputPattern(123), List(ChooserBlock(1, 1, 2)))
     val outputs: OutputEnvironment.OutputList[Int]  = List(item1, item2)
-    val expectedShrunkOutputs = List((100, SimpleConstOutput(123), Nil))
+    val expectedShrunkOutputs = List((100, ConstOutputPattern(123), Nil))
     OutputEnvironment.shrink[Int](outputs) shouldEqual expectedShrunkOutputs
+  }
+
+  behavior of "error detection for blocking replies"
+
+  it should "report errors when no reply received due to exception" in {
+    val f = b[Unit, Unit]
+
+    val result = withPool(new FixedPool(2)){ tp =>
+      site(tp)(
+        go { case f(_, r) =>
+          throw new Exception("crash! ignore this exception")
+          r()
+        }
+      )
+      val thrown = intercept[Exception] {
+        f()
+      }
+      thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B()] finished without replying to f/B"
+    }
+    result.get shouldEqual Succeeded
+    result.isFailure shouldEqual false
+  }
+
+  it should "report errors when no reply received due to exception within timeout" in {
+    val f = b[Unit, Unit]
+
+    val result = withPool(new FixedPool(2)){ tp =>
+      site(tp)(
+        go { case f(_, r) =>
+          throw new Exception("crash! ignore this exception")
+          r()
+        }
+      )
+      val thrown = intercept[Exception] {
+        f.timeout()(1.seconds)
+      }
+      thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B()] finished without replying to f/B"
+    }
+    result.get shouldEqual Succeeded
+    result.isFailure shouldEqual false
   }
 
 }
