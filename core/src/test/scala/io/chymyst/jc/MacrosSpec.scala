@@ -196,7 +196,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     result.info.sha1 shouldEqual "435CBA662F8A4992849522C11B78BE206E8D29D4"
   }
 
-  val ax_qq_reaction_sha1 = "CFE7446374369C443EFB46040D6AC395E56D5A7A"
+  val ax_qq_reaction_sha1 = "90AEB40BC6D79F63785C6A7FE84BC3EA5EDEE4F7"
 
   it should "inspect a two-molecule reaction body" in {
     val a = m[Int]
