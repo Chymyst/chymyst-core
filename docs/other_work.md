@@ -14,15 +14,15 @@ Here are some previous implementations of Join Calculus that I was able to find.
 - Joinads, a not-quite-Join-Calculus implementation in F# and Haskell: [Petricek and Syme 2011](https://www.microsoft.com/en-us/research/publication/joinads-a-retargetable-control-flow-construct-for-reactive-parallel-and-concurrent-programming/). The project is not maintained.
 - Proof-of-concept implementations of Join Calculus for iOS: [CocoaJoin](https://github.com/winitzki/AndroJoin) and Android: [AndroJoin](https://github.com/winitzki/AndroJoin). These projects are not maintained.
 
-The implementation of JC in `JoinRun` is based on ideas from Jiansen He's `ScalaJoin` as well as on CocoaJoin / AndroJoin.
+The implementation of JC in `Chymyst` is based on ideas from Jiansen He's `ScalaJoin` as well as on CocoaJoin / AndroJoin.
 
 ## Improvements with respect to Jiansen He's `ScalaJoin`
 
-Compared to [`ScalaJoin` (Jiansen He's 2011 implementation of JC)](https://github.com/Jiansen/ScalaJoin), `JoinRun` offers the following improvements:
+Compared to [`ScalaJoin` (Jiansen He's 2011 implementation of JC)](https://github.com/Jiansen/ScalaJoin), `Chymyst Core` offers the following improvements:
 
 - Lighter syntax for reaction sites (join definitions). Compare:
 
-JoinRun:
+`Chymyst Core`:
 
 ```scala
 val a = m[Int]
@@ -37,7 +37,7 @@ a(1)
 
 ```
 
-ScalaJoin:
+`ScalaJoin`:
 
 ```scala
 object join1 extends Join {
@@ -55,7 +55,7 @@ a(1)
 ```
 
 - Molecule emitters (“channel names”) are not singleton objects as in `ScalaJoin` but locally scoped values. This is how the semantics of JC is implemented in JoCaml. In this way, we get more flexibility in defining molecules.
-- Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`). `JoinRun` uses macros to perform some static analysis of reactions at compile time and detect some errors.
+- Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`). `Chymyst` uses macros to perform some static analysis of reactions at compile time and detect some errors.
 - Reaction sites are not explicit objects but are local values(instances of class `ReactionSite`) and are invisible to the user, as they should be according to the semantics of JC.
 
 ## Improvements with respect to JoCaml
@@ -71,9 +71,9 @@ spawn a(1)
 ```
 
 In the JoCaml syntax, `a` and `c` are declared implicitly, together with the reaction.
-Implicit declaration of molecule emitters (“channels”) is not possible in `JoinRun` because Scala macros do not allow us to insert a new top-level name declaration into the code.
+Implicit declaration of molecule emitters (“channels”) is not possible in `Chymyst` because Scala macros do not allow us to insert a new top-level name declaration into the code.
 So, declarations need to be explicit and show the types of values (`b[Int, Int]` and so on).
-Other than that, `JoinRun`'s syntax is closely modeled on that of `ScalaJoin` and JoCaml.
+Other than that, `Chymyst`'s syntax is closely modeled on that of `ScalaJoin` and JoCaml.
 
 
 # Other tutorials on Join Calculus
@@ -84,7 +84,7 @@ This tutorial is based on my [earlier tutorial for JoCaml](https://sites.google.
 
 See also [my recent presentation at _Scala by the Bay 2016_](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala).
 ([Talk slides are available](https://github.com/winitzki/talks/tree/master/join_calculus)).
-That presentation covered an early version of `JoinRun`.
+That presentation covered an early version of `Chymyst`.
 
 There are a few academic papers on Join Calculus and a few expository descriptions, such as the Wikipedia article or the JoCaml documentation.
 Unfortunately, I cannot recommend reading them because they are unsuitable for learning about the chemical machine / Join Calculus paradigm.

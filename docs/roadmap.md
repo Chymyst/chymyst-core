@@ -2,7 +2,7 @@
 
 # Version history
 
-- 0.1.6 A different mechanism now implements the syntax `a()` for emitting molecules with `Unit` values; no more auxiliary classes `E`, `BE`, `EB`, `EE`, which simplifies code and eliminates the need for whitebox macros. Breaking change: `timeout(value)(duraction)` instead of `timeout(duraction)(value)` as before. An optimization for the reaction scheduler now makes simple reactions start faster. The project build has been revamped: now there is a single JAR artifact and a single SBT project for `JoinRun`, rather than 3 as before. A skeleton "hello-world" project is available in a separate repository. `Chymyst` has been moved to a separate repository as well. Various improvements in the compile-time analysis of reactions: livelock detection now understands that molecules emitted under `if/else` constructions are not always emitted.
+- 0.1.6 A different mechanism now implements the syntax `a()` for emitting molecules with `Unit` values; no more auxiliary classes `E`, `BE`, `EB`, `EE`, which simplifies code and eliminates the need for whitebox macros. Breaking change: `timeout(value)(duraction)` instead of `timeout(duraction)(value)` as before. An optimization for the reaction scheduler now makes simple reactions start faster. The project build has been revamped: now there is a single JAR artifact and a single SBT project for `Chymyst`, rather than 3 as before. A skeleton "hello-world" project is available in a separate repository. `Chymyst` has been moved to a separate repository as well. Various improvements in the compile-time analysis of reactions: livelock detection now understands that molecules emitted under `if/else` constructions are not always emitted.
 
 - 0.1.5 Bug fix for a rare race condition with time-out on blocking molecules. New `checkTimeout` API to make a clean distinction between replies that need to check the timeout status and replies that don't. Documentation was improved. Code cleanups resulted in 100% test coverage. Revamped reaction site code now supports nonlinear input patterns.
 
@@ -14,7 +14,7 @@
 
 - 0.1.1 Bug fixes for blocking replies; new benchmarks for blocking molecules.
 
-- 0.1.0 First alpha release of `JoinRun`. Changes: implementing singleton molecules and volatile readers; several important bugfixes.
+- 0.1.0 First alpha release of `Chymyst`. Changes: implementing singleton molecules and volatile readers; several important bugfixes.
 
 - 0.0.10 Static checks for livelock and deadlock in reactions, with both compile-time errors and run-time errors.
 
@@ -85,7 +85,7 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
 
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic. -- Will not do now. Not sure that lazy values on molecules are important as a primitive. We can always simulate them using closures.
 
- 3 * 5 - Can we implement JoinRun using Future / Promise and remove all blocking and all semaphores?
+ 3 * 5 - Can we implement Chymyst Core using Future / Promise and remove all blocking and all semaphores?
 
  3 * 2 - add per-molecule logging; log to file or to logger function
 

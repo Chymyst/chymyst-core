@@ -9,7 +9,7 @@ Allen B. Downey's [_The little book of semaphores_](http://greenteapress.com/sem
 In this and following chapter, we will use the chemical machine to solve those concurrency puzzles as well as some other problems.
 
 Our approach will be deductive: we start with the problem and reason logically about the molecules and reactions that are necessary to solve it.
-Eventually we deduce the required chemistry and implement it declaratively in `JoinRun`/`Chymyst`.
+Eventually we deduce the required chemistry and implement it declaratively in `Chymyst`.
 
 ## Waiting forever
 
@@ -916,8 +916,8 @@ counterInit() // This needs to be emitted initially.
 ```
 
 Note that this chemistry will block `n` reactions that emit `barrier()` and another set of `n` copies of `reaction2`.
-In the current implementation of `JoinRun`, a blocked reaction always blocks a thread, so the`n`-rendezvous will block `2*n` threads until the rendezvous is passed.
-(A future implementation of `JoinRun` might be able to perform a code transformation that never blocks any threads.)
+In the current implementation of `Chymyst`, a blocked reaction always blocks a thread, so the`n`-rendezvous will block `2*n` threads until the rendezvous is passed.
+(A future implementation of `Chymyst` might be able to perform a code transformation that never blocks any threads.)
 
 How do we use the `n`-rendezvous?
 Suppose we have a reaction where a certain processing step needs to wait for all other reactions to reach the same step.

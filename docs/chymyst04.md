@@ -1,268 +1,434 @@
 <link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
 
-# Example: Concurrent map/reduce
+# Molecules and emitters, in depth
 
-The chemical machine can be programmed to perform arbitrary concurrent computations.
-However, it is not immediately obvious what molecules and reactions must be defined, say, to implement a concurrent buffered queue or a concurrent merge-sort algorithm.
-Another interesting application would be a concurrent GUI interaction together with some jobs in the background.
-Solving these problems via chemistry requires a certain paradigm shift.
-In order to build up our chemical intuition, let us go through some more examples.
+## Molecule names
 
-Consider the problem of implementing a concurrent map/reduce operation.
-This operation first takes an array of type `Array[A]` and applies a function `f : A => B` to each element of the array.
-This yields an `Array[B]` of intermediate results.
-After that, a “reduce”-like operation `reduceB : (B, B) => B`  is applied to that array, and the final result of type `B` is computed.
+For debugging purposes, molecules in `Chymyst` have names.
+These names have no effect on any concurrent computations.
+For instance, the runtime engine will not check that each molecule's name is not empty, or that the names of different molecules are different.
+Molecule names are used only for debugging: they are printed when logging reactions and reaction sites.
 
-This can be implemented in sequential code like this:
+There are two ways of assigning a name to a molecule:
+
+- specify a name explicitly, by using a class constructor;
+- use the macros `m` and `b`.
+
+Here is an example of defining emitters using explicit class constructors and molecule names:
 
 ```scala
-val arr : Array[A] = ???
-arr.map(f).reduce(reduceB)
+val counter = new M[Int]("counter")
+val fetch = new B[Int, Int]("fetch")
 
 ```
 
-Our task is to implement all these computations concurrently -- both the application of `f` to each element of the array and the accumulation of the final result.
-
-For simplicity, we will assume that the `reduceB` operation is associative and commutative and has a zero element (i.e. that the type `B` is a commutative monoid).
-In that case, we may apply the `reduceB` operation to array elements in arbitrary order, which makes our task easier.
-
-Implementing the map/reduce operation does not actually require the full power of concurrency: a [bulk synchronous processing](https://en.wikipedia.org/wiki/Bulk_synchronous_parallel) framework such as Hadoop or Spark will do the job.
-Our goal is to come up with a chemical approach to concurrent map/reduce for tutorial purposes.
-
-Since we would like to apply the function `f` concurrently to values of type `A`, we need to put all these values on separate copies of some “carrier” molecule.
+This code is _completely equivalent_ to the shorter code written using macros:
 
 ```scala
-val carrier = m[A]
+val counter = m[Int]
+val fetch = b[Int, Int]
 
 ```
 
-We will emit a copy of the `carrier` molecule for each element of the initial array:
+These macros read the names `"counter"` and `"fetch"` from the surrounding code.
+This functionality is intended as a syntactic convenience.
+
+Each molecule emitter has a `toString` method, which returns the molecule's name.
+For blocking molecules, the molecule's name is followed by `"/B"`.
 
 ```scala
-val arr : Array[A] = ???
-arr.foreach(i => carrier(i))
+val x = new M[Int]("counter")
+val y = new B[Unit, Int]("fetch")
+
+x.toString // returns “counter”
+y.toString // returns “fetch/B”
 
 ```
 
-Since the molecule emitter inherits the function type `A => Unit`, we could equivalently write this as
+
+## Molecules vs. molecule emitters
+
+Molecules are emitted into the chemical soup using the syntax such as `c(123)`. Here, `c` is a value we define using a construction such as
 
 ```scala
-val arr : Array[A] = ???
-arr.foreach(carrier)
+val c = m[Int]
 
 ```
 
-As we apply `f` to each element, we will carry the intermediate results on molecules of another sort:
+Any molecule emitted in the soup must carry a value.
+So the value `c` itself is not a molecule in the soup.
+The value `c` is a **molecule emitter**, -- that is, a function that, when called, will emit molecules of chemical sort `c` into the soup.
+The result of evaluating the emitter call such as `c(123)` is a _side effect_ that emits the molecule of sort `c` with value `123`.
+
+The syntax `c(x)` is used in two different ways:
+
+- in the left-hand side of a reaction, it is a pattern matching construction that matches on values of input molecules
+- in the reaction body, it is an emitter call
+
+In both cases, `c(x)` can be visualized as a molecule with value `x` that exists in the soup.
+
+The chemistry-resembling syntax such as `c(x) + d(y)` is also used in two different ways:
+
+- in the left-hand side of a reaction, it is a pattern matching construction that matches on values of several input molecules at once
+- in the reaction body, it is syntactic sugar for several emitter calls, equivalent to `c(x); d(y)`
+
+### Non-blocking molecules
+
+If `c` defined as above as `val c = m[Int]`, the emitter `c` is **non-blocking**.
+The emitter function call `c(123)` is non-blocking because it immediately returns a `Unit` value
+and does not wait for any reaction involving `c(123)` to actually start.
+
+The non-blocking emitter `c` defined above will have type `M[Int]` and can be also created directly using the class constructor:
 
 ```scala
-val interm = m[B]
+val c = new M[Int]("c")
 
 ```
 
-Therefore, we need a reaction of this shape:
+Molecules carrying `Unit` values can be emitted using the syntax such as `a()` rather than `a(())`.
+This is provided as a syntactic convenience and is implemented by creating instances of class `E`, which is a subclass of `M[Unit]`.
+
+A direct way of defining a molecule emitter with a `Unit` type is therefore
 
 ```scala
-go { case carrier(x) => val res = f(x); interm(res) }
+val a = new E("a")
 
 ```
 
-Finally, we need to gather the intermediate results carried by `interm()` molecules.
-For this, we define the “accumulator” molecule `accum()` that will carry the final result as we accumulate it by going over all the `interm()` molecules.
-We can also define a blocking molecule `fetch()` that can be used to read the accumulated result from another process.
+The macro call `m[Unit]` will return this subclass:
 
 ```scala
-val accum = m[B]
-val fetch = b[Unit, B]
+val a = m[Unit] // equivalent to `val a = new E("a")`
 
 ```
 
-At first we might write reactions for `accum` such as this one:
+
+### Blocking molecules
+
+For a **blocking** molecule, the emitter call will block until a reaction can start that consumes that molecule.
+
+A blocking emitter is defined like this,
 
 ```scala
-go { case accum(b) + interm(res) => accum( reduceB(b, res) ) },
-go { case accum(b) + fetch(_, reply) => reply(b) }
+val f = b[Int, String]
 
 ```
 
-Our plan is to emit an `accum()` molecule, so that this reaction will repeatedly consume every `interm()` molecule until all the intermediate results are processed.
-Then we will emit a blocking `fetch()` molecule and obtain the final accumulated result.
+Now `f` is a blocking emitter that takes an `Int` value and returns a `String`.
 
-However, there is a serious problem with this implementation: We will not actually find out when the work is finished.
-Our idea was that the processing will stop when there are no `interm()` molecules left.
-However, the `interm()` molecules are produced by previous reactions, which may take time.
-We do not know when each `interm()` molecule will be emitted: there may be prolonged periods of absence of any `interm()` molecules in the soup (while some reactions are still busy evaluating `f`).
-The runtime engine cannot know which reactions will eventually emit some more `interm()` molecules, and so the chemistry will not know when the entire map/reduce job is finished.
-
-It is the programmer's responsibility to organize the chemistry such that the “end-of-job” situation can be detected.
-The simplest way of doing this is to count how many `interm()` molecules have been consumed.
-
-Let us change the type of `accum()` to carry a tuple `(Int, B)`.
-The first element of the tuple will now represent a counter, which indicates how many intermediate results we have already processed.
-Reactions with `accum()` will increment the counter; the reaction with `fetch()` will proceed only if the counter is equal to the length of the array.
+Emitters for blocking molecules are instances of class `B[T, R]`, which extends `Function1[T, R]`.
+The emitter `f` could be equivalently defined by
 
 ```scala
-val accum = m[(Int, B)]
-
-go { case accum((n, b)) + interm(res) => accum((n + 1, reduceB(b, res) )) },
-go { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
+val f = new B[Int, String]("f")
 
 ```
 
-What value should we emit with `accum()` initially?
-When the first `interm(res)` molecule arrives, we will need to call `reduceB(x, res)` with some value `x` of type `B`.
-Since we assume that `B` is a monoid, there must be a special value, say `bZero`, such that `reduceB(bZero, res) == res`.
-So `bZero` is the value we need to emit on the initial `accum()` molecule.
-
-We can now emit all `carrier` molecules, a single `accum((0, bZero))` molecule, and a `fetch()` molecule.
-Because of the guard condition, the reaction with `fetch()` will not run until all intermediate results have been accumulated.
-
-Here is the complete code for this example (see also `MapReduceSpec.scala` in the unit tests).
-We will apply the function `f(x) = x * x` to elements of an integer array, and then compute the sum of the resulting array of squares.
+Once `f` is defined like this, an emission call such as
 
 ```scala
-import code.chymyst.jc._
+val result = f(123)
 
-object C extends App {
+```
 
-  // declare the "map" and the "reduce" functions
-  def f(x: Int): Int = x * x
-  def reduceB(acc: Int, x: Int): Int = acc + x
+will emit a molecule of sort `f` with value `123` into the soup.
 
-  val arr = 1 to 100
+After emitting `f(123)`, the process will become blocked until some reaction starts, consumes this molecule, and performs a **reply action**.
 
-  // declare molecule types
-  val carrier = m[Int]
-  val interm = m[Int]
-  val accum = m[(Int,Int)]
-  val fetch = b[Unit,Int]
+Since the type of `f` is `B[Int, String]`, the reply action must pass a `String` value to the reply function:
 
-  // declare the reaction for "map"
-  site(
-    go { case carrier(x) => val res = f(x); interm(res) }
-  )
-
-  // reactions for "reduce" must be together since they share "accum"
-  site(
-      go { case accum((n, b)) + interm(res) if n > 0 =>
-        accum((n + 1, reduceB(b, res) ))
-      },
-      go { case accum((0, _)) + interm(res) => accum((1, res)) },
-      go { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
-  )
-
-  // emit molecules
-  accum((0, 0))
-  arr.foreach(i => carrier(i))
-  val result = fetch()
-  println(result) // prints 338350
+```scala
+go { case c(x) + f(y, r) =>
+  val replyValue = (x + y).toString 
+  r(replyValue) 
 }
 
 ```
 
-# Example: Concurrent merge-sort
+The reply action consists of calling the **reply emitter** `r` with the reply value as its argument.
 
-Chemical laws can be recursive: a molecule can start a reaction whose reaction body defines further reactions and emits the same molecule.
-Since each reaction body will have a fresh scope, new molecules and new reactions will be defined every time.
-This will create a recursive configuration of reactions, such as a linked list or a tree.
+Only after the reply action, the process that emitted `f(123)` will become unblocked and the statement `val result = f(123)` will be completed.
+The variable `result` will become equal to the string value that was sent as the reply.
 
-We will now figure out how to use recursive molecules for implementing the merge-sort algorithm in `JoinRun`.
+## Remarks about the semantics of `Chymyst`
 
-The initial data will be an array of type `T`, and we will therefore need a molecule to carry that array.
-We will also need another molecule, `sorted()`, to carry the sorted result.
+- Emitted molecules such as `c(123)` are _not_ Scala values.
+Emitted molecules cannot be stored in a data structure or passed as arguments to functions.
+The programmer has no direct access to the molecules in the soup, apart from being able to emit them.
+But emitters _are_ ordinary, locally defined Scala values and can be manipulated as any other Scala values.
+Emitters are functions whose `apply` method has the side effect of emitting a new copy of a molecule into the soup.
+- Emitters are local values of class `B` or `M`, which both extend the abstract class `Molecule` and the `Function1` trait.
+Blocking molecule emitters are of class `B`, non-blocking of class `M`.
+- Reactions are local values of class `Reaction`. Reactions are created using the function `go` with the syntax `go { case ... => ... }`.
+- Only one `case` clause can be used in each reaction. It is an error to use several `case` clauses, or case clauses that do not match on input molecules, such as `go { case x => }`.
+- Reaction sites are immutable values of class `ReactionSite`. These values are not visible to the user: they are created in a closed scope by the `site(...)` call. The `site(...)` call activates all the reactions at that reaction site.
+- Molecule emitters are immutable after all reactions have been activated where these molecules are used as inputs.
+- Molecules emitted into the soup gather at their reaction site. Reaction sites proceed by first deciding which input molecules can be consumed by some reactions; this decision involves the chemical sorts of the molecules as well as any pattern matching and guard conditions that depend on molecule values.
+When suitable input molecules are found and a reaction is chosen, the input molecules are atomically removed from the soup, and the reaction body is executed.
+- The reaction body can emit one or more new molecules into the soup.
+The code can emit new molecules into the soup at any time and from any code, not only inside a reaction body.
+- When enough input molecules are present at a reaction site so that several alternative reactions can start, is not possible to decide which reactions will proceed first, or which molecules will be consumed first.
+It is also not possible to know at what time reactions will start.
+Reactions and molecules do not have priorities and are not ordered in the soup.
+When determinism is required, it is the responsibility of the programmer to define the chemical laws such that the behavior of the program is deterministic.
+(This is always possible!)
+- All reactions that share some _input_ molecule must be defined within the same reaction site.
+Reactions that share no input molecules can (and should) be defined in separate reaction sites.
+
+
+## Chemical designations of molecules vs. molecule names vs. local variable names 
+
+Each molecule has a specific chemical designation, such as `sum`, `counter`, and so on.
+These chemical designations are not actually strings `"sum"` or `"counter"`.
+The names of the local variables and the molecule names are chosen purely for convenience.
+
+Rather, the chemical designations are the _object identities_ of the molecule emitters.
+We could define an alias for a molecule emitter, for example like this:
 
 ```scala
-val mergesort = m[Array[T]]
-val sorted = m[Array[T]]
+val counter = m[Int]
+val q = counter
 
 ```
 
-The main idea of the merge-sort algorithm is to split the array in half, sort each half recursively, and then merge the two sorted halves into the resulting array.
+This code will copy the molecule emitter `counter` into another local value `q`.
+However, this does not change the chemical designation of the molecule, because `q` will be a reference to the same object as `counter`.
+The emitter `q` will emit the same molecules as `counter`; that is, molecules emitted with `q(...)` will react in the same way and in the same reactions as molecules emitted with `counter(...)`.
+
+(This is similar to how chemical substances are named in ordinary language.
+For example, `NaCl`, "salt" and "sodium hydrochloride" are alias names for the same chemical substance.)
+
+The chemical designation of the molecule specifies two aspects of the concurrent program:
+
+- what other molecules (i.e. what other chemical designations) are required to start a reaction with this molecule, and at which reaction site;
+- what computation will be performed when all the required input molecules are available.
+
+When a new reaction site is defined, new molecules bound to that site are defined as well.
+(These molecules are inputs to reactions defined at the new site.)
+If a reaction site is defined within a local scope of a function, a new reaction site will be created every time the function is called.
+Since molecules internally hold a reference to their reaction site, each function call will create _chemically unique_ new molecules,
+in the sense that these molecules will react only with other molecules defined in the same function call.
+
+As an example, consider a function that defines a simple reaction like this:
 
 ```scala
-site(
-  go { case mergesort(arr) =>
-    if (arr.length == 1)
-      sorted(arr) // all done, trivially
-    else {
-      val (part1, part2) = arr.splitAt(arr.length / 2)
-      // emit recursively
-      mergesort(part1) + mergesort(part2)
-      ???
-    }
-  }
-)
-
-```
-
-We still need to merge pairs of sorted arrays.
-Let us assume that an array-merging function `arrayMerge(arr1, arr2)` is already implemented.
-We could then envision a reaction like this:
-
-```scala
-go { case sorted1(arr1) + sorted2(arr2) =>
-  sorted( arrayMerge(arr1, arr2) ) 
+def makeLabeledReaction() = {
+  val begin = m[Unit]
+  val label = m[String]
+  
+  site(
+    go { case begin(_) + label(labelString) => println(labelString) }
+  )
+  
+  (begin, label)
 }
 
+// Let's use this function now.
+
+val (begin1, label1) = makeLabeledReaction() // first call
+val (begin2, label2) = makeLabeledReaction() // second call
+
 ```
 
-Actually, we need to return the _upper-level_ `sorted` molecule after merging the results carried by the lower-level `sorted1` and `sorted2` molecules.
-In order to achieve this, we can define the merging reaction within the scope of the `mergesort` reaction:
+What is the difference between the new molecule emitters `begin1` and `begin2`?
+Both `begin1` and `begin2` have the name `"begin"`, and they are of the same type.
+However, they are _chemically_ different: `begin1` will react only with `label1`, and `begin2` only with `label2`.
+The molecules `begin1` and `label1` are bound to the reaction site created by the first call to `makeLabeledReaction()`, and this reaction site is different from that created by the second call to `makeLabeledReaction()`.
+
+For instance, suppose we call `label1("abc")` and `begin2()`.
+We have emitted a molecule named `"label"` and a molecule named `"begin"`.
+However, these molecules will not start any reactions, because they are bound to different reaction sites.
 
 ```scala
-site(
-  go { case mergesort(arr) =>
-    if (arr.length == 1)
-      sorted(arr) // all done, trivially
-    else {
-      val (part1, part2) = arr.splitAt(arr.length / 2)
-      // define lower-level "sorted" molecules
-      val sorted1 = m[Array[T]]
-      val sorted2 = m[Array[T]]
-      site(
-        go { case sorted1(arr1) + sorted2(arr2) =>
-         sorted( arrayMerge(arr1, arr2) ) // all done, merged
-        } 
-      )
-      // emit recursively
-      mergesort(part1) + mergesort(part2)
-    }
-  }
+label1("abc") + begin2() // no reaction started!
+
+```
+
+After running this code, 
+the molecule `label1("abc")` will be waiting at the first reaction site for its reaction partner, `begin1()`,
+while the molecule `begin2()` will be waiting at the second reaction site for its reaction partner, `label2(...)`.
+If we now emit, say, `label2("abc")`, the reaction with the molecule `begin2()` will start and print `"abc"`.
+
+```scala
+label1("abc") + begin2() // no reaction started!
+label2("abc") // reaction with begin2() starts and prints "abc"
+
+```
+
+We see that `begin1` and `begin2` have different chemical designations (because they enter different reactions), even though they are both defined by the same code inside the function `makeLabeledReaction`.
+
+The chemical designations are independent of molecule names and of the variable names used in the code.
+For instance, we could (for whatever reason) create aliases for `label2` and `begin2` and write code like this:
+
+```scala
+val (begin1, label1) = makeLabeledReaction() // first call
+val (begin2, label2) = makeLabeledReaction() // second call
+val (x, y, p, q) = (begin1, label1, begin2, label2) // make aliases
+
+y("abc") + p() // Same as label1("abc") + begin2() - no reaction started!
+q("abc") // Same as label2("abc") - reaction starts and prints "abc"
+
+```
+
+In this example, the values `x` and `begin1` are equal to the same molecule emitter, thus they have the same chemical designation.
+For this reason, the calls to `x()` and `begin1()` will emit copies of the same molecule.
+As we already discussed, the molecule emitted by `x()` will have a different chemical designation from that emitted by `begin2()`.
+
+In practice, it is of course advisable to choose meaningful local variable names.
+However, it is important to keep in mind that:
+
+- each molecule has a chemical designation, a reaction site to which the molecule is bound, a name, and a molecule emitter (usually assigned to a local variable)
+- the chemical reactions started by molecules depend only on their chemical designations, not on names
+- the molecule's name is only used in debugging messages
+- the names of local variables are only for the programmer's convenience
+- reaction sites defined in a local scope are new and unique for each time a new local scope is created
+- molecules defined in a new local scope will have a new, unique chemical designation and will be bound to the new unique reaction site  
+
+## The type matrix of molecule emission
+
+Let us consider what _could_ theoretically happen when we call an emitter.
+The emitter call can be either blocking or non-blocking, and it could return a value or return no value.
+Let us write down all possible combinations of these types of emitter calls as a “type matrix”.
+
+For this example, we assume that `c` is a non-blocking emitter of type `M[Int]` and `f` is a blocking emitter of type `B[Unit, Int]`.
+
+| | blocking emitter | non-blocking emitter |
+|---|---|---|
+| value is returned| `val x: Int = f()` | ? |
+| no value returned | ? | `c(123)` // side effect |
+
+So far, we have seen that blocking emitters return a value, while non-blocking emitters don't.
+There are two more combinations that are not yet used:
+
+- a blocking emitter that does not return a value
+- a non-blocking emitter that returns a value
+
+The `Chymyst` library implements both of these possibilities as special features:
+
+- a blocking emitter can _time out_ on its call and fail to return a value;
+- a non-blocking emitter can return a “volatile reader” (see below) that provides read-only access to the last known value of the molecule.
+
+With these additional features, the type matrix of emission is complete:
+
+| | blocking emitter | non-blocking emitter |
+|---|---|---|
+| value is returned: | `val x: Int = f()` | `val x: Int = c.volatileValue` |
+| no value returned: | timeout was reached | `c(123)` // side effect |
+
+We will now describe these features in more detail.
+
+### Timeouts for blocking emitters
+
+By default, a blocking emitter will emit a new molecule and block until a reply action is performed for that molecule by a reaction that consumes that molecule.
+If no reaction can be started that consumes the blocking molecule, its emitter will block and wait indefinitely.
+
+`Chymyst` allows us to limit the waiting time to a fixed timeout value.
+Timeouts are implemented by the method `timeout()()` on the blocking emitter:
+
+```scala
+val f = b[Unit, Int]
+// write a reaction site involving `f` and other molecules:
+site(...)
+
+// call the emitter `f` with 200ms timeout:
+val x: Option[Int] = f.timeout()(200 millis)
+
+```
+
+The first argument of the `timeout()()` method is the value carried by the emitted molecule.
+In this example, this value is empty since `f` has type `B[Unit, Int]`.
+The second argument of the `timeout()()` method is the duration of the delay.
+
+The `timeout()()` method returns an `Option` value.
+If the emitter received a reply value `v` before the timeout expired, the value of `x` will become `Some(v)`.
+
+If the emitter times out before a reply action is performed, the value of `x` will be set to `None`, and the blocking molecule `f()` will be removed from the soup.
+If the timeout occurred because no reaction started with `f()`, which is the usual reason, the removal of `f()` makes sense because no further reactions should try to consume `f()` and reply.
+
+A less frequent situation is when a reaction already started, consuming `f()` and is about to reply to `f()`, but it just happens to time out at that moment.
+In that case, the reply action to `f()` will have no effect.
+
+Is the timeout feature required?
+The timeout functionality can be simulated, for instance, using the “First Reply” construction.
+However, this construction is cumbersome and will sometimes leave a thread blocked forever, which is undesirable from the implementation point of view.
+For this reason, `Chymyst` implements the timeout functionality as a special feature of blocking molecules.
+
+### Singleton molecules
+
+Often it is necessary to ensure that exactly one copy of a certain molecule is present in the soup, and that no further copies can be emitted.
+Such molecules are called **singletons**.
+Singleton molecules `s` must have reactions of the form `s + ... => s + ...`, -- that is, reactions must consume the single copy of `s` and then also emit a single copy of `s`.
+
+An example of a singleton is the “concurrent counter” molecule `c`, with reactions that we have seen before:
+
+```scala
+c(x) + d(_) => c(x - 1)
+c(x) + i(_) => c(x + 1)
+c(x) + f(_, r) => c(x) + r(x)
+```
+
+These reactions treat `c` as a singleton because they first consume and then emit a single copy of `c`.
+
+`Chymyst` provides special features for singleton molecules:
+
+- Only non-blocking molecules can be declared as singletons.
+- It is an error if a reaction consumes a singleton but does not emit it back into the soup, or emits it more than once.
+- It is also an error if a reaction emits a singleton it did not consume, or if any other code emits additional copies of the singleton at any time.
+(However, this feature is easy to simulate with local scoping, which can prevent other code from having access to a molecule emitter.)
+- Singleton molecules are emitted directly from the reaction site.
+In this way, singleton molecules are guaranteed to be emitted once and only once, before any other molecules are emitted at that reaction site.
+- Singleton molecules have “volatile readers”.
+
+In order to declare a molecule as a singleton, the users of `Chymyst` must write a reaction that has no input molecules:
+
+```scala
+site (
+    // This pseudo-reaction will declare a, c, and q to be singletons, and emit each of them.
+    go { case _ => a(1) + c(123) + q() },
+    // Now we need to define some reactions that consume a, c, and q.
+    go { case ??? }
 )
 
 ```
 
-This is still not quite right; we need to arrange the reactions such that the `sorted1`, `sorted2` molecules are emitted by the lower-level recursive emissions of `mergesort`.
-The way to achieve this is to pass the emitters for the upper-level `sorted` molecules on values carried by the `mergesort` molecule.
-Let's make the `mergesort` molecule carry both the array and the upper-level `sorted` emitter.
-We will then be able to pass the lower-level `sorted` emitters to the recursive calls of `mergesort`.
+Consider the reaction `go { case _ => a(1) + c(123) + q() }`.
+This reaction has no input molecules and three output molecules `a`, `c`, and `q`.
+Such a reaction is recognized by `Chymyst` as a reaction that defines singletons and at the same time emits them into the soup.
+
+A reaction site can define one or more singleton reactions.
+Each non-blocking output molecule of each singleton reaction will be declared a **singleton molecule**.
+The reaction sites will run their singleton reactions only once, at the time of the `site(...)` call itself, and on the same thread that calls `site(...)`.
+
+### Volatile readers for singleton molecules
+
+Each singleton molecule has a **volatile reader** -- a function of type `=> T` that fetches the value carried by that singleton molecule when it was most recently emitted.
 
 ```scala
-val mergesort = new M[(Array[T], M[Array[T]])]
-
+val c = m[Int]
 site(
-  go {
-    case mergesort((arr, sorted)) =>
-      if (arr.length <= 1)
-        sorted(arr) // all done, trivially
-      else {
-        val (part1, part2) = arr.splitAt(arr.length/2)
-        // "sorted1" and "sorted2" will be the sorted results from lower level
-        val sorted1 = new M[Array[T]]
-        val sorted2 = new M[Array[T]]
-        site(
-          go { case sorted1(arr1) + sorted2(arr2) =>
-            sorted(arrayMerge(arr1, arr2)) // all done, merged 
-          }
-        )
-        // emit lower-level mergesort
-        mergesort(part1, sorted1) + mergesort(part2, sorted2)
-      }
-  }
+  go { case c(x) + incr(_) => c(x + 1) },
+  go { case _ => c(0) } // emit `c(0)` and declare it a singleton
 )
-// sort our array at top level, assuming `finalResult: M[Array[T]]`
-mergesort((array, finalResult))
+
+val readC: Int = c.volatileValue // initially returns 0
 
 ```
 
-The complete working example of the concurrent merge-sort is in the file [`MergesortSpec.scala`](https://github.com/Chymyst/joinrun-scala/blob/master/benchmark/src/test/scala/code/chymyst/benchmark/MergesortSpec.scala).
+The volatile reader is thread-safe (can be used from any reaction without blocking any threads) because it provides a read-only access to the value carried by the molecule.
+The value of a singleton molecule can be modified only by a reaction that consumes the singleton and then emits it back with a different value.
+If the volatile reader is called while that reaction is being run, the reader will return the previous known value of the singleton, which is probably going to become obsolete very shortly.
+I call the volatile reader “volatile” for this reason: it returns a value that could change at any time.
 
+The functionality of a volatile reader is equivalent to an additional reaction with a blocking molecule `f` that reads the current value carried by `c`:
+
+```scala
+go { case c(x) + f(_, reply) => c(x) + reply(x) }
+
+```
+
+Calling `f()` returns the current value carried by `c`, just like the volatile reader does.
+However, the call `f()` may block for an unknown time if `c` has been consumed by a long-running reaction.
+Even if `c` is immediately available in the soup, running this reaction requires an extra scheduling operation.
+Volatile readers provide very fast read-only access to the values carried by singleton molecules.
+
+The reason this feature is restricted to singletons is that it makes no sense to ask the molecule emitter `c` for the current value of its molecule if there are a thousand different copies of `c` emitted in the soup.

@@ -2,7 +2,7 @@
 
 # The chemical machine paradigm
 
-`JoinRun`/`Chymyst` adopts an unusual approach to declarative concurrent programming.
+`Chymyst` adopts an unusual approach to declarative concurrent programming.
 This approach is purely functional but does not use threads, actors, futures, or monads.
 Instead, concurrent computations are performed by a special runtime engine that simulates chemical reactions.
 This approach can be more easily understood by first considering the **chemical machine** metaphor.
@@ -56,10 +56,10 @@ As reactions emit new molecules into the soup, the simulator will continue start
 
 ## Concurrent computations on the chemical machine
 
-The chemical machine is implemented by the runtime engine of `JoinRun`.
+The chemical machine is implemented by the runtime engine of `Chymyst`.
 Rather than merely watch as reactions happen, we are going to use the chemical machine for running actual concurrent programs.
 
-To this end, `JoinRun` introduces three features:
+To this end, `Chymyst` introduces three features:
 
 1. Each molecule in the soup is now required to _carry a value_.
 Molecule values are strongly typed: a molecule of a given sort (such as `a` or `b`) can only carry values of some fixed type (such as `Boolean` or `String`).
@@ -113,13 +113,13 @@ Each process will consume its own input molecules and will work with its own inp
 This is how the chemical machine achieves safe and automatic concurrency in a purely functional way,
 with no global mutable state.
 
-## The syntax of `JoinRun`
+## The syntax of `Chymyst`
 
 So far, we have been writing chemical laws with a kind of chemistry-resembling pseudocode.
-The actual syntax of `JoinRun` is only a little more verbose:
+The actual syntax of `Chymyst` is only a little more verbose:
 
 ```scala
-import code.chymyst.jc._
+import io.chymyst.jc._
 
 // declare the molecule types
 val a = m[Int] // a(...) will be a molecule with an integer value
@@ -135,7 +135,7 @@ site(
 
 ```
 
-The helper functions `m`, `site`, and `go` are defined in the `JoinRun` library.
+The helper functions `m`, `site`, and `go` are defined in the `Chymyst` library.
 
 The `site()` function call declares a **reaction site**, which can be visualized as a place where molecules gather and wait for their reaction partners.
 
@@ -146,7 +146,7 @@ We already know enough to start implementing our first concurrent program!
 The task at hand is to maintain a counter with an integer value, which can be incremented or decremented by non-blocking concurrent requests.
 For example, we would like to be able to increment and decrement the counter from different processes running at the same time.
 
-To implement this in `JoinRun`, we begin by deciding which molecules we will need to define.
+To implement this in `Chymyst`, we begin by deciding which molecules we will need to define.
 Since there is no global mutable state, it is clear that the integer value of the counter needs to be carried by a molecule.
 Let's call this molecule `counter` and specify that it carries an integer value:
 
@@ -184,7 +184,7 @@ The `incr()` and `decr()` molecules will be likewise consumed.
 
 ![Reaction diagram counter(n) + incr => counter(n+1) etc.](https://chymyst.github.io/joinrun-scala/counter-incr-decr.svg)
 
-In `JoinRun`, a reaction site is created by calling `site(...)`.
+In `Chymyst`, a reaction site is created by calling `site(...)`.
 A reaction site can declare one or more reactions.
 
 In the present example, however, both reactions need to be written within the same reaction site.
@@ -225,7 +225,7 @@ This automatically prevents race conditions with the counter: There is no possib
 The code shown above will not print any output, so it is instructive to put some print statements into the reaction bodies.
 
 ```scala
-import code.chymyst.jc._
+import io.chymyst.jc._
 
 // declare the molecule emitters and the value types
 val counter = m[Int]
@@ -253,7 +253,7 @@ decr() + decr() // prints “new value is 99” and then “new value is 98”
 
 ## Debugging
 
-`JoinRun` has some debugging facilities to help the programmer verify that the chemistry works as intended.
+`Chymyst` has some debugging facilities to help the programmer verify that the chemistry works as intended.
 
 ### Logging the contents of the soup
 
@@ -322,7 +322,7 @@ So this facility should be used only for debugging or testing.
 ### Error: Emitting molecules with undefined chemistry
 
 For each molecule, there must exist a single reaction site (RS) to which this molecule is bound -- that is, the RS where this molecule is consumed as input molecule by some reactions.
-(See [Reaction Sites](joinrun.md#reaction-sites) for a more detailed discussion.)
+(See [Reaction Sites](chymyst-core.md#reaction-sites) for a more detailed discussion.)
 
 It is an error to emit a molecule that is not yet defined as input molecule at any RS (i.e. not yet bound to any RS).
 
@@ -334,7 +334,7 @@ x(100) // java.lang.Exception: Molecule x is not bound to any reaction site
 
 The same error will occur if such emission is attempted inside a reaction body, or if we call `logSoup` or `setLogLevel` on the molecule emitter.
 
-The correct way of using `JoinRun` is first to define molecules, then to create a RS where these molecules are used as inputs for reactions, and only then to start emitting these molecules.
+The correct way of using `Chymyst` is first to define molecules, then to create a RS where these molecules are used as inputs for reactions, and only then to start emitting these molecules.
 
 The method `isBound` can be used to determine at run time whether a molecule has been already bound to a RS:
 
@@ -350,7 +350,7 @@ x.isBound // returns `true`
 
 ### Error: Redefining chemistry
 
-Chemical laws are immutable and statically defined in a `JoinRun` program.
+Chemical laws are immutable and statically defined in a `Chymyst` program.
 All reactions that consume a certain molecule must be declared in one RS.
 Once it is declared that a certain molecule starts certain reactions, users cannot add new reactions that consume that molecule.
 
@@ -369,7 +369,7 @@ site( go { case x(n) + b(_) => println(s"have x($n) + b") } )
 ```
 
 What the programmer probably meant is that the molecule `x()` has two reactions that consume it.
-Correct use of `JoinRun` requires that we put these two reactions together into _one_ reaction site:
+Correct use of `Chymyst` requires that we put these two reactions together into _one_ reaction site:
  
 ```scala
 val x = m[Int]
@@ -426,7 +426,7 @@ At the next step, another one of the `incr` molecules will be chosen to start a 
 
 ![Reaction diagram counter + incr, counter + decr after reaction](https://chymyst.github.io/joinrun-scala/counter-multiple-molecules-after-reaction.svg)
 
-Currently, `JoinRun` will _not_ fully randomize the input molecules but make an implementation-dependent choice.
+Currently, `Chymyst` will _not_ fully randomize the input molecules but make an implementation-dependent choice.
 A truly random selection of input molecules may be implemented in the future.
 
 Importantly, it is _not possible_ to assign priorities to reactions or to molecules.
@@ -473,7 +473,7 @@ Perhaps this failure will _rarely_ happen and will not show up in our unit tests
 
 This kind of nondeterminism is the prime reason concurrency is widely regarded as a hard programming problem.
 
-`JoinRun` will actually reject our attempted program and print an error message before running anything, immediately after we define the reaction site:
+`Chymyst` will actually reject our attempted program and print an error message before running anything, immediately after we define the reaction site:
 
 ```scala
 val data = m[Int]
