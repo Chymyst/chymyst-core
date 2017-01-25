@@ -73,12 +73,15 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       if exprs.size >= 2 =>
       exprs.forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
     case pq"$extr(..$args)" => // Case class with exactly one case?
-      val classSymbolOfExtr = extr.tpe.resultType.typeSymbol.asClass
-      classSymbolOfExtr.isCaseClass && {
-        val candidateBaseSealedTraits = classSymbolOfExtr.baseClasses.filter(b => b.asClass.isSealed && b.asClass.knownDirectSubclasses.contains(classSymbolOfExtr))
-        candidateBaseSealedTraits.forall(_.asClass.knownDirectSubclasses.size === 1)
-      } && args.forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
-
+      val typeSymbolOfExtr = extr.tpe.resultType.typeSymbol // Note: extr.tpe.symbol is NoSymbol since it's a pattern matcher tree.
+      typeSymbolOfExtr.isClass && {
+        val classSymbolOfExtr = typeSymbolOfExtr.asClass
+        classSymbolOfExtr.isCaseClass && {
+          val candidateBaseSealedTraits = classSymbolOfExtr.baseClasses.filter(b => b.asClass.isSealed && b.asClass.knownDirectSubclasses.contains(classSymbolOfExtr))
+          candidateBaseSealedTraits.nonEmpty &&
+            candidateBaseSealedTraits.forall(_.asClass.knownDirectSubclasses.size === 1)
+        } && args.forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
+      }
     case pq"$first | ..$rest"
       if rest.nonEmpty => // At least one of the alternatives must be irrefutable.
       (first :: rest.toList).exists(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
@@ -358,6 +361,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     }
   }
 
+  /** This is the main traverser that gathers information about molecule inputs and outputs in a reaction. */
   class MoleculeInfo(reactionBodyOwner: MacroSymbol) extends Traverser {
 
     /** Examine an expression tree, looking for molecule expressions.
@@ -455,7 +459,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     private def isReplyValue(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< weakTypeOf[AbsReplyValue[_, _]]
 
-    @SuppressWarnings(Array("org.wartremover.warts.Equals"))
+    @SuppressWarnings(Array("org.wartremover.warts.Equals")) // For some reason, q"while($cond) $body" triggers wartremover's error about disabled `==` operator.
     override def traverse(tree: Tree): Unit = {
       tree match {
         // avoid traversing nested reactions: check whether this subtree is a Reaction() value
@@ -511,6 +515,13 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           if t.tpe <:< typeOf[Molecule] =>
             inputMolecules.append((t.symbol, WrongReplyVarF, None, getSha1(t)))
           */
+
+        // try-catch-finally construction
+        case q"try $a catch { case ..$b } finally $c" =>
+          renewOutputEnvId()
+          traverseWithOutputEnv(a, FuncBlock(currentOutputEnvId, "try"))
+          b.foreach(casedef => traverseWithOutputEnv(casedef, FuncBlock(currentOutputEnvId, "catch-case")))
+          traverse(c.asInstanceOf[Tree]) // The `finally` clause will be always evaluated exactly once, so no special environment needed for it.
 
         // do-while construction
         case q"do $body while($cond)" =>
@@ -616,25 +627,24 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           else {
             traverse(f.asInstanceOf[Tree])
             renewOutputEnvId()
+            outputEnv.push(FuncBlock(currentOutputEnvId, name = fullName))
             val isIterating = iteratingFunctionCodes.contains(fullName)
-            val newEnv =
-              if (isIterating) {
-                FuncBlock(currentOutputEnvId, name = fullName)
-              } else {
-                FuncBlock(currentOutputEnvId, name = fullName)
-              }
-            outputEnv.push(newEnv)
-
             args.foreach { t =>
               // Detect whether the function takes a function type, and whether `t` is a molecule emitter.
-              if (isIterating && (isMolecule(t) || isReplyValue(t))) {
+              if (isIterating && isMolecule(t)) {
+                // This is an iterator that takes a molecule emitter, in a short syntax,
+                // e.g. `(0 until n).foreach(a)` where `a : M[Int]`.
                 // In that case, the molecule could be emitted zero or more times.
                 outputMolecules.append((t.asInstanceOf[Tree].symbol, OtherOutputPatternF, outputEnv.toList))
-              } else
-                traverse(t.asInstanceOf[Tree])
+              }
+              traverse(t.asInstanceOf[Tree])
             }
             finishTraverseWithOutputEnv()
           }
+
+        case Ident(TermName(name)) if isReplyValue(tree) =>
+          // All use of reply emitters must be logged.
+          replyActions.append((tree.asInstanceOf[Tree].symbol, OtherOutputPatternF, outputEnv.toList))
 
         case _ => super.traverse(tree)
       }
@@ -652,7 +662,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     case WildcardF =>
       q"_root_.code.chymyst.jc.WildcardInput"
     case ConstantPatternF(tree) =>
-      q"_root_.code.chymyst.jc.SimpleConstInput($tree)"
+      q"_root_.code.chymyst.jc.ConstInputPattern($tree)"
     case SimpleVarF(v, binder, cond) =>
       val guardFunction = cond.map(c => matcherFunction(binder, c, List(v)))
       q"_root_.code.chymyst.jc.SimpleVarInput(${identToScalaSymbol(v)}, $guardFunction)"
@@ -664,14 +674,14 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   implicit val liftableOutputPatternFlag: Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
     case ConstOutputPatternF(tree) =>
-      q"_root_.code.chymyst.jc.SimpleConstOutput($tree)"
+      q"_root_.code.chymyst.jc.ConstOutputPattern($tree)"
     case OtherOutputPatternF =>
       q"_root_.code.chymyst.jc.OtherOutputPattern"
   }
 
   implicit val liftableOutputPatternType: Liftable[OutputPatternType] = Liftable[OutputPatternType] {
-    case SimpleConstOutput(v) =>
-      q"_root_.code.chymyst.jc.SimpleConstOutput(${v.asInstanceOf[Tree]})" // When we lift it here, it always has type `Tree`.
+    case ConstOutputPattern(v) =>
+      q"_root_.code.chymyst.jc.ConstOutputPattern(${v.asInstanceOf[Tree]})" // When we lift it here, it always has type `Tree`.
     case OtherOutputPattern =>
       q"_root_.code.chymyst.jc.OtherOutputPattern"
   }
@@ -706,7 +716,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   def equalsInMacro(a: Any, b: Any): Boolean = a match {
     case x: Tree => x.equalsStructure(b.asInstanceOf[Tree])
-//    case _ => a === b  // this is never used
+    //    case _ => a === b  // this is never used
   }
 
   /* This code has been commented out after a lengthy but fruitless exploration of valid ways of modifying the reaction body.

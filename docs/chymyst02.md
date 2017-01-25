@@ -2,16 +2,25 @@
 
 # Blocking vs. non-blocking molecules
 
+## Motivation for the blocking molecule feature
+
 So far, we have used molecules whose emission was a non-blocking call.
 Emitting a molecule, such as `a(123)`, immediately returns `Unit` but performs a concurrent side effect, adding a new molecule to the soup.
 Such molecules are called **non-blocking**.
 
-An important feature of the chemical machine is the ability to define **blocking molecules**.
-Just like non-blocking molecules, a blocking molecule can be emitted into the soup with a value.
+When a reaction emits a non-blocking molecule, that molecule could later start another reaction and compute some result.
+However, the emitting reaction has no access to that result.
+It is sometimes convenient to be able to wait until the other reaction starts and computes the result, and then to obtain the result value in the first reaction.
+
+This feature is realized in the chemical machine with help of **blocking molecules**.
+
+## How blocking molecules work
+
+Just like non-blocking molecules, a blocking molecule carries a value and can be emitted into the soup.
 However, there are two major differences:
 
-- emitting a blocking molecule is a function call that returns a **reply value**, which is supplied by some reaction that consumed that blocking molecule;
-- emitting a blocking molecule will block the emitting process, until some reaction consumes the blocking molecule and sends the reply value.
+- emitting a blocking molecule is a function call that returns a **reply value** of a fixed type;
+- emitting a blocking molecule will block the emitting reaction or thread, until some reaction consumes the blocking molecule and sends the reply value.
 
 Here is an example of declaring a blocking molecule:
 
@@ -21,14 +30,14 @@ val f = b[Unit, Int]
 ```
 
 The blocking molecule `f` carries a value of type `Unit`; the reply value is of type `Int`.
-(These types can be arbitrary, just as for non-blocking molecules.)
+We can choose these types at will.
 
-The runtime engine treats an emission of a blocking molecule in a special way:
+Emission of a blocking molecule will be handled by the runtime engine in a special way:
 
-1. The emission call such as `f()` will insert a new copy of the `f()` molecule into the soup.
-2. The emitting process, which can be in another reaction body or any other code, will be blocked until some reaction consumes the newly emitted copy of `f()`.
+1. The emission call, such as `f(x)`, will insert a new copy of the `f(x)` molecule into the soup.
+2. The emitting process, which can be another reaction body or any other code, will be blocked at least until some reaction consumes the newly emitted copy of `f(x)`.
 3. Once such a reaction starts, this reaction's body can (and should) **reply to the blocking molecule**. Replying is a special operation that sends a **reply value** to the emitting process.
-4. The emitting process becomes unblocked after it receives the reply value. To the emitting process, the reply value appears to be the value returned by the function call `f()`.
+4. The emitting process becomes unblocked right after it receives the reply value. To the emitting process, the reply value appears to be the value returned by the function call `f(x)`.
 
 Sending a reply value is a special feature available only within reactions that consume blocking molecules.
 We call this feature the **reply action**.
@@ -53,22 +62,26 @@ Let us walk through the execution of this example step by step.
 
 After defining the chemical law `c + f => ...`, we first emit an instance of `c(123)`.
 By itself, this does not start any reactions since the chemical law states `c + f => ...`, and we don't yet have any instances of `f` in the soup.
-So `c(123)` will remain in the soup for now.
+So `c(123)` will remain in the soup for now, waiting at the reaction site.
 
 Next, we call the blocking emitter `f()`, which emits an instance of `f()` into the soup.
-Now the soup has both `c` and `f`, while the calling process is blocked until a reaction involving `f` can start.
+Now the soup has both `c` and `f`.
+According to the semantics of blocking emitters, the calling process is blocked until a reaction involving `f` can start.
 
-We have such a reaction: this is `c + f => ...`. This reaction is ready to start since both its inputs, `c` and `f`, are now present.
+At this point, we have such a reaction: this is `c + f => ...`.
+This reaction is ready to start since both its inputs, `c` and `f`, are now present.
 Nevertheless, the start of the reaction is concurrent with the process that calls `f`, and may occur somewhat later than the call to `f()`, depending on the CPU load.
 So, the call to `f()` will be blocked for some (hopefully short) time.
 
 Once the reaction starts, it will receive the value `n = 123` from the input molecule `c(123)`.
 Both `c(123)` and `f()` will be consumed by the reaction.
-The reaction will then perform the reply action `reply(n)` with `n = 123`.
-Only at this point the calling process will get unblocked and receive `123` as the return value of the function call `f()`.
+The reaction will then call the reply emitter `reply(n)` with `n = 123`.
+At that time, the calling process will get unblocked and receive `123` as the return value of the function call `f()`.
 
-From the point of view of the reaction that consumes a blocking molecule, the reply action is a non-blocking (i.e. a very fast) function call.
-The reaction will continue evaluating its reaction body, _concurrently_ with the newly unblocked process that received the reply value and can also continue its computations.
+From the point of view of the reaction that consumes a blocking molecule, the reply action is a non-blocking (i.e. a very fast) function call, similar to emitting a non-blocking molecule.
+After replying, the reaction will continue running, evaluating whatever code follows the reply action.
+
+The newly unblocked process that received the reply value will run _concurrently_ with the reaction that replied.
 
 This is how the chemical machine implements blocking molecules.
 Blocking molecules work at once as [synchronizing barriers](https://en.wikipedia.org/wiki/Barrier_(computer_science)) and as channels of communication between processes.
@@ -76,18 +89,23 @@ Blocking molecules work at once as [synchronizing barriers](https://en.wikipedia
 The syntax for the reply action makes it appear as if the molecule `f` carries _two_ values - its `Unit` value and a special `reply` function, and that the reaction body calls this `reply` function with an integer value.
 However, `f` is emitted with the syntax `f()` -- just as any other molecule with `Unit` value.
 The `reply` function appears only in the pattern-matching expression for `f` inside a reaction.
+We call `reply` the **reply emitter**.
 
-Blocking molecule emitters are values of type `B[T,R]`, while non-blocking molecule emitters have type `M[T]`.
+Blocking molecule emitters are values of type `B[T, R]`, while non-blocking molecule emitters have type `M[T]`.
 Here `T` is the type of value that the molecule carries, and `R` (for blocking molecules) is the type of the reply value.
 
-The pattern-matching expression for a blocking molecule of type `B[T,R]` has the form
+The reply emitter is of special type `ReplyValue[T, R]` that inherits the type of `R => Unit`.
+
+In general, the pattern-matching expression for a blocking molecule `g` of type `B[T, R]` has the form
 
 ```scala
-{ case ... + f(v, r) + ... => ... }
+{ case ... + g(v, r) + ... => ... }
 
 ```
-where `v` is of type `T` and `r` is a function of type `R => Unit`.
-Since `r` has a function type, users must match it with a pattern variable.
+The pattern variable `v` will match a value of type `T`.
+The pattern variable `r` will match the reply emitter, which is essentially a function of type `R => Unit`.
+
+Since `r` has a function type, users must match it with a simple pattern variable; it is an error to write any other pattern for the reply emitter.
 For clarity, we will usually name this pattern variable `reply` or `r`.
 
 ## Example: Benchmarking the concurrent counter
@@ -503,34 +521,67 @@ Each blocking molecule must receive one (and only one) reply.
 It is an error if a reaction consumes a blocking molecule but does not reply.
 It is also an error to reply again after a reply was made.
 
-Sometimes, errors of this type can be caught at compile time:
+Errors of this type are caught at compile time:
 
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
 site( go { case f(_,r) + c(n) => c(n + 1) } ) // forgot to reply!
-// compile-time error: "blocking input molecules should receive a reply but no reply found"
+// compile-time error: "blocking input molecules should receive a reply but no unconditional reply found"
 
 site( go { case f(_,r) + c(n) => c(n + 1) + r(n) + r(n) } ) // replied twice!
-// compile-time error: "blocking input molecules should receive one reply but multiple replies found"
+// compile-time error: "blocking input molecules should receive one reply but possibly multiple replies found"
 
 ```
 
-However, the reply could depend on a run-time condition, which is impossible to evaluate at compile time.
-In this case, a reaction that does not reply will generate a run-time exception:
+The reply could depend on a run-time condition, which is impossible to evaluate at compile time.
+In this case, a reaction must use an `if` expression that calls the reply emitter in each branch.
+It is an error if a reply is emitted in only one of the `if` branches:
 
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
 site( go { case f(_,r) + c(n) => c(n + 1); if (n != 0) r(n) } )
+// compile-time error: "blocking input molecules should receive a reply but no unconditional reply found"
 
-c(1)
+```
+
+A correct reaction could look like this:
+
+```scala
+val f = b[Unit, Int]
+val c = m[Int]
+site( go { case f(_,r) + c(n) => c(n + 1); if (n != 0) r(n) else r(0) } )
+// reply is always sent, regardless of the value of `n`
+
+```
+
+Finally, a reaction's body could throw an exception before emitting a reply.
+In this case, compile-time analysis will not show that there is a problem.
+The chemical machine will detect the missing reply at runtime and throw an additional exception in the thread that emits `f()`:
+
+```scala
+val f = b[Unit, Int]
+val c = m[Int]
+site( go { case f(_,r) + c(n) => c(n + 1); if (n == 0) throw new Exception("error!"); r(n) } )
+c(0)
 f()
 
 ```
+
 `java.lang.Exception: Error: In Site{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B`
 
-Note that this exception will be thrown only when reaction actually starts and the run-time condition `n != 0` is evaluated to `false`.
-Also, the exception may occur on another thread, which will not be immediately visible.
+Generally, whenever some blocking molecules have received no reply by the time the reaction body finished evaluating,
+this exception will be thrown in all threads that are still waiting for replies, unblocking all those threads.
+This feature is designed to reduce deadlocks.
+
+In our example, the additional exception will be thrown only when reaction actually starts and the run-time condition `n == 0` is evaluated to `true`.
+It may not be easy to design unit tests for this condition.
+
+Also, if the blocking molecules are emitted from some reactions, exceptions occurring on those reactions will not necessarily immediately visible.
+
 For these reasons, it is not easy to catch errors of this type, either at compile time or at run time.
-To avoid these problems, it is advisable to reorganize the chemistry such that reply actions are unconditional.
+
+To avoid these problems, it is advisable to design the chemistry such that each reply is guaranteed to be emitted exactly once,
+and that no exceptions can be thrown before emitting the reply.
+If a condition is required before sending a reply, it should be a simple condition that is guaranteed not to throw an exception.

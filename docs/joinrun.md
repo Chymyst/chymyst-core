@@ -105,16 +105,13 @@ val result: Option[String] = f.timeout(10)(100 millis)
 Timed-out emission will result in an `Option` value.
 The value will be `None` if timeout is reached before a reaction replies to the molecule.
 
-Exceptions may be thrown as a result of emitting of a blocking molecule when it is unblocked.
-For instance, this happens when the reaction body performs the reply action more than once, or the reaction body does not reply at all.
-
 ### Detecting the time-out status
 
 If a blocking molecule was emitted with a timeout, but no reaction has started within the timeout, the molecule will be removed from the soup after timeout.
 
 It can also happen that a reaction started but the timeout was reached before the reaction performed the reply.
 In that case, the reaction that replies to a blocking molecule can detect whether the reply was not received due to timeout.
-This is achieved with the `checkTimeout` method:
+This is achieved with the `checkTimeout()` method of the reply emitter:
 
 ```scala
 import scala.concurrent.duration.DurationInt
@@ -209,19 +206,19 @@ val result = f(123) // emit f(123), get reply value of type String
 In this reaction, the pattern-match on `f(y, r)` involves _two_ pattern variables:
 
 - The pattern variable `y` is of type `Int` and matches the value carried by the emitted molecule `f(123)`
-- The pattern variable `r` is of type `Int => String` and matches a function object that performs the reply action aimed at the caller of `f(123)`.
+- The pattern variable `r` is of type `Int => String` and matches a **reply emitter** -- a function object that emits a reply aimed at the caller of `f(123)`.
 
 Calling `r` as `r(x.toString)` will perform the reply action, sending the value of `x.toString` back to the calling process, which has been blocked by emitting `f(123)`.
-The reply action will unblock the calling process concurrently with the reaction body.
+The reply action will unblock the calling process concurrently with continuing to evaluate the reaction body.
 
 This reply action must be performed as `r(...)` in the reaction body exactly once, and cannot be performed afterwards.
 
 It is a compile-time error to write a reaction that either does not perform the reply action or does it more than once.
+The reply emitter `r` should not be used in any other way except to send a reply.
+It should not be used by any other reactions or any other code outside the reaction body where `r` was defined.
+It is an error to store `r` in a variable, to call another function with `r` as argument, and so on.
 
-Also, the reply action object `r` should not be used by any other reactions outside the reaction body where `r` was defined.
-(Using `r` after the reaction finishes will have no effect.)
-
-It is a compile-time error to omit the reply matcher variable from the pattern:
+It is also a compile-time error to omit the reply matcher variable from the pattern:
 
 ```scala
 val f = b[Int, Unit]

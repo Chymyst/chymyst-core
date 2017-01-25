@@ -206,17 +206,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     val messageNoReply = blockingMoleculesWithNoReply.map { s => s"Error: In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] finished without replying to $s" }
 
-    val blockingMoleculesWithMultipleReply = usedInputs
-      .filter(_._2.reactionSentRepeatedReply)
-      .map(_._1).toSeq.toOptionSeq.map(_.map(_.toString).sorted.mkString(", "))
-
-    val messageMultipleReply = blockingMoleculesWithMultipleReply map { s => s"Error: In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] replied to $s more than once" }
-
     // We will report all errors to each blocking molecule.
     // However, if the reaction failed with retry, we don't yet need to release semaphores and don't need to report errors due to missing reply.
-    val errorMessage = Seq(messageNoReply, messageMultipleReply).flatten.mkString("; ")
-    val haveErrorsWithBlockingMolecules =
-      (blockingMoleculesWithNoReply.nonEmpty && exitStatus.reactionSucceededOrFailedWithoutRetry) || blockingMoleculesWithMultipleReply.nonEmpty
+    val errorMessage = messageNoReply.mkString("; ")
+    val haveErrorsWithBlockingMolecules = blockingMoleculesWithNoReply.nonEmpty && exitStatus.reactionSucceededOrFailedWithoutRetry
 
     // Insert error messages into the reply wrappers and release all semaphores.
     usedInputs.foreach {

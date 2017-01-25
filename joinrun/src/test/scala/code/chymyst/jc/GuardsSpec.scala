@@ -19,12 +19,12 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`ccc`, 0, SimpleConstInput(Nil), _),
-      InputMoleculeInfo(`ccc`, 1, SimpleConstInput(List()), _),
-      InputMoleculeInfo(`ccc`, 2, SimpleConstInput(List(1)), _),
-      InputMoleculeInfo(`ccc`, 3, SimpleConstInput(List(1, 2, 3)), _),
-      InputMoleculeInfo(`bb`, 4, SimpleConstInput('input), _),
-      InputMoleculeInfo(`a`, 5, SimpleConstInput(Right("input")), _)
+      InputMoleculeInfo(`ccc`, 0, ConstInputPattern(Nil), _),
+      InputMoleculeInfo(`ccc`, 1, ConstInputPattern(List()), _),
+      InputMoleculeInfo(`ccc`, 2, ConstInputPattern(List(1)), _),
+      InputMoleculeInfo(`ccc`, 3, ConstInputPattern(List(1, 2, 3)), _),
+      InputMoleculeInfo(`bb`, 4, ConstInputPattern('input), _),
+      InputMoleculeInfo(`a`, 5, ConstInputPattern(Right("input")), _)
       ) =>
     }
   }
@@ -42,10 +42,10 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`a`, 0, SimpleConstInput(Left(1)), _),
-      InputMoleculeInfo(`a`, 1, SimpleConstInput(Right("input")), _),
-      InputMoleculeInfo(`bb`, 2, SimpleConstInput((2, Some(3))), _),
-      InputMoleculeInfo(`bb`, 3, SimpleConstInput((0, None)), _)
+      InputMoleculeInfo(`a`, 0, ConstInputPattern(Left(1)), _),
+      InputMoleculeInfo(`a`, 1, ConstInputPattern(Right("input")), _),
+      InputMoleculeInfo(`bb`, 2, ConstInputPattern((2, Some(3))), _),
+      InputMoleculeInfo(`bb`, 3, ConstInputPattern((0, None)), _)
       ) =>
     }
 
@@ -219,6 +219,7 @@ class GuardsSpec extends FlatSpec with Matchers {
   it should "recognize irrefutable case class matcher" in {
     sealed trait MyTrait
     case class A(x: Int) extends MyTrait
+    A(1).x shouldEqual 1
 
     val a = m[MyTrait]
     val r = go { case a(A(x)) => }
@@ -229,6 +230,8 @@ class GuardsSpec extends FlatSpec with Matchers {
     sealed trait MyTrait
     case class A(x: Int) extends MyTrait
     case class B(y: Int) extends MyTrait
+    A(1).x shouldEqual 1
+    B(1).y shouldEqual 1
 
     val a = m[MyTrait]
     val r = go { case a(A(x)) => }

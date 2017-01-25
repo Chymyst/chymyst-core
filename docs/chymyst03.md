@@ -145,10 +145,10 @@ go { case c(x) + f(y, r) =>
 
 ```
 
-The reply action consists of calling the **reply function** `r` with the reply value as its argument.
+The reply action consists of calling the **reply emitter** `r` with the reply value as its argument.
 
-Only after the reaction body performs the reply action, the process that emitted `f(123)` will become unblocked.
-Then the variable `result` will become equal to the string value that was sent as the reply, and the calling process will continue its computation.
+Only after the reply action, the process that emitted `f(123)` will become unblocked and the statement `val result = f(123)` will be completed.
+The variable `result` will become equal to the string value that was sent as the reply.
 
 ## Remarks about the semantics of `JoinRun`
 
@@ -320,9 +320,10 @@ We will now describe these features in more detail.
 ### Timeouts for blocking emitters
 
 By default, a blocking emitter will emit a new molecule and block until a reply action is performed for that molecule by a reaction that consumes that molecule.
-If no reaction can be started that consumes the blocking molecule, the emitter will block and wait indefinitely.
-It is often useful to limit the waiting time to a fixed timeout value.
-`JoinRun` implements timeouts by an additional method `timeout` on the blocking emitter:
+If no reaction can be started that consumes the blocking molecule, its emitter will block and wait indefinitely.
+
+`JoinRun` allows us to limit the waiting time to a fixed timeout value.
+Timeouts are implemented by the method `timeout()()` on the blocking emitter:
 
 ```scala
 val f = b[Unit, Int]
@@ -334,7 +335,11 @@ val x: Option[Int] = f.timeout()(200 millis)
 
 ```
 
-The `timeout` method returns an `Option` value.
+The first argument of the `timeout()()` method is the value carried by the emitted molecule.
+In this example, this value is empty since `f` has type `B[Unit, Int]`.
+The second argument of the `timeout()()` method is the duration of the delay.
+
+The `timeout()()` method returns an `Option` value.
 If the emitter received a reply value `v` before the timeout expired, the value of `x` will become `Some(v)`.
 
 If the emitter times out before a reply action is performed, the value of `x` will be set to `None`, and the blocking molecule `f()` will be removed from the soup.
