@@ -219,6 +219,15 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     "val r = go { case f(_,r) => if (System.nanoTime() > 0) f() else r() }" shouldNot compile // ditto
   }
 
+  it should "refuse to compile a reaction with reply under try/catch" in {
+    val f = b[Unit, Unit]
+    f.name shouldEqual "f"
+
+    """val r = go { case f(_,r) => try{ throw new Exception(""); r() } catch { case e: Exception => } }""" shouldNot compile // reply emitted under try
+    """val r = go { case f(_,r) => try{ throw new Exception("") } catch { case e: Exception => r() } }""" shouldNot compile // reply emitted under try
+    """val r = go { case f(_,r) => try{ throw new Exception("") } catch { case e: Exception => } finally { r() } }""" should compile // reply emitted under finally
+  }
+
   behavior of "nonlinear output environments"
 
   it should "refuse emitting blocking molecules" in {
