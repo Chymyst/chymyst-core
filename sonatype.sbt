@@ -1,6 +1,7 @@
 // Following instructions from https://github.com/xerial/sbt-sonatype
 // see https://issues.sonatype.org/browse/OSSRH-27720
 pomExtra in Global :=
+    <inceptionYear>2016</inceptionYear>
     <scm>
       <url>git@github.com:Chymyst/joinrun-scala.git</url>
       <connection>scm:git:git@github.com:Chymyst/joinrun-scala.git</connection>
