@@ -2,7 +2,7 @@
 [![Build Status](https://travis-ci.org/Chymyst/joinrun-scala.svg?branch=master)](https://travis-ci.org/Chymyst/joinrun-scala)
 [![Coverage Status](https://codecov.io/gh/Chymyst/joinrun-scala/coverage.svg?branch=master)](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](http://img.shields.io/badge/version-0.1.6-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
+[![Version](http://img.shields.io/badge/version-0.1.7-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
 
 # `Chymyst` -- declarative concurrency in Scala
 
@@ -15,7 +15,7 @@ JC has the same expressive power as CSP ([Communicating Sequential Processes](ht
 
 The initial code of `Chymyst Core` was based on previous work by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
-The current implementation is tested under Oracle JDK 8 with Scala 2.11 and 2.12.
+The current implementation is tested under Oracle JDK 8 with Scala `2.11.8` and `2.12.1`.
 
 [Version history and roadmap](https://chymyst.github.io/joinrun-scala/roadmap.html)
 
@@ -365,7 +365,7 @@ In CSP, non-blocking channels need to be simulated by [additional user code](htt
 
 # Status
 
-Current released version is `0.1.6`.
+Current released version is `0.1.7`.
 The semantics of the chemical machine (restricted to single-host, multicore computations) is fully implemented and tested.
 
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
@@ -415,3 +415,23 @@ This will prepare JAR assemblies as well as their Scaladoc documentation package
 
 The main library is in the `core` JAR assembly (`core/target/scala-2.11/core-*.jar`).
 User code should depend on that JAR only.
+
+# Use `Chymyst Core` in your programs
+
+At the moment `Chymyst Core` is published to Sonatype.
+So, you will need to add this to your `build.sbt` at the appropriate places:
+
+```scala
+resolvers ++= Seq(
+  Resolver.sonatypeRepo("releases")
+)
+
+libraryDependencies ++= Seq(
+  "io.chymyst" %% "core" % "latest.integration"
+)
+
+```
+
+To use the chemical machine DSL, do `import io.chymyst.jc._` in your Scala sources.
+
+See the ["hello, world" project](https://github.com/Chymyst/helloworld) for a complete minimal example.

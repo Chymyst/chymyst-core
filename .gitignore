@@ -25,3 +25,4 @@ project/target
 *.iws
 
 benchmark*.txt
+local.*
