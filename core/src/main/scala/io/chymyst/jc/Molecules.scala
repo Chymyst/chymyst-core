@@ -87,10 +87,12 @@ sealed trait Molecule extends PersistentHashCode {
     *
     * @return True if already bound, false otherwise.
     */
-  final def isBound: Boolean = reactionSiteOpt.nonEmpty
+  final def isBound: Boolean = isBoundBoolean
 
   // This is @volatile because the reaction site will assign this variable possibly from another thread.
   @volatile private[jc] var reactionSiteOpt: Option[ReactionSite] = None
+
+  @volatile private[jc] var isBoundBoolean: Boolean = false
 
   /** A shorthand method to get the reaction site to which this molecule is bound.
     * This method should be used only when we are sure that the molecule is already bound.
