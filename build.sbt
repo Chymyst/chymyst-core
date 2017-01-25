@@ -16,14 +16,18 @@ $ sbt
 
 val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   organization := "io.chymyst",
-  version := "0.1.6",
+  version := "0.1.7",
   scalaVersion := "2.11.8",
-  crossScalaVersions := Seq("2.11.5", "2.11.6", "2.11.7", "2.11.8", "2.11.9", "2.12.0", "2.12.1"),
+  crossScalaVersions := Seq("2.11.8", "2.12.1"),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases"),
     "Typesafe releases" at "http://repo.typesafe.com/typesafe/releases"
   ),
+  licenses := Seq("Apache License, Version 2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt")),
+  homepage := Some(url("https://chymyst.github.io/joinrun-scala/")),
+//  scmInfo := Some(ScmInfo(url("git@github.com:Chymyst/joinrun-scala.git"), "scm:git:git@github.com:Chymyst/joinrun-scala.git", None)),
+//  developers := List(Developer(id = "winitzki", name = "Sergei Winitzki", email = "swinitzk@hotmail.com", url("https://sites.google.com/site/winitzki"))),
 
   scalacOptions ++= Seq(// https://tpolecat.github.io/2014/04/11/scalac-flags.html
     "-deprecation",
@@ -106,3 +110,19 @@ lazy val benchmark = (project in file("benchmark"))
       "org.scalatest" %% "scalatest" % "3.0.0" % "test"
     )
   ).dependsOn(core)
+
+// Publishing to Sonatype Maven repository
+publishMavenStyle := true
+
+// pomIncludeRepository := { _ => false } // not sure we need this. http://www.scala-sbt.org/release/docs/Using-Sonatype.html says we might need it because "sometimes we have optional dependencies for special features".
+
+publishTo := {
+  val nexus = "https://oss.sonatype.org/"
+  if (isSnapshot.value)
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  else
+    Some("releases" at nexus + "service/local/staging/deploy/maven2")
+}
+
+publishArtifact in Test := false
+
