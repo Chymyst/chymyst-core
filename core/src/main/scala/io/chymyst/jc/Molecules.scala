@@ -82,17 +82,22 @@ sealed trait Molecule extends PersistentHashCode {
 
   override def toString: String = (if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "")
 
+  final private[jc] def setReactionSite(rs: ReactionSite): Unit = {
+    hasReactionSite = true
+    reactionSiteWrapper = rs.newWrapper(this)
+  }
+
   /** Check whether the molecule is already bound to a reaction site.
     * Note that molecules can be emitted only if they are bound.
     *
     * @return True if already bound, false otherwise.
     */
-  final def isBound: Boolean = isBoundBoolean
+  final def isBound: Boolean = hasReactionSite
 
   // This is @volatile because the reaction site will assign this variable possibly from another thread.
-  @volatile private[jc] var reactionSiteOpt: Option[ReactionSite] = None
+  private var reactionSiteWrapper: ReactionSite = _
 
-  @volatile private[jc] var isBoundBoolean: Boolean = false
+  private var hasReactionSite: Boolean = false
 
   /** A shorthand method to get the reaction site to which this molecule is bound.
     * This method should be used only when we are sure that the molecule is already bound.
@@ -122,7 +127,7 @@ sealed trait Molecule extends PersistentHashCode {
     */
   final private[jc] def emittingReactions: Set[Reaction] = emittingReactionsSet.toSet
 
-  final private val emittingReactionsSet: mutable.Set[Reaction] = mutable.Set()
+  private val emittingReactionsSet: mutable.Set[Reaction] = mutable.Set()
 
   // This is called by the reaction site only during the initial setup. Once the reaction site is activated, the set of emitting reactions will never change.
   final private[jc] def addEmittingReaction(r: Reaction): Unit = {

@@ -7,6 +7,16 @@ import StaticAnalysis._
 
 import scala.annotation.tailrec
 
+private[jc] sealed trait ReactionSiteWrapper {
+  def logSoup: String
+  def setLogLevel(level: Int): Unit
+  def singletonsDeclared: List[Molecule]
+  def emit(m: Molecule, v: AbsMolValue[_]): Unit
+  // also need emitAndAwaitWithTimeout, emitAndAwaitReply
+  def reactionInfos: List[ReactionInfo]
+
+}
+
 /** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
   * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
   * The user will never see any instances of this class.
@@ -24,7 +34,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * This list may be incorrect if the singleton reaction code emits molecules conditionally or emits many copies.
     * So, the code (1 to 10).foreach (_ => singleton() ) will put (singleton -> 1) into `singletonsDeclared` but (singleton -> 10) into `singletonsEmitted`.
     */
-  private[jc] val singletonsDeclared: Map[Molecule, Int] =
+  private val singletonsDeclared: Map[Molecule, Int] =
     singletonReactions.map(_.info.outputs)
       .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
       .groupBy(identity)
@@ -33,7 +43,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** Complete information about reactions declared in this reaction site.
     * Singleton-declaring reactions are not included here.
     */
-  private[jc] val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonSingletonReactions.map { r => (r, r.info.inputs) }(scala.collection.breakOut)
+  private val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonSingletonReactions.map { r => (r, r.info.inputs) }(scala.collection.breakOut)
 
   // TODO: implement
   //  private val quiescenceCallbacks: mutable.Set[E] = mutable.Set.empty
