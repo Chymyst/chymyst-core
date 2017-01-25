@@ -2,7 +2,7 @@ package code.chymyst.jc
 
 import Core._
 import java.util.concurrent.{Semaphore, TimeUnit}
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
+import java.util.concurrent.atomic.AtomicBoolean
 
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
@@ -277,10 +277,11 @@ private[jc] sealed trait AbsReplyValue[T, R] {
     * @return `true` if the reply was received normally, `false` if it was not received due to one of the above conditions.
     */
   final protected def performReplyAction(x: R): Boolean = {
-
+    // TODO: simplify this code under the assumption that repeated replies are impossible
     val replyWasNotRepeated = hasReply.compareAndSet(false, true)
 
-    val status = if (replyWasNotRepeated) {
+    // We return `true` only if this reply was not a repeated reply, and if we have no timeout.
+    replyWasNotRepeated && {
       // We have not yet tried to reply.
       // This semaphore was released by the emitting reaction as it starts the blocking wait.
       acquireSemaphoreForReply()
@@ -296,10 +297,7 @@ private[jc] sealed trait AbsReplyValue[T, R] {
       acquireSemaphoreForReply() // Wait until the emitting reaction has set the timeout status.
       // After acquiring this semaphore, it is safe to read the reply status.
       !isTimedOut
-    } else
-      false // We already tried to reply, so nothing to be done now.
-
-    status
+    }
   }
 
   /** This is similar to [[performReplyAction]] except that user did not request the timeout checking, so we have fewer semaphores to deal with. */

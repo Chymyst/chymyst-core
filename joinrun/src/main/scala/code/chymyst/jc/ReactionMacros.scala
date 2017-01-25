@@ -516,6 +516,13 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
             inputMolecules.append((t.symbol, WrongReplyVarF, None, getSha1(t)))
           */
 
+        // try-catch-finally construction
+        case q"try $a catch { case ..$b } finally $c" =>
+          renewOutputEnvId()
+          traverseWithOutputEnv(a, FuncBlock(currentOutputEnvId, "try"))
+          b.foreach(casedef => traverseWithOutputEnv(casedef, FuncBlock(currentOutputEnvId, "catch-case")))
+          traverse(c.asInstanceOf[Tree]) // The `finally` clause will be always evaluated exactly once, so no special environment needed for it.
+
         // do-while construction
         case q"do $body while($cond)" =>
           renewOutputEnvId()
