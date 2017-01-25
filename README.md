@@ -418,14 +418,10 @@ User code should depend on that JAR only.
 
 # Use `Chymyst Core` in your programs
 
-At the moment `Chymyst Core` is published to Sonatype.
-So, you will need to add this to your `build.sbt` at the appropriate places:
+`Chymyst Core` is published to Maven Central.
+Add this to your `build.sbt` at the appropriate place:
 
 ```scala
-resolvers ++= Seq(
-  Resolver.sonatypeRepo("releases")
-)
-
 libraryDependencies ++= Seq(
   "io.chymyst" %% "core" % "latest.integration"
 )
