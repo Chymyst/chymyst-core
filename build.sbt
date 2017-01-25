@@ -107,15 +107,6 @@ lazy val benchmark = (project in file("benchmark"))
     )
   ).dependsOn(core)
 
-lazy val chymyst = (project in file("chymyst"))
-  .settings(commonSettings: _*)
-  .settings(
-    name := "chymyst",
-    libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.0.0" % "test"
-    )
-  ).dependsOn(joinrun)
-
 // Publishing to Sonatype Maven repository
 publishMavenStyle := true
 
