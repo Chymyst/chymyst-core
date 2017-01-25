@@ -16,7 +16,7 @@ $ sbt
 
 val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   organization := "io.chymyst",
-  version := "0.1.7-SNAPSHOT",
+  version := "0.1.7",
   scalaVersion := "2.11.8",
   crossScalaVersions := Seq("2.11.5", "2.11.6", "2.11.7", "2.11.8", "2.11.9", "2.12.0", "2.12.1"),
   resolvers ++= Seq(

@@ -36,7 +36,7 @@ safe_move README.md.new README.md
 
 # build.sbt has version := "0.1.3",
 
-sed -e 's|^\( * version := "\)[.0-9]*\(", *\)$|\1'$VERSION'\2|' < build.sbt > build.sbt.new
+sed -e 's|^\( * version := "\)[-.0-9A-Z]*\(", *\)$|\1'$VERSION'\2|' < build.sbt > build.sbt.new
 
 safe_move build.sbt.new build.sbt
 
