@@ -2,6 +2,8 @@ package code.chymyst.jc
 
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers, Succeeded}
 
+import scala.concurrent.duration._
+
 class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "reaction"
@@ -128,7 +130,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "error detection for blocking replies"
 
-  it should "report errors when no reply received" in {
+  it should "report errors when no reply received due to exception" in {
     val f = b[Unit, Unit]
 
     val result = withPool(new FixedPool(2)){ tp =>
@@ -140,6 +142,25 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       )
       val thrown = intercept[Exception] {
         f()
+      }
+      thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B()] finished without replying to f/B"
+    }
+    result.get shouldEqual Succeeded
+    result.isFailure shouldEqual false
+  }
+
+  it should "report errors when no reply received due to exception within timeout" in {
+    val f = b[Unit, Unit]
+
+    val result = withPool(new FixedPool(2)){ tp =>
+      site(tp)(
+        go { case f(_, r) =>
+          throw new Exception("crash! ignore this exception")
+          r()
+        }
+      )
+      val thrown = intercept[Exception] {
+        f.timeout()(1.seconds)
       }
       thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B()] finished without replying to f/B"
     }
