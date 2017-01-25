@@ -24,6 +24,10 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     Resolver.sonatypeRepo("releases"),
     "Typesafe releases" at "http://repo.typesafe.com/typesafe/releases"
   ),
+  licenses := Seq("Apache License, Version 2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt")),
+  homepage := Some(url("https://chymyst.github.io/joinrun-scala/")),
+//  scmInfo := Some(ScmInfo(url("git@github.com:Chymyst/joinrun-scala.git"), "scm:git:git@github.com:Chymyst/joinrun-scala.git", None)),
+//  developers := List(Developer(id = "winitzki", name = "Sergei Winitzki", email = "swinitzk@hotmail.com", url("https://sites.google.com/site/winitzki"))),
 
   scalacOptions ++= Seq(// https://tpolecat.github.io/2014/04/11/scalac-flags.html
     "-deprecation",
@@ -79,12 +83,6 @@ lazy val core = (project in file("core"))
   .settings(commonSettings: _*)
   .settings(
     name := "core",
-    // This does not seem to help...
-    licenses := Seq("Apache License, Version 2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt")),
-    homepage := Some(url("https://chymyst.github.io/joinrun-scala/")),
-    scmInfo := Some(ScmInfo(url("git@github.com:Chymyst/joinrun-scala.git"), "scm:git:git@github.com:Chymyst/joinrun-scala.git", None)),
-    developers := List(Developer(id = "winitzki", name = "Sergei Winitzki", email = "swinitzk@hotmail.com", url("https://sites.google.com/site/winitzki"))),
-
     wartremoverWarnings in(Compile, compile) ++= warningsForWartRemover,
     wartremoverErrors in(Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
