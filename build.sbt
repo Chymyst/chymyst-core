@@ -1,10 +1,10 @@
 /*
 Root project: buildAll (not executable)
-Aggregates: joinrun, benchmark
+Aggregates: core, benchmark
 
 Benchmark: executable (sbt benchmark/run)
 
-Make the main JAR of the JoinRun library: sbt joinrun/package
+Make the main JAR of the Chymyst Core library: sbt core/package
  */
 
 /* To compile with printed names and types:
@@ -15,7 +15,7 @@ $ sbt
 */
 
 val commonSettings = Defaults.coreDefaultSettings ++ Seq(
-  organization := "code.chymyst",
+  organization := "io.chymyst",
   version := "0.1.6",
   scalaVersion := "2.11.8",
   crossScalaVersions := Seq("2.11.5", "2.11.6", "2.11.7", "2.11.8", "2.11.9", "2.12.0", "2.12.1"),
@@ -73,12 +73,12 @@ lazy val buildAll = (project in file("."))
   .settings(
     name := "buildAll"
   )
-  .aggregate(joinrun, benchmark)
+  .aggregate(core, benchmark)
 
-lazy val joinrun = (project in file("joinrun"))
+lazy val core = (project in file("core"))
   .settings(commonSettings: _*)
   .settings(
-    name := "joinrun",
+    name := "core",
     wartremoverWarnings in(Compile, compile) ++= warningsForWartRemover,
     wartremoverErrors in(Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
@@ -105,4 +105,4 @@ lazy val benchmark = (project in file("benchmark"))
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.0" % "test"
     )
-  ).dependsOn(joinrun)
+  ).dependsOn(core)

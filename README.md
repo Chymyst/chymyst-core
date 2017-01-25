@@ -4,41 +4,42 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Version](http://img.shields.io/badge/version-0.1.6-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
 
-# `JoinRun` and `Chymyst` -- declarative concurrency in Scala
+# `Chymyst` -- declarative concurrency in Scala
 
-This repository hosts `JoinRun` -- a core library that provides a Scala domain-specific language for declarative concurrency.
-[`Chymyst`](https://github.com/Chymyst/Chymyst) is a framework-in-planning that will build upon `JoinRun` to enable creating concurrent applications declaratively.
+This repository hosts `Chymyst Core` -- a library that provides a Scala domain-specific language for declarative concurrency.
+[`Chymyst`](https://github.com/Chymyst/Chymyst) is a framework-in-planning that will build upon `Chymyst Core` to enable creating concurrent applications declaratively.
 
-`JoinRun`/`Chymyst` are based on the **chemical machine** paradigm, known in the academic world as [Join Calculus (JC)](https://en.wikipedia.org/wiki/Join-calculus).
+`Chymyst` is based on the **chemical machine** paradigm, known in the academic world as [Join Calculus (JC)](https://en.wikipedia.org/wiki/Join-calculus).
 JC has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) and [the Actor model](https://en.wikipedia.org/wiki/Actor_model), but is easier to use.
 (See also [Conceptual overview of concurrency](https://chymyst.github.io/joinrun-scala/concurrency.html).)
 
-The initial code of `JoinRun` was based on previous work by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
+The initial code of `Chymyst Core` was based on previous work by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
 The current implementation is tested under Oracle JDK 8 with Scala 2.11 and 2.12.
 
 [Version history and roadmap](https://chymyst.github.io/joinrun-scala/roadmap.html)
 
-# Overview of `JoinRun`/`Chymyst` and the chemical machine paradigm
+# Overview of `Chymyst` and the chemical machine paradigm
 
 To get started, begin with this [tutorial introduction](https://chymyst.github.io/joinrun-scala/chymyst00.html).
 
-I presented an early version of `JoinRun` at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current version of `JoinRun`](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
+I presented an early version of `Chymyst Core`, at that time called `JoinRun`, at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
-There is some [technical documentation for `JoinRun` library](docs/joinrun.md).
+There is some [technical documentation for the core library](docs/chymyst-core.md).
 
 A complete minimal "Hello, world" project can be found at [https://github.com/Chymyst/helloworld](https://github.com/Chymyst/helloworld)
 
-# Main features of `JoinRun`
+# Main features of `Chymyst`
 
-`JoinRun` implements Join Calculus similarly to [JoCaml](http://jocaml.inria.fr), with some extensions in both syntax and semantics.
+`Chymyst` implements Join Calculus similarly to [JoCaml](http://jocaml.inria.fr), with some extensions in both syntax and semantics.
 
 ## Concise declarative syntax 
 
-`JoinRun` provides an embedded Scala DSL for chemical machine definitions. Example:
+`Chymyst Core` provides an embedded Scala DSL for chemical machine definitions.
+Example code looks like this:
 
 ```scala
-import code.chymyst.jc._
+import io.chymyst.jc._
 
 val s = m[Int] // declare a non-blocking molecule s
 val c = b[Int, Int] // declare a blocking molecule c
@@ -62,12 +63,12 @@ spawn s(1)  // emit non-blocking molecule s with value 1
 ```
 
 In the JoCaml syntax, `s` and `c` are declared implicitly, together with the reaction, and type inference fixes the types of their values.
-Implicit declaration of molecule emitters (“channels”) is not possible in `JoinRun` because Scala macros cannot insert new top-level name declarations into the code.
-For this reason, `JoinRun` requires explicit declarations of molecule types (for example, `val c = b[Int, Int]`).
+Implicit declaration of molecule emitters (“channels”) is not possible in `Chymyst` because Scala macros cannot insert new top-level name declarations into the code.
+For this reason, `Chymyst` requires explicit declarations of molecule types (for example, `val c = b[Int, Int]`).
 
 ## Arbitrary input patterns
 
-In `JoinRun`'s Scala DSL, a reaction's input patterns is a `case` clause in a partial function.
+In `Chymyst`'s Scala DSL, a reaction's input patterns is a `case` clause in a partial function.
 Within the limits of the Scala syntax, reactions can define arbitrary input patterns.
  
 - Reactions can use pattern matching expressions as well as guard conditions for selecting molecule values:
@@ -163,8 +164,8 @@ val result: Option[Int] = f.timeout()(200 millis)
 
 ## Static analysis for correctness and optimization
 
-`JoinRun` uses macros to perform extensive static analysis of reactions at compile time.
-This allows `JoinRun` to detect some errors such as deadlock or livelock, and to give warnings for possible deadlock or livelock, before any reactions are started.
+`Chymyst` uses macros to perform extensive static analysis of reactions at compile time.
+This allows `Chymyst` to detect some errors such as deadlock or livelock, and to give warnings for possible deadlock or livelock, before any reactions are started.
 
 ```scala
 val a = m[Int]
@@ -185,7 +186,7 @@ For instance, reactions that impose no cross-molecule conditions are scheduled s
 
 ## Thread pools
 
-`JoinRun` implements fine-grained threading control.
+`Chymyst` implements fine-grained threading control.
 Each reaction site and each reaction can be run on a different, separate thread pool if required.
 The user can control the number of threads in thread pools.
 
@@ -205,7 +206,7 @@ So, blocking operations do not decrease the degree of parallelism.
 
 ## Graceful shutdown
 
-When a `JoinRun`-based program needs to exit, it can shut down the thread pools that run reactions.
+When a `Chymyst`-based program needs to exit, it can shut down the thread pools that run reactions.
 
 ```scala
 val tp = new SmartPool(8)
@@ -274,7 +275,7 @@ def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
 This is a complete runnable example.
 
 ```scala
-import code.chymyst.jc._
+import io.chymyst.jc._
 
 object Main extends App {
    /**
@@ -370,16 +371,16 @@ The semantics of the chemical machine (restricted to single-host, multicore comp
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
 Test coverage is 100% according to [codecov.io](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master).
 
-Performance benchmarks indicate that `JoinRun` can schedule about 10,000 reactions per second per CPU core, and the performance bottleneck is in submitting jobs to threads (a distant second bottleneck is pattern-matching in the internals of the library).
+Performance benchmarks indicate that `Chymyst Core` can schedule about 10,000 reactions per second per CPU core, and the performance bottleneck is in submitting jobs to threads (a distant second bottleneck is pattern-matching in the internals of the library).
 
 
 Known limitations:
 
-- `JoinRun` is about 2x slower than Jiansen He's `ScalaJoin` on the blocking molecule benchmark, and about 1.2x slower on some non-blocking molecule benchmarks.
-- `JoinRun` has no fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random.
-- `JoinRun` has no distributed execution (Jiansen He's `Disjoin.scala` is not ported to `JoinRun`, and probably will not be).
+- `Chymyst Core` is about 2x slower than Jiansen He's `ScalaJoin` on the blocking molecule benchmark, and about 1.2x slower on some non-blocking molecule benchmarks.
+- `Chymyst Core` has no fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random.
+- `Chymyst Core` has no distributed execution (Jiansen He's `Disjoin.scala` is not ported to `Chymyst`, and probably will not be).
 Distributed computation should be implemented in a better way than posting channel names on an HTTP server.
-(However, `JoinRun` will use all cores on a single machine.)
+(However, `Chymyst Core` will use all cores on a single machine.)
 
 # Run unit tests
 
@@ -406,11 +407,11 @@ Then run it as
 To build the library JARs:
 
 ```
-sbt package package-doc
+sbt core/package core/package-doc
 
 ```
 
 This will prepare JAR assemblies as well as their Scaladoc documentation packages.
 
-The main library is in the `joinrun` JAR assembly (`joinrun/target/scala-2.11/joinrun-*.jar`).
+The main library is in the `core` JAR assembly (`core/target/scala-2.11/core-*.jar`).
 User code should depend on that JAR only.

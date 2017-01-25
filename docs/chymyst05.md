@@ -128,7 +128,7 @@ emitters(0)(10)
 # Reaction constructors
 
 Chemical reactions are static: they are specified at compile time and cannot be modified at runtime.
-`JoinRun` compiles with this limitation even though reactions in `JoinRun` are values created at run time.
+`Chymyst` compiles with this limitation even though reactions in `Chymyst` are values created at run time.
 For instance, we can create an array of molecules and reactions, where the size of the array is determined at run time.
 We can easily define reactions for "dining philosophers" even if the number of philosophers is given at run time.
 
@@ -219,8 +219,8 @@ The same techniques will work equally well if the chemical machine were embedded
 # Working with an external asynchronous APIs
 
 Suppose we are working with an external library, such as an HTTP or database client, that has an asynchronous API via Scala's `Future`s.
-In order to use such libraries together with `JoinRun`, we need to be able to pass freely between `Future`s and molecules.
-The `JoinRun` library provides a basic implementation of this functionality.
+In order to use such libraries together with `Chymyst`, we need to be able to pass freely between `Future`s and molecules.
+The `Chymyst` library provides a basic implementation of this functionality.
 
 ## Attaching molecules to futures
 
