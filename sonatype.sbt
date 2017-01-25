@@ -1,9 +1,5 @@
 // Following instructions from https://github.com/xerial/sbt-sonatype
 // see https://issues.sonatype.org/browse/OSSRH-27720
-licenses := Seq("Apache License, Version 2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt"))
-
-homepage := Some(url("https://chymyst.github.io/joinrun-scala/"))
-
 pomExtra in Global :=
   <scm>
     <url>git@github.com:Chymyst/joinrun-scala.git</url>
