@@ -4,7 +4,7 @@
 
 ## Molecule names
 
-For debugging purposes, molecules in `JoinRun` have names.
+For debugging purposes, molecules in `Chymyst` have names.
 These names have no effect on any concurrent computations.
 For instance, the runtime engine will not check that each molecule's name is not empty, or that the names of different molecules are different.
 Molecule names are used only for debugging: they are printed when logging reactions and reaction sites.
@@ -150,7 +150,7 @@ The reply action consists of calling the **reply emitter** `r` with the reply va
 Only after the reply action, the process that emitted `f(123)` will become unblocked and the statement `val result = f(123)` will be completed.
 The variable `result` will become equal to the string value that was sent as the reply.
 
-## Remarks about the semantics of `JoinRun`
+## Remarks about the semantics of `Chymyst`
 
 - Emitted molecules such as `c(123)` are _not_ Scala values.
 Emitted molecules cannot be stored in a data structure or passed as arguments to functions.
@@ -303,7 +303,7 @@ There are two more combinations that are not yet used:
 - a blocking emitter that does not return a value
 - a non-blocking emitter that returns a value
 
-The `JoinRun` library implements both of these possibilities as special features:
+The `Chymyst` library implements both of these possibilities as special features:
 
 - a blocking emitter can _time out_ on its call and fail to return a value;
 - a non-blocking emitter can return a “volatile reader” (see below) that provides read-only access to the last known value of the molecule.
@@ -322,7 +322,7 @@ We will now describe these features in more detail.
 By default, a blocking emitter will emit a new molecule and block until a reply action is performed for that molecule by a reaction that consumes that molecule.
 If no reaction can be started that consumes the blocking molecule, its emitter will block and wait indefinitely.
 
-`JoinRun` allows us to limit the waiting time to a fixed timeout value.
+`Chymyst` allows us to limit the waiting time to a fixed timeout value.
 Timeouts are implemented by the method `timeout()()` on the blocking emitter:
 
 ```scala
@@ -351,7 +351,7 @@ In that case, the reply action to `f()` will have no effect.
 Is the timeout feature required?
 The timeout functionality can be simulated, for instance, using the “First Reply” construction.
 However, this construction is cumbersome and will sometimes leave a thread blocked forever, which is undesirable from the implementation point of view.
-For this reason, `JoinRun` implements the timeout functionality as a special feature of blocking molecules.
+For this reason, `Chymyst` implements the timeout functionality as a special feature of blocking molecules.
 
 ### Singleton molecules
 
@@ -369,7 +369,7 @@ c(x) + f(_, r) => c(x) + r(x)
 
 These reactions treat `c` as a singleton because they first consume and then emit a single copy of `c`.
 
-`JoinRun` provides special features for singleton molecules:
+`Chymyst` provides special features for singleton molecules:
 
 - Only non-blocking molecules can be declared as singletons.
 - It is an error if a reaction consumes a singleton but does not emit it back into the soup, or emits it more than once.
@@ -379,7 +379,7 @@ These reactions treat `c` as a singleton because they first consume and then emi
 In this way, singleton molecules are guaranteed to be emitted once and only once, before any other molecules are emitted at that reaction site.
 - Singleton molecules have “volatile readers”.
 
-In order to declare a molecule as a singleton, the users of `JoinRun` must write a reaction that has no input molecules:
+In order to declare a molecule as a singleton, the users of `Chymyst` must write a reaction that has no input molecules:
 
 ```scala
 site (
@@ -393,7 +393,7 @@ site (
 
 Consider the reaction `go { case _ => a(1) + c(123) + q() }`.
 This reaction has no input molecules and three output molecules `a`, `c`, and `q`.
-Such a reaction is recognized by `JoinRun` as a reaction that defines singletons and at the same time emits them into the soup.
+Such a reaction is recognized by `Chymyst` as a reaction that defines singletons and at the same time emits them into the soup.
 
 A reaction site can define one or more singleton reactions.
 Each non-blocking output molecule of each singleton reaction will be declared a **singleton molecule**.

@@ -42,7 +42,7 @@ Emission of a blocking molecule will be handled by the runtime engine in a speci
 Sending a reply value is a special feature available only within reactions that consume blocking molecules.
 We call this feature the **reply action**.
 
-Here is an example showing the `JoinRun` syntax for the reply action.
+Here is an example showing the `Chymyst` syntax for the reply action.
 Suppose we have a reaction that consumes a non-blocking molecule `c` with an integer value and the blocking molecule `f` defined above.
 We would like the blocking molecule to return the integer value that `c` carries:
 
@@ -140,7 +140,7 @@ go { case counter(0) + fetch(_, reply)  => reply() }
 Here is the complete code:
 
 ```scala
-import code.chymyst.jc._
+import io.chymyst.jc._
 
 import java.time.LocalDateTime.now
 import java.time.temporal.ChronoUnit.MILLIS
@@ -249,7 +249,7 @@ If the other molecule gets a reply later, we will just ignore that value.
 
 The result of this nondeterministic operation is the value of type `T` obtained from one of the molecules `f` and `g`, depending on which molecule got its reply first.
 
-Let us now implement this operation in `JoinRun`.
+Let us now implement this operation in `Chymyst`.
 We will derive the required chemistry by reasoning about the behavior of molecules.
 
 The task is to define a blocking molecule emitter `firstReply` that will unblock when `f` or `g` unblocks, whichever happens first.
@@ -266,7 +266,7 @@ However, if we declare the two reactions as `c() => f()` and `c() => g()` and em
 It is possible that two copies of the first reaction or two copies of the second reaction are started instead.
 In other words, there will be an _unavoidable nondeterminism_ in our chemistry.
 
-`JoinRun` will in fact detect this problem and generate an error:
+`Chymyst` will in fact detect this problem and generate an error:
 
 ```scala
 val c = m[Unit]
@@ -396,7 +396,7 @@ The `parallelOr` should reply with `true` as soon as one of the blocking molecul
 If both `f` and `g` return `false` then `parallelOr` will also return `false`.
 If both molecules `f` and `g` block (or one of them returns `false` while the other blocks) then `parallelOr` will block as well.
 
-We will now implement this operation in `JoinRun`.
+We will now implement this operation in `Chymyst`.
 Our task is to define the necessary molecules and reactions that will simulate the desired behavior.
 
 Let us recall the logic we used when reasoning about the "First Result" problem.

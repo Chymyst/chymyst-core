@@ -120,7 +120,7 @@ Here is the complete code for this example (see also `MapReduceSpec.scala` in th
 We will apply the function `f(x) = x * x` to elements of an integer array, and then compute the sum of the resulting array of squares.
 
 ```scala
-import code.chymyst.jc._
+import io.chymyst.jc._
 
 object C extends App {
 
@@ -165,7 +165,7 @@ Chemical laws can be recursive: a molecule can start a reaction whose reaction b
 Since each reaction body will have a fresh scope, new molecules and new reactions will be defined every time.
 This will create a recursive configuration of reactions, such as a linked list or a tree.
 
-We will now figure out how to use recursive molecules for implementing the merge-sort algorithm in `JoinRun`.
+We will now figure out how to use recursive molecules for implementing the merge-sort algorithm in `Chymyst`.
 
 The initial data will be an array of type `T`, and we will therefore need a molecule to carry that array.
 We will also need another molecule, `sorted()`, to carry the sorted result.
