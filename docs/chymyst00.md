@@ -11,11 +11,11 @@ To understand this tutorial, the reader should have some familiarity with the `S
 
 [Chapter 1: The chemical machine](chymyst01.md)
 
-[Chapter 2: Blocking and non-blocking molecules](chymyst02.md)
+[Chapter 2: Map/Reduce and Merge-Sort](chymyst02.md)
 
-[Chapter 3: Molecules and emitters, in depth](chymyst03.md)
+[Chapter 3: Blocking and non-blocking molecules](chymyst03.md)
 
-[Chapter 4: Map/Reduce and Merge-Sort](chymyst04.md)
+[Chapter 4: Molecules and emitters, in depth](chymyst04.md)
 
 [Chapter 5: Reaction constructors](chymyst05.md)
 

@@ -1,434 +1,587 @@
 <link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
 
-# Molecules and emitters, in depth
+# Blocking vs. non-blocking molecules
 
-## Molecule names
+## Motivation for the blocking molecule feature
 
-For debugging purposes, molecules in `Chymyst` have names.
-These names have no effect on any concurrent computations.
-For instance, the runtime engine will not check that each molecule's name is not empty, or that the names of different molecules are different.
-Molecule names are used only for debugging: they are printed when logging reactions and reaction sites.
+So far, we have used molecules whose emission was a non-blocking call.
+Emitting a molecule, such as `a(123)`, immediately returns `Unit` but performs a concurrent side effect, adding a new molecule to the soup.
+Such molecules are called **non-blocking**.
 
-There are two ways of assigning a name to a molecule:
+When a reaction emits a non-blocking molecule, that molecule could later start another reaction and compute some result.
+However, the emitting reaction has no access to that result.
+It is sometimes convenient to be able to wait until the other reaction starts and computes the result, and then to obtain the result value in the first reaction.
 
-- specify a name explicitly, by using a class constructor;
-- use the macros `m` and `b`.
+This feature is realized in the chemical machine with help of **blocking molecules**.
 
-Here is an example of defining emitters using explicit class constructors and molecule names:
+## How blocking molecules work
 
-```scala
-val counter = new M[Int]("counter")
-val fetch = new B[Int, Int]("fetch")
+Just like non-blocking molecules, a blocking molecule carries a value and can be emitted into the soup.
+However, there are two major differences:
 
-```
+- emitting a blocking molecule is a function call that returns a **reply value** of a fixed type;
+- emitting a blocking molecule will block the emitting reaction or thread, until some reaction consumes the blocking molecule and sends the reply value.
 
-This code is _completely equivalent_ to the shorter code written using macros:
-
-```scala
-val counter = m[Int]
-val fetch = b[Int, Int]
-
-```
-
-These macros read the names `"counter"` and `"fetch"` from the surrounding code.
-This functionality is intended as a syntactic convenience.
-
-Each molecule emitter has a `toString` method, which returns the molecule's name.
-For blocking molecules, the molecule's name is followed by `"/B"`.
-
-```scala
-val x = new M[Int]("counter")
-val y = new B[Unit, Int]("fetch")
-
-x.toString // returns “counter”
-y.toString // returns “fetch/B”
-
-```
-
-
-## Molecules vs. molecule emitters
-
-Molecules are emitted into the chemical soup using the syntax such as `c(123)`. Here, `c` is a value we define using a construction such as
-
-```scala
-val c = m[Int]
-
-```
-
-Any molecule emitted in the soup must carry a value.
-So the value `c` itself is not a molecule in the soup.
-The value `c` is a **molecule emitter**, -- that is, a function that, when called, will emit molecules of chemical sort `c` into the soup.
-The result of evaluating the emitter call such as `c(123)` is a _side effect_ that emits the molecule of sort `c` with value `123`.
-
-The syntax `c(x)` is used in two different ways:
-
-- in the left-hand side of a reaction, it is a pattern matching construction that matches on values of input molecules
-- in the reaction body, it is an emitter call
-
-In both cases, `c(x)` can be visualized as a molecule with value `x` that exists in the soup.
-
-The chemistry-resembling syntax such as `c(x) + d(y)` is also used in two different ways:
-
-- in the left-hand side of a reaction, it is a pattern matching construction that matches on values of several input molecules at once
-- in the reaction body, it is syntactic sugar for several emitter calls, equivalent to `c(x); d(y)`
-
-### Non-blocking molecules
-
-If `c` defined as above as `val c = m[Int]`, the emitter `c` is **non-blocking**.
-The emitter function call `c(123)` is non-blocking because it immediately returns a `Unit` value
-and does not wait for any reaction involving `c(123)` to actually start.
-
-The non-blocking emitter `c` defined above will have type `M[Int]` and can be also created directly using the class constructor:
-
-```scala
-val c = new M[Int]("c")
-
-```
-
-Molecules carrying `Unit` values can be emitted using the syntax such as `a()` rather than `a(())`.
-This is provided as a syntactic convenience and is implemented by creating instances of class `E`, which is a subclass of `M[Unit]`.
-
-A direct way of defining a molecule emitter with a `Unit` type is therefore
-
-```scala
-val a = new E("a")
-
-```
-
-The macro call `m[Unit]` will return this subclass:
-
-```scala
-val a = m[Unit] // equivalent to `val a = new E("a")`
-
-```
-
-
-### Blocking molecules
-
-For a **blocking** molecule, the emitter call will block until a reaction can start that consumes that molecule.
-
-A blocking emitter is defined like this,
-
-```scala
-val f = b[Int, String]
-
-```
-
-Now `f` is a blocking emitter that takes an `Int` value and returns a `String`.
-
-Emitters for blocking molecules are instances of class `B[T, R]`, which extends `Function1[T, R]`.
-The emitter `f` could be equivalently defined by
-
-```scala
-val f = new B[Int, String]("f")
-
-```
-
-Once `f` is defined like this, an emission call such as
-
-```scala
-val result = f(123)
-
-```
-
-will emit a molecule of sort `f` with value `123` into the soup.
-
-After emitting `f(123)`, the process will become blocked until some reaction starts, consumes this molecule, and performs a **reply action**.
-
-Since the type of `f` is `B[Int, String]`, the reply action must pass a `String` value to the reply function:
-
-```scala
-go { case c(x) + f(y, r) =>
-  val replyValue = (x + y).toString 
-  r(replyValue) 
-}
-
-```
-
-The reply action consists of calling the **reply emitter** `r` with the reply value as its argument.
-
-Only after the reply action, the process that emitted `f(123)` will become unblocked and the statement `val result = f(123)` will be completed.
-The variable `result` will become equal to the string value that was sent as the reply.
-
-## Remarks about the semantics of `Chymyst`
-
-- Emitted molecules such as `c(123)` are _not_ Scala values.
-Emitted molecules cannot be stored in a data structure or passed as arguments to functions.
-The programmer has no direct access to the molecules in the soup, apart from being able to emit them.
-But emitters _are_ ordinary, locally defined Scala values and can be manipulated as any other Scala values.
-Emitters are functions whose `apply` method has the side effect of emitting a new copy of a molecule into the soup.
-- Emitters are local values of class `B` or `M`, which both extend the abstract class `Molecule` and the `Function1` trait.
-Blocking molecule emitters are of class `B`, non-blocking of class `M`.
-- Reactions are local values of class `Reaction`. Reactions are created using the function `go` with the syntax `go { case ... => ... }`.
-- Only one `case` clause can be used in each reaction. It is an error to use several `case` clauses, or case clauses that do not match on input molecules, such as `go { case x => }`.
-- Reaction sites are immutable values of class `ReactionSite`. These values are not visible to the user: they are created in a closed scope by the `site(...)` call. The `site(...)` call activates all the reactions at that reaction site.
-- Molecule emitters are immutable after all reactions have been activated where these molecules are used as inputs.
-- Molecules emitted into the soup gather at their reaction site. Reaction sites proceed by first deciding which input molecules can be consumed by some reactions; this decision involves the chemical sorts of the molecules as well as any pattern matching and guard conditions that depend on molecule values.
-When suitable input molecules are found and a reaction is chosen, the input molecules are atomically removed from the soup, and the reaction body is executed.
-- The reaction body can emit one or more new molecules into the soup.
-The code can emit new molecules into the soup at any time and from any code, not only inside a reaction body.
-- When enough input molecules are present at a reaction site so that several alternative reactions can start, is not possible to decide which reactions will proceed first, or which molecules will be consumed first.
-It is also not possible to know at what time reactions will start.
-Reactions and molecules do not have priorities and are not ordered in the soup.
-When determinism is required, it is the responsibility of the programmer to define the chemical laws such that the behavior of the program is deterministic.
-(This is always possible!)
-- All reactions that share some _input_ molecule must be defined within the same reaction site.
-Reactions that share no input molecules can (and should) be defined in separate reaction sites.
-
-
-## Chemical designations of molecules vs. molecule names vs. local variable names 
-
-Each molecule has a specific chemical designation, such as `sum`, `counter`, and so on.
-These chemical designations are not actually strings `"sum"` or `"counter"`.
-The names of the local variables and the molecule names are chosen purely for convenience.
-
-Rather, the chemical designations are the _object identities_ of the molecule emitters.
-We could define an alias for a molecule emitter, for example like this:
-
-```scala
-val counter = m[Int]
-val q = counter
-
-```
-
-This code will copy the molecule emitter `counter` into another local value `q`.
-However, this does not change the chemical designation of the molecule, because `q` will be a reference to the same object as `counter`.
-The emitter `q` will emit the same molecules as `counter`; that is, molecules emitted with `q(...)` will react in the same way and in the same reactions as molecules emitted with `counter(...)`.
-
-(This is similar to how chemical substances are named in ordinary language.
-For example, `NaCl`, "salt" and "sodium hydrochloride" are alias names for the same chemical substance.)
-
-The chemical designation of the molecule specifies two aspects of the concurrent program:
-
-- what other molecules (i.e. what other chemical designations) are required to start a reaction with this molecule, and at which reaction site;
-- what computation will be performed when all the required input molecules are available.
-
-When a new reaction site is defined, new molecules bound to that site are defined as well.
-(These molecules are inputs to reactions defined at the new site.)
-If a reaction site is defined within a local scope of a function, a new reaction site will be created every time the function is called.
-Since molecules internally hold a reference to their reaction site, each function call will create _chemically unique_ new molecules,
-in the sense that these molecules will react only with other molecules defined in the same function call.
-
-As an example, consider a function that defines a simple reaction like this:
-
-```scala
-def makeLabeledReaction() = {
-  val begin = m[Unit]
-  val label = m[String]
-  
-  site(
-    go { case begin(_) + label(labelString) => println(labelString) }
-  )
-  
-  (begin, label)
-}
-
-// Let's use this function now.
-
-val (begin1, label1) = makeLabeledReaction() // first call
-val (begin2, label2) = makeLabeledReaction() // second call
-
-```
-
-What is the difference between the new molecule emitters `begin1` and `begin2`?
-Both `begin1` and `begin2` have the name `"begin"`, and they are of the same type.
-However, they are _chemically_ different: `begin1` will react only with `label1`, and `begin2` only with `label2`.
-The molecules `begin1` and `label1` are bound to the reaction site created by the first call to `makeLabeledReaction()`, and this reaction site is different from that created by the second call to `makeLabeledReaction()`.
-
-For instance, suppose we call `label1("abc")` and `begin2()`.
-We have emitted a molecule named `"label"` and a molecule named `"begin"`.
-However, these molecules will not start any reactions, because they are bound to different reaction sites.
-
-```scala
-label1("abc") + begin2() // no reaction started!
-
-```
-
-After running this code, 
-the molecule `label1("abc")` will be waiting at the first reaction site for its reaction partner, `begin1()`,
-while the molecule `begin2()` will be waiting at the second reaction site for its reaction partner, `label2(...)`.
-If we now emit, say, `label2("abc")`, the reaction with the molecule `begin2()` will start and print `"abc"`.
-
-```scala
-label1("abc") + begin2() // no reaction started!
-label2("abc") // reaction with begin2() starts and prints "abc"
-
-```
-
-We see that `begin1` and `begin2` have different chemical designations (because they enter different reactions), even though they are both defined by the same code inside the function `makeLabeledReaction`.
-
-The chemical designations are independent of molecule names and of the variable names used in the code.
-For instance, we could (for whatever reason) create aliases for `label2` and `begin2` and write code like this:
-
-```scala
-val (begin1, label1) = makeLabeledReaction() // first call
-val (begin2, label2) = makeLabeledReaction() // second call
-val (x, y, p, q) = (begin1, label1, begin2, label2) // make aliases
-
-y("abc") + p() // Same as label1("abc") + begin2() - no reaction started!
-q("abc") // Same as label2("abc") - reaction starts and prints "abc"
-
-```
-
-In this example, the values `x` and `begin1` are equal to the same molecule emitter, thus they have the same chemical designation.
-For this reason, the calls to `x()` and `begin1()` will emit copies of the same molecule.
-As we already discussed, the molecule emitted by `x()` will have a different chemical designation from that emitted by `begin2()`.
-
-In practice, it is of course advisable to choose meaningful local variable names.
-However, it is important to keep in mind that:
-
-- each molecule has a chemical designation, a reaction site to which the molecule is bound, a name, and a molecule emitter (usually assigned to a local variable)
-- the chemical reactions started by molecules depend only on their chemical designations, not on names
-- the molecule's name is only used in debugging messages
-- the names of local variables are only for the programmer's convenience
-- reaction sites defined in a local scope are new and unique for each time a new local scope is created
-- molecules defined in a new local scope will have a new, unique chemical designation and will be bound to the new unique reaction site  
-
-## The type matrix of molecule emission
-
-Let us consider what _could_ theoretically happen when we call an emitter.
-The emitter call can be either blocking or non-blocking, and it could return a value or return no value.
-Let us write down all possible combinations of these types of emitter calls as a “type matrix”.
-
-For this example, we assume that `c` is a non-blocking emitter of type `M[Int]` and `f` is a blocking emitter of type `B[Unit, Int]`.
-
-| | blocking emitter | non-blocking emitter |
-|---|---|---|
-| value is returned| `val x: Int = f()` | ? |
-| no value returned | ? | `c(123)` // side effect |
-
-So far, we have seen that blocking emitters return a value, while non-blocking emitters don't.
-There are two more combinations that are not yet used:
-
-- a blocking emitter that does not return a value
-- a non-blocking emitter that returns a value
-
-The `Chymyst` library implements both of these possibilities as special features:
-
-- a blocking emitter can _time out_ on its call and fail to return a value;
-- a non-blocking emitter can return a “volatile reader” (see below) that provides read-only access to the last known value of the molecule.
-
-With these additional features, the type matrix of emission is complete:
-
-| | blocking emitter | non-blocking emitter |
-|---|---|---|
-| value is returned: | `val x: Int = f()` | `val x: Int = c.volatileValue` |
-| no value returned: | timeout was reached | `c(123)` // side effect |
-
-We will now describe these features in more detail.
-
-### Timeouts for blocking emitters
-
-By default, a blocking emitter will emit a new molecule and block until a reply action is performed for that molecule by a reaction that consumes that molecule.
-If no reaction can be started that consumes the blocking molecule, its emitter will block and wait indefinitely.
-
-`Chymyst` allows us to limit the waiting time to a fixed timeout value.
-Timeouts are implemented by the method `timeout()()` on the blocking emitter:
+Here is an example of declaring a blocking molecule:
 
 ```scala
 val f = b[Unit, Int]
-// write a reaction site involving `f` and other molecules:
-site(...)
-
-// call the emitter `f` with 200ms timeout:
-val x: Option[Int] = f.timeout()(200 millis)
 
 ```
 
-The first argument of the `timeout()()` method is the value carried by the emitted molecule.
-In this example, this value is empty since `f` has type `B[Unit, Int]`.
-The second argument of the `timeout()()` method is the duration of the delay.
+The blocking molecule `f` carries a value of type `Unit`; the reply value is of type `Int`.
+We can choose these types at will.
 
-The `timeout()()` method returns an `Option` value.
-If the emitter received a reply value `v` before the timeout expired, the value of `x` will become `Some(v)`.
+Emission of a blocking molecule will be handled by the runtime engine in a special way:
 
-If the emitter times out before a reply action is performed, the value of `x` will be set to `None`, and the blocking molecule `f()` will be removed from the soup.
-If the timeout occurred because no reaction started with `f()`, which is the usual reason, the removal of `f()` makes sense because no further reactions should try to consume `f()` and reply.
+1. The emission call, such as `f(x)`, will insert a new copy of the `f(x)` molecule into the soup.
+2. The emitting process, which can be another reaction body or any other code, will be blocked at least until some reaction consumes the newly emitted copy of `f(x)`.
+3. Once such a reaction starts, this reaction's body can (and should) **reply to the blocking molecule**. Replying is a special operation that sends a **reply value** to the emitting process.
+4. The emitting process becomes unblocked right after it receives the reply value. To the emitting process, the reply value appears to be the value returned by the function call `f(x)`.
 
-A less frequent situation is when a reaction already started, consuming `f()` and is about to reply to `f()`, but it just happens to time out at that moment.
-In that case, the reply action to `f()` will have no effect.
+Sending a reply value is a special feature available only within reactions that consume blocking molecules.
+We call this feature the **reply action**.
 
-Is the timeout feature required?
-The timeout functionality can be simulated, for instance, using the “First Reply” construction.
-However, this construction is cumbersome and will sometimes leave a thread blocked forever, which is undesirable from the implementation point of view.
-For this reason, `Chymyst` implements the timeout functionality as a special feature of blocking molecules.
-
-### Singleton molecules
-
-Often it is necessary to ensure that exactly one copy of a certain molecule is present in the soup, and that no further copies can be emitted.
-Such molecules are called **singletons**.
-Singleton molecules `s` must have reactions of the form `s + ... => s + ...`, -- that is, reactions must consume the single copy of `s` and then also emit a single copy of `s`.
-
-An example of a singleton is the “concurrent counter” molecule `c`, with reactions that we have seen before:
+Here is an example showing the `Chymyst` syntax for the reply action.
+Suppose we have a reaction that consumes a non-blocking molecule `c` with an integer value and the blocking molecule `f` defined above.
+We would like the blocking molecule to return the integer value that `c` carries:
 
 ```scala
-c(x) + d(_) => c(x - 1)
-c(x) + i(_) => c(x + 1)
-c(x) + f(_, r) => c(x) + r(x)
-```
-
-These reactions treat `c` as a singleton because they first consume and then emit a single copy of `c`.
-
-`Chymyst` provides special features for singleton molecules:
-
-- Only non-blocking molecules can be declared as singletons.
-- It is an error if a reaction consumes a singleton but does not emit it back into the soup, or emits it more than once.
-- It is also an error if a reaction emits a singleton it did not consume, or if any other code emits additional copies of the singleton at any time.
-(However, this feature is easy to simulate with local scoping, which can prevent other code from having access to a molecule emitter.)
-- Singleton molecules are emitted directly from the reaction site.
-In this way, singleton molecules are guaranteed to be emitted once and only once, before any other molecules are emitted at that reaction site.
-- Singleton molecules have “volatile readers”.
-
-In order to declare a molecule as a singleton, the users of `Chymyst` must write a reaction that has no input molecules:
-
-```scala
-site (
-    // This pseudo-reaction will declare a, c, and q to be singletons, and emit each of them.
-    go { case _ => a(1) + c(123) + q() },
-    // Now we need to define some reactions that consume a, c, and q.
-    go { case ??? }
-)
-
-```
-
-Consider the reaction `go { case _ => a(1) + c(123) + q() }`.
-This reaction has no input molecules and three output molecules `a`, `c`, and `q`.
-Such a reaction is recognized by `Chymyst` as a reaction that defines singletons and at the same time emits them into the soup.
-
-A reaction site can define one or more singleton reactions.
-Each non-blocking output molecule of each singleton reaction will be declared a **singleton molecule**.
-The reaction sites will run their singleton reactions only once, at the time of the `site(...)` call itself, and on the same thread that calls `site(...)`.
-
-### Volatile readers for singleton molecules
-
-Each singleton molecule has a **volatile reader** -- a function of type `=> T` that fetches the value carried by that singleton molecule when it was most recently emitted.
-
-```scala
+val f = b[Unit, Int]
 val c = m[Int]
-site(
-  go { case c(x) + incr(_) => c(x + 1) },
-  go { case _ => c(0) } // emit `c(0)` and declare it a singleton
-)
 
-val readC: Int = c.volatileValue // initially returns 0
+site( go { case c(n) + f(_ , reply) => reply(n) } )
+
+c(123) // emit an instance of `c` with value 123
+
+val x = f() // now x = 123
 
 ```
 
-The volatile reader is thread-safe (can be used from any reaction without blocking any threads) because it provides a read-only access to the value carried by the molecule.
-The value of a singleton molecule can be modified only by a reaction that consumes the singleton and then emits it back with a different value.
-If the volatile reader is called while that reaction is being run, the reader will return the previous known value of the singleton, which is probably going to become obsolete very shortly.
-I call the volatile reader “volatile” for this reason: it returns a value that could change at any time.
+Let us walk through the execution of this example step by step.
 
-The functionality of a volatile reader is equivalent to an additional reaction with a blocking molecule `f` that reads the current value carried by `c`:
+After defining the chemical law `c + f => ...`, we first emit an instance of `c(123)`.
+By itself, this does not start any reactions since the chemical law states `c + f => ...`, and we don't yet have any instances of `f` in the soup.
+So `c(123)` will remain in the soup for now, waiting at the reaction site.
+
+Next, we call the blocking emitter `f()`, which emits an instance of `f()` into the soup.
+Now the soup has both `c` and `f`.
+According to the semantics of blocking emitters, the calling process is blocked until a reaction involving `f` can start.
+
+At this point, we have such a reaction: this is `c + f => ...`.
+This reaction is ready to start since both its inputs, `c` and `f`, are now present.
+Nevertheless, the start of the reaction is concurrent with the process that calls `f`, and may occur somewhat later than the call to `f()`, depending on the CPU load.
+So, the call to `f()` will be blocked for some (hopefully short) time.
+
+Once the reaction starts, it will receive the value `n = 123` from the input molecule `c(123)`.
+Both `c(123)` and `f()` will be consumed by the reaction.
+The reaction will then call the reply emitter `reply(n)` with `n = 123`.
+At that time, the calling process will get unblocked and receive `123` as the return value of the function call `f()`.
+
+From the point of view of the reaction that consumes a blocking molecule, the reply action is a non-blocking (i.e. a very fast) function call, similar to emitting a non-blocking molecule.
+After replying, the reaction will continue running, evaluating whatever code follows the reply action.
+
+The newly unblocked process that received the reply value will run _concurrently_ with the reaction that replied.
+
+This is how the chemical machine implements blocking molecules.
+Blocking molecules work at once as [synchronizing barriers](https://en.wikipedia.org/wiki/Barrier_(computer_science)) and as channels of communication between processes.
+
+The syntax for the reply action makes it appear as if the molecule `f` carries _two_ values - its `Unit` value and a special `reply` function, and that the reaction body calls this `reply` function with an integer value.
+However, `f` is emitted with the syntax `f()` -- just as any other molecule with `Unit` value.
+The `reply` function appears only in the pattern-matching expression for `f` inside a reaction.
+We call `reply` the **reply emitter**.
+
+Blocking molecule emitters are values of type `B[T, R]`, while non-blocking molecule emitters have type `M[T]`.
+Here `T` is the type of value that the molecule carries, and `R` (for blocking molecules) is the type of the reply value.
+
+The reply emitter is of special type `ReplyValue[T, R]` that inherits the type of `R => Unit`.
+
+In general, the pattern-matching expression for a blocking molecule `g` of type `B[T, R]` has the form
 
 ```scala
-go { case c(x) + f(_, reply) => c(x) + reply(x) }
+{ case ... + g(v, r) + ... => ... }
+
+```
+The pattern variable `v` will match a value of type `T`.
+The pattern variable `r` will match the reply emitter, which is essentially a function of type `R => Unit`.
+
+Since `r` has a function type, users must match it with a simple pattern variable; it is an error to write any other pattern for the reply emitter.
+For clarity, we will usually name this pattern variable `reply` or `r`.
+
+## Example: Benchmarking the concurrent counter
+
+To illustrate the usage of non-blocking and blocking molecules, let us consider the task of _benchmarking_ the concurrent counter we have previously defined.
+The plan is to initialize the counter to a large value _N_, then to emit _N_ decrement molecules, and finally wait until the counter reaches the value 0.
+We will use a blocking molecule to wait until this happens and thus to determine the time elapsed during the countdown.
+
+Let us now extend the previous reaction site to implement this new functionality.
+The simplest solution is to define a blocking molecule `fetch`, which will react with the counter molecule only when the counter reaches zero.
+Since the `fetch()` molecule does not need to pass any data, we will define it as type `Unit` with a `Unit` reply.
+
+```scala
+val fetch = b[Unit, Unit]
 
 ```
 
-Calling `f()` returns the current value carried by `c`, just like the volatile reader does.
-However, the call `f()` may block for an unknown time if `c` has been consumed by a long-running reaction.
-Even if `c` is immediately available in the soup, running this reaction requires an extra scheduling operation.
-Volatile readers provide very fast read-only access to the values carried by singleton molecules.
+We can implement this reaction by using a guard in the `case` clause:
 
-The reason this feature is restricted to singletons is that it makes no sense to ask the molecule emitter `c` for the current value of its molecule if there are a thousand different copies of `c` emitted in the soup.
+```scala
+go { case fetch(_, reply) + counter(n) if n == 0  => reply() }
+
+```
+
+For more clarity, we can also use Scala's pattern matching facility to implement the same reaction like this:
+
+```scala
+go { case counter(0) + fetch(_, reply)  => reply() }
+
+```
+
+Here is the complete code:
+
+```scala
+import io.chymyst.jc._
+
+import java.time.LocalDateTime.now
+import java.time.temporal.ChronoUnit.MILLIS
+
+object C extends App {
+
+  // declare molecule types
+  val fetch = b[Unit, Unit]
+  val counter = m[Int]
+  val decr = m[Unit]
+
+  // declare reactions
+  site(
+    go { case counter(0) + fetch(_, reply)  => reply() },
+    go { case counter(n) + decr(_) => counter(n - 1) }
+  )
+
+  // emit molecules
+
+  val N = 10000
+  val initTime = now
+  counter(N)
+  (1 to N).foreach( _ => decr() )
+  fetch()
+  val elapsed = initTime.until(now, MILLIS)
+  println(s"Elapsed: $elapsed ms")
+}
+
+```
+
+Some remarks:
+
+- Molecules with unit values still require a pattern variable when used in the `case` construction.
+For this reason, we write `decr(_)` and `fetch(_, reply)` in the match patterns.
+However, these molecules can be emitted simply by calling `decr()` and `fetch()`.
+- We declare both reactions in one reaction site, because these two reactions share the input molecule `counter`.
+- Blocking molecules are like functions except that they will block as long as their reactions are unavailable.
+If the relevant reaction never starts, -- for instance, because some input molecules are missing, -- a blocking molecule will block forever.
+The runtime engine cannot detect this situation because it cannot determine whether the missing input molecules might become available in the near future.
+- If several reactions are available for the blocking molecule, one of these reactions will be selected at random.
+- Blocking molecule names are printed with the suffix `"/B"` in the debugging output.
+
+
+# Molecules and reactions in local scopes
+
+Since molecules and reactions are local values, they are lexically scoped within the block where they are defined.
+If we define molecules and reactions in the scope of an auxiliary function, or in the scope of a reaction body, these newly defined molecules and reactions will be encapsulated and protected from outside access.
+
+To illustrate this feature of the chemical paradigm, let us implement a function that defines a “concurrent counter” and initializes it with a given value.
+
+Our previous implementation of the concurrent counter has a drawback: The molecule `counter(n)` must be emitted by the user and remains globally visible.
+If the user emits two copies of `counter` with different values, the `counter + decr` and `counter + fetch` reactions will work unreliably, choosing between the two copies of `counter` at random.
+We would like to emit exactly one copy of `counter` and then prevent the user from emitting any further copies of that molecule.
+
+A solution is to define `counter` and its reactions within a function that returns the `decr` and `fetch` molecules to the outside scope.
+The `counter` emitter will not be returned to the outside scope, and so the user will not be able to emit extra copies of that molecule.
+
+```scala
+def makeCounter(initCount: Int): (M[Unit], B[Unit, Int]) = {
+  val counter = m[Int]
+  val decr = m[Unit]
+  val fetch = m[Unit, Int]
+
+  site(
+    go { counter(n) + fetch(_, r) => counter(n) + r(n)},
+    go { counter(n) + decr(_) => counter(n - 1) }
+  )
+  // emit exactly one copy of `counter`
+  counter(initCount)
+
+  // return these two emitters to the outside scope
+  (decr, fetch)
+}
+
+```
+
+The closure captures the emitter for the `counter` molecule and emits a single copy of that molecule.
+Users from other scopes cannot emit another copy of `counter` since the emitter is not visible outside the closure.
+In this way, it is guaranteed that one and only one copy of `counter` will be present in the soup.
+
+Nevertheless, the users receive the emitters `decr` and `fetch` from the closure.
+So the users can emit these molecules and start their reactions.
+
+The function `makeCounter` can be called like this:
+
+```scala
+val (d, f) = makeCounter(10000)
+d() + d() + d() // emit 3 decrement molecules
+val x = f() // fetch the current value
+
+```
+
+Also note that each invocation of `makeCounter()` will create new, fresh emitters `counter`, `decr`, and `fetch` inside the closure, because each invocation will create a fresh local scope and a new reaction site.
+In this way, the user can create as many independent counters as desired.
+Molecules defined in the scope of a certain invocation of `makeCounter()` will be chemically different from molecules defined in other invocations,
+since they will be bound to the fresh reaction site defined during the same invocation of `makeCounter()`.
+
+This example shows how we can encapsulate some molecules and yet use their reactions.
+A closure can define local reaction with several input molecules, emit some of these molecules initially, and return some (but not all) molecule emitters to the outer scope.
+
+## Example: implementing "First Result"
+
+Suppose we have two blocking molecules `f` and `g` that return a reply value.
+We would like to emit both `f` and `g` together and wait until a reply value is received from whichever molecule unblocks sooner.
+If the other molecule gets a reply later, we will just ignore that value.
+
+The result of this nondeterministic operation is the value of type `T` obtained from one of the molecules `f` and `g`, depending on which molecule got its reply first.
+
+Let us now implement this operation in `Chymyst`.
+We will derive the required chemistry by reasoning about the behavior of molecules.
+
+The task is to define a blocking molecule emitter `firstReply` that will unblock when `f` or `g` unblocks, whichever happens first.
+Let us assume for simplicity that both `f()` and `g()` return values of type `Int`.
+
+It is clear that we need to emit both `f()` and `g()` concurrently.
+But we cannot do this from one reaction, since `f()` will block and prevent us from emitting `g()`.
+Therefore we need two different reactions, one emitting `f()` and another emitting `g()`.
+
+These two reactions need some input molecules.
+These input molecules cannot be `f` and `g` since these two molecules are given to us, their chemistry is already fixed, and so we cannot add new reactions that consume them.
+Therefore, we need at least one new molecule that will be consumed to start these two reactions.
+However, if we declare the two reactions as `c() => f()` and `c() => g()` and emit two copies of `c()`, we are not guaranteed that both reactions will start.
+It is possible that two copies of the first reaction or two copies of the second reaction are started instead.
+In other words, there will be an _unavoidable nondeterminism_ in our chemistry.
+
+`Chymyst` will in fact detect this problem and generate an error:
+
+```scala
+val c = m[Unit]
+val f = b[Unit, Int]
+val g = b[Unit, Int]
+site(
+    go { case c(_) => val x = f(); ??? },
+    go { case c(_) => val x = g(); ??? }
+)
+
+```
+`java.lang.Exception: In Site{c => ...; c => ...}: Unavoidable nondeterminism:`
+`reaction c => ... is shadowed by c => ...`
+
+So, we need to define two _different_ molecules (say, `c` and `d`) as inputs for these two reactions.
+
+```scala
+val c = m[Unit]
+val d = m[Unit]
+val f = b[Unit, Int]
+val g = b[Unit, Int]
+site(
+    go { case c(_) => val x = f(); ??? },
+    go { case d(_) => val x = g(); ??? }
+)
+c() + d()
+
+```
+
+Since we have emitted both `c()` and `d()`, both reactions can now proceed concurrently.
+When one of them finishes and gets a reply value `x`, we would like to use that value for replying to our new blocking molecule `firstResult`.
+
+Can we reply to `firstResult` in the same reactions? This would require us to make `firstResult` an input molecule in each of these reactions.
+However, we will have only one copy of `firstResult` emitted.
+Having `firstResult` as input will therefore prevent both reactions from proceeding concurrently.
+
+Therefore, there must be some _other_ reaction that consumes `firstResult` and replies to it.
+This reaction must have the form
+
+```scala
+go { case firstResult(_, reply) + ??? => reply(x) }
+
+```
+
+In this reaction, we somehow need to obtain the value `x` that we will reply with.
+So we need a new auxiliary molecule, say `done(x)`, that will carry `x` on itself.
+The reaction with `firstResult` will then have the form
+
+```scala
+go { case firstResult(_, reply) + done(x) => reply(x) }
+
+```
+
+Now it is clear that the value `x` should be emitted on `done(x)` in both of the `c => ...` and `d => ...` reactions.
+The complete program looks like this:
+
+```scala
+val firstResult = b[Unit, Int]
+val c = m[Unit]
+val d = m[Unit]
+val f = b[Unit, Int]
+val g = b[Unit, Int]
+val done = m[Int]
+
+site(
+  go { case c(_) => val x = f(); done(x) },
+  go { case d(_) => val x = g(); done(x) }
+)
+site(
+  go { case firstResult(_, r) + done(x) => r(x) }
+)
+
+c() + d()
+val result = firstResult()
+
+```
+
+### Encapsulating chemistry in a function
+
+The code as written works but is not encapsulated -- in this code, we define new molecules and new chemistry inline.
+To remedy this, we can create a function that will return the `firstResult` emitter, given the emitters `f` and `g`.
+
+The idea is to define new chemistry in a _local scope_ and return a new molecule emitter.
+To make things more interesting, let us introduce a type parameter `T` for the result value of the given blocking molecules `f` and `g`.
+The code looks like this:
+
+```scala
+def makeFirstResult[T](f: B[Unit, T], g: B[Unit, T]): B[Unit, T] = {
+    // The same code as above, but now in a local scope.
+    val firstResult = b[Unit, T]
+    val c = m[Unit]
+    val d = m[Unit]
+    val f = b[Unit, Int]
+    val g = b[Unit, Int]
+    val done = m[Int]
+
+    site(
+      go { case c(_) => val x = f(); done(x) },
+      go { case d(_) => val x = g(); done(x) }
+    )
+    site(
+      go { case firstResult(_, r) + done(x) => r(x) }
+    )
+
+    c() + d()
+
+    // Return only the `firstResult` emitter:
+    firstResult
+}
+
+```
+
+The main advantage of this code is to encapsulate all the auxiliary molecule emitters within the local scope of the method `makeFirstResult()`.
+Only the `firstResult` emitter is returned:
+This is the only emitter that users of `makeFirstResult()` need.
+The other emitters (`c`, `d`, and `done`) are invisible to the users because they are local variables in the scope of `makeFirstResult`.
+Now the users of `makeFirstResult()` cannot inadvertently break the chemistry by emitting some further copies of `c`, `d`, or `done`.
+This is the hallmark of a successful encapsulation.
+
+## Example: Parallel Or
+
+We will now consider a task called “Parallel Or”; this is somewhat similar to the “first result” task considered above.
+
+The goal is to create a new blocking molecule `parallelOr` from two given blocking molecules `f` and `g` that return a reply value of `Boolean` type.
+We would like to emit both `f` and `g` together and wait until a reply value is received.
+The `parallelOr` should reply with `true` as soon as one of the blocking molecules `f` and `g` returns `true`.
+If both `f` and `g` return `false` then `parallelOr` will also return `false`.
+If both molecules `f` and `g` block (or one of them returns `false` while the other blocks) then `parallelOr` will block as well.
+
+We will now implement this operation in `Chymyst`.
+Our task is to define the necessary molecules and reactions that will simulate the desired behavior.
+
+Let us recall the logic we used when reasoning about the "First Result" problem.
+We will again need two non-blocking molecules `c` and `d` that will emit `f` and `g` concurrently.
+We begin by writing the two reactions that consume `c` and `d`:
+
+```scala
+val c = m[Unit]
+val d = m[Unit]
+val f = b[Unit, Boolean]
+val g = b[Unit, Boolean]
+
+site(
+  go { case c(_) => val x = f(); ??? },
+  go { case d(_) => val y = g(); ??? }
+)
+c() + d()
+
+```
+
+Now, the Boolean values `x` and `y` could appear in any order (or not at all).
+We need to implement the logic of receiving these values and computing the final result value.
+This final result must sit on some molecule, say `result`.
+We should keep track of whether we already received both `x` and `y`, or just one of them.
+
+When we receive a `true` value, we are done.
+So, we only need to keep track of the number of `false` values received.
+Therefore, let us define `result` with integer value that shows how many intermediate `false` results we already received.
+
+The next step is to communicate the values of `x` and `y` to the reaction that updates the `result` value.
+For this, we can use a non-blocking molecule `done` and write reactions like this:
+
+```scala
+site(
+  go { case c(_) => val x = f(); done(x) },
+  go { case d(_) => val y = g(); done(y) },
+  go { case result(n) + done(x) => result(n + 1) }
+)
+c() + d() + result(0)
+
+```
+
+The effect of this chemistry is that `result`'s value will get incremented whenever one of `f` or `g` returns.
+This is not yet what we need, but we are getting closer.
+
+What remains is to implement the required logic:
+When `result` receives a `true` value, it should return `true` as a final answer, regardless of how many answers it received.
+When `result` receives a `false` value twice, it should return `false` as a final answer.
+Otherwise, there is no final answer yet.
+
+We are required to deliver the final answer as a reply to the `parallelOr` molecule.
+It is clear that `parallelOr` cannot be reacting with the `result` molecule -- this would prevent the `result + done => result` reaction from running.
+Therefore, `parallelOr` needs to react with _another_ auxiliary molecule, say `finalResult`.
+There is only one way of defining this kind of reaction,
+
+```scala
+go { case parallelOr(_, r) + finalResult(x) => r(x) }
+
+```
+
+Now it is clear that the problem will be solved if we emit `finalResult` only when we actually have the final answer.
+This can be done from the `result + done => result` reaction, which we modify as follows:
+
+```scala
+go { case result(n) + done(x) =>
+        if (x == true) finalResult(true)
+        else if (n == 1) finalResult(false)
+        else result(n + 1)
+   }
+
+```
+
+To make the chemistry clearer, we may rewrite this reaction as three reactions with conditional pattern matching:
+
+```scala
+site(
+  go { case result(1) + done(false) => finalResult(false) },
+  go { case result(0) + done(false) => result(1) },
+  go { case result(_) + done(true)  => finalResult(true) }
+)
+
+```
+
+Here is the complete code for `parallelOr`, where we have separated the reactions in three independent reaction sites.
+
+```scala
+val c = m[Unit]
+val d = m[Unit]
+val done = m[Boolean]
+val result = m[Int]
+val finalResult = m[Boolean]
+val f = b[Unit, Boolean]
+val g = b[Unit, Boolean]
+val parallelOr = b[Unit, Boolean]
+
+site(
+  go { case parallelOr(_, r) + finalResult(x) => r(x) }
+)
+site(
+  go { case result(1) + done(false) => finalResult(false) },
+  go { case result(0) + done(false) => result(1) },
+  go { case result(_) + done(true)  => finalResult(true) }
+)
+site(
+  go { case c(_) => val x = f(); done(x) },
+  go { case d(_) => val y = g(); done(y) }
+)
+
+c() + d() + result(0)
+
+```
+
+As an exercise, the reader should now try to encapsulate the `parallelOr` operation into a function.
+(This is done in the tests in `ParallelOrSpec.scala`.)
+
+Another exercise: Implement `parallelOr` for _three_ blocking emitters (say, `f`, `g`, `h`).
+The `parallelOr` emitter should return `true` whenever one of these emitters returns `true`; it should return `false` if _all_ of them return `false`; and it should block otherwise.
+
+## Errors with blocking molecules
+
+Each blocking molecule must receive one (and only one) reply.
+It is an error if a reaction consumes a blocking molecule but does not reply.
+It is also an error to reply again after a reply was made.
+
+Errors of this type are caught at compile time:
+
+```scala
+val f = b[Unit, Int]
+val c = m[Int]
+site( go { case f(_,r) + c(n) => c(n + 1) } ) // forgot to reply!
+// compile-time error: "blocking input molecules should receive a reply but no unconditional reply found"
+
+site( go { case f(_,r) + c(n) => c(n + 1) + r(n) + r(n) } ) // replied twice!
+// compile-time error: "blocking input molecules should receive one reply but possibly multiple replies found"
+
+```
+
+The reply could depend on a run-time condition, which is impossible to evaluate at compile time.
+In this case, a reaction must use an `if` expression that calls the reply emitter in each branch.
+It is an error if a reply is emitted in only one of the `if` branches:
+
+```scala
+val f = b[Unit, Int]
+val c = m[Int]
+site( go { case f(_,r) + c(n) => c(n + 1); if (n != 0) r(n) } )
+// compile-time error: "blocking input molecules should receive a reply but no unconditional reply found"
+
+```
+
+A correct reaction could look like this:
+
+```scala
+val f = b[Unit, Int]
+val c = m[Int]
+site( go { case f(_,r) + c(n) => c(n + 1); if (n != 0) r(n) else r(0) } )
+// reply is always sent, regardless of the value of `n`
+
+```
+
+Finally, a reaction's body could throw an exception before emitting a reply.
+In this case, compile-time analysis will not show that there is a problem.
+The chemical machine will detect the missing reply at runtime and throw an additional exception in the thread that emits `f()`:
+
+```scala
+val f = b[Unit, Int]
+val c = m[Int]
+site( go { case f(_,r) + c(n) => c(n + 1); if (n == 0) throw new Exception("error!"); r(n) } )
+c(0)
+f()
+
+```
+
+`java.lang.Exception: Error: In Site{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B`
+
+Generally, whenever some blocking molecules have received no reply by the time the reaction body finished evaluating,
+this exception will be thrown in all threads that are still waiting for replies, unblocking all those threads.
+This feature is designed to reduce deadlocks.
+
+In our example, the additional exception will be thrown only when reaction actually starts and the run-time condition `n == 0` is evaluated to `true`.
+It may not be easy to design unit tests for this condition.
+
+Also, if the blocking molecules are emitted from some reactions, exceptions occurring on those reactions will not necessarily immediately visible.
+
+For these reasons, it is not easy to catch errors of this type, either at compile time or at run time.
+
+To avoid these problems, it is advisable to design the chemistry such that each reply is guaranteed to be emitted exactly once,
+and that no exceptions can be thrown before emitting the reply.
+If a condition is required before sending a reply, it should be a simple condition that is guaranteed not to throw an exception.
