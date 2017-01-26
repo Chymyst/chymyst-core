@@ -443,11 +443,16 @@ The user needs to employ `BlockingIdle` explicitly only when a reaction contains
 Example:
 
 ```scala
-... go { case a(url) + b(_) =>
-      val result = BlockingIdle { callSyncHttpApi(url) }
+val pool = new SmartPool(8)
+
+... 
+
+site(pool, defaultSitePool)(
+  go { case a(url) + b(client) =>
+      val result = BlockingIdle { client.callSyncHttpApi(url) }
       c(result)
     }
-
+)
 ```
 
 Another case when `BlockingIdle` might be useful is when a reaction contains a complicated condition that will block the RS decision thread.
@@ -456,10 +461,12 @@ In that case, `BlockingIdle` should be used, together with a `SmartPool` for joi
 Example:
 
 ```scala
-val pool = new SmartPool(8)
-  ...
-site(pool, defaultReactionPool)(
-  go { case a(url) if BlockingIdle { callSyncHttpApi(url).isSuccessful } => ...}
+val pool = new SmartPool(2)
+
+...
+
+site(defaultReactionPool, pool)(
+  go { case a(url) + b(client) if BlockingIdle { client.callSyncHttpApi(url).isSuccessful } => ...}
 )
 
 ```
