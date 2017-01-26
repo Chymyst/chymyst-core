@@ -95,15 +95,14 @@ sealed trait Molecule extends PersistentHashCode {
     *
     * @param rs A reaction site.
     * @return `None` if the molecule is not bound to any reaction site, or if it is bound to `rs`.
-    *         If the molecule is already bound to a reaction site different from `rs`, return
+    *         Otherwise the molecule is already bound to a reaction site different from `rs`, so return
     *         the string representation of that reaction site as a non-empty option.
     */
-  final private[jc] def isBoundToAnother(rs: ReactionSite): Option[String] = if (isBound) {
-    if (reactionSiteWrapper.sameReactionSite(rs))
-      None
-    else
-      Some(reactionSiteWrapper.toString)
-  } else None
+  final private[jc] def isBoundToAnother(rs: ReactionSite): Option[String] =
+  if (isBound && !reactionSiteWrapper.sameReactionSite(rs))
+    Some(reactionSiteWrapper.toString)
+  else
+    None
 
   protected var reactionSiteWrapper: ReactionSiteWrapper[_, _] = ReactionSiteWrapper.noReactionSite(this)
 
