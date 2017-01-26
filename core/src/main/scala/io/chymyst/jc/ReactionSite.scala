@@ -7,16 +7,6 @@ import StaticAnalysis._
 
 import scala.annotation.tailrec
 
-private[jc] sealed trait ReactionSiteWrapper {
-  def logSoup: String
-  def setLogLevel(level: Int): Unit
-  def singletonsDeclared: List[Molecule]
-  def emit(m: Molecule, v: AbsMolValue[_]): Unit
-  // also need emitAndAwaitWithTimeout, emitAndAwaitReply
-  def reactionInfos: List[ReactionInfo]
-
-}
-
 /** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
   * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
   * The user will never see any instances of this class.
@@ -27,6 +17,25 @@ private[jc] sealed trait ReactionSiteWrapper {
   */
 private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool, sitePool: Pool) {
 
+  /** Create a wrapper class instance, to be given to each molecule bound to this reaction site.
+    *
+    * @param molecule The calling molecule.
+    * @tparam T The type of value carried by that molecule.
+    * @tparam R The type of reply value for that molecule. If the molecule is non-blocking, `R` is set to `Unit`.
+    * @return A new instance of [[ReactionSiteWrapper]] given to that molecule.
+    */
+  def makeWrapper[T, R](molecule: Molecule): ReactionSiteWrapper[T, R] = new ReactionSiteWrapper[T, R](
+    toString,
+    logSoup = () => printBag,
+    setLogLevel = { level => logLevel = level },
+    singletonsDeclared.keys.toList,
+    emit = (mol, molValue) => emit[T](mol, molValue),
+    emitAndAwaitReply = (mol, molValue, replyValue) => emitAndAwaitReply(mol, molValue, replyValue),
+    emitAndAwaitReplyWithTimeout = (timeout, mol, molValue, replyValue) => emitAndAwaitReplyWithTimeout(timeout, mol, molValue, replyValue),
+    consumingReactions = reactionInfos.keys.filter(_.inputMoleculesSet contains molecule).toList,
+    sameReactionSite = _ === this
+  )
+
   private val (nonSingletonReactions, singletonReactions) = reactions.partition(_.inputMolecules.nonEmpty)
 
   /** The table of statically declared singleton molecules and their multiplicities.
@@ -34,16 +43,16 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * This list may be incorrect if the singleton reaction code emits molecules conditionally or emits many copies.
     * So, the code (1 to 10).foreach (_ => singleton() ) will put (singleton -> 1) into `singletonsDeclared` but (singleton -> 10) into `singletonsEmitted`.
     */
-  private val singletonsDeclared: Map[Molecule, Int] =
-    singletonReactions.map(_.info.outputs)
-      .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
-      .groupBy(identity)
-      .mapValues(_.size)
+  private val singletonsDeclared: Map[Molecule, Int] = singletonReactions.map(_.info.outputs)
+    .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
+    .groupBy(identity)
+    .mapValues(_.size)
 
   /** Complete information about reactions declared in this reaction site.
     * Singleton-declaring reactions are not included here.
     */
-  private val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonSingletonReactions.map { r => (r, r.info.inputs) }(scala.collection.breakOut)
+  private val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonSingletonReactions
+    .map { r => (r, r.info.inputs) }(scala.collection.breakOut)
 
   // TODO: implement
   //  private val quiescenceCallbacks: mutable.Set[E] = mutable.Set.empty
@@ -79,7 +88,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           if (oldCount + 1 > maxCount) throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) having current count $oldCount, max count $maxCount")
 
           // OK, we can proceed to emit this singleton molecule.
-          // Assign the volatile value.
+          // Assign the volatile value. We don't have its type here, so we downcast to M[_].
           m.asInstanceOf[M[_]].assignSingletonVolatileValue(molValue)
         }
 
@@ -251,10 +260,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private def findReaction(m: Molecule, molValue: AbsMolValue[_]): Option[(Reaction, InputMoleculeList)] = {
-    m.consumingReactionsSet
-      .shuffle // The shuffle will ensure fairness across reactions.
-      // We only need to find one reaction whose input molecules are available. For this, we use the special `Core.findAfterMap`.
-      .findAfterMap(_.findInputMolecules(m, molValue, moleculesPresent))
+    m.consumingReactions.flatMap(r =>
+      r.shuffle // The shuffle will ensure fairness across reactions.
+        // We only need to find one reaction whose input molecules are available. For this, we use the special `Core.findAfterMap`.
+        .findAfterMap(_.findInputMolecules(m, molValue, moleculesPresent))
+    )
   }
 
   private[jc] def checkSingletonPermissionToEmit(m: Molecule): Either[String, Unit] = for {
@@ -371,9 +381,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       .flatMap(_.inputMolecules)
       .toSet // We only need to assign the owner on each distinct input molecule once.
       .foreach { m: Molecule =>
-      m.reactionSiteOpt match {
-        case Some(owner) => if (owner =!= this) throw new ExceptionMoleculeAlreadyBound(s"Molecule $m cannot be used as input in $this since it is already bound to $owner")
-        case None => m.reactionSiteOpt = Some(this)
+      m.isBoundToAnother(this) match {
+        case Some(otherRS) =>
+          throw new ExceptionMoleculeAlreadyBound(s"Molecule $m cannot be used as input in $this since it is already bound to $otherRS")
+        case None => m.setReactionSite(this)
       }
     }
 
@@ -451,3 +462,36 @@ private[jc] final class ExceptionNoWrapper(message: String) extends ExceptionInC
 private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInChymyst(message)
 
 private[jc] final class ExceptionNoSingleton(message: String) extends ExceptionInChymyst(message)
+
+/** Molecules do not have direct access to the reaction site object.
+  * Molecules will call only functions from this wrapper.
+  */
+private[jc] final class ReactionSiteWrapper[T, R](
+                                                   override val toString: String,
+                                                   val logSoup: () => String,
+                                                   val setLogLevel: Int => Unit,
+                                                   val singletonsDeclared: List[Molecule],
+                                                   val emit: (Molecule, AbsMolValue[T]) => Unit,
+                                                   val emitAndAwaitReply: (B[T, R], T, AbsReplyValue[T, R]) => R,
+                                                   val emitAndAwaitReplyWithTimeout: (Long, B[T, R], T, AbsReplyValue[T, R]) => Option[R],
+                                                   val consumingReactions: List[Reaction],
+                                                   val sameReactionSite: ReactionSite => Boolean
+                                                 )
+
+private[jc] object ReactionSiteWrapper {
+  def noReactionSite[T, R](m: Molecule): ReactionSiteWrapper[T, R] = {
+    def exception: Nothing = throw new ExceptionNoReactionSite(s"Molecule $m is not bound to any reaction site")
+
+    new ReactionSiteWrapper(
+      toString = "",
+      logSoup = () => exception,
+      setLogLevel = _ => exception,
+      singletonsDeclared = Nil,
+      emit = (_: Molecule, _: AbsMolValue[T]) => exception,
+      emitAndAwaitReply = (_: B[T, R], _: T, _: AbsReplyValue[T, R]) => exception,
+      emitAndAwaitReplyWithTimeout = (_: Long, _: B[T, R], _: T, _: AbsReplyValue[T, R]) => exception,
+      consumingReactions = Nil,
+      sameReactionSite = _ => exception
+    )
+  }
+}
