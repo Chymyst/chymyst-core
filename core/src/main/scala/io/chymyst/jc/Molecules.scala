@@ -82,33 +82,43 @@ sealed trait Molecule extends PersistentHashCode {
 
   override def toString: String = (if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "")
 
+  private[jc] def setReactionSite(rs: ReactionSite): Unit
+
   /** Check whether the molecule is already bound to a reaction site.
     * Note that molecules can be emitted only if they are bound.
     *
     * @return True if already bound, false otherwise.
     */
-  final def isBound: Boolean = reactionSiteOpt.nonEmpty
+  final def isBound: Boolean = hasReactionSite
 
-  // This is @volatile because the reaction site will assign this variable possibly from another thread.
-  @volatile private[jc] var reactionSiteOpt: Option[ReactionSite] = None
-
-  /** A shorthand method to get the reaction site to which this molecule is bound.
-    * This method should be used only when we are sure that the molecule is already bound.
+  /** Check whether this molecule is already bound to a reaction site that's different from the given reaction site.
     *
-    * @return The reaction site to which the molecule is bound. If not yet bound, throws an exception.
+    * @param rs A reaction site.
+    * @return `None` if the molecule is not bound to any reaction site, or if it is bound to `rs`.
+    *         Otherwise the molecule is already bound to a reaction site different from `rs`, so return
+    *         the string representation of that reaction site as a non-empty option.
     */
-  final private[jc] def site: ReactionSite =
-    reactionSiteOpt.getOrElse(throw new ExceptionNoReactionSite(s"Molecule $this is not bound to any reaction site"))
+  final private[jc] def isBoundToAnother(rs: ReactionSite): Option[String] =
+  if (isBound && !reactionSiteWrapper.sameReactionSite(rs))
+    Some(reactionSiteWrapper.toString)
+  else
+    None
+
+  protected var reactionSiteWrapper: ReactionSiteWrapper[_, _] = ReactionSiteWrapper.noReactionSite(this)
+
+  protected var hasReactionSite: Boolean = false
 
   /** The set of reactions that can consume this molecule.
     *
     * @return `None` if the molecule emitter is not yet bound to any reaction site.
     */
-  final private[jc] def consumingReactions: Option[List[Reaction]] =
-    reactionSiteOpt.map(_ => consumingReactionsSet)
+  final private[jc] def consumingReactions: Option[List[Reaction]] = if (isBound)
+    Some(reactionSiteWrapper.consumingReactions)
+  else None
 
-  final private[jc] lazy val consumingReactionsSet: List[Reaction] =
-    reactionSiteOpt.get.reactionInfos.keys.filter(_.inputMoleculesSet contains this).toList
+  // Not using this now?
+  // TODO remove
+  //    throw new ExceptionNoReactionSite(s"Molecule $this is not bound to any reaction site")
 
   /** The set of all reactions that *potentially* emit this molecule as output.
     * Some of these reactions may evaluate a runtime condition to decide whether to emit the molecule; so emission is not guaranteed.
@@ -120,7 +130,7 @@ sealed trait Molecule extends PersistentHashCode {
     */
   final private[jc] def emittingReactions: Set[Reaction] = emittingReactionsSet.toSet
 
-  final private val emittingReactionsSet: mutable.Set[Reaction] = mutable.Set()
+  private val emittingReactionsSet: mutable.Set[Reaction] = mutable.Set()
 
   // This is called by the reaction site only during the initial setup. Once the reaction site is activated, the set of emitting reactions will never change.
   final private[jc] def addEmittingReaction(r: Reaction): Unit = {
@@ -128,10 +138,9 @@ sealed trait Molecule extends PersistentHashCode {
     ()
   }
 
-  final def setLogLevel(logLevel: Int): Unit =
-    site.logLevel = logLevel
+  final def setLogLevel(logLevel: Int): Unit = reactionSiteWrapper.setLogLevel(logLevel)
 
-  final def logSoup: String = site.printBag
+  final def logSoup: String = reactionSiteWrapper.logSoup()
 
   val isBlocking: Boolean
 
@@ -156,7 +165,7 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
     *
     * @param v Value to be put onto the emitted molecule.
     */
-  def apply(v: T): Unit = site.emit[T](this, MolValue(v))
+  def apply(v: T): Unit = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, Unit]].emit(this, MolValue(v))
 
   def apply()(implicit ev: TypeIsUnit[T]): Unit = apply(ev.getUnit)
 
@@ -165,22 +174,25 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
     *
     * @return The value carried by the singleton when it was last emitted. Will throw exception if the singleton has not yet been emitted.
     */
-  def volatileValue: T = reactionSiteOpt match {
-    case Some(reactionSite) =>
-      if (isSingleton)
-        volatileValueContainer
-      else throw new Exception(s"In $reactionSite: volatile reader requested for non-singleton ($this)")
-
-    case None => throw new Exception("Molecule c is not bound to any reaction site")
+  def volatileValue: T = if (isBound) {
+    if (isSingleton)
+      volatileValueContainer
+    else throw new Exception(s"In $reactionSiteWrapper: volatile reader requested for non-singleton ($this)")
   }
+  else throw new Exception("Molecule c is not bound to any reaction site")
 
   private[jc] def assignSingletonVolatileValue(molValue: AbsMolValue[_]) =
     volatileValueContainer = molValue.asInstanceOf[MolValue[T]].getValue
 
   @volatile private var volatileValueContainer: T = _
 
-  override lazy val isSingleton: Boolean =
-    reactionSiteOpt.exists(_.singletonsDeclared.contains(this))
+  override lazy val isSingleton: Boolean = isBound &&
+    reactionSiteWrapper.singletonsDeclared.contains(this)
+
+  override private[jc] def setReactionSite(rs: ReactionSite): Unit = {
+    hasReactionSite = true
+    reactionSiteWrapper = rs.makeWrapper[T, Unit](this)
+  }
 
 }
 
@@ -357,8 +369,8 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     * @param v        Value to be put onto the emitted molecule.
     * @return Non-empty option if the reply was received; None on timeout.
     */
-  def timeout(v: T)(duration: Duration): Option[R] =
-    site.emitAndAwaitReplyWithTimeout[T, R](duration.toNanos, this, v, new ReplyValue[T, R])
+  def timeout(v: T)(duration: Duration): Option[R] = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, R]]
+    .emitAndAwaitReplyWithTimeout(duration.toNanos, this, v, new ReplyValue[T, R])
 
   /** Same but for molecules with type `T = Unit`, with shorter syntax. */
   def timeout()(duration: Duration)(implicit ev: TypeIsUnit[T]): Option[R] = timeout(ev.getUnit)(duration)
@@ -369,19 +381,26 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     * @return None if there was no match; Some(...) if the reaction inputs matched.
     */
   def unapply(arg: InputMoleculeList): Option[(T, ReplyValue[T, R])] =
-    arg.headOption
-      .map(_._2.asInstanceOf[BlockingMolValue[T, R]])
-      .map { bmv => (bmv.v, bmv.replyValue.asInstanceOf[ReplyValue[T, R]]) }
+  arg.headOption
+    .map(_._2.asInstanceOf[BlockingMolValue[T, R]])
+    .map { bmv => (bmv.v, bmv.replyValue.asInstanceOf[ReplyValue[T, R]]) }
 
   /** Emit a blocking molecule and receive a value when the reply action is performed.
     *
     * @param v Value to be put onto the emitted molecule.
     * @return The "reply" value.
     */
-  def apply(v: T): R = site.emitAndAwaitReply[T, R](this, v, new ReplyValue[T, R])
+  def apply(v: T): R = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, R]]
+    .emitAndAwaitReply(this, v, new ReplyValue[T, R])
 
   /** This enables the short syntax `b()` and will only work when `T == Unit`. */
   def apply()(implicit ev: TypeIsUnit[T]): R = apply(ev.getUnit)
+
+  override private[jc] def setReactionSite(rs: ReactionSite): Unit = {
+    hasReactionSite = true
+    reactionSiteWrapper = rs.makeWrapper[T, R](this)
+  }
+
 }
 
 /** Mix this trait into your class to make the has code persistent after the first time it's computed.

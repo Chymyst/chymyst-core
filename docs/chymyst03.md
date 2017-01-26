@@ -19,7 +19,7 @@ This feature is realized in the chemical machine with help of **blocking molecul
 Just like non-blocking molecules, a blocking molecule carries a value and can be emitted into the soup.
 However, there are two major differences:
 
-- emitting a blocking molecule is a function call that returns a **reply value** of a fixed type;
+- emitting a blocking molecule is a function call that returns a **reply value** of a fixed type, rather than `Unit`;
 - emitting a blocking molecule will block the emitting reaction or thread, until some reaction consumes the blocking molecule and sends the reply value.
 
 Here is an example of declaring a blocking molecule:
@@ -32,7 +32,14 @@ val f = b[Unit, Int]
 The blocking molecule `f` carries a value of type `Unit`; the reply value is of type `Int`.
 We can choose these types at will.
 
-Emission of a blocking molecule will be handled by the runtime engine in a special way:
+This is how we can emit the blocking molecule `f` and wait for the reply:
+
+```scala
+val x: Int = f() // blocking emitter
+
+```
+
+Emission of a blocking molecule is handled by the chemical machine in a special way:
 
 1. The emission call, such as `f(x)`, will insert a new copy of the `f(x)` molecule into the soup.
 2. The emitting process, which can be another reaction body or any other code, will be blocked at least until some reaction consumes the newly emitted copy of `f(x)`.
@@ -44,7 +51,7 @@ We call this feature the **reply action**.
 
 Here is an example showing the `Chymyst` syntax for the reply action.
 Suppose we have a reaction that consumes a non-blocking molecule `c` with an integer value and the blocking molecule `f` defined above.
-We would like the blocking molecule to return the integer value that `c` carries:
+We would like to use the blocking molecule in order to fetch the integer value that `c` carries:
 
 ```scala
 val f = b[Unit, Int]
@@ -52,7 +59,7 @@ val c = m[Int]
 
 site( go { case c(n) + f(_ , reply) => reply(n) } )
 
-c(123) // emit an instance of `c` with value 123
+c(123) // emit a molecule `c` with value 123
 
 val x = f() // now x = 123
 
@@ -79,17 +86,16 @@ The reaction will then call the reply emitter `reply(n)` with `n = 123`.
 At that time, the calling process will get unblocked and receive `123` as the return value of the function call `f()`.
 
 From the point of view of the reaction that consumes a blocking molecule, the reply action is a non-blocking (i.e. a very fast) function call, similar to emitting a non-blocking molecule.
+
 After replying, the reaction will continue running, evaluating whatever code follows the reply action.
+The newly unblocked process that received the reply value will continue to run _concurrently_ with the reaction that replied.
 
-The newly unblocked process that received the reply value will run _concurrently_ with the reaction that replied.
-
-This is how the chemical machine implements blocking molecules.
-Blocking molecules work at once as [synchronizing barriers](https://en.wikipedia.org/wiki/Barrier_(computer_science)) and as channels of communication between processes.
+We see that blocking molecules work at once as [synchronizing barriers](https://en.wikipedia.org/wiki/Barrier_(computer_science)) and as channels of communication between processes.
 
 The syntax for the reply action makes it appear as if the molecule `f` carries _two_ values - its `Unit` value and a special `reply` function, and that the reaction body calls this `reply` function with an integer value.
 However, `f` is emitted with the syntax `f()` -- just as any other molecule with `Unit` value.
 The `reply` function appears only in the pattern-matching expression for `f` inside a reaction.
-We call `reply` the **reply emitter**.
+We call `reply` the **reply emitter** because its use is a side-effect, similar to emitting a non-blocking molecule.
 
 Blocking molecule emitters are values of type `B[T, R]`, while non-blocking molecule emitters have type `M[T]`.
 Here `T` is the type of value that the molecule carries, and `R` (for blocking molecules) is the type of the reply value.
