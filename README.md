@@ -1,3 +1,4 @@
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/7787b37563a94dc19de732f580283f38)](https://www.codacy.com/app/winitzki/joinrun-scala?utm_source=github.com&utm_medium=referral&utm_content=Chymyst/joinrun-scala&utm_campaign=badger)
 [![Join the chat at https://gitter.im/joinrun-scala/Lobby](https://badges.gitter.im/joinrun-scala/Lobby.svg)](https://gitter.im/joinrun-scala/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/Chymyst/joinrun-scala.svg?branch=master)](https://travis-ci.org/Chymyst/joinrun-scala)
 [![Coverage Status](https://codecov.io/gh/Chymyst/joinrun-scala/coverage.svg?branch=master)](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master)
