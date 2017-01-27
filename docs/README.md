@@ -6,8 +6,8 @@
 based on the **chemical machine** paradigm, also known as [Join Calculus](https://en.wikipedia.org/wiki/Join-calculus).
 The chemical machine concurrency paradigm has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) or [the Actor model](https://en.wikipedia.org/wiki/Actor_model).
 
-`Chymyst Core` is a library that implements the high-level concurrency primitives as a domain-specific language in Scala.
-`Chymyst` is a framework-in-planning that will build upon `Chymyst Core` and bring declarative concurrency to practical applications.
+[`Chymyst Core`](https://github.com/Chymyst/joinrun-scala) is a library that implements the high-level concurrency primitives as a domain-specific language in Scala.
+[`Chymyst`](https://github.com/Chymyst/Chymyst) is a framework-in-planning that will build upon `Chymyst Core` and bring declarative concurrency to practical applications.
 
 The code of `Chymyst Core` is based on previous Join Calculus implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
