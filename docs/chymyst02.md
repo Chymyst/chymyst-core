@@ -1,12 +1,206 @@
 <link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
 
-# Example: Concurrent map/reduce
+# Chemical machine programming: first examples
 
 The chemical machine can be programmed to perform arbitrary concurrent computations.
 However, it is not immediately obvious what molecules and reactions must be defined, say, to implement a concurrent buffered queue or a concurrent merge-sort algorithm.
 Another interesting application would be a concurrent GUI interaction together with some jobs in the background.
+
 Solving these problems via chemistry requires a certain paradigm shift.
 In order to build up our chemical intuition, let us go through some more examples.
+
+## Example: "Readers/Writers"
+
+There is a resource that can be accessed by a number of Readers and a number of Writers.
+We require that either one Writer or up to three Readers be able to access the resource concurrently.
+To simplify our example, we assume that "accessing a resource" means calling a function `readResource()` for Readers and `writeResource()` for Writers.
+
+Let us begin reasoning about this problem in the chemical machine paradigm, deriving the solution in a systematic way.
+
+We need to have control over code that calls certain functions.
+The only way a chemical machine can run any code is though reactions.
+Therefore, we need a reaction that will call `readResource()` and a reaction that will call `writeResource()`.
+We also need to define some input molecules that will start these reactions.
+Let us call these molecules `read` and `write` respectively:
+
+```scala
+val read = m[Unit]
+val write = m[Unit]
+site(
+  go { case read(_) => readResource(); ??? },
+  go { case write(_) => writeResource(); ??? }
+)
+
+```
+
+Processes will emit `read()` or `write()` when they need to access the resource as readers or as writers.
+
+Now, we actually need to prevent these reactions from starting in certain circumstances.
+The only way to prevent a reaction from starting is to withhold some of its input molecules.
+Therefore, the two reactions we just discussed need to have _another_ input molecule.
+We could do this:
+
+```scala
+val read = m[Unit]
+val write = m[Unit]
+val access = m[Unit]
+site(
+  go { case read(_) + access(_) => readResource(); ??? },
+  go { case write(_) + access(_) => writeResource(); ??? }
+)
+access() // Emit at the beginning.
+
+```
+
+In this chemistry, a single `access()` molecule will allow one Reader or one Writer to proceed with its work.
+However, after the work is done, the `access()` molecule will be gone, and no reactions will start.
+To remedy this, we emit `access()` at the end of both reactions:
+
+```scala
+val read = m[Unit]
+val write = m[Unit]
+val access = m[Unit]
+site(
+  go { case read(_) + access(_) => readResource(); access() },
+  go { case write(_) + access(_) => writeResource(); access() }
+)
+access() // Emit at the beginning.
+
+```
+
+This implements Readers/Writers with single access.
+How can we enable 3 Readers to access the resource simultaneously?
+We could emit 3 copies of `access()` at the beginning of the program run.
+However, this will allow up to 3 Writers to access the resource.
+We would like to make it so that three Reader's accesses are equivalent to one Writer's access.
+
+One way of doing this is literally to replace the single `access` molecule with three copies of `access` in Writer's reaction: 
+
+```scala
+val read = m[Unit]
+val write = m[Unit]
+val access = m[Unit]
+site(
+  go { case read(_) + access(_) => readResource(); access() },
+  go { case write(_) + access(_) + access() + access() =>
+    writeResource(); access() + access() + access()
+  }
+)
+access() + access() + access() // Emit at the beginning.
+
+```
+
+This chemistry works as required.
+Any number of `read()` and `write()` molecules can be emitted, but the reactions will start only if sufficient `access()` molecules are present.
+
+### Generalizing Readers:Writers ratio to `n`:`1`
+
+Our solution works but has a drawback: it cannot be generalized from 3 to `n` Reader accesses, where `n` is a runtime parameter.
+This is because we cannot write a reaction with `n` input molecules, where `n` is not known at compile time.
+
+The only way to overcome this drawback is to be able to count explicitly how many Readers have been granted access at any time.
+In the chemical machine, the only way to keep state is through values carried by molecules.
+Therefore, we need a molecule that carries the reader count.
+The easiest solution is to make `access()` carry an integer `k`, representing the number of Readers that have been granted access.
+Initially we will have `k == 0`.
+We will allow a `Writer` to have access only when `k == 0`, and a `Reader` to have access only when `k < 3`.
+
+As a first try, our reactions might look like this:
+
+```scala
+val read = m[Unit]
+val write = m[Unit]
+val access = m[Int]
+val n = 3 // can be a runtime parameter
+site(
+  go { case read(_) + access(k) if k < n => readResource(); access(k + 1) },
+  go { case write(_) + access(0) => writeResource(); access(0) }
+)
+access(0) // Emit at the beginning.
+
+```
+
+The Writer reaction will now start only when `k == 0`, that is, no Readers are currently reading the resource.
+The Reader reaction, however, does not work correctly for two reasons:
+ 
+- It consumes the `access()` molecule for the entire duration of the `readResource()` call, preventing any other Readers from accessing the resource.
+- After `readResource()` is finished, the reaction emits `access(k + 1)`, which incorrectly signals that now one more Reader is accessing the resource.
+
+The first problem can be fixed by emitting `access(k + 1)` at the beginning of the reaction, before `readResource()` is called:
+
+```scala
+go { case read(_) + access(k) if k < n => access(k + 1); readResource() }
+
+```
+
+However, the second problem remains.
+After `readResource()` is finished, we need to decrement the current value of `k`.
+
+The only way of doing this in the chemical machine is to _add another reaction_ such as
+ 
+```scala
+go { case finished(_) + access(k) => access(k - 1) }
+ 
+```
+
+The new `finished()` molecule will be emitted at the end of the Reader reaction.
+The complete working code looks like this:
+
+```scala
+val read = m[Unit]
+val write = m[Unit]
+val access = m[Int]
+val finished = m[Unit]
+val n = 3 // can be a runtime parameter
+site(
+  go { case read(_) + access(k) if k < n => 
+    access(k + 1)
+    readResource()
+    finished()
+  },
+  go { case write(_) + access(0) => writeResource(); access(0) },
+  go { case finished(_) + access(k) => access(k - 1) }
+)
+access(0) // Emit at the beginning.
+
+```
+
+As an exercise: Modify this program to allow `m` simultaneous Writers to access the resource.
+One easy way of doing this would be to use negative integer values to count Writers who have been granted access. 
+
+### Passing values between reactions
+
+The reactions written so far don't do much useful work besides synchronizing some function calls.
+We would like to modify the program so that Readers and Writers exchange values with the resource.
+Let us assume that the resource contains an integer value, so that `readResource()` returns an `Int` while `writeResource()` takes an `Int` argument.
+
+Since the only way to get values is to use molecules, let us introduce a `readResult()` molecule with an `Int` value.
+This molecule will be emitted when `readResource()` is run and returns a value.
+
+Similarly, the `write()` molecule now needs to carry an `Int` value.
+The revised code looks like this:
+
+```scala
+val read = m[Unit]
+val readResult = m[Int]
+val write = m[Int]
+val access = m[Int]
+val finished = m[Unit]
+val n = 3 // can be a runtime parameter
+site(
+  go { case read(_) + access(k) if k < n =>
+    access(k + 1)
+    val x = readResource(); readResult(x)
+    finished()
+  },
+  go { case write(x) + access(0) => writeResource(x); access(0) },
+  go { case finished(_) + access(k) => access(k - 1) }
+)
+access(0) // Emit at the beginning.
+
+```
+
+## Example: Concurrent map/reduce
 
 Consider the problem of implementing a concurrent map/reduce operation.
 This operation first takes an array of type `Array[A]` and applies a function `f : A => B` to each element of the array.
@@ -155,7 +349,7 @@ object C extends App {
 
 ```
 
-# Example: Concurrent merge-sort
+## Example: Concurrent merge-sort
 
 Chemical laws can be recursive: a molecule can start a reaction whose reaction body defines further reactions and emits the same molecule.
 Since each reaction body will have a fresh scope, new molecules and new reactions will be defined every time.
