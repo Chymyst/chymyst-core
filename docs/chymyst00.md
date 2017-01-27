@@ -19,7 +19,7 @@ To understand this tutorial, the reader should have some familiarity with the `S
 
 [Chapter 5: Reaction constructors](chymyst05.md)
 
-[Chapter 6: Conceptual overview of concurrency](concurrency.md)
+[Chapter 6: Conceptual overview of concurrency](concurrency.md) [Nontechnical version](concurrency-nontechnical.md)
 
 [Chapter 7: Concurrency patterns](chymyst07.md)
 
