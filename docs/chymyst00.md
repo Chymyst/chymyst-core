@@ -11,7 +11,7 @@ To understand this tutorial, the reader should have some familiarity with the `S
 
 [Chapter 1: The chemical machine](chymyst01.md)
 
-[Chapter 2: Map/Reduce and Merge-Sort](chymyst02.md)
+[Chapter 2: Readers/Writers, Map/Reduce, and Merge-Sort](chymyst02.md)
 
 [Chapter 3: Blocking and non-blocking molecules](chymyst03.md)
 
