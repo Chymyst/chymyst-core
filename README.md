@@ -2,7 +2,8 @@
 [![Build Status](https://travis-ci.org/Chymyst/joinrun-scala.svg?branch=master)](https://travis-ci.org/Chymyst/joinrun-scala)
 [![Coverage Status](https://codecov.io/gh/Chymyst/joinrun-scala/coverage.svg?branch=master)](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Version](http://img.shields.io/badge/version-0.1.7-blue.svg?style=flat)](https://github.com/Chymyst/joinrun-scala/releases)
+[![Github Tag](https://img.shields.io/github/tag/Chymyst/joinrun-scala.svg?label=release&colorB=blue)](https://github.com/Chymyst/joinrun-scala/tags)
+[![Maven Central](https://img.shields.io/maven-central/v/io.chymyst/core_2.11.svg)](http://search.maven.org/#search%7Cga%7C1%7Cio.chymyst)
 
 # `Chymyst` -- declarative concurrency in Scala
 
@@ -365,8 +366,11 @@ In CSP, non-blocking channels need to be simulated by [additional user code](htt
 
 # Status
 
-Current released version is `0.1.7`.
+The library JAR is published to Maven Central.
+
 The semantics of the chemical machine (restricted to single-host, multicore computations) is fully implemented and tested.
+
+Extensive tutorial and usage documentation is available.
 
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
 Test coverage is 100% according to [codecov.io](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master).
