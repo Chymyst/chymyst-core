@@ -1,12 +1,22 @@
 <link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
 
-# Example: Concurrent map/reduce
+# Chemical machine programming: first examples
 
 The chemical machine can be programmed to perform arbitrary concurrent computations.
 However, it is not immediately obvious what molecules and reactions must be defined, say, to implement a concurrent buffered queue or a concurrent merge-sort algorithm.
 Another interesting application would be a concurrent GUI interaction together with some jobs in the background.
+
 Solving these problems via chemistry requires a certain paradigm shift.
 In order to build up our chemical intuition, let us go through some more examples.
+
+## Example: "Readers/Writers"
+
+There is a resource that can be accessed by a number of Readers and a number of Writers.
+We require that either one Writer or up to three Readers be able to access the resource concurrently.
+
+TODO: expand
+
+## Example: Concurrent map/reduce
 
 Consider the problem of implementing a concurrent map/reduce operation.
 This operation first takes an array of type `Array[A]` and applies a function `f : A => B` to each element of the array.
@@ -155,7 +165,7 @@ object C extends App {
 
 ```
 
-# Example: Concurrent merge-sort
+## Example: Concurrent merge-sort
 
 Chemical laws can be recursive: a molecule can start a reaction whose reaction body defines further reactions and emits the same molecule.
 Since each reaction body will have a fresh scope, new molecules and new reactions will be defined every time.
