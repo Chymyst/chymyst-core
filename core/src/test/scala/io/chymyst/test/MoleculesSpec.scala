@@ -217,6 +217,35 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     f() shouldEqual 1
   }
 
+  it should "fail to start reactions when unbound molecule is emitted by reactions" in {
+
+    val a = m[Int]
+    val b = m[Int]
+
+    site(tp0)( go { case a(x) => b(x) })
+    val thrown = intercept[Exception] {
+      a(1)
+    }
+    thrown.getMessage shouldEqual "In Site{a => ...}: As a(1) is emitted, some reactions may emit molecules (b) that are not bound to any reaction site"
+  }
+
+  it should "fail to start reactions when several unbound molecules are emitted by reactions" in {
+    val a = m[Int]
+    val a1 = m[Int]
+    val a2 = m[Int]
+    val b = m[Int]
+    val c = m[Unit]
+
+    site(tp0)( go { case a(x) => }, go { case a1(x) => c() + c() }, go { case a2(x) => c() + b(x) })
+    val thrown = intercept[Exception] {
+      a(1) // This molecule will not actually cause any reactions that would emit unbound molecules.
+      // Nevertheless, the error must be flagged.
+    }
+    thrown.getMessage shouldEqual "In Site{a => ...; a1 => ...; a2 => ...}: As a(1) is emitted, some reactions may emit molecules (b, c) that are not bound to any reaction site"
+  }
+
+  behavior of "basic functionality"
+
   it should "implement the non-blocking single-access counter" in {
     val c = new M[Int]("c")
     val d = new M[Unit]("decrement")
@@ -277,7 +306,9 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     tp.shutdownNow()
   }
 
-  it should "fail to finish if 1 out of 2 processes crash, and retry is not set" in {
+  behavior of "fault-tolerant resume facility"
+
+  it should "fail to finish job if 1 out of 2 processes crash while retry is not set" in {
     val n = 20
 
     val probabilityOfCrash = 0.5
@@ -301,7 +332,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     result shouldEqual None
   }
 
-  it should "resume fault-tolerant reactions by retrying even if 1 out of 2 processes crash" in {
+  it should "finish job by retrying reactions even if 1 out of 2 processes crash" in {
     val n = 20
 
     val probabilityOfCrash = 0.5
@@ -325,7 +356,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     result shouldEqual Some(())
   }
 
-  it should "resume fault-tolerant reactions that contain blocking molecules" in {
+  it should "retry reactions that contain blocking molecules" in {
     val n = 20
 
     val probabilityOfCrash = 0.5
