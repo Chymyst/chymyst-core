@@ -301,15 +301,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     * This method is run on the thread that emits the molecule. This method is common for blocking and non-blocking molecules.
     *
-    * @param m Molecule emitter.
+    * @param m        Molecule emitter.
     * @param molValue Value of the molecule, wrapped in an instance of [[AbsMolValue]]`[T]` class.
     * @tparam T Type of the molecule value.
     */
   private[jc] def emit[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
-    if (sitePool.isInactive)
-      throw new ExceptionNoSitePool(s"In $this: Cannot emit molecule $m($molValue) because join pool is not active")
-    else if (findUnboundOutputMolecules)
+    if (findUnboundOutputMolecules)
       throw new ExceptionNoReactionSite(s"In $this: As $m($molValue) is emitted, some reactions may emit molecules (${unboundOutputMolecules.map(_.toString).toList.sorted.mkString(", ")}) that are not bound to any reaction site")
+    else if (sitePool.isInactive)
+      throw new ExceptionNoSitePool(s"In $this: Cannot emit molecule $m($molValue) because join pool is not active")
     else if (!Thread.currentThread().isInterrupted) {
       if (emittingSingletonsNow) {
         // Emit them on the same thread, and do not start any reactions.
