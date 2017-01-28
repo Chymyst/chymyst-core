@@ -20,6 +20,8 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     newState
   }
 
+  case class BoardSize(x: Int, y: Int)
+
   it should "run correctly using single-reaction implementation" in {
     case class Cell(x: Int, y: Int, t: Int, state: Int, label: (Int, Int))
 
@@ -33,9 +35,9 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
 
     val tp = new FixedPool(4)
 
-    // Toroidal board of size n * n
-    val boardSize = 2
-    val emptyBoard: Array[Array[Int]] = Array.fill(boardSize)(Array.fill(boardSize)(0))
+    // Toroidal board of size m * n
+    val boardSize = BoardSize(2,2)
+    val emptyBoard: Array[Array[Int]] = Array.fill(boardSize.y)(Array.fill(boardSize.x)(0))
 
     val maxTimeStep = 1
 
@@ -55,13 +57,13 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
           y0 == y1 && y0 == y2 && y0 == y3 && y0 == y4 && y0 == y5 && y0 == y6 && y0 == y7 && y0 == y8 &&
           t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 && t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 =>
         val newState = getNewState(state0, state1, state2, state3, state4, state5, state6, state7, state8)
-        (-1 to 1).foreach(i => (-1 to 1).foreach(j => c(Cell((x0 + i + boardSize) % boardSize, (y0 + j + boardSize) % boardSize, t0 + 1, newState, (i, j)))))
+        (-1 to 1).foreach(i => (-1 to 1).foreach(j => c(Cell((x0 + i + boardSize.x) % boardSize.x, (y0 + j + boardSize.y) % boardSize.y, t0 + 1, newState, (i, j)))))
         if (t0 + 1 == maxTimeStep) fc((x0, y0, newState))
       },
       // These reactions are needed to fetch the state of the board at the final time.
-      go { case fc((x, y, state)) + f((count, board)) => board(x)(y) = state; f((count - 1, board)) },
+      go { case fc((x, y, state)) + f((count, board)) => board(y)(x) = state; f((count - 1, board)) },
       go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
-      go { case _ => f((boardSize * boardSize, emptyBoard)) }
+      go { case _ => f((boardSize.x * boardSize.y, emptyBoard)) }
     )
 
     //    val initBoard = Array(
@@ -80,11 +82,11 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     )
     val initTime = LocalDateTime.now
 
-    (0 until boardSize).foreach(x0 =>
-      (0 until boardSize).foreach(y0 =>
+    (0 until boardSize.y).foreach(y0 =>
+      (0 until boardSize.x).foreach(x0 =>
         (-1 to 1).foreach(i =>
           (-1 to 1).foreach(j =>
-            c(Cell((x0 + i + boardSize) % boardSize, (y0 + j + boardSize) % boardSize, t = 0, state = initBoard(x0)(y0), label = (i, j)))
+            c(Cell((x0 + i + boardSize.x) % boardSize.x, (y0 + j + boardSize.y) % boardSize.y, t = 0, state = initBoard(y0)(x0), label = (i, j)))
           )
         )
       )
