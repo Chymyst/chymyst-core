@@ -244,19 +244,19 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val pool = new FixedPool(2)
 
-    site(pool)(
-      go { case man(_) + queueMen(n) => queueMen(n + 1) + manL(n) },
-      go { case woman(_) + queueWomen(n) => queueWomen(n + 1) + womanL(n) },
-      go { case manL(xy) + womanL(xx) + mayBegin(l) if xx == xy && xy == l => beginDancing(l); mayBegin(l + 1) },
-      go { case _ => queueMen(0) + queueWomen(0) + mayBegin(0) }
-    )
-
     val total = 100
 
     site(pool)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) },
       go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() },
       go { case _ => danceCounter(Nil) }
+    )
+
+    site(pool)(
+      go { case man(_) + queueMen(n) => queueMen(n + 1) + manL(n) },
+      go { case woman(_) + queueWomen(n) => queueWomen(n + 1) + womanL(n) },
+      go { case manL(xy) + womanL(xx) + mayBegin(l) if xx == xy && xy == l => beginDancing(l); mayBegin(l + 1) },
+      go { case _ => queueMen(0) + queueWomen(0) + mayBegin(0) }
     )
 
     (1 to total).map(_ => ()).foreach(man)

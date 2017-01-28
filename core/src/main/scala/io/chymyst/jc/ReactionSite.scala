@@ -309,7 +309,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     if (sitePool.isInactive)
       throw new ExceptionNoSitePool(s"In $this: Cannot emit molecule $m($molValue) because join pool is not active")
     else if (findUnboundOutputMolecules)
-      throw new ExceptionNoSitePool(s"In $this: Some reactions may emit molecules (${unboundOutputMolecules.map(_.toString).toList.sorted.mkString(", ")}) that are not bound to any reaction site")
+      throw new ExceptionNoReactionSite(s"In $this: As $m($molValue) is emitted, some reactions may emit molecules (${unboundOutputMolecules.map(_.toString).toList.sorted.mkString(", ")}) that are not bound to any reaction site")
     else if (!Thread.currentThread().isInterrupted) {
       if (emittingSingletonsNow) {
         // Emit them on the same thread, and do not start any reactions.
