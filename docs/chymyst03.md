@@ -221,7 +221,9 @@ We would like to change the code so that `read()` and `write()` are blocking mol
 With that change, reactions that emit `read()` or `write()` are going to be blocked until access is granted.
 This will make the Readers/Writers functionality easier to use.
 
-When we change the types of the `read()` and `write()` molecules to blocking, we will have to emit replies in reactions that consume `read()` and `write()`:
+When we change the types of the `read()` and `write()` molecules to blocking, we will have to emit replies in reactions that consume `read()` and `write()`.
+We can also omit `readResult()` since the `read()` molecule will now receive a reply.
+Other than that, reactions remain unchanged:
 
 ```scala
 val read = b[Unit, Int]
@@ -241,8 +243,6 @@ site(
 access(0) // Emit at the beginning.
 
 ```
-
-The main change is that we are now emitting `readReply` instead of `readResult` used in the old code.
 
 A side benefit is that emitting `read()` and `write()` will get unblocked only _after_ the `readResource()` and `writeResources()` operations are complete.
 
