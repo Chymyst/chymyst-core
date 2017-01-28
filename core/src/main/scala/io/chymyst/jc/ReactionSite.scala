@@ -30,13 +30,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     setLogLevel = { level => logLevel = level },
     singletonsDeclared.keys.toList,
     emit = (mol, molValue) => emit[T](mol, molValue),
-    emitAndAwaitReply = (mol, molValue, replyValue) => emitAndAwaitReply(mol, molValue, replyValue),
-    emitAndAwaitReplyWithTimeout = (timeout, mol, molValue, replyValue) => emitAndAwaitReplyWithTimeout(timeout, mol, molValue, replyValue),
+    emitAndAwaitReply = (mol, molValue, replyValue) => emitAndAwaitReply[T, R](mol, molValue, replyValue),
+    emitAndAwaitReplyWithTimeout = (timeout, mol, molValue, replyValue) => emitAndAwaitReplyWithTimeout[T, R](timeout, mol, molValue, replyValue),
     consumingReactions = reactionInfos.keys.filter(_.inputMoleculesSet contains molecule).toList,
     sameReactionSite = _ === this
   )
 
   private val (nonSingletonReactions, singletonReactions) = reactions.partition(_.inputMolecules.nonEmpty)
+
+  private var unboundOutputMolecules: Set[Molecule] = _
 
   /** The table of statically declared singleton molecules and their multiplicities.
     * Only non-blocking molecules can be singletons.
@@ -289,9 +291,25 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private var emittingSingletonsNow = false
 
+  def findUnboundOutputMolecules: Boolean = unboundOutputMolecules.nonEmpty && {
+    val stillUnbound = unboundOutputMolecules.filterNot(_.isBound)
+    unboundOutputMolecules = stillUnbound
+    stillUnbound.nonEmpty
+  }
+
+  /** Emit a molecule with a value into the soup.
+    *
+    * This method is run on the thread that emits the molecule. This method is common for blocking and non-blocking molecules.
+    *
+    * @param m Molecule emitter.
+    * @param molValue Value of the molecule, wrapped in an instance of [[AbsMolValue]]`[T]` class.
+    * @tparam T Type of the molecule value.
+    */
   private[jc] def emit[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
     if (sitePool.isInactive)
       throw new ExceptionNoSitePool(s"In $this: Cannot emit molecule $m($molValue) because join pool is not active")
+    else if (findUnboundOutputMolecules)
+      throw new ExceptionNoSitePool(s"In $this: Some reactions may emit molecules (${unboundOutputMolecules.map(_.toString).toList.sorted.mkString(", ")}) that are not bound to any reaction site")
     else if (!Thread.currentThread().isInterrupted) {
       if (emittingSingletonsNow) {
         // Emit them on the same thread, and do not start any reactions.
@@ -392,6 +410,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     nonSingletonReactions.foreach { r =>
       r.info.outputs.foreach(_.molecule.addEmittingReaction(r))
     }
+
+    // This set will be examined again when any molecule bound to this site is emitted, so that errors can be signalled as early as possible.
+    unboundOutputMolecules = nonSingletonReactions.flatMap(_.info.outputs.map(_.molecule)).toSet.filterNot(_.isBound)
 
     // Perform static analysis.
     val foundWarnings = findSingletonWarnings(singletonsDeclared, nonSingletonReactions) ++ findStaticWarnings(nonSingletonReactions)

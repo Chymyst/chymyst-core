@@ -217,7 +217,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     f() shouldEqual 1
   }
 
-  it should "fail to start reactions when unbound molecule is used inside a reaction" in {
+  it should "fail to start reactions when unbound molecule is emitted by reactions" in {
 
     val a = m[Int]
     val b = m[Int]
@@ -226,7 +226,22 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val thrown = intercept[Exception] {
       a(1)
     }
-    thrown.getMessage shouldEqual "In Site{a => b}: Molecule b is not bound to any reaction site"
+    thrown.getMessage shouldEqual "In Site{a => ...}: Some reactions may emit molecules (b) that are not bound to any reaction site"
+  }
+
+  it should "fail to start reactions when several unbound molecules are emitted by reactions" in {
+    val a = m[Int]
+    val a1 = m[Int]
+    val a2 = m[Int]
+    val b = m[Int]
+    val c = m[Unit]
+
+    site(tp0)( go { case a(x) => }, go { case a1(x) => c() + c() }, go { case a2(x) => c() + b(x) })
+    val thrown = intercept[Exception] {
+      a(1) // This molecule will not actually cause any reactions that would emit unbound molecules.
+      // Nevertheless, the error must be flagged.
+    }
+    thrown.getMessage shouldEqual "In Site{a => ...; a1 => ...; a2 => ...}: Some reactions may emit molecules (b, c) that are not bound to any reaction site"
   }
 
   behavior of "basic functionality"
