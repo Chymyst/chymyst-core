@@ -87,7 +87,7 @@ object Core {
   /** Type alias for reaction body.
     *
     */
-  private[jc] type ReactionBody = PartialFunction[InputMoleculeList, Any]
+  private[jc] type ReactionBody = PartialFunction[ReactionBodyInput, Any]
 
   // for M[T] molecules, the value inside AbsMolValue[T] is of type T; for B[T,R] molecules, the value is of type
   // ReplyValue[T,R]. For now, we don't use shapeless to enforce this typing relation.
@@ -119,6 +119,9 @@ object Core {
 
   // List of molecules used as inputs by a reaction.
   type InputMoleculeList = Array[(Molecule, AbsMolValue[_])]
+
+  // Type used as argument for ReactionBody.
+  type ReactionBodyInput = (Int, InputMoleculeList)
 
   implicit class EitherMonad[L, R](e: Either[L, R]) {
     def map[S](f: R => S): Either[L, S] = e match {
