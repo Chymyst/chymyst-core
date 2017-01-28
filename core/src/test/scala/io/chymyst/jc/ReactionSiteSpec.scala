@@ -145,6 +145,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
       thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B()] finished without replying to f/B"
     }
+    if (result.isFailure) println(s"Test failed with message: ${result.failed.get.getMessage}")
     result.get shouldEqual Succeeded
     result.isFailure shouldEqual false
   }
@@ -164,6 +165,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       }
       thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B()] finished without replying to f/B"
     }
+    if (result.isFailure) println(s"Test failed with message: ${result.failed.get.getMessage}")
     result.get shouldEqual Succeeded
     result.isFailure shouldEqual false
   }
