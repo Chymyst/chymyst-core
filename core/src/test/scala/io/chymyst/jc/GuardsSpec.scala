@@ -423,10 +423,8 @@ class GuardsSpec extends FlatSpec with Matchers {
     val a = m[Int]
     val f = b[Unit, Unit]
 
-    val result = go { case a(x) + a(y) + f(_, r) if x == y - 1 => r() }
-
     val status = withPool(new FixedPool(4)) { tp =>
-      site(tp)(result)
+      site(tp)(go { case a(x) + a(y) + f(_, r) if x == y + 1 => r() })
 
       (1 to 3).foreach(_ => a(0) + a(1))
       f() shouldEqual (())
