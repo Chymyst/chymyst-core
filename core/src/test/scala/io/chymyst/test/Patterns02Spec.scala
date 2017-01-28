@@ -19,7 +19,176 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     tp.shutdownNow()
   }
 
-  behavior of "Chymyst Continued"
+  behavior of "Readers/Writers"
+
+  sealed trait RWLogMessage
+
+  case object ReadingStarted extends RWLogMessage
+
+  case class ReadingEnded(x: Int) extends RWLogMessage
+
+  case class WritingStarted(x: Int) extends RWLogMessage
+
+  case object WritingEnded extends RWLogMessage
+
+  def checkLog(log: ConcurrentLinkedQueue[RWLogMessage], n: Int): (Int, Int, Int, Boolean, Boolean, IndexedSeq[String]) =
+    log.iterator.asScala.foldLeft[(Int, Int, Int, Boolean, Boolean, IndexedSeq[String])]((0, 0, 0, false, false, IndexedSeq())) { (acc, message) =>
+      val (readers, writers, crossovers, previousWasWriter, previousWasReader, errors) = acc
+      message match {
+        case ReadingStarted => (readers + 1, writers, crossovers + (if (readers == 0 && previousWasWriter) 1 else 0), false, true,
+          if (writers > 0)
+            errors ++ Seq(s"(r=$readers, w=$writers) reading started while had writers")
+          else if (readers < n)
+            errors
+          else
+            errors ++ Seq(s"(r=$readers, w=$writers) reading started while had > $n readers")
+        )
+        case ReadingEnded(x) => (readers - 1, writers, crossovers, false, true,
+          if (writers > 0)
+            errors ++ Seq(s"(r=$readers, w=$writers) reading ended while had writers")
+          else if (readers - 1 < n)
+            errors
+          else
+            errors ++ Seq(s"(r=$readers, w=$writers) reading ended while had > $n readers")
+        )
+        case WritingStarted(x) => (readers, writers + 1, crossovers + (if (writers == 0 && previousWasReader) 1 else 0), true, false,
+          if (readers > 0)
+            errors ++ Seq(s"(r=$readers, w=$writers) writing started while had readers")
+          else if (writers < 1)
+            errors
+          else
+            errors ++ Seq(s"(r=$readers, w=$writers) writing started while had >1 writers")
+        )
+        case WritingEnded => (readers, writers - 1, crossovers, true, false,
+          if (readers > 0)
+            errors ++ Seq(s"(r=$readers, w=$writers) writing ended while had readers")
+          else if (writers - 1 < 1)
+            errors
+          else
+            errors ++ Seq(s"(r=$readers, w=$writers) writing ended while had >1 writers")
+        )
+      }
+    }
+
+  it should "implement nonblocking version" in {
+    val log = new ConcurrentLinkedQueue[RWLogMessage]()
+    var resource: Int = 0
+
+    def readResource(): Int = {
+      log.add(ReadingStarted)
+      BlockingIdle(Thread.sleep(100))
+      val x = resource
+      log.add(ReadingEnded(x))
+      x
+    }
+
+    def writeResource(x: Int): Unit = {
+      log.add(WritingStarted(x))
+      BlockingIdle(Thread.sleep(100))
+      resource = x
+      log.add(WritingEnded)
+    }
+
+    val read = m[Unit]
+    val readResult = m[Int]
+    val write = m[Int]
+    val access = m[Int]
+    val finished = m[Unit]
+
+    val all_done = b[Unit, Unit]
+    val counter = m[Int]
+    val n = 3
+    val iter1 = 3
+    val iter2 = 12
+    val iterations = iter1 * iter2
+
+    site(tp)(
+      go { case readResult(_) => },
+      go { case read(_) + access(k) if k < n =>
+        access(k + 1)
+        val x = readResource()
+        readResult(x)
+        finished()
+      },
+      go { case write(x) + access(0) => writeResource(x); access(0) },
+      go { case finished(_) + access(k) + counter(l) => access(k - 1) + counter(l + 1) },
+      go { case counter(i) + all_done(_, r) if i >= iterations => r() + counter(i) },
+      go { case _ => access(0) + counter(0) }
+    )
+
+    // Emit read() and write() at staggered intervals, allowing some consumption to take place.
+    (1 to iter2).foreach { j => (1 to iter1).foreach { i => write(i) + read(); Thread.sleep(20); write(i) + write(i) }; Thread.sleep(200); }
+
+    all_done()
+
+    val (_, _, crossovers, _, _, errors) = checkLog(log, n)
+    println(s"Nonblocking Readers/Writers: Changed $crossovers times between reading and writing (iter1=$iter1, iter2=$iter2)")
+    crossovers should be > iter1 * 2
+    errors shouldEqual IndexedSeq()
+  }
+
+  it should "implement blocking version" in {
+    val log = new ConcurrentLinkedQueue[RWLogMessage]()
+    var resource: Int = 0
+
+    def readResource(): Int = {
+      log.add(ReadingStarted)
+      BlockingIdle(Thread.sleep(100))
+      val x = resource
+      log.add(ReadingEnded(x))
+      x
+    }
+
+    def writeResource(x: Int): Unit = {
+      log.add(WritingStarted(x))
+      BlockingIdle(Thread.sleep(100))
+      resource = x
+      log.add(WritingEnded)
+    }
+
+    val read = b[Unit, Int]
+    val write = b[Int, Unit]
+    val access = m[Int]
+    val finished = m[Unit]
+    val n = 3 // can be a runtime parameter
+
+    val all_done = b[Unit, Unit]
+    val counter = m[Int]
+    val iter1 = 3
+    val iter2 = 12
+    val iterations = iter1 * iter2
+
+    site(tp)(
+      go { case read(_, readReply) + access(k) if k < n =>
+        access(k + 1)
+        val x = readResource()
+        readReply(x)
+        finished()
+      },
+      go { case write(x, writeReply) + access(0) => writeResource(x); writeReply(); access(0) },
+      go { case finished(_) + access(k) + counter(l) => access(k - 1) + counter(l + 1) },
+      go { case counter(i) + all_done(_, r) if i >= iterations => r() + counter(i) },
+      go { case _ => access(0) + counter(0) }
+    )
+
+    // Auxiliary reactions will send requests to read and write.
+    val toRead = m[Unit]
+    val toWrite = m[Int]
+    site(tp)(
+      go { case toRead(_) => read() },
+      go {case toWrite(x) => write(x) }
+    )
+
+    // Emit read() and write() at staggered intervals, allowing some consumption to take place.
+    (1 to iter2).foreach { j => (1 to iter1).foreach { i => toWrite(i) + toRead(); Thread.sleep(20); toWrite(i) + toWrite(i) }; Thread.sleep(200); }
+
+    all_done()
+
+    val (_, _, crossovers, _, _, errors) = checkLog(log, n)
+    println(s"Nonblocking Readers/Writers: Changed $crossovers times between reading and writing (iter1=$iter1, iter2=$iter2)")
+    crossovers should be > iter1 * 2
+    errors shouldEqual IndexedSeq()
+  }
 
   it should "implement smokers" in {
     val supplyLineSize = 10
