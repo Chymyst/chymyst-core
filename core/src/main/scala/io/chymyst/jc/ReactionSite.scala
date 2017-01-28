@@ -187,7 +187,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     if (logLevel > 1) println(s"Debug: In $this: reaction {${reaction.info}} started on thread pool $reactionPool with thread id ${Thread.currentThread().getId}")
     val exitStatus: ReactionExitStatus = try {
       // Here we actually apply the reaction body to its input molecules.
-      reaction.body.apply((usedInputs.size, usedInputs))
+      reaction.body.apply((usedInputs.length, usedInputs))
       ReactionExitSuccess
     } catch {
       // Various exceptions that occurred while running the reaction.
