@@ -92,10 +92,10 @@ The newly unblocked process that received the reply value will continue to run _
 
 We see that blocking molecules work at once as [synchronizing barriers](https://en.wikipedia.org/wiki/Barrier_(computer_science)) and as channels of communication between processes.
 
-The syntax for the reply action makes it appear as if the molecule `f` carries _two_ values - its `Unit` value and a special `reply` function, and that the reaction body calls this `reply` function with an integer value.
+The syntax for the reply action makes it appear as if the molecule `f` carries _two_ values - its `Unit` value and a special `reply` function, and that the reaction body calls `reply()` with an integer value.
 However, `f` is emitted with the syntax `f()` -- just as any other molecule with `Unit` value.
-The `reply` function appears only in the pattern-matching expression for `f` inside a reaction.
-We call `reply` the **reply emitter** because its use is a side-effect, similar to emitting a non-blocking molecule.
+The `reply` function appears _only_ in the pattern-matching expression for `f` inside a reaction.
+We call `reply` the **reply emitter** because the call to `reply()` has a concurrent side-effect quite similar to emitting a non-blocking molecule.
 
 Blocking molecule emitters are values of type `B[T, R]`, while non-blocking molecule emitters have type `M[T]`.
 Here `T` is the type of value that the molecule carries, and `R` (for blocking molecules) is the type of the reply value.
@@ -121,7 +121,7 @@ The plan is to initialize the counter to a large value _N_, then to emit _N_ dec
 We will use a blocking molecule to wait until this happens and thus to determine the time elapsed during the countdown.
 
 Let us now extend the previous reaction site to implement this new functionality.
-The simplest solution is to define a blocking molecule `fetch`, which will react with the counter molecule only when the counter reaches zero.
+The simplest solution is to define a blocking molecule `fetch()`, which will react with the counter molecule only when the counter reaches zero.
 Since the `fetch()` molecule does not need to pass any data, we will define it as type `Unit` with a `Unit` reply.
 
 ```scala
@@ -179,16 +179,72 @@ object C extends App {
 
 Some remarks:
 
-- Molecules with unit values still require a pattern variable when used in the `case` construction.
-For this reason, we write `decr(_)` and `fetch(_, reply)` in the match patterns.
-However, these molecules can be emitted simply by calling `decr()` and `fetch()`.
-- We declare both reactions in one reaction site, because these two reactions share the input molecule `counter`.
+- We declare both reactions in one reaction site because these two reactions share the input molecule `counter`.
 - Blocking molecules are like functions except that they will block as long as their reactions are unavailable.
 If the relevant reaction never starts, -- for instance, because some input molecules are missing, -- a blocking molecule will block forever.
 The runtime engine cannot detect this situation because it cannot determine whether the missing input molecules might become available in the near future.
+- The correct function of a program may depend on the order in which blocking molecules are emitted. With non-blocking molecules, the order of emitting them is irrelevant since emission is concurrent, and so the programmer cannot control the actual order in which emitted molecules will become available in the soup.
 - If several reactions are available for the blocking molecule, one of these reactions will be selected at random.
 - Blocking molecule names are printed with the suffix `"/B"` in the debugging output.
+- Molecules with unit values can be emitted simply by calling `decr()` and `fetch()`, but they still require a pattern variable when used in the `case` construction.
+For this reason, we need to write `decr(_)` and `fetch(_, reply)` in the match patterns.
 
+## Example: Readers/Writers with blocking molecules
+
+Previously, we implemented the Readers/Writers problem [using non-blocking molecules](chymyst02.md#example-readerswriters).
+
+The final code looked like this:
+
+```scala
+val read = m[Unit]
+val readResult = m[Int]
+val write = m[Int]
+val access = m[Int]
+val finished = m[Unit]
+val n = 3 // can be a runtime parameter
+site(
+  go { case read(_) + access(k) if k < n =>
+    access(k + 1)
+    val x = readResource(); readResult(x)
+    finished()
+  },
+  go { case write(x) + access(0) => writeResource(x); access(0) },
+  go { case finished(_) + access(k) => access(k - 1) }
+)
+access(0) // Emit at the beginning.
+
+```
+
+Let us see what changes are necessary if we want to use blocking molecules, and what advantages that brings.
+
+We would like to change the code so that `read()` and `write()` are blocking molecules.
+With that change, reactions that emit `read()` or `write()` are going to be blocked until access is granted.
+This will make the Readers/Writers functionality easier to use.
+
+When we change the types of the `read()` and `write()` molecules to blocking, we will have to emit replies in reactions that consume `read()` and `write()`:
+
+```scala
+val read = b[Unit, Int]
+val write = b[Int, Unit]
+val access = m[Int]
+val finished = m[Unit]
+val n = 3 // can be a runtime parameter
+site(
+  go { case read(_, readReply) + access(k) if k < n =>
+    access(k + 1)
+    val x = readResource(); readReply(x)
+    finished()
+  },
+  go { case write(x, writeReply) + access(0) => writeResource(x); writeReply(); access(0) },
+  go { case finished(_) + access(k) => access(k - 1) }
+)
+access(0) // Emit at the beginning.
+
+```
+
+The main change is that we are now emitting `readReply` instead of `readResult` used in the old code.
+
+A side benefit is that emitting `read()` and `write()` will get unblocked only _after_ the `readResource()` and `writeResources()` operations are complete.
 
 # Molecules and reactions in local scopes
 
