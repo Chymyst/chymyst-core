@@ -53,7 +53,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
           t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 && t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 =>
         val newState = getNewState(state0, state1, state2, state3, state4, state5, state6, state7, state8)
         (-1 to 1).foreach(i => (-1 to 1).foreach(j => c(Cell(x0, y0, t0 + 1, newState, (i, j)))))
-        if (t0 == maxTimeStep) fc((x0, y0, newState))
+        if (t0 + 1 == maxTimeStep) fc((x0, y0, newState))
       },
       // These reactions are needed to fetch the state of the board at the final time.
       go { case fc((x, y, state)) + f((count, board)) => board(x)(y) = state; f((count - 1, board)) },
