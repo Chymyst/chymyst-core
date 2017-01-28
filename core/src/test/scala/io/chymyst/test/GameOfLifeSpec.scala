@@ -32,6 +32,9 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
 
     val boardSize = 1
     // Toroidal board of size n * n
+    val boardSize = 2
+    val emptyBoard: Array[Array[Int]] = Array.fill(boardSize)(Array.fill(boardSize)(0))
+
     val maxTimeStep = 1
 
     site(tp)(
@@ -55,7 +58,8 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
       },
       // These reactions are needed to fetch the state of the board at the final time.
       go { case fc((x, y, state)) + f((count, board)) => board(x)(y) = state; f((count - 1, board)) },
-      go { case g(_, r) + f((0, board)) => r(board) }
+      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case _ => f((boardSize*boardSize, emptyBoard))}
     )
 
     val initBoard = Array(
@@ -67,6 +71,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     )
 
     val initTime = LocalDateTime.now
+
     (0 until boardSize).foreach(x =>
       (0 until boardSize).foreach(y =>
         (-1 to 1).foreach(i =>
@@ -76,11 +81,11 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
         )
       )
     )
-    f.setLogLevel(2)
+
     val finalBoard = g()
     val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
     println(s"Test with board size $boardSize took $elapsed ms. Final board at t=$maxTimeStep")
-    println(finalBoard.map(_.map(x => if (x == 0) "" else "*").mkString(" ")).mkString("\n"))
+    println("|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|")
     tp.shutdownNow()
   }
 
