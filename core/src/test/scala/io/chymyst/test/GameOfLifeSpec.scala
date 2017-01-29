@@ -209,8 +209,8 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     val tp = new FixedPool(16)
 
     // Toroidal board of size m * n
-    val boardSize = BoardSize(5, 5)
-    val maxTimeStep = 2
+    val boardSize = BoardSize(10, 10)
+    val maxTimeStep = 10
 
     val total = boardSize.x * boardSize.y
     val emptyBoard: Array[Array[Int]] = Array.fill(boardSize.x, boardSize.y)(0)
@@ -341,7 +341,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     val maxTimeStep = 10
 
     val total = boardSize.x * boardSize.y
-    val tp = new FixedPool(total) // maximum parallelism
+    val tp = new FixedPool(16) // maximum parallelism
 
     val emptyBoard: Array[Array[Int]] = Array.fill(boardSize.x, boardSize.y)(0)
 
