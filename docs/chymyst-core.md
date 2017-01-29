@@ -154,11 +154,11 @@ It is a runtime error to use `setLogLevel` or `logSoup` on molecules that are no
 
 ## Reactions
 
-A reaction is an instance of class `Reaction`.
+A reaction is a value of type `Reaction`.
 Reactions are declared using the `go` method with a partial function syntax that resembles pattern-matching on molecule values:
 
 ```scala
-val reaction1 = go { case a(x) + b(y) => a(x + y) }
+val reaction1: Reaction = go { case a(x) + b(y) => a(x + y) }
 
 ```
 
