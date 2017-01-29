@@ -10,15 +10,12 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
 
   behavior of "Game of Life"
 
-  def getNewState(state0: Int, state1: Int, state2: Int, state3: Int, state4: Int, state5: Int, state6: Int, state7: Int, state8: Int): Int = {
-    val sum1 = state1 + state2 + state3 + state4 + state5 + state6 + state7 + state8
-    val newState = sum1 match {
+  def getNewState(state0: Int, state1: Int, state2: Int, state3: Int, state4: Int, state5: Int, state6: Int, state7: Int, state8: Int): Int =
+    (state1 + state2 + state3 + state4 + state5 + state6 + state7 + state8) match {
       case 2 => state0
       case 3 => 1
       case _ => 0
     }
-    newState
-  }
 
   case class BoardSize(x: Int, y: Int)
 
