@@ -70,17 +70,10 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
       go { case _ => f((boardSize.x * boardSize.y, emptyBoard)) }
     )
 
-    //    val initBoard = Array(
-    //      Array(1, 1, 0, 0, 0),
-    //      Array(0, 1, 1, 0, 0),
-    //      Array(1, 0, 0, 0, 0),
-    //      Array(0, 0, 0, 0, 0),
-    //      Array(0, 0, 0, 0, 0)
-    //    )
     val initBoard = Array(
-      Array(1, 1, 0, 0, 0),
-      Array(0, 0, 1, 0, 0),
-      Array(1, 0, 0, 0, 0),
+      Array(1, 1, 1, 1, 1),
+      Array(0, 0, 0, 0, 0),
+      Array(0, 0, 0, 0, 0),
       Array(0, 0, 0, 0, 0),
       Array(0, 0, 0, 0, 0)
     )
@@ -98,7 +91,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
 
     val finalBoard = g()
     val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
-    println(s"Test (1 reaction, 1 molecule) with $boardSize took $elapsed ms. Final board at t=$maxTimeStep:")
+    println(s"Test (1 reaction, 1 molecule) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     println("|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|")
     finalBoard shouldEqual Array(Array(1, 1), Array(0, 0))
     tp.shutdownNow()
@@ -169,17 +162,10 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
       go { case _ => f((boardSize.x * boardSize.y, emptyBoard)) }
     )
 
-    //    val initBoard = Array(
-    //      Array(1, 1, 0, 0, 0),
-    //      Array(0, 1, 1, 0, 0),
-    //      Array(1, 0, 0, 0, 0),
-    //      Array(0, 0, 0, 0, 0),
-    //      Array(0, 0, 0, 0, 0)
-    //    )
     val initBoard = Array(
-      Array(1, 1, 0, 0, 0),
-      Array(0, 0, 1, 0, 0),
-      Array(1, 0, 0, 0, 0),
+      Array(1, 1, 1, 1, 1),
+      Array(0, 0, 0, 0, 0),
+      Array(0, 0, 0, 0, 0),
       Array(0, 0, 0, 0, 0),
       Array(0, 0, 0, 0, 0)
     )
@@ -202,7 +188,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
 
     val finalBoard = g()
     val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
-    println(s"Test (1 reaction, 9 molecules) with $boardSize took $elapsed ms. Final board at t=$maxTimeStep:")
+    println(s"Test (1 reaction, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     println("|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|")
     finalBoard shouldEqual Array(Array(1, 1), Array(0, 0))
     tp.shutdownNow()
@@ -223,8 +209,8 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     val tp = new FixedPool(16)
 
     // Toroidal board of size m * n
-    val boardSize = BoardSize(10, 10)
-    val maxTimeStep = 10
+    val boardSize = BoardSize(5, 5)
+    val maxTimeStep = 2
 
     val total = boardSize.x * boardSize.y
     val emptyBoard: Array[Array[Int]] = Array.fill(boardSize.x, boardSize.y)(0)
@@ -295,13 +281,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     // All cell reactions must be in one reaction site since they share all the cell molecules from the entire `emitterMatrix`.
     site(tp)(reactionMatrix.flatten: _*)
 
-    //    val initBoard = Array(
-    //      Array(1, 1, 0, 0, 0),
-    //      Array(0, 1, 1, 0, 0),
-    //      Array(1, 0, 0, 0, 0),
-    //      Array(0, 0, 0, 0, 0),
-    //      Array(0, 0, 0, 0, 0)
-    //    )
+    // The "glider" configuration.
     val initBoard = Array(
       Array(1, 1, 0, 0, 0),
       Array(0, 1, 1, 0, 0),
@@ -331,6 +311,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     println(s"Test ($total reactions, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     val finalPicture = "|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|"
     println(finalPicture)
+    // The "glider" should move, wrapping around the toroidal board.
     finalPicture shouldEqual
       """|| | | | | | | | | | |
          || | | | | | | | | | |
@@ -346,6 +327,122 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
   }
 
   it should "run correctly using 3D reaction implementation" in {
+    // cell state at final time
+    val fc = m[(Int, Int, Int)]
+
+    // accumulator for cell states at final time
+    val f = m[(Int, Array[Array[Int]])]
+
+    // blocking molecule to fetch the final accumulator value
+    val g = b[Unit, Array[Array[Int]]]
+
+    val tp = new FixedPool(16)
+
+    // Toroidal board of size m * n
+    val boardSize = BoardSize(10, 10)
+    val maxTimeStep = 10
+
+    val total = boardSize.x * boardSize.y
+    val emptyBoard: Array[Array[Int]] = Array.fill(boardSize.x, boardSize.y)(0)
+
+    def xm(x: Int): Int = (x + boardSize.x) % boardSize.x
+
+    def ym(y: Int): Int = (y + boardSize.y) % boardSize.y
+
+    // Emitters for cells at 3D position (x, y, t)
+    val emitterMatrix: Array[Array[Array[Array[M[Int]]]]] = Array.tabulate(boardSize.x, boardSize.y, maxTimeStep, 9)((x, y, t, label) => new M[Int](s"c$label[$x,$y,$t]"))
+
+    // Reaction for cell at position (x, y)
+    val reactionMatrix: Array[Array[Array[Reaction]]] = Array.tabulate(boardSize.x, boardSize.y, maxTimeStep) { (x, y, t) =>
+      // Molecule emitters for the inputs.
+      val c0 = emitterMatrix(x)(y)(t)(0)
+      val c1 = emitterMatrix(x)(y)(t)(1)
+      val c2 = emitterMatrix(x)(y)(t)(2)
+      val c3 = emitterMatrix(x)(y)(t)(3)
+      val c4 = emitterMatrix(x)(y)(t)(4)
+      val c5 = emitterMatrix(x)(y)(t)(5)
+      val c6 = emitterMatrix(x)(y)(t)(6)
+      val c7 = emitterMatrix(x)(y)(t)(7)
+      val c8 = emitterMatrix(x)(y)(t)(8)
+
+      go { case
+          c0(state0) +
+          c1(state1) +
+          c2(state2) +
+          c3(state3) +
+          c4(state4) +
+          c5(state5) +
+          c6(state6) +
+          c7(state7) +
+          c8(state8) =>
+        val newState = getNewState(state0, state1, state2, state3, state4, state5, state6, state7, state8)
+
+        if (t + 1 == maxTimeStep) fc((x, y, newState)) else {
+          // Molecule emitters for the outputs.
+          emitterMatrix(xm(x + 0))(ym(y + 0))(t+1)(0)(newState)
+          emitterMatrix(xm(x + 1))(ym(y + 0))(t+1)(1)(newState)
+          emitterMatrix(xm(x - 1))(ym(y + 0))(t+1)(2)(newState)
+          emitterMatrix(xm(x + 0))(ym(y + 1))(t+1)(3)(newState)
+          emitterMatrix(xm(x + 1))(ym(y + 1))(t+1)(4)(newState)
+          emitterMatrix(xm(x - 1))(ym(y + 1))(t+1)(5)(newState)
+          emitterMatrix(xm(x + 0))(ym(y - 1))(t+1)(6)(newState)
+          emitterMatrix(xm(x + 1))(ym(y - 1))(t+1)(7)(newState)
+          emitterMatrix(xm(x - 1))(ym(y - 1))(t+1)(8)(newState)
+        }
+      }
+    }
+
+    // These reactions are needed to fetch the state of the board at the final time.
+    site(tp)(
+      go { case fc((x, y, state)) + f((count, board)) => board(x)(y) = state; f((count - 1, board)) },
+      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case _ => f((total, emptyBoard)) }
+    )
+
+    // All cell reactions must be in one reaction site since they share all the cell molecules from the entire `emitterMatrix`.
+    site(tp)(reactionMatrix.flatten.flatten: _*)
+
+    // The "glider" configuration.
+    val initBoard = Array(
+      Array(1, 1, 0),
+      Array(0, 1, 1),
+      Array(1, 0, 0)
+    )
+    val initTime = LocalDateTime.now
+
+    (0 until boardSize.y).foreach { y0 =>
+      (0 until boardSize.x).foreach { x0 =>
+        val initState = initBoard.lift(x0).getOrElse(Array()).lift(y0).getOrElse(0)
+        emitterMatrix(xm(x0 + 0))(ym(y0 + 0))(0)(0)(initState)
+        emitterMatrix(xm(x0 + 1))(ym(y0 + 0))(0)(1)(initState)
+        emitterMatrix(xm(x0 - 1))(ym(y0 + 0))(0)(2)(initState)
+        emitterMatrix(xm(x0 + 0))(ym(y0 + 1))(0)(3)(initState)
+        emitterMatrix(xm(x0 + 1))(ym(y0 + 1))(0)(4)(initState)
+        emitterMatrix(xm(x0 - 1))(ym(y0 + 1))(0)(5)(initState)
+        emitterMatrix(xm(x0 + 0))(ym(y0 - 1))(0)(6)(initState)
+        emitterMatrix(xm(x0 + 1))(ym(y0 - 1))(0)(7)(initState)
+        emitterMatrix(xm(x0 - 1))(ym(y0 - 1))(0)(8)(initState)
+      }
+    }
+
+    val finalBoard = g()
+    val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
+    println(s"Test ($total reactions, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
+    val finalPicture = "|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|"
+    println(finalPicture)
+    // The "glider" should move, wrapping around the toroidal board.
+    finalPicture shouldEqual
+      """|| | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | |*| | | | | | |
+         || | | |*|*| | | | | |
+         || | |*| |*| | | | | |""".stripMargin
+    tp.shutdownNow()
 
   }
 }
