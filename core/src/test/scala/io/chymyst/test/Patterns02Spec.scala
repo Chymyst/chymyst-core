@@ -123,7 +123,7 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val (_, _, crossovers, _, _, errors) = checkLog(log, n)
     println(s"Nonblocking Readers/Writers: Changed $crossovers times between reading and writing (iter1=$iter1, iter2=$iter2)")
-    crossovers should be > iter1 * 2
+    crossovers should be > iter1
     errors shouldEqual IndexedSeq()
   }
 
@@ -186,7 +186,7 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val (_, _, crossovers, _, _, errors) = checkLog(log, n)
     println(s"Nonblocking Readers/Writers: Changed $crossovers times between reading and writing (iter1=$iter1, iter2=$iter2)")
-    crossovers should be > iter1 * 2
+    crossovers should be > iter1
     errors shouldEqual IndexedSeq()
   }
 

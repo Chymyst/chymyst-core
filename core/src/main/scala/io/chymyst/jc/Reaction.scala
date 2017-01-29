@@ -522,7 +522,7 @@ final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[O
       case GuardPresent(_, Some(_), Array()) =>
         " if(?)" // There is a static guard but no cross-molecule guards.
       case GuardPresent(_, _, guards) =>
-        val crossGuardsInfo = guards.flatMap(_.symbols).map(_.name).mkString(",")
+        val crossGuardsInfo = guards.flatMap(_.symbols).map(_.name).distinct.mkString(",")
         s" if($crossGuardsInfo)"
     }
     val outputsInfo = outputs.map(_.toString).mkString(" + ")
@@ -641,6 +641,7 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
       // A simpler, non-flatMap algorithm for the case when there are no cross-dependencies of molecule values.
       val foundResult: Option[Map[Int, AbsMolValue[_]]] =
       if (info.crossGuards.isEmpty && info.crossConditionals.isEmpty) {
+        // Adding `toStream` so that this becomes `info.inputsSorted.toStream.flatFoldLeft...` will slow down the Game of Life benchmark by 2x.
         info.inputsSorted.flatFoldLeft[(Map[Int, AbsMolValue[_]], BagMap)]((Map(), initRelevantMap)) { (prev, inputInfo) =>
           // Since we are in a flatFoldLeft, we need to return Some(...) if we found a new value, or else return None.
           val (prevValues, prevRelevantMap) = prev

@@ -16,16 +16,10 @@ import scala.concurrent.duration.Duration
   * Input patterns with a right-associative grouping of the `+` operator, for example `a(x) + ( b(y) + c(z) )`, are refused.
   */
 object + {
-
-  private def getRightMolecule(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(inputs.length - 1, inputs.length))
-
-  private def getLeftPortion(inputs: InputMoleculeList): Option[InputMoleculeList] = if (inputs.length < 2) None else Some(inputs.slice(0, inputs.length - 1))
-
-  def unapply(inputs: InputMoleculeList): Option[(InputMoleculeList, InputMoleculeList)] =
-    for {
-      leftPortion <- getLeftPortion(inputs)
-      rightMolecule <- getRightMolecule(inputs)
-    } yield (leftPortion, rightMolecule)
+  def unapply(inputs: ReactionBodyInput): Option[(ReactionBodyInput, ReactionBodyInput)] = {
+    val (index, inputMoleculeList) = inputs
+    Some(((index - 1, inputMoleculeList), (index, inputMoleculeList)))
+  }
 }
 
 /** Abstract container for molecule values. This is a common wrapper for values of blocking and non-blocking molecules.
@@ -99,10 +93,10 @@ sealed trait Molecule extends PersistentHashCode {
     *         the string representation of that reaction site as a non-empty option.
     */
   final private[jc] def isBoundToAnother(rs: ReactionSite): Option[String] =
-  if (isBound && !reactionSiteWrapper.sameReactionSite(rs))
-    Some(reactionSiteWrapper.toString)
-  else
-    None
+    if (isBound && !reactionSiteWrapper.sameReactionSite(rs))
+      Some(reactionSiteWrapper.toString)
+    else
+      None
 
   protected var reactionSiteWrapper: ReactionSiteWrapper[_, _] = ReactionSiteWrapper.noReactionSite(this)
 
@@ -157,9 +151,10 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
 
   val isBlocking = false
 
-  def unapply(arg: InputMoleculeList): Option[T] =
-    arg.headOption
-      .map(_._2.asInstanceOf[MolValue[T]].v)
+  def unapply(arg: ReactionBodyInput): Option[T] = {
+    val (index, inputMoleculeList) = arg
+    inputMoleculeList.lift(index).map(_._2.asInstanceOf[MolValue[T]].v)
+  }
 
   /** Emit a non-blocking molecule.
     *
@@ -380,10 +375,12 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     * @param arg The input molecule list, which should be a one-element list.
     * @return None if there was no match; Some(...) if the reaction inputs matched.
     */
-  def unapply(arg: InputMoleculeList): Option[(T, ReplyValue[T, R])] =
-  arg.headOption
-    .map(_._2.asInstanceOf[BlockingMolValue[T, R]])
-    .map { bmv => (bmv.v, bmv.replyValue.asInstanceOf[ReplyValue[T, R]]) }
+  def unapply(arg: ReactionBodyInput): Option[(T, ReplyValue[T, R])] = {
+    val (index, inputMoleculeList) = arg
+    inputMoleculeList.lift(index)
+      .map(_._2.asInstanceOf[BlockingMolValue[T, R]])
+      .map { bmv => (bmv.v, bmv.replyValue.asInstanceOf[ReplyValue[T, R]]) }
+  }
 
   /** Emit a blocking molecule and receive a value when the reply action is performed.
     *
