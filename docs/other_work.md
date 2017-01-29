@@ -55,8 +55,8 @@ a(1)
 ```
 
 - Molecule emitters (“channel names”) are not singleton objects as in `ScalaJoin` but locally scoped values. This is how the semantics of JC is implemented in JoCaml. In this way, we get more flexibility in defining molecules.
-- Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`). `Chymyst` uses macros to perform some static analysis of reactions at compile time and detect some errors.
-- Reaction sites are not explicit objects but are local values(instances of class `ReactionSite`) and are invisible to the user, as they should be according to the semantics of JC.
+- Reactions are not merely `case` clauses but locally scoped values of type `Reaction`. `Chymyst` uses macros to perform some static analysis of reactions at compile time and detect some errors.
+- Reaction sites are not explicit objects but are local values of type `ReactionSite` and are invisible to the user, as they should be according to the semantics of JC.
 
 ## Improvements with respect to JoCaml
 

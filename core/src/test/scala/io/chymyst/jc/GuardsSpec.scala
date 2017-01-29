@@ -417,4 +417,40 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(x if ?) + a(y) => "
   }
 
+  behavior of "guard conditions with repeated molecules"
+
+  it should "correctly order input molecules and run reaction" in {
+    val a = m[Int]
+    val f = b[Unit, Unit]
+
+    val status = withPool(new FixedPool(4)) { tp =>
+      site(tp)(go { case a(x) + a(y) + f(_, r) if x == y + 1 => r() })
+
+      (1 to 3).foreach(_ => a(0) + a(1))
+      f() shouldEqual (())
+      f() shouldEqual (())
+      f() shouldEqual (())
+    }
+    if (status.isFailure) println(s"Test failed with message: ${status.failed.get.getMessage}")
+    status.isFailure shouldEqual false
+  }
+
+  it should "correctly apply conditions to values" in {
+    val a = m[Int]
+    val f = b[Unit, Unit]
+
+    val result = go { case a(x) + a(y) + a(z) + f(_, r) if x == y + 1 && y == z + 1 => r() }
+    (result.info.guardPresence match {
+      case GuardPresent(Array(Array('x, 'y), Array('y, 'z)), None, Array(c1, c2)) =>
+        c1.indices.toList shouldEqual List(0, 1)
+        c1.cond.isDefinedAt(List(2, 1)) shouldEqual true
+        c1.cond.isDefinedAt(List(2, 2)) shouldEqual false
+        c2.indices.toList shouldEqual List(1, 2)
+        c2.cond.isDefinedAt(List(0, 0)) shouldEqual false
+        true
+      case _ => false
+    }) shouldEqual true
+
+  }
+
 }

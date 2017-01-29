@@ -219,7 +219,7 @@ Refactoring an inline piece of chemistry into a reusable function is generally d
 Here is the result of this refactoring for our previous code:
 
 ```scala
-def make_all_done(n: Int): (E, EE) = {
+def make_all_done(n: Int): (M[Unit], B[Unit, Unit]) = {
   val done = m[Unit]
   val remaining = m[Int]
   val all_done = b[Unit,Unit]
@@ -234,12 +234,6 @@ def make_all_done(n: Int): (E, EE) = {
 }
 
 ```
-
-Note that we declared the molecule types to be `E` and `EE`.
-These are the types automatically created by the `m[Unit]` and `m[Unit,Unit]` macro calls.
-The class `E` is a subclass of the class `M[Unit]`, and `EE` is a subclass of `M[Unit,Unit]`.
-The subclasses are needed only in order to permit the syntax `done()` and `all_done()` without a compiler warning about the missing `Unit` arguments.
-If we defined `val done = new M[Unit]("done")`, we would have to write `done(())` to avoid the compiler warning.
 
 Let us now use the method `make_all_done()` to simplify the example usage code we had in the previous section:
 

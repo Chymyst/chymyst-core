@@ -148,6 +148,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     override def run(): Unit = dequeueNewMolecules()
   }
 
+  private def reportError(message: String): Unit = {
+    if (logLevel > 0) println(message)
+    Core.reportError(message)
+  }
+
   //  private[jc] def setQuiescenceCallback(callback: E): Unit = {
   //    quiescenceCallbacks.add(callback)
   //    ()
@@ -187,7 +192,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     if (logLevel > 1) println(s"Debug: In $this: reaction {${reaction.info}} started on thread pool $reactionPool with thread id ${Thread.currentThread().getId}")
     val exitStatus: ReactionExitStatus = try {
       // Here we actually apply the reaction body to its input molecules.
-      reaction.body.apply(usedInputs)
+      reaction.body.apply((usedInputs.length - 1, usedInputs))
       ReactionExitSuccess
     } catch {
       // Various exceptions that occurred while running the reaction.
@@ -301,15 +306,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     * This method is run on the thread that emits the molecule. This method is common for blocking and non-blocking molecules.
     *
-    * @param m Molecule emitter.
+    * @param m        Molecule emitter.
     * @param molValue Value of the molecule, wrapped in an instance of [[AbsMolValue]]`[T]` class.
     * @tparam T Type of the molecule value.
     */
   private[jc] def emit[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
-    if (sitePool.isInactive)
-      throw new ExceptionNoSitePool(s"In $this: Cannot emit molecule $m($molValue) because join pool is not active")
-    else if (findUnboundOutputMolecules)
+    if (findUnboundOutputMolecules)
       throw new ExceptionNoReactionSite(s"In $this: As $m($molValue) is emitted, some reactions may emit molecules (${unboundOutputMolecules.map(_.toString).toList.sorted.mkString(", ")}) that are not bound to any reaction site")
+    else if (sitePool.isInactive)
+      throw new ExceptionNoSitePool(s"In $this: Cannot emit molecule $m($molValue) because join pool is not active")
     else if (!Thread.currentThread().isInterrupted) {
       if (emittingSingletonsNow) {
         // Emit them on the same thread, and do not start any reactions.
@@ -428,7 +433,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // Emit singleton molecules (note: this is on the same thread as the call to `site`!).
     // This must be done without starting any reactions.
     emittingSingletonsNow = true
-    singletonReactions.foreach { reaction => reaction.body.apply(null.asInstanceOf[InputMoleculeList]) } // It is OK that the argument is `null` because singleton reactions match on the wildcard: { case _ => ... }
+    singletonReactions.foreach { reaction => reaction.body.apply(null.asInstanceOf[ReactionBodyInput]) } // It is OK that the argument is `null` because singleton reactions match on the wildcard: { case _ => ... }
     emittingSingletonsNow = false
 
     val singletonsActuallyEmitted = moleculesPresent.getCountMap

@@ -86,21 +86,7 @@ val c = new M[Int]("c")
 ```
 
 Molecules carrying `Unit` values can be emitted using the syntax such as `a()` rather than `a(())`.
-This is provided as a syntactic convenience and is implemented by creating instances of class `E`, which is a subclass of `M[Unit]`.
-
-A direct way of defining a molecule emitter with a `Unit` type is therefore
-
-```scala
-val a = new E("a")
-
-```
-
-The macro call `m[Unit]` will return this subclass:
-
-```scala
-val a = m[Unit] // equivalent to `val a = new E("a")`
-
-```
+This is provided as a syntactic convenience, equivalent to writing `a(())`.
 
 
 ### Blocking molecules
@@ -116,7 +102,7 @@ val f = b[Int, String]
 
 Now `f` is a blocking emitter that takes an `Int` value and returns a `String`.
 
-Emitters for blocking molecules are instances of class `B[T, R]`, which extends `Function1[T, R]`.
+Emitters for blocking molecules are values of type `B[T, R]`, which is a subtype of `Function1[T, R]`.
 The emitter `f` could be equivalently defined by
 
 ```scala
@@ -124,7 +110,9 @@ val f = new B[Int, String]("f")
 
 ```
 
-Once `f` is defined like this, an emission call such as
+In this case, the user needs to provide the molecule name explicitly.
+
+Once `f` is defined like this, an emitter call such as
 
 ```scala
 val result = f(123)
@@ -157,11 +145,11 @@ Emitted molecules cannot be stored in a data structure or passed as arguments to
 The programmer has no direct access to the molecules in the soup, apart from being able to emit them.
 But emitters _are_ ordinary, locally defined Scala values and can be manipulated as any other Scala values.
 Emitters are functions whose `apply` method has the side effect of emitting a new copy of a molecule into the soup.
-- Emitters are local values of class `B` or `M`, which both extend the abstract class `Molecule` and the `Function1` trait.
-Blocking molecule emitters are of class `B`, non-blocking of class `M`.
-- Reactions are local values of class `Reaction`. Reactions are created using the function `go` with the syntax `go { case ... => ... }`.
+- Emitters are local values of type `B[T, R]` or `M[T]`. Both types extend the abstract trait `Molecule` as well as the `Function1[T, R]` trait.
+Blocking molecule emitters are of type `B[T, R]`, non-blocking of type `M[T]`.
+- Reactions are local values of type `Reaction`. Reactions are created using the function `go` with the syntax `go { case ... => ... }`.
 - Only one `case` clause can be used in each reaction. It is an error to use several `case` clauses, or case clauses that do not match on input molecules, such as `go { case x => }`.
-- Reaction sites are immutable values of class `ReactionSite`. These values are not visible to the user: they are created in a closed scope by the `site(...)` call. The `site(...)` call activates all the reactions at that reaction site.
+- Reaction sites are immutable values of type `ReactionSite`. These values are not visible to the user: they are created in a closed scope by the `site(...)` call. The `site(...)` call activates all the reactions at that reaction site.
 - Molecule emitters are immutable after all reactions have been activated where these molecules are used as inputs.
 - Molecules emitted into the soup gather at their reaction site. Reaction sites proceed by first deciding which input molecules can be consumed by some reactions; this decision involves the chemical sorts of the molecules as well as any pattern matching and guard conditions that depend on molecule values.
 When suitable input molecules are found and a reaction is chosen, the input molecules are atomically removed from the soup, and the reaction body is executed.

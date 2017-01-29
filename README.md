@@ -125,11 +125,11 @@ However, this does not specify that the reply value `x2` should be sent to the p
 
 ## Reactions are values
 
-Reactions are not merely `case` clauses but locally scoped values (instances of class `Reaction`):
+Reactions are not merely `case` clauses but locally scoped values of type `Reaction`:
 
 ```scala
 val c = m[Int]
-val reaction = go { case c(x) => println(x) }
+val reaction: Reaction = go { case c(x) => println(x) }
 // Declare a reaction, but do not run anything yet.
 
 ```
