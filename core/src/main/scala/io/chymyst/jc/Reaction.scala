@@ -522,7 +522,7 @@ final case class ReactionInfo(inputs: Array[InputMoleculeInfo], outputs: Array[O
       case GuardPresent(_, Some(_), Array()) =>
         " if(?)" // There is a static guard but no cross-molecule guards.
       case GuardPresent(_, _, guards) =>
-        val crossGuardsInfo = guards.flatMap(_.symbols).map(_.name).mkString(",")
+        val crossGuardsInfo = guards.flatMap(_.symbols).map(_.name).distinct.mkString(",")
         s" if($crossGuardsInfo)"
     }
     val outputsInfo = outputs.map(_.toString).mkString(" + ")

@@ -148,6 +148,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     override def run(): Unit = dequeueNewMolecules()
   }
 
+  private def reportError(message: String): Unit = {
+    if (logLevel > 0) println(message)
+    Core.reportError(message)
+  }
+
   //  private[jc] def setQuiescenceCallback(callback: E): Unit = {
   //    quiescenceCallbacks.add(callback)
   //    ()
