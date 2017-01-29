@@ -336,13 +336,13 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     // blocking molecule to fetch the final accumulator value
     val g = b[Unit, Array[Array[Int]]]
 
-    val tp = new FixedPool(16)
-
     // Toroidal board of size m * n
     val boardSize = BoardSize(10, 10)
     val maxTimeStep = 10
 
     val total = boardSize.x * boardSize.y
+    val tp = new FixedPool(total) // maximum parallelism
+
     val emptyBoard: Array[Array[Int]] = Array.fill(boardSize.x, boardSize.y)(0)
 
     def xm(x: Int): Int = (x + boardSize.x) % boardSize.x
@@ -427,7 +427,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
 
     val finalBoard = g()
     val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
-    println(s"Test ($total reactions, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
+    println(s"Test (${total*maxTimeStep} reactions, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     val finalPicture = "|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|"
     println(finalPicture)
     // The "glider" should move, wrapping around the toroidal board.
