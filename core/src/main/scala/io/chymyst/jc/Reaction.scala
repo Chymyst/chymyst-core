@@ -641,6 +641,7 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
       // A simpler, non-flatMap algorithm for the case when there are no cross-dependencies of molecule values.
       val foundResult: Option[Map[Int, AbsMolValue[_]]] =
       if (info.crossGuards.isEmpty && info.crossConditionals.isEmpty) {
+        // Adding `toStream` so that this becomes `info.inputsSorted.toStream.flatFoldLeft...` will slow down the Game of Life benchmark by 2x.
         info.inputsSorted.flatFoldLeft[(Map[Int, AbsMolValue[_]], BagMap)]((Map(), initRelevantMap)) { (prev, inputInfo) =>
           // Since we are in a flatFoldLeft, we need to return Some(...) if we found a new value, or else return None.
           val (prevValues, prevRelevantMap) = prev
