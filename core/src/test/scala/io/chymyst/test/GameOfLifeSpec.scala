@@ -543,7 +543,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
 
     val finalBoard = g()
     val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
-    println(s"Test (${total * maxTimeStep} reactions, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
+    println(s"Test ($maxTimeStep reaction sites with $total reactions each, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     val finalPicture = "|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|"
     println(finalPicture)
     // The "glider" should move, wrapping around the toroidal board.

@@ -93,9 +93,9 @@ lazy val core = (project in file("core"))
       // the "scala-compiler" is a necessary dependency only if we want to debug macros;
       // the project does not actually depend on scala-compiler.
       "org.scala-lang" % "scala-compiler" % scalaVersion.value % "test"
-    ),
-    parallelExecution in Test := false,
-    concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
+    )
+//    , parallelExecution in Test := false
+//    , concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
   )
 
 // Benchmarks - users do not need to depend on this.
