@@ -180,12 +180,12 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val logFile = new ConcurrentLinkedQueue[String]
 
     def f(n: Int)(): Unit = {
-      logFile.add(s"f$n");
+      logFile.add(s"f$n")
       ()
     }
 
     def g(n: Int)(): Unit = {
-      logFile.add(s"g$n");
+      logFile.add(s"g$n")
       ()
     }
 
@@ -259,10 +259,10 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case _ => queueMen(0) + queueWomen(0) + mayBegin(0) }
     )
 
-    (1 to total).map(_ => ()).foreach(man)
+    (1 to total).foreach(_ => man())
     danceCounter.volatileValue shouldEqual Nil
-    (1 to total).map(_ => ()).foreach(woman)
-    done() shouldEqual (0 until total).toList
+    (1 to total).foreach(_ => woman())
+    done() shouldEqual (0 until total).toList // Dancing queue order must be observed.
   }
 
 }
