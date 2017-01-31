@@ -1011,6 +1011,21 @@ if (k + 1 < n) counter(k + 1) else counterInit()
 
 After this single change, the `n`-rendezvous function becomes a reusable `n`-rendezvous.
 
+### Exercises
+
+#### Superadmin `n`-rendezvous
+
+Revise the `n`-rendezvous chemistry to allow one "superadmin" reaction, in addition to ordinary reactions.
+The "superadmin" reaction can unlock the barrier no matter how many other reactions have reached the barrier so far.
+In other words, the "superadmin-`n`-rendezvous" is achieved when either `n` reactions reach the barrier, or the `superadmin` reaction reaches the barrier regardless of how many other reactions have reached so far.
+After the superadmin unlocks the barrier, any other reactions can freely pass the barrier.
+
+#### Weighted `n`-rendezvous
+
+Revise the `n`-rendezvous chemistry to allow different "weights" for reactions waiting at the barrier.
+Weights are integers.
+The `n`-rendezvous is passed when enough reactions reach the barrier so that the sum of all their weights equals `n`.
+
 ## Pair up for dance
 
 In the 18th century Paris, there are two doors that open to the dance floor where men must pair up with women to dance.
@@ -1118,6 +1133,27 @@ go { case _ => queueMen(0) + queueWomen(0) + mayBegin(0) }
 
 The complete working code is found in `Patterns01Spec.scala`.
 
+## Variations on Readers/Writers
+
+### Ordered `m` : `n` Readers/Writers
+
+The Readers/Writers problem is now reformulated with a new requirement that processes should gain access to the resource in the order they requested it.
+The solution must support `m` concurrent Readers and `n` concurrent Writers.
+
+TODO
+
+### Fair, ordered `m` : `n` Readers/Writers ("Unisex bathroom")
+
+The key new requirement is that Readers and Writers should be able to work starvation-free.
+Even if there is a constant stream of Readers and the ratio is `n` to `1`, a single Writer should not wait indefinitely.
+The program should guarantee a fixed upper limit on the waiting time for both Readers and Writers.
+
+### Majority rule `n` : `n` Readers/Writers ("The Modus Hall problem")
+
+Readers and Writers have ratio `n` : `n`.
+However, a new rule involving wait times is introduced:
+If more Readers than Writers are waiting to access the resource, no more Writers can be granted access, and vice versa.
+
 ## Choose and reply to one of many blocking calls (Unix `select`, Actor Model's `receive`)
 
 The task is to organize the processing of several blocking calls emitted by different concurrent reactions.
@@ -1128,4 +1164,277 @@ TODO
 ## Concurrent recursive traversal ("fork/join")
 
 TODO
+
+## Producer-consumer, or `java.util.concurrent.ConcurrentLinkedQueue`
+
+### Unordered bag
+
+There are many producers and consumers working with a single bag of items.
+Let us assume for simplicity that an item is identified by a random integer value.
+
+Producers repeatedly add items to the bag, one item at a time.
+Consumers repeatedly attempt to fetch items from the bag, one item at a time.
+Items can be fetched from the bag in arbitrary order.
+If the queue is empty, the fetching operation blocks until another item is added by the producers.
+
+TODO: expand
+
+### Ordered queue
+
+The formulation of the problem is the same as in the unordered version, except
+that the bag must be replaced by a FIFO pipeline or queue:
+Consumers must receive fetched items in the order these items were added to the queue.
+
+TODO: expand
+
+### Finite unordered bag
+
+The formulation of the problem is the same as in the unordered version, except
+that the bag is finite and can hold no more than `n` items.
+If the bag already contains `n` items, a call to add another item must block until a consumer withdraws some item from the bag.
+
+### Finite ordered queue
+
+TODO
+
+## Dining philosophers with bounded wait time
+
+Our [simple solution to the "Dining Philosophers" problem](chymyst01.md#example-declarative-solution-for-dining-philosophers) has a flaw:
+any given philosopher faces a theoretically unlimited waiting time in the "hungry" state.
+For instance, it can happen that philosopher 1 starts eating, which prevents philosopher 2 from eating.
+So, fork `f23` remains free and philosopher 3 could start eating concurrently if `f34` is also free.
+
+There is a bound on the maximum time each philosopher will eat.
+However, by pure chance, philosophers 1 and 3 could take turns eating for any period of time (1, 3, 1, 3, etc.).
+While this is happening, philosopher 2 cannot start eating.
+The probability of waiting for any period of time is nonzero.
+
+Let us revise the solution so that we guarantee bounded waiting time for every philosopher.
+
+TODO
+
+## Generalized Smokers/Philosophers/Producers/Consumers problem
+
+There are `n` sorts `A_1`, `A_2`, ..., `A_n` of items that many producers will add at random intervals and in random quantities to the common store. 
+There are `n` sorts `P_1`, `P_2`, ..., `P_n` of consumers that look for specific sets of items.
+Consumers of sort `P_j` need items of sorts `a_i` for all `i` that satisfy `(j - 1 <= i <= j + 1) mod n`.
+Each consumer will at once fetch 3 items from the bag, if possible.
+
+## Finite resource with refill ("Dining savages")
+
+There is a common store of items, an arbitrary number of consumers, and one refilling agent.
+The store can hold at most `n` items.
+Each consumer will try to call `fetchItem()`, but that function can be called only if the store is not empty.
+In that case, `fetchItem()` will remove one item from the store.
+
+Only if the store is empty, the `refill()` function can be called.
+However, only one `refill()` call can be made concurrently.
+
+## Finite server queue ("Barber shop problem")
+
+A server can process only one job at a time by calling `processJob()`.
+Jobs can be submitted to the server by calling `submit()`.
+If the server is busy, the submitted job waits in a queue that can hold up to `n` jobs.
+If the queue is full, the submitted job is rejected by calling `reject()`.
+
+Processing each job takes a finite amount of time.
+While the job queue is not empty, the server should keep processing jobs.
+When the queue is empty, the server goes into an energy-conserving "sleeping" state.
+When the queue becomes non-empty while the serves is sleeping, the `wakeUp()` function must be called.
+The server should then resume processing the jobs.
+
+### Finite ordered server queue
+
+Same problem, but jobs must be served in the FIFO order.
+
+# Puzzles from "The Little Book of Semaphors"
+
+The formulations of these puzzles are copied verbatim from A. Downey's book.
+This copying is permitted by the Creative Commons license.
+I will rephrase these problem formulations later, when I get to writing up their solutions.
+
+## Hilzer's "Barber shop"
+
+Our barbershop has three chairs, three barbers, and a waiting area that can accommodate four customers on a sofa and that has standing room for additional customers. Fire codes limit the total number of customers in the shop to 20.
+
+A customer will not enter the shop if it is filled to capacity with other customers. Once inside, the customer takes a seat on the sofa or stands if the sofa is filled. When a barber is free, the customer that has been on the sofa the longest is served and, if there are any standing customers, the one that has been in the shop the longest takes a seat on the sofa. When a customer’s haircut is finished, any barber can accept payment, but because there is only one cash register, payment is accepted for one customer at a time. The barbers divide their time among cutting hair, accepting payment, and sleeping in their chair waiting for a customer.
+
+In other words, the following synchronization constraints apply:
+
+Customers invoke the following functions in order: enterShop, sitOnSofa, getHairCut, pay.
+
+Barbers invoke cutHair and acceptPayment.
+
+Customers cannot invoke enterShop if the shop is at capacity.
+
+If the sofa is full, an arriving customer cannot invoke sitOnSofa.
+
+When a customer invokes getHairCut there should be a corresponding barber executing cutHair concurrently, and vice versa.
+
+It should be possible for up to three customers to execute getHairCut concurrently, and up to three barbers to execute cutHair concurrently.
+
+The customer has to pay before the barber can acceptPayment.
+
+The barber must acceptPayment before the customer can exit.
+
+## The Santa Claus problem
+
+This problem is from William Stallings’s Operating Systems , but he attributes it to John Trono of St. Michael’s College in Vermont.
+
+Santa Claus sleeps in his shop at the North Pole and can only be awakened by either (1) all nine reindeer being back from their vacation in the South Pacific, or (2) some of the elves having difficulty making toys; to allow Santa to get some sleep, the elves can only wake him when three of them have problems. When three elves are having their problems solved, any other elves wishing to visit Santa must wait for those elves to return. If Santa wakes up to find three elves waiting at his shop’s door, along with the last reindeer having come back from the tropics, Santa has decided that the elves can wait until after Christmas, because it is more important to get his sleigh ready. (It is assumed that the reindeer do not want to leave the tropics, and therefore they stay there until the last possible moment.) The last reindeer to arrive must get Santa while the others wait in a warming hut before being harnessed to the sleigh.
+
+Here are some addition specifications:
+
+After the ninth reindeer arrives, Santa must invoke prepareSleigh, and then all nine reindeer must invoke getHitched.
+
+After the third elf arrives, Santa must invoke helpElves. Concurrently, all three elves should invoke getHelp.
+
+All three elves must invoke getHelp before any additional elves enter (increment the elf counter).
+
+Santa should run in a loop so he can help many sets of elves. We can assume that there are exactly 9 reindeer, but there may be any number of elves.
+
+## Building H2O
+
+There are two kinds of threads, oxygen and hydrogen. In order to assemble these threads into water molecules, we have to create a barrier that makes each thread wait until a complete molecule is ready to proceed.
+
+As each thread passes the barrier, it should invoke bond. You must guarantee that all the threads from one molecule invoke bond before any of the threads from the next molecule do.
+
+In other words:
+
+If an oxygen thread arrives at the barrier when no hydrogen threads are present, it has to wait for two hydrogen threads.
+
+If a hydrogen thread arrives at the barrier when no other threads are present, it has to wait for an oxygen thread and another hydrogen thread.
+
+We don’t have to worry about matching the threads up explicitly; that is, the threads do not necessarily know which other threads they are paired up with. The key is just that threads pass the barrier in complete sets; thus, if we examine the sequence of threads that invoke bond and divide them into groups of three, each group should contain one oxygen and two hydrogen threads.
+
+## River crossing problem
+
+This is from a problem set written by Anthony Joseph at U.C. Berkeley, but I don’t know if he is the original author. It is similar to the H2O problem in the sense that it is a peculiar sort of barrier that only allows threads to pass in certain combinations.
+
+Somewhere near Redmond, Washington there is a rowboat that is used by both Linux hackers and Microsoft employees (serfs) to cross a river. The ferry can hold exactly four people; it won’t leave the shore with more or fewer. To guarantee the safety of the passengers, it is not permissible to put one hacker in the boat with three serfs, or to put one serf with three hackers. Any other combination is safe.
+
+As each thread boards the boat it should invoke a function called board. You must guarantee that all four threads from each boatload invoke board before any of the threads from the next boatload do.
+
+After all four threads have invoked board, exactly one of them should call a function named rowBoat, indicating that that thread will take the oars. It doesn’t matter which thread calls the function, as long as one does.
+
+Don’t worry about the direction of travel. Assume we are only interested in traffic going in one of the directions.
+
+## The roller coaster problem
+
+Suppose there are n passenger threads and a car thread. The passengers repeatedly wait to take rides in the car, which can hold C passengers, where C < n. The car can go around the tracks only when it is full.
+
+Here are some additional details:
+
+Passengers should invoke board and unboard.
+
+The car should invoke load, run and unload.
+
+Passengers cannot board until the car has invoked load
+
+The car cannot depart until C passengers have boarded.
+
+Passengers cannot unboard until the car has invoked unload.
+
+Puzzle: Write code for the passengers and car that enforces these constraints.
+
+## Multi-car Roller Coaster problem
+
+This solution does not generalize to the case where there is more than one car. In order to do that, we have to satisfy some additional constraints:
+
+Only one car can be boarding at a time.
+
+Multiple cars can be on the track concurrently.
+
+Since cars can’t pass each other, they have to unload in the same order they boarded.
+
+All the threads from one carload must disembark before any of the threads from subsequent carloads.
+
+Puzzle: modify the previous solution to handle the additional constraints. You can assume that there are m cars, and that each car has a local variable named i that contains an identifier between 0 and m − 1.
+
+
+## The search-insert-delete problem
+
+Three kinds of threads share access to a singly-linked list: searchers, inserters and deleters. Searchers merely examine the list; hence they can execute concurrently with each other. Inserters add new items to the end of the list; insertions must be mutually exclusive to preclude two inserters from inserting new items at about the same time. However, one insert can proceed in parallel with any number of searches. Finally, deleters remove items from anywhere in the list. At most one deleter process can access the list at a time, and deletion must also be mutually exclusive with searches and insertions.
+
+Puzzle: write code for searchers, inserters and deleters that enforces this kind of three-way categorical mutual exclusion.
+
+## The sushi bar problem
+   
+This problem was inspired by a problem proposed by Kenneth Reek . Imagine a sushi bar with 5 seats. If you arrive while there is an empty seat, you can take a seat immediately. But if you arrive when all 5 seats are full, that means that all of them are dining together, and you will have to wait for the entire party to leave before you sit down.
+   
+Puzzle: write code for customers entering and leaving the sushi bar that enforces these requirements.
+
+## The child care problem
+
+At a child care center, state regulations require that there is always one adult present for every three children.
+   
+Puzzle: Write code for child threads and adult threads that enforces this constraint in a critical section.
+
+Optimize the child care center utilization: children can enter at any time, provided that there are enough adults present. Adults can leave at any time, provided that there are not too many children present.
+
+## The room party problem
+
+The following synchronization constraints apply to students and the Dean of Students:
+
+Any number of students can be in a room at the same time.
+
+The Dean of Students can only enter a room if there are no students in the room (to conduct a search) or if there are more than 50 students in the room (to break up the party).
+
+While the Dean of Students is in the room, no additional students may enter, but students may leave.
+
+The Dean of Students may not leave the room until all students have left.
+
+There is only one Dean of Students, so you do not have to enforce exclusion among multiple deans.
+
+Puzzle: write synchronization code for students and for the Dean of Students that enforces all of these constraints.
+   
+## The Senate Bus problem
+
+Riders come to a bus stop and wait for a bus. When the bus arrives, all the waiting riders invoke boardBus, but anyone who arrives while the bus is boarding has to wait for the next bus. The capacity of the bus is 50 people; if there are more than 50 people waiting, some will have to wait for the next bus.
+
+When all the waiting riders have boarded, the bus can invoke depart. If the bus arrives when there are no riders, it should depart immediately.
+
+Puzzle: Write synchronization code that enforces all of these constraints.
+
+## The Faneuil Hall problem
+
+“There are three kinds of threads: immigrants, spectators, and a one judge. Immigrants must wait in line, check in, and then sit down. At some point, the judge enters the building. When the judge is in the building, no one may enter, and the immigrants may not leave. Spectators may leave. Once all immigrants check in, the judge can confirm the naturalization. After the confirmation, the immigrants pick up their certificates of U.S. Citizenship. The judge leaves at some point after the confirmation. Spectators may now enter as before. After immigrants get their certificates, they may leave.”
+
+To make these requirements more specific, let’s give the threads some functions to execute, and put constraints on those functions.
+
+Immigrants must invoke enter, checkIn, sitDown, swear, getCertificate and leave.
+
+The judge invokes enter, confirm and leave.
+
+Spectators invoke enter, spectate and leave.
+
+While the judge is in the building, no one may enter and immigrants may not leave.
+
+The judge can not confirm until all immigrants who have invoked enter have also invoked checkIn.
+
+Immigrants can not getCertificate until the judge has executed confirm.
+
+Solve this.
+
+Extended version: modify this solution to handle the additional constraint that after the judge leaves, all immigrants who have been sworn in must leave before the judge can enter again.
+
+## Dining Hall problem
+
+Students in the dining hall invoke dine and then leave. After invoking dine and before invoking leave a student is considered “ready to leave”.
+
+The synchronization constraint that applies to students is that, in order to maintain the illusion of social suave, a student may never sit at a table alone. A student is considered to be sitting alone if everyone else who has invoked dine invokes leave before she has finished dine.
+
+Puzzle: write code that enforces this constraint.
+
+## Extended Dining Hall problem
+
+The Dining Hall problem gets a little more challenging if we add another step. As students come to lunch they invoke getFood, dine and then leave. After invoking getFood and before invoking dine, a student is considered “ready to eat”. Similarly, after invoking dine a student is considered “ready to leave”.
+
+The same synchronization constraint applies: a student may never sit at a table alone. A student is considered to be sitting alone if either
+
+She invokes dine while there is no one else at the table and no one ready to eat, or
+
+everyone else who has invoked dine invokes leave before she has finished dine.
+
+Puzzle: write code that enforces these constraints.
 
