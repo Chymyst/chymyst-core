@@ -670,27 +670,26 @@ Therefore, we must emit a new molecule that neither Process 1 nor Process 2 cons
 Also note that each process must wait until the other process sends back its value. 
 Therefore, the new molecule must be a blocking molecule.
 
-Let's say that each process would emit its own blocking molecule at this point, and let's call these molecules `barrier1` and `barrier2`.
+Let's say that each process will emit a blocking molecule `barrier()` at the point when it must wait for the other process.
 The code will look like this:
 
 ```scala
 val begin1 = m[Unit]
 val begin2 = m[Unit]
 
-val barrier1 = b[Unit,Unit]
-val barrier2 = b[Unit,Unit]
+val barrier = b[Unit,Unit]
 
 site(
   go { case begin1(_) =>
     val x1 = 123 // some computation
-    barrier1(x1) 
+    barrier(x1) 
     ??? // send x1 to Process 2 somehow
     val y1 = ??? // receive value from Process 2
     val z = further_computation_1(y1)
    },
   go { case begin2(_) =>
     val x2 = 456 // some computation
-    barrier2(x2)
+    barrier(x2)
     ??? // send x2 to Process 1 somehow
     val y2 = ??? // receive value from Process 1
     val z = further_computation_2(y2)
@@ -709,18 +708,17 @@ Let's make `barrier1` return the value that Process 2 sends, and vice versa.
 val begin1 = m[Unit]
 val begin2 = m[Unit]
 
-val barrier1 = b[Int,Int]
-val barrier2 = b[Int,Int]
+val barrier = b[Int,Int]
 
 site(
   go { case begin1(_) =>
     val x1 = 123 // some computation
-    val y1 = barrier1(x1) // receive value from Process 2 
+    val y1 = barrier(x1) // receive value from Process 2 
     val z = further_computation_1(y1)
    },
   go { case begin2(_) =>
     val x2 = 456 // some computation
-    val y2 = barrier2(x2) // receive value from Process 1
+    val y2 = barrier(x2) // receive value from Process 1
     val z = further_computation_2(y2)
    }
 )
@@ -728,14 +726,16 @@ begin1() + begin2() // emit both molecules to enable starting the two reactions
 
 ```
 
-At this point, the molecules `barrier1` and `barrier2` are not yet consumed by any reactions.
+At this point, the molecule `barrier()` is not yet consumed by any reactions.
 We now need to define some reaction that consumes these molecules.
+
+The two processes will each emit one copy of `barrier()`.
 It is clear that what we need is a reaction that exchanges the values these two molecules carry.
 The easiest solution is to just let these two molecules react with each other.
 The reaction will then reply to both of them, exchanging the reply values. 
 
 ```scala
-go { case barrier1(x1, reply1) + barrier2(x2, reply2) => reply1(x2) + reply2(x1) }
+go { case barrier(x1, reply1) + barrier(x2, reply2) => reply1(x2) + reply2(x1) }
 
 ```
 
@@ -745,21 +745,20 @@ The final code looks like this:
 val begin1 = m[Unit]
 val begin2 = m[Unit]
 
-val barrier1 = b[Int,Int]
-val barrier2 = b[Int,Int]
+val barrier = b[Int,Int]
 
 site(
   go { case begin1(_) =>
     val x1 = 123 // some computation
-    val y1 = barrier1(x1) // receive value from Process 2 
+    val y1 = barrier(x1) // receive value from Process 2 
     val z = further_computation_1(y1)
    },
   go { case begin2(_) =>
     val x2 = 456 // some computation
-    val y2 = barrier2(x2) // receive value from Process 1
+    val y2 = barrier(x2) // receive value from Process 1
     val z = further_computation_2(y2)
    },
-   go { case barrier1(x1, reply1) + barrier2(x2, reply2) => reply1(x2) + reply2(x1) }
+   go { case barrier(x1, reply1) + barrier(x2, reply2) => reply1(x2) + reply2(x1) }
 )
 begin1() + begin2() // emit both molecules to enable starting the two reactions
 
@@ -780,19 +779,19 @@ Let us try to generalize our previous implementation of the rendezvous from 2 pa
 Since emitters are values, we could define `n` different emitters `begin1`, ..., `begin_n`, `barrier1`, ..., `barrier_n` and so on.
 We could store these emitters in an array and also define an array of corresponding reactions.
 
-However, we notice a problem in the reaction that performs the rendezvous:
+However, we notice a problem when we try to generalize the reaction that performs the rendezvous:
 
 ```scala
-go { case barrier1(x1, reply1) + barrier2(x2, reply2) => ... }
+go { case barrier(x1, reply1) + barrier(x2, reply2) => ... }
 
 ```
 
-Generalizing this reaction straightforwardly to `n` participants would now require a reaction with `n` input molecules `barrier1`, ..., `barrier_n`.
-In the chemical machine, input molecules to each reaction must be defined statically.
+Generalizing this reaction straightforwardly to `n` participants would now require a reaction with `n` input molecules.
+However, input molecules to each reaction must be defined statically at compile time.
 Since `n` is a run-time parameter, we cannot define a reaction with `n` input molecules.
 So we cannot generalize from 2 to `n` participants in this way.
 
-What we need is to consume all `n` blocking molecules `barrier1`, ..., `barrier_n` and also reply to all of them after we make sure we consumed exactly `n` of them.
+What we need is to consume all `n` blocking molecules `barrier()` and also reply to all of them after we make sure we consumed exactly `n` of them.
 The only way to implement chemistry that consumes `n` molecules (where `n` is a runtime parameter) is to consume one molecule at a time while counting to `n`.
 We need a molecule, say `counter()`, to carry the integer value that shows the number of `barrier()` molecules already consumed.
 Therefore, we need a reaction like this:
