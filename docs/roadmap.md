@@ -2,6 +2,8 @@
 
 # Version history
 
+- 0.1.8 Singleton molecules are now renamed "static". More examples, including concurrent Game of Life.
+
 - 0.1.7 New compile-time restrictions, towards guaranteeing single reply for blocking molecules. It is now not allowed to call blocking molecules inside loops, or to emit replies in any non-linear code context (such as, under a closure or in a loop). Change of artifact package from `code.chymyst` to `io.chymyst`. This version is the first one published on Sonatype Maven repository. 
 
 - 0.1.6 A different mechanism now implements the syntax `a()` for emitting molecules with `Unit` values; no more auxiliary classes `E`, `BE`, `EB`, `EE`, which simplifies code and eliminates the need for whitebox macros. Breaking change: `timeout(value)(duraction)` instead of `timeout(duraction)(value)` as before. An optimization for the reaction scheduler now makes simple reactions start faster. The project build has been revamped: now there is a single JAR artifact and a single SBT project for `Chymyst`, rather than 3 as before. A skeleton "hello-world" project is available in a separate repository. `Chymyst` has been moved to a separate repository as well. Various improvements in the compile-time analysis of reactions: livelock detection now understands that molecules emitted under `if/else` constructions are not always emitted.
@@ -16,7 +18,7 @@
 
 - 0.1.1 Bug fixes for blocking replies; new benchmarks for blocking molecules.
 
-- 0.1.0 First alpha release of `Chymyst`. Changes: implementing singleton molecules and volatile readers; several important bugfixes.
+- 0.1.0 First alpha release of `Chymyst`. Changes: implementing static molecules and volatile readers; several important bugfixes.
 
 - 0.0.10 Static checks for livelock and deadlock in reactions, with both compile-time errors and run-time errors.
 
@@ -43,9 +45,9 @@ This will allow us to implement interesting features such as:
 - emit many molecules at once, rather than one by one (not sure if this is important!)
 - allow nonlinear input patterns (done in 0.1.5)
 
-Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka Streaming, Kafka, Heron.
+Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka Streaming, Kafka, Heron. Define and use "pipelined" molecules that are optimized for streaming usage.
 
-Version 0.4: Enterprise readiness: fault tolerance, monitoring, flexible logging, assertions on singleton molecules and perhaps on some other situations, thread fusing for singleton molecule reactions.
+Version 0.4: Enterprise readiness: fault tolerance, monitoring, flexible logging, assertions on static molecules and perhaps on some other situations, thread fusing for static or pipelined molecule reactions.
 
 Version 0.5: Application framework `Chymyst`, converting between molecules and various external APIs such as HTTP, GUI toolkits, Unix files and processes.
 
@@ -57,7 +59,7 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
 
  value * difficulty - description
   
- 2 * 3 - detect livelock due to singleton emission (at the moment, they are not considered as present inputs)
+ 2 * 3 - detect livelock due to static molecule emission (at the moment, they are not considered as present inputs?)
 
  2 * 2 - Detect this condition at the reaction site time:
  A cycle of input molecules being subset of output molecules, possibly spanning several reaction sites (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.
@@ -65,7 +67,7 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
  2 * 3 - understand the "reader-writer" example; implement it as a unit test 3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
  Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.
 
- 2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for singletons?
+ 2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for statics / pipelined?
 
  4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same reaction site, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on reaction site information gleaned using a macro.
 
@@ -81,7 +83,7 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
 
  3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is emitted from a thread T and the corresponding reaction site runs on the same thread T, do not schedule a task but simply run the reaction site synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a reaction site that runs on thread T and the reaction is configured to run on the same thread, do not schedule a task but simply run the reaction synchronously.
 
- 3 * 5 - implement automatic thread fusion for singletons
+ 3 * 5 - implement automatic thread fusion for static molecules?
  
  5 * 5 - is it possible to implement distributed execution by sharing the join pool with another machine (but running the reaction sites only on the master node)?
 
@@ -107,7 +109,7 @@ Version 0.7: Static optimizations: use macros and code transformations to comple
 
  3 * 3 - perhaps prohibit using explicit thread pools? It's error-prone because the user can forget to stop a pool. Perhaps only expose an API such as `withFixedPool(4){ implicit tp => ...}`? Investigate using implicit values for pools.
   
- 3 * 3 - implement "one-off" molecules that are emitted once (like singletons, from the reaction site itself) and never emitted again
+ 3 * 3 - implement "one-off" or "perishable" molecules that are emitted once (like static, from the reaction site itself) and may be emitted only if first consumed (but not necessarily emitted)
   
  2 * 2 - If a blocking molecule was emitted without a timeout, we don't need the second semaphore, and checkTimeout() should return `true`
  

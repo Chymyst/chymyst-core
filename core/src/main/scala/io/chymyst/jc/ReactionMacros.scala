@@ -15,8 +15,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   type MacroSymbol = c.Symbol
   type ScalaSymbol = scala.Symbol
 
-  // A singleton reaction must start with _ and must emit some output molecules (which we check later).
-  def isSingletonReaction(pattern: Tree, guard: Tree, body: Tree): Boolean = pattern match {
+  // A static reaction must start with _ and must emit some output molecules (which we check later).
+  def isStaticReaction(pattern: Tree, guard: Tree, body: Tree): Boolean = pattern match {
     case Ident(termNames.WILDCARD) => true
     case _ => false
   }

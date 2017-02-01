@@ -171,7 +171,7 @@ private[jc] object StaticAnalysis {
     else None
   }
 
-  private[jc] def findStaticErrors(reactions: Seq[Reaction]) = {
+  private[jc] def findGeneralErrors(reactions: Seq[Reaction]) = {
     Seq(
       checkReactionShadowing _,
       checkSingleReactionLivelock _,
@@ -188,104 +188,104 @@ private[jc] object StaticAnalysis {
     ).flatMap(_ (reactions))
   }
 
-  // Each singleton should occur in some reaction as an input. No singleton should be consumed twice by a reaction.
-  // Each singleton that is consumed by a reaction should also be emitted by the same reaction.
-  private def checkInputsForSingletons(singletons: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
-    val singletonsConsumedMaxTimes: Map[Molecule, (Reaction, Int)] =
+  // Each static molecule should occur in some reaction as an input. No static molecule should be consumed twice by a reaction.
+  // Each static molecule that is consumed by a reaction should also be emitted by the same reaction.
+  private def checkInputsForStaticMols(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
+    val staticMolsConsumedMaxTimes: Map[Molecule, (Reaction, Int)] =
       if (reactions.isEmpty)
         Map()
       else
-        singletons.map { case (m, _) => m -> reactions.map(r => (r, r.inputMolecules.count(_ === m))).maxBy(_._2) }
+        staticMols.map { case (m, _) => m -> reactions.map(r => (r, r.inputMolecules.count(_ === m))).maxBy(_._2) }
 
-    val wrongConsumed = singletonsConsumedMaxTimes
+    val wrongConsumed = staticMolsConsumedMaxTimes
       .flatMap {
         case (mol, (reaction, 0)) =>
-          Some(s"singleton ($mol) not consumed by any reactions")
+          Some(s"static molecule ($mol) not consumed by any reactions")
         case (mol, (reaction, 1)) =>
           None
         case (mol, (reaction, countConsumed)) =>
-          Some(s"singleton ($mol) consumed $countConsumed times by reaction ${reaction.info}")
+          Some(s"static molecule ($mol) consumed $countConsumed times by reaction ${reaction.info}")
       }
 
-    val wrongOutput = singletons.map {
+    val wrongOutput = staticMols.map {
       case (m, _) => m -> reactions.find(r => r.inputMolecules.count(_ === m) == 1 && !r.info.outputs.exists(_.molecule === m))
     }.flatMap {
       case (mol, Some(r)) =>
-        Some(s"singleton ($mol) consumed but not emitted by reaction ${r.info}")
+        Some(s"static molecule ($mol) consumed but not emitted by reaction ${r.info}")
       case _ => None
     }
 
     val errorList = wrongConsumed ++ wrongOutput
 
     if (errorList.nonEmpty)
-      Some(s"Incorrect singleton declaration: ${errorList.mkString("; ")}")
+      Some(s"Incorrect static molecule declaration: ${errorList.mkString("; ")}")
     else None
   }
 
-  // No singleton should be output by a reaction that does not consume it.
-  // No singleton should be output more than once by a reaction.
-  private def checkOutputsForSingletons(singletons: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
-    val errorList = singletons.flatMap {
+  // No static molecule should be output by a reaction that does not consume it.
+  // No static molecule should be output more than once by a reaction.
+  private def checkOutputsForStaticMols(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
+    val errorList = staticMols.flatMap {
       case (m, _) =>
         reactions.flatMap {
           r =>
             val outputTimes = r.info.outputs.count(_.molecule === m)
             if (outputTimes > 1)
-              Some(s"singleton ($m) emitted more than once by reaction ${r.info}")
+              Some(s"static molecule ($m) emitted more than once by reaction ${r.info}")
             else if (outputTimes == 1 && !r.inputMoleculesSet.contains(m))
-              Some(s"singleton ($m) emitted but not consumed by reaction ${r.info}")
+              Some(s"static molecule ($m) emitted but not consumed by reaction ${r.info}")
             else None
         }
     }
 
     if (errorList.nonEmpty)
-      Some(s"Incorrect singleton declaration: ${errorList.mkString("; ")}")
+      Some(s"Incorrect static molecule declaration: ${errorList.mkString("; ")}")
     else None
   }
 
-  private[jc] def findSingletonErrors(singletons: Map[Molecule, Int], reactions: Seq[Reaction]) = {
+  private[jc] def findStaticMolErrors(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]) = {
     Seq(
-      checkOutputsForSingletons _,
-      checkInputsForSingletons _
-    ).flatMap(_ (singletons, reactions))
+      checkOutputsForStaticMols _,
+      checkInputsForStaticMols _
+    ).flatMap(_ (staticMols, reactions))
   }
 
-  private[jc] def findSingletonWarnings(singletons: Map[Molecule, Int], reactions: Seq[Reaction]) = {
+  private[jc] def findStaticMolWarnings(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]) = {
     // TODO: implement
     Seq()
   }
 
 
-  private[jc] def findSingletonDeclarationErrors(singletonReactions: Seq[Reaction]): Seq[String] = {
-    val foundErrors = singletonReactions.map(_.info).filterNot(_.guardPresence.effectivelyAbsent)
+  private[jc] def findStaticMolDeclarationErrors(staticReactions: Seq[Reaction]): Seq[String] = {
+    val foundErrors = staticReactions.map(_.info).filterNot(_.guardPresence.effectivelyAbsent)
     if (foundErrors.nonEmpty)
-      foundErrors.map { info => s"Singleton reaction {$info} should not have a guard condition" }
+      foundErrors.map { info => s"Static reaction {$info} should not have a guard condition" }
     else Seq()
   }
 
-  // Inspect the singletons actually emitted. Their multiplicities must be not less than the declared multiplicities.
-  private[jc] def findSingletonEmissionErrors(singletonsDeclared: Map[Molecule, Int], singletonsEmitted: Map[Molecule, Int]): Seq[String] = {
-    val foundErrors = singletonsDeclared
-      .filter { case (mol, count) => singletonsEmitted.getOrElse(mol, 0) < count }
+  // Inspect the static molecules actually emitted. Their multiplicities must be not less than the declared multiplicities.
+  private[jc] def findStaticMolsEmissionErrors(staticMolsDeclared: Map[Molecule, Int], staticMolsEmitted: Map[Molecule, Int]): Seq[String] = {
+    val foundErrors = staticMolsDeclared
+      .filter { case (mol, count) => staticMolsEmitted.getOrElse(mol, 0) < count }
       .map { case (mol, count) =>
-        val countEmitted = singletonsEmitted.getOrElse(mol, 0)
+        val countEmitted = staticMolsEmitted.getOrElse(mol, 0)
         s"$mol emitted $countEmitted times instead of $count"
       }
     if (foundErrors.nonEmpty)
-      Seq(s"Too few singletons emitted: ${foundErrors.toList.sorted.mkString(", ")}")
+      Seq(s"Too few static molecules emitted: ${foundErrors.toList.sorted.mkString(", ")}")
     else Seq()
   }
 
-  // Inspect the singletons actually emitted. Their multiplicities must be not more than the declared multiplicities.
-  private[jc] def findSingletonEmissionWarnings(singletonsDeclared: Map[Molecule, Int], singletonsEmitted: Map[Molecule, Int]) = {
-    val foundErrors = singletonsDeclared
-      .filter { case (mol, count) => singletonsEmitted.getOrElse(mol, 0) > count }
+  // Inspect the static molecules actually emitted. Their multiplicities must be not more than the declared multiplicities.
+  private[jc] def findStaticMolsEmissionWarnings(staticMolsDeclared: Map[Molecule, Int], staticMolsEmitted: Map[Molecule, Int]) = {
+    val foundErrors = staticMolsDeclared
+      .filter { case (mol, count) => staticMolsEmitted.getOrElse(mol, 0) > count }
       .map { case (mol, count) =>
-        val countEmitted = singletonsEmitted.getOrElse(mol, 0)
+        val countEmitted = staticMolsEmitted.getOrElse(mol, 0)
         s"$mol emitted $countEmitted times instead of $count"
       }
     if (foundErrors.nonEmpty)
-      Seq(s"Possibly too many singletons emitted: ${foundErrors.toList.sorted.mkString(", ")}")
+      Seq(s"Possibly too many static molecules emitted: ${foundErrors.toList.sorted.mkString(", ")}")
     else Seq()
   }
 
