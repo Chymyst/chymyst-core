@@ -8,13 +8,13 @@ import scala.language.postfixOps
 
 import scala.concurrent.duration._
 
-class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(3000, Millis)
 
-  behavior of "singleton emission"
+  behavior of "static molecule emission"
 
-  it should "refuse to emit a singleton from user code" in {
+  it should "refuse to emit a static molecule from user code" in {
 
     val f = b[Unit, String]
     val d = m[String]
@@ -23,21 +23,21 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     site(tp1, tp1)(
       go { case f(_, r) + d(text) => r(text); d(text) },
-      go { case _ => d("ok") } // singleton
+      go { case _ => d("ok") } // static reaction
     )
 
     (1 to 200).foreach { i =>
       val thrown = intercept[Exception] {
         d(s"bad $i") // this "d" should not be emitted, even though "d" is sometimes not in the soup due to reactions!
       }
-      thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit singleton d(bad $i) because this thread does not run a chemical reaction"
+      thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit static molecule d(bad $i) because this thread does not run a chemical reaction"
       f.timeout()(500 millis) shouldEqual Some("ok")
     }
 
     tp1.shutdownNow()
   }
 
-  it should "refuse to emit a singleton immediately after reaction site" in {
+  it should "refuse to emit a static molecule immediately after reaction site" in {
 
     val tp1 = new FixedPool(1) // This test works only with single threads.
 
@@ -47,7 +47,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
       site(tp1, tp1)(
         go { case f(_, r) + d(text) => r(text); d(text) },
-        go { case _ => d("ok") } // singleton
+        go { case _ => d("ok") } // static reaction
       )
 
       // Warning: the timeouts might fail the test due to timed tests.
@@ -56,7 +56,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
           d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
           // and even if the initial d() emission was done late
         }
-        thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit singleton d(bad $i $j) because this thread does not run a chemical reaction"
+        thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit static molecule d(bad $i $j) because this thread does not run a chemical reaction"
         f.timeout()(500 millis) shouldEqual Some("ok")
       }
 
@@ -65,7 +65,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp1.shutdownNow()
   }
 
-  it should "signal error when a singleton is consumed by reaction but not emitted" in {
+  it should "signal error when a static molecule is consumed by reaction but not emitted" in {
 
     val tp = new FixedPool(3)
 
@@ -75,15 +75,15 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
       site(tp)(
         go { case c(_, r) + d(_) => r("ok") },
-        go { case _ => d() } // singleton
+        go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect singleton declaration: singleton (d) consumed but not emitted by reaction c/B(_) + d(_) => "
+    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect static molecule declaration: static molecule (d) consumed but not emitted by reaction c/B(_) + d(_) => "
 
     tp.shutdownNow()
   }
 
-  it should "signal error when a singleton is consumed by reaction and emitted twice" in {
+  it should "signal error when a static molecule is consumed by reaction and emitted twice" in {
 
     val tp = new FixedPool(3)
 
@@ -93,15 +93,15 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
       site(tp)(
         go { case c(_, r) + d(_) => r("ok"); d() + d() },
-        go { case _ => d() } // singleton
+        go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect singleton declaration: singleton (d) emitted more than once by reaction c/B(_) + d(_) => d() + d()"
+    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect static molecule declaration: static molecule (d) emitted more than once by reaction c/B(_) + d(_) => d() + d()"
 
     tp.shutdownNow()
   }
 
-  it should "signal error when a singleton is emitted but not consumed by reaction" in {
+  it should "signal error when a static molecule is emitted but not consumed by reaction" in {
 
     val tp = new FixedPool(3)
 
@@ -113,15 +113,15 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       site(tp)(
         go { case c(_, r) => r("ok"); d() },
         go { case e(_) => d() },
-        go { case _ => d() } // singleton
+        go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B => ...; e => ...}: Incorrect singleton declaration: singleton (d) emitted but not consumed by reaction c/B(_) => d(); singleton (d) emitted but not consumed by reaction e(_) => d(); Incorrect singleton declaration: singleton (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B => ...; e => ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction c/B(_) => d(); static molecule (d) emitted but not consumed by reaction e(_) => d(); Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
 
     tp.shutdownNow()
   }
 
-  it should "signal error when a singleton is consumed multiple times by reaction" in {
+  it should "signal error when a static molecule is consumed multiple times by reaction" in {
 
     val tp = new FixedPool(3)
 
@@ -131,15 +131,15 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
       site(tp)(
         go { case e(_) + d(_) + d(_) => d() },
-        go { case _ => d() } // singleton
+        go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{d + d + e => ...}: Incorrect singleton declaration: singleton (d) consumed 2 times by reaction d(_) + d(_) + e(_) => d()"
+    thrown.getMessage shouldEqual "In Site{d + d + e => ...}: Incorrect static molecule declaration: static molecule (d) consumed 2 times by reaction d(_) + d(_) + e(_) => d()"
 
     tp.shutdownNow()
   }
 
-  it should "signal error when a singleton is emitted but not bound to any reaction site" in {
+  it should "signal error when a static molecule is emitted but not bound to any reaction site" in {
 
     val tp = new FixedPool(3)
 
@@ -147,7 +147,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       val d = m[Unit]
 
       site(tp)(
-        go { case _ => d() } // singleton
+        go { case _ => d() } // static reaction
       )
     }
     thrown.getMessage shouldEqual "Molecule d is not bound to any reaction site"
@@ -155,7 +155,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
-  it should "signal error when a singleton is emitted but not bound to this reaction site" in {
+  it should "signal error when a static molecule is emitted but not bound to this reaction site" in {
 
     val tp = new FixedPool(3)
 
@@ -169,15 +169,15 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
       site(tp)(
         go { case c(_, r) => r("ok"); d() },
-        go { case _ => d() } // singleton
+        go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B => ...}: Incorrect singleton declaration: singleton (d) emitted but not consumed by reaction c/B(_) => d(); Incorrect singleton declaration: singleton (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B => ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction c/B(_) => d(); Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
 
     tp.shutdownNow()
   }
 
-  it should "signal error when a singleton is defined by a reaction with guard" in {
+  it should "signal error when a static molecule is defined by a reaction with guard" in {
 
     val tp = new FixedPool(3)
 
@@ -189,10 +189,10 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
       site(tp)(
         go { case c(_, r) + d(_) => r("ok") + d() },
-        go { case _ if n > 0 => d() } // singleton
+        go { case _ if n > 0 => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Singleton reaction { if(?) => d()} should not have a guard condition"
+    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Static reaction { if(?) => d()} should not have a guard condition"
 
     tp.shutdownNow()
   }
@@ -209,7 +209,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     thrown.getMessage shouldEqual "Molecule c is not bound to any reaction site"
   }
 
-  it should "refuse to read the value of a non-singleton molecule" in {
+  it should "refuse to read the value of a non-static molecule" in {
     val c = m[Int]
 
     val tp = new FixedPool(1)
@@ -219,11 +219,11 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       c.volatileValue
     }
 
-    thrown.getMessage shouldEqual "In Site{c => ...}: volatile reader requested for non-singleton (c)"
+    thrown.getMessage shouldEqual "In Site{c => ...}: volatile reader requested for non-static molecule (c)"
     tp.shutdownNow()
   }
 
-  it should "always be able to read the value of a singleton early" in {
+  it should "always be able to read the value of a static molecule early" in {
 
     val tp = new FixedPool(1)
 
@@ -246,7 +246,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
-  it should "refuse to define a blocking molecule as a singleton" in {
+  it should "refuse to define a blocking molecule as a static molecule" in {
 
     val tp = new FixedPool(1)
 
@@ -262,12 +262,12 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       )
     }
 
-    thrown.getMessage shouldEqual "In Site{c + d => ...; f/B => ...}: Refusing to emit molecule f/B() as a singleton (must be a non-blocking molecule)"
+    thrown.getMessage shouldEqual "In Site{c + d => ...; f/B => ...}: Refusing to emit molecule f/B() as static (must be a non-blocking molecule)"
 
     tp.shutdownNow()
   }
 
-  it should "report that the value of a singleton is ready even if called early" in {
+  it should "report that the value of a static molecule is ready even if called early" in {
 
     val tp = new FixedPool(1)
 
@@ -293,7 +293,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
-  it should "read the initial value of the singleton molecule after stabilization" in {
+  it should "read the initial value of the static molecule after stabilization" in {
     val d = m[Int]
     val stabilize_d = b[Unit, Unit]
 
@@ -301,7 +301,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     site(tp)(
       go { case d(x) + stabilize_d(_, r) => r(); d(x) }, // Await stabilizing the presence of d
-      go { case _ => d(123) } // singleton
+      go { case _ => d(123) } // static reaction
     )
     stabilize_d()
     d.volatileValue shouldEqual 123
@@ -309,7 +309,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
-  it should "read the value of the singleton molecule sometimes inaccurately after many changes" in {
+  it should "read the value of the static molecule sometimes inaccurately after many changes" in {
     val d = m[Int]
     val incr = b[Unit, Unit]
     val stabilize_d = b[Unit, Unit]
@@ -322,7 +322,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     site(tp)(
       go { case d(x) + incr(_, r) => r(); d(x + 1) },
       go { case d(x) + stabilize_d(_, r) => d(x); r() }, // Await stabilizing the presence of d
-      go { case _ => d(n) } // singleton
+      go { case _ => d(n) } // static reaction
     )
     stabilize_d.timeout()(500 millis)
     d.volatileValue shouldEqual n
@@ -336,7 +336,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp.shutdownNow()
   }
 
-  it should "keep the previous value of the singleton molecule while update reaction is running" in {
+  it should "keep the previous value of the static molecule while update reaction is running" in {
     val d = m[Int]
     val e = m[Unit]
     val wait = b[Unit, Unit]
@@ -350,7 +350,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       go { case wait(_, r) + e(_) => r() } onThreads tp3,
       go { case d(x) + incr(_, r) => r(); wait(); d(x + 1) } onThreads tp1,
       go { case d(x) + stabilize_d(_, r) => d(x); r() } onThreads tp1, // Await stabilizing the presence of d
-      go { case _ => d(100) } // singleton
+      go { case _ => d(100) } // static reaction
     )
     stabilize_d.timeout()(500 millis) shouldEqual Some(())
     d.volatileValue shouldEqual 100
@@ -364,7 +364,7 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
     tp3.shutdownNow()
   }
 
-  it should "signal error when a singleton is emitted fewer times than declared" in {
+  it should "signal error when a static molecule is emitted fewer times than declared" in {
 
     val tp = new FixedPool(3)
 
@@ -377,19 +377,19 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
       site(tp)(
         go { case d(_) + e(_) + f(_) + c(_, r) => r("ok"); d(); e(); f() },
         go { case _ => if (false) {
-          d();
+          d()
           e()
-        };
-          f();
-        } // singletons d() and e() will actually not be emitted because of a condition
+        }
+          f()
+        } // static molecules d() and e() will actually not be emitted because of a condition
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d + e + f => ...}: Too few singletons emitted: d emitted 0 times instead of 1, e emitted 0 times instead of 1"
+    thrown.getMessage shouldEqual "In Site{c/B + d + e + f => ...}: Too few static molecules emitted: d emitted 0 times instead of 1, e emitted 0 times instead of 1"
 
     tp.shutdownNow()
   }
 
-  it should "signal no error (but a warning) when a singleton is emitted more times than declared" in {
+  it should "signal no error (but a warning) when a static molecule is emitted more times than declared" in {
 
     val tp = new FixedPool(3)
 
@@ -400,16 +400,16 @@ class SingletonMoleculeSpec extends FlatSpec with Matchers with TimeLimitedTests
 
     val warnings = site(tp)(
       go { case d(_) + e(_) + f(_) + c(_, r) => r("ok"); d(); e(); f() },
-      go { case _ => (1 to 2).foreach { _ => d(); e() }; f(); } // singletons d() and e() will actually be emitted more times
+      go { case _ => (1 to 2).foreach { _ => d(); e() }; f(); } // static molecules d() and e() will actually be emitted more times
     )
 
     warnings.errors shouldEqual Seq()
-    warnings.warnings shouldEqual Seq("Possibly too many singletons emitted: d emitted 2 times instead of 1, e emitted 2 times instead of 1")
+    warnings.warnings shouldEqual Seq("Possibly too many static molecules emitted: d emitted 2 times instead of 1, e emitted 2 times instead of 1")
 
     tp.shutdownNow()
   }
 
-  it should "detect livelock with singletons" in {
+  it should "detect livelock with static molecules" in {
     val a = m[Unit]
     val c = m[Int]
     val thrown = intercept[Exception] {

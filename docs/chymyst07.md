@@ -1124,7 +1124,7 @@ In order to make sure that the previous pair has actually began dancing, we can 
 The next `mayBegin` will then be emitted only after `beginDancing` receives a reply, indicating that the dancing process has actually started.
 
 Finally, we must make sure that the auxiliary molecules are emitted only once and with correct values.
-We can declare these molecules as singletons by writing a singleton reaction:
+We can declare these molecules as static by writing a static reaction:
 
 ```scala
 go { case _ => queueMen(0) + queueWomen(0) + mayBegin(0) }

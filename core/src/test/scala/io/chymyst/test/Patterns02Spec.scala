@@ -87,6 +87,7 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       BlockingIdle(Thread.sleep(100))
       resource = x
       log.add(WritingEnded)
+      ()
     }
 
     val read = m[Unit]
@@ -144,6 +145,7 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       BlockingIdle(Thread.sleep(100))
       resource = x
       log.add(WritingEnded)
+      ()
     }
 
     val read = b[Unit, Int]

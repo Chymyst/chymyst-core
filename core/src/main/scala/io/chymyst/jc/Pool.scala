@@ -55,7 +55,7 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => (ExecutorSe
 
 /** Create a pool from a Handler interface. The pool will submit tasks using a Handler.post() method.
   *
-  * This is useful for Android and JavaFX environments. Not yet tested. Behavior with singletons will be probably wrong.
+  * This is useful for Android and JavaFX environments. Not yet tested. Behavior with static molecules will be probably wrong.
   *
   * Note: the structural type for `handler` should not be used. Here it is used only as an illustration.
   */
