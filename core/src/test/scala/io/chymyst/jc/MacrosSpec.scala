@@ -112,7 +112,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     reaction.info.toString shouldEqual "bb((0,3)) + bb((1,2)) + bb(?) => "
   }
 
-  it should "inspect reaction body with default clause that declares a singleton" in {
+  it should "inspect reaction body with default clause that declares a static molecule" in {
     val a = m[Int]
 
     val reaction = go { case _ => a(123) }
@@ -992,46 +992,46 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     y2 should fullyMatch regex "x\\$[0-9]+"
   }
 
-  behavior of "errors while emitting singletons"
+  behavior of "errors while emitting static molecules"
 
-  it should "refuse to emit singleton from non-reaction thread" in {
-    val dIncorrectSingleton = m[Unit]
+  it should "refuse to emit static molecule from non-reaction thread" in {
+    val dIncorrectStaticMol = m[Unit]
     val e = m[Unit]
 
-    val r1 = go { case dIncorrectSingleton(_) + e(_) => dIncorrectSingleton(); 123 }
+    val r1 = go { case dIncorrectStaticMol(_) + e(_) => dIncorrectStaticMol(); 123 }
 
     site(tp0)(
       r1,
-      go { case _ => dIncorrectSingleton() }
+      go { case _ => dIncorrectStaticMol() }
     )
 
     val inputs = new InputMoleculeList(2)
-    inputs(0) = (dIncorrectSingleton, MolValue(()))
+    inputs(0) = (dIncorrectStaticMol, MolValue(()))
     inputs(1) = (e, MolValue(()))
     val thrown = intercept[Exception] {
-      r1.body.apply((inputs.length - 1, inputs)) shouldEqual 123 // Reaction ran on a non-reaction thread (i.e. on this thread) and attempted to emit the singleton.
+      r1.body.apply((inputs.length - 1, inputs)) shouldEqual 123 // Reaction ran on a non-reaction thread (i.e. on this thread) and attempted to emit the static molecule.
     }
-    val expectedMessage = s"In Site{${dIncorrectSingleton.name} + e => ...}: Refusing to emit singleton ${dIncorrectSingleton.name}() because this thread does not run a chemical reaction"
+    val expectedMessage = s"In Site{${dIncorrectStaticMol.name} + e => ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this thread does not run a chemical reaction"
     thrown.getMessage shouldEqual expectedMessage
     waitSome()
-    e.logSoup shouldEqual s"Site{${dIncorrectSingleton.name} + e => ...}\nMolecules: ${dIncorrectSingleton.name}()"
+    e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e => ...}\nMolecules: ${dIncorrectStaticMol.name}()"
   }
 
-  it should "refuse to emit singleton from a reaction that did not consume it when this cannot be determined statically" in {
+  it should "refuse to emit static molecule from a reaction that did not consume it when this cannot be determined statically" in {
     val c = new M[Unit]("c")
-    val dIncorrectSingleton = m[Unit]
+    val dIncorrectStaticMol = m[Unit]
     val e = new M[M[Unit]]("e")
 
     site(tp0)(
       go { case e(s) => s() },
-      go { case dIncorrectSingleton(_) + c(_) => dIncorrectSingleton() },
-      go { case _ => dIncorrectSingleton() }
+      go { case dIncorrectStaticMol(_) + c(_) => dIncorrectStaticMol() },
+      go { case _ => dIncorrectStaticMol() }
     )
 
-    e(dIncorrectSingleton)
+    e(dIncorrectStaticMol)
     waitSome()
-    e.logSoup shouldEqual s"Site{c + ${dIncorrectSingleton.name} => ...; e => ...}\nMolecules: ${dIncorrectSingleton.name}()"
-    globalErrorLog.exists(_.contains(s"In Site{c + ${dIncorrectSingleton.name} => ...; e => ...}: Refusing to emit singleton ${dIncorrectSingleton.name}() because this reaction {e(s) => } does not consume it")) shouldEqual true
+    e.logSoup shouldEqual s"Site{c + ${dIncorrectStaticMol.name} => ...; e => ...}\nMolecules: ${dIncorrectStaticMol.name}()"
+    globalErrorLog.exists(_.contains(s"In Site{c + ${dIncorrectStaticMol.name} => ...; e => ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this reaction {e(s) => } does not consume it")) shouldEqual true
   }
 
 }

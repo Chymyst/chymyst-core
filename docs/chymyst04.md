@@ -294,7 +294,7 @@ There are two more combinations that are not yet used:
 The `Chymyst` library implements both of these possibilities as special features:
 
 - a blocking emitter can _time out_ on its call and fail to return a value;
-- a non-blocking emitter can return a “volatile reader” (see below) that provides read-only access to the last known value of the molecule.
+- some non-blocking emitters have a “volatile reader” (see below) that provides read-only access to the last known value of the molecule.
 
 With these additional features, the type matrix of emission is complete:
 
@@ -327,10 +327,10 @@ The first argument of the `timeout()()` method is the value carried by the emitt
 In this example, this value is empty since `f` has type `B[Unit, Int]`.
 The second argument of the `timeout()()` method is the duration of the delay.
 
-The `timeout()()` method returns an `Option` value.
-If the emitter received a reply value `v` before the timeout expired, the value of `x` will become `Some(v)`.
+The `timeout()()` method returns a value of type `Option[R]`, where `R` is the type of the reply value.
+In the code above, if the emitter received a reply value `v` before the timeout expired then the value of `x` will become `Some(v)`.
 
-If the emitter times out before a reply action is performed, the value of `x` will be set to `None`, and the blocking molecule `f()` will be removed from the soup.
+If the emitter times out before a reply action is performed, the value of `x` will be set to `None`, and the blocking molecule `f()` will be _removed_ from the soup.
 If the timeout occurred because no reaction started with `f()`, which is the usual reason, the removal of `f()` makes sense because no further reactions should try to consume `f()` and reply.
 
 A less frequent situation is when a reaction already started, consuming `f()` and is about to reply to `f()`, but it just happens to time out at that moment.
@@ -339,15 +339,15 @@ In that case, the reply action to `f()` will have no effect.
 Is the timeout feature required?
 The timeout functionality can be simulated, for instance, using the “First Reply” construction.
 However, this construction is cumbersome and will sometimes leave a thread blocked forever, which is undesirable from the implementation point of view.
-For this reason, `Chymyst` implements the timeout functionality as a special feature of blocking molecules.
+For this reason, `Chymyst` implements the timeout functionality as a special primitive feature available for blocking molecules.
 
-### Singleton molecules
+### Static molecules
 
-Often it is necessary to ensure that exactly one copy of a certain molecule is present in the soup, and that no further copies can be emitted.
-Such molecules are called **singletons**.
-Singleton molecules `s` must have reactions of the form `s + ... => s + ...`, -- that is, reactions must consume the single copy of `s` and then also emit a single copy of `s`.
+Often it is necessary to ensure that exactly one copy of a certain molecule is initially present in the soup, and that no further copies can be emitted unless a copy is first consumed.
+Such molecules are called **static**.
+A static molecule `s` must have reactions only of the form `s() + ... => s() + ...`, -- that is, reactions that consume the single copy of `s` and then also emit a single copy of `s`.
 
-An example of a singleton is the “concurrent counter” molecule `c`, with reactions that we have seen before:
+An example of a static molecule is the “concurrent counter” molecule `c()`, with reactions that we have seen before:
 
 ```scala
 c(x) + d(_) => c(x - 1)
@@ -355,47 +355,57 @@ c(x) + i(_) => c(x + 1)
 c(x) + f(_, r) => c(x) + r(x)
 ```
 
-These reactions treat `c` as a singleton because they first consume and then emit a single copy of `c`.
+These reactions treat `c()` as a static molecule because they first consume and then emit a single copy of `c`.
 
-`Chymyst` provides special features for singleton molecules:
+Static molecules are a frequently used pattern in chemical machine programming.
+`Chymyst` provides special features for static molecules:
 
-- Only non-blocking molecules can be declared as singletons.
-- It is an error if a reaction consumes a singleton but does not emit it back into the soup, or emits it more than once.
-- It is also an error if a reaction emits a singleton it did not consume, or if any other code emits additional copies of the singleton at any time.
+- Only non-blocking molecules can be declared as static.
+- It is an error if a reaction consumes a static molecule but does not emit it back into the soup, or emits it more than once.
+- It is also an error if a reaction emits a static molecule it did not consume, or if any other code emits additional copies of the static molecule at any time.
 (However, this feature is easy to simulate with local scoping, which can prevent other code from having access to a molecule emitter.)
-- Singleton molecules are emitted directly from the reaction site.
-In this way, singleton molecules are guaranteed to be emitted once and only once, before any other molecules are emitted at that reaction site.
-- Singleton molecules have “volatile readers”.
+- Static molecules are emitted directly from the reaction site definition, by special **static reactions** (see below) that run only once.
+In this way, static molecules are guaranteed to be emitted once and only once, before any other reactions are run and before any molecules are emitted to that reaction site.
+- Static molecules have “volatile readers” (see below).
 
-In order to declare a molecule as a singleton, the users of `Chymyst` must write a reaction that has no input molecules:
+In order to declare a molecule as static, the users of `Chymyst` must write a reaction that has no input molecules but emits some output molecules:
 
 ```scala
 site (
-    // This pseudo-reaction will declare a, c, and q to be singletons, and emit each of them.
+    // This is a static reaction that declares a, c, and q to be static molecules, and emits each of them.
     go { case _ => a(1) + c(123) + q() },
-    // Now we need to define some reactions that consume a, c, and q.
-    go { case ??? }
+    // Now we need to define some more reactions that consume a, c, and q.
+    go { case a(x) + ... => ??? } // etc.
 )
 
 ```
 
-Consider the reaction `go { case _ => a(1) + c(123) + q() }`.
-This reaction has no input molecules and three output molecules `a`, `c`, and `q`.
-Such a reaction is recognized by `Chymyst` as a reaction that defines singletons and at the same time emits them into the soup.
+Look at the reaction `go { case _ => a(1) + c(123) + q() }`.
+This reaction emits three output molecules `a()`, `c()`, and `q()`, but has a wildcard instead of input molecules. 
+Such reactions are automatically recognized by `Chymyst` as **static reactions**.
+A static reaction emits some molecules into the soup and at the same time declares these molecules as static.
 
-A reaction site can define one or more singleton reactions.
-Each non-blocking output molecule of each singleton reaction will be declared a **singleton molecule**.
-The reaction sites will run their singleton reactions only once, at the time of the `site(...)` call itself, and on the same thread that calls `site(...)`.
+A reaction site can have one or more static reactions.
+Each non-blocking output molecule of each static reaction will be automatically declared a **static molecule**.
 
-### Volatile readers for singleton molecules
+The reaction sites will run their static reactions only once, at the time of the `site(...)` call itself, and on the same thread that calls `site(...)`.
+At that time, the reaction site has no molecules present.
+Static molecules will be the first ones emitted into the soup at that reaction site.
 
-Each singleton molecule has a **volatile reader** -- a function of type `=> T` that fetches the value carried by that singleton molecule when it was most recently emitted.
+### Volatile readers for static molecules
+
+When a static molecule exists only as a single copy, its value works effectively as a mutable cell:
+the value can be modified by reactions, but the cell cannot be destroyed.
+So it appears useful to have a read-only access to the value in the cell.
+
+Accordingly, each static molecule has a **volatile reader** -- a function of type `=> T` that fetches the value carried by that static molecule when it was most recently emitted.
+Here is how volatile readers are used:
 
 ```scala
 val c = m[Int]
 site(
   go { case c(x) + incr(_) => c(x + 1) },
-  go { case _ => c(0) } // emit `c(0)` and declare it a singleton
+  go { case _ => c(0) } // emit `c(0)` and declare it as static
 )
 
 val readC: Int = c.volatileValue // initially returns 0
@@ -403,20 +413,21 @@ val readC: Int = c.volatileValue // initially returns 0
 ```
 
 The volatile reader is thread-safe (can be used from any reaction without blocking any threads) because it provides a read-only access to the value carried by the molecule.
-The value of a singleton molecule can be modified only by a reaction that consumes the singleton and then emits it back with a different value.
-If the volatile reader is called while that reaction is being run, the reader will return the previous known value of the singleton, which is probably going to become obsolete very shortly.
+
+The value of a static molecule, viewed as a mutable cell, can be modified only by a reaction that consumes the molecule and then emits it back with a different value.
+If the volatile reader is called while that reaction is being run, the reader will return the previous known value of the static molecule, which is probably going to become obsolete very shortly.
 I call the volatile reader “volatile” for this reason: it returns a value that could change at any time.
 
-The functionality of a volatile reader is equivalent to an additional reaction with a blocking molecule `f` that reads the current value carried by `c`:
+The functionality of a volatile reader is similar to an additional reaction with a blocking molecule `f` that reads the current value carried by `c`:
 
 ```scala
 go { case c(x) + f(_, reply) => c(x) + reply(x) }
 
 ```
 
-Calling `f()` returns the current value carried by `c`, just like the volatile reader does.
-However, the call `f()` may block for an unknown time if `c` has been consumed by a long-running reaction.
-Even if `c` is immediately available in the soup, running this reaction requires an extra scheduling operation.
-Volatile readers provide very fast read-only access to the values carried by singleton molecules.
+Calling `f()` returns the current value carried by `c()`, just like the volatile reader does.
+However, the call `f()` may block for an unknown time if `c()` has been consumed by a long-running reaction.
+Even if `c()` is immediately available in the soup, running this reaction requires an extra scheduling operation.
+Volatile readers provide very fast read-only access to the values carried by static molecules.
 
-The reason this feature is restricted to singletons is that it makes no sense to ask the molecule emitter `c` for the current value of its molecule if there are a thousand different copies of `c` emitted in the soup.
+This feature is restricted to static molecules because it appears to be useless if we could get the last emitted value of a molecule that has many different copies emitted in the soup.

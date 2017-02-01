@@ -138,8 +138,8 @@ sealed trait Molecule extends PersistentHashCode {
 
   val isBlocking: Boolean
 
-  /** This is `lazy` because we will only know whether this molecule is a singleton after this molecule is bound to a reaction site, at run time. */
-  lazy val isSingleton: Boolean = false
+  /** This is `lazy` because we will only know whether this molecule is static after this molecule is bound to a reaction site, at run time. */
+  lazy val isStatic: Boolean = false
 }
 
 /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -165,24 +165,24 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
   def apply()(implicit ev: TypeIsUnit[T]): Unit = apply(ev.getUnit)
 
   /** Volatile reader for a molecule.
-    * The molecule must be declared as a singleton.
+    * The molecule must be declared as static.
     *
-    * @return The value carried by the singleton when it was last emitted. Will throw exception if the singleton has not yet been emitted.
+    * @return The value carried by the static molecule when it was last emitted. Will throw exception if the static molecule has not yet been emitted.
     */
   def volatileValue: T = if (isBound) {
-    if (isSingleton)
+    if (isStatic)
       volatileValueContainer
-    else throw new Exception(s"In $reactionSiteWrapper: volatile reader requested for non-singleton ($this)")
+    else throw new Exception(s"In $reactionSiteWrapper: volatile reader requested for non-static molecule ($this)")
   }
   else throw new Exception("Molecule c is not bound to any reaction site")
 
-  private[jc] def assignSingletonVolatileValue(molValue: AbsMolValue[_]) =
+  private[jc] def assignStaticMolVolatileValue(molValue: AbsMolValue[_]) =
     volatileValueContainer = molValue.asInstanceOf[MolValue[T]].getValue
 
   @volatile private var volatileValueContainer: T = _
 
-  override lazy val isSingleton: Boolean = isBound &&
-    reactionSiteWrapper.singletonsDeclared.contains(this)
+  override lazy val isStatic: Boolean = isBound &&
+    reactionSiteWrapper.staticMolsDeclared.contains(this)
 
   override private[jc] def setReactionSite(rs: ReactionSite): Unit = {
     hasReactionSite = true
