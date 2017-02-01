@@ -28,7 +28,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     toString,
     logSoup = () => printBag,
     setLogLevel = { level => logLevel = level },
-    singletonsDeclared.keys.toList,
+    staticMolDeclared.keys.toList,
     emit = (mol, molValue) => emit[T](mol, molValue),
     emitAndAwaitReply = (mol, molValue, replyValue) => emitAndAwaitReply[T, R](mol, molValue, replyValue),
     emitAndAwaitReplyWithTimeout = (timeout, mol, molValue, replyValue) => emitAndAwaitReplyWithTimeout[T, R](timeout, mol, molValue, replyValue),
@@ -36,24 +36,25 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     sameReactionSite = _ === this
   )
 
-  private val (nonSingletonReactions, singletonReactions) = reactions.partition(_.inputMolecules.nonEmpty)
+  private val (nonStaticReactions, staticReactions) = reactions.partition(_.inputMolecules.nonEmpty)
 
   private var unboundOutputMolecules: Set[Molecule] = _
 
-  /** The table of statically declared singleton molecules and their multiplicities.
-    * Only non-blocking molecules can be singletons.
-    * This list may be incorrect if the singleton reaction code emits molecules conditionally or emits many copies.
-    * So, the code (1 to 10).foreach (_ => singleton() ) will put (singleton -> 1) into `singletonsDeclared` but (singleton -> 10) into `singletonsEmitted`.
+  /** The table of statically declared static molecules and their multiplicities.
+    * Only non-blocking molecules can be static.
+    * Static molecules are emitted by "static reactions" (i.e. { case _ => ...}), which are run only once at the reaction site activation time.
+    * This list may be incorrect if the static reaction code emits molecules conditionally or emits many copies.
+    * So, the code (1 to 10).foreach (_ => s() ) will put (s -> 1) into `staticMolDeclared` but (s -> 10) into `staticMolsEmitted`.
     */
-  private val singletonsDeclared: Map[Molecule, Int] = singletonReactions.map(_.info.outputs)
+  private val staticMolDeclared: Map[Molecule, Int] = staticReactions.map(_.info.outputs)
     .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
     .groupBy(identity)
     .mapValues(_.size)
 
   /** Complete information about reactions declared in this reaction site.
-    * Singleton-declaring reactions are not included here.
+    * Static reactions are not included here.
     */
-  private val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonSingletonReactions
+  private val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonStaticReactions
     .map { r => (r, r.info.inputs) }(scala.collection.breakOut)
 
   // TODO: implement
@@ -82,16 +83,16 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def decideReactionsForNewMolecule(m: Molecule, molValue: AbsMolValue[_]): Unit = try {
     val foundReactionAndInputs =
       moleculesPresent.synchronized {
-        if (m.isSingleton) {
-          // This thread is allowed to emit a singleton; but are there already enough copies of this singleton?
-          // TODO: Move this to emit() once we can determine the singleton count outside of this synchronized block
+        if (m.isStatic) {
+          // This thread is allowed to emit a static molecule; but are there already enough copies of this molecule?
+          // TODO: Move this to emit() once we can determine the static molecule count outside of this synchronized block
           val oldCount = moleculesPresent.getCount(m)
-          val maxCount = singletonsEmitted.getOrElse(m, 0)
-          if (oldCount + 1 > maxCount) throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) having current count $oldCount, max count $maxCount")
+          val maxCount = staticMolsEmitted.getOrElse(m, 0)
+          if (oldCount + 1 > maxCount) throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit static molecule $m($molValue) having current count $oldCount, max count $maxCount")
 
-          // OK, we can proceed to emit this singleton molecule.
+          // OK, we can proceed to emit this static molecule.
           // Assign the volatile value. We don't have its type here, so we downcast to M[_].
-          m.asInstanceOf[M[_]].assignSingletonVolatileValue(molValue)
+          m.asInstanceOf[M[_]].assignStaticMolVolatileValue(molValue)
         }
 
         moleculesPresent.addToBag(m, molValue)
@@ -274,10 +275,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     )
   }
 
-  private[jc] def checkSingletonPermissionToEmit(m: Molecule): Either[String, Unit] = for {
-    _ <- if (singletonsDeclared.get(m).isEmpty) Left("not declared in this reaction site") else Right(())
+  private[jc] def checkStaticMolPermissionToEmit(m: Molecule): Either[String, Unit] = for {
+    _ <- if (staticMolDeclared.get(m).isEmpty) Left("not declared in this reaction site") else Right(())
 
-    // This thread is allowed to emit this singleton only if it is a ThreadWithInfo and the reaction running on this thread has consumed this singleton.
+    // This thread is allowed to emit this static molecule only if it is a ThreadWithInfo and the reaction running on this thread has consumed this static molecule.
     reactionInfoOpt = currentReactionInfo
     isAllowedToEmit = reactionInfoOpt.exists(_.inputMoleculesSet.contains(m))
     _ <- if (!isAllowedToEmit) {
@@ -292,9 +293,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   } yield ()
 
   /** This variable is true only at the initial stage of building the reaction site,
-    * when singleton reactions are run (on the same thread as the `site()` call) in order to emit the initial singletons.
+    * when static reactions are run (on the same thread as the `site()` call) in order to emit the initial static molecules.
     */
-  private var emittingSingletonsNow = false
+  private var emittingStaticMolsNow = false
 
   def findUnboundOutputMolecules: Boolean = unboundOutputMolecules.nonEmpty && {
     val stillUnbound = unboundOutputMolecules.filterNot(_.isBound)
@@ -316,19 +317,19 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     else if (sitePool.isInactive)
       throw new ExceptionNoSitePool(s"In $this: Cannot emit molecule $m($molValue) because join pool is not active")
     else if (!Thread.currentThread().isInterrupted) {
-      if (emittingSingletonsNow) {
+      if (emittingStaticMolsNow) {
         // Emit them on the same thread, and do not start any reactions.
-        if (m.isSingleton) {
+        if (m.isStatic) {
           moleculesPresent.addToBag(m, molValue)
-          m.asInstanceOf[M[T]].assignSingletonVolatileValue(molValue)
+          m.asInstanceOf[M[T]].assignStaticMolVolatileValue(molValue)
         } else {
-          throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit molecule $m($molValue) as a singleton (must be a non-blocking molecule)")
+          throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit molecule $m($molValue) as static (must be a non-blocking molecule)")
         }
       } else {
-        if (m.isSingleton) {
+        if (m.isStatic) {
           // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
-          checkSingletonPermissionToEmit(m) match {
-            case Left(refusalReason) => throw new ExceptionEmittingSingleton(s"In $this: Refusing to emit singleton $m($molValue) $refusalReason")
+          checkStaticMolPermissionToEmit(m) match {
+            case Left(refusalReason) => throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit static molecule $m($molValue) $refusalReason")
             case Right(_) =>
           }
         }
@@ -400,7 +401,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   private def initializeReactionSite(): (Map[Molecule, Int], WarningsAndErrors) = {
     // Set the owner on all input molecules in this reaction site.
-    nonSingletonReactions
+    nonStaticReactions
       .flatMap(_.inputMolecules)
       .toSet // We only need to assign the owner on each distinct input molecule once.
       .foreach { m: Molecule =>
@@ -412,43 +413,43 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
 
     // Add output reactions to molecules that may be bound to other reaction sites later.
-    nonSingletonReactions.foreach { r =>
+    nonStaticReactions.foreach { r =>
       r.info.outputs.foreach(_.molecule.addEmittingReaction(r))
     }
 
     // This set will be examined again when any molecule bound to this site is emitted, so that errors can be signalled as early as possible.
-    unboundOutputMolecules = nonSingletonReactions.flatMap(_.info.outputs.map(_.molecule)).toSet.filterNot(_.isBound)
+    unboundOutputMolecules = nonStaticReactions.flatMap(_.info.outputs.map(_.molecule)).toSet.filterNot(_.isBound)
 
     // Perform static analysis.
-    val foundWarnings = findSingletonWarnings(singletonsDeclared, nonSingletonReactions) ++ findStaticWarnings(nonSingletonReactions)
+    val foundWarnings = findStaticMolWarnings(staticMolDeclared, nonStaticReactions) ++ findStaticWarnings(nonStaticReactions)
 
-    val foundErrors = findSingletonDeclarationErrors(singletonReactions) ++
-      findSingletonErrors(singletonsDeclared, nonSingletonReactions) ++
-      findStaticErrors(nonSingletonReactions)
+    val foundErrors = findStaticMolDeclarationErrors(staticReactions) ++
+      findStaticMolErrors(staticMolDeclared, nonStaticReactions) ++
+      findGeneralErrors(nonStaticReactions)
 
     val staticDiagnostics = WarningsAndErrors(foundWarnings, foundErrors, s"$this")
 
     staticDiagnostics.checkWarningsAndErrors()
 
-    // Emit singleton molecules (note: this is on the same thread as the call to `site`!).
+    // Emit static molecules (note: this is on the same thread as the call to `site`!).
     // This must be done without starting any reactions.
-    emittingSingletonsNow = true
-    singletonReactions.foreach { reaction => reaction.body.apply(null.asInstanceOf[ReactionBodyInput]) } // It is OK that the argument is `null` because singleton reactions match on the wildcard: { case _ => ... }
-    emittingSingletonsNow = false
+    emittingStaticMolsNow = true
+    staticReactions.foreach { reaction => reaction.body.apply(null.asInstanceOf[ReactionBodyInput]) } // It is OK that the argument is `null` because static reactions match on the wildcard: { case _ => ... }
+    emittingStaticMolsNow = false
 
-    val singletonsActuallyEmitted = moleculesPresent.getCountMap
+    val staticMolsActuallyEmitted = moleculesPresent.getCountMap
 
-    val singletonEmissionWarnings = findSingletonEmissionWarnings(singletonsDeclared, singletonsActuallyEmitted)
-    val singletonEmissionErrors = findSingletonEmissionErrors(singletonsDeclared, singletonsActuallyEmitted)
+    val staticMolsEmissionWarnings = findStaticMolsEmissionWarnings(staticMolDeclared, staticMolsActuallyEmitted)
+    val staticMolsEmissionErrors = findStaticMolsEmissionErrors(staticMolDeclared, staticMolsActuallyEmitted)
 
-    val singletonDiagnostics = WarningsAndErrors(singletonEmissionWarnings, singletonEmissionErrors, s"$this")
-    val diagnostics = staticDiagnostics ++ singletonDiagnostics
+    val staticMolsDiagnostics = WarningsAndErrors(staticMolsEmissionWarnings, staticMolsEmissionErrors, s"$this")
+    val diagnostics = staticDiagnostics ++ staticMolsDiagnostics
 
-    (singletonsActuallyEmitted, diagnostics)
+    (staticMolsActuallyEmitted, diagnostics)
   }
 
   // This is run when this ReactionSite is first created.
-  private val (singletonsEmitted: Map[Molecule, Int], diagnostics: WarningsAndErrors) = initializeReactionSite()
+  private val (staticMolsEmitted: Map[Molecule, Int], diagnostics: WarningsAndErrors) = initializeReactionSite()
 
   /** Print warnings messages and throw exception if the initialization of this reaction site caused errors.
     *
@@ -479,7 +480,7 @@ private[jc] final class ExceptionMoleculeAlreadyBound(message: String) extends E
 
 private[jc] final class ExceptionNoSitePool(message: String) extends ExceptionInChymyst(message)
 
-private[jc] final class ExceptionEmittingSingleton(message: String) extends ExceptionInChymyst(message)
+private[jc] final class ExceptionEmittingStaticMol(message: String) extends ExceptionInChymyst(message)
 
 private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInChymyst(message)
 
@@ -487,7 +488,7 @@ private[jc] final class ExceptionNoWrapper(message: String) extends ExceptionInC
 
 private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInChymyst(message)
 
-private[jc] final class ExceptionNoSingleton(message: String) extends ExceptionInChymyst(message)
+private[jc] final class ExceptionNoStaticMol(message: String) extends ExceptionInChymyst(message)
 
 /** Molecules do not have direct access to the reaction site object.
   * Molecules will call only functions from this wrapper.
@@ -496,7 +497,7 @@ private[jc] final class ReactionSiteWrapper[T, R](
                                                    override val toString: String,
                                                    val logSoup: () => String,
                                                    val setLogLevel: Int => Unit,
-                                                   val singletonsDeclared: List[Molecule],
+                                                   val staticMolsDeclared: List[Molecule],
                                                    val emit: (Molecule, AbsMolValue[T]) => Unit,
                                                    val emitAndAwaitReply: (B[T, R], T, AbsReplyValue[T, R]) => R,
                                                    val emitAndAwaitReplyWithTimeout: (Long, B[T, R], T, AbsReplyValue[T, R]) => Option[R],
@@ -512,7 +513,7 @@ private[jc] object ReactionSiteWrapper {
       toString = "",
       logSoup = () => exception,
       setLogLevel = _ => exception,
-      singletonsDeclared = Nil,
+      staticMolsDeclared = Nil,
       emit = (_: Molecule, _: AbsMolValue[T]) => exception,
       emitAndAwaitReply = (_: B[T, R], _: T, _: AbsReplyValue[T, R]) => exception,
       emitAndAwaitReplyWithTimeout = (_: Long, _: B[T, R], _: T, _: AbsReplyValue[T, R]) => exception,

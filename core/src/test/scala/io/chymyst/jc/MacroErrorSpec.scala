@@ -43,7 +43,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     go { case a(_) + f(_, r) + g(_, s) + h(_, q) => a() + s() + f(); val status = r.checkTimeout(); q(status) }
   }
 
-  it should "fail to compile a reaction with empty singleton clause" in {
+  it should "fail to compile a reaction with empty static clause" in {
     "val r = go { case _ => }" shouldNot compile
   }
 
@@ -153,7 +153,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     bb.isInstanceOf[M[Int]] shouldEqual true
     bbb.isInstanceOf[M[Int]] shouldEqual true
 
-    "val r = go { case _ => bb(0) }" should compile // declaration of a singleton
+    "val r = go { case _ => bb(0) }" should compile // declaration of a static molecule
     "val r = go { case x => bb(x.asInstanceOf[Int]) }" shouldNot compile // no input molecules
     "val r = go { case x => x }" shouldNot compile // no input molecules
   }

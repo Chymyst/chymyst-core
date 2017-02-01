@@ -360,11 +360,11 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     maybeError("blocking molecules", "but no unconditional reply found for", blockingMoleculesWithoutReply, "receive a reply")
     maybeError("blocking molecules", "but possibly multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
 
-    if (patternIn.isEmpty && !isSingletonReaction(pattern, guard, body)) // go { case x => ... }
+    if (patternIn.isEmpty && !isStaticReaction(pattern, guard, body)) // go { case x => ... }
       reportError("Reaction input must be `_` or must contain some input molecules")
 
-    if (isSingletonReaction(pattern, guard, body) && bodyOut.isEmpty)
-      reportError("Singleton reaction must emit some output molecules")
+    if (isStaticReaction(pattern, guard, body) && bodyOut.isEmpty)
+      reportError("Static reaction must emit some output molecules")
 
     val inputMolecules = patternInWithMergedGuardsAndIndex.map { case (s, i, p, _) => q"InputMoleculeInfo(${s.asTerm}, $i, $p, ${p.patternSha1(t => showCode(t))})" }.toArray
 

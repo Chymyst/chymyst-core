@@ -633,8 +633,9 @@ f()
 
 `java.lang.Exception: Error: In Site{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B`
 
-Generally, whenever some blocking molecules have received no reply by the time the reaction body finished evaluating,
-this exception will be thrown in all threads that are still waiting for replies, unblocking all those threads.
+Due to exceptions, it can happen that the reaction body has finished evaluating but some blocking molecules have not received a reply.
+In that case, there can be one or more blocked threads still waiting for replies.
+The chemical machine will throw this exception in all threads that are still waiting for replies, unblocking all those threads (and possibly killing their calculations, unless exceptions are caught).
 This feature is designed to reduce deadlocks.
 
 In our example, the additional exception will be thrown only when reaction actually starts and the run-time condition `n == 0` is evaluated to `true`.
@@ -646,4 +647,4 @@ For these reasons, it is not easy to catch errors of this type, either at compil
 
 To avoid these problems, it is advisable to design the chemistry such that each reply is guaranteed to be emitted exactly once,
 and that no exceptions can be thrown before emitting the reply.
-If a condition is required before sending a reply, it should be a simple condition that is guaranteed not to throw an exception.
+If a condition needs to be checked before sending a reply, it should be a simple condition that is guaranteed not to throw an exception.
