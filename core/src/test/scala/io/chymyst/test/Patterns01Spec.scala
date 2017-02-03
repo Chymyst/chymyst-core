@@ -259,6 +259,8 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     danceCounter.volatileValue shouldEqual Nil
     (1 to total).foreach(_ => woman())
     done() shouldEqual (0 until total).toList // Dancing queue order must be observed.
+
+    pool.shutdownNow()
   }
 
 }
