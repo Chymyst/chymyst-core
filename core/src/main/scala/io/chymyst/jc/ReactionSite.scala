@@ -276,6 +276,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private[jc] def checkStaticMolPermissionToEmit(m: Molecule): Either[String, Unit] = for {
+    // Note: This is pure defensive programming: this error cannot be tested.
+    // TODO: refactor the logic so that this is not needed
     _ <- if (staticMolDeclared.get(m).isEmpty) Left("not declared in this reaction site") else Right(())
 
     // This thread is allowed to emit this static molecule only if it is a ThreadWithInfo and the reaction running on this thread has consumed this static molecule.
