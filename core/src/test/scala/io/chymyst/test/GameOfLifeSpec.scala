@@ -120,7 +120,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     // blocking molecule to fetch the final accumulator value
     val g = b[Unit, Array[Array[Int]]]
 
-    val tp = new FixedPool(4)
+    val tp = new FixedPool(16)
 
     // Toroidal board of size m * n
     val boardSize = BoardSize(2, 2)
@@ -354,6 +354,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     // Reaction for cell at position (x, y)
     val reactionMatrix: Array[Array[Array[Reaction]]] = Array.tabulate(boardSize.x, boardSize.y, finalTimeStep) { (x, y, t) =>
       // Molecule emitters for the inputs.
+      // We need to assign them to separate `val`'s because `case emitterMatrix(x)(y)(t)(0)(state) => ...` will not compile.
       val c0 = emitterMatrix(x)(y)(t)(0)
       val c1 = emitterMatrix(x)(y)(t)(1)
       val c2 = emitterMatrix(x)(y)(t)(2)
@@ -378,7 +379,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
 
         if (t + 1 == finalTimeStep) fc((x, y, newState))
         else {
-          // Molecule emitters for the outputs.
+          // Emit output molecules.
           emitterMatrix(xm(x + 0))(ym(y + 0))(t + 1)(0)(newState)
           emitterMatrix(xm(x + 1))(ym(y + 0))(t + 1)(1)(newState)
           emitterMatrix(xm(x - 1))(ym(y + 0))(t + 1)(2)(newState)
