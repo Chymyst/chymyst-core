@@ -1247,7 +1247,7 @@ The server should then resume processing the jobs.
 
 Same problem, but jobs must be served in the FIFO order.
 
-# Puzzles from "The Little Book of Semaphors"
+# Puzzles from "The Little Book of Semaphores"
 
 The formulations of these puzzles are copied verbatim from A. Downey's book.
 This copying is permitted by the Creative Commons license.
