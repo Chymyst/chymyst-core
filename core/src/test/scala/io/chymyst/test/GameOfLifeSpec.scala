@@ -402,8 +402,6 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     // All cell reactions must be in one reaction site since they share all the cell molecules from the entire `emitterMatrix`.
     declareSites(tp, reactionMatrix)
 
-    val initTime = LocalDateTime.now
-
     (0 until boardSize.y).foreach { y0 =>
       (0 until boardSize.x).foreach { x0 =>
         val initState = initBoard.lift(x0).getOrElse(Array()).lift(y0).getOrElse(0)
@@ -440,6 +438,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
         || | | |*| | | | | | |
         || | | |*|*| | | | | |
         || | |*| |*| | | | | |""".stripMargin
+    ()
   }
 
   // The "glider" configuration.

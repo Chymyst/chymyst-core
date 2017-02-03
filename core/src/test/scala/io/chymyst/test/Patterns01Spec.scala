@@ -163,66 +163,65 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val n = 100 // The number of rendezvous participants needs to be known in advance, or else we don't know how long still to wait for rendezvous.
 
     // There will be 2*n blocked threads; the test will fail with FixedPool(2*n-1).
-    val pool = new FixedPool(2 * n)
+    withPool(new FixedPool(2 * n)) { pool =>
 
-    val barrier = b[Unit, Unit]
-    val counterInit = m[Unit]
-    val counter = b[Int, Unit]
-    val endCounter = m[Int]
-    val begin = m[(() => Unit, () => Unit)]
-    val end = m[Unit]
-    val done = b[Unit, Unit]
+      val barrier = b[Unit, Unit]
+      val counterInit = m[Unit]
+      val counter = b[Int, Unit]
+      val endCounter = m[Int]
+      val begin = m[(() => Unit, () => Unit)]
+      val end = m[Unit]
+      val done = b[Unit, Unit]
 
-    val logFile = new ConcurrentLinkedQueue[String]
+      val logFile = new ConcurrentLinkedQueue[String]
 
-    def f(n: Int)(): Unit = {
-      logFile.add(s"f$n")
-      ()
-    }
+      def f(n: Int)(): Unit = {
+        logFile.add(s"f$n")
+        ()
+      }
 
-    def g(n: Int)(): Unit = {
-      logFile.add(s"g$n")
-      ()
-    }
+      def g(n: Int)(): Unit = {
+        logFile.add(s"g$n")
+        ()
+      }
 
-    site(pool)(
-      go { case begin((f, g)) => f(); barrier(); g(); end() }, // this reaction will be run n times because we emit n molecules `begin` with various `f` and `g`
-      go { case barrier(_, replyB) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
-        counter(1) // one reaction has reached the rendezvous point
-        replyB()
-      },
-      go { case barrier(_, replyB) + counter(k, replyC) => // the `counter` molecule holds the number (k) of the reactions that have reached the rendezvous before this reaction started.
-        if (k + 1 < n) counter(k + 1); else println(s"rendezvous passed by $n reactions")
-        replyC() // `replyC()` must be here. Doing `replyC()` before emitting `counter(k+1)` would have unblocked some reactions and allowed them to proceed beyond the rendezvous point without waiting for all others.
-        replyB()
-      },
-      go { case end(_) + endCounter(k) => endCounter(k - 1) },
-      go { case endCounter(0) + done(_, r) => r() }
-    )
+      site(pool)(
+        go { case begin((f, g)) => f(); barrier(); g(); end() }, // this reaction will be run n times because we emit n molecules `begin` with various `f` and `g`
+        go { case barrier(_, replyB) + counterInit(_) => // this reaction will consume the very first barrier molecule emitted
+          counter(1) // one reaction has reached the rendezvous point
+          replyB()
+        },
+        go { case barrier(_, replyB) + counter(k, replyC) => // the `counter` molecule holds the number (k) of the reactions that have reached the rendezvous before this reaction started.
+          if (k + 1 < n) counter(k + 1); else println(s"rendezvous passed by $n reactions")
+          replyC() // `replyC()` must be here. Doing `replyC()` before emitting `counter(k+1)` would have unblocked some reactions and allowed them to proceed beyond the rendezvous point without waiting for all others.
+          replyB()
+        },
+        go { case end(_) + endCounter(k) => endCounter(k - 1) },
+        go { case endCounter(0) + done(_, r) => r() }
+      )
 
-    (1 to n).foreach(i => begin((f(i), g(i))))
-    counterInit()
-    endCounter(n)
-    done.timeout()(1000 millis) shouldEqual Some(())
+      (1 to n).foreach(i => begin((f(i), g(i))))
+      counterInit()
+      endCounter(n)
+      done.timeout()(1000 millis) shouldEqual Some(())
 
-    val result: Seq[String] = logFile.iterator().asScala.toSeq
-    result.size shouldEqual 2 * n
-    // Now, there must be f_1, ..., f_n (in any order) before g_1, ..., g_n (also in any order).
-    // We use sets to verify this.
+      val result: Seq[String] = logFile.iterator().asScala.toSeq
+      result.size shouldEqual 2 * n
+      // Now, there must be f_1, ..., f_n (in any order) before g_1, ..., g_n (also in any order).
+      // We use sets to verify this.
 
-    val setF = (0 until n).map(result.apply).toSet
-    val setG = (n until 2 * n).map(result.apply).toSet
+      val setF = (0 until n).map(result.apply).toSet
+      val setG = (n until 2 * n).map(result.apply).toSet
 
-    val expectedSetF = (1 to n).map(i => s"f$i").toSet
-    val expectedSetG = (1 to n).map(i => s"g$i").toSet
+      val expectedSetF = (1 to n).map(i => s"f$i").toSet
+      val expectedSetG = (1 to n).map(i => s"g$i").toSet
 
-    setF diff expectedSetF shouldEqual Set()
-    setG diff expectedSetG shouldEqual Set()
+      setF diff expectedSetF shouldEqual Set()
+      setG diff expectedSetG shouldEqual Set()
 
-    expectedSetF diff setF shouldEqual Set()
-    expectedSetG diff setG shouldEqual Set()
-
-    pool.shutdownNow()
+      expectedSetF diff setF shouldEqual Set()
+      expectedSetG diff setG shouldEqual Set()
+    }.get
   }
 
   it should "implement dance pairing with queue labels" in {
@@ -238,17 +237,15 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val danceCounter = m[List[Int]]
     val done = b[Unit, List[Int]]
 
-    val pool = new FixedPool(2)
-
     val total = 100
 
-    site(pool)(
+    site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) },
       go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() },
       go { case _ => danceCounter(Nil) }
     )
 
-    site(pool)(
+    site(tp)(
       go { case man(_) + queueMen(n) => queueMen(n + 1) + manL(n) },
       go { case woman(_) + queueWomen(n) => queueWomen(n + 1) + womanL(n) },
       go { case manL(xy) + womanL(xx) + mayBegin(l) if xx == xy && xy == l => beginDancing(l); mayBegin(l + 1) },
@@ -260,7 +257,6 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     (1 to total).foreach(_ => woman())
     done() shouldEqual (0 until total).toList // Dancing queue order must be observed.
 
-    pool.shutdownNow()
   }
 
 }
