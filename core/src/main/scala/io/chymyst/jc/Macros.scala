@@ -404,7 +404,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     )
 
     // Prepare the ReactionInfo structure.
-    val result = q"Reaction(ReactionInfo($inputMolecules, $outputMoleculesReactionInfo, $shrunkOutputReactionInfo, $guardPresenceFlag, $reactionSha1), $reactionBody, None, false)"
+    val result = q"Reaction(new ReactionInfo($inputMolecules, $outputMoleculesReactionInfo, $shrunkOutputReactionInfo, $guardPresenceFlag, $reactionSha1), $reactionBody, None, false)"
     //    println(s"debug: ${showCode(result)}")
     //    println(s"debug raw: ${showRaw(result)}")
     //    c.untypecheck(result) // this fails
