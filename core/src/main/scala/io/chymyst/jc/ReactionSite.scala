@@ -57,9 +57,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonStaticReactions
     .map { r => (r, r.info.inputs) }(scala.collection.breakOut)
 
-  // TODO: implement
-  //  private val quiescenceCallbacks: mutable.Set[E] = mutable.Set.empty
-
   private lazy val knownReactions: Seq[Reaction] = reactionInfos.keys.toSeq
 
   override lazy val toString: String = s"Site{${knownReactions.map(_.toString).sorted.mkString("; ")}}"
@@ -127,7 +124,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
         if (logLevel > 2) println(moleculesRemainingMessage)
         // Schedule the reaction now. Provide reaction info to the thread.
-        poolForReaction.runClosure(buildReactionClosure(reaction, usedInputs), new ChymystThreadInfo(reaction.info.staticMols, reaction.info.toString))
+        poolForReaction.runClosure(buildReactionClosure(reaction, usedInputs), reaction.newChymystThreadInfo)
 
       case None =>
         if (logLevel > 2) {
@@ -160,23 +157,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     Core.reportError(message)
   }
 
-  //  private[jc] def setQuiescenceCallback(callback: E): Unit = {
-  //    quiescenceCallbacks.add(callback)
-  //    ()
-  //  }
-  //
-  //  private lazy val possibleReactions: Map[Molecule, Seq[Reaction]] = reactionInfos.toSeq
-  //    .flatMap { case (r, ms) => ms.map { info => (info.molecule, r) } }
-  //    .groupBy { case (m, r) => m }
-  //    .map { case (m, rs) => (m, rs.map(_._2)) }
-
   // Initially, there are no molecules present.
   private val moleculesPresent: MoleculeBag = new MutableBag[Molecule, AbsMolValue[_]]
-
-  //  private[jc] def emitMulti(moleculesAndValues: Seq[(M[_], Any)]): Unit = {
-  // TODO: implement correct semantics
-  //    moleculesAndValues.foreach{ case (m, v) => m(v) }
-  //  }
 
   private sealed trait ReactionExitStatus {
     def getMessage: Option[String] = None
@@ -208,18 +190,16 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val exitStatus: ReactionExitStatus = try {
       // Here we actually apply the reaction body to its input molecules.
       reaction.body.apply((usedInputs.length - 1, usedInputs))
+      // If we are here, we had no exceptions during evaluation of reaction body.
       ReactionExitSuccess
     } catch {
-      // Various exceptions that occurred while running the reaction.
+      // Catch various exceptions that occurred while running the reaction body.
       case e: ExceptionInChymyst =>
         // Running the reaction body produced an exception that is internal to `Chymyst Core`.
         // We should not try to recover from this; it is either an error on user's part
         // or a bug in `Chymyst Core`.
         lazy val message = s"In $this: Reaction {${reaction.info}} produced an exception that is internal to Chymyst Core. Input molecules [${moleculeBagToString(usedInputs)}] were not emitted again. Message: ${e.getMessage}"
         reportError(message)
-        // Let's not print it, and let's not throw it again, since it's our internal exception.
-        //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
-        //        throw e
         ReactionExitFailure(message)
 
       case e: Exception =>
@@ -235,7 +215,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         lazy val generalExceptionMessage = s"In $this: Reaction {${reaction.info}} produced an exception. Input molecules [${moleculeBagToString(usedInputs)}] $aboutMolecules. Message: ${e.getMessage}"
 
         reportError(generalExceptionMessage)
-        //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message. Let's not print this.
         status
     }
 
@@ -300,19 +279,26 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   /** Check permission for the current thread to emit a static molecule.
+    * If permitted, remove the emitter from the mutable set.
     *
     * @param m A static molecule emitter.
-    * @return `None` if the thread is allowed to emit that molecule. Otherwise, the refusal reason is returned as `Some(message)`.
+    * @return `()` if the thread is allowed to emit that molecule. Otherwise, an exception is thrown with a refusal reason message.
     */
-  private[jc] def checkStaticMolPermissionToEmit(m: Molecule): Option[String] = {
-    lazy val noChemicalReaction = Some("because this thread does not run a chemical reaction")
-    currentReactionInfo.map { info =>
-      if (info.toString.isEmpty)
-        noChemicalReaction
-      else if (info.mayEmit(m))
-        None else
-        Some(s"because this reaction {$info} does not consume it")
-    }.getOrElse(noChemicalReaction)
+  private def registerEmittedStaticMolOrThrow(m: Molecule, throwError: String => Unit): Unit = {
+    val noChemicalReactionMessage = "because this thread does not run a chemical reaction"
+    currentReactionInfo.foreach { info =>
+      if (!info.maybeEmit(m)) {
+        val refusalReason =
+          if (info.toString.isEmpty)
+            noChemicalReactionMessage
+          else if (!info.couldEmit(m))
+            s"because this reaction {$info} does not consume it"
+          else s"because this reaction {$info} already emitted it"
+        throwError(refusalReason)
+      } // otherwise we are ok
+    }
+    if (currentReactionInfo.isEmpty)
+      throwError(noChemicalReactionMessage)
   }
 
   /** This variable is true only at the initial stage of building the reaction site,
@@ -353,12 +339,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit molecule $m($molValue) as static (must be a non-blocking molecule)")
         }
       } else {
-        if (m.isStatic) {
-          // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
-          checkStaticMolPermissionToEmit(m).foreach { refusalReason =>
+        if (m.isStatic)
+        // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
+        // If successful, this will modify the thread's copy of `ChymystThreadInfo` to register the fact that we emitted that static molecule.
+          registerEmittedStaticMolOrThrow(m, refusalReason =>
             throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit static molecule $m($molValue) $refusalReason")
-          }
-        }
+          )
+        // If we are here, we are allowed to emit.
         newMoleculeQueue.add((m, molValue))
         sitePool.runRunnable(emissionRunnable)
       }

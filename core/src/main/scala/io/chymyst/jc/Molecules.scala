@@ -136,7 +136,7 @@ sealed trait Molecule extends PersistentHashCode {
 
   final def logSoup: String = reactionSiteWrapper.logSoup()
 
-  val isBlocking: Boolean
+  val isBlocking: Boolean = false
 
   /** This is `lazy` because we will only know whether this molecule is static after this molecule is bound to a reaction site, at run time. */
   lazy val isStatic: Boolean = false
@@ -148,8 +148,6 @@ sealed trait Molecule extends PersistentHashCode {
   * @tparam T Type of the value carried by the molecule.
   */
 final class M[T](val name: String) extends (T => Unit) with Molecule {
-
-  val isBlocking = false
 
   def unapply(arg: ReactionBodyInput): Option[T] = {
     val (index, inputMoleculeList) = arg
@@ -356,7 +354,7 @@ private[jc] final class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[
   */
 final class B[T, R](val name: String) extends (T => R) with Molecule {
 
-  val isBlocking = true
+  override val isBlocking = true
 
   /** Emit a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
     *
