@@ -274,22 +274,75 @@ val reactionMatrix: Array[Array[Array[Reaction]]] =
      emitterMatrix(x - 1)(y - 1)(t + 1)(8)(newState)
    }
 }
+
 ```
 
-Now that all reactions are created, we need to create a reaction site that will run them. ***
+Now that all reactions are created, we need to define a reaction site that will run them.
+The `site()` call accepts a sequence of reactions.
+Since `reactionMatrix` is a 3-dimensional array, we need to flatten it twice:
 
-## Improving performance still further
+```scala
+site(reactionMatrix.flatten.flatten)
 
-Now we notice that ***
+```
+
+This implementation is found as test 4 in `GameOfLifeSpec.scala`.
+This runs 10 time steps on a 10x10 game board in about the same time as the previous implementation ran 1 time step on a 2x2 board. 
+
+## Radically improving performance
+
+We have greatly increased the speed of the simulation, but there is still room for improvement.
+The CPU usage of the new solution is still around 100% much of the time, which indicates that parallelism is not optimal.
+The reason for low parallelism is the low granularity of the reaction sites: we have a single reaction site that runs all reactions.
+A single reaction site can usually schedule only one reaction at a time, and our reactions are very simple, so we still fail to take advantage of multicore parallelism. 
+
+To make progress, we notice that the program defines a separate reaction for each cell, and each reaction has its own chemically unique input molecules.
+In this case, we can define _each reaction_ at a separate reaction site, instead of defining all reactions within one reaction site.
+
+The only code change we need to make is the definition of the reaction sites, which will now look like this:
+
+```scala
+reactionMatrix.foreach(_.foreach(_.foreach(r => site(r)))))
+
+```
+
+This implementation is found as test 6 in `GameOfLifeSpec.scala`.
+It runs about 200 times faster than the previous implementation (test 4): it computes 100 time steps on a 10x10 board in about 0.8 seconds.
 
 ## Conclusion
 
-We have seen that there are two basic ways to optimize the performance of a chemical computation:
+We have seen that there are two ways of optimizing the performance of a chemical computation:
 
 1. Redesign the chemistry so that reactions do not need cross-molecule guard conditions.
 2. Redesign the chemistry so that many independent reaction sites are used, with fewer reactions per reaction site.
 
-To see the effect of these design choices, I made six different implementations of the Game of Life that differ only in the design of reactions.
+To see the effect of these design choices, and to provide a benchmark for the chemical machine, I made six different implementations of the Game of Life that differ only in the design of reactions.
 
-The complete working code showing six different implementations is found in `GameOfLifeSpec.scala`.
+The implementation in test 1 uses a single reaction with a single molecule sort.
+The reaction has 9 repeated input molecules and emits 9 copies of the same molecule.
+All coordination is performed by the guard condition that selects input molecules for reactions.
 
+This implementation is catastrophically slow.
+Running on anything larger than a 2x2 board takes forever and may crash due to garbage collecting overhead.
+
+Test 2 introduces 9 different molecule sorts `c0`, ..., `c8` instead of using one molecule sort.
+Otherwise, the chemistry remains the same as in test 1.
+This is the solution first discussed in this chapter.
+This speeds up the simulation by a few times, although it remains unacceptably slow.
+
+Tests 1 and 2 are intentially slow and can be used as benchmarks of the chemical machine.
+
+Test 3 uses a different molecule sort for each cell on the board.
+However, molecules corresponding to different time steps are the same.
+The reaction still needs a cross-molecule guard condition to match up input molecules at the same time step.
+Using different molecules for different cells speeds up the simulation enormously.
+
+Tests 4 - 6 use a different molecule sort for each cell on the board and for each time step.
+This is the solution discussed in the later sections of this chapter.
+The reactions need no guard conditions, which results in a significant speedup.
+
+The difference between tests 4 - 6 is in the granularity of reaction sites.
+Test 4 has all reactions in one reaction site; test 5 declares a new reaction site for each time step; test 6 declares a new reaction site for each cell and for each time step.
+The speedup between tests 4 and 6 is about 20x.
+
+The complete working code showing the six different implementations is found in `GameOfLifeSpec.scala`.

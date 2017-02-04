@@ -21,6 +21,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     def area: Int = x * y
   }
 
+  // Test 1
   // This implementation is intentionally as inefficient as possible.
   it should "1. run correctly using 1-reaction 1-molecule implementation (the absolute worst)" in {
     case class Cell(x: Int, y: Int, t: Int, state: Int, label: (Int, Int))
@@ -98,6 +99,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     tp.shutdownNow()
   }
 
+  // Test 2: an improvement on test 1 but still slow
   it should "2. run correctly using 1-reaction 9-molecule implementation" in {
     case class Cell(x: Int, y: Int, t: Int, state: Int)
 
@@ -195,6 +197,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     tp.shutdownNow()
   }
 
+  // Test 3: significant improvement - can do 10x10x10 now in about the same time as Test 2 did 2x2x1.
   it should "3. run correctly using 9-molecule single-timeslice implementation" in {
     case class Cell(t: Int, state: Int)
 
@@ -327,7 +330,9 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     tp.shutdownNow()
   }
 
-  // Three implementations with per-cell reactions. They use the same chemistry in `run3D` but define reaction sites differently, achieving more speed the more granular the reaction sites become.
+  // Tests 4, 5, and 6 are all based on the implementation with per-cell reactions.
+  // They use the same chemistry defined in `run3D()` but declare reaction sites differently,
+  // achieving more speed the more granular the reaction sites become.
 
   // Run Game of Life on a toroidal board of size m * n; return final board at time = finalTimeStep
   def run3D(boardSize: BoardSize, finalTimeStep: Int, initBoard: Array[Array[Int]], declareSites: (Pool, Array[Array[Array[Reaction]]]) => Any): Array[Array[Int]] = {
@@ -453,6 +458,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
 
   val boardSize = BoardSize(10, 10)
 
+  // Test 4
   it should "4. run correctly using 3D reaction implementation with single reaction site" in {
     val initTime = LocalDateTime.now
     // Define one reaction site for all reactions.
@@ -462,6 +468,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     checkResult(finalBoard)
   }
 
+  // Test 5
   it should "5. run correctly using 3D reaction implementation with per-timeslice reaction sites" in {
     val initTime = LocalDateTime.now
     // Define one reaction site per time slice.
@@ -471,6 +478,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     checkResult(finalBoard)
   }
 
+  // Test 6
   it should "6. run correctly using 3D reaction implementation with per-cell reaction sites" in {
     val initTime = LocalDateTime.now
     // Each cell (x,y,t) has 1 reaction at 1 reaction site. Maximum concurrency.
