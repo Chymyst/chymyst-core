@@ -277,6 +277,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       site(tp0)(
         go { case c(x) => r = x }
       )
+      Thread.sleep(20)
       r
     }
     println(results.groupBy(identity).mapValues(_.size))
