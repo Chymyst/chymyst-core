@@ -464,8 +464,6 @@ final class ReactionInfo(
                           private[jc] val sha1: String
                         ) {
 
-  private[jc] def getInputMolecule(i: Int): Molecule = inputs(i).molecule
-
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
     case GuardPresent(_, _, guards) =>
