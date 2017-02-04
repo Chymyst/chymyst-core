@@ -249,7 +249,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       .filter(_._2.reactionSentNoReply)
       .map(_._1).toSeq.toOptionSeq.map(_.map(_.toString).sorted.mkString(", "))
 
-    lazy val errorMessageFromStatus = exitStatus.getMessage.map(message => s". Reported error: $message").getOrElse("")
+    // Make this non-lazy to improve coverage?
+    val errorMessageFromStatus = exitStatus.getMessage.map(message => s". Reported error: $message").getOrElse("")
 
     lazy val messageNoReply = blockingMoleculesWithNoReply.map { s =>
       s"Error: In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] finished without replying to $s$errorMessageFromStatus"
