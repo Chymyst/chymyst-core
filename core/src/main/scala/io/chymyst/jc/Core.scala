@@ -80,10 +80,6 @@ object Core {
     def toScalaSymbol: scala.Symbol = scala.Symbol(s)
   }
 
-  // Wait until the reaction site to which `molecule` is bound becomes quiescent, then emit `callback`.
-  // TODO: implement
-  //  def waitUntilQuiet[T](molecule: M[T], callback: E): Unit = molecule.site.setQuiescenceCallback(callback)
-
   /** Type alias for reaction body.
     *
     */

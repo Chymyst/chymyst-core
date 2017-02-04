@@ -282,8 +282,8 @@ final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSym
   * This class is immutable.
   *
   * @param molecule The molecule emitter value that represents the input molecule.
-  * @param flag     Type of the input pattern: wildcard, constant match, etc.
-  * @param sha1     Hash sum of the source code (AST tree) of the input pattern.
+  * @param flag     A value of type [[InputPatternType]] that describes the value pattern: wildcard, constant match, etc.
+  * @param sha1     Hash sum of the input pattern's source code (desugared Scala representation).
   */
 final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPatternType, sha1: String) {
   private[jc] def admitsValue(molValue: AbsMolValue[_]): Boolean = flag match {
@@ -456,13 +456,24 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType,
   }
 }
 
+/** Represents information carried by every Chymyst thread that runs a reaction.
+  *
+  * @param statics        List of static molecules that this reaction consumes.
+  * @param reactionString String representation of the reaction, used for error messages.
+  */
 final class ChymystThreadInfo(
-                               allowedToEmit: mutable.Set[Molecule] = mutable.Set(),
+                               statics: Seq[Molecule] = Seq(),
                                reactionString: String = ""
                              ) {
   override val toString: String = reactionString
 
-  private[jc] def mayEmit(m: Molecule): Boolean = allowedToEmit.contains(m)
+  private[jc] val maybeEmit: Molecule => Boolean = {
+    val allowedToEmit = mutable.Set[Molecule](statics: _*)
+
+    { m: Molecule => allowedToEmit.remove(m) }
+  }
+
+  private[jc] def couldEmit(m: Molecule): Boolean = statics.contains(m)
 }
 
 // This class is immutable.
@@ -473,7 +484,7 @@ final class ReactionInfo(
                           private[jc] val guardPresence: GuardPresenceFlag,
                           private[jc] val sha1: String
                         ) {
-  private[jc] lazy val staticMols: mutable.Set[Molecule] = mutable.Set(inputs.map(_.molecule).filter(_.isStatic): _*)
+  private[jc] lazy val staticMols: Seq[Molecule] = inputs.map(_.molecule).filter(_.isStatic)
 
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
@@ -559,6 +570,7 @@ final case class Reaction(
                            threadPool: Option[Pool],
                            private[jc] val retry: Boolean
                          ) {
+  private[jc] def newChymystThreadInfo = new ChymystThreadInfo(info.staticMols, info.toString)
 
   /** Convenience method to specify thread pools per reaction.
     *
@@ -597,7 +609,7 @@ final case class Reaction(
     else ""
   }"
 
-  type BagMap = Map[Molecule, Map[AbsMolValue[_], Int]]
+  private type BagMap = Map[Molecule, Map[AbsMolValue[_], Int]]
 
   private def removeFromBagMap(relevantMap: BagMap, molecule: Molecule, molValue: AbsMolValue[_]) = {
     val valuesMap = relevantMap.getOrElse(molecule, Map())

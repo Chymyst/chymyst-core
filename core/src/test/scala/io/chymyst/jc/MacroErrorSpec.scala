@@ -1,6 +1,6 @@
 package io.chymyst.jc
 
-import io.chymyst.jc.Core.ReactionBody
+import io.chymyst.jc.Core.applyReactionBody
 import org.scalatest.{FlatSpec, Matchers}
 import scala.concurrent.duration._
 
