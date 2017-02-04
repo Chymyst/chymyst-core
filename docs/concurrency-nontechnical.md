@@ -1,3 +1,5 @@
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
+
 # Choosing the concurrency stack
 
 _by Sergei Winitzki_
