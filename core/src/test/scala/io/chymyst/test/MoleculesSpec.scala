@@ -22,7 +22,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
   override def afterEach(): Unit = {
     tp0.shutdownNow()
   }
-  
+
   val timeLimit = Span(5000, Millis)
 
   val warmupTimeMs = 50L
@@ -102,7 +102,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val waiter = new Waiter
 
     val a = new M[Unit]("a")
-    site(tp0)( go { case a(_) => waiter.dismiss() })
+    site(tp0)(go { case a(_) => waiter.dismiss() })
 
     a()
     waiter.await()
@@ -113,7 +113,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val waiter = new Waiter
 
     val a = new M[Unit]("a")
-    site(tp0)( go { case a(_) => waiter.dismiss() })
+    site(tp0)(go { case a(_) => waiter.dismiss() })
 
     a()
     waiter.await()
@@ -125,7 +125,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     val a = new M[Unit]("a")
     val b = new M[Unit]("b")
-    site(tp0)( go { case a(_) => b() }, go { case b(_) => waiter.dismiss() })
+    site(tp0)(go { case a(_) => b() }, go { case b(_) => waiter.dismiss() })
 
     a()
     waiter.await()
@@ -138,7 +138,12 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val a = new M[Int]("a")
     val b = new M[Int]("b")
     val c = new M[Int]("c")
-    site(tp0)( go { case a(x) + b(y) => c(x+y) }, go { case c(z) => waiter { z shouldEqual 3; () }; waiter.dismiss() })
+    site(tp0)(go { case a(x) + b(y) => c(x + y) }, go { case c(z) => waiter {
+      z shouldEqual 3;
+      ()
+    };
+      waiter.dismiss()
+    })
     a(1)
     b(2)
     waiter.await()
@@ -157,8 +162,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
   it should "throw exception when join pattern attempts to redefine a blocking molecule" in {
     val thrown = intercept[Exception] {
       val a = new B[Unit, Unit]("a")
-      site( go { case a(_,r) => r() })
-      site( go { case a(_,r) => r() })
+      site(go { case a(_, r) => r() })
+      site(go { case a(_, r) => r() })
     }
     thrown.getMessage shouldEqual "Molecule a/B cannot be used as input in Site{a/B => ...} since it is already bound to Site{a/B => ...}"
   }
@@ -167,8 +172,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val thrown = intercept[Exception] {
       val a = new M[Unit]("x")
       val b = new M[Unit]("y")
-      site( go { case a(_) + b(_) => () })
-      site( go { case a(_) => () })
+      site(go { case a(_) + b(_) => () })
+      site(go { case a(_) => () })
     }
     thrown.getMessage shouldEqual "Molecule x cannot be used as input in Site{x => ...} since it is already bound to Site{x + y => ...}"
   }
@@ -211,7 +216,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val b = new M[Int]("b")
     val f = new B[Unit, Int]("f")
 
-    site(tp0)( go { case a(x) + b(0) => a(x+1) }, go { case a(z) + f(_, r) => r(z) })
+    site(tp0)(go { case a(x) + b(0) => a(x + 1) }, go { case a(z) + f(_, r) => r(z) })
     a(1)
     b(2)
     f() shouldEqual 1
@@ -222,7 +227,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val a = m[Int]
     val b = m[Int]
 
-    site(tp0)( go { case a(x) => b(x) })
+    site(tp0)(go { case a(x) => b(x) })
     val thrown = intercept[Exception] {
       a(1)
     }
@@ -236,12 +241,122 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val b = m[Int]
     val c = m[Unit]
 
-    site(tp0)( go { case a(x) => }, go { case a1(x) => c() + c() }, go { case a2(x) => c() + b(x) })
+    site(tp0)(go { case a(x) => }, go { case a1(x) => c() + c() }, go { case a2(x) => c() + b(x) })
     val thrown = intercept[Exception] {
-      a(1) // This molecule will not actually cause any reactions that would emit unbound molecules.
+      a(1) // This molecule will not actually start any reactions that would emit unbound molecules.
       // Nevertheless, the error must be flagged.
     }
     thrown.getMessage shouldEqual "In Site{a => ...; a1 => ...; a2 => ...}: As a(1) is emitted, some reactions may emit molecules (b, c) that are not bound to any reaction site"
+  }
+
+  it should "start reactions when molecule emitters are passed on input molecules" in {
+    (1 to 100).foreach { _ =>
+      val a = m[M[Int]]
+      val c = m[Int]
+      val f = b[Unit, Int]
+      site(tp0)(
+        go { case a(s) => s(123) }
+      )
+      site(tp0)(
+        go { case c(x) + f(_, r) => r(x) }
+      )
+      a(c)
+      f() shouldEqual 123
+    }
+  }
+
+  it should "start reactions when molecule emitters are passed on input molecules slighly before they are bound" in {
+    val results = (1 to 100).map { _ =>
+      val p = m[M[Int]]
+      val c = m[Int]
+      var r = 0
+      site(tp0)(
+        go { case p(s) => s(123); r = 1 } // create a race condition on r
+      )
+      p(c)
+      site(tp0)(
+        go { case c(x) => r = x }
+      )
+      r
+    }
+    println(results.groupBy(identity).mapValues(_.size))
+    globalErrorLog.toList should contain("In Site{p => ...}: Reaction {p(s) => } produced an exception that is internal to Chymyst Core. Input molecules [p(c)] were not emitted again. Message: Molecule c is not bound to any reaction site")
+    results should contain(123)
+    results should contain(0)
+    results should contain(1)
+  }
+
+  it should "start reactions and throw exception when molecule emitters are passed to nested reactions slighly before they are bound" in {
+    val results = (1 to 100).map { _ =>
+      val a = m[M[Int]]
+      site(tp0)(
+        go { case a(s) => s(123) }
+      )
+
+      val begin = m[Unit]
+      var r = 0
+      site(tp0)(
+        go { case begin(_) =>
+          val x = 123
+          val e = m[Int]
+          a(e) // The reaction for `a` will emit `e(123)`, unless it crashes due to `e` being unbound.
+          site(tp0)(
+            go { case e(y) => r = x + y }
+          )
+        }
+      )
+      begin()
+      Thread.sleep(20)
+      r
+    }
+    println(results.groupBy(identity).mapValues(_.size))
+    results should contain(246)
+    results should contain(0)
+    globalErrorLog.toList should contain("In Site{a => ...}: Reaction {a(s) => } produced an exception that is internal to Chymyst Core. Input molecules [a(e)] were not emitted again. Message: Molecule e is not bound to any reaction site")
+  }
+
+  it should "start reactions without errors when molecule emitters are passed to nested reactions after they are bound" in {
+    val results = (1 to 100).map { _ =>
+      val q = m[M[Int]]
+      site(tp0)(
+        go { case q(s) => s(123) }
+      )
+
+      val begin = m[Unit]
+      var r = 0
+      site(tp0)(
+        go { case begin(_) =>
+          val x = 123
+          val e = m[Int]
+          site(tp0)(
+            go { case e(y) => r = x + y }
+          )
+          q(e) // The reaction for `a` will emit `e(123)`, unless it crashes due to `e` being unbound.
+        }
+      )
+      begin()
+      Thread.sleep(20)
+      r
+    }
+    println(results.groupBy(identity).mapValues(_.size))
+    globalErrorLog.toList should not contain("In Site{q => ...}: Reaction {q(s) => } produced an exception that is internal to Chymyst Core. Input molecules [q(e)] were not emitted again. Message: Molecule e is not bound to any reaction site")
+    results should contain(246)
+    results should not contain(0)
+  }
+
+  it should "start reaction but throw exception when unbound molecule emitter is passed on input molecule" in {
+    val a = m[M[Int]]
+    val c = m[Int]
+    val f = b[Unit, Int]
+    site(tp0)(
+      go { case a(s) + f(_, r) => s(123); r(123) }
+    )
+    // `c` is unbound, emitting `a(c)` will cause the reaction to fail.
+    a(c)
+    val thrown = intercept[Exception] {
+      f() shouldEqual 123 // This should not pass.
+    }
+    thrown.getMessage shouldEqual "Error: In Site{a + f/B => ...}: Reaction {a(s) + f/B(_) => } with inputs [a(c), f/B()] finished without replying to f/B. Reported error: In Site{a + f/B => ...}: Reaction {a(s) + f/B(_) => } produced an exception that is internal to Chymyst Core. Input molecules [a(c), f/B()] were not emitted again. Message: Molecule c is not bound to any reaction site"
   }
 
   behavior of "basic functionality"
@@ -251,8 +366,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val d = new M[Unit]("decrement")
     val g = new B[Unit, Int]("getValue")
     site(tp0)(
-      go { case c(n) + d(_) => c(n-1) },
-      go { case c(0) + g(_,r) => r(0) }
+      go { case c(n) + d(_) => c(n - 1) },
+      go { case c(0) + g(_, r) => r(0) }
     )
     c(2) + d() + d()
     g.timeout()(1.second) shouldEqual Some(0)
@@ -268,9 +383,9 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val tp = new FixedPool(1)
 
     site(tp0)(
-      go { case c(x) + d(_) => Thread.sleep(300); c(x-1) + f() } onThreads tp,
+      go { case c(x) + d(_) => Thread.sleep(300); c(x - 1) + f() } onThreads tp,
       go { case a(x) + g(_, r) => a(x); r(x) },
-      go { case f(_) + a(x) => a(x+1) }
+      go { case f(_) + a(x) => a(x + 1) }
     )
     a(0) + c(1) + c(1) + d() + d()
     g.timeout()(1.second) shouldEqual Some(0)
@@ -297,7 +412,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     site(tp0)(
       go { case c(_) + d(_) => Thread.sleep(300); f() } onThreads tp,
       go { case a(x) + g(_, r) => r(x) },
-      go { case f(_) + a(x) => a(x+1) }
+      go { case f(_) + a(x) => a(x + 1) }
     )
     a(0) + c() + c() + d() + d()
     Thread.sleep(500) // This is less than 2*300ms, and the test fails unless we use 2 threads concurrently.
@@ -319,10 +434,10 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val tp = new FixedPool(2)
 
     site(tp0)(
-      go  { case c(x) + d(_) =>
+      go { case c(x) + d(_) =>
         if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
       }.noRetry onThreads tp,
-      go  { case c(0) + g(_, r) => r() }
+      go { case c(0) + g(_, r) => r() }
     )
     c(n)
     (1 to n).foreach { _ => d() }
@@ -343,10 +458,10 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val tp = new FixedPool(2)
 
     site(tp0)(
-      go  { case c(x) + d(_) =>
+      go { case c(x) + d(_) =>
         if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
       }.withRetry onThreads tp,
-      go  { case c(0) + g(_, r) => r() }
+      go { case c(0) + g(_, r) => r() }
     )
     c(n)
     (1 to n).foreach { _ => d() }
@@ -367,10 +482,19 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val tp = new FixedPool(2)
 
     site(tp0)(
-      go  { case c(x) + d(_, r) =>
-        if (scala.util.Random.nextDouble >= probabilityOfCrash) { c(x - 1); r() } else { throw new Exception("crash! (it's OK, ignore this)"); r() }
+      go { case c(x) + d(_, r) =>
+        val willCrash = scala.util.Random.nextDouble < probabilityOfCrash
+        if (willCrash) {
+          // The second, redundant check for `willCrash` is used only in order to avoid the "dead code" warning.
+          if (willCrash) throw new Exception("crash! (it's OK, ignore this)")
+          r()
+        }
+        else {
+          c(x - 1)
+          r()
+        }
       }.withRetry onThreads tp,
-      go  { case c(0) + g(_, r) => r() }
+      go { case c(0) + g(_, r) => r() }
     )
     c(n)
     (1 to n).foreach { _ =>
