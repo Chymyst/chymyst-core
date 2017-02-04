@@ -355,14 +355,15 @@ In a future version of `Chymyst Core`, the nonblocking transformation may be per
 Since molecules and reactions are local values, they are lexically scoped within the block where they are defined.
 If we define molecules and reactions in the scope of an auxiliary function, or in the scope of a reaction body, these newly defined molecules and reactions will be encapsulated and protected from outside access.
 
-To illustrate this feature of the chemical paradigm, let us implement a function that defines a “concurrent counter” and initializes it with a given value.
+We already saw one use of this feature for the nonblocking transformation, where we defined a new reaction site nestd within the scope of a reaction.
+To further illustrate this feature of the chemical paradigm, let us implement a function that encapsulates a “concurrent counter” and initializes it with a given value.
 
 Our previous implementation of the concurrent counter has a drawback: The molecule `counter(n)` must be emitted by the user and remains globally visible.
-If the user emits two copies of `counter` with different values, the `counter + decr` and `counter + fetch` reactions will work unreliably, choosing between the two copies of `counter` at random.
-We would like to emit exactly one copy of `counter` and then prevent the user from emitting any further copies of that molecule.
+If the user emits two copies of `counter()` with different values, the `counter + decr` and `counter + fetch` reactions will work unreliably, choosing between the two copies of `counter()` nondeterministically.
+In order to guarantee reliable functionality, we would like to emit exactly one copy of `counter()` and then prevent the user from emitting any further copies of that molecule.
 
-A solution is to define `counter` and its reactions within a function that returns the `decr` and `fetch` molecules to the outside scope.
-The `counter` emitter will not be returned to the outside scope, and so the user will not be able to emit extra copies of that molecule.
+A solution is to define `counter` and its reactions within a function that returns the `decr` and `fetch` emitters to the outside scope.
+The `counter` emitter _will not_ be returned to the outside scope, and so the user will not be able to emit extra copies of that molecule.
 
 ```scala
 def makeCounter(initCount: Int): (M[Unit], B[Unit, Int]) = {
@@ -377,20 +378,20 @@ def makeCounter(initCount: Int): (M[Unit], B[Unit, Int]) = {
   // emit exactly one copy of `counter`
   counter(initCount)
 
-  // return these two emitters to the outside scope
+  // return only these two emitters to the outside scope
   (decr, fetch)
 }
 
 ```
 
-The closure captures the emitter for the `counter` molecule and emits a single copy of that molecule.
-Users from other scopes cannot emit another copy of `counter` since the emitter is not visible outside the closure.
-In this way, it is guaranteed that one and only one copy of `counter` will be present in the soup.
+The function scope creates the emitter for the `counter()` molecule and emits a single copy of that molecule.
+Users from other scopes cannot emit another copy of `counter()` since the emitter is not visible outside the function scope.
+In this way, it is guaranteed that one and only one copy of `counter()` will be emitted into the soup.
 
-Nevertheless, the users receive the emitters `decr` and `fetch` from the closure.
-So the users can emit these molecules and start their reactions.
+Nevertheless, the users receive the emitters `decr` and `fetch` from the function.
+So the users can emit these molecules and start the corresponding reactions.
 
-The function `makeCounter` can be called like this:
+The function `makeCounter()` can be called like this:
 
 ```scala
 val (d, f) = makeCounter(10000)
@@ -399,19 +400,19 @@ val x = f() // fetch the current value
 
 ```
 
-Also note that each invocation of `makeCounter()` will create new, fresh emitters `counter`, `decr`, and `fetch` inside the closure, because each invocation will create a fresh local scope and a new reaction site.
+Also note that each invocation of `makeCounter()` will create new, fresh emitters `counter`, `decr`, and `fetch`, because each invocation will create a fresh local scope and a new reaction site.
 In this way, the user can create as many independent counters as desired.
 Molecules defined in the scope of a certain invocation of `makeCounter()` will be chemically different from molecules defined in other invocations,
-since they will be bound to the fresh reaction site defined during the same invocation of `makeCounter()`.
+since they will be bound to the particular reaction site defined during the same invocation of `makeCounter()`.
 
 This example shows how we can encapsulate some molecules and yet use their reactions.
-A closure can define local reaction with several input molecules, emit some of these molecules initially, and return some (but not all) molecule emitters to the outer scope.
+A function scope can define local reactions with several input molecules, emit some of these molecules initially, and return some (but not all) molecule emitters to the outer scope.
 
 ## Example: implementing "First Result"
 
-Suppose we have two blocking molecules `f` and `g` that return a reply value.
-We would like to emit both `f` and `g` together and wait until a reply value is received from whichever molecule unblocks sooner.
-If the other molecule gets a reply later, we will just ignore that value.
+Suppose we have two blocking molecules `f()` and `g()` that return a reply value.
+We would like to emit both `f()` and `g()` together and wait until a reply value is received from whichever molecule unblocks sooner.
+If the other molecule gets a reply value later, we will just ignore that value.
 
 The result of this nondeterministic operation is the value of type `T` obtained from one of the molecules `f` and `g`, depending on which molecule got its reply first.
 
