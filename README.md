@@ -164,6 +164,18 @@ To use the chemical machine DSL, add `import io.chymyst.jc._` in your Scala sour
 
 See the ["hello, world" project](https://github.com/Chymyst/helloworld) for a complete minimal example.
 
+# Publish to Sonatype
+
+```bash
+$ sbt
+> project core
+> +publishSigned
+> sonatypeRelease
+
+```
+
+# Trivia
+
 [![Robert Boyle's self-flowing flask](docs/Boyle_Self-Flowing_Flask.png)](https://en.wikipedia.org/wiki/Robert_Boyle#/media/File:Boyle%27sSelfFlowingFlask.png)
 
 This drawing is by [Robert Boyle](https://en.wikipedia.org/wiki/Robert_Boyle), who was one of the founders of the science of chemistry.
