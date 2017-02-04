@@ -22,21 +22,24 @@ The current implementation is tested under Oracle JDK 8 with Scala `2.11.8` and 
 
 # Overview of `Chymyst` and the chemical machine paradigm
 
-[Get started with this tutorial introduction.](https://chymyst.github.io/joinrun-scala/chymyst00.html)
+## [Get started with this extensive tutorial](https://chymyst.github.io/joinrun-scala/chymyst00.html)
 
-A complete minimal "Hello, world" project can be found at [https://github.com/Chymyst/helloworld](https://github.com/Chymyst/helloworld)
+### [A complete minimal "Hello, world" project](https://github.com/Chymyst/helloworld)
 
-I presented an early version of `Chymyst Core`, at that time called `JoinRun`, at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
+### [Video presentation of early version of `Chymyst Core`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
 
-There is some [technical documentation for Chymyst Core](docs/chymyst-core.md).
+This talk was given at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala).
+See also these [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
-[Main features of `Chymyst`](docs/chymyst_features.md)
+## [Main features of the chemical machine](docs/chymyst_features.md)
 
-[Comparison of the chemical machine vs. academic Join Calculus](chymyst_vs_jc.md#comparison-chemical-machine-vs-academic-join-calculus)
-[
-[Comparison of the chemical machine vs. the Actor model](chymyst_vs_jc.md#comparison-chemical-machine-vs-actor-model)
-[
-[Comparison of the chemical machine vs. the coroutines / channels approach (CSP)](chymyst_vs_jc.md#comparison-chemical-machine-vs-csp)
+### [Comparison of the chemical machine vs. academic Join Calculus](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-academic-join-calculus)
+
+### [Comparison of the chemical machine vs. the Actor model](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-actor-model)
+
+### [Comparison of the chemical machine vs. the coroutines / channels approach (CSP)](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-csp)
+
+### [Technical documentation for `Chymyst Core`](docs/chymyst-core.md).
 
 # Example: "dining philosophers"
 
@@ -161,7 +164,7 @@ To use the chemical machine DSL, add `import io.chymyst.jc._` in your Scala sour
 
 See the ["hello, world" project](https://github.com/Chymyst/helloworld) for a complete minimal example.
 
-[![Robert Boyle's self-flowing flask](Boyle_Self-Flowing_Flask.png)](https://en.wikipedia.org/wiki/Robert_Boyle#/media/File:Boyle%27sSelfFlowingFlask.png)
+[![Robert Boyle's self-flowing flask](docs/Boyle_Self-Flowing_Flask.png)](https://en.wikipedia.org/wiki/Robert_Boyle#/media/File:Boyle%27sSelfFlowingFlask.png)
 
 This drawing is by [Robert Boyle](https://en.wikipedia.org/wiki/Robert_Boyle), who was one of the founders of the science of chemistry.
 In 1661 he published a treatise titled [_“The Sceptical Chymyst”_](https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Sceptical_chymist_1661_Boyle_Title_page_AQ18_%283%29.jpg/220px-Sceptical_chymist_1661_Boyle_Title_page_AQ18_%283%29.jpg), from which the `Chymyst` framework borrows its name.
