@@ -309,6 +309,9 @@ reactionMatrix.foreach(_.foreach(_.foreach(r => site(r)))))
 This implementation is found as test 6 in `GameOfLifeSpec.scala`.
 It runs about 200 times faster than the previous implementation (test 4): it computes 100 time steps on a 10x10 board in about 0.8 seconds.
 
+Since each reaction is running at a separate reaction site, every cell update can be scheduled concurrently with any other cell update.
+With this implementation, cell updates can be concurrent across the entire 3-dimensional array of cells (that is, both in space and time).
+
 ## Conclusion
 
 We have seen that there are two ways of optimizing the performance of a chemical computation:
@@ -325,12 +328,14 @@ All coordination is performed by the guard condition that selects input molecule
 This implementation is catastrophically slow.
 Running on anything larger than a 2x2 board takes forever and may crash due to garbage collecting overhead.
 
-Test 2 introduces 9 different molecule sorts `c0`, ..., `c8` instead of using one molecule sort.
+Test 2 is the solution first discussed in this chapter.
+It introduces 9 different molecule sorts `c0`, ..., `c8` instead of using one molecule sort.
 Otherwise, the chemistry remains the same as in test 1.
-This is the solution first discussed in this chapter.
-This speeds up the simulation by a few times, although it remains unacceptably slow.
+The change speeds up the simulation by a few times, although it remains unacceptably slow.
 
-Tests 1 and 2 are intentially slow and can be used as benchmarks of the chemical machine.
+Tests 1 and 2 are intentionally very slow, to be used as benchmarks of the chemical machine.
+The speedup between 1 and 2 suggests that avoiding repeated input molecules is a source of additional speedup.
+This may or may not remain the case in future versions of `Chymyst Core`. 
 
 Test 3 uses a different molecule sort for each cell on the board.
 However, molecules corresponding to different time steps are the same.
