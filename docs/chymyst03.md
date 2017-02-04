@@ -270,7 +270,7 @@ A side benefit is that emitting `read()` and `write()` will get unblocked only _
 The price for this convenience is that the Reader thread will remain blocked until access is granted.
 The non-blocking version of the code never blocks any threads, which improves parallelism.
 
-## Correspondence between blocking and non-blocking molecules
+## Nonblocking transformation
 
 By comparing two versions of the Readers/Writers code, we notice that there is a certain correspondence between blocking and non-blocking code.
 A reaction that emits a blocking molecule is equivalent to two reactions with a new auxiliary reply molecule defined in the scope of the first reaction.
@@ -323,20 +323,20 @@ go { case nonBlockingMol((t, reply)) + ... =>
 ```
 
 This example is the simplest case where the blocking molecule is emitted in the middle of a simple list of declarations within the reaction body.
-The reaction body is stack-ripped at the point where the blocking molecule is emitted.
-The rest of the reaction body is moved into a nested auxiliary reaction that consumes `auxReply()`.
+In order to transform this code into non-blocking code, the reaction body is cut at the point where the blocking molecule is emitted.
+The rest of the reaction body is then moved into a nested auxiliary reaction that consumes `auxReply()`.
 
-This correspondence can be seen as an optimization: when we translate blocking code into non-blocking code, we improve efficiency of the CPU usage because fewer threads will be waiting.
-For this reason, it is desirable to perform the nonblocking translation when possible.
+This code transformation can be seen as an optimization: when we translate blocking code into non-blocking code, we improve efficiency of the CPU usage because fewer threads will be waiting.
+For this reason, it is desirable to perform the **nonblocking transformation** when possible.
 
-If the blocking molecule is emitted inside an `if-then-else` block, or inside a `match-case` block, the nonblocking translation becomes more involved.
-It becomes necessary to introduce multiple auxiliary reply molecules and multiple nested reactions, corresponding to all the possible clauses where the blocking molecule is emitted.
+If the blocking molecule is emitted inside an `if-then-else` block, or inside a `match-case` block, the nonblocking transformation will become more involved.
+It will be necessary to introduce multiple auxiliary reply molecules and multiple nested reactions, corresponding to all the possible clauses where the blocking molecule is emitted.
 
-Similarly, the nonblocking translation becomes more involved when several different blocking molecules are emitted in the same reaction body.
+Similarly, the nonblocking transformation becomes more involved when several different blocking molecules are emitted in the same reaction body.
 
-There are some cases where the nonblocking translation seems to be impossible.
-For example, it is impossible to perform the translation automatically if a blocking molecule is emitted inside a loop, or more generally, within a function scope, because that function could later be called elsewhere by arbitrary code.
-In order to be able to always perform the nonblocking translations for reaction bodies, `Chymyst Core` prohibits emitting a blocking molecule in such contexts.
+There are some cases where the nonblocking transformation seems to be impossible.
+For example, it is impossible to perform the transformation automatically if a blocking molecule is emitted inside a loop, or more generally, within a function scope, because that function could later be called elsewhere by arbitrary code.
+In order to be able to always perform the nonblocking transformation for reaction bodies, `Chymyst Core` prohibits emitting a blocking molecule in such contexts.
 
 ```scala
 val c = m[Unit]
@@ -348,7 +348,7 @@ go { case c(_) => while (true) f() }
 `Error:(245, 8) reaction body must not emit blocking molecules inside function blocks (f(()))`
 `    go { case c(_) => while (true) f() }`
 
-In a future version of `Chymyst Core`, the nonblocking translation may be performed by macros as an automatic optimization when possible.
+In a future version of `Chymyst Core`, the nonblocking transformation may be performed by macros as an automatic optimization when possible.
 
 # Molecules and reactions in local scopes
 
