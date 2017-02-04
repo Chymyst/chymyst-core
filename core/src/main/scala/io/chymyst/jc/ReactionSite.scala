@@ -173,14 +173,18 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   //  }
 
   private sealed trait ReactionExitStatus {
+    def getMessage: Option[String] = None
     def reactionSucceededOrFailedWithoutRetry: Boolean = true
   }
 
   private case object ReactionExitSuccess extends ReactionExitStatus
 
-  private case object ReactionExitFailure extends ReactionExitStatus
+  private final case class ReactionExitFailure(message: String) extends ReactionExitStatus {
+    override def getMessage: Option[String] = Some(message)
+  }
 
-  private case object ReactionExitRetryFailure extends ReactionExitStatus {
+  private final case class ReactionExitRetryFailure(message: String) extends ReactionExitStatus {
+    override def getMessage: Option[String] = Some(message)
     override def reactionSucceededOrFailedWithoutRetry: Boolean = false
   }
 
@@ -201,20 +205,21 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // Running the reaction body produced an exception that is internal to `Chymyst Core`.
         // We should not try to recover from this; it is either an error on user's part
         // or a bug in `Chymyst Core`.
-        reportError(s"In $this: Reaction {${reaction.info}} produced an exception that is internal to Chymyst Core. Input molecules [${moleculeBagToString(usedInputs)}] were not emitted again. Message: ${e.getMessage}")
+        val message = s"In $this: Reaction {${reaction.info}} produced an exception that is internal to Chymyst Core. Input molecules [${moleculeBagToString(usedInputs)}] were not emitted again. Message: ${e.getMessage}"
+        reportError(message)
         // Let's not print it, and let's not throw it again, since it's our internal exception.
         //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message.
         //        throw e
-        ReactionExitFailure
+        ReactionExitFailure(message)
 
       case e: Exception =>
         // Running the reaction body produced an exception. Note that the exception has killed a thread.
         // We will now re-insert the input molecules (except the blocking ones). Hopefully, no side-effects or output molecules were produced so far.
         val (status, aboutMolecules) = if (reaction.retry) {
           usedInputs.foreach { case (mol, v) => emit(mol, v) }
-          (ReactionExitRetryFailure, "were emitted again")
+          (ReactionExitRetryFailure(e.getMessage), "were emitted again")
         }
-        else (ReactionExitFailure, "were consumed and not emitted again")
+        else (ReactionExitFailure(e.getMessage), "were consumed and not emitted again")
 
         reportError(s"In $this: Reaction {${reaction.info}} produced an exception. Input molecules [${moleculeBagToString(usedInputs)}] $aboutMolecules. Message: ${e.getMessage}")
         //        e.printStackTrace() // This will be printed asynchronously, out of order with the previous message. Let's not print this.
@@ -231,7 +236,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       .filter(_._2.reactionSentNoReply)
       .map(_._1).toSeq.toOptionSeq.map(_.map(_.toString).sorted.mkString(", "))
 
-    val messageNoReply = blockingMoleculesWithNoReply.map { s => s"Error: In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] finished without replying to $s" }
+    val messageNoReply = blockingMoleculesWithNoReply.map { s => s"Error: In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] finished without replying to $s${exitStatus.getMessage.map(message => s". Reported error: $message").getOrElse("")}" }
 
     // We will report all errors to each blocking molecule.
     // However, if the reaction failed with retry, we don't yet need to release semaphores and don't need to report errors due to missing reply.
