@@ -58,16 +58,13 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     c((N, Array.fill[Int](reactions)(0)))
 
     val result = getC()
-    val average = N / reactions
-    val max_deviation = math.max(math.abs(result.min - average).toFloat, math.abs(result.max - average).toFloat) / average
-    println(s"Fairness across 4 reactions: ${result.mkString(", ")}. Average = $average. Max relative deviation = $max_deviation")
-
     tp.shutdownNow()
     tp1.shutdownNow()
 
-    result.min should be > (0.7 * average).toInt
-    result.max should be < (1.3 * average).toInt
-
+    val average = N / reactions
+    val max_deviation = math.max(math.abs(result.min - average).toDouble, math.abs(result.max - average).toDouble) / average
+    println(s"Fairness across 4 reactions: ${result.mkString(", ")}. Average = $average. Max relative deviation = $max_deviation")
+    max_deviation should be < 0.3
   }
 
   // fairness across molecules:
