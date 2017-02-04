@@ -633,7 +633,7 @@ final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody
     else {
       // For each input molecule used by the reaction, find all suitable values of this molecule that fit the conditional.
       // This builds a sequence of possible molecule sets for this reaction.
-      // Then evaluate cross-guards and filter this sequence. Take `headOption` of the resulting sequence.
+      // Then evaluate cross-molecule guards and filter this sequence. Take `headOption` of the resulting sequence.
 
       // Map of molecule values for molecules that are inputs to this reaction.
       val initRelevantMap = moleculesPresent.getMap.filterKeys(m => inputMoleculesSet.contains(m))

@@ -152,7 +152,7 @@ class Patterns02Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val write = b[Int, Unit]
     val access = m[Int]
     val finished = m[Unit]
-    val n = 3 // can be a runtime parameter
+    val n = 3 // can be a run-time parameter
 
     val all_done = b[Unit, Unit]
     val counter = m[Int]
