@@ -22,13 +22,13 @@ The current implementation is tested under Oracle JDK 8 with Scala `2.11.8` and 
 
 # Overview of `Chymyst` and the chemical machine paradigm
 
-To get started, begin with this [tutorial introduction](https://chymyst.github.io/joinrun-scala/chymyst00.html).
+[Get started with this tutorial introduction.](https://chymyst.github.io/joinrun-scala/chymyst00.html)
+
+A complete minimal "Hello, world" project can be found at [https://github.com/Chymyst/helloworld](https://github.com/Chymyst/helloworld)
 
 I presented an early version of `Chymyst Core`, at that time called `JoinRun`, at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
-There is some [technical documentation for the core library](docs/chymyst-core.md).
-
-A complete minimal "Hello, world" project can be found at [https://github.com/Chymyst/helloworld](https://github.com/Chymyst/helloworld)
+There is some [technical documentation for Chymyst Core](docs/chymyst-core.md).
 
 # Main features of `Chymyst`
 
@@ -72,7 +72,9 @@ For this reason, `Chymyst` requires explicit declarations of molecule types (for
 In `Chymyst`'s Scala DSL, a reaction's input patterns is a `case` clause in a partial function.
 Within the limits of the Scala syntax, reactions can define arbitrary input patterns.
  
-- Reactions can use pattern matching expressions as well as guard conditions for selecting molecule values:
+### Unrestricted pattern matching
+
+Reactions can use pattern matching expressions as well as guard conditions for selecting molecule values:
 
 ```scala
 val c = m[Option[Int]]
@@ -86,18 +88,22 @@ go { case c(Some(x)) + d( s@("xyz", List(p, q, r)) )
 
 ```
 
-- Reactions can use repeated input molecules ("nonlinear patterns"):
+### Nonlinear input patterns
+
+Reactions can use repeated input molecules ("nonlinear" input patterns):
 
 ```scala
 val c = m[Int]
 
-go { case c(x) + c(y) if x > y => c(x - y) }
+go { case c(x) + c(y) + c(z) if x > y && y > z => c(x - y + z) }
 
 ```
 
 Some concurrent algorithms are more easily expressed using repeated input molecules.
 
-- A reaction can consume any number of blocking molecules at once, and each blocking molecule will receive its own reply.
+### Nonlinear blocking replies
+
+A reaction can consume any number of blocking molecules at once, and each blocking molecule will receive its own reply.
 
 For example, here is a reaction that consumes 3 blocking molecules `f`, `f`, `g` and exchanges the values caried by the two `f` molecules:
 
@@ -113,7 +119,7 @@ go { case f(x1, replyF1) + f(x2, replyF2) + g(_, replyG) =>
 
 This reaction is impossible to write using JoCaml-style syntax `reply x to f`:
 in that syntax, we cannot identify which of the copies of `f` should receive which reply value.
-We can do this in JoCaml:
+If JoCaml supported nonlinear input patterns, we could do this in JoCaml syntax:
 
 ```ocaml
 def f(x1) + f(x2) + g() =>
@@ -121,7 +127,7 @@ def f(x1) + f(x2) + g() =>
 
 ```
 
-However, this does not specify that the reply value `x2` should be sent to the process that emitted `f(x1)` rather than to the process that emitted `f(x2)`.
+However, this code does not specify that the reply value `x2` should be sent to the process that emitted `f(x1)` rather than to the process that emitted `f(x2)`.
 
 ## Reactions are values
 
@@ -135,22 +141,22 @@ val reaction: Reaction = go { case c(x) => println(x) }
 ```
 
 Users can build reaction sites incrementally, constructing, say, an array of `n` reaction values, where `n` is a run-time parameter.
-Then a reaction site can be declared, using the array of reaction values:
+Then a reaction site can be declared using the array of reaction values.
+Nevertheless, reactions and reaction sites are immutable once declared.
 
 ```scala
 val reactions: Seq[Reaction] = ???
-site(reactions: _*)
+site(reactions: _*) // Activate all reactions. 
 
 ```
 
 Since molecule emitters are local values, one can also define `n` different molecules, where `n` is a run-time parameter.
 There is no limit on the number of reactions in one reaction site, and no limit on the number of different molecules. 
 
-Nevertheless, reactions and reaction sites are immutable once declared.
 
 ## Timeouts for blocking molecules
 
-Emitting a blocking molecule will block forever if no reactions can consume that molecule.
+Emitting a blocking molecule will block forever if no reactions consume that molecule.
 Users can decide to time out on that blocking call:
 
 ```scala
@@ -163,21 +169,41 @@ val result: Option[Int] = f.timeout()(200 millis)
 
 ```
 
+When the timeout occurs, the blocking molecule does not receive the reply value.
+The reply action can check whether the timeout occurred:
+
+```scala
+val f = b[Unit, Int]
+go { f(_, reply) =>
+// offer to reply 123 and return true if there was no timeout
+  val status = reply.checkTimeout(123)
+  if (status) ???
+}
+
+```
+
 ## Static analysis for correctness and optimization
 
 `Chymyst` uses macros to perform extensive static analysis of reactions at compile time.
 This allows `Chymyst` to detect some errors such as deadlock or livelock, and to give warnings for possible deadlock or livelock, before any reactions are started.
 
+The static analysis also enforces constraints such as the uniqueness of the reply to blocking molecules.
+
 ```scala
 val a = m[Int]
 val c = m[Unit]
+val f = b[Unit, int]
 
-site( go { case a(x) => c() + a(x+1) } )
 // Does not compile: "Unconditional livelock due to a(x)"
+go { case a(x) => c() + a(x+1) }
+
+// Does not compile: "Blocking molecules should receive unconditional reply"
+go { case f(_, r) + a(x) => if (x > 0) r(x) }
+
+// Compiles successfully because the reply is always sent.
+go { case f(_, r) + a(x) => if (x > 0) r(x) else r(-x) }
 
 ```
-
-The static analysis also enforces constraints such as the uniqueness of the reply to blocking molecules.
 
 Common cases of invalid chemical definitions are flagged either at compile time, or as run-time errors that occur after defining a reaction site and before starting any processes.
 Other errors are flagged when reactions are run (e.g. if a blocking molecule gets no reply but static analysis was unable to determine that).
