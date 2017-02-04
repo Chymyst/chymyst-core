@@ -19,11 +19,13 @@ To understand this tutorial, the reader should have some familiarity with the `S
 
 [Chapter 5: Reaction constructors](chymyst05.md)
 
-[Chapter 6: Conceptual overview of concurrency](concurrency.md) [Nontechnical version](concurrency-nontechnical.md)
+[Chapter 6: Conceptual overview of concurrency](concurrency.md) / [Nontechnical version](concurrency-nontechnical.md)
 
 [Chapter 7: Concurrency patterns](chymyst07.md)
 
 [Chapter 8: Advanced examples](chymyst08.md)
+
+[Chapter 9: Game of Life](chymyst_game_of_life.md)
 
 [Version history and roadmap](roadmap.md)
 
