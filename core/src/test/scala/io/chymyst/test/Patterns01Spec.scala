@@ -224,6 +224,43 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }.get
   }
 
+  // This test will fail and will need to be rewritten when automatic pipelining is implemented,
+  // because `manL`, `womanL`, and `beginDancing` will then be pipelined and consumed in strict order.
+  it should "implement dance pairing without queue labels" in {
+    val man = m[Unit]
+    val manL = m[Int]
+    val queueMen = m[Int]
+    val woman = m[Unit]
+    val womanL = m[Int]
+    val queueWomen = m[Int]
+    val beginDancing = b[Int, Unit]
+
+    val danceCounter = m[List[Int]]
+    val done = b[Unit, List[Int]]
+
+    val total = 100
+
+    site(tp)(
+      go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) },
+      go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() },
+      go { case _ => danceCounter(Nil) }
+    )
+
+    site(tp)(
+      go { case man(_) + queueMen(n) => queueMen(n + 1) + manL(n) },
+      go { case woman(_) + queueWomen(n) => queueWomen(n + 1) + womanL(n) },
+      go { case manL(xy) + womanL(xx) => beginDancing(Math.min(xx,xy)) },
+      go { case _ => queueMen(0) + queueWomen(0) }
+    )
+
+    (1 to total).foreach(_ => man())
+    danceCounter.volatileValue shouldEqual Nil
+    (1 to total).foreach(_ => woman())
+    val ordering = done()
+    println(s"Dance pairing without queue labels yields $ordering")
+    ordering should not equal (0 until total).toList // Dancing queue order cannot be observed.
+  }
+
   it should "implement dance pairing with queue labels" in {
     val man = m[Unit]
     val manL = m[Int]
@@ -256,7 +293,6 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     danceCounter.volatileValue shouldEqual Nil
     (1 to total).foreach(_ => woman())
     done() shouldEqual (0 until total).toList // Dancing queue order must be observed.
-
   }
 
 }

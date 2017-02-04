@@ -182,7 +182,7 @@ The static analysis also enforces constraints such as the uniqueness of the repl
 Common cases of invalid chemical definitions are flagged either at compile time, or as run-time errors that occur after defining a reaction site and before starting any processes.
 Other errors are flagged when reactions are run (e.g. if a blocking molecule gets no reply but static analysis was unable to determine that).
 
-The results of static analysis are used to optimize the scheduling of reactions at runtime.
+The results of static analysis are used to optimize the scheduling of reactions at run time.
 For instance, reactions that impose no cross-molecule conditions are scheduled significantly faster.
 
 ## Thread pools

@@ -196,20 +196,20 @@ Previously, we implemented the Readers/Writers problem [using non-blocking molec
 The final code looked like this:
 
 ```scala
-val read = m[Unit]
-val readResult = m[Int]
-val write = m[Int]
+// Code for Readers/Writers access control, with non-blocking molecules.
+val read = m[M[Int]]
+val write = m[(Int, M[Unit])]
 val access = m[Int]
-val finished = m[Unit]
-val n = 3 // can be a runtime parameter
+val readerFinished = m[Unit]
+val n = 3 // can be a run-time parameter
 site(
-  go { case read(_) + access(k) if k < n =>
+  go { case read(readResult) + access(k) if k < n =>
     access(k + 1)
     val x = readResource(); readResult(x)
-    finished()
+    readerFinished()
   },
-  go { case write(x) + access(0) => writeResource(x); access(0) },
-  go { case finished(_) + access(k) => access(k - 1) }
+  go { case write((x, writeDone)) + access(0) => writeResource(x); access(0) + writeDone() },
+  go { case readerFinished(_) + access(k) => access(k - 1) }
 )
 access(0) // Emit at the beginning.
 
@@ -223,14 +223,15 @@ This will make the Readers/Writers functionality easier to use.
 
 When we change the types of the `read()` and `write()` molecules to blocking, we will have to emit replies in reactions that consume `read()` and `write()`.
 We can also omit `readResult()` since the `read()` molecule will now receive a reply.
-Other than that, reactions remain unchanged:
+Other than that, reactions remain essentially unchanged:
 
 ```scala
+// Code for Readers/Writers access control, with blocking molecules.
 val read = b[Unit, Int]
 val write = b[Int, Unit]
 val access = m[Int]
 val finished = m[Unit]
-val n = 3 // can be a runtime parameter
+val n = 3 // can be a run-time parameter
 site(
   go { case read(_, readReply) + access(k) if k < n =>
     access(k + 1)
@@ -244,21 +245,125 @@ access(0) // Emit at the beginning.
 
 ```
 
+Note the similarity between this blocking version and the previous non-blocking version.
+The reply molecules play the role of the `readResult` and `writeDone` auxiliarly molecules.
+Instead of passing these auxiliary molecules on values of `read()` and `write()`, we simply declare the reply type and get the `writeReply` and `readReply` emitters automatically.
+
+Also, the Reader and Writer client programming is now significantly streamlined compared to the non-blocking version:
+we do not need the boilerplate previously used to mitigate the "stack ripping" problem.
+
+```scala
+// Code for Reader client reactions, with blocking molecules.
+site(
+  go { case startReader(_) =>
+    val a = ???
+    val b = ???
+    val x = read() // This is blocked until we get access to the resource.
+    continueReader(a, b, x)
+  }
+)
+
+```
+
 A side benefit is that emitting `read()` and `write()` will get unblocked only _after_ the `readResource()` and `writeResources()` operations are complete.
+
+The price for this convenience is that the Reader thread will remain blocked until access is granted.
+The non-blocking version of the code never blocks any threads, which improves parallelism.
+
+## Nonblocking transformation
+
+By comparing two versions of the Readers/Writers code, we notice that there is a certain correspondence between blocking and non-blocking code.
+A reaction that emits a blocking molecule is equivalent to two reactions with a new auxiliary reply molecule defined in the scope of the first reaction.
+
+The following two code snippets illustrate the correspondence:
+
+```scala
+// Reaction that emits a blocking molecule.
+val blockingMol = b[T, R]
+go { case ... => 
+  /* start of reaction body, defines `a`, `b`, ... */
+  val t: T = ???
+  val x: R = blockingMol(t)
+  /* continuation of reaction body, can use `x`, `a`, `b`, `t`, ... */
+}
+
+// Reaction that consumes the blocking molecule.
+go { case blockingMol(t, reply) + ... =>
+  /* part 1 of reaction body, uses `t`, defines `x` */
+  val x: R = ???
+  reply(x)
+  /* rest of reaction body */
+}
+
+```
+
+```scala
+// Reaction that emits a non-blocking molecule.
+val nonBlockingMol = m[(T, M[R])]
+go { case ... => 
+  /* stat of reaction body, defines `a`, `b`, ... */
+  val t: T = ???
+  val auxReply = m[T] // auxiliary reply emitter
+  site(
+    go { case auxReply(x) =>
+    /* continuation of reaction body, can use `x`, `a`, `b`, `t`, ... */
+    }
+  )
+  nonBlockingMol((t, auxReply))
+}
+
+// Reaction that consumes the non-blocking molecule.
+go { case nonBlockingMol((t, reply)) + ... =>
+  /* part 1 of reaction body, uses `t`, defines `x` */
+  val x: R = ???
+  reply(x)
+  /* rest of reaction body */
+}
+
+```
+
+This example is the simplest case where the blocking molecule is emitted in the middle of a simple list of declarations within the reaction body.
+In order to transform this code into non-blocking code, the reaction body is cut at the point where the blocking molecule is emitted.
+The rest of the reaction body is then moved into a nested auxiliary reaction that consumes `auxReply()`.
+
+This code transformation can be seen as an optimization: when we translate blocking code into non-blocking code, we improve efficiency of the CPU usage because fewer threads will be waiting.
+For this reason, it is desirable to perform the **nonblocking transformation** when possible.
+
+If the blocking molecule is emitted inside an `if-then-else` block, or inside a `match-case` block, the nonblocking transformation will become more involved.
+It will be necessary to introduce multiple auxiliary reply molecules and multiple nested reactions, corresponding to all the possible clauses where the blocking molecule is emitted.
+
+Similarly, the nonblocking transformation becomes more involved when several different blocking molecules are emitted in the same reaction body.
+
+There are some cases where the nonblocking transformation seems to be impossible.
+For example, it is impossible to perform the transformation automatically if a blocking molecule is emitted inside a loop, or more generally, within a function scope, because that function could later be called elsewhere by arbitrary code.
+In order to be able to always perform the nonblocking transformation for reaction bodies, `Chymyst Core` prohibits emitting a blocking molecule in such contexts.
+
+```scala
+val c = m[Unit]
+val f = b[Unit, Unit]
+go { case c(_) => while (true) f() }
+
+```
+
+`Error:(245, 8) reaction body must not emit blocking molecules inside function blocks (f(()))`
+`    go { case c(_) => while (true) f() }`
+
+In a future version of `Chymyst Core`, the nonblocking transformation may be performed by macros as an automatic optimization when possible.
 
 # Molecules and reactions in local scopes
 
 Since molecules and reactions are local values, they are lexically scoped within the block where they are defined.
 If we define molecules and reactions in the scope of an auxiliary function, or in the scope of a reaction body, these newly defined molecules and reactions will be encapsulated and protected from outside access.
 
-To illustrate this feature of the chemical paradigm, let us implement a function that defines a “concurrent counter” and initializes it with a given value.
+We already saw one use of this feature for the nonblocking transformation, where we defined a new reaction site nestd within the scope of a reaction.
+To further illustrate this feature of the chemical paradigm, let us implement a function that encapsulates a “concurrent counter” and initializes it with a given value.
 
 Our previous implementation of the concurrent counter has a drawback: The molecule `counter(n)` must be emitted by the user and remains globally visible.
-If the user emits two copies of `counter` with different values, the `counter + decr` and `counter + fetch` reactions will work unreliably, choosing between the two copies of `counter` at random.
-We would like to emit exactly one copy of `counter` and then prevent the user from emitting any further copies of that molecule.
+If the user emits two copies of `counter()` with different values, the `counter + decr` and `counter + fetch` reactions will work unreliably, choosing between the two copies of `counter()` nondeterministically.
+In order to guarantee reliable functionality, we would like to emit exactly one copy of `counter()` and then prevent the user from emitting any further copies of that molecule.
 
-A solution is to define `counter` and its reactions within a function that returns the `decr` and `fetch` molecules to the outside scope.
-The `counter` emitter will not be returned to the outside scope, and so the user will not be able to emit extra copies of that molecule.
+A solution is to define `counter` and its reactions within a function that returns the `decr` and `fetch` emitters to the outside scope.
+The `counter` emitter _will not_ be returned to the outside scope, and so the user will not be able to emit extra copies of that molecule.
 
 ```scala
 def makeCounter(initCount: Int): (M[Unit], B[Unit, Int]) = {
@@ -273,20 +378,20 @@ def makeCounter(initCount: Int): (M[Unit], B[Unit, Int]) = {
   // emit exactly one copy of `counter`
   counter(initCount)
 
-  // return these two emitters to the outside scope
+  // return only these two emitters to the outside scope
   (decr, fetch)
 }
 
 ```
 
-The closure captures the emitter for the `counter` molecule and emits a single copy of that molecule.
-Users from other scopes cannot emit another copy of `counter` since the emitter is not visible outside the closure.
-In this way, it is guaranteed that one and only one copy of `counter` will be present in the soup.
+The function scope creates the emitter for the `counter()` molecule and emits a single copy of that molecule.
+Users from other scopes cannot emit another copy of `counter()` since the emitter is not visible outside the function scope.
+In this way, it is guaranteed that one and only one copy of `counter()` will be emitted into the soup.
 
-Nevertheless, the users receive the emitters `decr` and `fetch` from the closure.
-So the users can emit these molecules and start their reactions.
+Nevertheless, the users receive the emitters `decr` and `fetch` from the function.
+So the users can emit these molecules and start the corresponding reactions.
 
-The function `makeCounter` can be called like this:
+The function `makeCounter()` can be called like this:
 
 ```scala
 val (d, f) = makeCounter(10000)
@@ -295,19 +400,19 @@ val x = f() // fetch the current value
 
 ```
 
-Also note that each invocation of `makeCounter()` will create new, fresh emitters `counter`, `decr`, and `fetch` inside the closure, because each invocation will create a fresh local scope and a new reaction site.
+Also note that each invocation of `makeCounter()` will create new, fresh emitters `counter`, `decr`, and `fetch`, because each invocation will create a fresh local scope and a new reaction site.
 In this way, the user can create as many independent counters as desired.
 Molecules defined in the scope of a certain invocation of `makeCounter()` will be chemically different from molecules defined in other invocations,
-since they will be bound to the fresh reaction site defined during the same invocation of `makeCounter()`.
+since they will be bound to the particular reaction site defined during the same invocation of `makeCounter()`.
 
 This example shows how we can encapsulate some molecules and yet use their reactions.
-A closure can define local reaction with several input molecules, emit some of these molecules initially, and return some (but not all) molecule emitters to the outer scope.
+A function scope can define local reactions with several input molecules, emit some of these molecules initially, and return some (but not all) molecule emitters to the outer scope.
 
 ## Example: implementing "First Result"
 
-Suppose we have two blocking molecules `f` and `g` that return a reply value.
-We would like to emit both `f` and `g` together and wait until a reply value is received from whichever molecule unblocks sooner.
-If the other molecule gets a reply later, we will just ignore that value.
+Suppose we have two blocking molecules `f()` and `g()` that return a reply value.
+We would like to emit both `f()` and `g()` together and wait until a reply value is received from whichever molecule unblocks sooner.
+If the other molecule gets a reply value later, we will just ignore that value.
 
 The result of this nondeterministic operation is the value of type `T` obtained from one of the molecules `f` and `g`, depending on which molecule got its reply first.
 
@@ -620,25 +725,27 @@ site( go { case f(_,r) + c(n) => c(n + 1); if (n != 0) r(n) else r(0) } )
 
 Finally, a reaction's body could throw an exception before emitting a reply.
 In this case, compile-time analysis will not show that there is a problem.
-The chemical machine will detect the missing reply at runtime and throw an additional exception in the thread that emits `f()`:
+Nevertheless, the chemical machine will recognize at run time that the reaction body will have stopped without sending a reply to one or more blocking molecules.
+The chemical machine will then throw an additional exception in all threads that are still waiting for replies.
+ 
+Here is an example of code that emits `f()` and waits for reply, while a reaction consuming `f()` can throw an exception before replying:
 
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-site( go { case f(_,r) + c(n) => c(n + 1); if (n == 0) throw new Exception("error!"); r(n) } )
+site( go { case f(_,r) + c(n) => c(n + 1); if (n == 0) throw new Exception("Bad value of n!"); r(n) } )
 c(0)
 f()
 
 ```
 
-`java.lang.Exception: Error: In Site{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B`
+`java.lang.Exception: Error: In Site{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B. Reported error: Bad value of n!`
 
-Due to exceptions, it can happen that the reaction body has finished evaluating but some blocking molecules have not received a reply.
-In that case, there can be one or more blocked threads still waiting for replies.
-The chemical machine will throw this exception in all threads that are still waiting for replies, unblocking all those threads (and possibly killing their calculations, unless exceptions are caught).
-This feature is designed to reduce deadlocks.
+In general, there can be one or more blocked threads still waiting for replies when this kind of situation occurs.
+The chemical machine will throw an exception in all threads that are still waiting for replies, unblocking all those threads (and possibly killing their calculations, unless exceptions are caught).
+This feature is intended to reduce deadlocks due to missing replies.
 
-In our example, the additional exception will be thrown only when reaction actually starts and the run-time condition `n == 0` is evaluated to `true`.
+In our example, the additional exception will be thrown only when the reaction actually starts and the condition `n == 0` is evaluated to `true`.
 It may not be easy to design unit tests for this condition.
 
 Also, if the blocking molecules are emitted from some reactions, exceptions occurring on those reactions will not necessarily immediately visible.

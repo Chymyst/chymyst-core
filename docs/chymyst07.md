@@ -792,7 +792,7 @@ Since `n` is a run-time parameter, we cannot define a reaction with `n` input mo
 So we cannot generalize from 2 to `n` participants in this way.
 
 What we need is to consume all `n` blocking molecules `barrier()` and also reply to all of them after we make sure we consumed exactly `n` of them.
-The only way to implement chemistry that consumes `n` molecules (where `n` is a runtime parameter) is to consume one molecule at a time while counting to `n`.
+The only way to implement chemistry that consumes `n` molecules (where `n` is a run-time parameter) is to consume one molecule at a time while counting to `n`.
 We need a molecule, say `counter()`, to carry the integer value that shows the number of `barrier()` molecules already consumed.
 Therefore, we need a reaction like this:
 

@@ -27,8 +27,8 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   licenses := Seq("Apache License, Version 2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://chymyst.github.io/joinrun-scala/")),
   description := "Declarative concurrency framework for Scala - the core library implementing the chemical machine / join calculus",
-//  scmInfo := Some(ScmInfo(url("git@github.com:Chymyst/joinrun-scala.git"), "scm:git:git@github.com:Chymyst/joinrun-scala.git", None)),
-//  developers := List(Developer(id = "winitzki", name = "Sergei Winitzki", email = "swinitzk@hotmail.com", url("https://sites.google.com/site/winitzki"))),
+  //  scmInfo := Some(ScmInfo(url("git@github.com:Chymyst/joinrun-scala.git"), "scm:git:git@github.com:Chymyst/joinrun-scala.git", None)),
+  //  developers := List(Developer(id = "winitzki", name = "Sergei Winitzki", email = "swinitzk@hotmail.com", url("https://sites.google.com/site/winitzki"))),
 
   scalacOptions ++= Seq(// https://tpolecat.github.io/2014/04/11/scalac-flags.html
     "-deprecation",
@@ -88,12 +88,16 @@ lazy val core = (project in file("core"))
     wartremoverErrors in(Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      "org.scalatest" %% "scalatest" % "3.0.0" % "test",
-      "org.scalacheck" %% "scalacheck" % "1.13.4" % "test",
+      "org.scalatest" %% "scalatest" % "3.0.0" % Test,
+      "org.scalacheck" %% "scalacheck" % "1.13.4" % Test,
+      "com.lihaoyi" %% "utest" % "0.4.5" % Test,
+
       // the "scala-compiler" is a necessary dependency only if we want to debug macros;
       // the project does not actually depend on scala-compiler.
       "org.scala-lang" % "scala-compiler" % scalaVersion.value % "test"
     )
+    , testFrameworks += new TestFramework("utest.runner.Framework")
+
 //    , parallelExecution in Test := false
 //    , concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
   )
@@ -108,7 +112,7 @@ lazy val benchmark = (project in file("benchmark"))
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
     parallelExecution in Test := false,
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+      "org.scalatest" %% "scalatest" % "3.0.0" % Test
     )
   ).dependsOn(core)
 

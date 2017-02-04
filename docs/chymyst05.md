@@ -88,7 +88,7 @@ a(10)
 When this is run, the reactions will cycle through the four molecules `a`, `b`, `c`, `d` while incrementing the value each time, until the value 100 or higher is reached by the molecule `d`.
 
 Now, suppose we need to write a reaction site where we have `n` molecules and `n` reactions, instead of just four,
-where `n` is a runtime parameter.
+where `n` is a run-time parameter.
 Since molecule emitters and reactions are local values, we can simply create them and store in a data structure:
 
 
@@ -127,7 +127,7 @@ emitters(0)(10)
 
 # Reaction constructors
 
-Chemical reactions are static: they are specified at compile time and cannot be modified at runtime.
+Chemical reactions are static: they are specified at compile time and cannot be modified at run time.
 `Chymyst` compiles with this limitation even though reactions in `Chymyst` are values created at run time.
 For instance, we can create an array of molecules and reactions, where the size of the array is determined at run time.
 We can easily define reactions for "dining philosophers" even if the number of philosophers is given at run time.
@@ -145,13 +145,13 @@ When user code emits a molecule, say `c()`, the corresponding reaction site has 
 Users can neither disable these reactions nor add another reaction that will also consume `c()`.
 In this way, users are guaranteed that the encapsulated chemistry will continue to work correctly.
 
-Nevertheless, we do have some flexibility in defining reactions at runtime.
+Nevertheless, we do have some flexibility in defining reactions at run time.
 There are several techniques we can use:
 
-1. define molecules whose values contain other molecule emitters, which are then used in reactions
-2. incrementally define new molecules and new reactions, store them in data structures, and assemble a reaction site later
-3. define new reactions in a function that takes arguments and returns new molecule emitters
-4. define molecules whose values are functions that represent reaction bodies
+1. Define molecules whose values contain other molecule emitters, which are then used in reactions.
+2. Incrementally define new molecules and new reactions, store them in data structures, and assemble a reaction site later.
+3. Define new reactions in a function that takes arguments and returns new molecule emitters.
+4. Define molecules whose values are functions that represent reaction bodies.
 
 We already saw examples of using the first two techniques.
 Let us now talk about the last two in some more detail.
