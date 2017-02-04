@@ -438,7 +438,7 @@ The result is that the order in which reactions will start is non-deterministic 
 If the priority of certain reactions is important for a particular application, it is the programmer's task to design the chemistry in such a way that those reactions start in the desired order.
 This is always possible by using auxiliary molecules and/or guard conditions.
 
-In fact, a facility for assigning priority to molecules or reactions would be self-defeating.
+In fact, a facility for assigning priority to molecules or reactions would be counterproductive.
 It will only give the programmer _an illusion of control_ over the order of reactions, while actually introducing subtle nondeterministic behavior.
 
 To illustrate this on an example, suppose we would like to compute the sum of a bunch of numbers in a concurrent way.
@@ -448,6 +448,7 @@ and we need to compute and print the final sum value when no more `data(...)` mo
 Here is an (incorrect) attempt to design the chemistry for this program:
 
 ```scala
+// Non-working code
 val data = m[Int]
 val sum = m[Int]
 site (
@@ -466,12 +467,11 @@ But, if we were able to do that, what would be the result?
 
 In reality, the `data(...)` molecules are going to be emitted concurrently at unpredictable times.
 For instance, they could be emitted by several other reactions that are running concurrently.
-Then it could happen that the `data(...)` molecules are emitted somewhat more slowly than we are consuming them at our reaction site.
-If that happens, there will be a brief interval of time when no `data(...)` molecules are in the soup (although other reactions are perhaps about to emit some more of them).
+Then it will sometimes happen that the `data(...)` molecules are emitted more slowly than we are consuming them at our reaction site.
+When that happens, there will be a brief interval of time when no `data(...)` molecules are in the soup (although other reactions are perhaps about to emit some more of them).
 The chemical machine will then run the second reaction, consume the `sum(...)` molecule and print the result, signalling (incorrectly) that the computation is finished.
 Perhaps this failure will _rarely_ happen and will not show up in our unit tests, but at some point it is definitely going to happen in production.
-
-This kind of nondeterminism is the prime reason concurrency is widely regarded as a hard programming problem.
+This kind of nondeterminism illustrates why concurrency is widely regarded as a hard programming problem.
 
 `Chymyst` will actually reject our attempted program and print an error message before running anything, immediately after we define the reaction site:
 
@@ -511,7 +511,7 @@ sum((0, 3)) // "sum = 165" printed
 
 ```
 
-Now the chemistry is fully deterministic, and no priority needs to be explicitly assigned.
+Now the chemistry is fully deterministic, without the need to assign priorities to reactions.
 
 The chemical machine forces the programmer to design the chemistry in such a way that
 the order of running reactions is completely determined by the data on the available molecules.
@@ -534,7 +534,8 @@ sum((0, 3)) // expect "sum = 165" printed
 
 ```
 
-The drawback of this approach is that reactions become less declarative due to complicated branching code inside the reaction body.
+The drawback of this approach is that the reaction became less declarative due to complicated branching code inside the reaction body.
+However, this chemistry will run somewhat faster because no guard conditions need to be checked before scheduling a reaction.
 
 ## Summary so far
 
