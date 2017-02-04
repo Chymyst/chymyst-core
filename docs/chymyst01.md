@@ -592,9 +592,7 @@ The reaction process is paused for a random time, and then the “thinking philo
 The complete code is shown here:
 
 ```scala
- /**
- * Print message and wait for a random time interval.
- */
+ /** Print message and wait for a random time interval. */
 def wait(message: String): Unit = {
   println(message)
   Thread.sleep(scala.util.Random.nextInt(20))
@@ -632,7 +630,7 @@ site (
 // Emit molecules representing the initial state:
 thinking1() + thinking2() + thinking3() + thinking4() + thinking5()
 fork12() + fork23() + fork34() + fork45() + fork51()
-// Now reactions will start and print to the console.
+// Now reactions will start and print messages to the console.
 
 ```
 
