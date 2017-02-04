@@ -265,13 +265,13 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     }
   }
 
-  it should "start reactions when molecule emitters are passed on input molecules slighly before they are bound" in {
+  it should "start reactions when molecule emitters are passed on input molecules slightly before they are bound" in {
     val results = (1 to 100).map { _ =>
       val p = m[M[Int]]
       val c = m[Int]
       var r = 0
       site(tp0)(
-        go { case p(s) => s(123); r = 1 } // create a race condition on r
+        go { case p(s) => s(123) }
       )
       p(c)
       site(tp0)(
@@ -284,10 +284,9 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     globalErrorLog.toList should contain("In Site{p => ...}: Reaction {p(s) => } produced an exception that is internal to Chymyst Core. Input molecules [p(c)] were not emitted again. Message: Molecule c is not bound to any reaction site")
     results should contain(123)
     results should contain(0)
-    results should contain(1)
   }
 
-  it should "start reactions and throw exception when molecule emitters are passed to nested reactions slighly before they are bound" in {
+  it should "start reactions and throw exception when molecule emitters are passed to nested reactions slightly before they are bound" in {
     val results = (1 to 100).map { _ =>
       val a = m[M[Int]]
       site(tp0)(
