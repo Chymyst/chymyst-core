@@ -335,8 +335,18 @@ It becomes necessary to introduce multiple auxiliary reply molecules and multipl
 Similarly, the nonblocking translation becomes more involved when several different blocking molecules are emitted in the same reaction body.
 
 There are some cases where the nonblocking translation seems to be impossible.
-For example, it is impossible to perform the translation automatically if a blocking molecule is emitted inside a loop, or more generally, within a function that can be called by unknown code elsewhere.
-For this reason, `Chymyst Core` prohibits emitting a blocking molecule in 
+For example, it is impossible to perform the translation automatically if a blocking molecule is emitted inside a loop, or more generally, within a function scope, because that function could later be called elsewhere by arbitrary code.
+In order to be able to always perform the nonblocking translations for reaction bodies, `Chymyst Core` prohibits emitting a blocking molecule in such contexts.
+
+```scala
+val c = m[Unit]
+val f = b[Unit, Unit]
+go { case c(_) => while (true) f() }
+
+```
+
+`Error:(245, 8) reaction body must not emit blocking molecules inside function blocks (f(()))`
+`    go { case c(_) => while (true) f() }`
 
 In a future version of `Chymyst Core`, the nonblocking translation may be performed by macros as an automatic optimization when possible.
 
