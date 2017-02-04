@@ -127,7 +127,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
         if (logLevel > 2) println(moleculesRemainingMessage)
         // Schedule the reaction now. Provide reaction info to the thread.
-        poolForReaction.runClosure(buildReactionClosure(reaction, usedInputs), reaction.info)
+        poolForReaction.runClosure(buildReactionClosure(reaction, usedInputs), new ChymystThreadInfo(reaction.info.staticMols, reaction.info.toString))
 
       case None =>
         if (logLevel > 2) {
@@ -284,9 +284,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     * @return `None` if the current thread is not running a reaction.
     */
-  private def currentReactionInfo: Option[ReactionInfo] = {
+  private def currentReactionInfo: Option[ChymystThreadInfo] = {
     Thread.currentThread match {
-      case t: ThreadWithInfo => t.reactionInfo
+      case t: ThreadWithInfo => t.chymystInfo
       case _ => None
     }
   }
@@ -299,24 +299,21 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     )
   }
 
-  private[jc] def checkStaticMolPermissionToEmit(m: Molecule): Either[String, Unit] = for {
-  // Note: This is pure defensive programming: this error cannot be tested.
-  // TODO: refactor the logic so that this is not needed
-    _ <- if (staticMolDeclared.get(m).isEmpty) Left("not declared in this reaction site") else Right(())
-
-    // This thread is allowed to emit this static molecule only if it is a ThreadWithInfo and the reaction running on this thread has consumed this static molecule.
-    reactionInfoOpt = currentReactionInfo
-    isAllowedToEmit = reactionInfoOpt.exists(_.inputMoleculesSet.contains(m))
-    _ <- if (!isAllowedToEmit) {
-      val refusalReason = reactionInfoOpt match {
-        case Some(`emptyReactionInfo`) | None =>
-          "because this thread does not run a chemical reaction"
-        case Some(info) =>
-          s"because this reaction {$info} does not consume it"
-      }
-      Left(refusalReason)
-    } else Right(())
-  } yield ()
+  /** Check permission for the current thread to emit a static molecule.
+    *
+    * @param m A static molecule emitter.
+    * @return `None` if the thread is allowed to emit that molecule. Otherwise, the refusal reason is returned as `Some(message)`.
+    */
+  private[jc] def checkStaticMolPermissionToEmit(m: Molecule): Option[String] = {
+    lazy val noChemicalReaction = Some("because this thread does not run a chemical reaction")
+    currentReactionInfo.map { info =>
+      if (info.toString.isEmpty)
+        noChemicalReaction
+      else if (info.mayEmit(m))
+        None else
+        Some(s"because this reaction {$info} does not consume it")
+    }.getOrElse(noChemicalReaction)
+  }
 
   /** This variable is true only at the initial stage of building the reaction site,
     * when static reactions are run (on the same thread as the `site()` call) in order to emit the initial static molecules.
@@ -358,9 +355,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       } else {
         if (m.isStatic) {
           // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
-          checkStaticMolPermissionToEmit(m) match {
-            case Left(refusalReason) => throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit static molecule $m($molValue) $refusalReason")
-            case Right(_) =>
+          checkStaticMolPermissionToEmit(m).foreach { refusalReason =>
+            throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit static molecule $m($molValue) $refusalReason")
           }
         }
         newMoleculeQueue.add((m, molValue))

@@ -2,6 +2,7 @@ package io.chymyst.jc
 
 import Core._
 import scala.{Symbol => ScalaSymbol}
+import scala.collection.mutable
 
 /** Represents compile-time information about the pattern matching for values carried by input molecules.
   * Possibilities:
@@ -455,6 +456,15 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType,
   }
 }
 
+final class ChymystThreadInfo(
+                               allowedToEmit: mutable.Set[Molecule] = mutable.Set(),
+                               reactionString: String = ""
+                             ) {
+  override val toString: String = reactionString
+
+  private[jc] def mayEmit(m: Molecule): Boolean = allowedToEmit.contains(m)
+}
+
 // This class is immutable.
 final class ReactionInfo(
                           private[jc] val inputs: Array[InputMoleculeInfo],
@@ -463,6 +473,7 @@ final class ReactionInfo(
                           private[jc] val guardPresence: GuardPresenceFlag,
                           private[jc] val sha1: String
                         ) {
+  private[jc] lazy val staticMols: mutable.Set[Molecule] = mutable.Set(inputs.map(_.molecule).filter(_.isStatic): _*)
 
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
@@ -543,11 +554,11 @@ final class ReactionInfo(
   * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is false.
   */
 final case class Reaction(
-                      private[jc] val info: ReactionInfo,
-                      private[jc] val body: ReactionBody,
-                      threadPool: Option[Pool],
-                      private[jc] val retry: Boolean
-                    ) {
+                           private[jc] val info: ReactionInfo,
+                           private[jc] val body: ReactionBody,
+                           threadPool: Option[Pool],
+                           private[jc] val retry: Boolean
+                         ) {
 
   /** Convenience method to specify thread pools per reaction.
     *
