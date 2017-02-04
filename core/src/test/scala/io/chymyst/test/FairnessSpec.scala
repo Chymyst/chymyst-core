@@ -20,7 +20,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "implement fairness across reactions" in {
 
     val reactions = 4
-    val N = 1000
+    val N = 2000
 
     val c = m[(Int, Array[Int])]
     val done = m[Array[Int]]
@@ -58,13 +58,15 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     c((N, Array.fill[Int](reactions)(0)))
 
     val result = getC()
-    //    println(result.mkString(", "))
+    val average = N / reactions
+    val max_deviation = math.max(math.abs(result.min - average).toFloat, math.abs(result.max - average).toFloat) / average
+    println(s"Fairness across 4 reactions: ${result.mkString(", ")}. Average = $average. Max relative deviation = $max_deviation")
 
     tp.shutdownNow()
     tp1.shutdownNow()
 
-    result.min should be > (0.75 * N / reactions).toInt
-    result.max should be < (1.25 * N / reactions).toInt
+    result.min should be > (0.7 * average).toInt
+    result.max should be < (1.3 * average).toInt
 
   }
 
