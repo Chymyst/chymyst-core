@@ -318,25 +318,25 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
   it should "start reactions without errors when molecule emitters are passed to nested reactions after they are bound" in {
     val results = (1 to 100).map { _ =>
       val q = m[M[Int]]
+      val p = m[Int]
+      val f = b[Unit, Int]
       site(tp0)(
-        go { case q(s) => s(123) }
+        go { case q(s) => s(123) },
+        go { case p(x) + f(_, r) => r(x)}
       )
-
       val begin = m[Unit]
-      var r = 0
       site(tp0)(
         go { case begin(_) =>
           val x = 123
           val e = m[Int]
           site(tp0)(
-            go { case e(y) => r = x + y }
+            go { case e(y) => p(x + y) }
           )
           q(e) // The reaction for `a` will emit `e(123)`, unless it crashes due to `e` being unbound.
         }
       )
       begin()
-      Thread.sleep(20)
-      r
+      f()
     }
     println(results.groupBy(identity).mapValues(_.size))
     globalErrorLog.toList should not contain("In Site{q => ...}: Reaction {q(s) => } produced an exception that is internal to Chymyst Core. Input molecules [q(e)] were not emitted again. Message: Molecule e is not bound to any reaction site")
