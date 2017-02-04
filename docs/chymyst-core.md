@@ -33,7 +33,7 @@ val y = new B[Unit, String]("y") // define a blocking emitter with name "y", wit
 
 Each molecule carries a name, which can be obtained as `m.name`.
 The name will be used when printing the molecule for debugging purposes.
-Otherwise, names have no effect on runtime behavior.
+Otherwise, names have no effect on run-time behavior.
 
 The convenience macros `m` and `b` can be used to further reduce the boilerplate:
 
@@ -85,7 +85,7 @@ val result = f(10) // emitting a blocking molecule: "result" is of type String
 
 ```
 
-It is a runtime error to emit molecules that is not yet bound to any reaction site.
+It is a run-time error to emit molecules that is not yet bound to any reaction site.
 
 ### Timeout for a blocking molecule
 
@@ -150,7 +150,7 @@ println(x.logSoup)
 
 ```
 
-It is a runtime error to use `setLogLevel` or `logSoup` on molecules that are not yet bound to any reaction site.
+It is a run-time error to use `setLogLevel` or `logSoup` on molecules that are not yet bound to any reaction site.
 
 ## Reactions
 
@@ -274,13 +274,13 @@ We say that the molecules `c`, `d`, and `i` are consumed at this RS, or that the
 Note that `f` is not consumed at this RS; we will need to write another RS where `f` will be consumed.
 
 It is perfectly acceptable for a reaction to emit a molecule such as `f` that is not consumed by any reaction in this RS.
-However, if we forget to write any _other_ RS that consumes `f`, it will be a runtime error to emit `f`.
+However, if we forget to write any _other_ RS that consumes `f`, it will be a run-time error to emit `f`.
 
-As a warning, note that in the present example the molecule `f` will be emitted only if `x == 1` (and it is impossible to determine at compile time whether `x == 1` will be true at runtime).
-So, if we forget to write an RS to which `f` is bound, it will be not necessarily easy to detect the error at runtime!
+As a warning, note that in the present example the molecule `f` will be emitted only if `x == 1` (and it is impossible to determine at compile time whether `x == 1` will be true at run time).
+So, if we forget to write an RS to which `f` is bound, it will be not necessarily easy to detect the error at run time!
 
 An important requirement for reaction sites is that any given molecule must be bound to one and only one reaction site.
-It is a runtime error to write reactions consuming the same molecule in different reaction sites.
+It is a run-time error to write reactions consuming the same molecule in different reaction sites.
 
 An example of this error would be writing the previous RS as two separate ones:
 
@@ -296,7 +296,7 @@ site(
 
 site(
   go { case c(x) + i(_) => c(x + 1) }
-) // runtime error: "c" is already bound to another RS
+) // run-time error: "c" is already bound to another RS
 
 ```
 

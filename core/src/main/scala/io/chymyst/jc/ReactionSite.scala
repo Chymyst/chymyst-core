@@ -199,7 +199,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       // Various exceptions that occurred while running the reaction.
       case e: ExceptionInChymyst =>
         // Running the reaction body produced an exception that is internal to `Chymyst Core`.
-        // We should not try to recover from this; it is most either an error on user's part
+        // We should not try to recover from this; it is either an error on user's part
         // or a bug in `Chymyst Core`.
         reportError(s"In $this: Reaction {${reaction.info}} produced an exception that is internal to Chymyst Core. Input molecules [${moleculeBagToString(usedInputs)}] were not emitted again. Message: ${e.getMessage}")
         // Let's not print it, and let's not throw it again, since it's our internal exception.

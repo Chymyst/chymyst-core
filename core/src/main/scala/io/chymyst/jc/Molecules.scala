@@ -115,7 +115,7 @@ sealed trait Molecule extends PersistentHashCode {
   //    throw new ExceptionNoReactionSite(s"Molecule $this is not bound to any reaction site")
 
   /** The set of all reactions that *potentially* emit this molecule as output.
-    * Some of these reactions may evaluate a runtime condition to decide whether to emit the molecule; so emission is not guaranteed.
+    * Some of these reactions may evaluate a run-time condition to decide whether to emit the molecule; so emission is not guaranteed.
     *
     * Note that these reactions may be defined in any reaction sites, not necessarily at the site to which this molecule is bound.
     * The set of these reactions may change at run time if new reaction sites are written that output this molecule.
