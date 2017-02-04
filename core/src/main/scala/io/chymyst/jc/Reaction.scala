@@ -540,11 +540,16 @@ final class ReactionInfo(
 
 /** Represents a reaction body. This class is immutable.
   *
-  * @param body       Partial function of type ` InputMoleculeList => Any `
+  * @param body       Partial function of type `InputMoleculeList => Any`
   * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
   * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is false.
   */
-final case class Reaction(info: ReactionInfo, private[jc] val body: ReactionBody, threadPool: Option[Pool], retry: Boolean) {
+final case class Reaction(
+                      private[jc] val info: ReactionInfo,
+                      private[jc] val body: ReactionBody,
+                      threadPool: Option[Pool],
+                      private[jc] val retry: Boolean
+                    ) {
 
   /** Convenience method to specify thread pools per reaction.
     *
