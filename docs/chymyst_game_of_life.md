@@ -1,3 +1,5 @@
+<link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
+
 # Game of Life
 
 Let us implement the famous [Game of Life](http://ddi.cs.uni-potsdam.de/HyFISCH/Produzieren/lis_projekt/proj_gamelife/ConwayScientificAmerican.htm) as a concurrent computation in the chemical machine.
