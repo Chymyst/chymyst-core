@@ -119,19 +119,6 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(?x) + bb(?list,y) if(x,list,y) => "
   }
 
-  it should "correctly recognize an identically false guard condition" in {
-    val a = m[Int]
-    val n = 10
-    a.isInstanceOf[M[Int]] shouldEqual true
-    n shouldEqual n
-
-    "val result = go { case a(x) if false => }" shouldNot compile
-    "val result = go { case a(x) if false ^ false => }" shouldNot compile
-    "val result = go { case a(x) if !(false ^ !false) => }" shouldNot compile
-    "val result = go { case a(x) if false || (true && false) || !true && n > 0 => }" shouldNot compile
-    "val result = go { case a(x) if false ^ (true && false) || !true && n > 0 => }" shouldNot compile
-  }
-
   it should "correctly simplify guard condition using true and false" in {
     val a = m[Int]
     val n = 10
@@ -310,14 +297,9 @@ class GuardsSpec extends FlatSpec with Matchers {
     val c = m[(Int, Array[Int])]
     val d = m[Array[Int]]
 
-    /* This works correctly. */
     val reaction1 = go { case c((_, arr)) if arr.nonEmpty => }
     reaction1.info.inputs.head should matchPattern { case InputMoleculeInfo(`c`, 0, OtherInputPattern(_, List('arr), false), _) => }
 
-    /* The guard `if arr.nonEmpty` is not compiled correctly: it generates the partial function
-      { case (arr @ _) if scala.Predef.intArrayOps(arr).nonEmpty => () }
-      which gives a type error: `arr` is typed as `Any` instead of `Array[Int]` as required.
-    */
     val reaction2 = go { case d(arr) if arr.nonEmpty => }
     reaction2.info.inputs.head should matchPattern { case InputMoleculeInfo(`d`, 0, SimpleVarInput('arr, Some(_)), _) => }
   }
