@@ -104,7 +104,7 @@ The library JAR is published to Maven Central.
 Extensive tutorial and usage documentation is available.
 
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
-Test coverage is [100% according to codecov.io](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master).
+Test coverage is [100% according to codecov.io](https://codecov.io/gh/Chymyst/chymyst-core?branch=master).
 
 Performance benchmarks indicate that `Chymyst Core` can schedule about 10,000 reactions per second per CPU core, and the performance bottleneck is in submitting jobs to threads (a distant second bottleneck is pattern-matching in the internals of the library).
 
