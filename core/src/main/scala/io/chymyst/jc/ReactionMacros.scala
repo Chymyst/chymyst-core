@@ -651,11 +651,25 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     }
   }
 
+  def moleculeIndicesConstrainedByGuard(guardVarList: List[Ident], inputMoleculeFlags: List[InputPatternFlag]): List[Int] = {
+    inputMoleculeFlags.zipWithIndex.filter { case (flag, _) ⇒
+        guardVarList.exists(flag.containsVar)
+    }
+      .map(_._2)
+      .sorted
+      .distinct
+  }
+
   def guardVarsConstrainOnlyThisMolecule(guardVarList: List[Ident], moleculeFlag: InputPatternFlag): Boolean =
-    guardVarList.forall(v => moleculeFlag.varNames.exists(mv => mv.name === v.name))
+    guardVarList.forall(moleculeFlag.containsVar)
 
   def guardVarsConstrainThisMolecule(guardVarList: List[Ident], moleculeFlag: InputPatternFlag): Boolean =
-    guardVarList.exists(v => moleculeFlag.varNames.exists(mv => mv.name === v.name))
+    guardVarList.exists(moleculeFlag.containsVar)
+
+  def mergeGuards(treeVarsSeq: List[(Tree, List[Ident])]): Option[Tree] =
+    treeVarsSeq
+      .map(_._1)
+      .reduceOption { (g1, g2) => q"$g1 && $g2" }
 
   // This boilerplate is necessary for being able to use PatternType values in quasiquotes.
   implicit val liftableInputPatternFlag: Liftable[InputPatternFlag] = Liftable[InputPatternFlag] {
