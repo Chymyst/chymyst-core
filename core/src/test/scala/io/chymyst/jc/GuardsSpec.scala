@@ -57,7 +57,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(xOpt) + bb(y) if xOpt.isEmpty && y._2.isEmpty => }
     result.info.guardPresence.effectivelyAbsent shouldEqual true
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('xOpt), Array('y)), None, Array()) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
 
     result.info.inputs should matchPattern {
       case Array(
@@ -74,7 +74,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(Some(x)) + bb((list, Some(y))) if x == 1 && list.isEmpty && y == "abc" => }
     result.info.guardPresence.effectivelyAbsent shouldEqual true
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x), Array('list), Array('y)), None, Array()) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
 
     result.info.inputs should matchPattern {
       case Array(
@@ -91,7 +91,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(xOpt) + bb(y) if xOpt.isEmpty || y._2.isEmpty => }
     result.info.guardPresence.effectivelyAbsent shouldEqual false
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('xOpt, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('xOpt, 'y), _))) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('xOpt, 'y), _))) => }
 
     result.info.inputs should matchPattern {
       case Array(
@@ -108,7 +108,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(Some(x)) + bb((list, Some(y))) if x == 1 || list.isEmpty || y == "abc" => }
     result.info.guardPresence.effectivelyAbsent shouldEqual false
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x, 'list, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'list, 'y), _))) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'list, 'y), _))) => }
 
     result.info.inputs should matchPattern {
       case Array(
@@ -138,7 +138,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a(x) if 1 > n => }
 
     (result.info.guardPresence match {
-      case GuardPresent(Array(), Some(staticGuard), Array()) => // `n` should not be among the guard variables
+      case GuardPresent(Some(staticGuard), Array()) => // `n` should not be among the guard variables
         staticGuard() shouldEqual false
         true
       case _ => false
@@ -168,7 +168,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val reaction = go { case a((x, y, z, t)) if x > y => }
 
-    reaction.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x, 'y)), None, Array()) => }
+    reaction.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
 
     reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, _, false) => }
     (reaction.info.inputs.head.flag match {
@@ -234,7 +234,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(xyz) if xyz > n => }
 
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('xyz)), None, Array()) => // `n` should not be among the guard variables
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => // `n` should not be among the guard variables
     }
     result.info.toString shouldEqual "a(xyz if ?) => "
     (result.info.inputs match {
@@ -254,7 +254,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a(x) + a(y) if 1 > n && x > n && y > n => }
 
     (result.info.guardPresence match {
-      case GuardPresent(Array(Array('x), Array('y)), Some(staticGuard), Array()) =>
+      case GuardPresent(Some(staticGuard), Array()) =>
         staticGuard() shouldEqual false
         true
       case _ => false
@@ -269,7 +269,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(x) + a(y) if (1 > n || x > n) && y > n => }
 
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x), Array('y)), None, Array()) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
     result.info.toString shouldEqual "a(x if ?) + a(y if ?) => "
   }
 
@@ -280,7 +280,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(x) + a(y) if x > n && y > n || 1 > n => }
 
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x), Array('y)), None, Array()) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
     result.info.toString shouldEqual "a(x if ?) + a(y if ?) => "
   }
 
@@ -289,7 +289,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a((x, y, z)) if x > y => }
 
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x, 'y)), None, Array()) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
     result.info.toString shouldEqual "a(?x,y,z) => "
   }
 
@@ -312,7 +312,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a(x) + a(y) if x > y => }
 
     (result.info.guardPresence match {
-      case GuardPresent(Array(Array('x, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), cond))) =>
+      case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), cond))) =>
         cond.isDefinedAt(List(0, 0)) shouldEqual false
         cond.isDefinedAt(List(1, 0)) shouldEqual true
         true
@@ -330,7 +330,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a(x) + a(y) if x > n + y => }
 
     (result.info.guardPresence match {
-      case GuardPresent(Array(Array('x, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), cond))) =>
+      case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), cond))) =>
         cond.isDefinedAt(List(10, 0)) shouldEqual false
         cond.isDefinedAt(List(11, 0)) shouldEqual true
         true
@@ -352,7 +352,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case a(p) + a(y) + a(1) + bb((1, z)) + bb((t, Some(qwerty))) + f(_, r) if y > 0 && n == 10 && qwerty == n && t > p && k < n => r()
     }
     (result.info.guardPresence match {
-      case GuardPresent(Array(Array('y), Array('qwerty), Array('t, 'p)), Some(staticGuard), Array(CrossMoleculeGuard(Array(0, 4), Array('t, 'p), cond))) =>
+      case GuardPresent(Some(staticGuard), Array(CrossMoleculeGuard(Array(0, 4), Array('t, 'p), cond))) =>
         cond.isDefinedAt(List(1, (2, Some(3)))) shouldEqual true
         cond.isDefinedAt(List(2, (2, Some(3)))) shouldEqual false
         staticGuard() shouldEqual true
@@ -371,9 +371,9 @@ class GuardsSpec extends FlatSpec with Matchers {
       case a(p) + a(y) + a(1) + bb((1, z)) + bb((t, Some(q))) if p == 3 && ((t == q && y > 0) && q > 0) && (t == p && y == q) =>
     }
     result.info.guardPresence should matchPattern {
-      case GuardPresent(Array(Array('p), Array('t, 'q), Array('y), Array('q), Array('t, 'p), Array('y, 'q)), None, Array(CrossMoleculeGuard(Array(0, 4), Array('t, 'p), _), CrossMoleculeGuard(Array(1, 4), Array('y, 'q), _))) =>
+      case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 4), Array('t, 'p), _), CrossMoleculeGuard(Array(1, 4), Array('y, 'q), _))) =>
     }
-    result.info.guardPresence.toString shouldEqual "GuardPresent([['p], ['t,'q], ['y], ['q], ['t,'p], ['y,'q]], None, [CrossMoleculeGuard([0,4], ['t,'p]); CrossMoleculeGuard([1,4], ['y,'q])])"
+    result.info.guardPresence.toString shouldEqual "GuardPresent(None, [CrossMoleculeGuard([0,4], ['t,'p]); CrossMoleculeGuard([1,4], ['y,'q])])"
     result.info.toString shouldEqual "a(1) + a(p if ?) + a(y if ?) + bb(?z) + bb(?t,q) if(t,p,y,q) => "
   }
 
@@ -384,7 +384,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(x) + a(y) if x > n && (if (y > n) 1 > n else !(x == y)) => }
 
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x), Array('y), Array('y, 'x)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('y, 'x), _))) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('y, 'x), _))) => }
     result.info.toString shouldEqual "a(x if ?) + a(y if ?) if(y,x) => "
   }
 
@@ -395,8 +395,73 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(x) + a(y) if x > n || (if (!false) 1 > n else x == y) => }
 
-    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x)), None, Array()) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
     result.info.toString shouldEqual "a(x if ?) + a(y) => "
+  }
+
+  it should "merge cross guard with simple pattern variables" in {
+    val a = m[Int]
+
+    val n = 10
+
+    val result = go { case a(x) + a(y) if x > n && x > y && y + 2 > x ⇒ }
+
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), _))) ⇒ }
+    result.info.toString shouldEqual "a(x if ?) + a(y) if(x,y) => "
+  }
+
+  it should "merge cross guard with multiple pattern variables" in {
+    val a = m[(Int, Int)]
+
+    val n = 10
+
+    val result = go { case a((p, q)) + a((x, y)) if x > n && x > y && x + 1 > p + 1 && y > q ⇒ }
+
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'p, 'y, 'q), _))) ⇒ }
+    result.info.toString shouldEqual "a(?x,y) + a(p,q) if(x,p,y,q) => "
+    (result.info.guardPresence match {
+      case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'p, 'y, 'q), cond))) ⇒
+        cond.isDefinedAt(List((1,2), (4,3))) shouldEqual true // x > n is not part of the cross-molecule guard
+        cond.isDefinedAt(List((1,3), (4,3))) shouldEqual false
+        cond.isDefinedAt(List((4,2), (4,3))) shouldEqual false
+        cond.isDefinedAt(List((1,2), (3,4))) shouldEqual true // x > y is not part of the cross-molecule guard
+        cond.isDefinedAt(List((1,3), (4,3))) shouldEqual false
+        true
+      case _ ⇒ false
+    }) shouldEqual true
+  }
+
+  it should "merge cross guard for Game of Life reaction" in {
+    case class Cell(x: Int, y: Int, t: Int, state: Int, label: (Int, Int))
+    val c = m[Cell]
+
+    // One reaction with one molecule `c` implements the entire Game of Life computation.
+    // Shifted positions are represented by the "Cell#label" field.
+    val result = go { case
+      c(Cell(x0, y0, t0, state0, (0, 0))) +
+        c(Cell(x1, y1, t1, state1, (1, 0))) +
+        c(Cell(x2, y2, t2, state2, (-1, 0))) +
+        c(Cell(x3, y3, t3, state3, (0, 1))) +
+        c(Cell(x4, y4, t4, state4, (1, 1))) +
+        c(Cell(x5, y5, t5, state5, (-1, 1))) +
+        c(Cell(x6, y6, t6, state6, (0, -1))) +
+        c(Cell(x7, y7, t7, state7, (1, -1))) +
+        c(Cell(x8, y8, t8, state8, (-1, -1)))
+      if x0 == x1 && x0 == x2 && x0 == x3 && x0 == x4 && x0 == x5 && x0 == x6 && x0 == x7 && x0 == x8 &&
+        y0 == y1 && y0 == y2 && y0 == y3 && y0 == y4 && y0 == y5 && y0 == y6 && y0 == y7 && y0 == y8 &&
+        t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 && t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 ⇒
+    }
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array(
+      CrossMoleculeGuard(Array(0, 1), Array('x0, 'x1, 'y0, 'y1, 't0, 't1), _)
+    , CrossMoleculeGuard(Array(0, 2), Array('x0, 'x2, 'y0, 'y2, 't0, 't2), _)
+    , CrossMoleculeGuard(Array(0, 3), Array('x0, 'x3, 'y0, 'y3, 't0, 't3), _)
+    , CrossMoleculeGuard(Array(0, 4), Array('x0, 'x4, 'y0, 'y4, 't0, 't4), _)
+    , CrossMoleculeGuard(Array(0, 5), Array('x0, 'x5, 'y0, 'y5, 't0, 't5), _)
+    , CrossMoleculeGuard(Array(0, 6), Array('x0, 'x6, 'y0, 'y6, 't0, 't6), _)
+    , CrossMoleculeGuard(Array(0, 7), Array('x0, 'x7, 'y0, 'y7, 't0, 't7), _)
+    , CrossMoleculeGuard(Array(0, 8), Array('x0, 'x8, 'y0, 'y8, 't0, 't8), _)
+    )) ⇒
+    }
   }
 
   behavior of "guard conditions with repeated molecules"
@@ -423,7 +488,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val result = go { case a(x) + a(y) + a(z) + f(_, r) if x == y + 1 && y == z + 1 => r() }
     (result.info.guardPresence match {
-      case GuardPresent(Array(Array('x, 'y), Array('y, 'z)), None, Array(c1, c2)) =>
+      case GuardPresent(None, Array(c1, c2)) =>
         c1.indices.toList shouldEqual List(0, 1)
         c1.cond.isDefinedAt(List(2, 1)) shouldEqual true
         c1.cond.isDefinedAt(List(2, 2)) shouldEqual false
