@@ -22,7 +22,7 @@ The current implementation is tested under Oracle JDK 8 with Scala `2.11.8` and 
 
 ## Overview of `Chymyst` and the chemical machine paradigm
 
-### [Get started with this extensive tutorial](https://chymyst.github.io/chymyst-core/chymyst00.html)
+### [Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
 
 #### [A complete minimal "Hello, world" project](https://github.com/Chymyst/helloworld)
 

@@ -13,7 +13,7 @@ The code of `Chymyst Core` is based on previous Join Calculus implementations by
 
 ## Overview of `Chymyst` and the chemical machine paradigm
 
-### [Get started with this extensive tutorial](https://chymyst.github.io/chymyst-core/chymyst00.html)
+### [Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
 
 #### [A complete minimal "Hello, world" project](https://github.com/Chymyst/helloworld)
 
