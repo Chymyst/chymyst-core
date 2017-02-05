@@ -242,19 +242,18 @@ sealed trait GuardPresenceFlag {
   * Any guard condition given by the reaction code will be converted to the Conjunctive Normal Form, and split into a static guard,
   * a set of per-molecule conditionals, and a set of cross-molecule guards.
   *
-  * @param vars        The list of all pattern variables used by the guard condition. Each element of this list is a list of variables used by one guard clause. In the example shown above, this will be `List(List('y, 'z))` because all other conditions are moved out of the guard.
   * @param staticGuard The conjunction of all the clauses of the guard that are independent of pattern variables. This closure can be called in order to determine whether the reaction should even be considered to start, regardless of the presence of molecules. In this example, the value of `staticGuard` will be `Some(() => n > 1)`.
   * @param crossGuards A list of values of type [[CrossMoleculeGuard]], each representing one cross-molecule clauses of the guard. The partial function `Any => Unit` should be called with the arguments representing the tuples of pattern variables from each molecule used by the cross guard.
   *                    In the present example, the value of `crossGuards` will be
   *                    {{{indices = Array(1, 2), List((List('y, 'z), { case List(y: Int, z: Int) if y > z => () })) }}}.
   */
-final case class GuardPresent(vars: Array[Array[ScalaSymbol]], staticGuard: Option[() => Boolean], crossGuards: Array[CrossMoleculeGuard]) extends GuardPresenceFlag {
+final case class GuardPresent(staticGuard: Option[() => Boolean], crossGuards: Array[CrossMoleculeGuard]) extends GuardPresenceFlag {
   override def staticGuardFails: Boolean = staticGuard.exists(guardFunction => !guardFunction())
 
   override def effectivelyAbsent: Boolean = staticGuard.isEmpty && crossGuards.isEmpty
 
   override val toString: String =
-    s"GuardPresent([${vars.map(vs => s"[${vs.mkString(",")}]").mkString(", ")}], ${staticGuard.map(_ => "")}, [${crossGuards.map(_.toString).mkString("; ")}])"
+    s"GuardPresent(${staticGuard.map(_ => "")}, [${crossGuards.map(_.toString).mkString("; ")}])"
 }
 
 /** Indicates that a guard was initially present but has been simplified, or it was absent but some molecules have nontrivial pattern matchers (not a wildcard and not a simple variable).
@@ -488,7 +487,7 @@ final class ReactionInfo(
 
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
-    case GuardPresent(_, _, guards) =>
+    case GuardPresent(_, guards) =>
       guards
     case _ =>
       Array[CrossMoleculeGuard]()
@@ -547,9 +546,9 @@ final class ReactionInfo(
       case _
         if guardPresence.effectivelyAbsent =>
         ""
-      case GuardPresent(_, Some(_), Array()) =>
+      case GuardPresent(Some(_), Array()) =>
         " if(?)" // There is a static guard but no cross-molecule guards.
-      case GuardPresent(_, _, guards) =>
+      case GuardPresent(_, guards) =>
         val crossGuardsInfo = guards.flatMap(_.symbols).map(_.name).distinct.mkString(",")
         s" if($crossGuardsInfo)"
     }
