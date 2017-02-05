@@ -25,9 +25,9 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     "Typesafe releases" at "http://repo.typesafe.com/typesafe/releases"
   ),
   licenses := Seq("Apache License, Version 2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0.txt")),
-  homepage := Some(url("https://chymyst.github.io/joinrun-scala/")),
-  description := "Declarative concurrency framework for Scala - the core library implementing the chemical machine / join calculus",
-  //  scmInfo := Some(ScmInfo(url("git@github.com:Chymyst/joinrun-scala.git"), "scm:git:git@github.com:Chymyst/joinrun-scala.git", None)),
+  homepage := Some(url("https://chymyst.github.io/chymyst-core/")),
+  description := "Declarative concurrency framework for Scala - the core library implementing the abstract chemical machine / join calculus",
+  //  scmInfo := Some(ScmInfo(url("git@github.com:Chymyst/chymyst-core.git"), "scm:git:git@github.com:Chymyst/chymyst-core.git", None)),
   //  developers := List(Developer(id = "winitzki", name = "Sergei Winitzki", email = "swinitzk@hotmail.com", url("https://sites.google.com/site/winitzki"))),
 
   scalacOptions ++= Seq(// https://tpolecat.github.io/2014/04/11/scalac-flags.html

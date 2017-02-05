@@ -274,7 +274,7 @@ However, this is a cumbersome workaround that mixes unrelated concerns.
 The `read()` and `readResult()` molecules should be concerned only with the correct implementation of the concurrent access to the `readResource()` operation.
 These molecules should not be carrying some arbitrary additional values that are used by other parts of the program and are completely unrelated to the `readResource()` operation.
 
-This problem -- breaking the code into parts at risk of losing access to local variables -- is sometimes called ["stack ripping"](https://www.microsoft.com/en-us/research/publication/cooperative-task-management-without-manual-stack-management/).
+This problem — breaking the code into parts at risk of losing access to local variables — is sometimes called ["stack ripping"](https://www.microsoft.com/en-us/research/publication/cooperative-task-management-without-manual-stack-management/).
 
 Similarly, the code for a Writer client must implement two reactions such as
 
@@ -411,7 +411,7 @@ arr.map(f).reduce(reduceB)
 
 ```
 
-Our task is to implement all these computations concurrently -- both the application of `f` to each element of the array and the accumulation of the final result.
+Our task is to implement all these computations concurrently — both the application of `f` to each element of the array and the accumulation of the final result.
 
 For simplicity, we will assume that the `reduceB` operation is associative and commutative and has a zero element (i.e. that the type `B` is a commutative monoid).
 In that case, we may apply the `reduceB` operation to array elements in arbitrary order, which makes our task easier.
@@ -650,5 +650,5 @@ mergesort((array, finalResult))
 
 ```
 
-The complete working example of the concurrent merge-sort is in the file [`MergesortSpec.scala`](https://github.com/Chymyst/joinrun-scala/blob/master/benchmark/src/test/scala/io/chymyst/benchmark/MergesortSpec.scala).
+The complete working example of the concurrent merge-sort is in the file [`MergesortSpec.scala`](https://github.com/Chymyst/chymyst-core/blob/master/benchmark/src/test/scala/io/chymyst/benchmark/MergesortSpec.scala).
 

@@ -173,7 +173,7 @@ Note: Although molecules with `Unit` type can be emitted as `a()`, the pattern-m
 ### Pattern-matching in reactions
 
 Each molecule carries one value of a fixed type.
-This type can be arbitrary -- a simple type such as `Int`, a tuple, a case class, etc.
+This type can be arbitrary — a simple type such as `Int`, a tuple, a case class, etc.
 
 The values carried by input molecules in reactions can be pattern-matched using all the features of the `case` clause in Scala.
 For example, reactions can match on a constant, destructure a case class, and use guard conditions.
@@ -206,7 +206,7 @@ val result = f(123) // emit f(123), get reply value of type String
 In this reaction, the pattern-match on `f(y, r)` involves _two_ pattern variables:
 
 - The pattern variable `y` is of type `Int` and matches the value carried by the emitted molecule `f(123)`
-- The pattern variable `r` is of type `Int => String` and matches a **reply emitter** -- a function object that emits a reply aimed at the caller of `f(123)`.
+- The pattern variable `r` is of type `Int => String` and matches a **reply emitter** — a function object that emits a reply aimed at the caller of `f(123)`.
 
 Calling `r` as `r(x.toString)` will perform the reply action, sending the value of `x.toString` back to the calling process, which has been blocked by emitting `f(123)`.
 The reply action will unblock the calling process concurrently with continuing to evaluate the reaction body.

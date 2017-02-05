@@ -31,7 +31,7 @@ To understand this tutorial, the reader should have some familiarity with the `S
 
 [Previous work and other tutorials on Join Calculus](other_work.md)
 
-The source code repository for `Chymyst` is at [https://github.com/Chymyst/joinrun-scala](https://github.com/Chymyst/joinrun-scala).
+The source code repository for `Chymyst` is at [https://github.com/Chymyst/chymyst-core](https://github.com/Chymyst/chymyst-core).
 
 Although this tutorial focuses on using `Chymyst` in Scala, one can similarly embed the chemical machine as a library on top of any programming language that has threads and semaphores.
 The main concepts and techniques of the chemical machine paradigm are independent of the chosen programming language.

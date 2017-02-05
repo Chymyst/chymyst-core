@@ -86,7 +86,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  
  5 * 5 - is it possible to implement distributed execution by sharing the join pool with another machine (but running the reaction sites only on the master node)?
 
- 3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic. -- Will not do now. Not sure that lazy values on molecules are important as a primitive. We can always simulate them using closures.
+ 3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic. — Will not do now. Not sure that lazy values on molecules are important as a primitive. We can always simulate them using closures.
 
  3 * 5 - Can we implement Chymyst Core using Future / Promise and remove all blocking and all semaphores?
 
@@ -135,7 +135,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 
  4 * 5 - implement multiple emission construction a+b+c so that a+b-> and b+c-> reactions are equally likely to start. - Will not do now. Not sure what this accomplishes. The user can randomize the order of emission, if this is crucial for an application.
  
- 2 * 2 - Support timers: recurrent or one-off, cancelable molecule emission. -- Will not do now. This can be done by user code, unless timers require an explicit thread pool or executor.
+ 2 * 2 - Support timers: recurrent or one-off, cancelable molecule emission. — Will not do now. This can be done by user code, unless timers require an explicit thread pool or executor.
  
- 3 * 3 - Can we use macros to rewrite f() into f(_) inside reactions for Unit types? Otherwise it seems impossible to implement short syntax `case a() + b() => ` in the input patterns. -- No, we can't because { case a() => } doesn't get past the Scala typer, and so macros don't see it at all.
+ 3 * 3 - Can we use macros to rewrite f() into f(_) inside reactions for Unit types? Otherwise it seems impossible to implement short syntax `case a() + b() => ` in the input patterns. — No, we can't because { case a() => } doesn't get past the Scala typer, and so macros don't see it at all.
  

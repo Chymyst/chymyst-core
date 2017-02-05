@@ -93,7 +93,7 @@ The newly unblocked process that received the reply value will continue to run _
 We see that blocking molecules work at once as [synchronizing barriers](https://en.wikipedia.org/wiki/Barrier_(computer_science)) and as channels of communication between processes.
 
 The syntax for the reply action makes it appear as if the molecule `f` carries _two_ values - its `Unit` value and a special `reply` function, and that the reaction body calls `reply()` with an integer value.
-However, `f` is emitted with the syntax `f()` -- just as any other molecule with `Unit` value.
+However, `f` is emitted with the syntax `f()` — just as any other molecule with `Unit` value.
 The `reply` function appears _only_ in the pattern-matching expression for `f` inside a reaction.
 We call `reply` the **reply emitter** because the call to `reply()` has a concurrent side-effect quite similar to emitting a non-blocking molecule.
 
@@ -181,7 +181,7 @@ Some remarks:
 
 - We declare both reactions in one reaction site because these two reactions share the input molecule `counter`.
 - Blocking molecules are like functions except that they will block as long as their reactions are unavailable.
-If the relevant reaction never starts, -- for instance, because some input molecules are missing, -- a blocking molecule will block forever.
+If the relevant reaction never starts, — for instance, because some input molecules are missing, — a blocking molecule will block forever.
 The runtime engine cannot detect this situation because it cannot determine whether the missing input molecules might become available in the near future.
 - The correct function of a program may depend on the order in which blocking molecules are emitted. With non-blocking molecules, the order of emitting them is irrelevant since emission is concurrent, and so the programmer cannot control the actual order in which emitted molecules will become available in the soup.
 - If several reactions are available for the blocking molecule, one of these reactions will be selected at random.
@@ -513,7 +513,7 @@ val result = firstResult()
 
 ### Encapsulating chemistry in a function
 
-The code as written works but is not encapsulated -- in this code, we define new molecules and new chemistry inline.
+The code as written works but is not encapsulated — in this code, we define new molecules and new chemistry inline.
 To remedy this, we can create a function that will return the `firstResult` emitter, given the emitters `f` and `g`.
 
 The idea is to define new chemistry in a _local scope_ and return a new molecule emitter.
@@ -615,7 +615,7 @@ When `result` receives a `false` value twice, it should return `false` as a fina
 Otherwise, there is no final answer yet.
 
 We are required to deliver the final answer as a reply to the `parallelOr` molecule.
-It is clear that `parallelOr` cannot be reacting with the `result` molecule -- this would prevent the `result + done => result` reaction from running.
+It is clear that `parallelOr` cannot be reacting with the `result` molecule — this would prevent the `result + done => result` reaction from running.
 Therefore, `parallelOr` needs to react with _another_ auxiliary molecule, say `finalResult`.
 There is only one way of defining this kind of reaction,
 

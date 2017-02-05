@@ -1,28 +1,28 @@
-[![Join the chat at https://gitter.im/joinrun-scala/Lobby](https://badges.gitter.im/joinrun-scala/Lobby.svg)](https://gitter.im/joinrun-scala/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Join the chat at https://gitter.im/chymyst-core/Lobby](https://badges.gitter.im/joinrun-scala/Lobby.svg)](https://gitter.im/joinrun-scala/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/Chymyst/joinrun-scala.svg?branch=master)](https://travis-ci.org/Chymyst/joinrun-scala)
 [![Coverage Status](https://codecov.io/gh/Chymyst/joinrun-scala/coverage.svg?branch=master)](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Github Tag](https://img.shields.io/github/tag/Chymyst/joinrun-scala.svg?label=release&colorB=blue)](https://github.com/Chymyst/joinrun-scala/tags)
+[![Github Tag](https://img.shields.io/github/tag/Chymyst/joinrun-scala.svg?label=release&colorB=blue)](https://github.com/Chymyst/chymyst-core/tags)
 [![Maven Central](https://img.shields.io/maven-central/v/io.chymyst/core_2.11.svg)](http://search.maven.org/#search%7Cga%7C1%7Cio.chymyst)
 
-# `Chymyst` -- declarative concurrency in Scala
+# `Chymyst` — declarative concurrency in Scala
 
-This repository hosts `Chymyst Core` -- a library that provides a Scala domain-specific language for declarative concurrency.
+This repository hosts `Chymyst Core` — a library that provides a Scala domain-specific language for declarative concurrency.
 [`Chymyst`](https://github.com/Chymyst/Chymyst) is a framework-in-planning that will build upon `Chymyst Core` to enable creating concurrent applications declaratively.
 
 `Chymyst` is based on the **chemical machine** paradigm, known in the academic world as [Join Calculus (JC)](https://en.wikipedia.org/wiki/Join-calculus).
 JC has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) and [the Actor model](https://en.wikipedia.org/wiki/Actor_model), but is easier to use.
-(See also [Conceptual overview of concurrency](https://chymyst.github.io/joinrun-scala/concurrency.html).)
+(See also [Conceptual overview of concurrency](https://chymyst.github.io/chymyst-core/concurrency.html).)
 
 The initial code of `Chymyst Core` was based on [previous work by Jiansen He](https://github.com/Jiansen/ScalaJoin) (2011) and [Philipp Haller](http://lampwww.epfl.ch/~phaller/joins/index.html) (2008), as well as on Join Calculus prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin) (2012).
 
 The current implementation is tested under Oracle JDK 8 with Scala `2.11.8` and `2.12.1`.
 
-[Version history and roadmap](https://chymyst.github.io/joinrun-scala/roadmap.html)
+[Version history and roadmap](https://chymyst.github.io/chymyst-core/roadmap.html)
 
 # Overview of `Chymyst` and the chemical machine paradigm
 
-## [Get started with this extensive tutorial](https://chymyst.github.io/joinrun-scala/chymyst00.html)
+## [Get started with this extensive tutorial](https://chymyst.github.io/chymyst-core/chymyst00.html)
 
 ### [A complete minimal "Hello, world" project](https://github.com/Chymyst/helloworld)
 
