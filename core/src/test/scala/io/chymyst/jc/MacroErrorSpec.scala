@@ -2,6 +2,7 @@ package io.chymyst.jc
 
 import io.chymyst.jc.Core.ReactionBody
 import org.scalatest.{FlatSpec, Matchers}
+
 import scala.concurrent.duration._
 
 // Note: Compilation of this test suite will generate warnings such as "crushing into 2-tuple". This is expected and cannot be avoided.

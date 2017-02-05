@@ -3,14 +3,20 @@ package io.chymyst.test
 import io.chymyst.jc._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{FlatSpec, Matchers}
-import scala.language.postfixOps
+import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
+import scala.language.postfixOps
 import scala.concurrent.duration._
 
-class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
   val timeLimit = Span(3000, Millis)
+
+  var tp: Pool = _
+
+  override def beforeEach(): Unit = tp = new FixedPool(3)
+
+  override def afterEach(): Unit = tp.shutdownNow()
 
   behavior of "static molecule emission"
 
@@ -66,9 +72,6 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "signal error when a static molecule is consumed by reaction but not emitted" in {
-
-    val tp = new FixedPool(3)
-
     val thrown = intercept[Exception] {
       val c = b[Unit, String]
       val d = m[Unit]
@@ -79,14 +82,9 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
     thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect static molecule declaration: static molecule (d) consumed but not emitted by reaction c/B(_) + d(_) => "
-
-    tp.shutdownNow()
   }
 
   it should "signal error when a static molecule is consumed by reaction and emitted twice" in {
-
-    val tp = new FixedPool(3)
-
     val thrown = intercept[Exception] {
       val c = b[Unit, String]
       val d = m[Unit]
@@ -97,14 +95,9 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
     thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect static molecule declaration: static molecule (d) emitted more than once by reaction c/B(_) + d(_) => d() + d()"
-
-    tp.shutdownNow()
   }
 
   it should "signal error when a static molecule is emitted but not consumed by reaction" in {
-
-    val tp = new FixedPool(3)
-
     val thrown = intercept[Exception] {
       val c = b[Unit, String]
       val d = m[Unit]
@@ -117,14 +110,23 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
     thrown.getMessage shouldEqual "In Site{c/B => ...; e => ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction c/B(_) => d(); static molecule (d) emitted but not consumed by reaction e(_) => d(); Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
+  }
 
-    tp.shutdownNow()
+  it should "signal error when a static molecule is emitted by reaction inside a loop to trick static analysis" in {
+    val thrown = intercept[Exception] {
+      val c = b[Unit, Unit]
+      val d = m[Unit]
+
+      site(tp)(
+        go { case c(_, r) + d(_) => (1 to 2).foreach(_ => d()); r() },
+        go { case _ => d() } // static reaction
+      )
+      c()
+    }
+    thrown.getMessage shouldEqual "Error: In Site{c/B + d => ...}: Reaction {c/B(_) + d(_) => d()} with inputs [c/B(), d()] finished without replying to c/B. Reported error: In Site{c/B + d => ...}: Reaction {c/B(_) + d(_) => d()} produced an exception that is internal to Chymyst Core. Input molecules [c/B(), d()] were not emitted again. Message: In Site{c/B + d => ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + d(_) => d()} already emitted it"
   }
 
   it should "signal error when a static molecule is consumed multiple times by reaction" in {
-
-    val tp = new FixedPool(3)
-
     val thrown = intercept[Exception] {
       val d = m[Unit]
       val e = m[Unit]
@@ -135,14 +137,9 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
     thrown.getMessage shouldEqual "In Site{d + d + e => ...}: Incorrect static molecule declaration: static molecule (d) consumed 2 times by reaction d(_) + d(_) + e(_) => d()"
-
-    tp.shutdownNow()
   }
 
   it should "signal error when a static molecule is emitted but not bound to any reaction site" in {
-
-    val tp = new FixedPool(3)
-
     val thrown = intercept[Exception] {
       val d = m[Unit]
 
@@ -151,14 +148,9 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
     thrown.getMessage shouldEqual "Molecule d is not bound to any reaction site"
-
-    tp.shutdownNow()
   }
 
   it should "signal error when a static molecule is emitted but not bound to this reaction site" in {
-
-    val tp = new FixedPool(3)
-
     val thrown = intercept[Exception] {
       val c = b[Unit, String]
       val d = m[Unit]
@@ -173,14 +165,9 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
     thrown.getMessage shouldEqual "In Site{c/B => ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction c/B(_) => d(); Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
-
-    tp.shutdownNow()
   }
 
-  it should "signal error when a static molecule is defined by a reaction with guard" in {
-
-    val tp = new FixedPool(3)
-
+  it should "signal error when a static molecule is defined by a static reaction with guard" in {
     val thrown = intercept[Exception] {
       val c = b[Unit, String]
       val d = m[Unit]
@@ -193,8 +180,22 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
     thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Static reaction { if(?) => d()} should not have a guard condition"
+  }
 
-    tp.shutdownNow()
+  it should "refuse to define a blocking molecule as a static molecule" in {
+    val c = m[Int]
+    val d = m[Int]
+    val f = b[Unit, Unit]
+
+    val thrown = intercept[Exception] {
+      site(tp)(
+        go { case f(_, r) => r() },
+        go { case c(x) + d(_) => d(x) },
+        go { case _ => f(); d(0) }
+      )
+    }
+
+    thrown.getMessage shouldEqual "In Site{c + d => ...; f/B => ...}: Refusing to emit molecule f/B() as static (must be a non-blocking molecule)"
   }
 
   behavior of "volatile reader"
@@ -211,8 +212,6 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   it should "refuse to read the value of a non-static molecule" in {
     val c = m[Int]
-
-    val tp = new FixedPool(1)
     site(tp)(go { case c(_) => })
 
     val thrown = intercept[Exception] {
@@ -220,13 +219,9 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
     }
 
     thrown.getMessage shouldEqual "In Site{c => ...}: volatile reader requested for non-static molecule (c)"
-    tp.shutdownNow()
   }
 
   it should "always be able to read the value of a static molecule early" in {
-
-    val tp = new FixedPool(1)
-
     def makeNewVolatile(i: Int) = {
       val c = m[Int]
       val d = m[Int]
@@ -242,35 +237,9 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
     (1 to 100).foreach { i =>
       makeNewVolatile(i) // This should sometimes throw an exception, so let's make sure it does.
     }
-
-    tp.shutdownNow()
-  }
-
-  it should "refuse to define a blocking molecule as a static molecule" in {
-
-    val tp = new FixedPool(1)
-
-    val c = m[Int]
-    val d = m[Int]
-    val f = b[Unit, Unit]
-
-    val thrown = intercept[Exception] {
-      site(tp)(
-        go { case f(_, r) => r() },
-        go { case c(x) + d(_) => d(x) },
-        go { case _ => f(); d(0) }
-      )
-    }
-
-    thrown.getMessage shouldEqual "In Site{c + d => ...; f/B => ...}: Refusing to emit molecule f/B() as static (must be a non-blocking molecule)"
-
-    tp.shutdownNow()
   }
 
   it should "report that the value of a static molecule is ready even if called early" in {
-
-    val tp = new FixedPool(1)
-
     def makeNewVolatile(i: Int): Int = {
       val c = m[Int]
       val d = m[Int]
@@ -289,33 +258,23 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     println(s"Volatile value was not ready $result times")
     result shouldEqual 0
-
-    tp.shutdownNow()
   }
 
   it should "read the initial value of the static molecule after stabilization" in {
     val d = m[Int]
     val stabilize_d = b[Unit, Unit]
-
-    val tp = new FixedPool(1)
-
     site(tp)(
       go { case d(x) + stabilize_d(_, r) => r(); d(x) }, // Await stabilizing the presence of d
       go { case _ => d(123) } // static reaction
     )
     stabilize_d()
     d.volatileValue shouldEqual 123
-
-    tp.shutdownNow()
   }
 
   it should "read the value of the static molecule sometimes inaccurately after many changes" in {
     val d = m[Int]
     val incr = b[Unit, Unit]
     val stabilize_d = b[Unit, Unit]
-
-    val tp = new FixedPool(1)
-
     val n = 1
     val delta_n = 1000
 
@@ -332,8 +291,6 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
       i - d.volatileValue // this is mostly 0 but sometimes 1
     }.sum should be > 0 // there should be some cases when d.value reads the previous value
-
-    tp.shutdownNow()
   }
 
   it should "keep the previous value of the static molecule while update reaction is running" in {
@@ -365,9 +322,6 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "signal error when a static molecule is emitted fewer times than declared" in {
-
-    val tp = new FixedPool(3)
-
     val thrown = intercept[Exception] {
       val c = b[Unit, String]
       val d = m[Unit]
@@ -385,14 +339,9 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
     thrown.getMessage shouldEqual "In Site{c/B + d + e + f => ...}: Too few static molecules emitted: d emitted 0 times instead of 1, e emitted 0 times instead of 1"
-
-    tp.shutdownNow()
   }
 
   it should "signal no error (but a warning) when a static molecule is emitted more times than declared" in {
-
-    val tp = new FixedPool(3)
-
     val c = b[Unit, String]
     val d = m[Unit]
     val e = m[Unit]
@@ -402,18 +351,15 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests {
       go { case d(_) + e(_) + f(_) + c(_, r) => r("ok"); d(); e(); f() },
       go { case _ => (1 to 2).foreach { _ => d(); e() }; f(); } // static molecules d() and e() will actually be emitted more times
     )
-
     warnings.errors shouldEqual Seq()
     warnings.warnings shouldEqual Seq("Possibly too many static molecules emitted: d emitted 2 times instead of 1, e emitted 2 times instead of 1")
-
-    tp.shutdownNow()
   }
 
   it should "detect livelock with static molecules" in {
     val a = m[Unit]
     val c = m[Int]
     val thrown = intercept[Exception] {
-      site(
+      site(tp)(
         go { case a(_) + c(x) if x > 0 => c(1) + a() },
         go { case _ => c(0) }
       )
