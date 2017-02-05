@@ -18,30 +18,30 @@ The initial code of `Chymyst Core` was based on [previous work by Jiansen He](ht
 
 The current implementation is tested under Oracle JDK 8 with Scala `2.11.8` and `2.12.1`.
 
-[Version history and roadmap](https://chymyst.github.io/chymyst-core/roadmap.html)
+### [Version history and roadmap](https://chymyst.github.io/chymyst-core/roadmap.html)
 
-# Overview of `Chymyst` and the chemical machine paradigm
+## Overview of `Chymyst` and the chemical machine paradigm
 
-## [Get started with this extensive tutorial](https://chymyst.github.io/chymyst-core/chymyst00.html)
+### [Get started with this extensive tutorial](https://chymyst.github.io/chymyst-core/chymyst00.html)
 
-### [A complete minimal "Hello, world" project](https://github.com/Chymyst/helloworld)
+#### [A complete minimal "Hello, world" project](https://github.com/Chymyst/helloworld)
 
-### [Video presentation of early version of `Chymyst Core`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
+#### [Video presentation of early version of `Chymyst Core`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
 
 This talk was given at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala).
 See also these [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
-## [Main features of the chemical machine](docs/chymyst_features.md)
+### [Main features of the chemical machine](docs/chymyst_features.md)
 
-### [Comparison of the chemical machine vs. academic Join Calculus](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-academic-join-calculus)
+#### [Comparison of the chemical machine vs. academic Join Calculus](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-academic-join-calculus)
 
-### [Comparison of the chemical machine vs. the Actor model](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-actor-model)
+#### [Comparison of the chemical machine vs. the Actor model](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-actor-model)
 
-### [Comparison of the chemical machine vs. the coroutines / channels approach (CSP)](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-csp)
+#### [Comparison of the chemical machine vs. the coroutines / channels approach (CSP)](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-csp)
 
-### [Technical documentation for `Chymyst Core`](docs/chymyst-core.md).
+#### [Technical documentation for `Chymyst Core`](docs/chymyst-core.md).
 
-# Example: "dining philosophers"
+## Example: "dining philosophers"
 
 This is a complete runnable example.
 The logic of "dining philosophers" is implemented in a completely declarative and straightforward code.
@@ -93,7 +93,7 @@ object Main extends App {
 
 ```
 
-# Status
+## Status
 
 The `Chymyst Core` library is in alpha pre-release, with very few API changes envisioned for the future.
 
@@ -117,7 +117,7 @@ Known limitations:
 Distributed computation should be implemented in a better way than posting channel names on an HTTP server.
 (However, `Chymyst Core` will use all cores on a single machine.)
 
-# Run unit tests
+## Run unit tests
 
 `sbt test`
 
@@ -125,7 +125,7 @@ The tests will print some error messages and exception stack traces - this is no
 
 Some tests are timed and will fail on a slow machine.
 
-# Build the benchmark application
+## Run the benchmark application
 
 `sbt benchmark/run` will run the benchmarks.
 
@@ -137,7 +137,21 @@ Then run it as
 
 `java -jar benchmark/target/scala-2.11/benchmark-assembly-*.jar`
 
-# Build the library JARs
+## Use `Chymyst Core` in your programs
+
+`Chymyst Core` is published to Maven Central.
+To pull the dependency, add this to your `build.sbt` at the appropriate place:
+
+```scala
+libraryDependencies += "io.chymyst" %% "core" % "latest.integration"
+
+```
+
+To use the chemical machine DSL, add `import io.chymyst.jc._` in your Scala sources.
+
+See the ["hello, world" project](https://github.com/Chymyst/helloworld) for a complete minimal example.
+
+## Build the library JARs
 
 To build the library JARs:
 
@@ -148,23 +162,7 @@ This will prepare JAR assemblies as well as their Scaladoc documentation package
 The main library is in the `core` JAR assembly (`core/target/scala-2.11/core-*.jar`).
 User code should depend on that JAR only.
 
-# Use `Chymyst Core` in your programs
-
-`Chymyst Core` is published to Maven Central.
-Add this to your `build.sbt` at the appropriate place:
-
-```scala
-libraryDependencies ++= Seq(
-  "io.chymyst" %% "core" % "latest.integration"
-)
-
-```
-
-To use the chemical machine DSL, add `import io.chymyst.jc._` in your Scala sources.
-
-See the ["hello, world" project](https://github.com/Chymyst/helloworld) for a complete minimal example.
-
-# Publish to Sonatype
+## Publish to Sonatype
 
 ```bash
 $ sbt
@@ -174,7 +172,7 @@ $ sbt
 
 ```
 
-# Trivia
+## Trivia
 
 [![Robert Boyle's self-flowing flask](docs/Boyle_Self-Flowing_Flask.png)](https://en.wikipedia.org/wiki/Robert_Boyle#/media/File:Boyle%27sSelfFlowingFlask.png)
 
