@@ -27,12 +27,6 @@ object TypeIsUnitValue extends TypeIsUnit[Unit] {
 }
 
 object Core {
-
-  /** A special value for `ReactionInfo` to signal that we are not running a reaction.
-    *
-    */
-  val emptyReactionInfo = new ReactionInfo(Array(), Array(), Array(), AllMatchersAreTrivial, "")
-
   private lazy val sha1Digest = java.security.MessageDigest.getInstance("SHA-1")
 
   def getSha1String(c: String): String = sha1Digest.digest(c.getBytes("UTF-8")).map("%02X".format(_)).mkString
@@ -79,10 +73,6 @@ object Core {
   implicit final class StringToSymbol(s: String) {
     def toScalaSymbol: scala.Symbol = scala.Symbol(s)
   }
-
-  // Wait until the reaction site to which `molecule` is bound becomes quiescent, then emit `callback`.
-  // TODO: implement
-  //  def waitUntilQuiet[T](molecule: M[T], callback: E): Unit = molecule.site.setQuiescenceCallback(callback)
 
   /** Type alias for reaction body.
     *

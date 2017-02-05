@@ -2,7 +2,7 @@ package io.chymyst.jc
 
 import java.util.concurrent.ThreadFactory
 
-class SmartThread(runnable: Runnable, pool: SmartPool) extends ThreadWithInfo(runnable) {
+private[jc] final class SmartThread(runnable: Runnable, pool: SmartPool) extends ThreadWithInfo(runnable) {
   private var inBlockingCall: Boolean = false
 
   /** Given that the expression `expr` is "idle blocking", the thread pool will increase the parallelism.
@@ -17,34 +17,35 @@ class SmartThread(runnable: Runnable, pool: SmartPool) extends ThreadWithInfo(ru
     pool.startedBlockingCall()
     val result = expr
     pool.finishedBlockingCall()
-    this.synchronized( inBlockingCall = false )
+    inBlockingCall = false
     result
   }
 
 }
 
 /** Thread that knows how Chymyst uses it at any time.
-  * The `reactionInfo` variable is initially set to None, and will be set to Some(...) whenever Chymyst task runs on this thread.
+  * The `chymystInfo` variable is initially set to `None`, and will be set to `Some(...)` whenever a Chymyst reaction runs on this thread.
   *
-  * @param runnable The initial task given to the thread. (Required by the Thread interface.)
+  * @param runnable The initial task given to the thread. (Required by the [[Thread]] interface.)
   */
-class ThreadWithInfo(runnable: Runnable) extends Thread(runnable) {
-  @volatile var reactionInfo: Option[ReactionInfo] = None
+private[jc] sealed class ThreadWithInfo(runnable: Runnable) extends Thread(runnable) {
+  @volatile var chymystInfo: Option[ChymystThreadInfo] = None
 }
 
-class RunnableWithInfo(closure: => Unit, val info: ReactionInfo) extends Runnable {
+private[jc] final class RunnableWithInfo(closure: => Unit, info: ChymystThreadInfo) extends Runnable {
   override def toString: String = info.toString
+
   override def run(): Unit = {
     Thread.currentThread match {
       case t: ThreadWithInfo =>
-        t.reactionInfo = Some(info)
+        t.chymystInfo = Some(info)
       case _ =>
     }
     closure
   }
 }
 
-class ThreadFactoryWithInfo extends ThreadFactory {
+private[jc] final class ThreadFactoryWithInfo extends ThreadFactory {
   override def newThread(r: Runnable): Thread = {
     new ThreadWithInfo(r)
   }

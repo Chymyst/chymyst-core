@@ -15,7 +15,7 @@ class FixedPool(threads: Int) extends PoolExecutor(threads, { t =>
 trait Pool {
   def shutdownNow(): Unit
 
-  def runClosure(closure: => Unit, info: ReactionInfo): Unit
+  def runClosure(closure: => Unit, info: ChymystThreadInfo): Unit
 
   def runRunnable(runnable: Runnable): Unit
 
@@ -45,7 +45,7 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => (ExecutorSe
     }
   }.start()
 
-  def runClosure(closure: => Unit, info: ReactionInfo): Unit =
+  def runClosure(closure: => Unit, info: ChymystThreadInfo): Unit =
     execService.execute(new RunnableWithInfo(closure, info))
 
   override def isInactive: Boolean = execService.isShutdown || execService.isTerminated

@@ -14,7 +14,7 @@ This repository hosts `Chymyst Core` -- a library that provides a Scala domain-s
 JC has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) and [the Actor model](https://en.wikipedia.org/wiki/Actor_model), but is easier to use.
 (See also [Conceptual overview of concurrency](https://chymyst.github.io/joinrun-scala/concurrency.html).)
 
-The initial code of `Chymyst Core` was based on previous work by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
+The initial code of `Chymyst Core` was based on [previous work by Jiansen He](https://github.com/Jiansen/ScalaJoin) (2011) and [Philipp Haller](http://lampwww.epfl.ch/~phaller/joins/index.html) (2008), as well as on Join Calculus prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin) (2012).
 
 The current implementation is tested under Oracle JDK 8 with Scala `2.11.8` and `2.12.1`.
 
@@ -22,292 +22,35 @@ The current implementation is tested under Oracle JDK 8 with Scala `2.11.8` and 
 
 # Overview of `Chymyst` and the chemical machine paradigm
 
-[Get started with this tutorial introduction.](https://chymyst.github.io/joinrun-scala/chymyst00.html)
+## [Get started with this extensive tutorial](https://chymyst.github.io/joinrun-scala/chymyst00.html)
 
-A complete minimal "Hello, world" project can be found at [https://github.com/Chymyst/helloworld](https://github.com/Chymyst/helloworld)
+### [A complete minimal "Hello, world" project](https://github.com/Chymyst/helloworld)
 
-I presented an early version of `Chymyst Core`, at that time called `JoinRun`, at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala). See the [talk video](https://www.youtube.com/watch?v=jawyHGjUfBU) and these [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
+### [Video presentation of early version of `Chymyst Core`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
 
-There is some [technical documentation for Chymyst Core](docs/chymyst-core.md).
+This talk was given at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala).
+See also these [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
-# Main features of `Chymyst`
+## [Main features of the chemical machine](docs/chymyst_features.md)
 
-`Chymyst` implements Join Calculus similarly to [JoCaml](http://jocaml.inria.fr), with some extensions in both syntax and semantics.
+### [Comparison of the chemical machine vs. academic Join Calculus](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-academic-join-calculus)
 
-## Concise declarative syntax 
+### [Comparison of the chemical machine vs. the Actor model](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-actor-model)
 
-`Chymyst Core` provides an embedded Scala DSL for chemical machine definitions.
-Example code looks like this:
+### [Comparison of the chemical machine vs. the coroutines / channels approach (CSP)](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-csp)
 
-```scala
-import io.chymyst.jc._
-
-val s = m[Int] // declare a non-blocking molecule s
-val c = b[Int, Int] // declare a blocking molecule c
-site( // declare a reaction site
-  go { case s(x) + c(y, reply) =>
-    s(x + y) + reply(x)
-  }
-)
-s(1) // emit non-blocking molecule s with value 1
-
-```
-
-As a baseline reference, the most concise syntax for JC is available in [JoCaml](http://jocaml.inria.fr), which uses a modified OCaml compiler.
-The equivalent reaction definition in JoCaml looks like this:
-
-```ocaml
-def s(x) & c(y) =  // declare a reaction site as well as molecules s and c
-   s(x + y) & reply x to c
-spawn s(1)  // emit non-blocking molecule s with value 1
-
-```
-
-In the JoCaml syntax, `s` and `c` are declared implicitly, together with the reaction, and type inference fixes the types of their values.
-Implicit declaration of molecule emitters (“channels”) is not possible in `Chymyst` because Scala macros cannot insert new top-level name declarations into the code.
-For this reason, `Chymyst` requires explicit declarations of molecule types (for example, `val c = b[Int, Int]`).
-
-## Arbitrary input patterns
-
-In `Chymyst`'s Scala DSL, a reaction's input patterns is a `case` clause in a partial function.
-Within the limits of the Scala syntax, reactions can define arbitrary input patterns.
- 
-### Unrestricted pattern matching
-
-Reactions can use pattern matching expressions as well as guard conditions for selecting molecule values:
-
-```scala
-val c = m[Option[Int]]
-val d = m[(String, List[String])]
-
-go { case c(Some(x)) + d( s@("xyz", List(p, q, r)) ) 
-      if x > 0 && p.length > q.length =>
-      // Reaction will start only if the condition holds.
-      // Reaction body can use pattern variables x, s, p, q, r.
-}
-
-```
-
-### Nonlinear input patterns
-
-Reactions can use repeated input molecules ("nonlinear" input patterns):
-
-```scala
-val c = m[Int]
-
-go { case c(x) + c(y) + c(z) if x > y && y > z => c(x - y + z) }
-
-```
-
-Some concurrent algorithms are more easily expressed using repeated input molecules.
-
-### Nonlinear blocking replies
-
-A reaction can consume any number of blocking molecules at once, and each blocking molecule will receive its own reply.
-
-For example, here is a reaction that consumes 3 blocking molecules `f`, `f`, `g` and exchanges the values caried by the two `f` molecules:
-
-```scala
-val f = b[Int, Int]
-val g = b[Unit, Unit]
-
-go { case f(x1, replyF1) + f(x2, replyF2) + g(_, replyG) =>
-   replyF1(x2) + replyF2(x1) + replyG()
-}
-
-```
-
-This reaction is impossible to write using JoCaml-style syntax `reply x to f`:
-in that syntax, we cannot identify which of the copies of `f` should receive which reply value.
-If JoCaml supported nonlinear input patterns, we could do this in JoCaml syntax:
-
-```ocaml
-def f(x1) + f(x2) + g() =>
-  reply x2 to f; reply x1 to f; reply () to g
-
-```
-
-However, this code does not specify that the reply value `x2` should be sent to the process that emitted `f(x1)` rather than to the process that emitted `f(x2)`.
-
-## Reactions are values
-
-Reactions are not merely `case` clauses but locally scoped values of type `Reaction`:
-
-```scala
-val c = m[Int]
-val reaction: Reaction = go { case c(x) => println(x) }
-// Declare a reaction, but do not run anything yet.
-
-```
-
-Users can build reaction sites incrementally, constructing, say, an array of `n` reaction values, where `n` is a run-time parameter.
-Then a reaction site can be declared using the array of reaction values.
-Nevertheless, reactions and reaction sites are immutable once declared.
-
-```scala
-val reactions: Seq[Reaction] = ???
-site(reactions: _*) // Activate all reactions. 
-
-```
-
-Since molecule emitters are local values, one can also define `n` different molecules, where `n` is a run-time parameter.
-There is no limit on the number of reactions in one reaction site, and no limit on the number of different molecules. 
-
-
-## Timeouts for blocking molecules
-
-Emitting a blocking molecule will block forever if no reactions consume that molecule.
-Users can decide to time out on that blocking call:
-
-```scala
-val f = b[Unit, Int]
-
-site(...) // define some reactions that consume f
-
-val result: Option[Int] = f.timeout()(200 millis)
-// will return None on timeout
-
-```
-
-When the timeout occurs, the blocking molecule does not receive the reply value.
-The reply action can check whether the timeout occurred:
-
-```scala
-val f = b[Unit, Int]
-go { f(_, reply) =>
-// offer to reply 123 and return true if there was no timeout
-  val status = reply.checkTimeout(123)
-  if (status) ???
-}
-
-```
-
-## Static analysis for correctness and optimization
-
-`Chymyst` uses macros to perform extensive static analysis of reactions at compile time.
-This allows `Chymyst` to detect some errors such as deadlock or livelock, and to give warnings for possible deadlock or livelock, before any reactions are started.
-
-The static analysis also enforces constraints such as the uniqueness of the reply to blocking molecules.
-
-```scala
-val a = m[Int]
-val c = m[Unit]
-val f = b[Unit, int]
-
-// Does not compile: "Unconditional livelock due to a(x)"
-go { case a(x) => c() + a(x+1) }
-
-// Does not compile: "Blocking molecules should receive unconditional reply"
-go { case f(_, r) + a(x) => if (x > 0) r(x) }
-
-// Compiles successfully because the reply is always sent.
-go { case f(_, r) + a(x) => if (x > 0) r(x) else r(-x) }
-
-```
-
-Common cases of invalid chemical definitions are flagged either at compile time, or as run-time errors that occur after defining a reaction site and before starting any processes.
-Other errors are flagged when reactions are run (e.g. if a blocking molecule gets no reply but static analysis was unable to determine that).
-
-The results of static analysis are used to optimize the scheduling of reactions at run time.
-For instance, reactions that impose no cross-molecule conditions are scheduled significantly faster.
-
-## Thread pools
-
-`Chymyst` implements fine-grained threading control.
-Each reaction site and each reaction can be run on a different, separate thread pool if required.
-The user can control the number of threads in thread pools.
-
-```scala
-val tp1 = new FixedPool(1)
-val tp8 = new SmartPool(8)
-
-site(tp8)( // reaction site runs on tp8
-  go { case a(x) => ... } onThreads tp1, // this reaction runs on tp1
-  go { ... } // all other reactions run on tp8
- )
-
-```
-
-Thread pools are "smart" because they will automatically adjust the number of active threads if blocking operations occur.
-So, blocking operations do not decrease the degree of parallelism.
-
-## Graceful shutdown
-
-When a `Chymyst`-based program needs to exit, it can shut down the thread pools that run reactions.
-
-```scala
-val tp = new SmartPool(8)
-
-// define reactions and run them
-
-tp.shutdownNow() // all reactions running on `tp` will stop
-
-```
-
-## Fair nondeterminism
-
-Whenever a molecule can start several reactions, the reaction is chosen at random.
-
-## Fault tolerance
-
-Reactions marked as fault-tolerant will be automatically restarted if exceptions are thrown.
-
-## Debugging
-
-The execution of reactions can be traced via logging levels per reaction site.
-Due to automatic naming of molecules and static analysis, debugging can print information about reaction flow in a visual way.
-
-## Comparison: chemical machine vs. academic Join Calculus
-
-In talking about `Chymyst`, I follow the chemical machine metaphor and terminology, which differs from the terminology usually found in academic papers on JC.
-Here is a dictionary:
-
-| Chemical machine  | Academic Join Calculus | `Chymyst` code |
-|---|---|---|
-| input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
-| molecule emitter | channel name | `val a :  M[Int]` |
-| blocking emitter | synchronous channel | `val q :  B[Unit, Int]` |
-| reaction | process | `val r1 = go { case a(x) + ... => ... }` |
-| emitting an output molecule | sending a message | `a(123)` _// side effect_ |
-| emitting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
-| reaction site | join definition | `site(r1, r2, ...)` |
-
-As another comparison, here is some code in academic Join Calculus, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
-
-<img alt="def newVar(v0) def put(w) etc." src="docs/academic_join_calculus_2.png" width="400" />
-
-This code creates a shared value container `val` with synchronized single access.
-
-The equivalent `Chymyst` code looks like this:
-
-```scala
-def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
-  val put = b[T, Unit] 
-  val get = b[Unit, T]
-  val _val = m[T] // Will use the name `_val` since `val` is a Scala keyword.
-  
-  site(
-    go { case put(w, ret) + _val(v) => _val(w); ret() },
-    go { case get(_, ret) + _val(v) => _val(v); ret(v) }
-  )
-  _val(v0)
-  
-  (put, get)
-}
-
-```
+### [Technical documentation for `Chymyst Core`](docs/chymyst-core.md).
 
 # Example: "dining philosophers"
 
 This is a complete runnable example.
+The logic of "dining philosophers" is implemented in a completely declarative and straightforward code.
 
 ```scala
 import io.chymyst.jc._
 
 object Main extends App {
-   /**
-   * Print message and wait for a random time interval.
-   */
+   /** Print message and wait for a random time interval. */
   def wait(message: String): Unit = {
     println(message)
     Thread.sleep(scala.util.Random.nextInt(20))
@@ -345,61 +88,23 @@ object Main extends App {
   // Emit molecules representing the initial state:
   thinking1() + thinking2() + thinking3() + thinking4() + thinking5()
   fork12() + fork23() + fork34() + fork45() + fork51()
-  // Now reactions will start and print to the console.
+  // Now reactions will start and print messages to the console.
 }
 
 ```
 
-## Comparison: chemical machine vs. Actor model
-
-Chemical machine programming is similar in some aspects to the well-known Actor model (e.g. the [Akka framework](https://github.com/akka/akka)).
-
-| Chemical machine | Actor model |
-|---|---|
-| molecules carry values | messages carry values | 
-| reactions wait to receive certain molecules | actors wait to receive certain messages | 
-| synchronization is implicit in molecule emission | synchronization is implicit in message-passing | 
-| reactions start when molecules are available | actors start running when a message is received |
-
-Main differences between the chemical machine and the Actor model:
-
-| Chemical machine | Actor model |
-|---|---|
-| several concurrent reactions start automatically whenever several input molecules are available | a desired number of concurrent actors must be created and managed manually |
-| the user's code only manipulates molecules | the user's code must manipulate explicit references to actors as well as messages |
-| reactions typically wait for (and consume) several input molecules at once | actors wait for (and consume) only one input message at a time |
-| reactions are immutable and stateless, all data is stored on molecules (which are also immutable) | actors can mutate (“become another actor”); actors can hold mutable state |
-| molecules are held in an unordered bag and processed in random order | messages are held in an ordered queue (mailbox) and processed in the order received |
-| molecule data is statically typed | message data is untyped |
-
-## Comparison: chemical machine vs. CSP
-
-CSP (Communicating Sequential Processes) is another approach to declarative concurrency, used today in the Go programming language.
-
-Similarities:
-
-The channels of CSP are similar to blocking molecules: sending a message will block until a process can be started that consumes the message and replies with a value.
-
-Differences:
-
-The chemical machine admits only one reply to a blocking channel; CSP can open a channel and send many messages to it.
-
-The chemical machine will start processes automatically and concurrently whenever input molecules are available.
-In CSP, the user needs to create and manage new threads manually.
-
-JC has non-blocking channels as a primitive construct.
-In CSP, non-blocking channels need to be simulated by [additional user code](https://gobyexample.com/non-blocking-channel-operations).
-
 # Status
 
-The library JAR is published to Maven Central.
+The `Chymyst Core` library is in alpha pre-release, with very few API changes envisioned for the future.
 
-The semantics of the chemical machine (restricted to single-host, multicore computations) is fully implemented and tested.
+The semantics of the chemical machine (restricted to single-host, multicore computations) is fully implemented and tested on many nontrivial examples.
+
+The library JAR is published to Maven Central.
 
 Extensive tutorial and usage documentation is available.
 
 Unit tests include examples such as concurrent counters, parallel “or”, concurrent merge-sort, and “dining philosophers”.
-Test coverage is 100% according to [codecov.io](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master).
+Test coverage is [100% according to codecov.io](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master).
 
 Performance benchmarks indicate that `Chymyst Core` can schedule about 10,000 reactions per second per CPU core, and the performance bottleneck is in submitting jobs to threads (a distant second bottleneck is pattern-matching in the internals of the library).
 
@@ -436,10 +141,7 @@ Then run it as
 
 To build the library JARs:
 
-```
-sbt core/package core/package-doc
-
-```
+`sbt core/package core/package-doc`
 
 This will prepare JAR assemblies as well as their Scaladoc documentation packages.
 
@@ -458,6 +160,23 @@ libraryDependencies ++= Seq(
 
 ```
 
-To use the chemical machine DSL, do `import io.chymyst.jc._` in your Scala sources.
+To use the chemical machine DSL, add `import io.chymyst.jc._` in your Scala sources.
 
 See the ["hello, world" project](https://github.com/Chymyst/helloworld) for a complete minimal example.
+
+# Publish to Sonatype
+
+```bash
+$ sbt
+> project core
+> +publishSigned
+> sonatypeRelease
+
+```
+
+# Trivia
+
+[![Robert Boyle's self-flowing flask](docs/Boyle_Self-Flowing_Flask.png)](https://en.wikipedia.org/wiki/Robert_Boyle#/media/File:Boyle%27sSelfFlowingFlask.png)
+
+This drawing is by [Robert Boyle](https://en.wikipedia.org/wiki/Robert_Boyle), who was one of the founders of the science of chemistry.
+In 1661 he published a treatise titled [_“The Sceptical Chymyst”_](https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Sceptical_chymist_1661_Boyle_Title_page_AQ18_%283%29.jpg/220px-Sceptical_chymist_1661_Boyle_Title_page_AQ18_%283%29.jpg), from which the `Chymyst` framework borrows its name.
