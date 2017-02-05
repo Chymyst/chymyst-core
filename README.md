@@ -1,8 +1,8 @@
 [![Join the chat at https://gitter.im/chymyst-core/Lobby](https://badges.gitter.im/joinrun-scala/Lobby.svg)](https://gitter.im/joinrun-scala/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![Build Status](https://travis-ci.org/Chymyst/joinrun-scala.svg?branch=master)](https://travis-ci.org/Chymyst/joinrun-scala)
-[![Coverage Status](https://codecov.io/gh/Chymyst/joinrun-scala/coverage.svg?branch=master)](https://codecov.io/gh/Chymyst/joinrun-scala?branch=master)
+[![Build Status](https://travis-ci.org/Chymyst/chymyst-core.svg?branch=master)](https://travis-ci.org/Chymyst/chymyst-core)
+[![Coverage Status](https://codecov.io/gh/Chymyst/chymyst-core/coverage.svg?branch=master)](https://codecov.io/gh/Chymyst/chymyst-core?branch=master)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Github Tag](https://img.shields.io/github/tag/Chymyst/joinrun-scala.svg?label=release&colorB=blue)](https://github.com/Chymyst/chymyst-core/tags)
+[![Github Tag](https://img.shields.io/github/tag/Chymyst/chymyst-core.svg?label=release&colorB=blue)](https://github.com/Chymyst/chymyst-core/tags)
 [![Maven Central](https://img.shields.io/maven-central/v/io.chymyst/core_2.11.svg)](http://search.maven.org/#search%7Cga%7C1%7Cio.chymyst)
 
 # `Chymyst` — declarative concurrency in Scala
