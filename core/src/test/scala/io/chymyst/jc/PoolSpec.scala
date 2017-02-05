@@ -9,6 +9,8 @@ import org.scalactic.source.Position
 
 class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
+  val emptyReactionInfo = new ChymystThreadInfo()
+
   val timeLimit = Span(1500, Millis)
 
   val patienceConfig = PatienceConfig(timeout = Span(500, Millis))

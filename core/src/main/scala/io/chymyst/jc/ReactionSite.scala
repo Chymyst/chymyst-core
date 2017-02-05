@@ -289,9 +289,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     currentReactionInfo.foreach { info =>
       if (!info.maybeEmit(m)) {
         val refusalReason =
-          if (info.toString.isEmpty)
-            noChemicalReactionMessage
-          else if (!info.couldEmit(m))
+          if (!info.couldEmit(m))
             s"because this reaction {$info} does not consume it"
           else s"because this reaction {$info} already emitted it"
         throwError(refusalReason)
