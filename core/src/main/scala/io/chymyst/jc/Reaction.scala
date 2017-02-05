@@ -463,7 +463,7 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType,
   */
 final class ChymystThreadInfo(
                                statics: Seq[Molecule] = Seq(),
-                               reactionString: String = ""
+                               reactionString: String = "<no reaction>"
                              ) {
   override val toString: String = reactionString
 
