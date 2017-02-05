@@ -420,7 +420,7 @@ We will now implement the following requirements:
 - A reaction that calls `beginCritical()` will be blocked if another reaction already called `beginCritical()` but did not yet call `endCritical()`, and will be unblocked only when that other reaction calls `endCritical`. 
 
 This functionality is similar to `Object.synchronized`, which provides exclusive synchronized access within otherwise reentrant code.
-In our case, the critical section is delimited by two function calls, `beginCritical()` and `endCritical()`, that can be made at any two points in the code -- including `if` expressions or inside closures,
+In our case, the critical section is delimited by two function calls, `beginCritical()` and `endCritical()`, that can be made at any two points in the code — including `if` expressions or inside closures,
 which is impossible with `Object.synchronized`.
 
 The `Object.synchronized` construction identifies the synchronized blocks by an `Object` reference:
@@ -773,7 +773,7 @@ and each process would like to wait until all other processes reach the rendezvo
 After that, all `n` waiting processes become unblocked and proceed concurrently.
 
 This is similar to the rendezvous with two participants that we just discussed.
-To simplify the problem, we assume that no data is exchanged -- this is a pure synchronization task.
+To simplify the problem, we assume that no data is exchanged — this is a pure synchronization task.
 
 Let us try to generalize our previous implementation of the rendezvous from 2 participants to `n`.
 Since emitters are values, we could define `n` different emitters `begin1`, ..., `begin_n`, `barrier1`, ..., `barrier_n` and so on.

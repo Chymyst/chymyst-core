@@ -29,7 +29,7 @@ For instance, we can postulate that there exist three sorts of molecules called 
 `a + c ⇒` [_nothing_]
 
 
-![Reaction diagram a + b => a, a + c => ...](https://chymyst.github.io/joinrun-scala/reactions1.svg)
+![Reaction diagram a + b => a, a + c => ...](https://chymyst.github.io/chymyst-core/reactions1.svg)
 
 Of course, real-life chemistry does not allow a molecule to disappear without producing any other molecules.
 But our chemistry is purely imaginary, and so the programmer is free to postulate arbitrary chemical laws.
@@ -67,7 +67,7 @@ Molecule values are strongly typed: a molecule of a given sort (such as `a` or `
 2. Since molecules must carry values, we now need to specify a value of the correct type whenever we emit a new molecule into the soup.
 
 3. For the same reason, reactions that produce new molecules will now need to put values on each of the output molecules.
-These output values must be _functions of the input values_, -- that is, of the values carried by the input molecules consumed by this reaction.
+These output values must be _functions of the input values_, — that is, of the values carried by the input molecules consumed by this reaction.
 Therefore, each chemical reaction will now carry a Scala expression (called the **reaction body**) that will compute the new output values and emit the output molecules.
 
 Let us see how the chemical machine can be programmed to run computations.
@@ -80,7 +80,7 @@ A typical reaction, equipped with molecule values and a reaction body, looks lik
 
 ```scala
 a(x) + b(y) ⇒ a(z)
-where z = computeZ(x,y) // -- reaction body
+where z = computeZ(x,y) // — reaction body
 
 ```
 
@@ -93,14 +93,14 @@ The newly computed value `z` is placed onto the output molecule `a(z)`, which is
 Another example of a reaction is
 
 ```scala
-a(x) + c(y) ⇒ println(x + y) // -- reaction body with no output molecules
+a(x) + c(y) ⇒ println(x + y) // — reaction body with no output molecules
 
 ```
 
 This reaction consumes the molecules `a` and `c` as its input, but does not emit any output molecules.
 The only result of running the reaction is the side-effect of printing the number `x + y`.
 
-![Reaction diagram a(x) + b(y) => a(z), a(x) + c(y) => ...](https://chymyst.github.io/joinrun-scala/reactions2.svg)
+![Reaction diagram a(x) + b(y) => a(z), a(x) + c(y) => ...](https://chymyst.github.io/chymyst-core/reactions2.svg)
 
 The computations performed by the chemical machine are _automatically concurrent_:
 Whenever input molecules are available in the soup, the runtime engine will start a reaction that consumes these input molecules.
@@ -182,7 +182,7 @@ Each reaction says that the new value of the counter (either `n + 1` or `n - 1`)
 The previous molecule, `counter(n)`, will be consumed by the reactions.
 The `incr()` and `decr()` molecules will be likewise consumed.
 
-![Reaction diagram counter(n) + incr => counter(n+1) etc.](https://chymyst.github.io/joinrun-scala/counter-incr-decr.svg)
+![Reaction diagram counter(n) + incr => counter(n+1) etc.](https://chymyst.github.io/chymyst-core/counter-incr-decr.svg)
 
 In `Chymyst`, a reaction site is created by calling `site(...)`.
 A reaction site can declare one or more reactions.
@@ -321,7 +321,7 @@ So this facility should be used only for debugging or testing.
 
 ### Error: Emitting molecules with undefined chemistry
 
-For each molecule, there must exist a single reaction site (RS) to which this molecule is bound -- that is, the RS where this molecule is consumed as input molecule by some reactions.
+For each molecule, there must exist a single reaction site (RS) to which this molecule is bound — that is, the RS where this molecule is consumed as input molecule by some reactions.
 (See [Reaction Sites](chymyst-core.md#reaction-sites) for a more detailed discussion.)
 
 It is an error to emit a molecule that is not yet defined as input molecule at any RS (i.e. not yet bound to any RS).
@@ -409,7 +409,7 @@ In this example, the soup contains one copy of the `counter` molecule, one copy 
 The `counter` molecule could either react with the `incr` molecule or with the `decr` molecule.
 One of these reactions (shown in solid lines) have been chosen to actually start, which leaves the second reaction (shown with a dashed line) without the input molecule `counter` and, therefore, the second reaction cannot start.
 
-![Reaction diagram counter + incr, counter + decr](https://chymyst.github.io/joinrun-scala/counter-multiple-reactions.svg)
+![Reaction diagram counter + incr, counter + decr](https://chymyst.github.io/chymyst-core/counter-multiple-reactions.svg)
 
 Similarly, when there are several copies of the same molecule that can be consumed by a reaction, the runtime engine will make a choice of which copy of the molecule to consume.
 
@@ -419,12 +419,12 @@ Each of the four `incr` molecules can react with the one `counter` molecule.
 The runtime engine will choose which molecules actually react.
 One reaction (shown in solid lines) will start, consuming the `counter` and `incr` molecules, while other possible reactions (shown in dashed lines) will not start.
 
-![Reaction diagram counter + incr, counter + incr](https://chymyst.github.io/joinrun-scala/counter-multiple-molecules.svg)
+![Reaction diagram counter + incr, counter + incr](https://chymyst.github.io/chymyst-core/counter-multiple-molecules.svg)
 
 After this reaction, the contents of the soup is one copy of the `counter` molecule (with the updated value) and the three remaining `incr` molecules.
 At the next step, another one of the `incr` molecules will be chosen to start a reaction, as shown in the next figure:
 
-![Reaction diagram counter + incr, counter + decr after reaction](https://chymyst.github.io/joinrun-scala/counter-multiple-molecules-after-reaction.svg)
+![Reaction diagram counter + incr, counter + decr after reaction](https://chymyst.github.io/chymyst-core/counter-multiple-molecules-after-reaction.svg)
 
 Currently, `Chymyst` will _not_ fully randomize the input molecules but make an implementation-dependent choice.
 A truly random selection of input molecules may be implemented in the future.
@@ -567,7 +567,7 @@ The chemical machine will automatically make this data available to a reaction, 
 The reaction body can perform arbitrary computations using the input molecule values.
 - The reaction body will typically compute some new values and emit new molecules carrying these values.
 Emitting a molecule is a side effect of calling an emitter.
-Emitters can be called at any time -- either within a reaction body or in any other code.
+Emitters can be called at any time — either within a reaction body or in any other code.
 - Up to the side effect of emitting new molecules, the reaction body can be a pure function that only depends on the input data of the reaction.
 In this case, many copies of the reaction can be safely executed concurrently when many sets of input molecules are available.
 Also, the reaction can be safely and automatically restarted in the case of a transient failure

@@ -3,8 +3,8 @@
 pomExtra in Global :=
     <inceptionYear>2016</inceptionYear>
     <scm>
-      <url>git@github.com:Chymyst/joinrun-scala.git</url>
-      <connection>scm:git:git@github.com:Chymyst/joinrun-scala.git</connection>
+      <url>git@github.com:Chymyst/chymyst-core.git</url>
+      <connection>scm:git:git@github.com:Chymyst/chymyst-core.git</connection>
     </scm>
     <developers>
       <developer>

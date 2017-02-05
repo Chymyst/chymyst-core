@@ -46,7 +46,7 @@ Our program should then be able to emit lots of molecules into the common pool a
 
 Some implementations of the chemical machine, notably [JoCaml](http://jocaml.inria.fr), provide a facility for sending molecules from one chemical soup to another.
 However, in order to organize a distributed computation, we would need to split the tasks explicitly between the participating soups.
-The organization and supervision of distributed computations, the maintenance of connections between machines, the handling of disconnections -- all this remains the responsibility of the programmer and is not handled automatically by the chemical machine.
+The organization and supervision of distributed computations, the maintenance of connections between machines, the handling of disconnections — all this remains the responsibility of the programmer and is not handled automatically by the chemical machine.
 
 In principle, a sufficiently sophisticated runtime engine could organize a distributed computation completely transparently to the programmer.
 It remains to be seen whether it is feasible and/or useful to implement such a runtime engine.

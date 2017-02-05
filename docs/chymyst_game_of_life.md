@@ -191,7 +191,7 @@ The complete working code for this implementation is the second test case in `Ga
 While the program as written so far works correctly, it works _extremely slowly_.
 The computation on a tiny 2 by 2 board takes about 2 seconds per timestep on a fast 8-core machine.
 The CPU utilization stays around 100%; in other words, only one CPU core is loaded at 100% while other cores remain idle.
-Not only the code runs unacceptably slowly, -- it also fails to use any concurrency!
+Not only the code runs unacceptably slowly, — it also fails to use any concurrency!
 
 The main reason for the bad performance is the complicated guard condition in the reaction.
 This guard condition is an example of a **cross-molecule guard**, meaning that it constrains the values of a set of molecules as a whole (rather than one molecule value at a time).

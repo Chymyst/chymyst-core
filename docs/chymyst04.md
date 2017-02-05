@@ -57,7 +57,7 @@ val c = m[Int]
 
 Any molecule emitted in the soup must carry a value.
 So the value `c` itself is not a molecule in the soup.
-The value `c` is a **molecule emitter**, -- that is, a function that, when called, will emit molecules of chemical sort `c` into the soup.
+The value `c` is a **molecule emitter**, — that is, a function that, when called, will emit molecules of chemical sort `c` into the soup.
 The result of evaluating the emitter call such as `c(123)` is a _side effect_ that emits the molecule of sort `c` with value `123`.
 
 The syntax `c(x)` is used in two different ways:
@@ -345,7 +345,7 @@ For this reason, `Chymyst` implements the timeout functionality as a special pri
 
 Often it is necessary to ensure that exactly one copy of a certain molecule is initially present in the soup, and that no further copies can be emitted unless a copy is first consumed.
 Such molecules are called **static**.
-A static molecule `s` must have reactions only of the form `s() + ... => s() + ...`, -- that is, reactions that consume the single copy of `s` and then also emit a single copy of `s`.
+A static molecule `s` must have reactions only of the form `s() + ... => s() + ...`, — that is, reactions that consume the single copy of `s` and then also emit a single copy of `s`.
 
 An example of a static molecule is the “concurrent counter” molecule `c()`, with reactions that we have seen before:
 
@@ -398,7 +398,7 @@ When a static molecule exists only as a single copy, its value works effectively
 the value can be modified by reactions, but the cell cannot be destroyed.
 So it appears useful to have a read-only access to the value in the cell.
 
-Accordingly, each static molecule has a **volatile reader** -- a function of type `=> T` that fetches the value carried by that static molecule when it was most recently emitted.
+Accordingly, each static molecule has a **volatile reader** — a function of type `=> T` that fetches the value carried by that static molecule when it was most recently emitted.
 Here is how volatile readers are used:
 
 ```scala
