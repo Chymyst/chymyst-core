@@ -28,8 +28,8 @@ class CommonMacros(val c: blackbox.Context) {
     * @return String that represents the name of the enclosing value.
     */
   def getEnclosingName: String =
-  c.internal.enclosingOwner.name.decodedName.toString
-    .stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
+    c.internal.enclosingOwner.name.decodedName.toString
+      .stripSuffix(LOCAL_SUFFIX_STRING).stripSuffix("$lzy")
 
   // Classes need to be defined at top level because we can't have case classes local to a function scope.
   // However, we need to use path-dependent types such as `Ident` and `Tree`.
@@ -57,6 +57,8 @@ class CommonMacros(val c: blackbox.Context) {
     def needTraversing: Boolean = false
 
     def varNames: List[Ident] = Nil
+
+    def containsVar(v: Ident): Boolean = varNames.exists(_.name === v.name)
   }
 
   case object WildcardF extends InputPatternFlag
@@ -252,20 +254,16 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     // Eventually it will be necessary to go through the source code of scala/async and through the "Macrology 201" course here, https://github.com/scalamacros/macrology201/commits/part1
     // And perhaps use https://github.com/scalamacros/resetallattrs
 
-    val staticGuardTree: Option[Tree] = staticGuardVarsSeq // We need to merge all these guard clauses.
-      .map(_._1)
-      .reduceOption { (g1, g2) => q"$g1 && $g2" }
+    val staticGuardTree: Option[Tree] = mergeGuards(staticGuardVarsSeq) // We need to merge all these guard clauses.
       .map(guardTree => q"() => $guardTree")
 
     // Merge the guard information into the individual input molecule infos. The result, patternInWithMergedGuards, replaces patternIn.
     val patternInWithMergedGuardsAndIndex = patternIn.zipWithIndex // patternInWithMergedGuards has same type as patternIn, except for the index
       .map {
       case ((mol, flag, replyFlag), i) =>
-        val mergedGuardOpt = moleculeGuardVarsSeq
+        val mergedGuardOpt = mergeGuards(moleculeGuardVarsSeq
           .filter { case (g, vars) => guardVarsConstrainOnlyThisMolecule(vars, flag) }
-          .map(_._1)
-          .reduceOption { (g1, g2) => q"$g1 && $g2" }
-          .map(t => replaceVarsInGuardTree(t))
+        )          .map(t => replaceVarsInGuardTree(t))
 
         val mergedFlag = flag match {
           case SimpleVarF(v, binder, _) =>
@@ -288,128 +286,140 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       case _ => false
     }
 
-    val crossGuardsAndCodes: List[(Tree, String)] = moleculeGuardVarsSeq // The "cross guards" are guard clauses whose variables do not all belong to any single molecule's matcher.
-      .filter { case (_, vars) => patternIn.forall { case (_, flag, _) => !guardVarsConstrainOnlyThisMolecule(vars, flag) } }
-      .map { case (guardTree, vars) =>
-        // At this point, we map over only the cross-molecule guard clauses.
-        // For each guard clause, we will produce a closure that takes all the vars as parameters and evaluates the guardTree.
+    val crossGuardsIndicesAndCodes: List[(Tree,  String)] = moleculeGuardVarsSeq // The "cross-molecule guards" are guard clauses whose variables do not all belong to any single molecule's matcher.
+      .map { case (guardTree, vars) ⇒ (guardTree, vars, moleculeIndicesConstrainedByGuard(vars, patternIn.map(_._2))) }
+      .filter(_._3.length > 1)
+      .groupBy(_._3)
+      .mapValues(_.map { case (guardTree, vars, _) ⇒ (guardTree, vars) })
+        .toList
+      .sortBy { case (indices, _) ⇒ indices.length}.reverse
+      // Now we have List[(indices: List[Int], List[(guardTree: Tree, vars: List[Ident])])] sorted in decreasing complexity order.
+      .map { case (indicesOfConstrainedMols, guardsSubtreesAndIdents) ⇒
+      // Collect and merge all cross-molecule guards that constrain the same set of indices.
+      val mergedGuardTree = mergeGuards(guardsSubtreesAndIdents).getOrElse(EmptyTree)
+      val mergedIdents = guardsSubtreesAndIdents.flatMap(_._2)
 
-        // TODO: collect all guard clauses that pertain to the same subset of molecules into one guard clause.
-        // Determine which molecules we are constraining in this guard. Collect the binders and the indices of all these molecules.
-        val indicesAndBinders: List[(Int, Tree)] = patternIn.zipWithIndex.flatMap {
-          // Find all input molecules that have some pattern variables; omit wildcards and constants here.
-          case ((_, flag, _), i) => flag match {
-            case SimpleVarF(v, binder, _) => Some((flag, i, binder, List(v)))
-            case OtherInputPatternF(matcher, _, vs) => Some((flag, i, matcher, vs))
-            case _ => None
-          }
-        } // Find all input molecules constrained by the guard (guardTree, vars) that we are iterating with.
-          .filter { case (flag, _, _, _) => guardVarsConstrainThisMolecule(vars, flag) }
-          .map { case (_, i, binder, _) => (i, binder) }
+    // At this point, we map over only the cross-molecule guard clauses.
+    // A guard clause is represented now by the guard expression tree `mergedGuardTree` and the list of variable identifiers `mergedIdents` used by that guard clause.
+    // For each guard clause, we will produce a closure that takes all the vars as parameters and evaluates `mergedGuardTree` as a partial function.
 
-        // To avoid problems with macros, we need to put types on binder variables and remove owners from guard tree symbols.
-        val bindersWithTypedVars = indicesAndBinders.map { case (_, b) => replaceVarsInBinder(b) }
-        val guardWithReplacedVars = replaceVarsInGuardTree(guardTree)
-
-        val caseDefs = List(cq"List(..$bindersWithTypedVars) if $guardWithReplacedVars => ")
-        val partialFunctionTree = q"{ case ..$caseDefs }"
-        //        val pfTree = c.parse(showCode(partialFunctionTree)) // This works but it's perhaps an overkill.
-        val pfTreeCode = showCode(partialFunctionTree)
-        val pfTree = c.untypecheck(partialFunctionTree) // It's important to untypecheck here.
-
-        val indices = indicesAndBinders.map(_._1).toArray
-        val varSymbols = vars.map(identToScalaSymbol).distinct.toArray
-
-        (q"CrossMoleculeGuard($indices, $varSymbols, $pfTree)", pfTreeCode)
+    // Collect the match binders for all molecules constrained by this guard, in the order given by `indicesOfConstrainedMols`.
+    val usedBinders: List[Tree] = indicesOfConstrainedMols.flatMap { i => patternIn.lift(i)}
+            .flatMap {
+      // Find all input molecules that have some pattern variables; omit wildcards and constants here.
+      case (_, flag, _) ⇒ flag match {
+        case SimpleVarF(_, binder, _) ⇒
+          Some(binder)
+        case OtherInputPatternF(matcher, _, _) ⇒
+          Some(matcher)
+        case _ ⇒
+          None
       }
-
-    val crossGuards = crossGuardsAndCodes.map(_._1).toArray
-    val crossGuardsCodes = crossGuardsAndCodes.map(_._2)
-
-    // We lift the GuardPresenceFlag values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceFlag].
-    val guardPresenceFlag = if (isGuardAbsent) {
-      if (allInputMatchersAreTrivial)
-        q"AllMatchersAreTrivial"
-      else q"GuardAbsent"
-    } else {
-      val allGuardSymbols = guardVarsSeq
-        .map(_._2.map(identToScalaSymbol).distinct.toArray)
-        .filter(_.nonEmpty).toArray
-      q"GuardPresent($allGuardSymbols, $staticGuardTree, $crossGuards)"
     }
 
-    val blockingMolecules = patternIn.filter(_._3.nonEmpty)
-    // It is an error to have blocking molecules that do not match on a simple variable.
-    val wrongBlockingMolecules = blockingMolecules.filter(_._3.get.notReplyValue).map(_._1)
-    maybeError("blocking input molecules", "matches a reply emitter with anything else than a simple variable", wrongBlockingMolecules)
+    // To avoid problems with macros, we need to put types on binder variables and remove owners from guard tree symbols.
+    val bindersWithTypedVars = usedBinders.map { b ⇒ replaceVarsInBinder(b) }
+    val guardTreeWithReplacedVars = replaceVarsInGuardTree(mergedGuardTree)
+    // Create the expression tree for a partial function that will match the variables for this guard.
+    val caseDefs = List(cq"List(..$bindersWithTypedVars) if $guardTreeWithReplacedVars => ")
+    val partialFunctionTree = q"{ case ..$caseDefs }"
+    //        val pfTree = c.parse(showCode(partialFunctionTree)) // This works, but it's perhaps an overkill.
+    val pfTreeCode = showCode(partialFunctionTree)
+    val pfTree = c.untypecheck(partialFunctionTree) // It's important to untypecheck here.
 
-    // If we are here, all reply emitters have correct pattern variables. Now we check that each blocking molecule has one and only one reply.
-    val bodyReplyInfoMacro = bodyReply.map { case (m, p, envs) => (m, p.patternType, envs) }
-    val shrunkReplyInfo: List[(MacroSymbol, OutputPatternType, List[OutputEnvironment])] = OutputEnvironment.shrink(bodyReplyInfoMacro, equalsInMacro)
+    val indices = indicesOfConstrainedMols.toArray
+    val varSymbols = mergedIdents.map(identToScalaSymbol).distinct.toArray
 
-    val shrunkGuaranteedReplies = shrunkReplyInfo.filter(_._3.forall(_.atLeastOne)).map(_._1.asTerm.name.decodedName)
-    val shrunkPossibleReplies = shrunkReplyInfo.map(_._1.asTerm.name.decodedName)
-    val expectedBlockingReplies = blockingMolecules.flatMap(_._3.flatMap {
-      case ReplyVarF(x) => Some(x.name)
-      case _ => None
-    })
-
-    val blockingMoleculesWithoutReply = expectedBlockingReplies difff shrunkGuaranteedReplies
-    val blockingMoleculesWithMultipleReply = shrunkPossibleReplies difff expectedBlockingReplies
-
-    maybeError("blocking molecules", "but no unconditional reply found for", blockingMoleculesWithoutReply, "receive a reply")
-    maybeError("blocking molecules", "but possibly multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
-
-    if (patternIn.isEmpty && !isStaticReaction(pattern, guard, body)) // go { case x => ... }
-      reportError("Reaction input must be `_` or must contain some input molecules")
-
-    if (isStaticReaction(pattern, guard, body) && bodyOut.isEmpty)
-      reportError("Static reaction must emit some output molecules")
-
-    val inputMolecules = patternInWithMergedGuardsAndIndex.map { case (s, i, p, _) => q"InputMoleculeInfo(${s.asTerm}, $i, $p, ${p.patternSha1(t => showCode(t))})" }.toArray
-
-    // Note: the output molecules could be sometimes not emitted according to a run-time condition.
-    // We do not try to examine the reaction body to determine which output molecules are always emitted.
-    // However, the order of output molecules corresponds to the order in which they might be emitted.
-    val allOutputInfo = bodyOut
-    // Output molecule info comes only from the body since neither the pattern nor the guard can emit output molecules.
-    val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
-
-    val outputMoleculeInfoMacro = allOutputInfo.map { case (m, p, envs) => (m, p.patternType, envs) }
-
-    // Detect whether this reaction has a simple livelock:
-    // All input molecules have trivial matchers and are a subset of unconditionally emitted output molecules.
-    val shrunkOutputInfo = OutputEnvironment.shrink(outputMoleculeInfoMacro, equalsInMacro)
-    val shrunkOutputReactionInfo = shrunkOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
-    val inputMoleculesAreSubsetOfOutputMolecules = (
-      patternIn.map(_._1) difff
-        shrunkOutputInfo.filter {
-          case (_, _, envs) => envs.forall(_.atLeastOne)
-        }.map(_._1)
-      ).isEmpty
-
-    // We can detect unconditional livelock at compile time only if no conditions need to be evaluated against e.g. some constant values.
-    // That is, only if all matchers are trivial, and if the guard is absent.
-    // Then it is sufficient to take the shrunk output info list and to see whether enough output molecules are present to cover all input molecules.
-    if (isGuardAbsent && allInputMatchersAreTrivial && inputMoleculesAreSubsetOfOutputMolecules) {
-      maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
-    }
-
-    // Compute reaction sha1 from simplified input list.
-    val reactionBodyCode = showCode(body)
-    val reactionSha1 = getSha1String(
-      patternInWithMergedGuardsAndIndex.map(_._3.patternSha1(t => showCode(t))).sorted.mkString(",") +
-        crossGuardsCodes.sorted.mkString(",") +
-        reactionBodyCode
-    )
-
-    // Prepare the ReactionInfo structure.
-    val result = q"Reaction(new ReactionInfo($inputMolecules, $outputMoleculesReactionInfo, $shrunkOutputReactionInfo, $guardPresenceFlag, $reactionSha1), $reactionBody, None, false)"
-    //    println(s"debug: ${showCode(result)}")
-    //    println(s"debug raw: ${showRaw(result)}")
-    //    c.untypecheck(result) // this fails
-    c.Expr[Reaction](result)
+    (q"CrossMoleculeGuard($indices, $varSymbols, $pfTree)", pfTreeCode)
   }
+
+  val crossGuards = crossGuardsIndicesAndCodes.map(_._1).toArray
+  val crossGuardsSourceCodes = crossGuardsIndicesAndCodes.map(_._2)
+
+  // We lift the GuardPresenceFlag values explicitly through q"" here, so we don't need an implicit Liftable[GuardPresenceFlag].
+  val guardPresenceFlag = if (isGuardAbsent) {
+    if (allInputMatchersAreTrivial)
+      q"AllMatchersAreTrivial"
+    else q"GuardAbsent"
+  } else {
+    val allGuardSymbols = guardVarsSeq
+      .map(_._2.map(identToScalaSymbol).distinct.toArray)
+      .filter(_.nonEmpty).toArray
+    q"GuardPresent($allGuardSymbols, $staticGuardTree, $crossGuards)"
+  }
+
+  val blockingMolecules = patternIn.filter(_._3.nonEmpty)
+  // It is an error to have blocking molecules that do not match on a simple variable.
+  val wrongBlockingMolecules = blockingMolecules.filter(_._3.get.notReplyValue).map(_._1)
+  maybeError("blocking input molecules", "matches a reply emitter with anything else than a simple variable", wrongBlockingMolecules)
+
+  // If we are here, all reply emitters have correct pattern variables. Now we check that each blocking molecule has one and only one reply.
+  val bodyReplyInfoMacro = bodyReply.map { case (m, p, envs) => (m, p.patternType, envs) }
+  val shrunkReplyInfo: List[(MacroSymbol, OutputPatternType, List[OutputEnvironment])] = OutputEnvironment.shrink(bodyReplyInfoMacro, equalsInMacro)
+
+  val shrunkGuaranteedReplies = shrunkReplyInfo.filter(_._3.forall(_.atLeastOne)).map(_._1.asTerm.name.decodedName)
+  val shrunkPossibleReplies = shrunkReplyInfo.map(_._1.asTerm.name.decodedName)
+  val expectedBlockingReplies = blockingMolecules.flatMap(_._3.flatMap {
+    case ReplyVarF(x) => Some(x.name)
+    case _ => None
+  })
+
+  val blockingMoleculesWithoutReply = expectedBlockingReplies difff shrunkGuaranteedReplies
+  val blockingMoleculesWithMultipleReply = shrunkPossibleReplies difff expectedBlockingReplies
+
+  maybeError("blocking molecules", "but no unconditional reply found for", blockingMoleculesWithoutReply, "receive a reply")
+  maybeError("blocking molecules", "but possibly multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
+
+  if (patternIn.isEmpty && !isStaticReaction(pattern, guard, body)) // go { case x => ... }
+    reportError("Reaction input must be `_` or must contain some input molecules")
+
+  if (isStaticReaction(pattern, guard, body) && bodyOut.isEmpty)
+    reportError("Static reaction must emit some output molecules")
+
+  val inputMolecules = patternInWithMergedGuardsAndIndex.map { case (s, i, p, _) => q"InputMoleculeInfo(${s.asTerm}, $i, $p, ${p.patternSha1(t => showCode(t))})" }.toArray
+
+  // Note: the output molecules could be sometimes not emitted according to a run-time condition.
+  // We do not try to examine the reaction body to determine which output molecules are always emitted.
+  // However, the order of output molecules corresponds to the order in which they might be emitted.
+  val allOutputInfo = bodyOut
+  // Output molecule info comes only from the body since neither the pattern nor the guard can emit output molecules.
+  val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
+
+  val outputMoleculeInfoMacro = allOutputInfo.map { case (m, p, envs) => (m, p.patternType, envs) }
+
+  // Detect whether this reaction has a simple livelock:
+  // All input molecules have trivial matchers and are a subset of unconditionally emitted output molecules.
+  val shrunkOutputInfo = OutputEnvironment.shrink(outputMoleculeInfoMacro, equalsInMacro)
+  val shrunkOutputReactionInfo = shrunkOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
+  val inputMoleculesAreSubsetOfOutputMolecules = (
+    patternIn.map(_._1) difff
+      shrunkOutputInfo.filter {
+        case (_, _, envs) => envs.forall(_.atLeastOne)
+      }.map(_._1)
+    ).isEmpty
+
+  // We can detect unconditional livelock at compile time only if no conditions need to be evaluated against e.g. some constant values.
+  // That is, only if all matchers are trivial, and if the guard is absent.
+  // Then it is sufficient to take the shrunk output info list and to see whether enough output molecules are present to cover all input molecules.
+  if (isGuardAbsent && allInputMatchersAreTrivial && inputMoleculesAreSubsetOfOutputMolecules) {
+    maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
+  }
+
+  // Compute reaction sha1 from simplified input list.
+  val reactionBodyCode = showCode(body)
+  val reactionSha1 = getSha1String(
+    patternInWithMergedGuardsAndIndex.map(_._3.patternSha1(t => showCode(t))).sorted.mkString(",") +
+      crossGuardsSourceCodes.sorted.mkString(",") +
+      reactionBodyCode
+  )
+
+  // Prepare the ReactionInfo structure.
+  val result = q"Reaction(new ReactionInfo($inputMolecules, $outputMoleculesReactionInfo, $shrunkOutputReactionInfo, $guardPresenceFlag, $reactionSha1), $reactionBody, None, false)"
+  //    println(s"debug: ${showCode(result)}")
+  //    println(s"debug raw: ${showRaw(result)}")
+  //    c.untypecheck(result) // this fails
+  c.Expr[Reaction](result)
+}
 
 }
 
