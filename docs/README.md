@@ -11,30 +11,34 @@ The chemical machine concurrency paradigm has the same expressive power as CSP (
 
 The code of `Chymyst Core` is based on previous Join Calculus implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
-# Overview of `Chymyst` and the chemical machine paradigm
+## Overview of `Chymyst` and the chemical machine paradigm
 
-## [Get started with this extensive tutorial](https://chymyst.github.io/chymyst-core/chymyst00.html)
+### [Get started with this extensive tutorial](https://chymyst.github.io/chymyst-core/chymyst00.html)
 
-### [A complete minimal "Hello, world" project](https://github.com/Chymyst/helloworld)
+#### [A complete minimal "Hello, world" project](https://github.com/Chymyst/helloworld)
 
-### [Video presentation of early version of `Chymyst Core`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
+#### [Video presentation of early version of `Chymyst Core`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
 
 This talk was given at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala).
 See also these [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
-## [Main features of the chemical machine](docs/chymyst_features.md)
+### [Main features of the chemical machine](docs/chymyst_features.md)
 
-### [Comparison of the chemical machine vs. academic Join Calculus](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-academic-join-calculus)
+#### [Comparison of the chemical machine vs. academic Join Calculus](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-academic-join-calculus)
 
-### [Comparison of the chemical machine vs. the Actor model](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-actor-model)
+#### [Comparison of the chemical machine vs. the Actor model](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-actor-model)
 
-### [Comparison of the chemical machine vs. the coroutines / channels approach (CSP)](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-csp)
+#### [Comparison of the chemical machine vs. the coroutines / channels approach (CSP)](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-csp)
 
-### [Technical documentation for `Chymyst Core`](docs/chymyst-core.md).
+#### [Technical documentation for `Chymyst Core`](docs/chymyst-core.md).
 
-### [Source code repository for `Chymyst Core`](https://github.com/Chymyst/chymyst-core)
+#### [Source code repository for `Chymyst Core`](https://github.com/Chymyst/chymyst-core)
 
-# Status
+
+#### [Version history and roadmap](roadmap.md)
+
+
+## Status
 
 The `Chymyst Core` library is in alpha pre-release, with very few API changes envisioned for the future.
 
