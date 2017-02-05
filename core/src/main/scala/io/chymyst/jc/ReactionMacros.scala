@@ -663,9 +663,6 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   def guardVarsConstrainOnlyThisMolecule(guardVarList: List[Ident], moleculeFlag: InputPatternFlag): Boolean =
     guardVarList.forall(moleculeFlag.containsVar)
 
-  def guardVarsConstrainThisMolecule(guardVarList: List[Ident], moleculeFlag: InputPatternFlag): Boolean =
-    guardVarList.exists(moleculeFlag.containsVar)
-
   def mergeGuards(treeVarsSeq: List[(Tree, List[Ident])]): Option[Tree] =
     treeVarsSeq
       .map(_._1)
