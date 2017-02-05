@@ -292,7 +292,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       .groupBy(_._3)
       .mapValues(_.map { case (guardTree, vars, _) ⇒ (guardTree, vars) })
         .toList
-      .sortBy { case (indices, _) ⇒ indices.length}.reverse
+      .sortBy { case (indices, _) ⇒ (indices.length, indices.max)}.reverse
       // Now we have List[(indices: List[Int], List[(guardTree: Tree, vars: List[Ident])])] sorted in decreasing complexity order.
       .map { case (indicesOfConstrainedMols, guardsSubtreesAndIdents) ⇒
       // Collect and merge all cross-molecule guards that constrain the same set of indices.
@@ -344,7 +344,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
   } else {
     val allGuardSymbols = guardVarsSeq
       .map(_._2.map(identToScalaSymbol).distinct.toArray)
-      .filter(_.nonEmpty).toArray
+      .filter(_.nonEmpty).distinct. toArray
     q"GuardPresent($allGuardSymbols, $staticGuardTree, $crossGuards)"
   }
 

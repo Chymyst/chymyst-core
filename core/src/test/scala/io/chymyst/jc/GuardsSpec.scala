@@ -399,6 +399,28 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(x if ?) + a(y) => "
   }
 
+  it should "merge cross guard with simple pattern variables" in {
+    val a = m[Int]
+
+    val n = 10
+
+    val result = go { case a(x) + a(y) if x > n && x > y && y + 2 > x => }
+
+    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x), Array('x, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), _))) => }
+    result.info.toString shouldEqual "a(x if ?) + a(y if ?) if(x,y) => "
+  }
+
+  it should "merge cross guard with multiple pattern variables" in {
+    val a = m[(Int, Int)]
+
+    val n = 10
+
+    val result = go { case a((p,q)) + a((x,y)) if x > n && x > y && x + 1 > p + 1 && y > q => }
+
+    result.info.guardPresence should matchPattern { case GuardPresent(Array(Array('x), Array('x, 'y)), None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), _))) => }
+    result.info.toString shouldEqual "a(x if ?) + a(y if ?) if(x,y) => "
+  }
+
   behavior of "guard conditions with repeated molecules"
 
   it should "correctly order input molecules and run reaction" in {
