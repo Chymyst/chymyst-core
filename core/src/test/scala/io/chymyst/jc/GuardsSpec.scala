@@ -404,9 +404,9 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val n = 10
 
-    val result = go { case a(x) + a(y) if x > n && x > y && y + 2 > x => }
+    val result = go { case a(x) + a(y) if x > n && x > y && y + 2 > x ⇒ }
 
-    result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), _))) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), _))) ⇒ }
     result.info.toString shouldEqual "a(x if ?) + a(y) if(x,y) => "
   }
 
@@ -415,10 +415,53 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     val n = 10
 
-    val result = go { case a((p, q)) + a((x, y)) if x > n && x > y && x + 1 > p + 1 && y > q => }
+    val result = go { case a((p, q)) + a((x, y)) if x > n && x > y && x + 1 > p + 1 && y > q ⇒ }
 
-    result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'p, 'y, 'q), _))) => }
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'p, 'y, 'q), _))) ⇒ }
     result.info.toString shouldEqual "a(?x,y) + a(p,q) if(x,p,y,q) => "
+    (result.info.guardPresence match {
+      case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'p, 'y, 'q), cond))) ⇒
+        cond.isDefinedAt(List((1,2), (4,3))) shouldEqual true // x > n is not part of the cross-molecule guard
+        cond.isDefinedAt(List((1,3), (4,3))) shouldEqual false
+        cond.isDefinedAt(List((4,2), (4,3))) shouldEqual false
+        cond.isDefinedAt(List((1,2), (3,4))) shouldEqual true // x > y is not part of the cross-molecule guard
+        cond.isDefinedAt(List((1,3), (4,3))) shouldEqual false
+        true
+      case _ ⇒ false
+    }) shouldEqual true
+  }
+
+  it should "merge cross guard for Game of Life reaction" in {
+    case class Cell(x: Int, y: Int, t: Int, state: Int, label: (Int, Int))
+    val c = m[Cell]
+
+    // One reaction with one molecule `c` implements the entire Game of Life computation.
+    // Shifted positions are represented by the "Cell#label" field.
+    val result = go { case
+      c(Cell(x0, y0, t0, state0, (0, 0))) +
+        c(Cell(x1, y1, t1, state1, (1, 0))) +
+        c(Cell(x2, y2, t2, state2, (-1, 0))) +
+        c(Cell(x3, y3, t3, state3, (0, 1))) +
+        c(Cell(x4, y4, t4, state4, (1, 1))) +
+        c(Cell(x5, y5, t5, state5, (-1, 1))) +
+        c(Cell(x6, y6, t6, state6, (0, -1))) +
+        c(Cell(x7, y7, t7, state7, (1, -1))) +
+        c(Cell(x8, y8, t8, state8, (-1, -1)))
+      if x0 == x1 && x0 == x2 && x0 == x3 && x0 == x4 && x0 == x5 && x0 == x6 && x0 == x7 && x0 == x8 &&
+        y0 == y1 && y0 == y2 && y0 == y3 && y0 == y4 && y0 == y5 && y0 == y6 && y0 == y7 && y0 == y8 &&
+        t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 && t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 ⇒
+    }
+    result.info.guardPresence should matchPattern { case GuardPresent(None, Array(
+      CrossMoleculeGuard(Array(0, 1), Array('x0, 'x1, 'y0, 'y1, 't0, 't1), _)
+    , CrossMoleculeGuard(Array(0, 2), Array('x0, 'x2, 'y0, 'y2, 't0, 't2), _)
+    , CrossMoleculeGuard(Array(0, 3), Array('x0, 'x3, 'y0, 'y3, 't0, 't3), _)
+    , CrossMoleculeGuard(Array(0, 4), Array('x0, 'x4, 'y0, 'y4, 't0, 't4), _)
+    , CrossMoleculeGuard(Array(0, 5), Array('x0, 'x5, 'y0, 'y5, 't0, 't5), _)
+    , CrossMoleculeGuard(Array(0, 6), Array('x0, 'x6, 'y0, 'y6, 't0, 't6), _)
+    , CrossMoleculeGuard(Array(0, 7), Array('x0, 'x7, 'y0, 'y7, 't0, 't7), _)
+    , CrossMoleculeGuard(Array(0, 8), Array('x0, 'x8, 'y0, 'y8, 't0, 't8), _)
+    )) ⇒
+    }
   }
 
   behavior of "guard conditions with repeated molecules"

@@ -25,20 +25,20 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "compute sha1 of tuple value" in {
-    getSha1((123,"123")) shouldEqual "C4C7ADA9B819DFAEFE10F765BAD87ABF91A79584"
+    getSha1((123, "123")) shouldEqual "C4C7ADA9B819DFAEFE10F765BAD87ABF91A79584"
   }
 
   it should "compute sha1 of List value" in {
-    getSha1(List(123,456)) shouldEqual "537DC011B1ED7084849573D8921BDB6EE1F87154"
+    getSha1(List(123, 456)) shouldEqual "537DC011B1ED7084849573D8921BDB6EE1F87154"
   }
 
   it should "compute sha1 of integer tuple value" in {
-    getSha1((123,456)) shouldEqual "CE528A746B9311801806D4C802FB08D1FE66DC7F"
+    getSha1((123, 456)) shouldEqual "CE528A746B9311801806D4C802FB08D1FE66DC7F"
   }
 
   it should "compute sha1 of case class value" in {
     case class A(b: Int, c: Int)
-    getSha1(A(123,456)) shouldEqual "7E4D82CC624252B788D54BCE49D0A1380436E846"
+    getSha1(A(123, 456)) shouldEqual "7E4D82CC624252B788D54BCE49D0A1380436E846"
   }
 
   behavior of "monadic Either"
@@ -65,7 +65,9 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val q = for {
       c <- if (3 < 0) Right(123) else Left("bad")
-    _ = { notLazy = true}
+      _ = {
+        notLazy = true
+      }
       d <- if (c > 0) Right(456) else Left("no")
     } yield c + d
 
@@ -73,6 +75,8 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     notLazy shouldEqual false
   }
+
+  behavior of "auxiliary fold ops"
 
   it should "support findAfterMap for Seq" in {
     Seq(1, 2, 3).findAfterMap(x => if (x % 2 == 0) Some(x) else None) shouldEqual Some(2)
@@ -94,15 +98,34 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
   behavior of "cleanup utility"
 
   it should "react to exception during doWork" in {
-    val tryResult = cleanup{123}{_ => ()}{ _ => throw new Exception("ignore this exception")}
+    val tryResult = cleanup {
+      123
+    } { _ => () } { _ => throw new Exception("ignore this exception") }
     tryResult.isFailure shouldEqual true
     tryResult.failed.get.getMessage shouldEqual "ignore this exception"
   }
 
   it should "react to exception during resource cleanup" in {
-    val tryResult = cleanup{123}{_ => throw new Exception("failed to cleanup - ignore this exception")}{ _ => throw new Exception("ignore this exception")}
+    val tryResult = cleanup {
+      123
+    } { _ => throw new Exception("failed to cleanup - ignore this exception") } { _ => throw new Exception("ignore this exception") }
     tryResult.isFailure shouldEqual true
     tryResult.failed.get.getMessage shouldEqual "ignore this exception"
+  }
+
+  behavior of "intHash"
+
+  it should "compute correct values for arrays" in {
+    intHash(Array[Int]()) shouldEqual 0
+    intHash(Array(10)) shouldEqual 10
+
+    intHash(Array(10, 20)) shouldEqual 2 * 10 + 20
+    intHash(Array(10, 20, 30)) shouldEqual (10 * 3 + 20) * 3 + 30
+    intHash(Array(100, 200)) should not equal intHash(Array(200, 100))
+    intHash(Array(100, 200, 300)) should not equal intHash(Array(300, 200, 100))
+
+    intHash(Array(1,2)) should be < intHash(Array(2,3))
+    intHash(Array(0,3)) should be < intHash(Array(1,2))
   }
 
 }
