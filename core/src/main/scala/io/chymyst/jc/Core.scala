@@ -185,4 +185,5 @@ object Core {
     }
   }
 
+  def intHash(s: Seq[Int]): Int = s.foldLeft(0)(_ * s.length + _)
 }
