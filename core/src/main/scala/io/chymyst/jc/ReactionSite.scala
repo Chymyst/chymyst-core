@@ -72,7 +72,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private var logLevel = 0
 
   private def printBag: String = {
-    val moleculesPrettyPrinted = if (moleculesPresent.size > 0) s"Molecules: ${moleculeBagToString(moleculesPresent)}" else "No molecules"
+    val moleculesPrettyPrinted = if (moleculesPresent.size > 0)
+      s"Molecules: ${moleculeBagToString(moleculesPresent)}"
+    else "No molecules"
 
     s"$toString\n$moleculesPrettyPrinted"
   }
