@@ -64,7 +64,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  A cycle of input molecules being subset of output molecules, possibly spanning several reaction sites (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.  - This depends on better detection of output environments.
  
  3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
- Also define a "shut down" molecule which will enforce quiescence and then shut down the join pool and the reaction pool.
+ Also define a "shut down" molecule which will enforce quiescence and then shut down the site pool and the reaction pool.
 
  2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for statics / pipelined?
 
@@ -84,7 +84,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 
  3 * 5 - implement automatic thread fusion for static molecules?
  
- 5 * 5 - is it possible to implement distributed execution by sharing the join pool with another machine (but running the reaction sites only on the master node)? Use Paxos, Raft, or other consensus algorithm to ensure consistency?
+ 5 * 5 - is it possible to implement distributed execution by sharing the site pool with another machine (but running the reaction sites only on the master node)? Use Paxos, Raft, or other consensus algorithm to ensure consistency?
 
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic. — Will not do now. Not sure that lazy values on molecules are important as a primitive. We can always simulate them using closures.
 
@@ -100,7 +100,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 
  2 * 2 - make memory profiling / benchmarking; how many molecules can we have per 1 GB of RAM?
 
- 2 * 2 - annotate join pools with names. Make a macro for auto-naming join pools of various kinds.
+ 2 * 2 - annotate thread pools with names. Make a macro for auto-naming thread pools of various kinds.
 
  2 * 2 - add tests for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
 

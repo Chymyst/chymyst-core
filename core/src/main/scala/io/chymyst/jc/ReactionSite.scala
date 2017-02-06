@@ -310,7 +310,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       throw new ExceptionNoReactionSite(noReactionMessage)
     }
     else if (sitePool.isInactive) {
-      lazy val noPoolMessage = s"In $this: Cannot emit molecule $m($molValue) because join pool is not active"
+      lazy val noPoolMessage = s"In $this: Cannot emit molecule $m($molValue) because site pool is not active"
       throw new ExceptionNoSitePool(noPoolMessage)
     }
     else if (!Thread.currentThread().isInterrupted) {
