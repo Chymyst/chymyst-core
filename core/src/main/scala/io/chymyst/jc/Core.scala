@@ -1,6 +1,7 @@
 package io.chymyst.jc
 
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicLong
 
 import scala.annotation.tailrec
 import scala.collection.mutable
@@ -28,6 +29,10 @@ object TypeMustBeUnitValue extends TypeMustBeUnit[Unit] {
 
 object Core {
   private lazy val sha1Digest = java.security.MessageDigest.getInstance("SHA-1")
+
+  private val longId: AtomicLong = new AtomicLong(0L)
+
+  private[jc] def getNextId: Long = longId.incrementAndGet()
 
   def getSha1String(c: String): String = sha1Digest.digest(c.getBytes("UTF-8")).map("%02X".format(_)).mkString
 

@@ -33,8 +33,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     emitAndAwaitReply = (mol, molValue, replyValue) => emitAndAwaitReply[T, R](mol, molValue, replyValue),
     emitAndAwaitReplyWithTimeout = (timeout, mol, molValue, replyValue) => emitAndAwaitReplyWithTimeout[T, R](timeout, mol, molValue, replyValue),
     consumingReactions = reactionInfos.keys.filter(_.inputMoleculesSet contains molecule).toList,
-    sameReactionSite = _ === this
+    sameReactionSite = _.id === this.id
   )
+
+  private val id: Long = getNextId
 
   private val (nonStaticReactions, staticReactions) = reactions.partition(_.inputMolecules.nonEmpty)
 
@@ -72,7 +74,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def printBag: String = {
     val moleculesPrettyPrinted = if (moleculesPresent.size > 0) s"Molecules: ${moleculeBagToString(moleculesPresent)}" else "No molecules"
 
-    s"${this.toString}\n$moleculesPrettyPrinted"
+    s"$toString\n$moleculesPrettyPrinted"
   }
 
   private val newMoleculeQueue: ConcurrentLinkedQueue[(Molecule, AbsMolValue[_])] = new ConcurrentLinkedQueue()
