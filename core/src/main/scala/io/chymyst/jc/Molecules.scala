@@ -160,7 +160,7 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
     */
   def apply(v: T): Unit = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, Unit]].emit(this, MolValue(v))
 
-  def apply()(implicit ev: TypeIsUnit[T]): Unit = apply(ev.getUnit)
+  def apply()(implicit arg: TypeMustBeUnit[T]): Unit = apply(arg.getUnit)
 
   /** Volatile reader for a molecule.
     * The molecule must be declared as static.
@@ -325,25 +325,29 @@ private[jc] final class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[
 
   /** Perform a reply action for a blocking molecule without checking the timeout status (this is slightly faster).
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
+    * If a timeout occurred after the reaction body started evaluating but before the reply action was performed, the reply value will not be actually sent anywhere.
+    * This method will not fail in that case, but since it returns `Unit`, the user will not know whether the reply succeeded.
     *
     * @param x Value to reply with.
-    * @return Unit value.
+    * @return Unit value, regardless of whether the reply succeeded before timeout.
     */
   def apply(x: R): Unit = performReplyActionWithoutTimeoutCheck(x)
 
   /** Same but for molecules with type `R = Unit`. */
-  def apply()(implicit ev: TypeIsUnit[R]): Unit = apply(ev.getUnit)
+  def apply()(implicit arg: TypeMustBeUnit[R]): Unit = apply(arg.getUnit)
 
-  /** Perform a reply action for a blocking molecule while checking the timeout status.
+  /** Perform a reply action for a blocking molecule with a check of the timeout status.
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
+    * If a timeout occurred after the reaction body started evaluating but before the reply action was performed, the reply value will not be actually sent anywhere.
+    * This method will return `false` in that case.
     *
     * @param x Value to reply with.
-    * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
+    * @return `true` if the reply was successful, `false` if the blocking molecule timed out, or if a reply action was already performed.
     */
   def checkTimeout(x: R): Boolean = performReplyAction(x)
 
-  /** Same but for molecules with type `R = Unit`, with shorter syntax. */
-  def checkTimeout()(implicit ev: TypeIsUnit[R]): Boolean = checkTimeout(ev.getUnit)
+  /** Same as [[checkTimeout]] above but for molecules with type `R = Unit`, with shorter syntax. */
+  def checkTimeout()(implicit arg: TypeMustBeUnit[R]): Boolean = checkTimeout(arg.getUnit)
 }
 
 /** Blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -366,7 +370,7 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     .emitAndAwaitReplyWithTimeout(duration.toNanos, this, v, new ReplyValue[T, R])
 
   /** Same but for molecules with type `T = Unit`, with shorter syntax. */
-  def timeout()(duration: Duration)(implicit ev: TypeIsUnit[T]): Option[R] = timeout(ev.getUnit)(duration)
+  def timeout()(duration: Duration)(implicit arg: TypeMustBeUnit[T]): Option[R] = timeout(arg.getUnit)(duration)
 
   /** Perform the unapply matching and return a wrapped ReplyValue on success.
     *
@@ -389,7 +393,7 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     .emitAndAwaitReply(this, v, new ReplyValue[T, R])
 
   /** This enables the short syntax `b()` and will only work when `T == Unit`. */
-  def apply()(implicit ev: TypeIsUnit[T]): R = apply(ev.getUnit)
+  def apply()(implicit arg: TypeMustBeUnit[T]): R = apply(arg.getUnit)
 
   override private[jc] def setReactionSite(rs: ReactionSite): Unit = {
     hasReactionSite = true

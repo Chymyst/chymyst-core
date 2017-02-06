@@ -102,6 +102,6 @@ package object jc {
     }
   }
 
-  implicit val typeIsUnit: TypeIsUnit[Unit] = TypeIsUnitValue
+  implicit val _: TypeMustBeUnit[Unit] = TypeMustBeUnitValue
 
 }

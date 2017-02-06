@@ -3,8 +3,6 @@ package io.chymyst.jc
 import io.chymyst.jc.Core.ReactionBody
 import org.scalatest.{FlatSpec, Matchers}
 
-import scala.concurrent.duration._
-
 // Note: Compilation of this test suite will generate warnings such as "crushing into 2-tuple". This is expected and cannot be avoided.
 
 class MacroErrorSpec extends FlatSpec with Matchers {
@@ -12,24 +10,14 @@ class MacroErrorSpec extends FlatSpec with Matchers {
   behavior of "miscellaneous compile-time errors"
 
   it should "fail to compile molecules with non-unit types emitted as a()" in {
-    val a = m[Int]
     val c = m[Unit]
-    val f = b[Int, Int]
-    a.name shouldEqual "a"
-    c.name shouldEqual "c"
-    f.name shouldEqual "f"
 
-    1.second shouldEqual 1000.millis
+    // These should compile.
+    val x1 = c(())
+    val x2 = c()
+    val x3 = c(123) // non-Unit value 123 is discarded, but it's only a warning
 
-    "val x = c(())" should compile
-    "val x = c()" should compile
-    "val x = c(123)" should compile // non-Unit value 123 is discarded, but it's only a warning
-
-    "val x = a()" shouldNot compile
-    "val x = f()" shouldNot compile
-    "val x = f.timeout()(1 second)" shouldNot compile
-    "val r = go { case f(_, r) => r() } " shouldNot compile
-    "val r = go { case f(_, r) => r.checkTimeout() } " shouldNot compile
+    (x1, x2, x3) shouldEqual (((),(),()))
   }
 
   it should "support concise syntax for Unit-typed molecules" in {
@@ -37,9 +25,6 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val f = new B[Unit, Unit]("f")
     val h = b[Unit, Boolean]
     val g = b[Unit, Unit]
-    a.name shouldEqual "a"
-    f.name shouldEqual "f"
-    g.name shouldEqual "g"
     // This should compile without any argument adaptation warnings:
     go { case a(_) + f(_, r) + g(_, s) + h(_, q) => a() + s() + f(); val status = r.checkTimeout(); q(status) }
   }

@@ -11,16 +11,16 @@ import scala.util.{Left, Right}
   *
   * @tparam A Type of the molecule value. If this is `Unit`, we will have an implicit value of type `TypeIsUnit[A]`, which will provide extra functionality.
   */
-sealed trait TypeIsUnit[A] {
+sealed trait TypeMustBeUnit[A] {
   type UnapplyType
 
   def getUnit: A
 }
 
 /** Syntax helper for molecules with unit values.
-  *
+  * A value of [[TypeMustBeUnit]]`[A]` is available only for `A == Unit`.
   */
-object TypeIsUnitValue extends TypeIsUnit[Unit] {
+object TypeMustBeUnitValue extends TypeMustBeUnit[Unit] {
   override type UnapplyType = Boolean
 
   override def getUnit: Unit = ()

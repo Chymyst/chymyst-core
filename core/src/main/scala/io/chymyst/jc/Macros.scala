@@ -11,19 +11,17 @@ class CommonMacros(val c: blackbox.Context) {
   import c.universe._
 
   def rawTreeImpl(x: c.Expr[Any]): Tree = {
-    import c.universe._
     val result = showRaw(x.tree)
     q"$result"
   }
 
   def getNameImpl: Tree = {
-    import c.universe._
     val s = getEnclosingName
     q"$s"
   }
 
   /** Detect the enclosing name of an expression.
-    * For example: `val x = "name is " + getName` will set x to the string "name is x".
+    * For example: `val x = "name is " + getName` will set `x` to the string `"name is x"`.
     *
     * @return String that represents the name of the enclosing value.
     */
@@ -39,11 +37,11 @@ class CommonMacros(val c: blackbox.Context) {
 
   /** Describes the pattern matcher for input molecules.
     * Possible values:
-    * Wildcard: a(_)
-    * SimpleVar: a(x)
-    * ConstInputPattern: a(1)
-    * WrongReplyVar: the second matcher for blocking molecules is not a simple variable
-    * OtherPattern: we don't recognize the pattern (could be a case class or a general Unapply expression)
+    * [[WildcardF]] for `case a(_) ⇒`
+    * [[SimpleVarF]] for `case a(x) ⇒`
+    * [[ConstantPatternF]] for `case a(1) ⇒`
+    * [[WrongReplyVarF]]: the reply matcher for blocking molecules is not a simple variable, e.g. `case f(_, _)` instead of `case f(_, r)`
+    * [[OtherInputPatternF]]: none of the above (could be a case class or a general `unapply` expression)
     */
   sealed trait InputPatternFlag {
     def patternSha1(showCode: Tree => String): String = ""
@@ -86,20 +84,22 @@ class CommonMacros(val c: blackbox.Context) {
     */
   case object WrongReplyVarF extends InputPatternFlag
 
-  /** The pattern represents a constant, which can be a literal constant such as "abc" or a compound type such as (2,3) or (Some(2),3,4).
-    * The value v represents a value of the [T] type of M[T] or B[T,R].
+  /** The pattern represents a constant, which can be a literal constant such as `"abc"`
+    *  or a compound type such as `(2, 3)` or `(Some(2), 3, 4)`.
+    * The value `v` represents a value of the `[T]` type of [[M]]`[T]` or [[B]]`[T,R]`.
     */
   final case class ConstantPatternF(v: Tree) extends InputPatternFlag {
     override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(v))
   }
 
-  /** Nontrivial pattern matching expression that could contain unapply, destructuring, and pattern @ variables.
-    * For example, if c is a molecule then this could be c( z@(x, Some(y)) )
-    * In that case, vars = List("z", "x", "y") and matcher = { case z@(x, Some(y)) => (z, x, y) }
+  /** Nontrivial pattern matching expression that could contain `unapply`, destructuring, and pattern `@` variables.
+    * For instance, if `c` is a molecule with values of type `(Int, Option[Int])`
+    * then and example of nontrivial pattern match could be `c( z@(x, Some(y)) )`.
+    * In this example, we will have `vars = List("z", "x", "y")` and `matcher = { case z@(x, Some(y)) => (z, x, y) }`.
     *
-    * @param matcher Tree of a partial function of type Any => Any.
+    * @param matcher Tree of a partial function of type `Any => Any`.
     * @param guard   `None` if the pattern is irrefutable; `Some(guard expression tree)` if the pattern is not irrefutable and potentially requires a guard condition.
-    * @param vars    List of pattern variable names in the order of their appearance in the syntax tree.
+    * @param vars    List of pattern variables in the order of their appearance in the syntax tree.
     */
   final case class OtherInputPatternF(matcher: Tree, guard: Option[Tree], vars: List[Ident]) extends InputPatternFlag {
     override def needTraversing: Boolean = true
@@ -220,10 +220,6 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
     // If the CNF is empty, the entire guard is identically `true`. We can remove it altogether.
     val isGuardAbsent = guardCNF.isEmpty
-    //    || (guard match {
-    //      case EmptyTree => true;
-    //      case _ => false
-    //    })
 
     val guardVarsSeq: List[(Tree, List[Ident])] = guardCNF.map {
       guardDisjunctions =>
@@ -292,7 +288,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       .groupBy(_._3)
       .mapValues(_.map { case (guardTree, vars, _) ⇒ (guardTree, vars) })
       .toList
-      .sortBy { case (indices, _) ⇒ (indices.length, - intHash(indices)) }.reverse
+      .sortBy { case (indices, _) ⇒ (indices.length, -intHash(indices)) }.reverse
       // Now we have List[(indices: List[Int], List[(guardTree: Tree, vars: List[Ident])])] sorted in decreasing complexity order.
       .map { case (indicesOfConstrainedMols, guardsSubtreesAndIdents) ⇒
       // Collect and merge all cross-molecule guards that constrain the same set of indices.
@@ -366,7 +362,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     maybeError("blocking molecules", "but possibly multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
 
     if (patternIn.isEmpty && !isStaticReaction(pattern, guard, body)) // go { case x => ... }
-      reportError("Reaction input must be `_` or must contain some input molecules")
+      reportError(s"Reaction input must be `_` or must contain some input molecules, but is ${showCode(pattern)}")
 
     if (isStaticReaction(pattern, guard, body) && bodyOut.isEmpty)
       reportError("Static reaction must emit some output molecules")
