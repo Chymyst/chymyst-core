@@ -88,7 +88,7 @@ lazy val core = (project in file("core"))
     wartremoverErrors in(Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      "org.scalatest" %% "scalatest" % "3.0.0" % Test,
+      "org.scalatest" %% "scalatest" % "3.0.1" % Test,
       "org.scalacheck" %% "scalacheck" % "1.13.4" % Test,
       "com.lihaoyi" %% "utest" % "0.4.5" % Test,
 
@@ -112,7 +112,7 @@ lazy val benchmark = (project in file("benchmark"))
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
     parallelExecution in Test := false,
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.0.0" % Test
+      "org.scalatest" %% "scalatest" % "3.0.1" % Test
     )
   ).dependsOn(core)
 
