@@ -461,13 +461,13 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType,
   * @param reactionString String representation of the reaction, used for error messages.
   */
 final class ChymystThreadInfo(
-                               statics: Seq[Molecule] = Seq(),
+                               statics: Set[Molecule] = Set(),
                                reactionString: String = "<no reaction>"
                              ) {
   override val toString: String = reactionString
 
   private[jc] val maybeEmit: Molecule => Boolean = {
-    val allowedToEmit = mutable.Set[Molecule](statics: _*)
+    val allowedToEmit: mutable.Set[Molecule] = mutable.Set() ++ statics
 
     { m: Molecule => allowedToEmit.remove(m) }
   }
@@ -483,7 +483,7 @@ final class ReactionInfo(
                           private[jc] val guardPresence: GuardPresenceFlag,
                           private[jc] val sha1: String
                         ) {
-  private[jc] lazy val staticMols: Seq[Molecule] = inputs.map(_.molecule).filter(_.isStatic)
+  private[jc] lazy val staticMols = inputs.map(_.molecule).filter(_.isStatic).toSet
 
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
@@ -659,7 +659,7 @@ final case class Reaction(
   }
 
   /** Find a set of input molecules for this reaction, under the condition that `m(molValue)` must be one of the input molecules. */
-  private[jc] def findInputMolecules(m: Molecule, molValue: AbsMolValue[_], moleculesPresent: MoleculeBag): Option[(Reaction, InputMoleculeList)] = {
+  private[jc] def findInputMolecules(m: Molecule, moleculesPresent: MoleculeBag): Option[(Reaction, InputMoleculeList)] = {
     // Evaluate the static guard first. If the static guard fails, we don't need to run the reaction or look for any input molecules.
     if (info.guardPresence.staticGuardFails)
       None
@@ -669,36 +669,40 @@ final case class Reaction(
       // Then evaluate cross-molecule guards and filter this sequence. Take `headOption` of the resulting sequence.
 
       // Map of molecule values for molecules that are inputs to this reaction.
-      val initRelevantMap = moleculesPresent.getMap.filterKeys(m => inputMoleculesSet.contains(m))
+      val initRelevantMap: BagMap = moleculesPresent.getMap.filterKeys(m => inputMoleculesSet.contains(m))
+
+      type MolVals = Map[Int, AbsMolValue[_]]
+      type ValsMap = Map[AbsMolValue[_], Int]
+      type FoldType = (MolVals, BagMap)
 
       // A simpler, non-flatMap algorithm for the case when there are no cross-dependencies of molecule values.
-      val foundResult: Option[Map[Int, AbsMolValue[_]]] =
+      val foundResult: Option[MolVals] =
         if (info.crossGuards.isEmpty && info.crossConditionals.isEmpty) {
-          // Adding `toStream` so that this becomes `info.inputsSorted.toStream.flatFoldLeft...` will slow down the Game of Life benchmark by 2x.
-          info.inputsSorted.flatFoldLeft[(Map[Int, AbsMolValue[_]], BagMap)]((Map(), initRelevantMap)) { (prev, inputInfo) =>
+          // Adding `toStream` so that this becomes `info.inputsSorted.toStream.flatFoldLeft` will slow down the Game of Life benchmark by 2x.
+          info.inputsSorted.flatFoldLeft[FoldType]((Map(), initRelevantMap)) { (prev, inputInfo) =>
             // Since we are in a flatFoldLeft, we need to return Some(...) if we found a new value, or else return None.
             val (prevValues, prevRelevantMap) = prev
-            val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
+            val valuesMap: ValsMap = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
             valuesMap.keysIterator
-              .find(v => inputInfo.admitsValue(v))
+              .find(inputInfo.admitsValue)
               .map { newMolValue =>
                 val newRelevantMap = removeFromBagMap(prevRelevantMap, inputInfo.molecule, newMolValue)
                 val newValues = prevValues.updated(inputInfo.index, newMolValue)
                 (newValues, newRelevantMap)
               }
-          }.map(_._1) // Now remove BagMap, and only `Option[Map[Int, AbsMolValue[_]]]` is left.
+          }.map(_._1) // Now remove BagMap, and only `Option[MolVals]` is left.
         } else {
           // TODO: only use the `flatMap-fold` separately for the clusters of interdependent molecules, not always for all molecules!
-          val found: Stream[Map[Int, AbsMolValue[_]]] =
+          val found: Stream[MolVals] =
             info.inputsSorted // We go through all molecules in the order of decreasing strength of conditionals.
-              .foldLeft[Stream[(Map[Int, AbsMolValue[_]], BagMap)]](Stream((Map(), initRelevantMap))) { (prev, inputInfo) =>
+              .foldLeft[Stream[FoldType]](Stream[FoldType]((Map(), initRelevantMap))) { (prev, inputInfo) =>
               // In this `foldLeft` closure:
               // `prev` contains the molecule value assignments we have found so far (`prevValues`), as well as the map `prevRelevantMap` containing molecule values that would remain in the soup after these previous molecule values were removed.
               // `inputInfo` describes the pattern matcher for the input molecule we are currently required to find.
               // We need to find all admissible assignments of values for that input molecule, and return them as a stream of pairs (newValues, newRelevantMap).
               prev.flatMap {
                 case (prevValues, prevRelevantMap) =>
-                  val valuesMap: Map[AbsMolValue[_], Int] = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
+                  val valuesMap: ValsMap = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
                   val newFound = for {
                     newMolValue <-
                     // This does not work... not sure why.
@@ -708,7 +712,7 @@ final case class Reaction(
                     // If this molecule is independent of others and has a trivial matcher, it suffices to select any of the existing values for that molecule.
                       valuesMap.headOption.map(_._1).toStream
                     else // Do not eagerly evaluate the list of all possible values.
-                      valuesMap.keysIterator.toStream.filter(v => inputInfo.admitsValue(v))
+                      valuesMap.keysIterator.toStream.filter(inputInfo.admitsValue)
 
                     newRelevantMap = removeFromBagMap(prevRelevantMap, inputInfo.molecule, newMolValue)
                     newValues = prevValues.updated(inputInfo.index, newMolValue)

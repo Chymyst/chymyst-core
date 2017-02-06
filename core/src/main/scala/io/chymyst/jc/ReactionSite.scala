@@ -80,28 +80,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def decideReactionsForNewMolecule(m: Molecule, molValue: AbsMolValue[_]): Unit = try {
     val foundReactionAndInputs =
       moleculesPresent.synchronized {
-        if (m.isStatic) {
-          // This thread is allowed to emit a static molecule; but are there already enough copies of this molecule?
-          // TODO: Move this to emit() once we can determine the static molecule count outside of this synchronized block
-          val oldCount = moleculesPresent.getCount(m)
-          val maxCount = staticMolsEmitted.getOrElse(m, 0)
-          if (oldCount + 1 > maxCount) throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit static molecule $m($molValue) having current count $oldCount, max count $maxCount")
-
-          // OK, we can proceed to emit this static molecule.
-          // Assign the volatile value. We don't have its type here, so we downcast to M[_].
-          m.asInstanceOf[M[_]].assignStaticMolVolatileValue(molValue)
-        }
-
         moleculesPresent.addToBag(m, molValue)
         lazy val emitMoleculeMessage = s"Debug: $this emitting $m($molValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]"
         if (logLevel > 0) println(emitMoleculeMessage)
 
-        val found = findReaction(m, molValue) // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction, and that consume `m(molValue)`.
+        // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction, and that consume `m(molValue)`.
+        val found: Option[(Reaction, InputMoleculeList)] = findReaction(m)
 
-        found.foreach {
-          case (_, inputsFound) =>
-            inputsFound.foreach { case (k, v) => moleculesPresent.removeFromBag(k, v) }
-        }
+        found.foreach(_._2.foreach { case (k, v) => moleculesPresent.removeFromBag(k, v) })
         found
       } // End of synchronized block.
 
@@ -270,16 +256,16 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
   }
 
-  private def findReaction(m: Molecule, molValue: AbsMolValue[_]): Option[(Reaction, InputMoleculeList)] = {
+  private def findReaction(m: Molecule): Option[(Reaction, InputMoleculeList)] = {
     m.consumingReactions.flatMap(r =>
       r.shuffle // The shuffle will ensure fairness across reactions.
         // We only need to find one reaction whose input molecules are available. For this, we use the special `Core.findAfterMap`.
-        .findAfterMap(_.findInputMolecules(m, molValue, moleculesPresent))
+        .findAfterMap(_.findInputMolecules(m, moleculesPresent))
     )
   }
 
-  /** Check permission for the current thread to emit a static molecule.
-    * If permitted, remove the emitter from the mutable set.
+  /** Check if the current thread is allowed to emit a static molecule.
+    * If so, remove the emitter from the mutable set.
     *
     * @param m A static molecule emitter.
     * @return `()` if the thread is allowed to emit that molecule. Otherwise, an exception is thrown with a refusal reason message.
@@ -337,12 +323,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit molecule $m($molValue) as static (must be a non-blocking molecule)")
         }
       } else {
-        if (m.isStatic)
-        // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
-        // If successful, this will modify the thread's copy of `ChymystThreadInfo` to register the fact that we emitted that static molecule.
+        if (m.isStatic) {
+          // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
+          // If successful, this will modify the thread's copy of `ChymystThreadInfo` to register the fact that we emitted that static molecule.
           registerEmittedStaticMolOrThrow(m, refusalReason =>
             throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit static molecule $m($molValue) $refusalReason")
           )
+          m.asInstanceOf[M[T]].assignStaticMolVolatileValue(molValue)
+        }
         // If we are here, we are allowed to emit.
         newMoleculeQueue.add((m, molValue))
         sitePool.runRunnable(emissionRunnable)
@@ -460,11 +448,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val staticMolsDiagnostics = WarningsAndErrors(staticMolsEmissionWarnings, staticMolsEmissionErrors, s"$this")
     val diagnostics = staticDiagnostics ++ staticMolsDiagnostics
 
-    (staticMolsActuallyEmitted, diagnostics)
+    (staticMolsActuallyEmitted, diagnostics) // Not sure if we still want `staticMolsActuallyEmitted` stored in the RS class.
   }
 
   // This is run when this ReactionSite is first created.
-  private val (staticMolsEmitted: Map[Molecule, Int], diagnostics: WarningsAndErrors) = initializeReactionSite()
+  private val diagnostics: WarningsAndErrors = initializeReactionSite()._2
 
   /** Print warnings messages and throw exception if the initialization of this reaction site caused errors.
     *

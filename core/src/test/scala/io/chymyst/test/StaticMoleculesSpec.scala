@@ -271,7 +271,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
     d.volatileValue shouldEqual 123
   }
 
-  it should "read the value of the static molecule sometimes inaccurately after many changes" in {
+  it should "read the volatile value of the static molecule always accurately after many changes" in {
     val d = m[Int]
     val incr = b[Unit, Unit]
     val stabilize_d = b[Unit, Unit]
@@ -279,7 +279,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val delta_n = 1000
 
     site(tp)(
-      go { case d(x) + incr(_, r) => r(); d(x + 1) },
+      go { case d(x) + incr(_, r) => d(x + 1) + r() },
       go { case d(x) + stabilize_d(_, r) => d(x); r() }, // Await stabilizing the presence of d
       go { case _ => d(n) } // static reaction
     )
@@ -289,8 +289,8 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
     (n + 1 to n + delta_n).map { i =>
       incr.timeout()(500 millis) shouldEqual Some(())
 
-      i - d.volatileValue // this is mostly 0 but sometimes 1
-    }.sum should be > 0 // there should be some cases when d.value reads the previous value
+      i - d.volatileValue // this should be always 0 unless we have a race condition and the volatile value is assigned late
+    }.sum shouldEqual 0 // there should be some cases when d.value reads the previous value
   }
 
   it should "keep the previous value of the static molecule while update reaction is running" in {
