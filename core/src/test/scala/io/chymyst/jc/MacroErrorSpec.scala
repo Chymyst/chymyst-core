@@ -29,45 +29,6 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     go { case a(_) + f(_, r) + g(_, s) + h(_, q) => a() + s() + f(); val status = r.checkTimeout(); q(status) }
   }
 
-  it should "fail to compile a reaction with empty static clause" in {
-    "val r = go { case _ => }" shouldNot compile
-  }
-
-  it should "fail to compile a guard that replies to molecules" in {
-    val f = b[Unit, Unit]
-    val x = 2
-    x shouldEqual 2
-    f.isInstanceOf[B[Unit, Unit]] shouldEqual true
-
-    "val r = go { case f(_, r) if r() && x == 2 => }" shouldNot compile
-  }
-
-  it should "fail to compile a guard that emits molecules" in {
-    val f = b[Unit, Boolean]
-    f.isInstanceOf[B[Unit, Boolean]] shouldEqual true
-    "val r = go { case f(_, r) if f() => r(true) }" shouldNot compile
-  }
-
-  it should "fail to compile a reaction that is not defined inline" in {
-    val a = m[Unit]
-    val body: ReactionBody = {
-      case _ => a()
-    }
-    body.isInstanceOf[ReactionBody] shouldEqual true
-
-    "val r = go(body)" shouldNot compile
-  }
-
-  it should "fail to compile a reaction with two case clauses" in {
-    val a = m[Unit]
-    val b = m[Unit]
-
-    a.isInstanceOf[M[Unit]] shouldEqual true
-    b.isInstanceOf[M[Unit]] shouldEqual true
-
-    "val r = go { case a(_) =>; case b(_) => }" shouldNot compile
-  }
-
   it should "compile a reaction within scalatest scope" in {
     val x = m[Int]
     site(go { case x(_) => }) shouldEqual WarningsAndErrors(List(), List(), "Site{x => ...}")
