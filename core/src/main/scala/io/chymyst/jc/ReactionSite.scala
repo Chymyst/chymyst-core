@@ -191,7 +191,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // Running the reaction body produced an exception that is internal to `Chymyst Core`.
         // We should not try to recover from this; it is either an error on user's part
         // or a bug in `Chymyst Core`.
-        lazy val message = s"In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: ${e.getMessage}"
+        val message = s"In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: ${e.getMessage}"
         reportError(message)
         ReactionExitFailure(message)
 
@@ -205,7 +205,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           }
           else (ReactionExitFailure(e.getMessage), " Retry run was not scheduled.")
 
-        lazy val generalExceptionMessage = s"In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] produced an exception.$retryMessage Message: ${e.getMessage}"
+        val generalExceptionMessage = s"In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] produced an exception.$retryMessage Message: ${e.getMessage}"
 
         reportError(generalExceptionMessage)
         status
@@ -221,7 +221,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       .filter(_._2.reactionSentNoReply)
       .map(_._1).toSeq.toOptionSeq.map(_.map(_.toString).sorted.mkString(", "))
 
-    // Make this non-lazy to improve coverage?
+    // Make this non-lazy to improve coverage.
     val errorMessageFromStatus = exitStatus.getMessage.map(message => s". Reported error: $message").getOrElse("")
 
     lazy val messageNoReply = blockingMoleculesWithNoReply.map { s =>
