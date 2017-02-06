@@ -24,7 +24,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @tparam R The type of reply value for that molecule. If the molecule is non-blocking, `R` is set to `Unit`.
     * @return A new instance of [[ReactionSiteWrapper]] given to that molecule.
     */
-  def makeWrapper[T, R](molecule: Molecule): ReactionSiteWrapper[T, R] = new ReactionSiteWrapper[T, R](
+  private[jc] def makeWrapper[T, R](molecule: Molecule): ReactionSiteWrapper[T, R] = new ReactionSiteWrapper[T, R](
     toString,
     logSoup = () => printBag,
     setLogLevel = { level => logLevel = level },
@@ -508,6 +508,9 @@ private[jc] final class ExceptionNoStaticMol(message: String) extends ExceptionI
 /** Molecules do not have direct access to the reaction site object.
   * Molecules will call only functions from this wrapper.
   * This is intended to make it impossible to access the reaction site object via reflection on private fields in the Molecule class.
+  *
+  * Specific values of [[ReactionSiteWrapper]] are created by [[ReactionSite.makeWrapper()]]
+  * and assigned to molecule emitters by [[Molecule.setReactionSite()]]).
   */
 private[jc] final class ReactionSiteWrapper[T, R](
                                                    override val toString: String,

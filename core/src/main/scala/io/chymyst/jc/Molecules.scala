@@ -63,7 +63,7 @@ private[jc] final case class BlockingMolValue[T, R](v: T, replyValue: AbsReplyVa
   override private[jc] def reactionSentNoReply: Boolean = replyValue.noReplyAttemptedYet // no value, no error, and no timeout
 }
 
-/** Abstract molecule emitter trait.
+/** Abstract trait representing a molecule emitter.
   * This trait is not parameterized by type and is used in collections of molecules that do not require knowledge of molecule types.
   * Its only implementations are the classes [[B]] and [[M]].
   */
@@ -76,6 +76,10 @@ sealed trait Molecule extends PersistentHashCode {
 
   override def toString: String = (if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "")
 
+  /** This is called by a [[ReactionSite]] when a molecule becomes bound to that reaction site.
+    *
+    * @param rs Reaction site to which the molecule is now bound.
+    */
   private[jc] def setReactionSite(rs: ReactionSite): Unit
 
   /** Check whether the molecule is already bound to a reaction site.
@@ -109,10 +113,6 @@ sealed trait Molecule extends PersistentHashCode {
   final private[jc] def consumingReactions: Option[List[Reaction]] = if (isBound)
     Some(reactionSiteWrapper.consumingReactions)
   else None
-
-  // Not using this now?
-  // TODO remove
-  //    throw new ExceptionNoReactionSite(s"Molecule $this is not bound to any reaction site")
 
   /** The set of all reactions that *potentially* emit this molecule as output.
     * Some of these reactions may evaluate a run-time condition to decide whether to emit the molecule; so emission is not guaranteed.
