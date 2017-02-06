@@ -12,11 +12,11 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val c = m[Unit]
 
     // These should compile.
-    val x1 = c(())
-    val x2 = c()
-    val x3 = c(123) // non-Unit value 123 is discarded, but it's only a warning
-
-    (x1, x2, x3) shouldEqual (((),(),()))
+    def emitThem = {
+      c(())
+      c()
+      c(123) // non-Unit value 123 is discarded, but it's only a warning
+    }
   }
 
   it should "support concise syntax for Unit-typed molecules" in {
