@@ -67,9 +67,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   //  private lazy val sha1 = getSha1String(knownReactions.map(_.info.sha1).sorted.mkString(","))
 
-  private[jc] var logLevel = 0
+  private var logLevel = 0
 
-  private[jc] def printBag: String = {
+  private def printBag: String = {
     val moleculesPrettyPrinted = if (moleculesPresent.size > 0) s"Molecules: ${moleculeBagToString(moleculesPresent)}" else "No molecules"
 
     s"${this.toString}\n$moleculesPrettyPrinted"
@@ -290,7 +290,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private var emittingStaticMolsNow = false
 
-  def findUnboundOutputMolecules: Boolean = unboundOutputMolecules.nonEmpty && {
+  private def findUnboundOutputMolecules: Boolean = unboundOutputMolecules.nonEmpty && {
     val stillUnbound = unboundOutputMolecules.filterNot(_.isBound)
     unboundOutputMolecules = stillUnbound
     stillUnbound.nonEmpty
@@ -304,7 +304,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @param molValue Value of the molecule, wrapped in an instance of [[AbsMolValue]]`[T]` class.
     * @tparam T Type of the molecule value.
     */
-  private[jc] def emit[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
+  private def emit[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
     if (findUnboundOutputMolecules) {
       lazy val noReactionMessage = s"In $this: As $m($molValue) is emitted, some reactions may emit molecules (${unboundOutputMolecules.map(_.toString).toList.sorted.mkString(", ")}) that are not bound to any reaction site"
       throw new ExceptionNoReactionSite(noReactionMessage)
@@ -374,7 +374,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
   // We must make this a blocking call, so we acquire a semaphore (with or without timeout).
-  private[jc] def emitAndAwaitReply[T, R](bm: B[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]): R = {
+  private def emitAndAwaitReply[T, R](bm: B[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]): R = {
     // check if we had any errors, and that we have a result value
     emitAndAwaitReplyInternal(timeoutOpt = None, bm, v, replyValueWrapper) match {
       case ErrorNoReply(message) =>
@@ -385,7 +385,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   // This is a separate method because it has a different return type than [[emitAndAwaitReply]].
-  private[jc] def emitAndAwaitReplyWithTimeout[T, R](timeout: Long, bm: B[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]):
+  private def emitAndAwaitReplyWithTimeout[T, R](timeout: Long, bm: B[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]):
   Option[R] = {
     // check if we had any errors, and that we have a result value
     emitAndAwaitReplyInternal(timeoutOpt = Some(timeout), bm, v, replyValueWrapper) match {
@@ -458,7 +458,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     * @return Warnings and errors as a [[WarningsAndErrors]] value. If errors were found, throws an exception and returns nothing.
     */
-  def checkWarningsAndErrors(): WarningsAndErrors = diagnostics.checkWarningsAndErrors()
+  private[jc] def checkWarningsAndErrors(): WarningsAndErrors = diagnostics.checkWarningsAndErrors()
 }
 
 final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], reactionSite: String) {
