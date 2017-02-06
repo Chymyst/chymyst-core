@@ -1,6 +1,5 @@
 package io.chymyst.jc
 
-import io.chymyst.jc.Core.ReactionBody
 import org.scalatest.{FlatSpec, Matchers}
 
 // Note: Compilation of this test suite will generate warnings such as "crushing into 2-tuple". This is expected and cannot be avoided.
@@ -40,26 +39,13 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
     val c = m[(Int, (Int, Int))]
     c.name shouldEqual "c"
-    // TODO: make this compile in actual code, not just inside scalatest macro
+    // TODO: make this compile in actual code, not just inside scalatest macro. This is github issue #109
     "val r1 = go { case c(y@(_, z@(_, _))) => }" should compile // But this actually fails to compile when used in the code!
 
     val d = m[(Int, Option[Int])]
     "val r2 = go { case d((x, z@Some(_))) => }" should compile // But this actually fails to compile when used in the code!
 
     site(go { case d((x, z)) if z.nonEmpty => }) shouldEqual WarningsAndErrors(List(), List(), "Site{d => ...}")
-  }
-
-  it should "inspect reaction body with two cases" in {
-    val a = m[Int]
-    val qq = m[Unit]
-
-    a.isInstanceOf[M[Int]] shouldEqual true
-    qq.isInstanceOf[M[Unit]] shouldEqual true
-
-    """val result = go {
-      case a(x) => qq()
-      case qq(_) + a(y) => qq()
-    }""" shouldNot compile
   }
 
   it should "fail to compile reactions with incorrect pattern matching" in {
@@ -245,30 +231,6 @@ class MacroErrorSpec extends FlatSpec with Matchers {
   }
 
   behavior of "compile-time errors due to chemistry"
-
-  it should "fail to compile reactions with unconditional livelock" in {
-    val a = m[(Int, Int)]
-    val bb = m[Int]
-    val bbb = m[Int]
-
-    a.isInstanceOf[M[(Int, Int)]] shouldEqual true
-    bb.isInstanceOf[M[Int]] shouldEqual true
-    bbb.isInstanceOf[M[Int]] shouldEqual true
-
-    "val r = go { case a((x,y)) => a((1,1)) }" shouldNot compile
-    "val r = go { case a((_,x)) => a((x,x)) }" shouldNot compile
-    "val r = go { case a((1,_)) => a((1,1)) }" should compile // cannot detect unconditional livelock here at compile time, since we can't evaluate the binder yet
-    "val r = go { case bb(x) if x > 0 => bb(1) }" should compile // no unconditional livelock due to guard
-    "val r = go { case bb(x) =>  if (x > 0) bb(1) }" should compile // no unconditional livelock due to `if` in reaction
-    "val r = go { case bb(x) =>  if (x > 0) bbb(1) else bb(2) }" should compile // no unconditional livelock due to `if` in reaction
-    "val r = go { case bb(x) =>  if (x > 0) bb(1) else bb(2) }" shouldNot compile // unconditional livelock due to shrinkage of `if` in reaction
-    "val r = go { case bbb(1) => bbb(2) }" should compile // no unconditional livelock
-    "val r = go { case bb(x) => bb(1) }" shouldNot compile // unconditional livelock
-    "val r = go { case a(_) => a((1,1)) }" shouldNot compile // unconditional livelock
-    "val r = go { case bbb(_) => bbb(0) }" shouldNot compile // unconditional livelock
-    "val r = go { case bbb(x) => bbb(x + 1) + bb(x) }" shouldNot compile
-    "val r = go { case bbb(x) + bb(y) => bbb(x + 1) + bb(x) + bb(y + 1) }" shouldNot compile
-  }
 
   it should "inspect a pattern with a compound constant" in {
     val a = m[(Int, Int)]

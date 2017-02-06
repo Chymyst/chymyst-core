@@ -122,13 +122,27 @@ object MacroCompileErrorsSpec extends TestSuite {
     }
 
     "fail to compile a reaction with two case clauses" - {
-      compileError(
-        "val r = go { case a(x) =>; case c(_) => }"
-      ).check(
-        """
-          |        "val r = go { case a(x) =>; case c(_) => }"
-          |                    ^
-          |""".stripMargin, "Reactions must contain only one `case` clause")
+      * - {
+        compileError(
+          "val r = go { case a(x) =>; case c(_) => }"
+        ).check(
+          """
+            |          "val r = go { case a(x) =>; case c(_) => }"
+            |                      ^
+            |""".stripMargin, "Reactions must contain only one `case` clause")
+      }
+      * - {
+        compileError(
+          """val result =
+go {
+case a(x) => c()
+case c(_) + a(y) => c()
+}""").check(
+          """
+            |go {
+            |   ^
+            |""".stripMargin, "Reactions must contain only one `case` clause")
+      }
     }
 
     "fail to compile a reaction that is not defined inline" - {
@@ -145,6 +159,105 @@ object MacroCompileErrorsSpec extends TestSuite {
           |""".stripMargin, "No `case` clauses found: Reactions must be defined inline with the `go { case ... => ... }` syntax")
     }
 
+    "fail to compile reactions with unconditional livelock when all matchers are trivial" - {
+      val a = m[(Int, Int)]
+      val bb = m[Int]
+      val bbb = m[Int]
+
+      assert(a.isInstanceOf[M[(Int, Int)]])
+      assert(bb.isInstanceOf[M[Int]])
+      assert(bbb.isInstanceOf[M[Int]])
+
+      * - {
+        compileError(
+          "val r = go { case a((x,y)) => a((1,1)) }"
+        ).check(
+          """
+            |          "val r = go { case a((x,y)) => a((1,1)) }"
+            |                      ^
+          """.stripMargin, "Unconditional livelock: Input molecules must not be a subset of output molecules, with all trivial matchers for (a)")
+      }
+      * - {
+        compileError(
+          "val r = go { case a((_,x)) => a((x,x)) }"
+        ).check(
+          """
+            |          "val r = go { case a((_,x)) => a((x,x)) }"
+            |                      ^
+            |""".stripMargin, "Unconditional livelock: Input molecules must not be a subset of output molecules, with all trivial matchers for (a)")
+      }
+      * - {
+          val r = go { case a((1,_)) => a((1,1)) }
+      } // cannot detect unconditional livelock here at compile time, since we can't evaluate the binder yet
+      * - {
+          val r = go { case bb(x) if x > 0 => bb(1) }
+      } // no unconditional livelock due to guard
+      * - {
+          val r = go { case bb(x) =>  if (x > 0) bb(1) }
+      } // no unconditional livelock due to `if` in reaction
+      * - {
+          val r = go { case bb(x) =>  if (x > 0) bbb(1) else bb(2) }
+      } // no unconditional livelock due to `if` in reaction
+      * - {
+        compileError(
+          "val r = go { case bb(x) =>  if (x > 0) bb(1) else bb(2) }"
+        ).check(
+          """
+            |          "val r = go { case bb(x) =>  if (x > 0) bb(1) else bb(2) }"
+            |                      ^
+            |""".stripMargin, "Unconditional livelock: Input molecules must not be a subset of output molecules, with all trivial matchers for (bb)")
+      } // unconditional livelock due to shrinkage of `if` in reaction
+      * - {
+          val r = go { case bbb(1) => bbb(2) }
+      } // no unconditional livelock
+      * - {
+        compileError(
+          "val r = go { case bb(x) => bb(1) }"
+        ).check(
+          """
+            |          "val r = go { case bb(x) => bb(1) }"
+            |                      ^
+            |""".stripMargin, "Unconditional livelock: Input molecules must not be a subset of output molecules, with all trivial matchers for (bb)")
+      } // unconditional livelock
+      * - {
+        compileError(
+          "val r = go { case a(_) => a((1,1)) }"
+        ).check(
+          """
+            |          "val r = go { case a(_) => a((1,1)) }"
+            |                      ^
+            |""".stripMargin, "Unconditional livelock: Input molecules must not be a subset of output molecules, with all trivial matchers for (a)")
+      }
+      // unconditional livelock
+      * - {
+        compileError(
+          "val r = go { case bbb(_) => bbb(0) }"
+        ).check(
+          """
+            |          "val r = go { case bbb(_) => bbb(0) }"
+            |                      ^
+            |""".stripMargin, "Unconditional livelock: Input molecules must not be a subset of output molecules, with all trivial matchers for (bbb)")
+      }
+      // unconditional livelock
+      * - {
+        compileError(
+          "val r = go { case bbb(x) => bbb(x + 1) + bb(x) }"
+        ).check(
+          """
+            |          "val r = go { case bbb(x) => bbb(x + 1) + bb(x) }"
+            |                      ^
+            |""".stripMargin, "Unconditional livelock: Input molecules must not be a subset of output molecules, with all trivial matchers for (bbb)")
+      }
+      * - {
+        compileError(
+          "val r = go { case bbb(x) + bb(y) => bbb(x + 1) + bb(x) + bb(y + 1) }"
+        ).check(
+          """
+            |          "val r = go { case bbb(x) + bb(y) => bbb(x + 1) + bb(x) + bb(y + 1) }"
+            |                      ^
+            |""".stripMargin, "Unconditional livelock: Input molecules must not be a subset of output molecules, with all trivial matchers for (bbb, bb)")
+      }
+    }
 
   }
 }
