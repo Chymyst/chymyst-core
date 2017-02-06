@@ -123,7 +123,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       )
       c()
     }
-    thrown.getMessage shouldEqual "Error: In Site{c/B + d => ...}: Reaction {c/B(_) + d(_) => d()} with inputs [c/B(), d()] finished without replying to c/B. Reported error: In Site{c/B + d => ...}: Reaction {c/B(_) + d(_) => d()} produced an exception that is internal to Chymyst Core. Input molecules [c/B(), d()] were not emitted again. Message: In Site{c/B + d => ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + d(_) => d()} already emitted it"
+    thrown.getMessage shouldEqual "Error: In Site{c/B + d => ...}: Reaction {c/B(_) + d(_) => d()} with inputs [c/B(), d()] finished without replying to c/B. Reported error: In Site{c/B + d => ...}: Reaction {c/B(_) + d(_) => d()} with inputs [c/B(), d()] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: In Site{c/B + d => ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + d(_) => d()} already emitted it"
   }
 
   it should "signal error when a static molecule is consumed multiple times by reaction" in {

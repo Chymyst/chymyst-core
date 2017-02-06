@@ -114,7 +114,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
         if (logLevel > 2) println(moleculesRemainingMessage)
         // Schedule the reaction now. Provide reaction info to the thread.
-        poolForReaction.runClosure(buildReactionClosure(reaction, usedInputs), reaction.newChymystThreadInfo)
+        scheduleReaction(reaction, usedInputs, poolForReaction)
 
       case None =>
         if (logLevel > 2) {
@@ -137,6 +137,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         dequeueNewMolecules() // Keep dequeueing while poll() returns non-null elements.
     }
   }
+
+  private def scheduleReaction(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit =
+    poolForReaction.runClosure(buildReactionClosure(reaction, usedInputs, poolForReaction: Pool), reaction.newChymystThreadInfo)
 
   private val emissionRunnable: Runnable = new Runnable {
     override def run(): Unit = dequeueNewMolecules()
@@ -173,7 +176,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @param reaction   Reaction to run.
     * @param usedInputs Molecules (with values) that are consumed by the reaction.
     */
-  private def buildReactionClosure(reaction: Reaction, usedInputs: InputMoleculeList): Unit = {
+  private def buildReactionClosure(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit = {
     lazy val reactionStartMessage = s"Debug: In $this: reaction {${reaction.info}} started on thread pool $reactionPool with thread id ${Thread.currentThread().getId}"
 
     if (logLevel > 1) println(reactionStartMessage)
@@ -188,21 +191,21 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // Running the reaction body produced an exception that is internal to `Chymyst Core`.
         // We should not try to recover from this; it is either an error on user's part
         // or a bug in `Chymyst Core`.
-        lazy val message = s"In $this: Reaction {${reaction.info}} produced an exception that is internal to Chymyst Core. Input molecules [${moleculeBagToString(usedInputs)}] were not emitted again. Message: ${e.getMessage}"
+        lazy val message = s"In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: ${e.getMessage}"
         reportError(message)
         ReactionExitFailure(message)
 
       case e: Exception =>
         // Running the reaction body produced an exception. Note that the exception has killed a thread.
         // We will now re-insert the input molecules (except the blocking ones). Hopefully, no side-effects or output molecules were produced so far.
-        val (status, aboutMolecules) =
+        val (status, retryMessage) =
           if (reaction.retry) {
-            usedInputs.foreach { case (mol, v) => emit(mol, v) }
-            (ReactionExitRetryFailure(e.getMessage), "were emitted again")
+            scheduleReaction(reaction, usedInputs, poolForReaction)
+            (ReactionExitRetryFailure(e.getMessage), " Retry run was scheduled.")
           }
-          else (ReactionExitFailure(e.getMessage), "were consumed and not emitted again")
+          else (ReactionExitFailure(e.getMessage), " Retry run was not scheduled.")
 
-        lazy val generalExceptionMessage = s"In $this: Reaction {${reaction.info}} produced an exception. Input molecules [${moleculeBagToString(usedInputs)}] $aboutMolecules. Message: ${e.getMessage}"
+        lazy val generalExceptionMessage = s"In $this: Reaction {${reaction.info}} with inputs [${moleculeBagToString(usedInputs)}] produced an exception.$retryMessage Message: ${e.getMessage}"
 
         reportError(generalExceptionMessage)
         status
@@ -475,7 +478,7 @@ final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], r
   def hasErrorsOrWarnings: Boolean = warnings.nonEmpty || errors.nonEmpty
 
   def ++(other: WarningsAndErrors): WarningsAndErrors =
-    WarningsAndErrors(warnings ++ other.warnings, errors ++ other.errors, reactionSite)
+    copy(warnings = warnings ++ other.warnings, errors = errors ++ other.errors)
 }
 
 

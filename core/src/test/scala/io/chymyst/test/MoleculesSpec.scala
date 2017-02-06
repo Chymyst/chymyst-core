@@ -281,7 +281,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       r
     }
     println(results.groupBy(identity).mapValues(_.size))
-    globalErrorLog.toList should contain("In Site{p => ...}: Reaction {p(s) => } produced an exception that is internal to Chymyst Core. Input molecules [p(c)] were not emitted again. Message: Molecule c is not bound to any reaction site")
+    globalErrorLog.toList should contain("In Site{p => ...}: Reaction {p(s) => } with inputs [p(c)] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
     results should contain(123)
     results should contain(0)
   }
@@ -312,7 +312,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     println(results.groupBy(identity).mapValues(_.size))
     results should contain(246)
     results should contain(0)
-    globalErrorLog.toList should contain("In Site{a => ...}: Reaction {a(s) => } produced an exception that is internal to Chymyst Core. Input molecules [a(e)] were not emitted again. Message: Molecule e is not bound to any reaction site")
+    globalErrorLog.toList should contain("In Site{a => ...}: Reaction {a(s) => } with inputs [a(e)] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site")
   }
 
   it should "start reactions without errors when molecule emitters are passed to nested reactions after they are bound" in {
@@ -322,7 +322,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       val f = b[Unit, Int]
       site(tp0)(
         go { case q(s) => s(123) },
-        go { case p(x) + f(_, r) => r(x)}
+        go { case p(x) + f(_, r) => r(x) }
       )
       val begin = m[Unit]
       site(tp0)(
@@ -339,9 +339,9 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       f()
     }
     println(results.groupBy(identity).mapValues(_.size))
-    globalErrorLog.toList should not contain("In Site{q => ...}: Reaction {q(s) => } produced an exception that is internal to Chymyst Core. Input molecules [q(e)] were not emitted again. Message: Molecule e is not bound to any reaction site")
+    globalErrorLog.toList should not contain "In Site{q => ...}: Reaction {q(s) => } with inputs [q(e)] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site"
     results should contain(246)
-    results should not contain(0)
+    results should not contain (0)
   }
 
   it should "start reaction but throw exception when unbound molecule emitter is passed on input molecule" in {
@@ -356,7 +356,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val thrown = intercept[Exception] {
       f() shouldEqual 123 // This should not pass.
     }
-    thrown.getMessage shouldEqual "Error: In Site{a + f/B => ...}: Reaction {a(s) + f/B(_) => } with inputs [a(c), f/B()] finished without replying to f/B. Reported error: In Site{a + f/B => ...}: Reaction {a(s) + f/B(_) => } produced an exception that is internal to Chymyst Core. Input molecules [a(c), f/B()] were not emitted again. Message: Molecule c is not bound to any reaction site"
+    thrown.getMessage shouldEqual "Error: In Site{a + f/B => ...}: Reaction {a(s) + f/B(_) => } with inputs [a(c), f/B()] finished without replying to f/B. Reported error: In Site{a + f/B => ...}: Reaction {a(s) + f/B(_) => } with inputs [a(c), f/B()] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site"
   }
 
   behavior of "basic functionality"
@@ -469,6 +469,11 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val result = g.timeout()(1500 millis)
     tp.shutdownNow()
     result shouldEqual Some(())
+    globalErrorLog.forall(s => Seq(
+      "In Site{counter + decrement => .../R; counter + getValue/B => ...}: Reaction {counter(x) + decrement(_) => counter(?)} with inputs [counter(",
+      "), decrement()] produced an exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)"
+    ).forall(s contains _)) shouldEqual true
+
   }
 
   it should "retry reactions that contain blocking molecules" in {
@@ -504,9 +509,9 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     }
 
     val result = g.timeout()(1500 millis)
-    globalErrorLog.exists(_.contains("Message: crash! (it's OK, ignore this)"))
     tp.shutdownNow()
     result shouldEqual Some(())
+    globalErrorLog.toList should contain("In Site{counter + decrement/B => .../R; counter + getValue/B => ...}: Reaction {counter(x) + decrement/B(_) => counter(?)} with inputs [counter(19), decrement/B()] produced an exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
   }
 
 }
