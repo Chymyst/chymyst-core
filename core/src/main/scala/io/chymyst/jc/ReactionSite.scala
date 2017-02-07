@@ -366,7 +366,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private def emitAndAwaitReplyInternal[T, R](timeoutOpt: Option[Long], bm: B[T, R], v: T, replyValueWrapper: AbsReplyValue[T, R]): ReplyStatus = {
     val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
-    emit(bm, blockingMolValue)
+    emit[T](bm, blockingMolValue)
     val timedOut: Boolean = !BlockingIdle {
       replyValueWrapper.acquireSemaphoreForEmitter(timeoutNanos = timeoutOpt)
     }
