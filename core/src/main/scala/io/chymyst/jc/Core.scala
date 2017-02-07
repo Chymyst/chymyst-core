@@ -40,7 +40,7 @@ object Core {
 
   //  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 
-  implicit class SeqWithOption[S](s: Seq[S]) {
+  implicit final class SeqWithOption[S](val s: Seq[S]) extends AnyVal {
     def toOptionSeq: Option[Seq[S]] = if (s.isEmpty) None else Some(s)
   }
 
@@ -49,7 +49,7 @@ object Core {
     * @param a Sequence to be shuffled.
     * @tparam T Type of sequence elements.
     */
-  implicit final class ShufflableSeq[T](a: Seq[T]) {
+  implicit final class ShufflableSeq[T](val a: Seq[T]) extends AnyVal {
     /** Shuffle sequence elements randomly.
       *
       * @return A new sequence with randomly permuted elements.
@@ -58,24 +58,24 @@ object Core {
   }
 
   @SuppressWarnings(Array("org.wartremover.warts.Equals"))
-  implicit final class AnyOpsEquals[@specialized A](self: A) {
+  implicit final class AnyOpsEquals[A](val self: A) extends AnyVal {
     def ===(other: A): Boolean = self == other
   }
 
   @SuppressWarnings(Array("org.wartremover.warts.Equals"))
-  implicit final class AnyOpsNotEquals[@specialized A](self: A) {
+  implicit final class AnyOpsNotEquals[A](val self: A) extends AnyVal { // removing `[@specialized A]` to allow `extends AnyVal`
     def =!=(other: A): Boolean = self != other
   }
 
-  implicit final class SafeSeqDiff[T](s: Seq[T]) {
+  implicit final class SafeSeqDiff[T](val s: Seq[T]) extends AnyVal {
     def difff(t: Seq[T]): Seq[T] = s diff t
   }
 
-  implicit final class SafeListDiff[T](s: List[T]) {
+  implicit final class SafeListDiff[T](val s: List[T]) extends AnyVal {
     def difff(t: List[T]): List[T] = s diff t
   }
 
-  implicit final class StringToSymbol(s: String) {
+  implicit final class StringToSymbol(val s: String) extends AnyVal {
     def toScalaSymbol: scala.Symbol = scala.Symbol(s)
   }
 
@@ -118,7 +118,7 @@ object Core {
   // Type used as argument for ReactionBody.
   type ReactionBodyInput = (Int, InputMoleculeList)
 
-  implicit class EitherMonad[L, R](e: Either[L, R]) {
+  implicit final class EitherMonad[L, R](val e: Either[L, R]) extends AnyVal {
     def map[S](f: R => S): Either[L, S] = e match {
       case Right(r) => Right(f(r))
       case Left(l) => Left(l)
@@ -130,7 +130,7 @@ object Core {
     }
   }
 
-  implicit class SeqWithFlatFoldLeft[T](s: Seq[T]) {
+  implicit final class SeqWithFlatFoldLeft[T](val s: Seq[T]) extends AnyVal {
 
     /** A `find` that will return the first value for which `f` returns `Some(...)`.
       *
