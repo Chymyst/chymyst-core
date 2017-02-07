@@ -423,11 +423,14 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   behavior of "fault-tolerant resume facility"
 
+  // This will certainly return `true` for x = 5 the first time it encounters x = 5.
+  // For other values of x, it will return `true` with given probability.
   class CrashChooser(probabilityOfCrash: Double) {
     var alreadyCrashed = true
 
     def apply(x: Int): Boolean = x == 5 && alreadyCrashed && {
-      alreadyCrashed = false; true
+      alreadyCrashed = false
+      true
     } || scala.util.Random.nextDouble < probabilityOfCrash
   }
 
@@ -511,7 +514,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
   it should "retry reactions that contain blocking molecules" in {
     val n = 20
 
-    val probabilityOfCrash = 0.5
+    val chooser = new CrashChooser(probabilityOfCrash = 0.5)
 
     val c = new M[Int]("counter")
     val d = new B[Unit, Unit]("decrement")
@@ -520,16 +523,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     site(tp0)(
       go { case c(x) + d(_, r) =>
-        val willCrash = x == 5 || scala.util.Random.nextDouble < probabilityOfCrash
-        if (willCrash) {
-          // The second, redundant check for `willCrash` is used only in order to avoid the "dead code" warning.
-          if (willCrash) throw new Exception("crash! (it's OK, ignore this)")
-          r()
-        }
-        else {
-          c(x - 1)
-          r()
-        }
+        if (chooser(x)) throw new Exception("crash! (it's OK, ignore this)") else c(x - 1)
+        r()
       }.withRetry onThreads tp,
       go { case c(0) + g(_, r) => r() }
     )
