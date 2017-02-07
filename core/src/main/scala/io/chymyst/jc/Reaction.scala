@@ -277,14 +277,15 @@ final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSym
   override val toString: String = s"CrossMoleculeGuard([${indices.mkString(",")}], [${symbols.mkString(",")}])"
 }
 
-/** Compile-time information about an input molecule pattern in a reaction.
-  * This class is immutable.
+/** Compile-time information about an input molecule pattern in a certain reaction where the molecule is consumed.
   *
   * @param molecule The molecule emitter value that represents the input molecule.
+  * @param index    Zero-based index of this molecule in the input list of the reaction.
   * @param flag     A value of type [[InputPatternType]] that describes the value pattern: wildcard, constant match, etc.
   * @param sha1     Hash sum of the input pattern's source code (desugared Scala representation).
+  * @param valType  String representation of the type `T` of the molecule's value, e.g. for [[M]]`[T]` or [[B]]`[T, R]`.
   */
-final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPatternType, sha1: String) {
+final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPatternType, sha1: String, valType: String) {
   private[jc] def admitsValue(molValue: AbsMolValue[_]): Boolean = flag match {
     case WildcardInput | SimpleVarInput(_, None) =>
       true
@@ -515,7 +516,7 @@ final class ReactionInfo(
   private[jc] lazy val inputMoleculesSet: Set[Molecule] = inputMolecules.toSet
 
   // The input pattern sequence is pre-sorted for further use.
-  private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha) =>
+  private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha, _) =>
     // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers
     val patternPrecedence = flag match {
       case WildcardInput |

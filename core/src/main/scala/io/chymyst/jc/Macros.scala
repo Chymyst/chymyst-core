@@ -85,7 +85,7 @@ class CommonMacros(val c: blackbox.Context) {
   case object WrongReplyVarF extends InputPatternFlag
 
   /** The pattern represents a constant, which can be a literal constant such as `"abc"`
-    *  or a compound type such as `(2, 3)` or `(Some(2), 3, 4)`.
+    * or a compound type such as `(2, 3)` or `(Some(2), 3, 4)`.
     * The value `v` represents a value of the `[T]` type of [[M]]`[T]` or [[B]]`[T,R]`.
     */
   final case class ConstantPatternF(v: Tree) extends InputPatternFlag {
@@ -367,7 +367,12 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     if (isStaticReaction(pattern, guard, body) && bodyOut.isEmpty)
       reportError("Static reaction must emit some output molecules")
 
-    val inputMolecules = patternInWithMergedGuardsAndIndex.map { case (s, i, p, _) => q"InputMoleculeInfo(${s.asTerm}, $i, $p, ${p.patternSha1(t => showCode(t))})" }.toArray
+    val inputMolecules = patternInWithMergedGuardsAndIndex
+      .map { case (s, i, p, _) =>
+        val valType = s.typeSignature.typeArgs.headOption.map(_.dealias.finalResultType.toString).getOrElse("<unknown>")
+        q"InputMoleculeInfo(${s.asTerm}, $i, $p, ${p.patternSha1(t => showCode(t))}, $valType)"
+      }
+      .toArray
 
     // Note: the output molecules could be sometimes not emitted according to a run-time condition.
     // We do not try to examine the reaction body to determine which output molecules are always emitted.
