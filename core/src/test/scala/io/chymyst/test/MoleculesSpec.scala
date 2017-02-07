@@ -423,10 +423,18 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   behavior of "fault-tolerant resume facility"
 
+  class CrashChooser(probabilityOfCrash: Double) {
+    var alreadyCrashed = true
+
+    def apply(x: Int): Boolean = x == 5 && alreadyCrashed && {
+      alreadyCrashed = false; true
+    } || scala.util.Random.nextDouble < probabilityOfCrash
+  }
+
   it should "fail to finish job if 1 out of 2 processes crash while retry is not set" in {
     val n = 20
 
-    val probabilityOfCrash = 0.5
+    val chooser = new CrashChooser(probabilityOfCrash = 0.5)
 
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
@@ -435,7 +443,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     site(tp0)(
       go { case c(x) + d(_) =>
-        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
+        if (chooser(x)) throw new Exception("crash! (it's OK, ignore this)")
+        c(x - 1)
       }.noRetry onThreads tp,
       go { case c(0) + g(_, r) => r() }
     )
@@ -450,7 +459,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
   it should "finish job by retrying reactions even if 1 out of 2 processes crash" in {
     val n = 20
 
-    val probabilityOfCrash = 0.5
+    val chooser = new CrashChooser(probabilityOfCrash = 0.5)
 
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
@@ -459,7 +468,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     site(tp0)(
       go { case c(x) + d(_) =>
-        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
+        if (chooser(x)) throw new Exception("crash! (it's OK, ignore this)")
+        c(x - 1)
       }.withRetry onThreads tp,
       go { case c(0) + g(_, r) => r() }
     )
@@ -469,11 +479,33 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val result = g.timeout()(1500 millis)
     tp.shutdownNow()
     result shouldEqual Some(())
-    globalErrorLog.forall(s => Seq(
-      "In Site{counter + decrement => .../R; counter + getValue/B => ...}: Reaction {counter(x) + decrement(_) => counter(?)} with inputs [counter(",
-      "), decrement()] produced an exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)"
-    ).forall(s contains _)) shouldEqual true
+    globalErrorLog.toList should contain("In Site{counter + decrement => .../R; counter + getValue/B => ...}: Reaction {counter(x) + decrement(_) => counter(?)} with inputs [counter(5), decrement()] produced an exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
+  }
 
+  it should "finish job by retrying reactions with static molecules even if 1 out of 2 processes crash" in {
+    val n = 20
+
+    val chooser = new CrashChooser(probabilityOfCrash = 0.5)
+
+    val c = new M[Int]("counter")
+    val d = new M[Unit]("decrement")
+    val g = new B[Unit, Unit]("getValue")
+    val tp = new FixedPool(2)
+
+    site(tp0)(
+      go { case c(x) + d(_) =>
+        if (chooser(x)) throw new Exception("crash! (it's OK, ignore this)")
+        c(x - 1)
+      }.withRetry onThreads tp,
+      go { case c(0) + g(_, r) => r() + c(0) },
+      go { case _ => c(n) }
+    )
+    (1 to n).foreach { _ => d() }
+
+    val result = g.timeout()(1500 millis)
+    tp.shutdownNow()
+    result shouldEqual Some(())
+    globalErrorLog.toList should contain("In Site{counter + decrement => .../R; counter + getValue/B => ...}: Reaction {counter(x) + decrement(_) => counter(?)} with inputs [counter(5), decrement()] produced an exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
   }
 
   it should "retry reactions that contain blocking molecules" in {
@@ -488,7 +520,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     site(tp0)(
       go { case c(x) + d(_, r) =>
-        val willCrash = scala.util.Random.nextDouble < probabilityOfCrash
+        val willCrash = x == 5 || scala.util.Random.nextDouble < probabilityOfCrash
         if (willCrash) {
           // The second, redundant check for `willCrash` is used only in order to avoid the "dead code" warning.
           if (willCrash) throw new Exception("crash! (it's OK, ignore this)")
@@ -511,7 +543,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val result = g.timeout()(1500 millis)
     tp.shutdownNow()
     result shouldEqual Some(())
-    globalErrorLog.toList should contain("In Site{counter + decrement/B => .../R; counter + getValue/B => ...}: Reaction {counter(x) + decrement/B(_) => counter(?)} with inputs [counter(19), decrement/B()] produced an exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
+    globalErrorLog.toList should contain("In Site{counter + decrement/B => .../R; counter + getValue/B => ...}: Reaction {counter(x) + decrement/B(_) => counter(?)} with inputs [counter(5), decrement/B()] produced an exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
   }
 
 }
