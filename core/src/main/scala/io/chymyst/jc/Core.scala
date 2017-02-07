@@ -191,4 +191,6 @@ object Core {
   }
 
   def intHash(s: Seq[Int]): Int = s.foldLeft(0)(_ * s.length + _)
+
+  val simpleTypes: Set[scala.Symbol] = Set('Unit, 'Boolean, 'Symbol, 'Double, 'Float, 'Int, 'Char, 'Short, 'Long, 'Byte, 'Null, 'Nothing, 'AnyVal)
 }

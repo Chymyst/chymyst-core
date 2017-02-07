@@ -730,8 +730,6 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     //    case _ => a === b  // this is never used
   }
 
-  val simpleTypes: Set[ScalaSymbol] = Set('Unit, 'Boolean, 'Symbol, 'Double, 'Float, 'Int, 'Char, 'Short, 'Long, 'Byte, 'Null, 'Nothing, 'AnyVal)
-
   /* This code has been commented out after a lengthy but fruitless exploration of valid ways of modifying the reaction body.
 
 //   this fails in weird ways

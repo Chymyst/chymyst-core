@@ -299,6 +299,8 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
       matcher.isDefinedAt(molValue.getValue)
   }
 
+  private[jc] val isSimpleType: Boolean = simpleTypes contains valType
+
   /** Determine whether this input molecule pattern is weaker than another pattern.
     * Pattern a(xxx) is weaker than b(yyy) if a==b and if anything matched by yyy will also be matched by xxx.
     *
