@@ -266,7 +266,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
   }
 
   it should "start reactions when molecule emitters are passed on input molecules slightly before they are bound" in {
-    val results = (1 to 100).map { _ =>
+    val results = (1 to 100).map { i =>
       val p = m[M[Int]]
       val c = m[Int]
       var r = 0
@@ -274,6 +274,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
         go { case p(s) => s(123) }
       )
       p(c)
+      if (i % 2 == 0) Thread.sleep(5)
       site(tp0)(
         go { case c(x) => r = x }
       )
@@ -287,7 +288,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
   }
 
   it should "start reactions and throw exception when molecule emitters are passed to nested reactions slightly before they are bound" in {
-    val results = (1 to 100).map { _ =>
+    val results = (1 to 100).map { i =>
       val a = m[M[Int]]
       site(tp0)(
         go { case a(s) => s(123) }
@@ -300,6 +301,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
           val x = 123
           val e = m[Int]
           a(e) // The reaction for `a` will emit `e(123)`, unless it crashes due to `e` being unbound.
+          if (i % 2 == 0) Thread.sleep(5)
           site(tp0)(
             go { case e(y) => r = x + y }
           )
@@ -311,8 +313,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     }
     println(results.groupBy(identity).mapValues(_.size))
     results should contain(246)
-    results should contain(0)
     globalErrorLog.toList should contain("In Site{a => ...}: Reaction {a(s) => } with inputs [a(e)] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site")
+    results should contain(0)
   }
 
   it should "start reactions without errors when molecule emitters are passed to nested reactions after they are bound" in {
