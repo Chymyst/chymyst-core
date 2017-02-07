@@ -411,14 +411,26 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @return A tuple containing the static molecules emitted by the reaction site with their counts, and a list of warning and error messages.
     */
   private def initializeReactionSite(): (Map[Molecule, Int], WarningsAndErrors) = {
+
     val inputMolsIndices = nonStaticReactions
       .flatMap(_.inputMolecules)
       .distinct // We only need to assign the owner on each distinct input molecule once.
       .sortBy(_.name)
       .zipWithIndex
+      .map { case (mol, index) ⇒
+
+        val valType = nonStaticReactions
+          .map(_.info.inputs)
+          .flatMap(_.find(_.molecule === mol))
+          .headOption
+          .map(_.valType)
+          .getOrElse("<unknown>".toScalaSymbol)
+
+        (mol, (index, mol.name, valType))
+      }(scala.collection.breakOut)
 
     // Set the owner on all input molecules in this reaction site.
-    inputMolsIndices.foreach { case (mol, index) =>
+    inputMolsIndices.foreach { case (mol, (index, _, _)) ⇒
       mol.isBoundToAnotherReactionSite(this) match {
         case Some(otherRS) =>
           throw new ExceptionMoleculeAlreadyBound(s"Molecule $mol cannot be used as input in $this since it is already bound to $otherRS")
