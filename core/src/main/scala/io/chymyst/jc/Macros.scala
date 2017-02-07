@@ -369,7 +369,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
     val inputMolecules = patternInWithMergedGuardsAndIndex
       .map { case (s, i, p, _) =>
-        val valType = s.typeSignature.typeArgs.headOption.map(_.dealias.finalResultType.toString).getOrElse("<unknown>")
+        val valType = scala.Symbol(s.typeSignature.typeArgs.headOption.map(_.dealias.finalResultType.toString).getOrElse("<unknown>"))
         q"InputMoleculeInfo(${s.asTerm}, $i, $p, ${p.patternSha1(t => showCode(t))}, $valType)"
       }
       .toArray

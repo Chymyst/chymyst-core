@@ -285,7 +285,7 @@ final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSym
   * @param sha1     Hash sum of the input pattern's source code (desugared Scala representation).
   * @param valType  String representation of the type `T` of the molecule's value, e.g. for [[M]]`[T]` or [[B]]`[T, R]`.
   */
-final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPatternType, sha1: String, valType: String) {
+final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPatternType, sha1: String, valType: ScalaSymbol) {
   private[jc] def admitsValue(molValue: AbsMolValue[_]): Boolean = flag match {
     case WildcardInput | SimpleVarInput(_, None) =>
       true

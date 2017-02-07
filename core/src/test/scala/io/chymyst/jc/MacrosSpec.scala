@@ -132,7 +132,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         go { case q(_) + s(_) => }
         q(0)
       }
-    reaction.info.inputs should matchPattern { case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, "Int")) => }
+    reaction.info.inputs should matchPattern { case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, _)) => }
     reaction.info.outputs shouldEqual List()
   }
 
@@ -182,8 +182,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     (result.info.inputs match {
       case Array(
-      InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), sha_a, "Int"),
-      InputMoleculeInfo(`bb`, 1, ConstInputPattern(None), sha_bb, "Option[Int]")
+      InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), sha_a, Symbol("Int")),
+      InputMoleculeInfo(`bb`, 1, ConstInputPattern(None), sha_bb, Symbol("Option[Int]"))
       ) =>
         sha_a shouldEqual simpleVarXSha1
         sha_bb shouldEqual constantNoneSha1
@@ -206,8 +206,8 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     (result.info.inputs match {
       case Array(
-      InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, "Int"),
-      InputMoleculeInfo(`qq`, 1, WildcardInput, sha_qq, "Unit")
+      InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, 'Int),
+      InputMoleculeInfo(`qq`, 1, WildcardInput, sha_qq, 'Unit)
       ) =>
         sha_qq shouldEqual wildcardSha1
         true
@@ -258,9 +258,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     (result.info.inputs match {
       case Array(
-      InputMoleculeInfo(`a`, 0, WildcardInput, `wildcardSha1`, "Int"),
-      InputMoleculeInfo(`a`, 1, SimpleVarInput('x, _), `simpleVarXSha1`, "Int"),
-      InputMoleculeInfo(`a`, 2, ConstInputPattern(1), sha_a, "Int")
+      InputMoleculeInfo(`a`, 0, WildcardInput, `wildcardSha1`, 'Int),
+      InputMoleculeInfo(`a`, 1, SimpleVarInput('x, _), `simpleVarXSha1`, 'Int),
+      InputMoleculeInfo(`a`, 2, ConstInputPattern(1), sha_a, 'Int)
       ) =>
         sha_a shouldEqual constantOneSha1
         true
@@ -283,7 +283,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val result = go { case a(x) => go { case qq(_) => a(0) }; qq() }
 
     result.info.inputs should matchPattern {
-      case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, "Int")) =>
+      case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, _)) =>
     }
     result.info.outputs shouldEqual List(OutputMoleculeInfo(qq, ConstOutputPattern(()), List()))
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
@@ -303,17 +303,17 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     result.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`a`, 0, SimpleVarInput('p, _), _, "Int"),
-      InputMoleculeInfo(`a`, 1, SimpleVarInput('y, _), _, "Int"),
-      InputMoleculeInfo(`a`, 2, ConstInputPattern(1), _, "Int"),
-      InputMoleculeInfo(`c`, 3, WildcardInput, _, "Unit"),
-      InputMoleculeInfo(`c`, 4, WildcardInput, _, "Unit"),
-      InputMoleculeInfo(`bb`, 5, ConstInputPattern((0, None)), _, "(Int, Option[Int])"),
-      InputMoleculeInfo(`bb`, 6, ConstInputPattern((1, Some(2))), _, "(Int, Option[Int])"),
-      InputMoleculeInfo(`bb`, 7, OtherInputPattern(_, List('z), false), _, "(Int, Option[Int])"),
-      InputMoleculeInfo(`bb`, 8, OtherInputPattern(_, List(), false), _, "(Int, Option[Int])"),
-      InputMoleculeInfo(`bb`, 9, OtherInputPattern(_, List('t, 'q), false), _, "(Int, Option[Int])"),
-      InputMoleculeInfo(`s`, 10, WildcardInput, _, "Unit")
+      InputMoleculeInfo(`a`, 0, SimpleVarInput('p, _), _, Symbol("Int")),
+      InputMoleculeInfo(`a`, 1, SimpleVarInput('y, _), _, 'Int),
+      InputMoleculeInfo(`a`, 2, ConstInputPattern(1), _, _),
+      InputMoleculeInfo(`c`, 3, WildcardInput, _, Symbol("Unit")),
+      InputMoleculeInfo(`c`, 4, WildcardInput, _, 'Unit),
+      InputMoleculeInfo(`bb`, 5, ConstInputPattern((0, None)), _, Symbol("(Int, Option[Int])")),
+      InputMoleculeInfo(`bb`, 6, ConstInputPattern((1, Some(2))), _, _),
+      InputMoleculeInfo(`bb`, 7, OtherInputPattern(_, List('z), false), _, _),
+      InputMoleculeInfo(`bb`, 8, OtherInputPattern(_, List(), false), _, _),
+      InputMoleculeInfo(`bb`, 9, OtherInputPattern(_, List('t, 'q), false), _, _),
+      InputMoleculeInfo(`s`, 10, WildcardInput, _, 'Unit)
       ) =>
     }
     result.info.outputs shouldEqual List(
@@ -498,12 +498,12 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     r.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`a`, 0, ConstInputPattern(Some(1)), _, "Option[Int]"),
-      InputMoleculeInfo(`b`, 1, ConstInputPattern("xyz"), _, "String"),
-      InputMoleculeInfo(`d`, 2, WildcardInput, _, "Unit"),
-      InputMoleculeInfo(`c`, 3, ConstInputPattern((2, 3)), _, "(Int, Int)"),
-      InputMoleculeInfo(`e`, 4, ConstInputPattern(Left(Some(1))), _, "scala.util.Either[Option[Int],String]"),
-      InputMoleculeInfo(`e`, 5, ConstInputPattern(Right("input")), _, "scala.util.Either[Option[Int],String]")
+      InputMoleculeInfo(`a`, 0, ConstInputPattern(Some(1)), _, Symbol("Option[Int]")),
+      InputMoleculeInfo(`b`, 1, ConstInputPattern("xyz"), _, 'String),
+      InputMoleculeInfo(`d`, 2, WildcardInput, _, _),
+      InputMoleculeInfo(`c`, 3, ConstInputPattern((2, 3)), _, Symbol("(Int, Int)")),
+      InputMoleculeInfo(`e`, 4, ConstInputPattern(Left(Some(1))), _, Symbol("scala.util.Either[Option[Int],String]")),
+      InputMoleculeInfo(`e`, 5, ConstInputPattern(Right("input")), _, _)
       ) =>
     }
     r.info.outputs shouldEqual List(
@@ -548,9 +548,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val result = go { case a(1 | 2) + c(()) + bb(p@(ytt, 1, None, (s, Some(t)))) => }
     result.info.inputs should matchPattern {
       case Array(
-      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List(), false), _, "Int"),
-      InputMoleculeInfo(`c`, 1, WildcardInput, _, "Unit"),
-      InputMoleculeInfo(`bb`, 2, OtherInputPattern(_, List('p, 'ytt, 's, 't), false), _, "(Int, Int, Option[Int], (Int, Option[Int]))")
+      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List(), false), _, _),
+      InputMoleculeInfo(`c`, 1, WildcardInput, _, _),
+      InputMoleculeInfo(`bb`, 2, OtherInputPattern(_, List('p, 'ytt, 's, 't), false), _, Symbol("(Int, Int, Option[Int], (Int, Option[Int]))"))
       ) =>
     }
     result.info.toString shouldEqual "a(?) + bb(?p,ytt,s,t) + c(_) => "
@@ -848,9 +848,9 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     a.consumingReactions.get.size shouldEqual 1
     a.emittingReactions.size shouldEqual 1
     a.consumingReactions.get.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, ConstOutputPattern(2), List()))
-    a.consumingReactions.get.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, ConstInputPattern(1), constantOneSha1, "Int"))
+    a.consumingReactions.get.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, ConstInputPattern(1), constantOneSha1, 'Int))
     a.emittingReactions.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, ConstOutputPattern(2), List()))
-    a.emittingReactions.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, ConstInputPattern(1), constantOneSha1, "Int"))
+    a.emittingReactions.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, ConstInputPattern(1), constantOneSha1, Symbol("Int")))
   }
 
   it should "compute outputs for an inline nested reaction" in {
@@ -904,7 +904,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     a.emittingReactions.head shouldEqual reaction
 
     reaction.info.inputs should matchPattern {
-      case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, "Int"), InputMoleculeInfo(`d`, 1, WildcardInput, `wildcardSha1`, "Boolean")) =>
+      case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, 'Int), InputMoleculeInfo(`d`, 1, WildcardInput, `wildcardSha1`, 'Boolean)) =>
     }
     reaction.info.outputs shouldEqual List(
       OutputMoleculeInfo(a, ConstOutputPattern(1), List()),
@@ -933,14 +933,14 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val reaction2 = a.consumingReactions.get.head
     d.emittingReactions.head shouldEqual reaction2
 
-    reaction1.info.inputs shouldEqual List(InputMoleculeInfo(d, 0, WildcardInput, wildcardSha1, "Unit"))
+    reaction1.info.inputs shouldEqual List(InputMoleculeInfo(d, 0, WildcardInput, wildcardSha1, 'Unit))
     reaction1.info.outputs shouldEqual Array(
       OutputMoleculeInfo(a, ConstOutputPattern(1), List()),
       OutputMoleculeInfo(c, OtherOutputPattern, List())
     )
 
     reaction2.info.inputs should matchPattern {
-      case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, "Int")) =>
+      case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, _)) =>
     }
     reaction2.info.outputs shouldEqual List(OutputMoleculeInfo(d, OtherOutputPattern, List()))
   }

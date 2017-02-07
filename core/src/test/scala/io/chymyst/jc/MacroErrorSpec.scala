@@ -262,8 +262,8 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
     (result.info.inputs match {
       case Array(
-      InputMoleculeInfo(`bb`, 0, WildcardInput, _, "(Int, Option[Int])"),
-      InputMoleculeInfo(`bb`, 1, SimpleVarInput('z, Some(cond)), _, "(Int, Option[Int])")
+      InputMoleculeInfo(`bb`, 0, WildcardInput, _, Symbol("(Int, Option[Int])")),
+      InputMoleculeInfo(`bb`, 1, SimpleVarInput('z, Some(cond)), _, _)
       ) =>
         cond.isDefinedAt((1, Some(2))) shouldEqual true
         cond.isDefinedAt((1, None)) shouldEqual false
