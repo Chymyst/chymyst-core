@@ -1,4 +1,5 @@
 package io.chymyst.jc
+
 //
 //import collection.JavaConverters._
 //import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
@@ -34,27 +35,31 @@ class MutableBag[K,V] { // quadratic time, extremely slow
 object MutableBag {
 
   def of[K, V](k: K, v: V): MutableBag[K, V] = {
-    val b = new MutableBag[K,V]
+    val b = new MutableBag[K, V]
     b.addToBag(k, v)
     b
   }
 }
 
-class MutableBag[K,V] {
+class MutableBag[K, V] {
 
   private val bag: mutable.Map[K, mutable.Map[V, Int]] = mutable.Map.empty
 
   override def toString: String = bag.toString
 
+  // Used for printing and for deciding reactions.
   def getMap: Map[K, Map[V, Int]] = bag.mapValues(_.toMap).toMap
 
+  // Only used for counting static molecules at initial emission time.
   def getCountMap: Map[K, Int] = bag.mapValues(_.values.sum).toMap
 
   // Note: This is currently not used by actual code.
   def getCount(k: K): Int = bag.getOrElse(k, mutable.Map()).values.sum
 
+  // Only used in one debugging message.
   def isEmpty: Boolean = bag.isEmpty
 
+  // Only used for pretty-printing the word "molecule" during debugging, and for tests.
   def size: Int = bag.values.map(_.values.sum).sum
 
   // Note: This is currently not used by actual code.
@@ -80,6 +85,7 @@ class MutableBag[K,V] {
     if (vs.isEmpty) bag -= k
   }
 }
+
 /*
 // about 30% slower than MutableBag, and not sure we need it, since all operations with molecule bag are synchronized now.
 class ConcurrentMutableBag[K,V] {
