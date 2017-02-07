@@ -78,9 +78,13 @@ sealed trait Molecule extends PersistentHashCode {
 
   /** This is called by a [[ReactionSite]] when a molecule becomes bound to that reaction site.
     *
-    * @param rs Reaction site to which the molecule is now bound.
+    * @param rs    Reaction site to which the molecule is now bound.
+    * @param index Zero-based index of the input molecule at that reaction site.
     */
-  private[jc] def setReactionSite(rs: ReactionSite): Unit
+  private[jc] def setReactionSiteAndIndex(rs: ReactionSite, index: Int): Unit = {
+    hasReactionSite = true
+    inputIndex = index
+  }
 
   /** Check whether the molecule is already bound to a reaction site.
     * Note that molecules can be emitted only if they are bound.
@@ -96,13 +100,15 @@ sealed trait Molecule extends PersistentHashCode {
     *         Otherwise the molecule is already bound to a reaction site different from `rs`, so return
     *         the string representation of that reaction site as a non-empty option.
     */
-  final private[jc] def isBoundToAnother(rs: ReactionSite): Option[String] =
+  final private[jc] def isBoundToAnotherReactionSite(rs: ReactionSite): Option[String] =
     if (isBound && !reactionSiteWrapper.sameReactionSite(rs))
       Some(reactionSiteWrapper.toString)
     else
       None
 
   protected var reactionSiteWrapper: ReactionSiteWrapper[_, _] = ReactionSiteWrapper.noReactionSite(this)
+
+  protected var inputIndex: Int = -1
 
   protected var hasReactionSite: Boolean = false
 
@@ -182,9 +188,9 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
   override lazy val isStatic: Boolean = isBound &&
     reactionSiteWrapper.staticMolsDeclared.contains(this)
 
-  override private[jc] def setReactionSite(rs: ReactionSite): Unit = {
-    hasReactionSite = true
+  override private[jc] def setReactionSiteAndIndex(rs: ReactionSite, index: Int) = {
     reactionSiteWrapper = rs.makeWrapper[T, Unit](this)
+    super.setReactionSiteAndIndex(rs, index)
   }
 
 }
@@ -395,9 +401,9 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
   /** This enables the short syntax `b()` and will only work when `T == Unit`. */
   def apply()(implicit arg: TypeMustBeUnit[T]): R = apply(arg.getUnit)
 
-  override private[jc] def setReactionSite(rs: ReactionSite): Unit = {
-    hasReactionSite = true
+  override private[jc] def setReactionSiteAndIndex(rs: ReactionSite, index: Int) = {
     reactionSiteWrapper = rs.makeWrapper[T, R](this)
+    super.setReactionSiteAndIndex(rs, index)
   }
 
 }

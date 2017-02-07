@@ -406,16 +406,23 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
   }
 
+  /** This is called once, when the reaction site is first declared using the [[site()]] call.
+    *
+    * @return A tuple containing the static molecules emitted by the reaction site with their counts, and a list of warning and error messages.
+    */
   private def initializeReactionSite(): (Map[Molecule, Int], WarningsAndErrors) = {
-    // Set the owner on all input molecules in this reaction site.
-    nonStaticReactions
+    val inputMolsIndices = nonStaticReactions
       .flatMap(_.inputMolecules)
-      .toSet // We only need to assign the owner on each distinct input molecule once.
-      .foreach { m: Molecule =>
-      m.isBoundToAnother(this) match {
+      .distinct // We only need to assign the owner on each distinct input molecule once.
+      .sortBy(_.name)
+      .zipWithIndex
+
+    // Set the owner on all input molecules in this reaction site.
+    inputMolsIndices.foreach { case (mol, index) =>
+      mol.isBoundToAnotherReactionSite(this) match {
         case Some(otherRS) =>
-          throw new ExceptionMoleculeAlreadyBound(s"Molecule $m cannot be used as input in $this since it is already bound to $otherRS")
-        case None => m.setReactionSite(this)
+          throw new ExceptionMoleculeAlreadyBound(s"Molecule $mol cannot be used as input in $this since it is already bound to $otherRS")
+        case None => mol.setReactionSiteAndIndex(this, index)
       }
     }
 
@@ -481,7 +488,10 @@ final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], r
     copy(warnings = warnings ++ other.warnings, errors = errors ++ other.errors)
 }
 
-
+/** Exceptions of this class are thrown on error conditions due to incorrect usage of `Chymyst Core`.
+  *
+  * @param message Description of the error.
+  */
 private[jc] sealed class ExceptionInChymyst(message: String) extends Exception(message)
 
 private[jc] final class ExceptionNoReactionSite(message: String) extends ExceptionInChymyst(message)
@@ -505,7 +515,7 @@ private[jc] final class ExceptionNoStaticMol(message: String) extends ExceptionI
   * This is intended to make it impossible to access the reaction site object via reflection on private fields in the Molecule class.
   *
   * Specific values of [[ReactionSiteWrapper]] are created by [[ReactionSite.makeWrapper()]]
-  * and assigned to molecule emitters by [[Molecule.setReactionSite()]]).
+  * and assigned to molecule emitters by [[Molecule.setReactionSiteAndIndex()]]).
   */
 private[jc] final class ReactionSiteWrapper[T, R](
                                                    override val toString: String,
