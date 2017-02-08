@@ -194,7 +194,11 @@ object Core {
 
   def intHash(s: Seq[Int]): Int = s.foldLeft(0)(_ * s.length + _)
 
-  val simpleTypes: Set[scala.Symbol] = Set('Unit, 'Boolean, 'Symbol, 'Double, 'Float, 'Int, 'Char, 'Short, 'Long, 'Byte, 'Null, 'Nothing, 'AnyVal)
+  /** Types for which there exist only relatively few distinct values.
+    *
+    * It then makes sense to represent a multiset of these values as a hash map.
+    */
+  val simpleTypes: Set[scala.Symbol] = Set('Unit, 'Boolean, 'Symbol, 'Char, 'Short, 'Byte, 'Null, 'Nothing)
 
   implicit def toJavaFunction[T, R](f: Function1[T, R]): Function[T, R] =
     new Function[T, R] {

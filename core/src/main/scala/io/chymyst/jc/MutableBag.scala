@@ -1,14 +1,11 @@
 package io.chymyst.jc
 
-//
-//import collection.JavaConverters._
-//import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
+
+import scala.collection.JavaConverters.asScalaSetConverter
 import Core._
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
 import collection.mutable
-import scala.collection.convert.Wrappers.ConcurrentMapWrapper
+import com.google.common.collect.ConcurrentHashMultiset
 
 /*
 class MutableBag[K,V] { // quadratic time, extremely slow
@@ -44,23 +41,30 @@ sealed trait MolValueBag[T] {
 
   def remove(v: T): MolValueBag[T]
 
-  def find(pred: T => Boolean): Option[T]
+  def find(predicate: T => Boolean): Option[T]
 }
 
+/** Implementation using guava's [[ConcurrentHashMultiset]].
+  *
+  * This is suitable for types that have a small number of possible values (i.e. [[simpleTypes]]).
+  */
 class MolValueMapBag[T] extends MolValueBag[T] {
-  private val bag: ConcurrentMap[T, AtomicInteger] = new ConcurrentHashMap[T, AtomicInteger]()
+  private val bag: ConcurrentHashMultiset[T] = ConcurrentHashMultiset.create()
 
   override def add(v: T): MolValueBag[T] = {
-    bag.computeIfAbsent(v, toJavaFunction(k => new AtomicInteger(0))).incrementAndGet()
+    bag.add(v, 1)
     this
   }
 
   override def remove(v: T): MolValueBag[T] = {
-    bag.computeIfPresent(v, toJavaBiFunction { (k: T, c: AtomicInteger) => if (c.get == 1) null else { c.decrementAndGet; c} })
+    bag.remove(v)
     this
   }
 
-  override def find(pred: (T) => Boolean): Option[T] = ???
+  override def find(predicate: (T) => Boolean): Option[T] =
+    bag.createEntrySet().asScala
+      .map(_.getElement)
+      .find(predicate)
 }
 
 object MolValueBag {
