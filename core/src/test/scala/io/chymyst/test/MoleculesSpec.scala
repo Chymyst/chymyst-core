@@ -55,8 +55,9 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       go { case g(_, r) + d(_) => r() },
       go { case a(_) + bb(_) + c(_) + f(_, r) => r() }
     )
-    f.typeSymbol shouldEqual 'Unit
-    f.index shouldEqual 3
+    val molecules = Seq(a, bb, c, d, f, g)
+    molecules.map(_.index) shouldEqual (0 until molecules.size)
+    molecules.map(_.typeSymbol) shouldEqual Seq.fill(molecules.size)('Unit)
 
     a.logSoup shouldEqual "Site{a + bb + c + f/B => ...; d + g/B => ...}\nNo molecules"
 
