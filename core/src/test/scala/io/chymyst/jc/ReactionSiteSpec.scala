@@ -9,7 +9,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   behavior of "reaction"
 
   it should "admit values by simple constant matching" in {
-    val a = m[Int]
+    val a = m[Short]
 
     val r = go { case a(1) => }
 
@@ -18,7 +18,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     input.admitsValue(MolValue(1)) shouldEqual true
     input.admitsValue(MolValue(0)) shouldEqual false
 
-    input.valType shouldEqual 'Int
+    input.valType shouldEqual 'Short
     input.isSimpleType shouldEqual true
   }
 
