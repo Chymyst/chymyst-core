@@ -267,7 +267,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     m.consumingReactions.flatMap(r =>
       r.shuffle // The shuffle will ensure fairness across reactions.
         // We only need to find one reaction whose input molecules are available. For this, we use the special `Core.findAfterMap`.
-        .findAfterMap(_.findInputMolecules(m, moleculesPresent))
+        .findAfterMap(_.findInputMolecules(m, bags))
     )
   }
 
@@ -430,7 +430,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         (mol, (index, valType))
       }
 
-    val bagLocators = new Array[MolValueBag[AbsMolValue[_]]](inputMolsIndices.size)
+    val bagLocators: MoleculeBagArray = new Array(inputMolsIndices.size)
 
     // Set the RS info on all input molecules in this reaction site.
     inputMolsIndices.foreach { case (mol, (index, valType)) ⇒
@@ -488,7 +488,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   // This is run when this ReactionSite is first created.
-  private val diagnostics: WarningsAndErrors = initializeReactionSite()._2
+  private val (bags: MoleculeBagArray, diagnostics: WarningsAndErrors) = initializeReactionSite()
 
   /** Print warnings messages and throw exception if the initialization of this reaction site caused errors.
     *
