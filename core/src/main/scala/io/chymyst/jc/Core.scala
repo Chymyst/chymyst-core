@@ -91,6 +91,8 @@ object Core {
   private[jc] type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
   private[jc] type MutableLinearMoleculeBag = mutable.Map[Molecule, AbsMolValue[_]]
 
+  private[jc] type MoleculeBagArray = Array[MolValueBag[AbsMolValue[_]]]
+
   private[jc] def moleculeBagToString(mb: MoleculeBag): String =
     mb.getMap.toSeq
       .map { case (m, vs) => (m.toString, vs) }

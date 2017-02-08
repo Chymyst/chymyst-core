@@ -46,7 +46,7 @@ private[jc] sealed trait AbsMolValue[T] {
   * @param v The value of type T carried by the molecule.
   * @tparam T The type of the value.
   */
-private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
+private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] with PersistentHashCode {
   override private[jc] def getValue: T = v
 }
 
@@ -57,10 +57,15 @@ private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
   * @tparam T The type of the value carried by the molecule.
   * @tparam R The type of the reply value.
   */
-private[jc] final case class BlockingMolValue[T, R](v: T, replyValue: AbsReplyValue[T, R]) extends AbsMolValue[T] with PersistentHashCode {
+private[jc] final case class BlockingMolValue[T, R](v: T, replyValue: AbsReplyValue[T, R]) extends AbsMolValue[T] {
   override private[jc] def getValue: T = v
 
   override private[jc] def reactionSentNoReply: Boolean = replyValue.noReplyAttemptedYet // no value, no error, and no timeout
+
+  /** The `hashCode` of a [[BlockingMolValue]] should depend only on the `hashCode` of the value `v`,
+    * and not on the reply value (which is mutable).
+    */
+  override lazy val hashCode: Int = v.hashCode()
 }
 
 /** Abstract trait representing a molecule emitter.

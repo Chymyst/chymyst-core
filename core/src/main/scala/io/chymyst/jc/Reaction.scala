@@ -14,23 +14,23 @@ import scala.collection.mutable
   * {{{OtherInputPattern(matcher = { case (x, Some((y,z)))) if x > y => }, vars = List('x, 'y, 'z), isIrrefutable = false)}}}
   */
 sealed trait InputPatternType {
-  /** Detect whether the input pattern will always match any given value.
-    * In other words, a pattern is considered "trivial" if it does not constrain the value but merely puts variables on its parts.
+  /** Detect whether the input pattern is irrefutable and will always match any given value.
+    * An irrefutable pattern does not constrain the input value but merely puts variables on the value or on its parts.
     *
-    * Examples of trivial patterns are `a(_)`, `a(x)`, and `a( z@(x,y,_) )`, where `a(...)` is a molecule with a suitable value type.
-    * Examples of nontrivial patterns are `a(1)`, `a(Some(x))`, `a( (_, None) )`.
+    * Examples of irrefutable patterns are `a(_)`, `a(x)`, and `a( z@(x,y,_) )`, where `a(...)` is a molecule with a suitable value type.
+    * Examples of refutable patterns are `a(1)`, `a(Some(x))`, `a( (_, None) )`.
     *
-    * @return `true` if the pattern always matches, `false` otherwise.
+    * @return `true` if the pattern is irrefutable, `false` otherwise.
     */
-  def isTrivial: Boolean = false
+  def isIrrefutable: Boolean = false
 }
 
 case object WildcardInput extends InputPatternType {
-  override def isTrivial: Boolean = true
+  override def isIrrefutable: Boolean = true
 }
 
 final case class SimpleVarInput(v: ScalaSymbol, cond: Option[PartialFunction[Any, Unit]]) extends InputPatternType {
-  override def isTrivial: Boolean = cond.isEmpty
+  override def isIrrefutable: Boolean = cond.isEmpty
 }
 
 /** Represents molecules that have constant pattern matchers, such as `a(1)`.
@@ -49,12 +49,12 @@ final case class ConstInputPattern(v: Any) extends InputPatternType
   * On the other hand, `a( (x, _, Some(_) ) )` is not irrefutable because it fails to match `a( (_, _, None) )`.
   * Another recognized case of irrefutable patterns is a single case class that extends a sealed trait.
   *
-  * @param matcher       Partial function that applies to the argument when the pattern matches.
-  * @param vars          List of symbols representing the variables used in the pattern, in the left-to-right order.
-  * @param isIrrefutable `true` if the pattern will always match the argument of the correct type, `false` otherwise.
+  * @param matcher     Partial function that applies to the argument when the pattern matches.
+  * @param vars        List of symbols representing the variables used in the pattern, in the left-to-right order.
+  * @param irrefutable `true` if the pattern will always match the argument of the correct type, `false` otherwise.
   */
-final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: List[ScalaSymbol], isIrrefutable: Boolean) extends InputPatternType {
-  override def isTrivial: Boolean = isIrrefutable
+final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: List[ScalaSymbol], irrefutable: Boolean) extends InputPatternType {
+  override def isIrrefutable: Boolean = irrefutable
 }
 
 /** Represents the value pattern of an emitted output molecule.
@@ -505,8 +505,10 @@ final class ReactionInfo(
       .filter(_._2.length > 1)
       .values
       .filter { repeatedInput =>
-        crossGuards.exists { guard => (guard.indices intersect repeatedInput.map(_.index)).nonEmpty } ||
-          repeatedInput.exists { info => !info.flag.isTrivial }
+        crossGuards.exists { guard =>
+          (guard.indices intersect repeatedInput.map(_.index)).nonEmpty
+        } ||
+          repeatedInput.exists { info => !info.flag.isIrrefutable }
       }
       .flatMap(_.map(_.index))
       .toSet
@@ -711,7 +713,7 @@ final case class Reaction(
                     // This does not work... not sure why.
                     //if (inputInfo.molecule === m) Some(molValue).toStream // In this case, we need to use the given value, which is guaranteed to be in the value map.
                     //              else
-                    if (inputInfo.flag.isTrivial && moleculeIsIndependent(inputInfo.index))
+                    if (inputInfo.flag.isIrrefutable && moleculeIsIndependent(inputInfo.index))
                     // If this molecule is independent of others and has a trivial matcher, it suffices to select any of the existing values for that molecule.
                       valuesMap.headOption.map(_._1).toStream
                     else // Do not eagerly evaluate the list of all possible values.
