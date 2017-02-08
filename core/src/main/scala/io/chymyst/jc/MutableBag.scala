@@ -1,7 +1,9 @@
 package io.chymyst.jc
 
 
-import scala.collection.JavaConverters.asScalaSetConverter
+import java.util.concurrent.ConcurrentLinkedQueue
+
+import scala.collection.JavaConverters.{asScalaIteratorConverter, asScalaSetConverter}
 import Core._
 
 import collection.mutable
@@ -37,6 +39,10 @@ class MutableBag[K,V] { // quadratic time, extremely slow
   * @tparam T Type of the value carried by molecule.
   */
 sealed trait MolValueBag[T] {
+  def count(v: T): Int
+
+  def size: Int
+
   def add(v: T): MolValueBag[T]
 
   def remove(v: T): MolValueBag[T]
@@ -44,12 +50,23 @@ sealed trait MolValueBag[T] {
   def find(predicate: T => Boolean): Option[T]
 }
 
+//object MolValueBag {
+//  def of[T](v: T): MolValueBag[T] = {
+//    new MolValueMapBag[T]
+//      .add(v)
+//  }
+//}
+
 /** Implementation using guava's [[ConcurrentHashMultiset]].
   *
   * This is suitable for types that have a small number of possible values (i.e. [[simpleTypes]]).
   */
-class MolValueMapBag[T] extends MolValueBag[T] {
+final class MolValueMapBag[T] extends MolValueBag[T] {
   private val bag: ConcurrentHashMultiset[T] = ConcurrentHashMultiset.create()
+
+  override def count(v: T): Int = bag.count(v)
+
+  override def size: Int = bag.size
 
   override def add(v: T): MolValueBag[T] = {
     bag.add(v, 1)
@@ -67,22 +84,31 @@ class MolValueMapBag[T] extends MolValueBag[T] {
       .find(predicate)
 }
 
-object MolValueBag {
-  def of[T](v: T): MolValueBag[T] = {
-    new MolValueMapBag[T]
-      .add(v)
+/** Implementation using guava's [[ConcurrentHashMultiset]].
+  *
+  * This is suitable for types that have a small number of possible values (i.e. [[simpleTypes]]).
+  */
+final class MolValueQueueBag[T] extends MolValueBag[T] {
+  private val bag: ConcurrentLinkedQueue[T] = new ConcurrentLinkedQueue[T]()
+
+  override def count(v: T): Int = bag.iterator.asScala.count(_ === v)
+
+  override def size: Int = bag.size
+
+  override def add(v: T): MolValueBag[T] = {
+    bag.add(v)
+    this
   }
+
+  override def remove(v: T): MolValueBag[T] = {
+    bag.remove(v)
+    this
+  }
+
+  override def find(predicate: (T) => Boolean): Option[T] = bag.iterator.asScala.find(predicate)
 }
 
-object MutableBag {
-
-  def of[K, V](k: K, v: V): MutableBag[K, V] = {
-    val b = new MutableBag[K, V]
-    b.addToBag(k, v)
-    b
-  }
-}
-
+// currently used implementation
 class MutableBag[K, V] {
 
   private val bag: mutable.Map[K, mutable.Map[V, Int]] = mutable.Map.empty

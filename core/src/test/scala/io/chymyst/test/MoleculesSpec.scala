@@ -38,7 +38,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     site(tp0)(go { case a(_) + b(_) + c(_) => })
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
-
+    a.typeSymbol shouldEqual 'Unit
   }
 
   it should "correctly list molecules present in soup" in {
@@ -49,10 +49,14 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val f = b[Unit, Unit]
     val g = b[Unit, Unit]
 
+    f.typeSymbol shouldEqual null
+
     site(tp0)(
       go { case g(_, r) + d(_) => r() },
       go { case a(_) + bb(_) + c(_) + f(_, r) => r() }
     )
+    f.typeSymbol shouldEqual 'Unit
+
     a.logSoup shouldEqual "Site{a + bb + c + f/B => ...; d + g/B => ...}\nNo molecules"
 
     a()

@@ -407,10 +407,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   /** This is called once, when the reaction site is first declared using the [[site()]] call.
+    * It is called on the thread that calls [[site()]].
     *
-    * @return A tuple containing the static molecules emitted by the reaction site with their counts, and a list of warning and error messages.
+    * @return A tuple containing the molecule value bags, and a list of warning and error messages.
     */
-  private def initializeReactionSite(): (Map[Molecule, Int], WarningsAndErrors) = {
+  private def initializeReactionSite() = {
 
     val inputMolsIndices = nonStaticReactions
       .flatMap(_.inputMolecules)
@@ -426,15 +427,24 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           .map(_.valType)
           .getOrElse("<unknown>".toScalaSymbol)
 
-        (mol, (index, mol.name, valType))
-      }(scala.collection.breakOut)
+        (mol, (index, valType))
+      }
 
-    // Set the owner on all input molecules in this reaction site.
-    inputMolsIndices.foreach { case (mol, (index, _, _)) ⇒
+    val bagLocators = new Array[MolValueBag[AbsMolValue[_]]](inputMolsIndices.size)
+
+    // Set the RS info on all input molecules in this reaction site.
+    inputMolsIndices.foreach { case (mol, (index, valType)) ⇒
+      // Assign the value bag.
+      bagLocators(index) = if (simpleTypes contains valType)
+        new MolValueQueueBag[AbsMolValue[_]]()
+      else
+        new MolValueMapBag[AbsMolValue[_]]()
+
+      // Assign the RS info on molecule or throw exception on error.
       mol.isBoundToAnotherReactionSite(this) match {
         case Some(otherRS) =>
           throw new ExceptionMoleculeAlreadyBound(s"Molecule $mol cannot be used as input in $this since it is already bound to $otherRS")
-        case None => mol.setReactionSiteAndIndex(this, index)
+        case None => mol.setReactionSiteInfo(this, index, valType)
       }
     }
 
@@ -474,7 +484,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val staticMolsDiagnostics = WarningsAndErrors(staticMolsEmissionWarnings, staticMolsEmissionErrors, s"$this")
     val diagnostics = staticDiagnostics ++ staticMolsDiagnostics
 
-    (staticMolsActuallyEmitted, diagnostics) // Not sure if we still want `staticMolsActuallyEmitted` stored in the RS class.
+    (bagLocators, diagnostics) // Not sure if we still want `staticMolsActuallyEmitted` stored in the RS class.
   }
 
   // This is run when this ReactionSite is first created.
@@ -527,7 +537,7 @@ private[jc] final class ExceptionNoStaticMol(message: String) extends ExceptionI
   * This is intended to make it impossible to access the reaction site object via reflection on private fields in the Molecule class.
   *
   * Specific values of [[ReactionSiteWrapper]] are created by [[ReactionSite.makeWrapper()]]
-  * and assigned to molecule emitters by [[Molecule.setReactionSiteAndIndex()]]).
+  * and assigned to molecule emitters by [[Molecule.setReactionSiteInfo()]]).
   */
 private[jc] final class ReactionSiteWrapper[T, R](
                                                    override val toString: String,

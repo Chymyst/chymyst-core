@@ -27,7 +27,8 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "make a bag with one element" in {
-    val b = MutableBag.of(1, "a")
+    val b = new MutableBag[Int, String]
+    b.addToBag(1, "a")
     b.size shouldEqual 1
     b.getOne(1) shouldEqual Some("a")
     b.getCount(1) shouldEqual 1
@@ -35,7 +36,8 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "print a bag" in {
-    val b = MutableBag.of(1, "a")
+    val b = new MutableBag[Int, String]
+    b.addToBag(1, "a")
     b.addToBag(2, "b")
     b.toString shouldEqual "Map(2 -> Map(b -> 1), 1 -> Map(a -> 1))"
   }
