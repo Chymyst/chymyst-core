@@ -3,8 +3,12 @@ package io.chymyst.jc
 //
 //import collection.JavaConverters._
 //import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
+import Core._
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentMap}
 
 import collection.mutable
+import scala.collection.convert.Wrappers.ConcurrentMapWrapper
 
 /*
 class MutableBag[K,V] { // quadratic time, extremely slow
@@ -30,7 +34,41 @@ class MutableBag[K,V] { // quadratic time, extremely slow
 
 }
 */
-/* */
+
+/** Abstract container for molecule values. Concrete implementations may optimize for specific molecule types.
+  *
+  * @tparam T Type of the value carried by molecule.
+  */
+sealed trait MolValueBag[T] {
+  def add(v: T): MolValueBag[T]
+
+  def remove(v: T): MolValueBag[T]
+
+  def find(pred: T => Boolean): Option[T]
+}
+
+class MolValueMapBag[T] extends MolValueBag[T] {
+  private val bag: ConcurrentMap[T, AtomicInteger] = new ConcurrentHashMap[T, AtomicInteger]()
+
+  override def add(v: T): MolValueBag[T] = {
+    bag.computeIfAbsent(v, toJavaFunction(k => new AtomicInteger(0))).incrementAndGet()
+    this
+  }
+
+  override def remove(v: T): MolValueBag[T] = {
+    bag.computeIfPresent(v, toJavaBiFunction { (k: T, c: AtomicInteger) => if (c.get == 1) null else { c.decrementAndGet; c} })
+    this
+  }
+
+  override def find(pred: (T) => Boolean): Option[T] = ???
+}
+
+object MolValueBag {
+  def of[T](v: T): MolValueBag[T] = {
+    new MolValueMapBag[T]
+      .add(v)
+  }
+}
 
 object MutableBag {
 

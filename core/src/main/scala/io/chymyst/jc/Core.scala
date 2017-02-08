@@ -2,6 +2,7 @@ package io.chymyst.jc
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
+import java.util.function.{Function, BiFunction}
 
 import scala.annotation.tailrec
 import scala.collection.mutable
@@ -63,7 +64,8 @@ object Core {
   }
 
   @SuppressWarnings(Array("org.wartremover.warts.Equals"))
-  implicit final class AnyOpsNotEquals[A](val self: A) extends AnyVal { // removing `[@specialized A]` to allow `extends AnyVal`
+  implicit final class AnyOpsNotEquals[A](val self: A) extends AnyVal {
+    // removing `[@specialized A]` to allow `extends AnyVal`
     def =!=(other: A): Boolean = self != other
   }
 
@@ -193,4 +195,15 @@ object Core {
   def intHash(s: Seq[Int]): Int = s.foldLeft(0)(_ * s.length + _)
 
   val simpleTypes: Set[scala.Symbol] = Set('Unit, 'Boolean, 'Symbol, 'Double, 'Float, 'Int, 'Char, 'Short, 'Long, 'Byte, 'Null, 'Nothing, 'AnyVal)
+
+  implicit def toJavaFunction[T, R](f: Function1[T, R]): Function[T, R] =
+    new Function[T, R] {
+      override def apply(t: T): R = f(t)
+    }
+
+  implicit def toJavaBiFunction[T1, T2, R](f: Function2[T1, T2, R]): BiFunction[T1, T2, R] =
+    new BiFunction[T1, T2, R] {
+      override def apply(t1: T1, t2: T2): R = f(t1, t2)
+    }
+
 }
