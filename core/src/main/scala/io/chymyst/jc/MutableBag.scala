@@ -9,32 +9,7 @@ import Core._
 import collection.mutable
 import com.google.common.collect.ConcurrentHashMultiset
 
-/*
-class MutableBag[K,V] { // quadratic time, extremely slow
-  val bag: mutable.Map[K, mutable.DoubleLinkedList[V]] = mutable.Map.empty
-
-  def get(k: K): Option[mutable.DoubleLinkedList[V]] = bag.get(k)
-
-  def addToBag(k: K, v: V): Unit = bag.get(k) match {
-    case Some(vs) => bag += (k -> (vs.+:(v)))// v
-    case None => bag += (k -> mutable.DoubleLinkedList(v))
-  }
-
-  def removeFromBag(k: K, v: V): Unit = bag.get(k).foreach { vs =>
-    val newVs = vs.difff(Seq(v))
-    if (newVs.isEmpty)
-      bag -= k
-    else
-      bag += (k -> newVs)
-  }
-
-  def removeFromBag(another: mutable.Map[K,V]): Unit =
-    another.foreach { case (k, v) => removeFromBag(k, v) }
-
-}
-*/
-
-/** Abstract container for molecule values. Concrete implementations may optimize for specific molecule types.
+/** Abstract container for molecule values. Concrete implementations may optimize for specific access patterns.
   *
   * @tparam T Type of the value carried by molecule.
   */
@@ -48,18 +23,14 @@ sealed trait MolValueBag[T] {
   def remove(v: T): MolValueBag[T]
 
   def find(predicate: T => Boolean): Option[T]
-}
 
-//object MolValueBag {
-//  def of[T](v: T): MolValueBag[T] = {
-//    new MolValueMapBag[T]
-//      .add(v)
-//  }
-//}
+  def takeAny(count: Int): Seq[T]
+}
 
 /** Implementation using guava's [[ConcurrentHashMultiset]].
   *
-  * This is suitable for types that have a small number of possible values (i.e. [[simpleTypes]]).
+  * This is suitable for types that have a small number of possible values (i.e. [[simpleTypes]]),
+  * or for molecules constrained by cross-molecule dependencies where selection by value is important.
   */
 final class MolValueMapBag[T] extends MolValueBag[T] {
   private val bag: ConcurrentHashMultiset[T] = ConcurrentHashMultiset.create()
@@ -82,15 +53,19 @@ final class MolValueMapBag[T] extends MolValueBag[T] {
     bag.createEntrySet().asScala
       .map(_.getElement)
       .find(predicate)
+
+  override def takeAny(count: Int) = bag.iterator().asScala.take(count).toSeq
 }
 
-/** Implementation using guava's [[ConcurrentHashMultiset]].
+/** Implementation using [[ConcurrentLinkedQueue]].
   *
-  * This is suitable for types that have a small number of possible values (i.e. [[simpleTypes]]).
+  * This is suitable for molecule value types that have a large number of possible values (so that a `Map` storage would be inefficient),
+  * or for cases where we do not need to group molecules by value (pipelined molecules).
   */
 final class MolValueQueueBag[T] extends MolValueBag[T] {
   private val bag: ConcurrentLinkedQueue[T] = new ConcurrentLinkedQueue[T]()
 
+  // Very inefficient! O(n) operations.
   override def count(v: T): Int = bag.iterator.asScala.count(_ === v)
 
   override def size: Int = bag.size
@@ -106,6 +81,8 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
   }
 
   override def find(predicate: (T) => Boolean): Option[T] = bag.iterator.asScala.find(predicate)
+
+  override def takeAny(count: Int) = bag.iterator.asScala.take(count).toSeq
 }
 
 // currently used implementation

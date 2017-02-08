@@ -50,12 +50,13 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val g = b[Unit, Unit]
 
     f.typeSymbol shouldEqual null
-
+    f.index shouldEqual -1
     site(tp0)(
       go { case g(_, r) + d(_) => r() },
       go { case a(_) + bb(_) + c(_) + f(_, r) => r() }
     )
     f.typeSymbol shouldEqual 'Unit
+    f.index shouldEqual 3
 
     a.logSoup shouldEqual "Site{a + bb + c + f/B => ...; d + g/B => ...}\nNo molecules"
 

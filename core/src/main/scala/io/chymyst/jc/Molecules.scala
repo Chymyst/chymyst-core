@@ -46,7 +46,7 @@ private[jc] sealed trait AbsMolValue[T] {
   * @param v The value of type T carried by the molecule.
   * @tparam T The type of the value.
   */
-private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] with PersistentHashCode {
+private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
   override private[jc] def getValue: T = v
 }
 
@@ -80,6 +80,8 @@ sealed trait Molecule extends PersistentHashCode {
   val name: String
 
   def typeSymbol: Symbol = valTypeSymbol
+
+  def index: Int = inputIndex
 
   override def toString: String = (if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "")
 
