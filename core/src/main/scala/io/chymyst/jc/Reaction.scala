@@ -550,7 +550,11 @@ final class ReactionInfo(
   // This must be lazy because molecule.index is known late.
   private[jc] lazy val (inputsSortedIrrefutableGrouped, inputsSortedConditional) = {
     val (inputsSortedIrrefutable, inputsSortedConditional) = inputsSorted.partition(_.flag.isIrrefutable)
-    (inputsSortedIrrefutable.sortedGroupBy(_.molecule.index), inputsSortedConditional)
+    val inputsSortedIrrefutableGrouped =
+      inputsSortedIrrefutable.sortedMapGroupBy(_.molecule.index, _.index)
+        .map { case (i, is) ⇒ (i, is.toArray) }
+        .toArray
+    (inputsSortedIrrefutableGrouped, inputsSortedConditional)
   }
 
   /* Not sure if this is still useful.
@@ -680,6 +684,10 @@ final case class Reaction(
     inputs
   }
 
+  type MolVals = Map[Int, AbsMolValue[_]]
+  type ValsMap = Map[AbsMolValue[_], Int]
+  type FoldType = (MolVals, BagMap)
+
   /** Find a set of input molecules for this reaction, among the present molecules. */
   private[jc] def findInputMolecules(m: Molecule, moleculesPresent: MoleculeBagArray): Option[(Reaction, InputMoleculeList)] = {
     // Evaluate the static guard first. If the static guard fails, we don't need to run the reaction or look for any input molecules.
@@ -697,10 +705,6 @@ final case class Reaction(
         case (mIndex, count) ⇒ moleculesPresent(mIndex).size < count
       }) None
       else {
-
-        type MolVals = Map[Int, AbsMolValue[_]]
-        type ValsMap = Map[AbsMolValue[_], Int]
-        type FoldType = (MolVals, BagMap)
 
         // A simpler, non-flatMap algorithm for the case when there are no cross-dependencies of molecule values.
         // For each single (non-repeated) input molecule, select a molecule value that satisfies the conditional.
@@ -724,11 +728,7 @@ final case class Reaction(
               info.inputsSortedIrrefutableGrouped
                 .foreach { case (i, infos) ⇒
                   val molValues = moleculesPresent(i).takeAny(moleculeIndexRequiredCounts(i))
-                  infos.zip(molValues)
-                    .foreach { case (inf, molValue) ⇒
-                      foundValues(inf.index) = molValue
-                    }
-
+                  infos.indices.foreach { idx ⇒ foundValues(infos(idx)) = molValues(idx) }
                 }
               foundValues.indices.map { i ⇒ (i, foundValues(i)) }.toMap
             }

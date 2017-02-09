@@ -88,12 +88,12 @@ object Core {
 
   // for M[T] molecules, the value inside AbsMolValue[T] is of type T; for B[T,R] molecules, the value is of type
   // ReplyValue[T,R]. For now, we don't use shapeless to enforce this typing relation.
-//  private[jc] type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
+  //  private[jc] type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
   private[jc] type MutableLinearMoleculeBag = mutable.Map[Molecule, AbsMolValue[_]]
 
   private[jc] type MoleculeBagArray = Array[MolValueBag[AbsMolValue[_]]]
 
-//  private[jc] def moleculeBagToString(mb: MoleculeBag): String = moleculeBagToString(mb.getMap)
+  //  private[jc] def moleculeBagToString(mb: MoleculeBag): String = moleculeBagToString(mb.getMap)
 
   private[jc] def moleculeBagToString(mb: Map[Molecule, Map[AbsMolValue[_], Int]]): String =
     mb.toSeq
@@ -161,22 +161,25 @@ object Core {
       * For example, `Seq(1,2,3,4).sortedGroupBy(x < 3)` yields `Seq((true, Seq(1,2)), (false, Seq(3,4))`
       *
       * @param f A function that determines the grouping key.
+      * @param g A function that is applied to elements as a `map`.
       * @tparam R Type of the grouping key.
+      * @tparam S Type of the elements of the resulting sequence.
       * @return Sequence of tuples similar to the output of `groupBy`.
       */
-    def sortedGroupBy[R](f: T => R): IndexedSeq[(R, IndexedSeq[T])] =
+    def sortedMapGroupBy[R, S](f: T ⇒ R, g: T ⇒ S): IndexedSeq[(R, IndexedSeq[S])] =
       s.headOption match {
         case None ⇒ IndexedSeq()
         case Some(t) ⇒
           val (finalR, finalSeq, finalSeqT) =
-            s.drop(1).foldLeft[(R, IndexedSeq[(R, IndexedSeq[T])], IndexedSeq[T])]((f(t), IndexedSeq(), IndexedSeq(t))) {
+            s.drop(1).foldLeft[(R, IndexedSeq[(R, IndexedSeq[S])], IndexedSeq[S])]((f(t), IndexedSeq(), IndexedSeq(g(t)))) {
               (acc, t) ⇒
                 val (prevR, prevSeq, prevSeqT) = acc
                 val newR = f(t)
+                val newT = g(t)
                 if (newR === prevR)
-                  (newR, prevSeq, prevSeqT :+ t)
+                  (newR, prevSeq, prevSeqT :+ newT)
                 else
-                  (newR, prevSeq :+ ((prevR, prevSeqT)), IndexedSeq(t))
+                  (newR, prevSeq :+ ((prevR, prevSeqT)), IndexedSeq(newT))
             }
           finalSeq :+ ((finalR, finalSeqT))
       }
