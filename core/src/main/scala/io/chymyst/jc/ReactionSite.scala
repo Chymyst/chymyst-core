@@ -1,11 +1,7 @@
 package io.chymyst.jc
 
-import java.util.concurrent.ConcurrentLinkedQueue
-
 import Core._
 import StaticAnalysis._
-
-import scala.annotation.tailrec
 
 /** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
   * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
@@ -79,14 +75,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     s"$toString\n$moleculesPrettyPrinted"
   }
 
-  private val newMoleculeQueue: ConcurrentLinkedQueue[(Molecule, AbsMolValue[_])] = new ConcurrentLinkedQueue()
-
-  private def decideReactionsForNewMolecule(m: Molecule, molValue: AbsMolValue[_]): Unit = try {
+  private def decideReactionsForNewMolecule(m: Molecule): Unit = try {
     val foundReactionAndInputs =
       bags.synchronized {
-        addToBag(m, molValue)
-        lazy val emitMoleculeMessage = s"Debug: $this emitting $m($molValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(bags)}]"
-        if (logLevel > 0) println(emitMoleculeMessage)
 
         // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
         val found: Option[(Reaction, InputMoleculeList)] = findReaction(m)
@@ -127,22 +118,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     case e: ExceptionInChymyst => reportError(e.getMessage)
   }
 
-  @tailrec
-  private def dequeueNewMolecules(): Unit = {
-    newMoleculeQueue.poll() match {
-      case null =>
-        ()
-      case (m, molValue) =>
-        decideReactionsForNewMolecule(m, molValue)
-        dequeueNewMolecules() // Keep dequeueing while poll() returns non-null elements.
-    }
-  }
-
   private def scheduleReaction(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit =
-    poolForReaction.runClosure(buildReactionClosure(reaction, usedInputs, poolForReaction: Pool), reaction.newChymystThreadInfo)
+    poolForReaction.runClosure(runReaction(reaction, usedInputs, poolForReaction: Pool), reaction.newChymystThreadInfo)
 
-  private val emissionRunnable: Runnable = new Runnable {
-    override def run(): Unit = dequeueNewMolecules()
+  private def emissionRunnable(m: Molecule): Runnable = new Runnable {
+    override def run(): Unit = decideReactionsForNewMolecule(m)
   }
 
   private def reportError(message: String): Unit = {
@@ -176,7 +156,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @param reaction   Reaction to run.
     * @param usedInputs Molecules (with values) that are consumed by the reaction.
     */
-  private def buildReactionClosure(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit = {
+  private def runReaction(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit = {
     lazy val reactionStartMessage = s"Debug: In $this: reaction {${reaction.info}} started on thread pool $reactionPool with thread id ${Thread.currentThread().getId}"
 
     if (logLevel > 1) println(reactionStartMessage)
@@ -339,8 +319,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           m.asInstanceOf[M[T]].assignStaticMolVolatileValue(molValue)
         }
         // If we are here, we are allowed to emit.
-        newMoleculeQueue.add((m, molValue))
-        sitePool.runRunnable(emissionRunnable)
+        addToBag(m, molValue)
+
+        lazy val emitMoleculeMessage = s"Debug: $this emitting $m($molValue), now have molecules [${moleculeBagToString(bags)}]"
+        if (logLevel > 0) println(emitMoleculeMessage)
+
+        sitePool.runRunnable(emissionRunnable(m))
       }
     }
   }
