@@ -684,11 +684,9 @@ final case class Reaction(
 
       // First fetch all molecule counts for our candidate input molecules.
       // If any of the counts is less than required, we can return `None` immediately.
-      // TODO: Optimization: finish fetching the present counts early if we fail to satisfy one of the required counts
-      val moleculeIndexPresentCounts = inputMoleculesSet.map { m ⇒ (m.index, moleculesPresent(m.index).size) }.toMap
 
       if (moleculeIndexRequiredCounts.exists {
-        case (mIndex, count) ⇒ moleculeIndexPresentCounts.getOrElse(mIndex, 0) < count
+        case (mIndex, count) ⇒ moleculesPresent(mIndex).size < count
       }) None
       else {
 
