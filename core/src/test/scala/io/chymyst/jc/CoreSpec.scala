@@ -102,6 +102,8 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     Seq[Int]().sortedGroupBy(x ⇒ x) shouldEqual Seq[Int]()
     Seq(1).sortedGroupBy(x ⇒ x % 2) shouldEqual Seq((1, Seq(1)))
     Seq(1, 3, 2, 4).sortedGroupBy(x ⇒ x % 2) shouldEqual Seq((1, Seq(1, 3)), (0, Seq(2, 4)))
+    Seq(1, 2, 3, 4).sortedGroupBy(_ < 3) shouldEqual Seq((true, Seq(1, 2)), (false, Seq(3, 4)))
+    Seq(1, 2, 2, 3, 3, 3, 1).sortedGroupBy(identity) shouldEqual Seq((1, Seq(1)), (2, Seq(2, 2)), (3, Seq(3, 3, 3)), (1, Seq(1)))
   }
 
   behavior of "cleanup utility"

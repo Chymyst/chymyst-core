@@ -153,24 +153,33 @@ object Core {
       }.map(_ => result)
     }
 
-    def sortedGroupBy[R](f: T => R): IndexedSeq[(R, IndexedSeq[T])] = {
-      val (finalR, finalSeq, finalSeqT) =
-        s.foldLeft[(R, IndexedSeq[(R, IndexedSeq[T])], IndexedSeq[T])]((null.asInstanceOf[R], IndexedSeq(), IndexedSeq())) {
-          (acc, t) ⇒
-            val (prevR, prevSeq, prevSeqT) = acc
-            val newR = f(t)
-            if (newR === prevR)
-              (newR, prevSeq, prevSeqT :+ t)
-            else if (prevSeqT.nonEmpty)
-              (newR, prevSeq :+ ((prevR, prevSeqT)), IndexedSeq(t))
-            else
-              (newR, prevSeq, IndexedSeq(t))
-        }
-      if (finalSeqT.nonEmpty)
-        finalSeq :+ ((finalR, finalSeqT))
-      else
-        finalSeq
-    }
+    /** A `Seq#groupBy` produces a `Map` and loses the ordering present in the original sequence.
+      * Instead, `sortedGroupBy` produces a sequence of tuples that preserves the ordering of the original sequence.
+      * This is suitable for stream processing or for cases when the original sequence is already sorted.
+      * The result is not a true `groupBy` since it never reorders sequence elements.
+      *
+      * For example, `Seq(1,2,3,4).sortedGroupBy(x < 3)` yields `Seq((true, Seq(1,2)), (false, Seq(3,4))`
+      *
+      * @param f A function that determines the grouping key.
+      * @tparam R Type of the grouping key.
+      * @return Sequence of tuples similar to the output of `groupBy`.
+      */
+    def sortedGroupBy[R](f: T => R): IndexedSeq[(R, IndexedSeq[T])] =
+      s.headOption match {
+        case None ⇒ IndexedSeq()
+        case Some(t) ⇒
+          val (finalR, finalSeq, finalSeqT) =
+            s.tail.foldLeft[(R, IndexedSeq[(R, IndexedSeq[T])], IndexedSeq[T])]((f(t), IndexedSeq(), IndexedSeq(t))) {
+              (acc, t) ⇒
+                val (prevR, prevSeq, prevSeqT) = acc
+                val newR = f(t)
+                if (newR === prevR)
+                  (newR, prevSeq, prevSeqT :+ t)
+                else
+                  (newR, prevSeq :+ ((prevR, prevSeqT)), IndexedSeq(t))
+            }
+          finalSeq :+ ((finalR, finalSeqT))
+      }
 
     /** "flat foldLeft" will perform a `foldLeft` unless the function `op` returns `None` at some point in the sequence.
       *
