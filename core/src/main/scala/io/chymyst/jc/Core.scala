@@ -93,7 +93,7 @@ object Core {
 
   private[jc] type MoleculeBagArray = Array[MolValueBag[AbsMolValue[_]]]
 
-  private[jc] def moleculeBagToString(mb: MoleculeBag): String = moleculeBagToString(mb.getMap)
+//  private[jc] def moleculeBagToString(mb: MoleculeBag): String = moleculeBagToString(mb.getMap)
 
   private[jc] def moleculeBagToString(mb: Map[Molecule, Map[AbsMolValue[_], Int]]): String =
     mb.toSeq

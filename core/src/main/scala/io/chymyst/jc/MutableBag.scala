@@ -107,8 +107,7 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
     .mapValues(_.size)
 }
 
-// currently used implementation
-
+/*
 class MutableBag[K, V] {
 
   private val bag: mutable.Map[K, mutable.Map[V, Int]] = mutable.Map.empty
@@ -153,7 +152,7 @@ class MutableBag[K, V] {
     if (vs.isEmpty) bag -= k
   }
 }
-
+*/
 /*
 // about 30% slower than MutableBag, and not sure we need it, since all operations with molecule bag are synchronized now.
 class ConcurrentMutableBag[K,V] {
