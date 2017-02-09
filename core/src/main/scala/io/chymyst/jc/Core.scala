@@ -88,7 +88,7 @@ object Core {
 
   // for M[T] molecules, the value inside AbsMolValue[T] is of type T; for B[T,R] molecules, the value is of type
   // ReplyValue[T,R]. For now, we don't use shapeless to enforce this typing relation.
-  private[jc] type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
+//  private[jc] type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
   private[jc] type MutableLinearMoleculeBag = mutable.Map[Molecule, AbsMolValue[_]]
 
   private[jc] type MoleculeBagArray = Array[MolValueBag[AbsMolValue[_]]]

@@ -6,7 +6,6 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import scala.collection.JavaConverters.{asScalaIteratorConverter, asScalaSetConverter}
 import Core._
 
-import collection.mutable
 import com.google.common.collect.ConcurrentHashMultiset
 
 /** Abstract container for molecule values. Concrete implementations may optimize for specific access patterns.
