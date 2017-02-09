@@ -161,8 +161,10 @@ object Core {
             val newR = f(t)
             if (newR === prevR)
               (newR, prevSeq, prevSeqT :+ t)
-            else
+            else if (prevSeqT.nonEmpty)
               (newR, prevSeq :+ ((prevR, prevSeqT)), IndexedSeq(t))
+            else
+              (newR, prevSeq, IndexedSeq(t))
         }
       if (finalSeqT.nonEmpty)
         finalSeq :+ ((finalR, finalSeqT))

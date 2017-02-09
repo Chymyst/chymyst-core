@@ -79,21 +79,29 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
   behavior of "auxiliary fold ops"
 
   it should "support findAfterMap for Seq" in {
+    Seq[Int]().findAfterMap(x => Some(x)) shouldEqual None
     Seq(1, 2, 3).findAfterMap(x => if (x % 2 == 0) Some(x) else None) shouldEqual Some(2)
     Seq(1, 2, 3).findAfterMap(x => if (x % 2 != 0) Some(x) else None) shouldEqual Some(1)
     Seq(1, 2, 3).findAfterMap(x => if (x == 0) Some(x) else None) shouldEqual None
   }
 
   it should "support flatFoldLeft for Seq" in {
-    Seq[Int]().flatFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual Some(0)
+    Seq[Int]().flatFoldLeft(10)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual Some(10)
     Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual Some(6)
     Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual None
   }
 
   it should "support earlyFoldLeft for Seq" in {
+    Seq[Int]().earlyFoldLeft(10)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual 10
     Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual 6
     Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n == 0) Some(x + n) else None) shouldEqual 0
     Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual 1
+  }
+
+  it should "support sortedGroupBy" in {
+    Seq[Int]().sortedGroupBy(x ⇒ x) shouldEqual Seq[Int]()
+    Seq(1).sortedGroupBy(x ⇒ x % 2) shouldEqual Seq((1, Seq(1)))
+    Seq(1, 3, 2, 4).sortedGroupBy(x ⇒ x % 2) shouldEqual Seq((1, Seq(1, 3)), (0, Seq(2, 4)))
   }
 
   behavior of "cleanup utility"
@@ -125,8 +133,8 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     intHash(Array(100, 200)) should not equal intHash(Array(200, 100))
     intHash(Array(100, 200, 300)) should not equal intHash(Array(300, 200, 100))
 
-    intHash(Array(1,2)) should be < intHash(Array(2,3))
-    intHash(Array(0,3)) should be < intHash(Array(1,2))
+    intHash(Array(1, 2)) should be < intHash(Array(2, 3))
+    intHash(Array(0, 3)) should be < intHash(Array(1, 2))
   }
 
 }

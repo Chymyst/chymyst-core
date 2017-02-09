@@ -605,6 +605,7 @@ final case class Reaction(
 
   private[jc] lazy val inputMoleculesSet: Set[Molecule] = info.inputMoleculesSet
 
+  // This must be lazy because molecule indices are not known at `Reaction` construction time.
   private lazy val moleculeIndexRequiredCounts =
     inputMoleculesSet.map { m ⇒ (m.index, inputMolecules.count(_ === m)) }.toMap
 
@@ -612,7 +613,7 @@ final case class Reaction(
     *
     * @return String representation of input molecules of the reaction.
     */
-  override val toString: String = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${
+  override lazy val toString: String = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${
     if (retry)
       "/R"
     else ""
@@ -704,20 +705,21 @@ final case class Reaction(
           if (info.crossGuards.isEmpty && info.crossConditionals.isEmpty) {
             // flatFoldLeft is needed only over molecules with refutable matchers; filter them out first; all others don't need a fold since we already checked that present counts are sufficient.
 
-            info.inputsSortedConditional.flatFoldLeft(true) { (_, inputInfo) ⇒
+            val conditionalMols = info.inputsSortedConditional.flatFoldLeft(true) { (_, inputInfo) ⇒
               moleculesPresent(inputInfo.molecule.index).find(inputInfo.admitsValue)
                 .map { newMolValue ⇒
                   foundValues(inputInfo.index) = newMolValue
                   true
                 }
-            }.map { _ ⇒
+            }
+            conditionalMols.map { _ ⇒
               info.inputsSortedIrrefutable
                 .sortedGroupBy(_.molecule.index)
                 .foreach { case (i, infos) ⇒
                   val molValues = moleculesPresent(i).takeAny(moleculeIndexRequiredCounts(i))
                   infos.zip(molValues)
-                    .foreach { case (info, molValue) ⇒
-                      foundValues(info.index) = molValue
+                    .foreach { case (inf, molValue) ⇒
+                      foundValues(inf.index) = molValue
                     }
 
                 }
