@@ -547,8 +547,33 @@ final class ReactionInfo(
       (mol.toString, patternPrecedence, molValueString, sha)
     }.toList
 
-  private[jc] val (inputsSortedIrrefutable, inputsSortedConditional) =
-    inputsSorted.partition(_.flag.isIrrefutable)
+  private[jc] val (inputsSortedIrrefutableGrouped, inputsSortedConditional) = {
+    val (inputsSortedIrrefutable, inputsSortedConditional) = inputsSorted.partition(_.flag.isIrrefutable)
+    (inputsSortedIrrefutable.sortedGroupBy(_.molecule.index), inputsSortedConditional)
+  }
+
+  /* Not sure if this is still useful.
+    private def moleculeDependencies(index: Int): Array[Int] = info.guardPresence match {
+      case GuardPresent(_, _, crossGuards) =>
+        crossGuards.flatMap { case CrossMoleculeGuard(indices, _, _) =>
+          if (indices.contains(index))
+            indices
+          else Array[Int]()
+        }.distinct
+      case _ => Array[Int]()
+    }
+  */
+
+  /** Check whether the molecule given by inputInfo has no cross-dependencies, including cross-conditionals implied by a repeated input molecule.
+    */
+  private[jc] val independentInputMolecules: Set[Int] =
+    inputs.map(_.index)
+      .filter(index ⇒ !crossConditionals.contains(index) && crossGuards.forall {
+        case CrossMoleculeGuard(indices, _, _) ⇒
+          !indices.contains(index)
+      })
+      .toSet
+
 
   override val toString: String = {
     val inputsInfo = inputsSorted.map(_.toString).mkString(" + ")
@@ -638,24 +663,6 @@ final case class Reaction(
     }
   }
 
-  /*
-    private def moleculeDependencies(index: Int): Array[Int] = info.guardPresence match {
-      case GuardPresent(_, _, crossGuards) =>
-        crossGuards.flatMap { case CrossMoleculeGuard(indices, _, _) =>
-          if (indices.contains(index))
-            indices
-          else Array[Int]()
-        }.distinct
-      case _ => Array[Int]()
-    }
-  */
-  /** Check whether the molecule given by inputInfo has no cross-dependencies, including cross-conditionals implied by a repeated input molecule. */
-  // TODO: Implement fully!
-  private def moleculeIsIndependent(index: Int): Boolean = !info.crossConditionals.contains(index) && info.crossGuards.forall {
-    case CrossMoleculeGuard(indices, _, _) =>
-      !indices.contains(index)
-  }
-
   /** Convert a Map[Int, AbsMolValue[_]] to an array of AbsMolValue[_] using these indices.
     * The map should contain all indices from 0 to (info.inputs.length - 1) and no other indices.
     */
@@ -706,16 +713,14 @@ final case class Reaction(
           if (info.crossGuards.isEmpty && info.crossConditionals.isEmpty) {
             // flatFoldLeft is needed only over molecules with refutable matchers; filter them out first; all others don't need a fold since we already checked that present counts are sufficient.
 
-            val conditionalMols = info.inputsSortedConditional.flatFoldLeft(true) { (_, inputInfo) ⇒
+            info.inputsSortedConditional.flatFoldLeft(true) { (_, inputInfo) ⇒
               moleculesPresent(inputInfo.molecule.index).find(inputInfo.admitsValue)
                 .map { newMolValue ⇒
                   foundValues(inputInfo.index) = newMolValue
                   true
                 }
-            }
-            conditionalMols.map { _ ⇒
-              info.inputsSortedIrrefutable
-                .sortedGroupBy(_.molecule.index)
+            }.map { _ ⇒
+              info.inputsSortedIrrefutableGrouped
                 .foreach { case (i, infos) ⇒
                   val molValues = moleculesPresent(i).takeAny(moleculeIndexRequiredCounts(i))
                   infos.zip(molValues)
@@ -749,7 +754,7 @@ final case class Reaction(
                       // This does not work... not sure why.
                       //if (inputInfo.molecule === m) Some(molValue).toStream // In this case, we need to use the given value, which is guaranteed to be in the value map.
                       //              else
-                      if (inputInfo.flag.isIrrefutable && moleculeIsIndependent(inputInfo.index))
+                      if (inputInfo.flag.isIrrefutable && info.independentInputMolecules.contains(inputInfo.index))
                       // If this molecule is independent of others and has a trivial matcher, it suffices to select any of the existing values for that molecule.
                         valuesMap.headOption.map(_._1).toStream
                       else // Do not eagerly evaluate the list of all possible values.
