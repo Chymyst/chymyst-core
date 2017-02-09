@@ -425,7 +425,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // Set the RS info on all input molecules in this reaction site.
     knownMolecules.foreach { case (mol, (index, valType)) ⇒
       // Assign the value bag.
-      bags(index) = if (simpleTypes contains valType)
+      val pipelined = pipelinedMolecules contains index
+      val simpleType = simpleTypes contains valType
+      bags(index) = if (simpleType && !pipelined)
         new MolValueMapBag[AbsMolValue[_]]()
       else
         new MolValueQueueBag[AbsMolValue[_]]()
@@ -492,6 +494,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
       (mol, (index, valType))
     }(scala.collection.breakOut)
+
+  private def isPipelined(m: Molecule): Boolean = false
+
+  private val pipelinedMolecules: Set[Int] = knownMolecules.filterKeys(isPipelined).map(_._2._1).toSet
 
   private val moleculeAtIndex: Map[Int, Molecule] = knownMolecules.map { case (m, (i, _)) => (i, m) }(scala.collection.breakOut)
 
