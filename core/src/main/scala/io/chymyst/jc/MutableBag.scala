@@ -16,11 +16,13 @@ import com.google.common.collect.ConcurrentHashMultiset
 sealed trait MolValueBag[T] {
   def count(v: T): Int
 
+  def isEmpty: Boolean
+
   def size: Int
 
-  def add(v: T): MolValueBag[T]
+  def add(v: T): Unit
 
-  def remove(v: T): MolValueBag[T]
+  def remove(v: T): Unit
 
   def find(predicate: T => Boolean): Option[T]
 
@@ -39,16 +41,18 @@ final class MolValueMapBag[T] extends MolValueBag[T] {
 
   override def count(v: T): Int = bag.count(v)
 
+  override def isEmpty: Boolean = bag.isEmpty
+
   override def size: Int = bag.size
 
-  override def add(v: T): MolValueBag[T] = {
+  override def add(v: T): Unit = {
     bag.add(v, 1)
-    this
+    ()
   }
 
-  override def remove(v: T): MolValueBag[T] = {
+  override def remove(v: T): Unit = {
     bag.remove(v)
-    this
+    ()
   }
 
   override def find(predicate: (T) => Boolean): Option[T] =
@@ -56,7 +60,7 @@ final class MolValueMapBag[T] extends MolValueBag[T] {
       .map(_.getElement)
       .find(predicate)
 
-  override def takeAny(count: Int) = bag.iterator().asScala
+  override def takeAny(count: Int): Seq[T] = bag.iterator().asScala
     .take(count)
     .toSeq
 
@@ -78,21 +82,23 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
   // Very inefficient! O(n) operations.
   override def count(v: T): Int = bag.iterator.asScala.count(_ === v)
 
+  override def isEmpty: Boolean = bag.isEmpty
+
   override def size: Int = bag.size
 
-  override def add(v: T): MolValueBag[T] = {
+  override def add(v: T): Unit = {
     bag.add(v)
-    this
+    ()
   }
 
-  override def remove(v: T): MolValueBag[T] = {
+  override def remove(v: T): Unit = {
     bag.remove(v)
-    this
+    ()
   }
 
   override def find(predicate: (T) => Boolean): Option[T] = bag.iterator.asScala.find(predicate)
 
-  override def takeAny(count: Int) = bag.iterator.asScala.take(count).toSeq
+  override def takeAny(count: Int): Seq[T] = bag.iterator.asScala.take(count).toSeq
 
   // Very inefficient! O(n) operations.
   override def getCountMap: Map[T, Int] = bag.iterator.asScala
@@ -102,6 +108,7 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
 }
 
 // currently used implementation
+
 class MutableBag[K, V] {
 
   private val bag: mutable.Map[K, mutable.Map[V, Int]] = mutable.Map.empty

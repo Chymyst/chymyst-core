@@ -93,8 +93,10 @@ object Core {
 
   private[jc] type MoleculeBagArray = Array[MolValueBag[AbsMolValue[_]]]
 
-  private[jc] def moleculeBagToString(mb: MoleculeBag): String =
-    mb.getMap.toSeq
+  private[jc] def moleculeBagToString(mb: MoleculeBag): String = moleculeBagToString(mb.getMap)
+
+  private[jc] def moleculeBagToString(mb: Map[Molecule, Map[AbsMolValue[_], Int]]): String =
+    mb.toSeq
       .map { case (m, vs) => (m.toString, vs) }
       .sortBy(_._1)
       .flatMap {
@@ -134,7 +136,7 @@ object Core {
     }
   }
 
-  implicit final class SeqWithFlatFoldLeft[T](val s: Seq[T]) extends AnyVal {
+  implicit final class SeqWithExtraFoldOps[T](val s: Seq[T]) extends AnyVal {
 
     /** A `find` that will return the first value for which `f` returns `Some(...)`.
       *
@@ -149,6 +151,23 @@ object Core {
       s.find { t =>
         f(t).exists { r => result = r; true }
       }.map(_ => result)
+    }
+
+    def sortedGroupBy[R](f: T => R): IndexedSeq[(R, IndexedSeq[T])] = {
+      val (finalR, finalSeq, finalSeqT) =
+        s.foldLeft[(R, IndexedSeq[(R, IndexedSeq[T])], IndexedSeq[T])]((null.asInstanceOf[R], IndexedSeq(), IndexedSeq())) {
+          (acc, t) ⇒
+            val (prevR, prevSeq, prevSeqT) = acc
+            val newR = f(t)
+            if (newR === prevR)
+              (newR, prevSeq, prevSeqT :+ t)
+            else
+              (newR, prevSeq :+ ((prevR, prevSeqT)), IndexedSeq(t))
+        }
+      if (finalSeqT.nonEmpty)
+        finalSeq :+ ((finalR, finalSeqT))
+      else
+        finalSeq
     }
 
     /** "flat foldLeft" will perform a `foldLeft` unless the function `op` returns `None` at some point in the sequence.

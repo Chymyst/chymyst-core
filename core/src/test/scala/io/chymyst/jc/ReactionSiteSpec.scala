@@ -84,7 +84,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "run reactions with cross-molecule conditionals but without cross-molecule guards" in {
-    val result = withPool(new FixedPool(2)) { tp =>
+    withPool(new FixedPool(2)) { tp =>
       val a = m[Int]
       val f = b[Unit, Int]
       site(tp)(
