@@ -67,12 +67,12 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     max_deviation should be < 0.3
   }
 
-  // fairness across molecules:
+  // fairness across molecules: will be automatic here since all molecules are pipelined.
   // Emit n molecules A[Int] that can all interact with C[Int]. Each time they interact, their counter is incremented.
   // Then emit a single C molecule, which will react until its counter goes to 0.
   // At this point, gather all results from A[Int] into an array and return that array.
 
-  it should "fail to implement fairness across molecules" in {
+  it should "implement fairness across molecules" in {
 
     val counters = 20
 
@@ -105,8 +105,8 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     tp.shutdownNow()
 
-    result.min should be < (cycles / counters / 2)
-    result.max should be > (cycles / counters * 2)
+    result.min.toDouble should be > (cycles / counters * 0.8)
+    result.max.toDouble should be < (cycles / counters * 1.2)
   }
 
   behavior of "multiple emission"
