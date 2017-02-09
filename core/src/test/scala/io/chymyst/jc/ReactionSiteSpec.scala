@@ -142,10 +142,12 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   it should "report errors when no reply received due to exception" in {
     val f = b[Unit, Unit]
 
+    val x = 10
+
     val result = withPool(new FixedPool(2)) { tp =>
       site(tp)(
         go { case f(_, r) =>
-          throw new Exception("crash! ignore this exception")
+          if (x > 0) throw new Exception("crash! ignore this exception")
           r()
         }
       )
@@ -162,10 +164,12 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   it should "report errors when no reply received due to exception within timeout" in {
     val f = b[Unit, Unit]
 
+    val x = 10
+
     val result = withPool(new FixedPool(2)) { tp =>
       site(tp)(
         go { case f(_, r) =>
-          throw new Exception("crash! ignore this exception")
+          if (x > 0) throw new Exception("crash! ignore this exception")
           r()
         }
       )
@@ -177,6 +181,31 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     if (result.isFailure) println(s"Test failed with message: ${result.failed.get.getMessage}")
     result.get shouldEqual Succeeded
     result.isFailure shouldEqual false
+  }
+
+  behavior of "pipeline molecule detection"
+
+  it should "for reactions without conditions" in {
+    val a = m[Unit]
+    val c1 = m[Unit]
+    val c2 = m[Unit]
+    val c3 = m[Int]
+    val c4 = m[(Int, Int)]
+
+    val r2 = go { case c2(_) + c2(_) + c2(_) + c3(_) => }
+    val r4 = go { case c3(x) + c4((y, z)) => }
+    site(
+      go { case a(_) => },
+      go { case c1(_) + c1(_) => },
+      r2,
+      go { case c3(x) + c3(y) => },
+      r4
+    )
+
+    r2.info.independentInputMolecules shouldEqual Set(0, 1, 2, 3)
+    r4.info.independentInputMolecules shouldEqual Set(0, 1)
+    r4.info.inputs.map(_.flag.isIrrefutable) shouldEqual List(true, true)
+    Seq(a, c1, c2, c3, c4).map(_.isPipelined) shouldEqual Seq.fill(5)(true)
   }
 
 }

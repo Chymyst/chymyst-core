@@ -79,6 +79,8 @@ sealed trait Molecule extends PersistentHashCode {
     */
   val name: String
 
+  def isPipelined: Boolean = valIsPipelined
+
   def typeSymbol: Symbol = valTypeSymbol
 
   def index: Int = inputIndex
@@ -90,10 +92,11 @@ sealed trait Molecule extends PersistentHashCode {
     * @param rs    Reaction site to which the molecule is now bound.
     * @param index Zero-based index of the input molecule at that reaction site.
     */
-  private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol): Unit = {
+  private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean): Unit = {
     hasReactionSite = true
     inputIndex = index
     valTypeSymbol = valType
+    valIsPipelined = pipelined
   }
 
   /** Check whether the molecule is already bound to a reaction site.
@@ -115,6 +118,8 @@ sealed trait Molecule extends PersistentHashCode {
       Some(reactionSiteWrapper.toString)
     else
       None
+
+  private var valIsPipelined: Boolean = false
 
   protected var reactionSiteWrapper: ReactionSiteWrapper[_, _] = ReactionSiteWrapper.noReactionSite(this)
 
@@ -200,9 +205,9 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
   override lazy val isStatic: Boolean = isBound &&
     reactionSiteWrapper.staticMolsDeclared.contains(this)
 
-  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol) = {
+  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean) = {
     reactionSiteWrapper = rs.makeWrapper[T, Unit](this)
-    super.setReactionSiteInfo(rs, index, valType)
+    super.setReactionSiteInfo(rs, index, valType, pipelined)
   }
 
 }
@@ -413,9 +418,9 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
   /** This enables the short syntax `b()` and will only work when `T == Unit`. */
   def apply()(implicit arg: TypeMustBeUnit[T]): R = apply(arg.getUnit)
 
-  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol) = {
+  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean) = {
     reactionSiteWrapper = rs.makeWrapper[T, R](this)
-    super.setReactionSiteInfo(rs, index, valType)
+    super.setReactionSiteInfo(rs, index, valType, pipelined)
   }
 
 }

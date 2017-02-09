@@ -28,9 +28,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     emit = (mol, molValue) => emit[T](mol, molValue),
     emitAndAwaitReply = (mol, molValue, replyValue) => emitAndAwaitReply[T, R](mol, molValue, replyValue),
     emitAndAwaitReplyWithTimeout = (timeout, mol, molValue, replyValue) => emitAndAwaitReplyWithTimeout[T, R](timeout, mol, molValue, replyValue),
-    consumingReactions = reactionInfos.keys.filter(_.inputMoleculesSet contains molecule).toList,
+    consumingReactions = getConsumingReactions(molecule),
     sameReactionSite = _.id === this.id
   )
+
+  private def getConsumingReactions(m: Molecule): List[Reaction] = reactionInfos.keys.filter(_.inputMoleculesSet contains m).toList
 
   private val id: Long = getNextId
 
@@ -436,7 +438,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       mol.isBoundToAnotherReactionSite(this) match {
         case Some(otherRS) =>
           throw new ExceptionMoleculeAlreadyBound(s"Molecule $mol cannot be used as input in $this since it is already bound to $otherRS")
-        case None => mol.setReactionSiteInfo(this, index, valType)
+        case None => mol.setReactionSiteInfo(this, index, valType, pipelinedMolecules contains index)
       }
     }
 
@@ -495,7 +497,35 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       (mol, (index, valType))
     }(scala.collection.breakOut)
 
-  private def isPipelined(m: Molecule): Boolean = false
+  private def isPipelined(m: Molecule): Boolean = getConsumingReactions(m)
+    .flatFoldLeft[(Set[String], Boolean)]((Set(), false)) {
+    case (acc, r) ⇒
+      val (prevConds, prevHaveOtherInputs) = acc
+      val haveOtherInputs = r.info.inputs.exists(_.molecule =!= m)
+      val inputsForThisMolecule = r.info.inputs.filter(_.molecule === m)
+
+      // There should be no cross-molecule conditions / guards involving this molecule; otherwise, it is fatal.
+      if (inputsForThisMolecule.map(_.index).toSet subsetOf r.info.independentInputMolecules) {
+        // Get the conditions for this molecule. There should be no conditions when the molecule is repeated, and at most one otherwise.
+        val thisConds = inputsForThisMolecule.filterNot(_.flag.isIrrefutable).map(_.sha1).toSet
+        // Check whether this molecule is nonlinear in input (if so, there should be no conditions).
+        //          val isNonlinear = inputsForThisMolecule.length >= 2
+        // If we have no previous other inputs and no current other inputs, we can concatenate the conditions and we are done.
+        val newHaveOtherInputs = haveOtherInputs || prevHaveOtherInputs
+        if (newHaveOtherInputs) {
+          // If we have other inputs either now, or previously, or both,
+          // we do not fail only if the previous condition is exactly the same as the current one.
+          if (prevConds === thisConds)
+            Some((prevConds, newHaveOtherInputs))
+          else
+            None
+        } else {
+          Some((prevConds ++ thisConds, newHaveOtherInputs))
+        }
+      } else {
+        None
+      }
+  }.nonEmpty
 
   private val pipelinedMolecules: Set[Int] = knownMolecules.filterKeys(isPipelined).map(_._2._1).toSet
 
