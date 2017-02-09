@@ -547,7 +547,8 @@ final class ReactionInfo(
       (mol.toString, patternPrecedence, molValueString, sha)
     }.toList
 
-  private[jc] val (inputsSortedIrrefutableGrouped, inputsSortedConditional) = {
+  // This must be lazy because molecule.index is known late.
+  private[jc] lazy val (inputsSortedIrrefutableGrouped, inputsSortedConditional) = {
     val (inputsSortedIrrefutable, inputsSortedConditional) = inputsSorted.partition(_.flag.isIrrefutable)
     (inputsSortedIrrefutable.sortedGroupBy(_.molecule.index), inputsSortedConditional)
   }
