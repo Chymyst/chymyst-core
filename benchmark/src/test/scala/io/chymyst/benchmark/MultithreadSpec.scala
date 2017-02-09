@@ -6,7 +6,7 @@ import Common._
 
 class MultithreadSpec extends FlatSpec with Matchers {
 
-  it should "run tasks on many threads much faster than on one thread" in {
+  it should "run time-consuming tasks on many threads much faster than on one thread" in {
 
     def runWork(threads: Int) = {
 

@@ -13,7 +13,8 @@ import com.google.common.collect.ConcurrentHashMultiset
   * @tparam T Type of the value carried by molecule.
   */
 sealed trait MolValueBag[T] {
-  def count(v: T): Int
+  // This is unused now.
+  //  def count(v: T): Int
 
   def isEmpty: Boolean
 
@@ -38,7 +39,7 @@ sealed trait MolValueBag[T] {
 final class MolValueMapBag[T] extends MolValueBag[T] {
   private val bag: ConcurrentHashMultiset[T] = ConcurrentHashMultiset.create()
 
-  override def count(v: T): Int = bag.count(v)
+//  override def count(v: T): Int = bag.count(v)
 
   override def isEmpty: Boolean = bag.isEmpty
 
@@ -79,7 +80,7 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
   private val bag: ConcurrentLinkedQueue[T] = new ConcurrentLinkedQueue[T]()
 
   // Very inefficient! O(n) operations.
-  override def count(v: T): Int = bag.iterator.asScala.count(_ === v)
+//  override def count(v: T): Int = bag.iterator.asScala.count(_ === v)
 
   override def isEmpty: Boolean = bag.isEmpty
 
