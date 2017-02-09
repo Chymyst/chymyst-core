@@ -2,7 +2,7 @@ package io.chymyst.jc
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
-import java.util.function.{Function, BiFunction}
+//import java.util.function.{Function, BiFunction}
 
 import scala.annotation.tailrec
 import scala.collection.mutable
@@ -223,6 +223,7 @@ object Core {
     */
   val simpleTypes: Set[scala.Symbol] = Set('Unit, 'Boolean, 'Symbol, 'Char, 'Short, 'Byte, 'Null, 'Nothing)
 
+  /*
   implicit def toJavaFunction[T, R](f: Function1[T, R]): Function[T, R] =
     new Function[T, R] {
       override def apply(t: T): R = f(t)
@@ -232,5 +233,5 @@ object Core {
     new BiFunction[T1, T2, R] {
       override def apply(t1: T1, t2: T2): R = f(t1, t2)
     }
-
+*/
 }
