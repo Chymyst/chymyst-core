@@ -486,6 +486,7 @@ final class ReactionInfo(
                           private[jc] val guardPresence: GuardPresenceFlag,
                           private[jc] val sha1: String
                         ) {
+  // This should be lazy because molecule.isStatic is known late.
   private[jc] lazy val staticMols = inputs.map(_.molecule).filter(_.isStatic).toSet
 
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
@@ -515,37 +516,39 @@ final class ReactionInfo(
   }
 
   // Optimization: this is used often.
-  private[jc] lazy val inputMolecules: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
+  private[jc] val inputMolecules: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
 
-  private[jc] lazy val inputMoleculesSet: Set[Molecule] = inputMolecules.toSet
-
-  private[jc] lazy val (inputsSortedIrrefutable, inputsSortedConditional) = inputsSorted.partition(_.flag.isIrrefutable)
+  private[jc] val inputMoleculesSet: Set[Molecule] = inputMolecules.toSet
 
   // The input pattern sequence is pre-sorted for further use.
-  private[jc] val inputsSorted: List[InputMoleculeInfo] = inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha, _) =>
-    // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers
-    val patternPrecedence = flag match {
-      case WildcardInput |
-           SimpleVarInput(_, None) |
-           OtherInputPattern(_, _, true) =>
-        3
-      case OtherInputPattern(_, _, false) |
-           SimpleVarInput(_, Some(_)) =>
-        2
-      case ConstInputPattern(_) =>
-        1
-    }
+  private[jc] val inputsSorted: List[InputMoleculeInfo] =
+    inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha, _) =>
+      // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers.
+      val patternPrecedence = flag match {
+        case WildcardInput |
+             SimpleVarInput(_, None) |
+             OtherInputPattern(_, _, true) =>
+          3
+        case OtherInputPattern(_, _, false) |
+             SimpleVarInput(_, Some(_)) =>
+          2
+        case ConstInputPattern(_) =>
+          1
+      }
 
-    val molValueString = flag match {
-      case ConstInputPattern(v) =>
-        v.toString
-      case SimpleVarInput(v, _) =>
-        v.name
-      case _ =>
-        ""
-    }
-    (mol.toString, patternPrecedence, molValueString, sha)
-  }.toList
+      val molValueString = flag match {
+        case ConstInputPattern(v) =>
+          v.toString
+        case SimpleVarInput(v, _) =>
+          v.name
+        case _ =>
+          ""
+      }
+      (mol.toString, patternPrecedence, molValueString, sha)
+    }.toList
+
+  private[jc] val (inputsSortedIrrefutable, inputsSortedConditional) =
+    inputsSorted.partition(_.flag.isIrrefutable)
 
   override val toString: String = {
     val inputsInfo = inputsSorted.map(_.toString).mkString(" + ")
@@ -601,9 +604,9 @@ final case class Reaction(
   def noRetry: Reaction = copy(retry = false)
 
   // Optimization: this is used often.
-  private[jc] lazy val inputMolecules: Seq[Molecule] = info.inputMolecules
+  private[jc] val inputMolecules: Seq[Molecule] = info.inputMolecules
 
-  private[jc] lazy val inputMoleculesSet: Set[Molecule] = info.inputMoleculesSet
+  private[jc] val inputMoleculesSet: Set[Molecule] = info.inputMoleculesSet
 
   // This must be lazy because molecule indices are not known at `Reaction` construction time.
   private lazy val moleculeIndexRequiredCounts =
@@ -613,7 +616,7 @@ final case class Reaction(
     *
     * @return String representation of input molecules of the reaction.
     */
-  override lazy val toString: String = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${
+  override val toString: String = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${
     if (retry)
       "/R"
     else ""

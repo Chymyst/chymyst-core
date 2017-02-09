@@ -59,9 +59,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonStaticReactions
     .map { r => (r, r.info.inputs) }(scala.collection.breakOut)
 
-  private lazy val knownReactions: Seq[Reaction] = reactionInfos.keys.toSeq
+  private val knownReactions: Seq[Reaction] = reactionInfos.keys.toSeq
 
-  override lazy val toString: String = s"Site{${knownReactions.map(_.toString).sorted.mkString("; ")}}"
+  override val toString: String = s"Site{${knownReactions.map(_.toString).sorted.mkString("; ")}}"
 
   /** The sha1 hash sum of the entire reaction site, computed from sha1 of each reaction.
     * The sha1 hash of each reaction is computed from the Scala syntax tree of the reaction's source code.
@@ -438,25 +438,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private def initializeReactionSite() = {
 
-    val knownMolecules: Map[Molecule, (Int, Symbol)] = nonStaticReactions
-      .flatMap(_.inputMolecules)
-      .distinct // We only need to assign the owner on each distinct input molecule once.
-      .sortBy(_.name)
-      .zipWithIndex
-      .map { case (mol, index) ⇒
-
-        val valType = nonStaticReactions
-          .map(_.info.inputs)
-          .flatMap(_.find(_.molecule === mol))
-          .headOption
-          .map(_.valType)
-          .getOrElse("<unknown>".toScalaSymbol)
-
-        (mol, (index, valType))
-      }(scala.collection.breakOut)
-
-    bags = new Array(knownMolecules.size)
-
     // Set the RS info on all input molecules in this reaction site.
     knownMolecules.foreach { case (mol, (index, valType)) ⇒
       // Assign the value bag.
@@ -508,20 +489,38 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val staticMolsDiagnostics = WarningsAndErrors(staticMolsEmissionWarnings, staticMolsEmissionErrors, s"$this")
     val diagnostics = staticDiagnostics ++ staticMolsDiagnostics
 
-    (knownMolecules, diagnostics) // Not sure if we still want `staticMolsActuallyEmitted` stored in the RS class.
+    diagnostics
   }
 
-  private var bags: MoleculeBagArray = _
+  private val knownMolecules: Map[Molecule, (Int, Symbol)] = nonStaticReactions
+    .flatMap(_.inputMolecules)
+    .distinct // We only need to assign the owner on each distinct input molecule once.
+    .sortBy(_.name)
+    .zipWithIndex
+    .map { case (mol, index) ⇒
 
-  private val (knownMolecules, diagnostics: WarningsAndErrors) = initializeReactionSite()
+      val valType = nonStaticReactions
+        .map(_.info.inputs)
+        .flatMap(_.find(_.molecule === mol))
+        .headOption
+        .map(_.valType)
+        .getOrElse("<unknown>".toScalaSymbol)
+
+      (mol, (index, valType))
+    }(scala.collection.breakOut)
 
   private val moleculeAtIndex: Map[Int, Molecule] = knownMolecules.map { case (m, (i, _)) => (i, m) }(scala.collection.breakOut)
+
+  private val bags: MoleculeBagArray = new Array(knownMolecules.size)
 
   /** Print warnings messages and throw exception if the initialization of this reaction site caused errors.
     *
     * @return Warnings and errors as a [[WarningsAndErrors]] value. If errors were found, throws an exception and returns nothing.
     */
   private[jc] def checkWarningsAndErrors(): WarningsAndErrors = diagnostics.checkWarningsAndErrors()
+
+  // This should be done at the very end, after all other values are computed.
+  private val diagnostics: WarningsAndErrors = initializeReactionSite()
 }
 
 final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], reactionSite: String) {
