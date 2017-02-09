@@ -696,10 +696,13 @@ final case class Reaction(
         // For each single (non-repeated) input molecule, select a molecule value that satisfies the conditional.
         // For each group of repeated input molecules of the same sort, check whether the bag contains enough molecule values.
         // Begin checking with molecules that have more stringent constraints (and thus, are not repeated).
-        val foundResult: Option[Array[AbsMolValue[_]]] =
+
+        // This array will be mutated in place as we search for molecule values.
+        val foundValues = new Array[AbsMolValue[_]](info.inputs.length)
+
+        val foundResult: Option[MolVals] = // This will be now computed and will become either Some(molValsMap) or `None` (we found no values that match).
         if (info.crossGuards.isEmpty && info.crossConditionals.isEmpty) {
           // flatFoldLeft is needed only over molecules with refutable matchers; filter them out first; all others don't need a fold since we already checked that present counts are sufficient.
-          val foundValues = new Array[AbsMolValue[_]](info.inputs.length)
 
           info.inputsSortedConditional.flatFoldLeft(foundValues) { (_, inputInfo) =>
             moleculesPresent(inputInfo.molecule.index).find(inputInfo.admitsValue)
@@ -711,7 +714,7 @@ final case class Reaction(
             info.inputsSortedIrrefutable.foreach { inputInfo =>
               moleculesPresent(inputInfo.molecule.index).takeAny(moleculeIndexRequiredCounts(inputInfo.molecule.index))
             }
-            foundValues
+            (0 to foundValues.length).map{ i => (i, foundValues(i)) }.toMap
           }
 
           //          info.inputsSorted.flatFoldLeft[MolVals](Map()) { (prevValues, inputInfo) =>
