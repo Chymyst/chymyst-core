@@ -185,7 +185,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "pipeline molecule detection"
 
-  it should "for reactions without conditions" in {
+  it should "pipeline all molecules for reactions without conditions" in {
     val a = m[Unit]
     val c1 = m[Unit]
     val c2 = m[Unit]
@@ -206,6 +206,33 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     r4.info.independentInputMolecules shouldEqual Set(0, 1)
     r4.info.inputs.map(_.flag.isIrrefutable) shouldEqual List(true, true)
     Seq(a, c1, c2, c3, c4).map(_.isPipelined) shouldEqual Seq.fill(5)(true)
+  }
+
+  it should "work correctly for reactions with conditions" in {
+    val c1 = m[Int]
+    val c2 = m[Int]
+    val c3 = m[Int]
+    val c4 = m[Int]
+    val d1 = m[(Int, Int)]
+    val d2 = m[(Int, Int)]
+
+    site(
+      go { case c1(x) if x > 0 => },
+      go { case c1(x) if x < 0 => },
+      go { case c1(x) + c1(_) => },
+
+      go { case c2(x) if x > 0 => },
+      go { case c2(x) if x < 0 => },
+      go { case c2(x) + c3(y) => },
+
+      go { case c4(x) if x > 0 => },
+      go { case c4(x) + d1((y,z)) => },
+      
+      go { case d2((y,z)) if y > z => }
+    )
+
+    Seq(c1, c2, c3, c4, d1, d2).map(_.isPipelined) shouldEqual Seq(true, false, true, false, true, true)
+
   }
 
 }
