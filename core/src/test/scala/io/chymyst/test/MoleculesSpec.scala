@@ -280,7 +280,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
         go { case p(s) => s(123) }
       )
       p(c)
-      if (i % 2 == 0) Thread.sleep(5)
+//      if (i % 2 == 0) Thread.sleep(5)
       site(tp0)(
         go { case c(x) => r = x }
       )
@@ -307,7 +307,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
           val x = 123
           val e = m[Int]
           a(e) // The reaction for `a` will emit `e(123)`, unless it crashes due to `e` being unbound.
-          if (i % 2 == 0) Thread.sleep(5)
+//          if (i % 2 == 0) Thread.sleep(5)
           site(tp0)(
             go { case e(y) => r = x + y }
           )
