@@ -25,6 +25,8 @@ sealed trait MolValueBag[T] {
   def find(predicate: T => Boolean): Option[T]
 
   def takeAny(count: Int): Seq[T]
+
+  def getCountMap: Map[T, Int]
 }
 
 /** Implementation using guava's [[ConcurrentHashMultiset]].
@@ -54,7 +56,15 @@ final class MolValueMapBag[T] extends MolValueBag[T] {
       .map(_.getElement)
       .find(predicate)
 
-  override def takeAny(count: Int) = bag.iterator().asScala.take(count).toSeq
+  override def takeAny(count: Int) = bag.iterator().asScala
+    .take(count)
+    .toSeq
+
+  override def getCountMap: Map[T, Int] = bag
+    .createEntrySet()
+    .iterator().asScala
+    .map(entry => (entry.getElement, entry.getCount))
+    .toMap
 }
 
 /** Implementation using [[ConcurrentLinkedQueue]].
@@ -83,6 +93,12 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
   override def find(predicate: (T) => Boolean): Option[T] = bag.iterator.asScala.find(predicate)
 
   override def takeAny(count: Int) = bag.iterator.asScala.take(count).toSeq
+
+  // Very inefficient! O(n) operations.
+  override def getCountMap: Map[T, Int] = bag.iterator.asScala
+    .toSeq
+    .groupBy(identity)
+    .mapValues(_.size)
 }
 
 // currently used implementation

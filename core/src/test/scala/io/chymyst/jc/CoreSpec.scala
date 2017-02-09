@@ -85,6 +85,7 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "support flatFoldLeft for Seq" in {
+    Seq[Int]().flatFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual Some(0)
     Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual Some(6)
     Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual None
   }
