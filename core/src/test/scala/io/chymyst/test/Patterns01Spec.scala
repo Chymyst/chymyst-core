@@ -13,7 +13,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
   var tp: Pool = _
 
   override def beforeEach(): Unit = {
-    tp = new SmartPool(4)
+    tp = new SmartPool(8)
   }
 
   override def afterEach(): Unit = {
@@ -253,9 +253,11 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case _ => queueMen(0) + queueWomen(0) }
     )
 
-    (1 to total).foreach(_ => man())
+    (0 until total/2).foreach(_ => man())
     danceCounter.volatileValue shouldEqual Nil
-    (1 to total).foreach(_ => woman())
+    (0 until total/2).foreach(_ => man() + woman())
+    (0 until total/2).foreach(_ => woman())
+
     val ordering = done()
     println(s"Dance pairing without queue labels yields $ordering")
     ordering should not equal (0 until total).toList // Dancing queue order cannot be observed.
