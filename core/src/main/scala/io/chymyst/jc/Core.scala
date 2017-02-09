@@ -169,7 +169,7 @@ object Core {
         case None ⇒ IndexedSeq()
         case Some(t) ⇒
           val (finalR, finalSeq, finalSeqT) =
-            s.tail.foldLeft[(R, IndexedSeq[(R, IndexedSeq[T])], IndexedSeq[T])]((f(t), IndexedSeq(), IndexedSeq(t))) {
+            s.drop(1).foldLeft[(R, IndexedSeq[(R, IndexedSeq[T])], IndexedSeq[T])]((f(t), IndexedSeq(), IndexedSeq(t))) {
               (acc, t) ⇒
                 val (prevR, prevSeq, prevSeqT) = acc
                 val newR = f(t)
