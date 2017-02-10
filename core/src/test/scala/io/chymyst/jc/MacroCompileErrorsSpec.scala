@@ -190,13 +190,13 @@ case c(_) + a(y) => c()
           val r = go { case a((1,_)) => a((1,1)) }
       } // cannot detect unconditional livelock here at compile time, since we can't evaluate the binder yet
       * - {
-          val r = go { case bb(x) if x > 0 => bb(1) }
+          val r = go { case bb(y) if y > 0 => bb(1) }
       } // no unconditional livelock due to guard
       * - {
-          val r = go { case bb(x) =>  if (x > 0) bb(1) }
+          val r = go { case bb(y) =>  if (y > 0) bb(1) }
       } // no unconditional livelock due to `if` in reaction
       * - {
-          val r = go { case bb(x) =>  if (x > 0) bbb(1) else bb(2) }
+          val r = go { case bb(y) =>  if (y > 0) bbb(1) else bb(2) }
       } // no unconditional livelock due to `if` in reaction
       * - {
         compileError(

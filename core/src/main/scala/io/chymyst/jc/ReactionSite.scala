@@ -498,9 +498,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }(scala.collection.breakOut)
 
   private def isPipelined(m: Molecule): Boolean = getConsumingReactions(m)
-    .flatFoldLeft[(Set[String], Boolean)]((Set(), false)) {
+    .flatFoldLeft[(Set[String], Boolean, Boolean)]((Set(), false, true)) {
     case (acc, r) ⇒
-      val (prevConds, prevHaveOtherInputs) = acc
+      val (prevConds, prevHaveOtherInputs, isFirstReaction) = acc
       val haveOtherInputs = r.info.inputs.exists(_.molecule =!= m)
       val inputsForThisMolecule = r.info.inputs.filter(_.molecule === m)
 
@@ -514,13 +514,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         val newHaveOtherInputs = haveOtherInputs || prevHaveOtherInputs
         if (newHaveOtherInputs) {
           // If we have other inputs either now, or previously, or both,
-          // we do not fail only if the previous condition is exactly the same as the current one.
-          if (prevConds === thisConds)
-            Some((prevConds, newHaveOtherInputs))
+          // we do not fail only if the previous condition is exactly the same as the current one, or if this is the first condition we are considering.
+          if (isFirstReaction || (prevConds subsetOf thisConds))
+            Some((prevConds, newHaveOtherInputs, false))
           else
             None
         } else {
-          Some((prevConds ++ thisConds, newHaveOtherInputs))
+          Some((prevConds ++ thisConds, newHaveOtherInputs, false))
         }
       } else {
         None
