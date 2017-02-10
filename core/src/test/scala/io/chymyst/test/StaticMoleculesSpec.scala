@@ -1,7 +1,7 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
-import io.chymyst.test.Common._
+import io.chymyst.test.Common.repeat
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
@@ -33,13 +33,13 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       go { case _ => d("ok") } // static reaction
     )
 
-    (1 to 200).foreach { i =>
+    repeat(200, { i =>
       val thrown = intercept[Exception] {
         d(s"bad $i") // this "d" should not be emitted, even though "d" is sometimes not in the soup due to reactions!
       }
       thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit static molecule d(bad $i) because this thread does not run a chemical reaction"
       f.timeout()(500 millis) shouldEqual Some("ok")
-    }
+    })
 
     tp1.shutdownNow()
   }
@@ -48,7 +48,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
     val tp1 = new FixedPool(1) // This test works only with single threads.
 
-    (1 to 20).foreach { i =>
+    repeat(20, { i =>
       val f = b[Unit, String]
       val d = m[String]
 
@@ -58,16 +58,15 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       )
 
       // Warning: the timeouts might fail the test due to timed tests.
-      (1 to 20).foreach { j =>
+      repeat(20, { j =>
         val thrown = intercept[Exception] {
           d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
           // and even if the initial d() emission was done late
         }
         thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit static molecule d(bad $i $j) because this thread does not run a chemical reaction"
         f.timeout()(500 millis) shouldEqual Some("ok")
-      }
-
-    }
+      })
+    })
 
     tp1.shutdownNow()
   }
@@ -235,9 +234,9 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       d.volatileValue
     }
 
-    (1 to 100).foreach { i =>
+    repeat(100, { i =>
       makeNewVolatile(i) // This should sometimes throw an exception, so let's make sure it does.
-    }
+    })
   }
 
   it should "report that the value of a static molecule is ready even if called early" in {

@@ -1,6 +1,7 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
+import Common._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
@@ -137,7 +138,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     f((0, 0, n))
 
-    (1 to n).foreach { _ => a() + bb() + c() }
+    repeat(n) { a() + bb() + c() }
 
     val (ab, bc) = g()
     ab + bc shouldEqual n
@@ -179,7 +180,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     f((0, 0, n))
 
-    (1 to n).foreach { _ =>
+    repeat(n) {
       val (a, b, c) = makeRS(d, e)
       a() + b() + c() // at the moment, this is equivalent to a(); b(); c.
       // this test will need to be changed when true multiple emission is implemented.
