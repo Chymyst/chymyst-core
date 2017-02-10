@@ -266,7 +266,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   def checkExpectedPipelined(expectedMap: Map[Molecule, Boolean]) = {
     val transformed = expectedMap.toList.map { case (t, r) => (t, t.isPipelined, r) }
     // Print detailed message.
-    val difference = transformed.filterNot { case (_, a, b) => a == b }.map { case (m, actual, expected) => s"$m.isPipelined is $actual instead of $expected" }
+    val difference = transformed.filterNot { case (_, x, y) => x == y }.map { case (m, actual, expected) => s"$m.isPipelined is $actual instead of $expected" }
     if (difference.nonEmpty) println(s"Test fails: ${difference.mkString("; ")}")
     val (left, right) = (transformed.map(_._2), transformed.map(_._3))
     left shouldEqual right
