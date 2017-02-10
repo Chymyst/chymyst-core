@@ -236,7 +236,7 @@ object Core {
 
       flatFoldLeftImpl(z, s)
     }
-
+/*
     /** "early foldLeft" will perform a `foldLeft` until the function `op` returns `None` at some point in the sequence.
       * At that point, it stops and returns the last accumulated value.
       *
@@ -255,6 +255,7 @@ object Core {
         case None => z
       }
     }
+*/
   }
 
   def intHash(s: Seq[Int]): Int = s.foldLeft(0)(_ * s.length + _)
@@ -275,7 +276,6 @@ object Core {
     new BiFunction[T1, T2, R] {
       override def apply(t1: T1, t2: T2): R = f(t1, t2)
     }
-*/
 
   /** Retrieve a random element from array, reshuffling the array in place each time.
     * When this function is called consecutively with `i = 0`, `i = 1`, ..., `i = arr.length - 1`,
@@ -300,7 +300,7 @@ object Core {
     arr(index) = tempElement
     tempElement
   }
-
+*/
   private def arrayShuffleInPlace[T](arr: Array[T]): Unit = {
     val s = arr.length
     arr.indices.foreach { index ⇒

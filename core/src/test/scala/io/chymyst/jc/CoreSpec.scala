@@ -90,14 +90,14 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual Some(6)
     Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual None
   }
-
+/*
   it should "support earlyFoldLeft for Seq" in {
     Seq[Int]().earlyFoldLeft(10)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual 10
     Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual 6
     Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n == 0) Some(x + n) else None) shouldEqual 0
     Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual 1
   }
-
+*/
   it should "support sortedGroupBy" in {
     Seq[Int]().sortedMapGroupBy(identity, identity) shouldEqual Seq[Int]()
     Seq(1).sortedMapGroupBy(x ⇒ x % 2, _ * 10) shouldEqual Seq((1, Seq(10)))
@@ -140,7 +140,7 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   behavior of "random element in array"
-
+/*
   it should "retrieve randomly chosen elements from array" in {
     val n = 100
     val arr = Array.tabulate(n)(identity)
@@ -150,7 +150,7 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     retrieved.toList shouldEqual arr.toList
     retrieved.toList should not equal (0 until n).toList
   }
-
+*/
   it should "use shuffle on a sequence" in {
     val n = 100
     val s = (0 until n).shuffle
