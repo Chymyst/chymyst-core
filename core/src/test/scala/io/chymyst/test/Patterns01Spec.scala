@@ -241,7 +241,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val danceCounter = m[List[Int]]
     val done = b[Unit, List[Int]]
 
-    val total = 5 000
+    val total = 5000
 
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) },
