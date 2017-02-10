@@ -767,9 +767,9 @@ final case class Reaction(
                       //              else
                       if (inputInfo.molecule.isPipelined)
                         moleculesPresent(inputInfo.molecule.index).takeOne.toStream
-                      else if (inputInfo.flag.isIrrefutable && info.independentInputMolecules.contains(inputInfo.index))
-                      // If this molecule is independent of others and has a trivial matcher, it suffices to select any of the existing values for that molecule.
-                        valuesMap.headOption.map(_._1).toStream
+//                      else if (inputInfo.flag.isIrrefutable && info.independentInputMolecules.contains(inputInfo.index))
+//                      // If this molecule is independent of others and has a trivial matcher, it suffices to select any of the existing values for that molecule.
+//                        valuesMap.headOption.map(_._1).toStream
                       else // Do not eagerly evaluate the list of all possible values.
                         valuesMap.keysIterator.toStream.filter(inputInfo.admitsValue)
 
