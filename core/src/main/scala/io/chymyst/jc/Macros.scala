@@ -405,6 +405,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     val reactionBodyCode = showCode(body)
     val reactionSha1 = getSha1String(
       patternInWithMergedGuardsAndIndex.map(_._3.patternSha1(t => showCode(t))).sorted.mkString(",") +
+        patternInWithMergedGuardsAndIndex.map(_._1.name.decodedName.toString).sorted.mkString(",") +
         crossGuardsSourceCodes.sorted.mkString(",") +
         reactionBodyCode
     )

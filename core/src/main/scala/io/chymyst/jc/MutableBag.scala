@@ -25,6 +25,8 @@ sealed trait MolValueBag[T] {
 
   def find(predicate: T => Boolean): Option[T]
 
+  def takeOne: Option[T]
+
   def takeAny(count: Int): Seq[T]
 
   def getCountMap: Map[T, Int]
@@ -63,6 +65,11 @@ final class MolValueMapBag[T] extends MolValueBag[T] {
     .take(count)
     .toSeq
 
+  override def takeOne: Option[T] = {
+    val iterator = bag.iterator
+    if (iterator.hasNext) Some(iterator.next) else None
+  }
+
   override def getCountMap: Map[T, Int] = bag
     .createEntrySet()
     .iterator().asScala
@@ -98,6 +105,11 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
   override def find(predicate: (T) => Boolean): Option[T] = bag.iterator.asScala.find(predicate)
 
   override def takeAny(count: Int): Seq[T] = bag.iterator.asScala.take(count).toSeq
+
+  override def takeOne: Option[T] = {
+    val iterator = bag.iterator
+    if (iterator.hasNext) Some(iterator.next) else None
+  }
 
   // Very inefficient! O(n) operations.
   override def getCountMap: Map[T, Int] = bag.iterator.asScala

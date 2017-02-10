@@ -23,6 +23,30 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     tp0.shutdownNow()
   }
 
+behavior of "reaction sha1"
+
+  it should "compute different reaction sha1 for different conditions" in {
+    val a = m[Int]
+    val b = m[Int]
+    val reaction1 = go { case b(x) if x < 0 ⇒ }
+    val reaction2 = go { case a(x) if x < 0 ⇒ }
+    val reaction3 = go { case a(x) if x > 0 ⇒ }
+
+    reaction1.info.sha1 should not equal reaction2.info.sha1
+    reaction2.info.sha1 should not equal reaction3.info.sha1
+    reaction3.info.sha1 should not equal reaction1.info.sha1
+  }
+
+  it should "compute the same reaction sha1 regardless of molecule order" in {
+    val a = m[Int]
+    val b = m[Int]
+    val reaction1 = go { case a(x) + b(y) if x < 0 ⇒ }
+    val reaction2 = go { case b(y) + a(x) if x < 0 ⇒ }
+    val reaction3 = go { case b(y) + a(x) if x < 0 => }
+    reaction1.info.sha1 shouldEqual reaction2.info.sha1
+    reaction1.info.sha1 shouldEqual reaction3.info.sha1
+  }
+
   behavior of "reaction site"
 
   it should "track whether molecule emitters are bound" in {
@@ -193,10 +217,10 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     result.info.outputs shouldEqual List(OutputMoleculeInfo(bb, ConstOutputPattern(None), List()))
     result.info.guardPresence shouldEqual GuardAbsent
-    result.info.sha1 shouldEqual "435CBA662F8A4992849522C11B78BE206E8D29D4"
+    result.info.sha1 shouldEqual "C10342E86F1AEB8992D97883B15773F4A2DBCF1F"
   }
 
-  val ax_qq_reaction_sha1 = "3BECBE9BA4FD32AC714A194B65FF28B18C52C965"
+  val ax_qq_reaction_sha1 = "0EE06E8EE3BCFF28E9E4AC8A4445B3771196094E"
 
   it should "inspect a two-molecule reaction body" in {
     val a = m[Int]
@@ -512,7 +536,7 @@ class MacrosSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       OutputMoleculeInfo(e, ConstOutputPattern(Right("output")), List())
     )
     r.info.guardPresence shouldEqual GuardAbsent
-    r.info.sha1 shouldEqual "31B407C84D1871664635F7A7A7DEDF16B7BBE107"
+    r.info.sha1 shouldEqual "092BC1D2E16ECF2AC24374BC00EFB8BE1B5190F8"
   }
 
   it should "detect output molecules with constant values" in {

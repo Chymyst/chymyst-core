@@ -719,11 +719,16 @@ final case class Reaction(
             // flatFoldLeft is needed only over molecules with refutable matchers; filter them out first; all others don't need a fold since we already checked that present counts are sufficient.
 
             info.inputsSortedConditional.flatFoldLeft(true) { (_, inputInfo) ⇒
-              moleculesPresent(inputInfo.molecule.index).find(inputInfo.admitsValue)
-                .map { newMolValue ⇒
-                  foundValues(inputInfo.index) = newMolValue
-                  true
-                }
+              val newValueOpt =
+                if (inputInfo.molecule.isPipelined)
+                  moleculesPresent(inputInfo.molecule.index).takeOne.filter(inputInfo.admitsValue)
+                else
+                  moleculesPresent(inputInfo.molecule.index).find(inputInfo.admitsValue)
+
+              newValueOpt.map { newMolValue ⇒
+                foundValues(inputInfo.index) = newMolValue
+                true
+              }
             }.map { _ ⇒
               info.inputsSortedIrrefutableGrouped
                 .foreach { case (i, infos) ⇒
@@ -736,7 +741,7 @@ final case class Reaction(
           } else {
             // Map of molecule values for molecules that are inputs to this reaction.
             val initRelevantMap: BagMap = inputMoleculesSet
-              .map(m ⇒ (m, moleculesPresent(m.index).getCountMap))
+              .map(mol ⇒ (mol, moleculesPresent(mol.index).getCountMap))
               .toMap
 
             // TODO: only use the `flatMap-fold` separately for the clusters of interdependent molecules, not always for all molecules!
