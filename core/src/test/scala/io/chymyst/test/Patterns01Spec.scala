@@ -241,7 +241,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val danceCounter = m[List[Int]]
     val done = b[Unit, List[Int]]
 
-    val total = 2000
+    val total = 5 000
 
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) },
@@ -261,9 +261,10 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     (0 until total / 2).foreach(_ => man() + woman())
     (0 until total / 2).foreach(_ => woman())
 
+    val initTime = LocalDateTime.now
     val ordering = done()
     val outOfOrder = ordering.zip(ordering.drop(1)).filterNot { case (x, y) => x + 1 == y }.map(_._1)
-    println(s"Dance pairing for $total pairs without queue labels yields ${outOfOrder.length} out-of-order instances $outOfOrder")
+    println(s"Dance pairing for $total pairs without queue labels took ${initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)} ms, yields ${outOfOrder.length} out-of-order instances")
     outOfOrder should not equal List() // Dancing queue order cannot be observed.
   }
 
@@ -280,7 +281,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val danceCounter = m[List[Int]]
     val done = b[Unit, List[Int]]
 
-    val total = 300
+    val total = 250
 
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) },

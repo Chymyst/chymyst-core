@@ -43,9 +43,7 @@ class SmartPool(parallelism: Int) extends Pool {
     executor.setMaximumPoolSize(newPoolSize)
   }
 
-  val maxQueueCapacity: Int = parallelism*1000 + 100
-
-  private val queue = new ArrayBlockingQueue[Runnable](maxQueueCapacity)
+  private val queue = new LinkedBlockingQueue[Runnable]
 
   val initialThreads: Int = parallelism
   val secondsToRecycleThread = 1L
