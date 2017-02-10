@@ -260,6 +260,29 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
     result shouldEqual 0
   }
 
+  it should "handle static molecules with cross-molecule guards" in {
+    val d = m[Int]
+    val c = m[Int]
+    val stabilize_d = b[Unit, Unit]
+    site(tp)(
+      go { case c(x) + d(y) if x > y => d(x + y) },
+      go { case d(x) + stabilize_d(_, r) if x > 0 => r(); d(x) }, // Await stabilizing the presence of d
+      go { case _ => d(123) } // static reaction
+    )
+    d.setLogLevel(2)
+    stabilize_d()
+    d.volatileValue shouldEqual 123
+    c(1)
+    stabilize_d()
+    d.volatileValue shouldEqual 123
+    c(100)
+    stabilize_d()
+    d.volatileValue shouldEqual 123
+    c(200)
+    stabilize_d()
+    d.volatileValue shouldEqual 323
+  }
+
   it should "read the initial value of the static molecule after stabilization" in {
     val d = m[Int]
     val stabilize_d = b[Unit, Unit]

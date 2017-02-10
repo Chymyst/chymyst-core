@@ -133,7 +133,7 @@ sealed trait Molecule extends PersistentHashCode {
     *
     * @return `None` if the molecule emitter is not yet bound to any reaction site.
     */
-  final private[jc] def consumingReactions: Option[List[Reaction]] = if (isBound)
+  final private[jc] def consumingReactions: Option[Array[Reaction]] = if (isBound)
     Some(reactionSiteWrapper.consumingReactions)
   else None
 
@@ -206,10 +206,9 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
     reactionSiteWrapper.staticMolsDeclared.contains(this)
 
   override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean) = {
-    reactionSiteWrapper = rs.makeWrapper[T, Unit](this)
     super.setReactionSiteInfo(rs, index, valType, pipelined)
+    reactionSiteWrapper = rs.makeWrapper[T, Unit](this)
   }
-
 }
 
 /** Represents the different states of the reply process.
@@ -419,8 +418,8 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
   def apply()(implicit arg: TypeMustBeUnit[T]): R = apply(arg.getUnit)
 
   override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean) = {
-    reactionSiteWrapper = rs.makeWrapper[T, R](this)
     super.setReactionSiteInfo(rs, index, valType, pipelined)
+    reactionSiteWrapper = rs.makeWrapper[T, R](this)
   }
 
 }

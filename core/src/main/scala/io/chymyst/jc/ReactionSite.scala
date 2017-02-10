@@ -28,11 +28,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     emit = (mol, molValue) => emit[T](mol, molValue),
     emitAndAwaitReply = (mol, molValue, replyValue) => emitAndAwaitReply[T, R](mol, molValue, replyValue),
     emitAndAwaitReplyWithTimeout = (timeout, mol, molValue, replyValue) => emitAndAwaitReplyWithTimeout[T, R](timeout, mol, molValue, replyValue),
-    consumingReactions = getConsumingReactions(molecule),
+    consumingReactions = consumingReactions(molecule.index),
     sameReactionSite = _.id === this.id
   )
 
-  private def getConsumingReactions(m: Molecule): List[Reaction] = reactionInfos.keys.filter(_.inputMoleculesSet contains m).toList
+  private def getConsumingReactions(m: Molecule): Array[Reaction] = reactionInfos.keys.filter(_.inputMoleculesSet contains m).toArray
 
   private val id: Long = getNextId
 
@@ -57,9 +57,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonStaticReactions
     .map { r => (r, r.info.inputs) }(scala.collection.breakOut)
 
-  private val knownReactions: Seq[Reaction] = reactionInfos.keys.toSeq
-
-  override val toString: String = s"Site{${knownReactions.map(_.toString).sorted.mkString("; ")}}"
+  override val toString: String = s"Site{${nonStaticReactions.map(_.toString).sorted.mkString("; ")}}"
 
   /** The sha1 hash sum of the entire reaction site, computed from sha1 of each reaction.
     * The sha1 hash of each reaction is computed from the Scala syntax tree of the reaction's source code.
@@ -246,11 +244,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private def findReaction(m: Molecule): Option[(Reaction, InputMoleculeList)] = {
-    m.consumingReactions.flatMap(r =>
-      r.shuffle // The shuffle will ensure fairness across reactions.
-        // We only need to find one reaction whose input molecules are available. For this, we use the special `Core.findAfterMap`.
-        .findAfterMap(_.findInputMolecules(m, bags))
-    )
+    consumingReactions(m.index).shuffle
+      // We only need to find one reaction whose input molecules are available. For this, we use the special `Core.findAfterMap`.
+      .findAfterMap(_.findInputMolecules(m, bags))
   }
 
   /** Check if the current thread is allowed to emit a static molecule.
@@ -441,6 +437,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           throw new ExceptionMoleculeAlreadyBound(s"Molecule $mol cannot be used as input in $this since it is already bound to $otherRS")
         case None => mol.setReactionSiteInfo(this, index, valType, pipelinedMolecules contains index)
       }
+
+      // Create the array of known reactions
     }
 
     // Add output reactions to molecules that may be bound to other reaction sites later.
@@ -498,7 +496,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       (mol, (index, valType))
     }(scala.collection.breakOut)
 
-  private def isPipelined(m: Molecule): Boolean = getConsumingReactions(m)
+  private def isPipelined(i: Int): Boolean = consumingReactions(i)
     .flatFoldLeft[(Set[String], Boolean, Boolean)]((Set(), false, true)) {
     case (acc, r) ⇒
       val (prevConds, prevHaveOtherInputs, isFirstReaction) = acc
@@ -528,9 +526,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       }
   }.nonEmpty
 
-  private val pipelinedMolecules: Set[Int] = knownMolecules.filterKeys(isPipelined).map(_._2._1).toSet
-
   private val moleculeAtIndex: Map[Int, Molecule] = knownMolecules.map { case (m, (i, _)) => (i, m) }(scala.collection.breakOut)
+
+  private val consumingReactions: Array[Array[Reaction]] = Array.tabulate(knownMolecules.size)(i => getConsumingReactions(moleculeAtIndex(i)))
+
+  private val pipelinedMolecules: Set[Int] = moleculeAtIndex.keySet.filter(isPipelined)
 
   private val bags: MoleculeBagArray = new Array(knownMolecules.size)
 
@@ -594,7 +594,7 @@ private[jc] final class ReactionSiteWrapper[T, R](
                                                    val emit: (Molecule, AbsMolValue[T]) => Unit,
                                                    val emitAndAwaitReply: (B[T, R], T, AbsReplyValue[T, R]) => R,
                                                    val emitAndAwaitReplyWithTimeout: (Long, B[T, R], T, AbsReplyValue[T, R]) => Option[R],
-                                                   val consumingReactions: List[Reaction],
+                                                   val consumingReactions: Array[Reaction],
                                                    val sameReactionSite: ReactionSite => Boolean
                                                  )
 
@@ -606,11 +606,11 @@ private[jc] object ReactionSiteWrapper {
       toString = "",
       logSoup = () => exception,
       setLogLevel = _ => exception,
-      staticMolsDeclared = Nil,
+      staticMolsDeclared = null,
       emit = (_: Molecule, _: AbsMolValue[T]) => exception,
       emitAndAwaitReply = (_: B[T, R], _: T, _: AbsReplyValue[T, R]) => exception,
       emitAndAwaitReplyWithTimeout = (_: Long, _: B[T, R], _: T, _: AbsReplyValue[T, R]) => exception,
-      consumingReactions = Nil,
+      consumingReactions = null,
       sameReactionSite = _ => exception
     )
   }

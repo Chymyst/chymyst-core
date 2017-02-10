@@ -139,4 +139,22 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     intHash(Array(0, 3)) should be < intHash(Array(1, 2))
   }
 
+  behavior of "random element in array"
+
+  it should "retrieve randomly chosen elements from array" in {
+    val n = 100
+    val arr = Array.tabulate(n)(identity)
+    println(arr.toList)
+    val retrieved = (0 until n).map(i ⇒ randomElementInArray(arr, i))
+
+    retrieved.toList shouldEqual arr.toList
+    retrieved.toList should not equal (0 until n).toList
+  }
+
+  it should "use shuffle on a sequence" in {
+    val n = 100
+    val s = (0 until n).shuffle
+    s should not equal (0 until n).toList
+  }
+
 }

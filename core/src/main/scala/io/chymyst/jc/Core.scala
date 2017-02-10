@@ -136,6 +136,36 @@ object Core {
     }
   }
 
+  implicit final class ArrayWithExtraFoldOps[T](val s: Array[T]) extends AnyVal {
+    def flatFoldLeft[R](z: R)(op: (R, T) => Option[R]): Option[R] = {
+
+      @tailrec
+      def flatFoldLeftImpl(z: R, xs: Array[T]): Option[R] =
+        xs.headOption match {
+          case Some(h) =>
+            op(z, h) match {
+              case Some(newZ) => flatFoldLeftImpl(newZ, xs.drop(1))
+              case None => None
+            }
+          case None => Some(z)
+        }
+
+      flatFoldLeftImpl(z, s)
+    }
+
+    def findAfterMap[R](f: T => Option[R]): Option[R] = {
+      var result: R = null.asInstanceOf[R]
+      s.find { t =>
+        f(t).exists { r => result = r; true }
+      }.map(_ => result)
+    }
+
+    def shuffle: Array[T] = {
+      arrayShuffleInPlace(s)
+      s
+    }
+  }
+
   implicit final class SeqWithExtraFoldOps[T](val s: Seq[T]) extends AnyVal {
 
     /** A `find` that will return the first value for which `f` returns `Some(...)`.
@@ -218,7 +248,7 @@ object Core {
       * @return Result value `r`, having folded either to the end of the sequence, or to the point in the sequence where `op` first returned `None`, whichever comes first.
       */
     @tailrec
-    final def earlyFoldLeft[R](z: R)(op: (R, T) => Option[R]): R = s match {
+    def earlyFoldLeft[R](z: R)(op: (R, T) => Option[R]): R = s match {
       case Nil => z
       case h :: xs => op(z, h) match {
         case Some(newZ) => xs.earlyFoldLeft(newZ)(op)
@@ -246,4 +276,39 @@ object Core {
       override def apply(t1: T1, t2: T2): R = f(t1, t2)
     }
 */
+
+  /** Retrieve a random element from array, reshuffling the array in place each time.
+    * When this function is called consecutively with `i = 0`, `i = 1`, ..., `i = arr.length - 1`,
+    * the result will contain all elements of the array, reshuffled in a random order.
+    *
+    * This is achieved in the following way: After calling `randomElementInArray(arr, i)`,
+    * the array element at index `i` will be exchanged with a randomly chosen element with index not smaller than `i`.
+    * The function then returns that randomly chosen element.
+    *
+    * @param arr Array of elements. Will be modified in place!
+    * @param i   Index of the element to retrieve.
+    * @tparam T Type of values in the array.
+    * @return The retrieved element.
+    */
+  private def randomElementInArray[T](arr: Array[T], i: Int): T = {
+    val s = arr.length
+    val index = Math.min(s - 1, Math.max(0, i))
+    val randomIndex = s - 1 - scala.util.Random.nextInt(s - index)
+    // between 0 and s - index
+    val tempElement = arr(randomIndex)
+    arr(randomIndex) = arr(index)
+    arr(index) = tempElement
+    tempElement
+  }
+
+  private def arrayShuffleInPlace[T](arr: Array[T]): Unit = {
+    val s = arr.length
+    arr.indices.foreach { index ⇒
+      val randomIndex = s - 1 - scala.util.Random.nextInt(s - index)
+      // between 0 and s - index
+      val tempElement = arr(randomIndex)
+      arr(randomIndex) = arr(index)
+      arr(index) = tempElement
+    }
+  }
 }
