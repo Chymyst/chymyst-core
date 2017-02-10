@@ -289,14 +289,82 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     checkExpectedPipelined(Map(c1 -> false, c3 -> true, c4 -> true, c5 -> true))
   }
 
+  def repeat[A](n: Int)(x: => A) = (1 to n).foreach(_ => x)
+
+  it should "not pipeline if there are conditions and other inputs" in {
+    repeat(100) {
+      val a = m[Int]
+      val c = m[Unit]
+
+      site(
+        go { case a(x) if x > 0 => },
+        go { case a(x) + c(_) => }
+      )
+      checkExpectedPipelined(Map(c -> true, a -> false))
+    }
+  }
+
+  it should "not pipeline if there are conditions and other inputs regardless of reaction order" in {
+    repeat(100) {
+      val a = m[Int]
+      val c = m[Unit]
+
+      site(
+        go { case a(x) + c(_) => },
+        go { case a(x) if x > 0 => }
+      )
+      checkExpectedPipelined(Map(c -> true, a -> false))
+    }
+  }
+
+  it should "not pipeline if there are multiple conditions and other inputs" in {
+    repeat(100) {
+      val a = m[Int]
+      val c = m[Unit]
+
+      site(
+        go { case a(x) if x > 0 => },
+        go { case a(x) if x < 0 => },
+        go { case a(x) + c(_) => }
+      )
+      checkExpectedPipelined(Map(c -> true, a -> false))
+    }
+  }
+
+  it should "not pipeline if there are multiple conditions and other inputs, reaction order 1" in {
+    repeat(100) {
+      val a = m[Int]
+      val c = m[Unit]
+
+      site(
+        go { case a(x) + c(_) => },
+        go { case a(x) if x > 0 => },
+        go { case a(x) if x < 0 => }
+      )
+      checkExpectedPipelined(Map(c -> true, a -> false))
+    }
+  }
+
+  it should "not pipeline if there are multiple conditions and other inputs, reaction order 2" in {
+    repeat(100) {
+      val a = m[Int]
+      val c = m[Unit]
+
+      site(
+        go { case a(x) if x > 0 => },
+        go { case a(x) + c(_) => },
+        go { case a(x) if x < 0 => }
+      )
+      checkExpectedPipelined(Map(c -> true, a -> false))
+    }
+  }
+
   it should "work correctly for reactions with factorizable conditions" in {
-    (1 to 100).foreach { _ =>
+    repeat(100) {
       // make sure this does not fail
       val c1 = m[Int]
       val c2 = m[Int]
       val c3 = m[Int]
-      val c4 = m[Int]
-      val c5 = m[Int]
 
       site(
         go { case c1(x) if x > 0 => }, // c1 is pipelined:
@@ -305,13 +373,9 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
         go { case c2(x) if x > 0 => },
         go { case c2(x) if x < 0 => }, // simple condition
-        go { case c2(x) + c3(y) => }, // unconditional but has other inputs, so c2 cannot be pipelined (but c3 can be)
-
-        go { case c4(x) if x > 0 => },
-        go { case c4(x) + c5(y) => } // other inputs and a condition prevents pipelining of c4
-
+        go { case c2(x) + c3(y) => } // unconditional but has other inputs, so c2 cannot be pipelined (but c3 can be)
       )
-      checkExpectedPipelined(Map(c1 -> true, c2 -> false, c3 -> true, c4 -> false, c5 -> true))
+      checkExpectedPipelined(Map(c1 -> true, c2 -> false, c3 -> true))
     }
   }
 

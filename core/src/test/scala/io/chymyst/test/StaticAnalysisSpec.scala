@@ -437,6 +437,39 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     thrown.getMessage shouldEqual "In Site{a + c => ...; a + c => ...; a + f/B => ...; a + f/B => ...}: Unavoidable nondeterminism: reaction {a(x) + c(_) => a(?)} is shadowed by {a(x) + c(_) => a(?)}, reaction {a(x) + c(_) => a(?)} is shadowed by {a(x) + c(_) => a(?)}, reaction {a(x) + f/B(_) => } is shadowed by {a(x) + f/B(_) => }, reaction {a(x) + f/B(_) => } is shadowed by {a(x) + f/B(_) => }"
   }
 
+  it should "detect a repeated reaction with identical conditions" in {
+    val a = m[Int]
+
+    val warnings = site(
+      go { case a(x) if x > 0 => },
+      go { case a(x) if x > 0 => },
+      go { case a(x) + a(_) => }
+    )
+    warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a(x if ?) => }"), List(), "Site{a + a => ...; a => ...; a => ...}")
+  }
+
+  it should "detect a repeated reaction with different conditions" in {
+    val a = m[Int]
+
+    val warnings = site(
+      go { case a(x) if x > 0 => },
+      go { case a(x) if x < 0 => },
+      go { case a(x) + a(_) => }
+    )
+    warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a + a => ...; a => ...; a => ...}")
+  }
+
+  it should "not detect spurious repeated reaction" in {
+    val c = m[Int]
+    val d = m[Int]
+
+    val warnings = site(
+      go { case c(x) if x > 0 => },
+      go { case d(x) if x > 0 => }
+    )
+    warnings.warnings shouldEqual Nil
+  }
+
   it should "detect several repeated reactions" in {
 
     val a1 = m[Int]
