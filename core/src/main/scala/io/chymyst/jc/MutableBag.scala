@@ -40,7 +40,7 @@ sealed trait MolValueBag[T] {
 final class MolValueMapBag[T] extends MolValueBag[T] {
   private val bag: ConcurrentHashMultiset[T] = ConcurrentHashMultiset.create()
 
-//  override def count(v: T): Int = bag.count(v)
+  //  override def count(v: T): Int = bag.count(v)
 
   override def isEmpty: Boolean = bag.isEmpty
 
@@ -67,7 +67,10 @@ final class MolValueMapBag[T] extends MolValueBag[T] {
 
   override def takeOne: Option[T] = {
     val iterator = bag.iterator
-    if (iterator.hasNext) Some(iterator.next) else None
+    if (iterator.hasNext)
+      Some(iterator.next)
+    else
+      None
   }
 
   override def getCountMap: Map[T, Int] = bag
@@ -86,7 +89,7 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
   private val bag: ConcurrentLinkedQueue[T] = new ConcurrentLinkedQueue[T]()
 
   // Very inefficient! O(n) operations.
-//  override def count(v: T): Int = bag.iterator.asScala.count(_ === v)
+  //  override def count(v: T): Int = bag.iterator.asScala.count(_ === v)
 
   override def isEmpty: Boolean = bag.isEmpty
 
@@ -108,7 +111,10 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
 
   override def takeOne: Option[T] = {
     val iterator = bag.iterator
-    if (iterator.hasNext) Some(iterator.next) else None
+    if (iterator.hasNext)
+      Some(iterator.next)
+    else
+      None
   }
 
   // Very inefficient! O(n) operations.
