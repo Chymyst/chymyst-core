@@ -515,8 +515,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         if (newHaveOtherInputs) {
           // If we have other inputs either now, or previously, or both,
           // we do not fail only if the previous condition is exactly the same as the current one, or if this is the first condition we are considering.
-          if (isFirstReaction || (prevConds subsetOf thisConds))
-            Some((prevConds, newHaveOtherInputs, false))
+          if (isFirstReaction || prevConds === thisConds)
+            Some((thisConds, newHaveOtherInputs, false))
           else
             None
         } else {

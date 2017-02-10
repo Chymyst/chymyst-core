@@ -219,6 +219,26 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     checkExpectedPipelined(Map(a -> true, c -> true, d -> true, e -> true))
   }
 
+  it should "work correctly for a separable condition" in {
+    val a = m[Int]
+    val c = m[Int]
+    site(
+      go { case a(x) if x > 0 => },
+      go { case a(x) + c(y) if x > 0 && y > 0 => } // same condition for all reactions; separable guard; so both a and c are pipelined
+    )
+    checkExpectedPipelined(Map(a -> true, c -> true))
+  }
+
+  it should "work correctly for a separable condition, in different order" in {
+    val a = m[Int]
+    val c = m[Int]
+    site(
+      go { case a(x) + c(y) if x > 0 && y > 0 => }, // same condition for all reactions; separable guard; so both a and c are pipelined
+      go { case a(x) if x > 0 => }
+    )
+    checkExpectedPipelined(Map(a -> true, c -> true))
+  }
+
   it should "work correctly for reactions with complicated conditions" in {
     val a = m[Int]
     val c = m[(Int, Int)]
@@ -227,6 +247,8 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val f = m[Int]
     val g = m[(Int, Int)]
 
+    val n = 10
+
     site(
       go { case a(x) if x > 0 => },
       go { case a(x) + c((y, z)) if x > 0 && y > z => }, // same condition for all reactions; separable guard; so both a and c are pipelined
@@ -234,7 +256,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case d(x) + e(_) => },
       go { case d(x) + f(y) if y > 0 => }, // d, e, f should be pipelined
 
-      go { case g((y, z)) if y > z => } // g is pipelined
+      go { case g((y, z)) if y > z && n > 0 => } // g is pipelined
 
     )
     checkExpectedPipelined(Map(e -> true, f -> true, g -> true, c -> true, a -> true, d -> true))
@@ -267,9 +289,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val transformed = expectedMap.toList.map { case (t, r) => (t, t.isPipelined, r) }
     // Print detailed message.
     val difference = transformed.filterNot { case (_, x, y) => x == y }.map { case (m, actual, expected) => s"$m.isPipelined is $actual instead of $expected" }
-    if (difference.nonEmpty) println(s"Test fails: ${difference.mkString("; ")}")
-    val (left, right) = (transformed.map(_._2), transformed.map(_._3))
-    left shouldEqual right
+    (if (difference.nonEmpty) s"Test fails: ${difference.mkString("; ")}" else "") shouldEqual ""
   }
 
   it should "not pipeline reactions with non-factorizable conditions" in {
