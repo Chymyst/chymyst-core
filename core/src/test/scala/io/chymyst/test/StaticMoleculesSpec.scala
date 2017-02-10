@@ -1,6 +1,7 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
+import io.chymyst.lab.Lab
 import io.chymyst.test.Common.repeat
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
@@ -258,6 +259,18 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
     println(s"Volatile value was not ready $result times")
     result shouldEqual 0
+  }
+
+  it should "handle static molecules with conditions" in {
+    val d = m[Short]
+    val c = m[Short]
+    val (e,f) = Lab.litmus[Short](tp)
+    site(tp)(
+      go { case _ => d(123)},
+      go { case d(x) + c(_) if x < 10 => d(x) + e(1) }
+    )
+    c(0)
+    f.timeout()(1.second) shouldEqual None // if this is Some(1), reaction ran
   }
 
   it should "handle static molecules with cross-molecule guards" in {
