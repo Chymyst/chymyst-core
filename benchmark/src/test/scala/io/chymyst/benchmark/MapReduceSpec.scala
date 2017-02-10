@@ -26,7 +26,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     site(tp)(
       go { case d(n) => r(n * 2) },
       go { case res(list) + r(s) => res(s :: list) },
-      go { case get(_, reply) + res(list) if list.size == count => reply(list) }
+      go { case get(_, reply) + res(list) if list.size == count => reply(list) } // expect warning: "non-variable type argument Int in type pattern List[Int] eliminated by erasure"
     )
 
     (1 to count).foreach(d(_))
@@ -121,17 +121,18 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     site(tp, tp1)(
       go {
-        case a(x) if x <= count =>
-          c((1, x * x)) + a(x * 2) + a(x * 2 + 1)
-        // TODO: when this IF condition is restored, performance improves 2x; this needs to be fixed
-        //          if (x * 2 <= count) a(x * 2)
-        //          if (x * 2 + 1 <= count) a(x * 2 + 1)
+        case a(x) if x <= count ⇒
+          c((1, x * x))
+          // TODO: when these IF conditions are restored, performance improves 2x; this needs to be fixed
+          // This also depends on discarding pipelined values that do not fit any conditions.
+          if (x * 2 <= count) a(x * 2)
+          if (x * 2 + 1 <= count) a(x * 2 + 1)
       },
       go { case f(_, r) + done(x) => r(x) },
       go { case c((n, x)) + c((m, y)) =>
         val p = n + m
         val z = x + y
-        if (p == count)
+        if (p >= count)
           done(z)
         else
           c((n + m, x + y))
