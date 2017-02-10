@@ -500,8 +500,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     .flatFoldLeft[(Set[String], Boolean, Boolean)]((Set(), false, true)) {
     case (acc, r) ⇒
       val (prevConds, prevHaveOtherInputs, isFirstReaction) = acc
-      val haveOtherInputs = r.info.inputs.exists(_.molecule =!= m)
-      val inputsForThisMolecule = r.info.inputs.filter(_.molecule === m)
+      val haveOtherInputs = r.info.inputs.exists(_.molecule =!= moleculeAtIndex(i))
+      val inputsForThisMolecule = r.info.inputs.filter(_.molecule === moleculeAtIndex(i))
 
       // There should be no cross-molecule conditions / guards involving this molecule; otherwise, it is fatal.
       if (inputsForThisMolecule.map(_.index).toSet subsetOf r.info.independentInputMolecules) {
