@@ -17,7 +17,7 @@ $ sbt
 val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   organization := "io.chymyst",
   version := "0.1.8-SNAPSHOT",
-  scalaVersion := "2.12.1",
+  scalaVersion := "2.11.8",
   crossScalaVersions := Seq("2.11.8", "2.12.1"),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
@@ -111,6 +111,7 @@ lazy val benchmark = (project in file("benchmark"))
   .settings(
     name := "benchmark",
     aggregate in assembly := false,
+    test in assembly := {},
     //    unmanagedJars in Compile += file("lib/JiansenJoin-0.3.6-JoinRun-0.1.0.jar"),// they say it's no longer needed
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
     parallelExecution in Test := false,

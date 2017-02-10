@@ -331,11 +331,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
   }
 
-  /** Compute a map of molecule counts in the soup.
+  /** Compute a map of molecule counts in the soup. This is potentially very expensive if there are many molecules present.
+    * This function is called only once, after emitting the initial static molecules.
     *
     * @return For each molecule present in the soup, the map shows the number of copies present.
     */
-  private def getCountMap: Map[Molecule, Int] =
+  private def getMoleculeCountsAfterFirstEmission: Map[Molecule, Int] =
     bags.indices
       .flatMap(i => if (bags(i).isEmpty)
         None
@@ -470,7 +471,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
     emittingStaticMolsNow = false
 
-    val staticMolsActuallyEmitted = getCountMap
+    val staticMolsActuallyEmitted = getMoleculeCountsAfterFirstEmission
     val staticMolsEmissionWarnings = findStaticMolsEmissionWarnings(staticMolDeclared, staticMolsActuallyEmitted)
     val staticMolsEmissionErrors = findStaticMolsEmissionErrors(staticMolDeclared, staticMolsActuallyEmitted)
 

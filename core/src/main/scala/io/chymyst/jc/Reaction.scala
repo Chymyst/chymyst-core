@@ -702,7 +702,12 @@ final case class Reaction(
       // If any of the counts is less than required, we can return `None` immediately.
 
       if (moleculeIndexRequiredCounts.exists {
-        case (mIndex, count) ⇒ moleculesPresent(mIndex).size < count
+        case (mIndex, count) ⇒
+          val molBag = moleculesPresent(mIndex)
+          if (count === 1)
+            molBag.isEmpty
+          else
+            molBag.takeAny(count).size < count
       }) None
       else {
 
