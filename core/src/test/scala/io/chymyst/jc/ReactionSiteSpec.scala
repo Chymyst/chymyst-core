@@ -1,7 +1,7 @@
 package io.chymyst.jc
 
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers, Succeeded}
-
+import io.chymyst.test.Common._
 import scala.concurrent.duration._
 
 class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
@@ -308,8 +308,6 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     )
     checkExpectedPipelined(Map(c1 -> false, c3 -> true, c4 -> true, c5 -> true))
   }
-
-  def repeat[A](n: Int)(x: => A) = (1 to n).foreach(_ => x)
 
   it should "not pipeline if there are conditions and other inputs" in {
     repeat(100) {

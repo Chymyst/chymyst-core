@@ -1,6 +1,7 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
+import io.chymyst.test.Common._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
@@ -261,26 +262,31 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
   }
 
   it should "handle static molecules with cross-molecule guards" in {
-    val d = m[Short]
-    val c = m[Short]
-    val stabilize_d = b[Unit, Unit]
-    site(tp)(
-      go { case c(x) + d(y) if x > y => d((x + y).toShort) },
-      go { case d(x) + stabilize_d(_, r) if x > 0 => r(); d(x) }, // Await stabilizing the presence of d
-      go { case _ => d(123) } // static reaction
-    )
-    d.isPipelined shouldEqual false // Since it is not pipelined and has `Short` type, its values will be kept in a hashmap.
-    stabilize_d()
-    d.volatileValue shouldEqual 123
-    c(1)
-    stabilize_d()
-    d.volatileValue shouldEqual 123
-    c(100)
-    stabilize_d()
-    d.volatileValue shouldEqual 123
-    c(200)
-    stabilize_d()
-    d.volatileValue shouldEqual 323
+    repeat(100) {
+      val d = m[Short]
+      val c = m[Short]
+      val e = m[Unit]
+      val f = b[Unit, Unit]
+      val stabilize_d = b[Unit, Unit]
+      site(tp)(
+        go { case e(_) + f(_, r) => r() },
+        go { case c(x) + d(y) if x > y => d((x + y).toShort) + e() },
+        go { case d(x) + stabilize_d(_, r) if x > 0 => r(); d(x) }, // Await stabilizing the presence of d
+        go { case _ => d(123) } // static reaction
+      )
+      d.isPipelined shouldEqual false // Since `d()` is not pipelined and has `Short` type, its values will be kept in a hashmap.
+      // This will exercise the hashmap functions of MolValueBag.
+      d.volatileValue shouldEqual 123
+      c(1)
+      stabilize_d()
+      d.volatileValue shouldEqual 123
+      c(100)
+      stabilize_d()
+      d.volatileValue shouldEqual 123
+      c(200) // now eventually e() will be emitted, which we wait for
+      f()
+      d.volatileValue shouldEqual 323
+    }
   }
 
   it should "read the initial value of the static molecule after stabilization" in {
