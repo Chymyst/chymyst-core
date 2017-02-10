@@ -104,7 +104,9 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       Some(q"None")
 
     case pq"immutable.this.Nil"
-         | q"immutable.this.Nil" =>
+         | pq"scala.collection.immutable.Nil"
+         | q"immutable.this.Nil"
+         | q"scala.collection.immutable.Nil" =>
       Some(q"Nil")
 
     // Tuples: the pq"" quasiquote covers both the binder and the expression!

@@ -22,7 +22,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       OutputMoleculeInfo(`bbb`, ConstOutputPattern(List()), Nil)
       ) =>
     }
-    result.info.toString shouldEqual "aaa(List()) + aaa(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) => bb('output) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) + a(Right(output))"
+    result.info.toString shouldEqual "aaa(List()) + aaa(List()) => bbb(List()) + bbb(List())"
   }
 
   it should "correctly recognize constants of various kinds" in {
