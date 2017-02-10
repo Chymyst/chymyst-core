@@ -1,8 +1,7 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
-import io.chymyst.lab.Lab
-import io.chymyst.test.Common.repeat
+import io.chymyst.test.Common._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
@@ -264,7 +263,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
   it should "handle static molecules with conditions" in {
     val d = m[Short]
     val c = m[Short]
-    val (e,f) = Lab.litmus[Short](tp)
+    val (e,f) = litmus[Short](tp)
     site(tp)(
       go { case _ => d(123)},
       go { case d(x) + c(_) if x < 10 => d(x) + e(1) }
