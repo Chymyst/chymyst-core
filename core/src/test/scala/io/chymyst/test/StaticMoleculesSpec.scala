@@ -261,15 +261,15 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
   }
 
   it should "handle static molecules with cross-molecule guards" in {
-    val d = m[Int]
-    val c = m[Int]
+    val d = m[Short]
+    val c = m[Short]
     val stabilize_d = b[Unit, Unit]
     site(tp)(
-      go { case c(x) + d(y) if x > y => d(x + y) },
+      go { case c(x) + d(y) if x > y => d((x + y).toShort) },
       go { case d(x) + stabilize_d(_, r) if x > 0 => r(); d(x) }, // Await stabilizing the presence of d
       go { case _ => d(123) } // static reaction
     )
-    d.setLogLevel(2)
+    d.isPipelined shouldEqual false // Since it is not pipelined and has `Short` type, its values will be kept in a hashmap.
     stabilize_d()
     d.volatileValue shouldEqual 123
     c(1)
@@ -292,6 +292,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
     )
     stabilize_d()
     d.volatileValue shouldEqual 123
+    d.isPipelined shouldEqual true
   }
 
   it should "read the volatile value of the static molecule always accurately after many changes" in {

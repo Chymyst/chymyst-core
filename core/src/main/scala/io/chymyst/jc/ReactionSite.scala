@@ -285,44 +285,53 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     * This method is run on the thread that emits the molecule. This method is common for blocking and non-blocking molecules.
     *
-    * @param m        Molecule emitter.
+    * @param mol      Molecule emitter.
     * @param molValue Value of the molecule, wrapped in an instance of [[AbsMolValue]]`[T]` class.
     * @tparam T Type of the molecule value.
     */
-  private def emit[T](m: Molecule, molValue: AbsMolValue[T]): Unit = {
+  private def emit[T](mol: Molecule, molValue: AbsMolValue[T]): Unit = {
     if (findUnboundOutputMolecules) {
-      lazy val noReactionMessage = s"In $this: As $m($molValue) is emitted, some reactions may emit molecules (${unboundOutputMolecules.map(_.toString).toList.sorted.mkString(", ")}) that are not bound to any reaction site"
+      lazy val noReactionMessage = s"In $this: As $mol($molValue) is emitted, some reactions may emit molecules (${unboundOutputMolecules.map(_.toString).toList.sorted.mkString(", ")}) that are not bound to any reaction site"
       throw new ExceptionNoReactionSite(noReactionMessage)
     }
     else if (sitePool.isInactive) {
-      lazy val noPoolMessage = s"In $this: Cannot emit molecule $m($molValue) because site pool is not active"
+      lazy val noPoolMessage = s"In $this: Cannot emit molecule $mol($molValue) because site pool is not active"
       throw new ExceptionNoSitePool(noPoolMessage)
     }
     else if (!Thread.currentThread().isInterrupted) {
       if (emittingStaticMolsNow) {
         // Emit them on the same thread, and do not start any reactions.
-        if (m.isStatic) {
-          addToBag(m, molValue)
-          m.asInstanceOf[M[T]].assignStaticMolVolatileValue(molValue)
+        if (mol.isStatic) {
+          addToBag(mol, molValue)
+          mol.asInstanceOf[M[T]].assignStaticMolVolatileValue(molValue)
         } else {
-          throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit molecule $m($molValue) as static (must be a non-blocking molecule)")
+          throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit molecule $mol($molValue) as static (must be a non-blocking molecule)")
         }
       } else {
-        if (m.isStatic) {
+        // For pipelined molecules, check whether their value satisfies at least one of the conditions (if any conditions are present).
+        val admitsValue = pipelinedMolecules.get(mol.index).forall(infos ⇒ infos.isEmpty || infos.exists(_.admitsValue(molValue)))
+        if (mol.isStatic) {
           // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
           // If successful, this will modify the thread's copy of `ChymystThreadInfo` to register the fact that we emitted that static molecule.
-          registerEmittedStaticMolOrThrow(m, refusalReason =>
-            throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit static molecule $m($molValue) $refusalReason")
+          registerEmittedStaticMolOrThrow(mol, refusalReason =>
+            throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit static molecule $mol($molValue) $refusalReason")
           )
-          m.asInstanceOf[M[T]].assignStaticMolVolatileValue(molValue)
+          // If we are here, we are allowed to emit this static molecule.
+          if (admitsValue)
+            mol.asInstanceOf[M[T]].assignStaticMolVolatileValue(molValue)
         }
         // If we are here, we are allowed to emit.
-        addToBag(m, molValue)
+        // But will not emit if the pipeline does not admit the value.
+        if (admitsValue) {
+          addToBag(mol, molValue)
 
-        lazy val emitMoleculeMessage = s"Debug: $this emitting $m($molValue), now have molecules [${moleculeBagToString(bags)}]"
-        if (logLevel > 0) println(emitMoleculeMessage)
+          lazy val emitMoleculeMessage = s"Debug: $this emitting $mol($molValue), now have molecules [${moleculeBagToString(bags)}]"
+          if (logLevel > 0) println(emitMoleculeMessage)
 
-        sitePool.runRunnable(emissionRunnable(m))
+          sitePool.runRunnable(emissionRunnable(mol))
+        } else {
+          reportError(s"In $this: Refusing to emit pipelined molecule $mol($molValue) since its value fails the relevant conditions")
+        }
       }
     }
   }
@@ -340,9 +349,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         Some((moleculeAtIndex(i), bags(i).size))
       )(scala.collection.breakOut)
 
-  private def addToBag(m: Molecule, molValue: AbsMolValue[_]): Unit = bags(m.index).add(molValue)
+  private def addToBag(mol: Molecule, molValue: AbsMolValue[_]): Unit = bags(mol.index).add(molValue)
 
-  private def removeFromBag(m: Molecule, molValue: AbsMolValue[_]): Unit = bags(m.index).remove(molValue)
+  private def removeFromBag(mol: Molecule, molValue: AbsMolValue[_]): Unit = bags(mol.index).remove(molValue)
 
   private[jc] def moleculeBagToString(bags: Array[MolValueBag[AbsMolValue[_]]]): String =
     Core.moleculeBagToString(bags.indices
@@ -496,41 +505,48 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       (mol, (index, valType))
     }(scala.collection.breakOut)
 
-  private def isPipelined(i: Int): Boolean = consumingReactions(i)
-    .flatFoldLeft[(Set[String], Boolean, Boolean)]((Set(), false, true)) {
-    case (acc, r) ⇒
-      val (prevConds, prevHaveOtherInputs, isFirstReaction) = acc
-      val haveOtherInputs = r.info.inputs.exists(_.molecule =!= moleculeAtIndex(i))
-      val inputsForThisMolecule = r.info.inputs.filter(_.molecule === moleculeAtIndex(i))
+  private def infosIfPipelined(i: Int): Option[Set[InputMoleculeInfo]] = {
+    consumingReactions(i)
+      .flatFoldLeft[(Set[InputMoleculeInfo], Boolean, Boolean)]((Set(), false, true)) {
+      case (acc, r) ⇒
+        val (prevConds, prevHaveOtherInputs, isFirstReaction) = acc
+        val haveOtherInputs = r.info.inputs.exists(_.molecule =!= moleculeAtIndex(i))
+        val inputsForThisMolecule = r.info.inputs.filter(_.molecule === moleculeAtIndex(i))
 
-      // There should be no cross-molecule conditions / guards involving this molecule; otherwise, it is fatal.
-      if (inputsForThisMolecule.map(_.index).toSet subsetOf r.info.independentInputMolecules) {
-        // Get the conditions for this molecule. There should be no conditions when the molecule is repeated, and at most one otherwise.
-        val thisConds = inputsForThisMolecule.filterNot(_.flag.isIrrefutable).map(_.sha1).toSet
-        // Check whether this molecule is nonlinear in input (if so, there should be no conditions).
-        //          val isNonlinear = inputsForThisMolecule.length >= 2
-        // If we have no previous other inputs and no current other inputs, we can concatenate the conditions and we are done.
-        val newHaveOtherInputs = haveOtherInputs || prevHaveOtherInputs
-        if (newHaveOtherInputs) {
-          // If we have other inputs either now, or previously, or both,
-          // we do not fail only if the previous condition is exactly the same as the current one, or if this is the first condition we are considering.
-          if (isFirstReaction || prevConds === thisConds)
-            Some((thisConds, newHaveOtherInputs, false))
-          else
-            None
+        // There should be no cross-molecule conditions / guards involving this molecule; otherwise, it is fatal.
+        if (inputsForThisMolecule.map(_.index).toSet subsetOf r.info.independentInputMolecules) {
+          // Get the conditions for this molecule. There should be no conditions when the molecule is repeated, and at most one otherwise.
+          val thisConds = inputsForThisMolecule.filterNot(_.flag.isIrrefutable).toSet
+          // Check whether this molecule is nonlinear in input (if so, there should be no conditions).
+          //          val isNonlinear = inputsForThisMolecule.length >= 2
+          // If we have no previous other inputs and no current other inputs, we can concatenate the conditions and we are done.
+          val newHaveOtherInputs = haveOtherInputs || prevHaveOtherInputs
+          if (newHaveOtherInputs) {
+            // If we have other inputs either now, or previously, or both,
+            // we do not fail only if the previous condition is exactly the same as the current one, or if this is the first condition we are considering.
+            if (isFirstReaction || prevConds === thisConds)
+              Some((thisConds, newHaveOtherInputs, false))
+            else
+              None
+          } else {
+            Some((prevConds ++ thisConds, newHaveOtherInputs, false))
+          }
         } else {
-          Some((prevConds ++ thisConds, newHaveOtherInputs, false))
+          None
         }
-      } else {
-        None
-      }
-  }.nonEmpty
+    }.map(_._1)
+  }
 
-  private val moleculeAtIndex: Map[Int, Molecule] = knownMolecules.map { case (m, (i, _)) => (i, m) }(scala.collection.breakOut)
+  private val moleculeAtIndex: Map[Int, Molecule] = knownMolecules.map { case (mol, (i, _)) ⇒ (i, mol) }(scala.collection.breakOut)
 
-  private val consumingReactions: Array[Array[Reaction]] = Array.tabulate(knownMolecules.size)(i => getConsumingReactions(moleculeAtIndex(i)))
+  private val consumingReactions: Array[Array[Reaction]] = Array.tabulate(knownMolecules.size)(i ⇒ getConsumingReactions(moleculeAtIndex(i)))
 
-  private val pipelinedMolecules: Set[Int] = moleculeAtIndex.keySet.filter(isPipelined)
+  /** For each (site-wide) molecule index, the corresponding set of [[InputMoleculeInfo]]s contains only the infos with nontrivial conditions for the molecule value.
+    *
+    */
+  private val pipelinedMolecules: Map[Int, Set[InputMoleculeInfo]] =
+    moleculeAtIndex
+      .flatMap { case (index, _) ⇒ infosIfPipelined(index).map(c ⇒ (index, c)) }
 
   private val bags: MoleculeBagArray = new Array(knownMolecules.size)
 
