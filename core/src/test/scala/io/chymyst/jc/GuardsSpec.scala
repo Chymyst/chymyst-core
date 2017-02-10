@@ -6,6 +6,25 @@ class GuardsSpec extends FlatSpec with Matchers {
 
   behavior of "miscellaneous"
 
+  it should "correctly recognize List() and Nil() constants" in {
+    val aaa = m[List[Int]]
+    val bbb = m[List[Int]]
+    val result = go { case aaa(Nil) + aaa(List()) => bbb(List()) + bbb(Nil) }
+    result.info.inputs should matchPattern {
+      case Array(
+      InputMoleculeInfo(`aaa`, 0, ConstInputPattern(List()), _, Symbol("List[Int]")),
+      InputMoleculeInfo(`aaa`, 1, ConstInputPattern(List()), _, _)
+      ) =>
+    }
+    result.info.outputs should matchPattern {
+      case Array(
+      OutputMoleculeInfo(`bbb`, ConstOutputPattern(List()), Nil),
+      OutputMoleculeInfo(`bbb`, ConstOutputPattern(List()), Nil)
+      ) =>
+    }
+    result.info.toString shouldEqual "aaa(List()) + aaa(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) => bb('output) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) + a(Right(output))"
+  }
+
   it should "correctly recognize constants of various kinds" in {
     val a = m[Either[Int, String]]
     val bb = m[scala.Symbol]
@@ -14,8 +33,6 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case ccc(Nil) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) + bb('input) + a(Right("input")) =>
       bb('output); ccc(Nil); ccc(List()); ccc(List(1)); ccc(List(1, 2, 3)); a(Right("output"))
     }
-
-    result.info.toString shouldEqual "a(Right(input)) + bb('input) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) => bb('output) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) + a(Right(output))"
 
     result.info.inputs should matchPattern {
       case Array(
@@ -27,6 +44,8 @@ class GuardsSpec extends FlatSpec with Matchers {
       InputMoleculeInfo(`a`, 5, ConstInputPattern(Right("input")), _, Symbol("scala.util.Either[Int,String]"))
       ) =>
     }
+
+    result.info.toString shouldEqual "a(Right(input)) + bb('input) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) => bb('output) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) + a(Right(output))"
   }
 
   behavior of "guard conditions"
@@ -189,7 +208,6 @@ class GuardsSpec extends FlatSpec with Matchers {
     val reaction = go { case a(x@(_, (y@_, z), t)) => }
 
     reaction.info.guardPresence should matchPattern { case AllMatchersAreTrivial => }
-
     reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List('x, 'y, 'z, 't), true) => }
   }
 
@@ -199,8 +217,25 @@ class GuardsSpec extends FlatSpec with Matchers {
     val reaction = go { case a((_, _) | (1, 2)) => }
 
     reaction.info.guardPresence should matchPattern { case AllMatchersAreTrivial => }
-
     reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List(), true) => }
+  }
+
+  it should "compute reaction info with tuple irrefutable matcher" in {
+    val a = m[(Int, (Int, (Boolean, Boolean), (String, String, String)))]
+
+    val reaction = go { case a((x, (_, (y, _), (z, _, t)))) => }
+
+    reaction.info.guardPresence should matchPattern { case AllMatchersAreTrivial => }
+    reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List('x, 'y, 'z, 't), true) => }
+  }
+
+  it should "compute reaction info with tuple refutable matcher" in {
+    val a = m[(Int, (Int, (Boolean, Boolean), (String, String, String)))]
+
+    val reaction = go { case a((x, (_, (y, true), (z, _, t)))) => }
+
+    reaction.info.guardPresence should matchPattern { case GuardAbsent => }
+    reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List('x, 'y, 'z, 't), false) => }
   }
 
   it should "recognize irrefutable case class matcher" in {
@@ -209,8 +244,10 @@ class GuardsSpec extends FlatSpec with Matchers {
     A(1).x shouldEqual 1
 
     val a = m[MyTrait]
-    val r = go { case a(A(x)) => }
-    r.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List('x), true) => }
+    val reaction = go { case a(A(x)) => }
+
+    reaction.info.guardPresence should matchPattern { case AllMatchersAreTrivial => }
+    reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List('x), true) => }
   }
 
   it should "recognize refutable case class matcher" in {
@@ -221,8 +258,9 @@ class GuardsSpec extends FlatSpec with Matchers {
     B(1).y shouldEqual 1
 
     val a = m[MyTrait]
-    val r = go { case a(A(x)) => }
-    r.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List('x), false) => }
+    val reaction = go { case a(A(x)) => }
+    reaction.info.guardPresence should matchPattern { case GuardAbsent => }
+    reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List('x), false) => }
   }
 
   behavior of "guard conditions without cross-molecule dependencies"
@@ -421,11 +459,11 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.toString shouldEqual "a(?x,y) + a(p,q) if(x,p,y,q) => "
     (result.info.guardPresence match {
       case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'p, 'y, 'q), cond))) ⇒
-        cond.isDefinedAt(List((1,2), (4,3))) shouldEqual true // x > n is not part of the cross-molecule guard
-        cond.isDefinedAt(List((1,3), (4,3))) shouldEqual false
-        cond.isDefinedAt(List((4,2), (4,3))) shouldEqual false
-        cond.isDefinedAt(List((1,2), (3,4))) shouldEqual true // x > y is not part of the cross-molecule guard
-        cond.isDefinedAt(List((1,3), (4,3))) shouldEqual false
+        cond.isDefinedAt(List((1, 2), (4, 3))) shouldEqual true // x > n is not part of the cross-molecule guard
+        cond.isDefinedAt(List((1, 3), (4, 3))) shouldEqual false
+        cond.isDefinedAt(List((4, 2), (4, 3))) shouldEqual false
+        cond.isDefinedAt(List((1, 2), (3, 4))) shouldEqual true // x > y is not part of the cross-molecule guard
+        cond.isDefinedAt(List((1, 3), (4, 3))) shouldEqual false
         true
       case _ ⇒ false
     }) shouldEqual true
@@ -454,7 +492,7 @@ class GuardsSpec extends FlatSpec with Matchers {
         t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 && t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 ⇒
     }
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array(
-      CrossMoleculeGuard(Array(0, 1), Array('x0, 'x1, 'y0, 'y1, 't0, 't1), _)
+    CrossMoleculeGuard(Array(0, 1), Array('x0, 'x1, 'y0, 'y1, 't0, 't1), _)
     , CrossMoleculeGuard(Array(0, 2), Array('x0, 'x2, 'y0, 'y2, 't0, 't2), _)
     , CrossMoleculeGuard(Array(0, 3), Array('x0, 'x3, 'y0, 'y3, 't0, 't3), _)
     , CrossMoleculeGuard(Array(0, 4), Array('x0, 'x4, 'y0, 'y4, 't0, 't4), _)
