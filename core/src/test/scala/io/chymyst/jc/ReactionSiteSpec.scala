@@ -216,7 +216,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     site(
       go { case d(Some(x)) + e((_, 2)) => }
     )
-    checkExpectedPipelined(Map(a -> true, c -> true, d -> true, e -> true))
+    checkExpectedPipelined(Map(a -> true, c -> true, d -> true, e -> true)) shouldEqual ""
   }
 
   it should "work correctly for a separable condition" in {
@@ -226,7 +226,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case a(x) if x > 0 => },
       go { case a(x) + c(y) if x > 0 && y > 0 => } // same condition for all reactions; separable guard; so both a and c are pipelined
     )
-    checkExpectedPipelined(Map(a -> true, c -> true))
+    checkExpectedPipelined(Map(a -> true, c -> true)) shouldEqual ""
   }
 
   it should "work correctly for a separable condition, in different order" in {
@@ -236,7 +236,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case a(x) + c(y) if x > 0 && y > 0 => }, // same condition for all reactions; separable guard; so both a and c are pipelined
       go { case a(x) if x > 0 => }
     )
-    checkExpectedPipelined(Map(a -> true, c -> true))
+    checkExpectedPipelined(Map(a -> true, c -> true)) shouldEqual ""
   }
 
   it should "work correctly for reactions with complicated conditions" in {
@@ -259,7 +259,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case g((y, z)) if y > z && n > 0 => } // g is pipelined
 
     )
-    checkExpectedPipelined(Map(e -> true, f -> true, g -> true, c -> true, a -> true, d -> true))
+    checkExpectedPipelined(Map(e -> true, f -> true, g -> true, c -> true, a -> true, d -> true)) shouldEqual ""
   }
 
   it should "prevent pipelining for reactions with cross-molecule guards" in {
@@ -282,14 +282,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
       go { case h((y, z)) + j(t) + k(x) if t > 0 && z > x => } // cross-molecule guard prevents both h and k from being pipelined, but not j
     )
-    checkExpectedPipelined(Map(a -> true, c -> true, d -> true, e -> false, f -> false, g -> false, h -> false, j -> true, k -> false))
-  }
-
-  def checkExpectedPipelined(expectedMap: Map[Molecule, Boolean]) = {
-    val transformed = expectedMap.toList.map { case (t, r) => (t, t.isPipelined, r) }
-    // Print detailed message.
-    val difference = transformed.filterNot { case (_, x, y) => x == y }.map { case (m, actual, expected) => s"$m.isPipelined is $actual instead of $expected" }
-    (if (difference.nonEmpty) s"Test fails: ${difference.mkString("; ")}" else "") shouldEqual ""
+    checkExpectedPipelined(Map(a -> true, c -> true, d -> true, e -> false, f -> false, g -> false, h -> false, j -> true, k -> false)) shouldEqual ""
   }
 
   it should "not pipeline reactions with non-factorizable conditions" in {
@@ -306,7 +299,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case c3(x) + c5(y) if y > 0 => } // other inputs, but no conditions
 
     )
-    checkExpectedPipelined(Map(c1 -> false, c3 -> true, c4 -> true, c5 -> true))
+    checkExpectedPipelined(Map(c1 -> false, c3 -> true, c4 -> true, c5 -> true)) shouldEqual ""
   }
 
   it should "not pipeline if there are conditions and other inputs" in {
@@ -318,7 +311,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         go { case a(x) if x > 0 => },
         go { case a(x) + c(_) => }
       )
-      checkExpectedPipelined(Map(c -> true, a -> false))
+      checkExpectedPipelined(Map(c -> true, a -> false)) shouldEqual ""
     }
   }
 
@@ -331,7 +324,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         go { case a(x) + c(_) => },
         go { case a(x) if x > 0 => }
       )
-      checkExpectedPipelined(Map(c -> true, a -> false))
+      checkExpectedPipelined(Map(c -> true, a -> false)) shouldEqual ""
     }
   }
 
@@ -345,7 +338,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         go { case a(x) if x < 0 => },
         go { case a(x) + c(_) => }
       )
-      checkExpectedPipelined(Map(c -> true, a -> false))
+      checkExpectedPipelined(Map(c -> true, a -> false)) shouldEqual ""
     }
   }
 
@@ -359,7 +352,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         go { case a(x) if x > 0 => },
         go { case a(x) if x < 0 => }
       )
-      checkExpectedPipelined(Map(c -> true, a -> false))
+      checkExpectedPipelined(Map(c -> true, a -> false)) shouldEqual ""
     }
   }
 
@@ -373,7 +366,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         go { case a(x) + c(_) => },
         go { case a(x) if x < 0 => }
       )
-      checkExpectedPipelined(Map(c -> true, a -> false))
+      checkExpectedPipelined(Map(c -> true, a -> false)) shouldEqual ""
     }
   }
 
@@ -393,7 +386,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         go { case c2(x) if x < 0 => }, // simple condition
         go { case c2(x) + c3(y) => } // unconditional but has other inputs, so c2 cannot be pipelined (but c3 can be)
       )
-      checkExpectedPipelined(Map(c1 -> true, c2 -> false, c3 -> true))
+      checkExpectedPipelined(Map(c1 -> true, c2 -> false, c3 -> true)) shouldEqual ""
     }
   }
 
@@ -406,7 +399,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         go { case c(x) + a(_) => } // this is a livelock but we are interested in pipelining of c
       )
     }.getMessage shouldEqual "In Site{a + c => ...; c => ...}: Unavoidable nondeterminism: reaction {a(_) + c(x) => } is shadowed by {c(x) => }"
-    checkExpectedPipelined(Map(c -> true, a -> true))
+    checkExpectedPipelined(Map(c -> true, a -> true)) shouldEqual ""
   }
 
   it should "detect pipelining while also detecting nondeterminism" in {
@@ -418,7 +411,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         go { case c(x) + c(y) + c(z) => } // unconditional nondeterminism with several inputs
       )
     }.getMessage shouldEqual "In Site{c + c + c => ...; c + c => ...; c => ...}: Unavoidable nondeterminism: reaction {c(x) + c(y) + c(z) => } is shadowed by {c(x) + c(y) => }"
-    checkExpectedPipelined(Map(c -> true))
+    checkExpectedPipelined(Map(c -> true)) shouldEqual ""
   }
 
 
@@ -431,7 +424,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case c(x) + a(_) if x > 0 => } // this is a livelock (although we can't detect it!) but we are interested in pipelining of c
     )
     //    }.getMessage shouldEqual "In Site{a + c => ...; c => ...}: Unavoidable nondeterminism: reaction {a(_) + c(x) => } is shadowed by {c(x) => }"
-    checkExpectedPipelined(Map(c -> true, a -> true))
+    checkExpectedPipelined(Map(c -> true, a -> true)) shouldEqual ""
   }
 
   it should "detect pipelining with two conditions" in {
@@ -442,7 +435,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case a(x) if x > 0 => },
       go { case a(x) + c(y) if x > 0 => } // same condition for all reactions, so a is pipelined
     )
-    checkExpectedPipelined(Map(c -> true, a -> true))
+    checkExpectedPipelined(Map(c -> true, a -> true)) shouldEqual ""
   }
 
 }

@@ -4,6 +4,7 @@ import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentLinkedQueue
 
+import Common._
 import io.chymyst.jc._
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
@@ -255,6 +256,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case manL(xy) + womanL(xx) => beginDancing(Math.min(xx, xy)) },
       go { case _ => queueMen(0) + queueWomen(0) }
     )
+    checkExpectedPipelined(Map(man -> true, woman -> true, queueMen -> true, queueWomen -> true, manL -> true, womanL -> true)) shouldEqual ""
 
     (0 until total / 2).foreach(_ => man())
     danceCounter.volatileValue shouldEqual Nil
@@ -281,7 +283,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val danceCounter = m[List[Int]]
     val done = b[Unit, List[Int]]
 
-    val total = 250
+    val total = 100
 
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) },
@@ -295,6 +297,8 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case manL(xy) + womanL(xx) + mayBegin(l) if xx == xy && xy == l => beginDancing(l); mayBegin(l + 1) },
       go { case _ => queueMen(0) + queueWomen(0) + mayBegin(0) }
     )
+
+    checkExpectedPipelined(Map(man -> true, woman -> true, queueMen -> true, queueWomen -> true, manL -> false, womanL -> false, mayBegin -> false)) shouldEqual ""
 
     (1 to total).foreach(_ => man())
     danceCounter.volatileValue shouldEqual Nil

@@ -15,4 +15,12 @@ object Common {
     )
     (signal, fetch)
   }
+
+  def checkExpectedPipelined(expectedMap: Map[Molecule, Boolean]) = {
+    val transformed = expectedMap.toList.map { case (t, r) => (t, t.isPipelined, r) }
+    // Print detailed message.
+    val difference = transformed.filterNot { case (_, x, y) => x == y }.map { case (m, actual, expected) => s"$m.isPipelined is $actual instead of $expected" }
+    if (difference.nonEmpty) s"Test fails: ${difference.mkString("; ")}" else ""
+  }
+
 }
