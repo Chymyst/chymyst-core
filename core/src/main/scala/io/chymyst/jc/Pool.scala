@@ -5,7 +5,10 @@ import java.util.concurrent._
 
 class FixedPool(threads: Int) extends PoolExecutor(threads, { t =>
   val queue = new LinkedBlockingQueue[Runnable]
-  (new ThreadPoolExecutor(t, t, 0L, TimeUnit.SECONDS, queue, new ThreadFactoryWithInfo), queue)
+  val secondsToRecycleThread = 1L
+  val executor = new ThreadPoolExecutor(t, t, secondsToRecycleThread, TimeUnit.SECONDS, queue, new ThreadFactoryWithInfo)
+  executor.allowCoreThreadTimeOut(true)
+  (executor, queue)
 })
 
 /** A pool of execution threads, or another way of running tasks (could use actors or whatever else).
