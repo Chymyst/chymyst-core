@@ -4,7 +4,6 @@ package io.chymyst.jc
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import scala.collection.JavaConverters.{asScalaIteratorConverter, asScalaSetConverter}
-import Core._
 
 import com.google.common.collect.ConcurrentHashMultiset
 
@@ -33,7 +32,7 @@ sealed trait MolValueBag[T] {
 
 /** Implementation using guava's [[ConcurrentHashMultiset]].
   *
-  * This is suitable for types that have a small number of possible values (i.e. [[simpleTypes]]),
+  * This is suitable for types that have a small number of possible values (i.e. [[Core.simpleTypes]]),
   * or for molecules constrained by cross-molecule dependencies where selection by value is important.
   */
 final class MolValueMapBag[T] extends MolValueBag[T] {

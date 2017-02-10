@@ -17,7 +17,7 @@ $ sbt
 val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   organization := "io.chymyst",
   version := "0.1.8-SNAPSHOT",
-  scalaVersion := "2.11.8",
+  scalaVersion := "2.12.1",
   crossScalaVersions := Seq("2.11.8", "2.12.1"),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),

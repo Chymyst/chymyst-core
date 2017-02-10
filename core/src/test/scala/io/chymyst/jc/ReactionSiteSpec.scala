@@ -290,26 +290,29 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
   }
 
   it should "work correctly for reactions with factorizable conditions" in {
-    val c1 = m[Int]
-    val c2 = m[Int]
-    val c3 = m[Int]
-    val c4 = m[Int]
-    val c5 = m[Int]
+    (1 to 100).foreach { _ =>
+      // make sure this does not fail
+      val c1 = m[Int]
+      val c2 = m[Int]
+      val c3 = m[Int]
+      val c4 = m[Int]
+      val c5 = m[Int]
 
-    site(
-      go { case c1(x) if x > 0 => }, // c1 is pipelined:
-      go { case c1(x) if x < 0 => }, // simple condition
-      go { case c1(x) + c1(_) => }, // unconditional with no other inputs - still ok to pipeline c1
+      site(
+        go { case c1(x) if x > 0 => }, // c1 is pipelined:
+        go { case c1(x) if x < 0 => }, // simple condition
+        go { case c1(x) + c1(_) => }, // unconditional with no other inputs - still ok to pipeline c1
 
-      go { case c2(x) if x > 0 => },
-      go { case c2(x) if x < 0 => }, // simple condition
-      go { case c2(x) + c3(y) => }, // unconditional but has other inputs, so c2 cannot be pipelined (but c3 can be)
+        go { case c2(x) if x > 0 => },
+        go { case c2(x) if x < 0 => }, // simple condition
+        go { case c2(x) + c3(y) => }, // unconditional but has other inputs, so c2 cannot be pipelined (but c3 can be)
 
-      go { case c4(x) if x > 0 => },
-      go { case c4(x) + c5(y) => } // other inputs and a condition prevents pipelining of c4
+        go { case c4(x) if x > 0 => },
+        go { case c4(x) + c5(y) => } // other inputs and a condition prevents pipelining of c4
 
-    )
-    checkExpectedPipelined(Map(c1 -> true, c2 -> false, c3 -> true, c4 -> false, c5 -> true))
+      )
+      checkExpectedPipelined(Map(c1 -> true, c2 -> false, c3 -> true, c4 -> false, c5 -> true))
+    }
   }
 
   it should "detect pipelining while also detecting livelock" in {

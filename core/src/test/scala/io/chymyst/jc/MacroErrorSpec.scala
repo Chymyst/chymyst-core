@@ -12,7 +12,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val c = m[Unit]
 
     // These should compile.
-    def emitThem = {
+    def emitThem() = { // Ignore the warning about this unused function.
       c(())
       c()
       c(123) // non-Unit value 123 is discarded, but it's only a warning
