@@ -255,8 +255,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @param m A static molecule emitter.
     * @return `()` if the thread is allowed to emit that molecule. Otherwise, an exception is thrown with a refusal reason message.
     */
-  private def registerEmittedStaticMolOrThrow(m: Molecule, throwError: String => Unit): Unit = {
-    val noChemicalReactionMessage = "because this thread does not run a chemical reaction"
+  private def allowEmittedStaticMolOrThrow(m: Molecule, throwError: String => Unit): Unit = {
     currentReactionInfo.foreach { info =>
       if (!info.maybeEmit(m)) {
         val refusalReason =
@@ -267,7 +266,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       } // otherwise we are ok
     }
     if (currentReactionInfo.isEmpty)
-      throwError(noChemicalReactionMessage)
+      throwError("because this thread does not run a chemical reaction")
   }
 
   /** This variable is true only at the initial stage of building the reaction site,
@@ -313,7 +312,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         if (mol.isStatic) {
           // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
           // If successful, this will modify the thread's copy of `ChymystThreadInfo` to register the fact that we emitted that static molecule.
-          registerEmittedStaticMolOrThrow(mol, refusalReason =>
+          allowEmittedStaticMolOrThrow(mol, refusalReason =>
             throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit static molecule $mol($molValue) $refusalReason")
           )
           // If we are here, we are allowed to emit this static molecule.
@@ -330,7 +329,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
           sitePool.runRunnable(emissionRunnable(mol))
         } else {
-          reportError(s"In $this: Refusing to emit pipelined molecule $mol($molValue) since its value fails the relevant conditions")
+          reportError(s"In $this: Refusing to emit${if (mol.isStatic) " static" else ""} pipelined molecule $mol($molValue) since its value fails the relevant conditions")
         }
       }
     }

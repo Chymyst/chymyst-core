@@ -261,15 +261,20 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
   }
 
   it should "handle static molecules with conditions" in {
-    val d = m[Short]
+    val d123 = m[Short]
     val c = m[Short]
-    val (e,f) = litmus[Short](tp)
+    val g = b[Unit, Unit]
+    val (e, f) = litmus[Short](tp)
     site(tp)(
-      go { case _ => d(123)},
-      go { case d(x) + c(_) if x < 10 => d(x) + e(1) }
+      go { case _ => d123(1) },
+      go { case d123(x) + g(_, r) if x < 10 => d123(123) + r() },
+      go { case d123(x) + c(_) if x < 10 => d123(x) + e(1) }
     )
+    checkExpectedPipelined(Map(c -> true, d123 -> true, e -> true, f -> true)) shouldEqual ""
+    g() // now we have attempted to emit d123(123) but we should have failed
     c(0)
-    f.timeout()(1.second) shouldEqual None // if this is Some(1), reaction ran
+    f.timeout()(1.second) shouldEqual None // if this is Some(1), reaction ran, which means the test failed
+    globalErrorLog.find(_.contains("Refusing to emit static pipelined molecule")) shouldEqual Some("In Site{c + d123 => ...; d123 + g/B => ...}: Refusing to emit static pipelined molecule d123(123) since its value fails the relevant conditions")
   }
 
   it should "handle static molecules with cross-molecule guards" in {
