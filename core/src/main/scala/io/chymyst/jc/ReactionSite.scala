@@ -36,7 +36,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   private val id: Long = getNextId
 
-  private val (nonStaticReactions, staticReactions) = reactions.partition(_.inputMolecules.nonEmpty)
+  private val (nonStaticReactions, staticReactions) = reactions.toArray.partition(_.inputMolecules.nonEmpty)
 
   private var unboundOutputMolecules: Set[Molecule] = _
 
@@ -49,7 +49,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private val staticMolDeclared: Map[Molecule, Int] = staticReactions.map(_.info.outputs)
     .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
     .groupBy(identity)
-    .mapValues(_.size)
+    .mapValues(_.length)
 
   /** Complete information about reactions declared in this reaction site.
     * Static reactions are not included here.
@@ -65,7 +65,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   //  private lazy val sha1 = getSha1String(knownReactions.map(_.info.sha1).sorted.mkString(","))
 
-  private var logLevel = 0
+  private var logLevel = -1
 
   private def printBag: String = {
     val moleculesPrettyPrinted = if (bags.exists(!_.isEmpty))
@@ -94,7 +94,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         if (poolForReaction.isInactive)
           throw new ExceptionNoReactionPool(s"In $this: cannot run reaction {${reaction.info}} since reaction pool is not active")
         else if (!Thread.currentThread().isInterrupted) {
-          lazy val startingReactionMessage = s"Debug: In $this: starting reaction {${reaction.info}} on thread pool $poolForReaction while on thread pool $sitePool with inputs [${Core.moleculeBagToString(usedInputs)}]"
+          lazy val startingReactionMessage = s"Debug: In $this: starting reaction {${reaction.info}} with inputs [${Core.moleculeBagToString(usedInputs)}] on reaction pool $poolForReaction while on site pool $sitePool"
           if (logLevel > 1) println(startingReactionMessage)
         }
         lazy val moleculesRemainingMessage =
@@ -126,7 +126,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private def reportError(message: String): Unit = {
-    if (logLevel > 0) println(message)
+    if (logLevel >= 0) println(message)
     Core.reportError(message)
   }
 
@@ -324,7 +324,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         if (admitsValue) {
           addToBag(mol, molValue)
 
-          lazy val emitMoleculeMessage = s"Debug: $this emitting $mol($molValue), now have molecules [${moleculeBagToString(bags)}]"
+          lazy val emitMoleculeMessage = s"Debug: In $this: emitting $mol($molValue), now have molecules [${moleculeBagToString(bags)}]"
           if (logLevel > 0) println(emitMoleculeMessage)
 
           sitePool.runRunnable(emissionRunnable(mol))
@@ -538,6 +538,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   private val moleculeAtIndex: Map[Int, Molecule] = knownMolecules.map { case (mol, (i, _)) ⇒ (i, mol) }(scala.collection.breakOut)
 
+  /** For each site-wide molecule index, this array holds the array of reactions consuming that molecule.
+    *
+    */
   private val consumingReactions: Array[Array[Reaction]] = Array.tabulate(knownMolecules.size)(i ⇒ getConsumingReactions(moleculeAtIndex(i)))
 
   /** For each (site-wide) molecule index, the corresponding set of [[InputMoleculeInfo]]s contains only the infos with nontrivial conditions for the molecule value.

@@ -438,4 +438,15 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
     checkExpectedPipelined(Map(c -> true, a -> true)) shouldEqual ""
   }
 
+  it should "detect non-pipelining with two conditions" in {
+    val c = m[Int]
+    val d = b[Unit, Unit]
+
+    site(
+      go { case c(0) => c(1) },
+      go { case c(n) + d(_, r) if n > 0 => c(n - 1); r() }
+    )
+    checkExpectedPipelined(Map(c → false, d → true)) shouldEqual ""
+  }
+
 }
