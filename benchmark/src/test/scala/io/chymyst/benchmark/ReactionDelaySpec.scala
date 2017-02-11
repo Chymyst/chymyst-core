@@ -18,7 +18,8 @@ class ReactionDelaySpec extends FlatSpec with Matchers {
   it should "measure simple statistics on reaction delay" in {
     val f = b[Unit,Unit]
     val tp = new SmartPool(4)
-    site(tp)(
+    val tp1 = new FixedPool(1)
+    site(tp, tp1)(
       go { case f(_, r) => BlockingIdle{Thread.sleep(1)}; r() } // reply immediately
     )
     val trials = 200
@@ -33,6 +34,7 @@ class ReactionDelaySpec extends FlatSpec with Matchers {
     val meanReplyDelay = results.sum / safeSize(results.size) / 1000 - 1
     println(s"Sequential test: Mean reply delay is $meanReplyDelay ms out of $trials trials; the test took $timeElapsed ms")
     tp.shutdownNow()
+    tp1.shutdownNow()
   }
 
   def getStats(d: Seq[Double]): (Double, Double) = {

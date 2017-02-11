@@ -250,7 +250,8 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     val (g, g2) = makeBlockingCheck(BlockingIdle {
       Thread.sleep(500)
     }, tp)
-    g2.timeout()(150 millis) shouldEqual Some(1) // this should not be blocked
+    
+    g2.timeout()(300 millis) shouldEqual Some(1) // this should not be blocked
     tp.currentPoolSize shouldEqual 2
     g() // now we know that the first reaction has finished
     tp.currentPoolSize shouldEqual 1
@@ -285,7 +286,7 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     site(tp1, tp0)(
       go { case g(_, r) => r() }, // and so this reaction will be blocked forever
       go { case c(_) => cStarted(); val res = f(); println(res) }, // this reaction is blocked forever because f() does not reply
-      go { case cStarted(_) + started(_, r) => r(); var res = f2(); println(res) }, // this reaction is blocked forever because f2() does not reply
+      go { case cStarted(_) + started(_, r) => r(); val res = f2(); println(res) }, // this reaction is blocked forever because f2() does not reply
       go { case f(_, r) + never(_) => r(0) }, // this will never reply since "never" is never emitted
       go { case f2(_, r) + never(_) => r(0) } // this will never reply since "never" is never emitted
     )

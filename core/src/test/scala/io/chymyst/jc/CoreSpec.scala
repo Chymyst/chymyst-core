@@ -79,20 +79,31 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
   behavior of "auxiliary fold ops"
 
   it should "support findAfterMap for Seq" in {
+    Seq[Int]().findAfterMap(x => Some(x)) shouldEqual None
     Seq(1, 2, 3).findAfterMap(x => if (x % 2 == 0) Some(x) else None) shouldEqual Some(2)
     Seq(1, 2, 3).findAfterMap(x => if (x % 2 != 0) Some(x) else None) shouldEqual Some(1)
     Seq(1, 2, 3).findAfterMap(x => if (x == 0) Some(x) else None) shouldEqual None
   }
 
   it should "support flatFoldLeft for Seq" in {
+    Seq[Int]().flatFoldLeft(10)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual Some(10)
     Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual Some(6)
     Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual None
   }
-
+/*
   it should "support earlyFoldLeft for Seq" in {
+    Seq[Int]().earlyFoldLeft(10)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual 10
     Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual 6
     Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n == 0) Some(x + n) else None) shouldEqual 0
     Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual 1
+  }
+*/
+  it should "support sortedGroupBy" in {
+    Seq[Int]().sortedMapGroupBy(identity, identity) shouldEqual Seq[Int]()
+    Seq(1).sortedMapGroupBy(x ⇒ x % 2, _ * 10) shouldEqual Seq((1, Seq(10)))
+    Seq(1, 3, 2, 4).sortedMapGroupBy(x ⇒ x % 2, _ * 10) shouldEqual Seq((1, Seq(10, 30)), (0, Seq(20, 40)))
+    Seq(1, 2, 3, 4).sortedMapGroupBy(_ < 3, identity) shouldEqual Seq((true, Seq(1, 2)), (false, Seq(3, 4)))
+    Seq(1, 2, 2, 3, 3, 3, 1).sortedMapGroupBy(identity, identity) shouldEqual Seq((1, Seq(1)), (2, Seq(2, 2)), (3, Seq(3, 3, 3)), (1, Seq(1)))
   }
 
   behavior of "cleanup utility"
@@ -124,8 +135,26 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     intHash(Array(100, 200)) should not equal intHash(Array(200, 100))
     intHash(Array(100, 200, 300)) should not equal intHash(Array(300, 200, 100))
 
-    intHash(Array(1,2)) should be < intHash(Array(2,3))
-    intHash(Array(0,3)) should be < intHash(Array(1,2))
+    intHash(Array(1, 2)) should be < intHash(Array(2, 3))
+    intHash(Array(0, 3)) should be < intHash(Array(1, 2))
+  }
+
+  behavior of "random element in array"
+/*
+  it should "retrieve randomly chosen elements from array" in {
+    val n = 100
+    val arr = Array.tabulate(n)(identity)
+    println(arr.toList)
+    val retrieved = (0 until n).map(i ⇒ randomElementInArray(arr, i))
+
+    retrieved.toList shouldEqual arr.toList
+    retrieved.toList should not equal (0 until n).toList
+  }
+*/
+  it should "use shuffle on a sequence" in {
+    val n = 100
+    val s = (0 until n).shuffle
+    s should not equal (0 until n).toList
   }
 
 }

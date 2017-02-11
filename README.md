@@ -131,11 +131,20 @@ Some tests are timed and will fail on a slow machine.
 
 To build the benchmark application as a self-contained JAR, run
 
-`sbt benchmark/assembly`
+`sbt clean benchmark/assembly`
 
 Then run it as
 
 `java -jar benchmark/target/scala-2.11/benchmark-assembly-*.jar`
+
+To run with FlightRecorder:
+
+```
+java -Xmx1G -XX:+UnlockCommercialFeatures -XX:+FlightRecorder -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints -XX:StartFlightRecording=delay=10s,duration=60s,name=Recording,filename=benchmark.jfr -jar benchmark/target/scala-2.11/benchmark-assembly-*.jar
+```
+
+This will create the file `benchmark.jfr` in the current directory.
+Open this file with `jmc` (Oracle's "Java Mission Control" tool) to inspect the "Hot Methods" i.e. places where most time is spent.
 
 ## Use `Chymyst Core` in your programs
 
@@ -143,7 +152,7 @@ Then run it as
 To pull the dependency, add this to your `build.sbt` at the appropriate place:
 
 ```scala
-libraryDependencies += "io.chymyst" %% "core" % "latest.integration"
+libraryDependencies += "io.chymyst" %% "chymyst-core" % "latest.integration"
 
 ```
 

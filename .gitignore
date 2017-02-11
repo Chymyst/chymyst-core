@@ -26,3 +26,6 @@ project/target
 
 benchmark*.txt
 local.*
+
+logs/
+*.log.txt.xz

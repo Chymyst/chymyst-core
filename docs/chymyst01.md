@@ -364,7 +364,7 @@ val b = m[Unit]
 site( go { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this RS.
 
 site( go { case x(n) + b(_) => println(s"have x($n) + b") } )
-// java.lang.Exception: Molecule x cannot be used as input since it is already bound to Site{a + x => ...}
+// java.lang.Exception: Molecule x cannot be used as input in Site{b + x => ...} since it is already bound to Site{a + x => ...}
 
 ```
 

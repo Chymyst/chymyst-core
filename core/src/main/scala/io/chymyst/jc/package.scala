@@ -57,7 +57,7 @@ package object jc {
     * @param x the first emitted molecule
     * @return An auxiliary class with a `+` operation.
     */
-  implicit final class EmitMultiple(x: Unit) {
+  implicit final class EmitMultiple(x: Unit) { // Making this `extend AnyVal` crashes JVM in tests!
     def +(n: Unit): Unit = ()
   }
 
@@ -102,6 +102,6 @@ package object jc {
     }
   }
 
-  implicit val typeIsUnit: TypeIsUnit[Unit] = TypeIsUnitValue
+  implicit val _: TypeMustBeUnit[Unit] = TypeMustBeUnitValue
 
 }

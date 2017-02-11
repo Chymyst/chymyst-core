@@ -104,7 +104,9 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       Some(q"None")
 
     case pq"immutable.this.Nil"
-         | q"immutable.this.Nil" =>
+         | pq"scala.collection.immutable.Nil"
+         | q"immutable.this.Nil"
+         | q"scala.collection.immutable.Nil" =>
       Some(q"Nil")
 
     // Tuples: the pq"" quasiquote covers both the binder and the expression!
@@ -377,7 +379,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       traversingBinderNow = false
 
       lastOutputEnvId = 0
-      outputEnv = mutable.Stack()
+      outputEnv = List()
 
       traverse(reactionPart)
 
@@ -397,7 +399,10 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     private var lastOutputEnvId: Int = 0
     private var currentOutputEnvId: Int = 0
-    private var outputEnv: mutable.Stack[OutputEnvironment] = _
+    private var outputEnv: List[OutputEnvironment] = _
+
+    private def pushEnv(env: OutputEnvironment) =
+      outputEnv = env :: outputEnv
 
     /** Detect whether the symbol `s` is defined inside the scope of the symbol `owner`.
       * Will return true for code like ` val owner = .... { val s = ... }  `
@@ -446,13 +451,17 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     }
 
     private def traverseWithOutputEnv(tree: Trees#Tree, env: OutputEnvironment): Unit = {
-      outputEnv.push(env)
+      pushEnv(env)
       traverse(tree.asInstanceOf[Tree])
       finishTraverseWithOutputEnv()
     }
 
     private def finishTraverseWithOutputEnv(): Unit = {
-      currentOutputEnvId = outputEnv.pop().id
+      val currentEnvOption = outputEnv.headOption
+      currentEnvOption.foreach { env =>
+        currentOutputEnvId = env.id
+        outputEnv = outputEnv.drop(1)
+      }
     }
 
     private def isMolecule(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< typeOf[Molecule]
@@ -553,7 +562,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           renewOutputEnvId()
           val total = cases.size
           cases.zipWithIndex.foreach { case (cq"$pat if $guardExpr => $bodyExpr", index) =>
-            outputEnv.push(ChooserBlock(currentOutputEnvId, index, total))
+            pushEnv(ChooserBlock(currentOutputEnvId, index, total))
             traversingBinderNow = true
             traverse(pat.asInstanceOf[Tree])
             traverse(guardExpr.asInstanceOf[Tree])
@@ -565,12 +574,12 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         // Anonymous partial function
         case q"{ case ..$cases }" =>
           renewOutputEnvId()
-          outputEnv.push(FuncLambda(currentOutputEnvId))
+          pushEnv(FuncLambda(currentOutputEnvId))
           renewOutputEnvId()
           val total = cases.size
           cases.zipWithIndex.foreach {
             case (cq"$pat if $expr1 => $expr2", index) =>
-              outputEnv.push(ChooserBlock(currentOutputEnvId, index, total))
+              pushEnv(ChooserBlock(currentOutputEnvId, index, total))
               traversingBinderNow = true
               traverse(pat.asInstanceOf[Tree])
               traverse(expr1.asInstanceOf[Tree])
@@ -595,7 +604,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
               argumentList.foreach(traverse)
             } else {
               renewOutputEnvId()
-              outputEnv.push(FuncBlock(currentOutputEnvId, name = s"${t.symbol.fullName}.$f"))
+              pushEnv(FuncBlock(currentOutputEnvId, name = s"${t.symbol.fullName}.$f"))
               argumentList.foreach(traverse)
               finishTraverseWithOutputEnv()
             }
@@ -627,7 +636,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           else {
             traverse(f.asInstanceOf[Tree])
             renewOutputEnvId()
-            outputEnv.push(FuncBlock(currentOutputEnvId, name = fullName))
+            pushEnv(FuncBlock(currentOutputEnvId, name = fullName))
             val isIterating = iteratingFunctionCodes.contains(fullName)
             args.foreach { t =>
               // Detect whether the function takes a function type, and whether `t` is a molecule emitter.
@@ -653,7 +662,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   def moleculeIndicesConstrainedByGuard(guardVarList: List[Ident], inputMoleculeFlags: List[InputPatternFlag]): List[Int] = {
     inputMoleculeFlags.zipWithIndex.filter { case (flag, _) ⇒
-        guardVarList.exists(flag.containsVar)
+      guardVarList.exists(flag.containsVar)
     }
       .map(_._2)
       .sorted

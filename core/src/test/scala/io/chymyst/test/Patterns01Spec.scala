@@ -1,9 +1,13 @@
 package io.chymyst.test
 
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentLinkedQueue
 
+import Common._
 import io.chymyst.jc._
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -13,7 +17,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
   var tp: Pool = _
 
   override def beforeEach(): Unit = {
-    tp = new SmartPool(4)
+    tp = new SmartPool(8)
   }
 
   override def afterEach(): Unit = {
@@ -238,7 +242,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val danceCounter = m[List[Int]]
     val done = b[Unit, List[Int]]
 
-    val total = 100
+    val total = 5000
 
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) },
@@ -249,16 +253,21 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     site(tp)(
       go { case man(_) + queueMen(n) => queueMen(n + 1) + manL(n) },
       go { case woman(_) + queueWomen(n) => queueWomen(n + 1) + womanL(n) },
-      go { case manL(xy) + womanL(xx) => beginDancing(Math.min(xx,xy)) },
+      go { case manL(xy) + womanL(xx) => beginDancing(Math.min(xx, xy)) },
       go { case _ => queueMen(0) + queueWomen(0) }
     )
+    checkExpectedPipelined(Map(man -> true, woman -> true, queueMen -> true, queueWomen -> true, manL -> true, womanL -> true)) shouldEqual ""
 
-    (1 to total).foreach(_ => man())
+    (0 until total / 2).foreach(_ => man())
     danceCounter.volatileValue shouldEqual Nil
-    (1 to total).foreach(_ => woman())
+    (0 until total / 2).foreach(_ => man() + woman())
+    (0 until total / 2).foreach(_ => woman())
+
+    val initTime = LocalDateTime.now
     val ordering = done()
-    println(s"Dance pairing without queue labels yields $ordering")
-    ordering should not equal (0 until total).toList // Dancing queue order cannot be observed.
+    val outOfOrder = ordering.zip(ordering.drop(1)).filterNot { case (x, y) => x + 1 == y }.map(_._1)
+    println(s"Dance pairing for $total pairs without queue labels took ${initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)} ms, yields ${outOfOrder.length} out-of-order instances")
+    outOfOrder should not equal List() // Dancing queue order cannot be observed.
   }
 
   it should "implement dance pairing with queue labels" in {
@@ -289,10 +298,18 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case _ => queueMen(0) + queueWomen(0) + mayBegin(0) }
     )
 
+    checkExpectedPipelined(Map(man -> true, woman -> true, queueMen -> true, queueWomen -> true, manL -> false, womanL -> false, mayBegin -> false)) shouldEqual ""
+
     (1 to total).foreach(_ => man())
     danceCounter.volatileValue shouldEqual Nil
     (1 to total).foreach(_ => woman())
-    done() shouldEqual (0 until total).toList // Dancing queue order must be observed.
+
+    val initTime = LocalDateTime.now
+    val ordering = done()
+    println(s"Dance pairing for $total pairs with queue labels took ${initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)} ms")
+    val outOfOrder = ordering.zip(ordering.drop(1)).filterNot { case (x, y) => x + 1 == y }.map(_._1)
+    outOfOrder shouldEqual List()
+    ordering shouldEqual (0 until total).toList // Dancing queue order must be observed.
   }
 
 }

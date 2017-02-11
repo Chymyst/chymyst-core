@@ -1,6 +1,7 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
+import io.chymyst.test.Common._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
@@ -32,13 +33,13 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       go { case _ => d("ok") } // static reaction
     )
 
-    (1 to 200).foreach { i =>
+    repeat(200, { i =>
       val thrown = intercept[Exception] {
         d(s"bad $i") // this "d" should not be emitted, even though "d" is sometimes not in the soup due to reactions!
       }
       thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit static molecule d(bad $i) because this thread does not run a chemical reaction"
       f.timeout()(500 millis) shouldEqual Some("ok")
-    }
+    })
 
     tp1.shutdownNow()
   }
@@ -47,7 +48,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
 
     val tp1 = new FixedPool(1) // This test works only with single threads.
 
-    (1 to 20).foreach { i =>
+    repeat(20, { i =>
       val f = b[Unit, String]
       val d = m[String]
 
@@ -57,16 +58,15 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       )
 
       // Warning: the timeouts might fail the test due to timed tests.
-      (1 to 20).foreach { j =>
+      repeat(20, { j =>
         val thrown = intercept[Exception] {
           d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
           // and even if the initial d() emission was done late
         }
         thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit static molecule d(bad $i $j) because this thread does not run a chemical reaction"
         f.timeout()(500 millis) shouldEqual Some("ok")
-      }
-
-    }
+      })
+    })
 
     tp1.shutdownNow()
   }
@@ -123,7 +123,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       )
       c()
     }
-    thrown.getMessage shouldEqual "Error: In Site{c/B + d => ...}: Reaction {c/B(_) + d(_) => d()} with inputs [c/B(), d()] finished without replying to c/B. Reported error: In Site{c/B + d => ...}: Reaction {c/B(_) + d(_) => d()} produced an exception that is internal to Chymyst Core. Input molecules [c/B(), d()] were not emitted again. Message: In Site{c/B + d => ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + d(_) => d()} already emitted it"
+    thrown.getMessage shouldEqual "Error: In Site{c/B + d => ...}: Reaction {c/B(_) + d(_) => d()} with inputs [c/B(), d()] finished without replying to c/B. Reported error: In Site{c/B + d => ...}: Reaction {c/B(_) + d(_) => d()} with inputs [c/B(), d()] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: In Site{c/B + d => ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + d(_) => d()} already emitted it"
   }
 
   it should "signal error when a static molecule is consumed multiple times by reaction" in {
@@ -234,9 +234,9 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       d.volatileValue
     }
 
-    (1 to 100).foreach { i =>
+    repeat(100, { i =>
       makeNewVolatile(i) // This should sometimes throw an exception, so let's make sure it does.
-    }
+    })
   }
 
   it should "report that the value of a static molecule is ready even if called early" in {
@@ -260,6 +260,51 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
     result shouldEqual 0
   }
 
+  it should "handle static molecules with conditions" in {
+    val d123 = m[Short]
+    val c = m[Short]
+    val g = b[Unit, Unit]
+    val (e, f) = litmus[Short](tp)
+    site(tp)(
+      go { case _ => d123(1) },
+      go { case d123(x) + g(_, r) if x < 10 => d123(123) + r() },
+      go { case d123(x) + c(_) if x < 10 => d123(x) + e(1) }
+    )
+    checkExpectedPipelined(Map(c -> true, d123 -> true, e -> true, f -> true)) shouldEqual ""
+    g() // now we have attempted to emit d123(123) but we should have failed
+    c(0)
+    f.timeout()(1.second) shouldEqual None // if this is Some(1), reaction ran, which means the test failed
+    globalErrorLog.find(_.contains("Refusing to emit static pipelined molecule")) shouldEqual Some("In Site{c + d123 => ...; d123 + g/B => ...}: Refusing to emit static pipelined molecule d123(123) since its value fails the relevant conditions")
+  }
+
+  it should "handle static molecules with cross-molecule guards" in {
+    repeat(100) {
+      val d = m[Short]
+      val c = m[Short]
+      val e = m[Unit]
+      val f = b[Unit, Unit]
+      val stabilize_d = b[Unit, Unit]
+      site(tp)(
+        go { case e(_) + f(_, r) => r() },
+        go { case c(x) + d(y) if x > y => d((x + y).toShort) + e() },
+        go { case d(x) + stabilize_d(_, r) if x > 0 => r(); d(x) }, // Await stabilizing the presence of d
+        go { case _ => d(123) } // static reaction
+      )
+      d.isPipelined shouldEqual false // Since `d()` is not pipelined and has `Short` type, its values will be kept in a hashmap.
+      // This will exercise the hashmap functions of MolValueBag.
+      d.volatileValue shouldEqual 123
+      c(1)
+      stabilize_d()
+      d.volatileValue shouldEqual 123
+      c(100)
+      stabilize_d()
+      d.volatileValue shouldEqual 123
+      c(200) // now eventually e() will be emitted, which we wait for
+      f()
+      d.volatileValue shouldEqual 323
+    }
+  }
+
   it should "read the initial value of the static molecule after stabilization" in {
     val d = m[Int]
     val stabilize_d = b[Unit, Unit]
@@ -269,9 +314,10 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
     )
     stabilize_d()
     d.volatileValue shouldEqual 123
+    d.isPipelined shouldEqual true
   }
 
-  it should "read the value of the static molecule sometimes inaccurately after many changes" in {
+  it should "read the volatile value of the static molecule always accurately after many changes" in {
     val d = m[Int]
     val incr = b[Unit, Unit]
     val stabilize_d = b[Unit, Unit]
@@ -279,7 +325,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
     val delta_n = 1000
 
     site(tp)(
-      go { case d(x) + incr(_, r) => r(); d(x + 1) },
+      go { case d(x) + incr(_, r) => d(x + 1) + r() },
       go { case d(x) + stabilize_d(_, r) => d(x); r() }, // Await stabilizing the presence of d
       go { case _ => d(n) } // static reaction
     )
@@ -289,8 +335,8 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
     (n + 1 to n + delta_n).map { i =>
       incr.timeout()(500 millis) shouldEqual Some(())
 
-      i - d.volatileValue // this is mostly 0 but sometimes 1
-    }.sum should be > 0 // there should be some cases when d.value reads the previous value
+      i - d.volatileValue // this should be always 0 unless we have a race condition and the volatile value is assigned late
+    }.sum shouldEqual 0 // there should be some cases when d.value reads the previous value
   }
 
   it should "keep the previous value of the static molecule while update reaction is running" in {

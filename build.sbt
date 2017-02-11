@@ -87,8 +87,11 @@ lazy val core = (project in file("core"))
     wartremoverWarnings in(Compile, compile) ++= warningsForWartRemover,
     wartremoverErrors in(Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
+
+      "com.google.guava" % "guava" % "21.0",
+
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      "org.scalatest" %% "scalatest" % "3.0.0" % Test,
+      "org.scalatest" %% "scalatest" % "3.0.1" % Test,
       "org.scalacheck" %% "scalacheck" % "1.13.4" % Test,
       "com.lihaoyi" %% "utest" % "0.4.5" % Test,
 
@@ -108,11 +111,12 @@ lazy val benchmark = (project in file("benchmark"))
   .settings(
     name := "benchmark",
     aggregate in assembly := false,
+    test in assembly := {},
     //    unmanagedJars in Compile += file("lib/JiansenJoin-0.3.6-JoinRun-0.1.0.jar"),// they say it's no longer needed
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
     parallelExecution in Test := false,
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.0.0" % Test
+      "org.scalatest" %% "scalatest" % "3.0.1" % Test
     )
   ).dependsOn(core)
 

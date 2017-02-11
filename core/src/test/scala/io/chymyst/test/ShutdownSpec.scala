@@ -9,7 +9,7 @@ import org.scalatest.{FlatSpec, Matchers}
   */
 class ShutdownSpec extends FlatSpec with Matchers {
 
-  it should "fail to schedule reactions after shutdown of custom join pool" in {
+  it should "fail to schedule reactions after shutdown of custom site pool" in {
 
     val pool = new FixedPool(2)
     val pool2 = new FixedPool(2)
@@ -21,7 +21,7 @@ class ShutdownSpec extends FlatSpec with Matchers {
     val thrown = intercept[Exception] {
       x()
     }
-    thrown.getMessage shouldEqual "In Site{x => ...}: Cannot emit molecule x() because join pool is not active"
+    thrown.getMessage shouldEqual "In Site{x => ...}: Cannot emit molecule x() because site pool is not active"
     pool.shutdownNow()
   }
 
@@ -50,6 +50,6 @@ class ShutdownSpec extends FlatSpec with Matchers {
     val thrown = intercept[Exception] {
       x()
     }
-    thrown.getMessage shouldEqual "In Site{x => ...}: Cannot emit molecule x() because join pool is not active"
+    thrown.getMessage shouldEqual "In Site{x => ...}: Cannot emit molecule x() because site pool is not active"
   }
 }

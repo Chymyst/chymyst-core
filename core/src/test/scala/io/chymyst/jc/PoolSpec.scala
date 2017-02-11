@@ -1,6 +1,5 @@
 package io.chymyst.jc
 
-import Core._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}

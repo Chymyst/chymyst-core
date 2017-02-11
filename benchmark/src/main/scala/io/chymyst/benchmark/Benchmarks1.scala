@@ -17,21 +17,22 @@ object Benchmarks1 {
     val d = m[Unit]
     val f = b[LocalDateTime,Long]
 
+    withPool(new FixedPool(8)) { tp1 =>
+      site(tp, tp)( // Right now we don't use tp1. If we use `site(tp, tp1)`, the run time is increased by factor 2.
+        go { case c(0) + f(tInit, r) =>
+          r(elapsed(tInit))
+        },
+        go { case g(_, reply) + c(n) => c(n); reply(n) },
+        go { case c(n) + i(_) => c(n + 1) },
+        go { case c(n) + d(_) if n > 0 => c(n - 1) }
+      )
 
-    site(tp)(
-      go { case c(0) + f(tInit, r) =>
-        r(elapsed(tInit))
-      },
-      go { case g(_,reply) + c(n) => c(n); reply(n) },
-      go { case c(n) + i(_) => c(n+1)  },
-      go { case c(n) + d(_) if n > 0 => c(n-1) }
-    )
+      val initialTime = LocalDateTime.now
+      c(count)
+      (1 to count).foreach { _ => d() }
 
-    val initialTime = LocalDateTime.now
-    c(count)
-    (1 to count).foreach{ _ => d() }
-
-    f(initialTime)
+      f(initialTime)
+    }.get
   }
 
   def make_counter2a(init: Int): (AsyName[Unit],AsyName[Unit],SynName[LocalDateTime, Long],SynName[Unit,Int]) = {

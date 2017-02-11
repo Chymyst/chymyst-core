@@ -57,13 +57,18 @@ private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
   * @tparam T The type of the value carried by the molecule.
   * @tparam R The type of the reply value.
   */
-private[jc] final case class BlockingMolValue[T, R](v: T, replyValue: AbsReplyValue[T, R]) extends AbsMolValue[T] with PersistentHashCode {
+private[jc] final case class BlockingMolValue[T, R](v: T, replyValue: AbsReplyValue[T, R]) extends AbsMolValue[T] {
   override private[jc] def getValue: T = v
 
   override private[jc] def reactionSentNoReply: Boolean = replyValue.noReplyAttemptedYet // no value, no error, and no timeout
+
+  /** The `hashCode` of a [[BlockingMolValue]] should depend only on the `hashCode` of the value `v`,
+    * and not on the reply value (which is mutable).
+    */
+  override lazy val hashCode: Int = v.hashCode()
 }
 
-/** Abstract molecule emitter trait.
+/** Abstract trait representing a molecule emitter.
   * This trait is not parameterized by type and is used in collections of molecules that do not require knowledge of molecule types.
   * Its only implementations are the classes [[B]] and [[M]].
   */
@@ -74,9 +79,25 @@ sealed trait Molecule extends PersistentHashCode {
     */
   val name: String
 
+  def isPipelined: Boolean = valIsPipelined
+
+  def typeSymbol: Symbol = valTypeSymbol
+
+  def index: Int = inputIndex
+
   override def toString: String = (if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "")
 
-  private[jc] def setReactionSite(rs: ReactionSite): Unit
+  /** This is called by a [[ReactionSite]] when a molecule becomes bound to that reaction site.
+    *
+    * @param rs    Reaction site to which the molecule is now bound.
+    * @param index Zero-based index of the input molecule at that reaction site.
+    */
+  private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean): Unit = {
+    hasReactionSite = true
+    inputIndex = index
+    valTypeSymbol = valType
+    valIsPipelined = pipelined
+  }
 
   /** Check whether the molecule is already bound to a reaction site.
     * Note that molecules can be emitted only if they are bound.
@@ -92,13 +113,19 @@ sealed trait Molecule extends PersistentHashCode {
     *         Otherwise the molecule is already bound to a reaction site different from `rs`, so return
     *         the string representation of that reaction site as a non-empty option.
     */
-  final private[jc] def isBoundToAnother(rs: ReactionSite): Option[String] =
+  final private[jc] def isBoundToAnotherReactionSite(rs: ReactionSite): Option[String] =
     if (isBound && !reactionSiteWrapper.sameReactionSite(rs))
       Some(reactionSiteWrapper.toString)
     else
       None
 
+  private var valIsPipelined: Boolean = false
+
   protected var reactionSiteWrapper: ReactionSiteWrapper[_, _] = ReactionSiteWrapper.noReactionSite(this)
+
+  protected var valTypeSymbol: Symbol = _
+
+  protected var inputIndex: Int = -1
 
   protected var hasReactionSite: Boolean = false
 
@@ -106,13 +133,9 @@ sealed trait Molecule extends PersistentHashCode {
     *
     * @return `None` if the molecule emitter is not yet bound to any reaction site.
     */
-  final private[jc] def consumingReactions: Option[List[Reaction]] = if (isBound)
+  final private[jc] def consumingReactions: Option[Array[Reaction]] = if (isBound)
     Some(reactionSiteWrapper.consumingReactions)
   else None
-
-  // Not using this now?
-  // TODO remove
-  //    throw new ExceptionNoReactionSite(s"Molecule $this is not bound to any reaction site")
 
   /** The set of all reactions that *potentially* emit this molecule as output.
     * Some of these reactions may evaluate a run-time condition to decide whether to emit the molecule; so emission is not guaranteed.
@@ -160,7 +183,7 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
     */
   def apply(v: T): Unit = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, Unit]].emit(this, MolValue(v))
 
-  def apply()(implicit ev: TypeIsUnit[T]): Unit = apply(ev.getUnit)
+  def apply()(implicit arg: TypeMustBeUnit[T]): Unit = apply(arg.getUnit)
 
   /** Volatile reader for a molecule.
     * The molecule must be declared as static.
@@ -182,11 +205,10 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
   override lazy val isStatic: Boolean = isBound &&
     reactionSiteWrapper.staticMolsDeclared.contains(this)
 
-  override private[jc] def setReactionSite(rs: ReactionSite): Unit = {
-    hasReactionSite = true
+  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean) = {
+    super.setReactionSiteInfo(rs, index, valType, pipelined)
     reactionSiteWrapper = rs.makeWrapper[T, Unit](this)
   }
-
 }
 
 /** Represents the different states of the reply process.
@@ -325,25 +347,29 @@ private[jc] final class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[
 
   /** Perform a reply action for a blocking molecule without checking the timeout status (this is slightly faster).
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
+    * If a timeout occurred after the reaction body started evaluating but before the reply action was performed, the reply value will not be actually sent anywhere.
+    * This method will not fail in that case, but since it returns `Unit`, the user will not know whether the reply succeeded.
     *
     * @param x Value to reply with.
-    * @return Unit value.
+    * @return Unit value, regardless of whether the reply succeeded before timeout.
     */
   def apply(x: R): Unit = performReplyActionWithoutTimeoutCheck(x)
 
   /** Same but for molecules with type `R = Unit`. */
-  def apply()(implicit ev: TypeIsUnit[R]): Unit = apply(ev.getUnit)
+  def apply()(implicit arg: TypeMustBeUnit[R]): Unit = apply(arg.getUnit)
 
-  /** Perform a reply action for a blocking molecule while checking the timeout status.
+  /** Perform a reply action for a blocking molecule with a check of the timeout status.
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
+    * If a timeout occurred after the reaction body started evaluating but before the reply action was performed, the reply value will not be actually sent anywhere.
+    * This method will return `false` in that case.
     *
     * @param x Value to reply with.
-    * @return True if the reply was successful. False if the blocking molecule timed out, or if a reply action was already performed.
+    * @return `true` if the reply was successful, `false` if the blocking molecule timed out, or if a reply action was already performed.
     */
   def checkTimeout(x: R): Boolean = performReplyAction(x)
 
-  /** Same but for molecules with type `R = Unit`, with shorter syntax. */
-  def checkTimeout()(implicit ev: TypeIsUnit[R]): Boolean = checkTimeout(ev.getUnit)
+  /** Same as [[checkTimeout]] above but for molecules with type `R = Unit`, with shorter syntax. */
+  def checkTimeout()(implicit arg: TypeMustBeUnit[R]): Boolean = checkTimeout(arg.getUnit)
 }
 
 /** Blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -366,7 +392,7 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     .emitAndAwaitReplyWithTimeout(duration.toNanos, this, v, new ReplyValue[T, R])
 
   /** Same but for molecules with type `T = Unit`, with shorter syntax. */
-  def timeout()(duration: Duration)(implicit ev: TypeIsUnit[T]): Option[R] = timeout(ev.getUnit)(duration)
+  def timeout()(duration: Duration)(implicit arg: TypeMustBeUnit[T]): Option[R] = timeout(arg.getUnit)(duration)
 
   /** Perform the unapply matching and return a wrapped ReplyValue on success.
     *
@@ -389,10 +415,10 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     .emitAndAwaitReply(this, v, new ReplyValue[T, R])
 
   /** This enables the short syntax `b()` and will only work when `T == Unit`. */
-  def apply()(implicit ev: TypeIsUnit[T]): R = apply(ev.getUnit)
+  def apply()(implicit arg: TypeMustBeUnit[T]): R = apply(arg.getUnit)
 
-  override private[jc] def setReactionSite(rs: ReactionSite): Unit = {
-    hasReactionSite = true
+  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean) = {
+    super.setReactionSiteInfo(rs, index, valType, pipelined)
     reactionSiteWrapper = rs.makeWrapper[T, R](this)
   }
 

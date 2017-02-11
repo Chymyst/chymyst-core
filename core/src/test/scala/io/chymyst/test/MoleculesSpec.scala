@@ -38,7 +38,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     site(tp0)(go { case a(_) + b(_) + c(_) => })
     a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
-
+    a.typeSymbol shouldEqual 'Unit
   }
 
   it should "correctly list molecules present in soup" in {
@@ -49,10 +49,16 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val f = b[Unit, Unit]
     val g = b[Unit, Unit]
 
+    f.typeSymbol shouldEqual null
+    f.index shouldEqual -1
     site(tp0)(
       go { case g(_, r) + d(_) => r() },
       go { case a(_) + bb(_) + c(_) + f(_, r) => r() }
     )
+    val molecules = Seq(a, bb, c, d, f, g)
+    molecules.map(_.index) shouldEqual (0 until molecules.size)
+    molecules.map(_.typeSymbol) shouldEqual Seq.fill(molecules.size)('Unit)
+
     a.logSoup shouldEqual "Site{a + bb + c + f/B => ...; d + g/B => ...}\nNo molecules"
 
     a()
@@ -266,7 +272,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
   }
 
   it should "start reactions when molecule emitters are passed on input molecules slightly before they are bound" in {
-    val results = (1 to 100).map { _ =>
+    val results = (1 to 100).map { i =>
       val p = m[M[Int]]
       val c = m[Int]
       var r = 0
@@ -274,6 +280,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
         go { case p(s) => s(123) }
       )
       p(c)
+//      if (i % 2 == 0) Thread.sleep(5)
       site(tp0)(
         go { case c(x) => r = x }
       )
@@ -281,13 +288,13 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       r
     }
     println(results.groupBy(identity).mapValues(_.size))
-    globalErrorLog.toList should contain("In Site{p => ...}: Reaction {p(s) => } produced an exception that is internal to Chymyst Core. Input molecules [p(c)] were not emitted again. Message: Molecule c is not bound to any reaction site")
+    globalErrorLog.toList should contain("In Site{p => ...}: Reaction {p(s) => } with inputs [p(c)] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
     results should contain(123)
     results should contain(0)
   }
 
   it should "start reactions and throw exception when molecule emitters are passed to nested reactions slightly before they are bound" in {
-    val results = (1 to 100).map { _ =>
+    val results = (1 to 100).map { i =>
       val a = m[M[Int]]
       site(tp0)(
         go { case a(s) => s(123) }
@@ -299,10 +306,18 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
         go { case begin(_) =>
           val x = 123
           val e = m[Int]
-          a(e) // The reaction for `a` will emit `e(123)`, unless it crashes due to `e` being unbound.
-          site(tp0)(
-            go { case e(y) => r = x + y }
-          )
+          if (i % 2 == 0) {
+            a(e) // The reaction for `a` will emit `e(123)`, unless it crashes due to `e` being unbound.
+            site(tp0)(
+              go { case e(y) => r = x + y }
+            )
+
+          } else {
+            site(tp0)(
+              go { case e(y) => r = x + y }
+            )
+            a(e) // The reaction for `a` will emit `e(123)`, unless it crashes due to `e` being unbound.
+          }
         }
       )
       begin()
@@ -311,8 +326,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     }
     println(results.groupBy(identity).mapValues(_.size))
     results should contain(246)
+    globalErrorLog.toList should contain("In Site{a => ...}: Reaction {a(s) => } with inputs [a(e)] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site")
     results should contain(0)
-    globalErrorLog.toList should contain("In Site{a => ...}: Reaction {a(s) => } produced an exception that is internal to Chymyst Core. Input molecules [a(e)] were not emitted again. Message: Molecule e is not bound to any reaction site")
   }
 
   it should "start reactions without errors when molecule emitters are passed to nested reactions after they are bound" in {
@@ -322,7 +337,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       val f = b[Unit, Int]
       site(tp0)(
         go { case q(s) => s(123) },
-        go { case p(x) + f(_, r) => r(x)}
+        go { case p(x) + f(_, r) => r(x) }
       )
       val begin = m[Unit]
       site(tp0)(
@@ -339,9 +354,9 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       f()
     }
     println(results.groupBy(identity).mapValues(_.size))
-    globalErrorLog.toList should not contain("In Site{q => ...}: Reaction {q(s) => } produced an exception that is internal to Chymyst Core. Input molecules [q(e)] were not emitted again. Message: Molecule e is not bound to any reaction site")
+    globalErrorLog.toList should not contain "In Site{q => ...}: Reaction {q(s) => } with inputs [q(e)] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site"
     results should contain(246)
-    results should not contain(0)
+    results should not contain (0)
   }
 
   it should "start reaction but throw exception when unbound molecule emitter is passed on input molecule" in {
@@ -356,7 +371,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val thrown = intercept[Exception] {
       f() shouldEqual 123 // This should not pass.
     }
-    thrown.getMessage shouldEqual "Error: In Site{a + f/B => ...}: Reaction {a(s) + f/B(_) => } with inputs [a(c), f/B()] finished without replying to f/B. Reported error: In Site{a + f/B => ...}: Reaction {a(s) + f/B(_) => } produced an exception that is internal to Chymyst Core. Input molecules [a(c), f/B()] were not emitted again. Message: Molecule c is not bound to any reaction site"
+    thrown.getMessage shouldEqual "Error: In Site{a + f/B => ...}: Reaction {a(s) + f/B(_) => } with inputs [a(c), f/B()] finished without replying to f/B. Reported error: In Site{a + f/B => ...}: Reaction {a(s) + f/B(_) => } with inputs [a(c), f/B()] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site"
   }
 
   behavior of "basic functionality"
@@ -423,10 +438,21 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
   behavior of "fault-tolerant resume facility"
 
+  // This will certainly return `true` for x = 5 the first time it encounters x = 5.
+  // For other values of x, it will return `true` with given probability.
+  class CrashChooser(probabilityOfCrash: Double) {
+    var alreadyCrashed = true
+
+    def apply(x: Int): Boolean = x == 5 && alreadyCrashed && {
+      alreadyCrashed = false
+      true
+    } || scala.util.Random.nextDouble < probabilityOfCrash
+  }
+
   it should "fail to finish job if 1 out of 2 processes crash while retry is not set" in {
     val n = 20
 
-    val probabilityOfCrash = 0.5
+    val chooser = new CrashChooser(probabilityOfCrash = 0.5)
 
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
@@ -435,7 +461,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     site(tp0)(
       go { case c(x) + d(_) =>
-        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
+        if (chooser(x)) throw new Exception("crash! (it's OK, ignore this)")
+        c(x - 1)
       }.noRetry onThreads tp,
       go { case c(0) + g(_, r) => r() }
     )
@@ -450,7 +477,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
   it should "finish job by retrying reactions even if 1 out of 2 processes crash" in {
     val n = 20
 
-    val probabilityOfCrash = 0.5
+    val chooser = new CrashChooser(probabilityOfCrash = 0.5)
 
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
@@ -459,7 +486,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     site(tp0)(
       go { case c(x) + d(_) =>
-        if (scala.util.Random.nextDouble >= probabilityOfCrash) c(x - 1) else throw new Exception("crash! (it's OK, ignore this)")
+        if (chooser(x)) throw new Exception("crash! (it's OK, ignore this)")
+        c(x - 1)
       }.withRetry onThreads tp,
       go { case c(0) + g(_, r) => r() }
     )
@@ -469,12 +497,39 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val result = g.timeout()(1500 millis)
     tp.shutdownNow()
     result shouldEqual Some(())
+    globalErrorLog.toList should contain("In Site{counter + decrement => .../R; counter + getValue/B => ...}: Reaction {counter(x) + decrement(_) => counter(?)} with inputs [counter(5), decrement()] produced an exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
+  }
+
+  it should "finish job by retrying reactions with static molecules even if 1 out of 2 processes crash" in {
+    val n = 20
+
+    val chooser = new CrashChooser(probabilityOfCrash = 0.5)
+
+    val c = new M[Int]("counter")
+    val d = new M[Unit]("decrement")
+    val g = new B[Unit, Unit]("getValue")
+    val tp = new FixedPool(2)
+
+    site(tp0)(
+      go { case c(x) + d(_) =>
+        if (chooser(x)) throw new Exception("crash! (it's OK, ignore this)")
+        c(x - 1)
+      }.withRetry onThreads tp,
+      go { case c(0) + g(_, r) => r() + c(0) },
+      go { case _ => c(n) }
+    )
+    (1 to n).foreach { _ => d() }
+
+    val result = g.timeout()(1500 millis)
+    tp.shutdownNow()
+    result shouldEqual Some(())
+    globalErrorLog.toList should contain("In Site{counter + decrement => .../R; counter + getValue/B => ...}: Reaction {counter(x) + decrement(_) => counter(?)} with inputs [counter(5), decrement()] produced an exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
   }
 
   it should "retry reactions that contain blocking molecules" in {
     val n = 20
 
-    val probabilityOfCrash = 0.5
+    val chooser = new CrashChooser(probabilityOfCrash = 0.5)
 
     val c = new M[Int]("counter")
     val d = new B[Unit, Unit]("decrement")
@@ -483,16 +538,8 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     site(tp0)(
       go { case c(x) + d(_, r) =>
-        val willCrash = scala.util.Random.nextDouble < probabilityOfCrash
-        if (willCrash) {
-          // The second, redundant check for `willCrash` is used only in order to avoid the "dead code" warning.
-          if (willCrash) throw new Exception("crash! (it's OK, ignore this)")
-          r()
-        }
-        else {
-          c(x - 1)
-          r()
-        }
+        if (chooser(x)) throw new Exception("crash! (it's OK, ignore this)") else c(x - 1)
+        r()
       }.withRetry onThreads tp,
       go { case c(0) + g(_, r) => r() }
     )
@@ -504,9 +551,9 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     }
 
     val result = g.timeout()(1500 millis)
-    globalErrorLog.exists(_.contains("Message: crash! (it's OK, ignore this)"))
     tp.shutdownNow()
     result shouldEqual Some(())
+    globalErrorLog.toList should contain("In Site{counter + decrement/B => .../R; counter + getValue/B => ...}: Reaction {counter(x) + decrement/B(_) => counter(?)} with inputs [counter(5), decrement/B()] produced an exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
   }
 
 }

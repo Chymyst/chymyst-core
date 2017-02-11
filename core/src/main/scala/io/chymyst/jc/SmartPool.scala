@@ -23,7 +23,7 @@ class SmartPool(parallelism: Int) extends Pool {
   }
 
   // Looks like we will die hard at about 2021 threads...
-  val maxPoolSize: Int = 1000 + 2*parallelism
+  val maxPoolSize: Int = 1000 + 2 * parallelism
 
   def currentPoolSize: Int = executor.getCorePoolSize
 
@@ -43,15 +43,17 @@ class SmartPool(parallelism: Int) extends Pool {
     executor.setMaximumPoolSize(newPoolSize)
   }
 
-  val maxQueueCapacity: Int = parallelism*1000 + 100
-
-  private val queue = new ArrayBlockingQueue[Runnable](maxQueueCapacity)
+  private val queue = new LinkedBlockingQueue[Runnable]
 
   val initialThreads: Int = parallelism
   val secondsToRecycleThread = 1L
   val shutdownWaitTimeMs = 200L
 
-  private val executor = new ThreadPoolExecutor(initialThreads, parallelism, secondsToRecycleThread, TimeUnit.SECONDS, queue, newThreadFactory)
+  private val executor = {
+    val executor = new ThreadPoolExecutor(initialThreads, parallelism, secondsToRecycleThread, TimeUnit.SECONDS, queue, newThreadFactory)
+    executor.allowCoreThreadTimeOut(true)
+    executor
+  }
 
   override def shutdownNow(): Unit = new Thread {
     try {

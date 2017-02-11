@@ -1,6 +1,7 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
+import Common._
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
@@ -67,12 +68,12 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     max_deviation should be < 0.3
   }
 
-  // fairness across molecules:
+  // fairness across molecules: will be automatic here since all molecules are pipelined.
   // Emit n molecules A[Int] that can all interact with C[Int]. Each time they interact, their counter is incremented.
   // Then emit a single C molecule, which will react until its counter goes to 0.
   // At this point, gather all results from A[Int] into an array and return that array.
 
-  it should "fail to implement fairness across molecules" in {
+  it should "implement fairness across molecules" in {
 
     val counters = 20
 
@@ -105,8 +106,8 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     tp.shutdownNow()
 
-    result.min should be < (cycles / counters / 2)
-    result.max should be > (cycles / counters * 2)
+    result.min.toDouble should be > (cycles / counters * 0.8)
+    result.max.toDouble should be < (cycles / counters * 1.2)
   }
 
   behavior of "multiple emission"
@@ -137,7 +138,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     f((0, 0, n))
 
-    (1 to n).foreach { _ => a() + bb() + c() }
+    repeat(n) { a() + bb() + c() }
 
     val (ab, bc) = g()
     ab + bc shouldEqual n
@@ -179,7 +180,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     f((0, 0, n))
 
-    (1 to n).foreach { _ =>
+    repeat(n) {
       val (a, b, c) = makeRS(d, e)
       a() + b() + c() // at the moment, this is equivalent to a(); b(); c.
       // this test will need to be changed when true multiple emission is implemented.

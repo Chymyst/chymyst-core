@@ -317,22 +317,23 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     println(finalPicture)
     // The "glider" should move, wrapping around the toroidal board.
     finalPicture shouldEqual
-     """|| | | | | | | | | | |
-        || | | | | | | | | | |
-        || | | | | | | | | | |
-        || | | | | | | | | | |
-        || | | | | | | | | | |
-        || | | | | | | | | | |
-        || | | | | | | | | | |
-        || | | |*| | | | | | |
-        || | | |*|*| | | | | |
-        || | |*| |*| | | | | |""".stripMargin
+      """|| | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | |*| | | | | | |
+         || | | |*|*| | | | | |
+         || | |*| |*| | | | | |""".stripMargin
     tp.shutdownNow()
   }
 
   // Test 3a: per-cell reaction sites, but still using the same reaction for all time slices.
   it should "3a. run correctly using 9-molecule single-timeslice implementation with per-cell reaction sites" in {
-    case class Cell(t: Int, state: Int)
+
+    // In this test, we do not use the `Cell` case class. This exercises the irrefutable matchers with cross-molecule guards.
 
     // cell state at final time
     val fc = m[(Int, Int, Int)]
@@ -357,7 +358,8 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     def ym(y: Int): Int = (y + boardSize.y) % boardSize.y
 
     // Emitters for cells at position (x, y)
-    val emitterMatrix: Array[Array[Array[M[Cell]]]] = Array.tabulate(boardSize.x, boardSize.y, 9)((x, y, label) => new M[Cell](s"c$label[$x,$y]"))
+    val emitterMatrix: Array[Array[Array[M[(Int, Int)]]]] =
+      Array.tabulate(boardSize.x, boardSize.y, 9)((x, y, label) ⇒ new M[(Int, Int)](s"c$label[$x,$y]"))
 
     // Reaction for cell at position (x, y)
     val reactionMatrix: Array[Array[Reaction]] = Array.tabulate(boardSize.x, boardSize.y) { (x, y) =>
@@ -384,26 +386,26 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
       val d8 = emitterMatrix(xm(x - 1))(ym(y - 1))(8)
 
       go { case
-        c0(Cell(t0, state0)) +
-          c1(Cell(t1, state1)) +
-          c2(Cell(t2, state2)) +
-          c3(Cell(t3, state3)) +
-          c4(Cell(t4, state4)) +
-          c5(Cell(t5, state5)) +
-          c6(Cell(t6, state6)) +
-          c7(Cell(t7, state7)) +
-          c8(Cell(t8, state8))
+        c0((t0, state0)) +
+          c1((t1, state1)) +
+          c2((t2, state2)) +
+          c3((t3, state3)) +
+          c4((t4, state4)) +
+          c5((t5, state5)) +
+          c6((t6, state6)) +
+          c7((t7, state7)) +
+          c8((t8, state8))
         if t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 && t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 =>
         val newState = getNewState(state0, state1, state2, state3, state4, state5, state6, state7, state8)
-        d0(Cell(t0 + 1, newState)) +
-          d1(Cell(t0 + 1, newState)) +
-          d2(Cell(t0 + 1, newState)) +
-          d3(Cell(t0 + 1, newState)) +
-          d4(Cell(t0 + 1, newState)) +
-          d5(Cell(t0 + 1, newState)) +
-          d6(Cell(t0 + 1, newState)) +
-          d7(Cell(t0 + 1, newState)) +
-          d8(Cell(t0 + 1, newState))
+        d0((t0 + 1, newState)) +
+          d1((t0 + 1, newState)) +
+          d2((t0 + 1, newState)) +
+          d3((t0 + 1, newState)) +
+          d4((t0 + 1, newState)) +
+          d5((t0 + 1, newState)) +
+          d6((t0 + 1, newState)) +
+          d7((t0 + 1, newState)) +
+          d8((t0 + 1, newState))
         if (t0 + 1 == maxTimeStep) fc((x, y, newState))
       }
     }
@@ -431,15 +433,15 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     (0 until boardSize.y).foreach { y0 =>
       (0 until boardSize.x).foreach { x0 =>
         val initState = initBoard.lift(x0).getOrElse(Array()).lift(y0).getOrElse(0)
-        emitterMatrix(xm(x0 + 0))(ym(y0 + 0))(0)(Cell(0, initState))
-        emitterMatrix(xm(x0 + 1))(ym(y0 + 0))(1)(Cell(0, initState))
-        emitterMatrix(xm(x0 - 1))(ym(y0 + 0))(2)(Cell(0, initState))
-        emitterMatrix(xm(x0 + 0))(ym(y0 + 1))(3)(Cell(0, initState))
-        emitterMatrix(xm(x0 + 1))(ym(y0 + 1))(4)(Cell(0, initState))
-        emitterMatrix(xm(x0 - 1))(ym(y0 + 1))(5)(Cell(0, initState))
-        emitterMatrix(xm(x0 + 0))(ym(y0 - 1))(6)(Cell(0, initState))
-        emitterMatrix(xm(x0 + 1))(ym(y0 - 1))(7)(Cell(0, initState))
-        emitterMatrix(xm(x0 - 1))(ym(y0 - 1))(8)(Cell(0, initState))
+        emitterMatrix(xm(x0 + 0))(ym(y0 + 0))(0)((0, initState))
+        emitterMatrix(xm(x0 + 1))(ym(y0 + 0))(1)((0, initState))
+        emitterMatrix(xm(x0 - 1))(ym(y0 + 0))(2)((0, initState))
+        emitterMatrix(xm(x0 + 0))(ym(y0 + 1))(3)((0, initState))
+        emitterMatrix(xm(x0 + 1))(ym(y0 + 1))(4)((0, initState))
+        emitterMatrix(xm(x0 - 1))(ym(y0 + 1))(5)((0, initState))
+        emitterMatrix(xm(x0 + 0))(ym(y0 - 1))(6)((0, initState))
+        emitterMatrix(xm(x0 + 1))(ym(y0 - 1))(7)((0, initState))
+        emitterMatrix(xm(x0 - 1))(ym(y0 - 1))(8)((0, initState))
       }
     }
 
@@ -567,16 +569,16 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
     println(finalPicture)
     // The "glider" should move, wrapping around the toroidal board.
     finalPicture shouldEqual
-     """|| | | | | | | | | | |
-        || | | | | | | | | | |
-        || | | | | | | | | | |
-        || | | | | | | | | | |
-        || | | | | | | | | | |
-        || | | | | | | | | | |
-        || | | | | | | | | | |
-        || | | |*| | | | | | |
-        || | | |*|*| | | | | |
-        || | |*| |*| | | | | |""".stripMargin
+      """|| | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | | | | | | | | |
+         || | | |*| | | | | | |
+         || | | |*|*| | | | | |
+         || | |*| |*| | | | | |""".stripMargin
     ()
   }
 

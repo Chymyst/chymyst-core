@@ -1,9 +1,6 @@
 package io.chymyst.jc
 
-import io.chymyst.jc.Core.ReactionBody
 import org.scalatest.{FlatSpec, Matchers}
-
-import scala.concurrent.duration._
 
 // Note: Compilation of this test suite will generate warnings such as "crushing into 2-tuple". This is expected and cannot be avoided.
 
@@ -12,24 +9,14 @@ class MacroErrorSpec extends FlatSpec with Matchers {
   behavior of "miscellaneous compile-time errors"
 
   it should "fail to compile molecules with non-unit types emitted as a()" in {
-    val a = m[Int]
     val c = m[Unit]
-    val f = b[Int, Int]
-    a.name shouldEqual "a"
-    c.name shouldEqual "c"
-    f.name shouldEqual "f"
 
-    1.second shouldEqual 1000.millis
-
-    "val x = c(())" should compile
-    "val x = c()" should compile
-    "val x = c(123)" should compile // non-Unit value 123 is discarded, but it's only a warning
-
-    "val x = a()" shouldNot compile
-    "val x = f()" shouldNot compile
-    "val x = f.timeout()(1 second)" shouldNot compile
-    "val r = go { case f(_, r) => r() } " shouldNot compile
-    "val r = go { case f(_, r) => r.checkTimeout() } " shouldNot compile
+    // These should compile.
+    def emitThem() = { // Ignore the warning about this unused local method.
+      c(())
+      c()
+      c(123) // non-Unit value 123 is discarded, but it's only a warning
+    }
   }
 
   it should "support concise syntax for Unit-typed molecules" in {
@@ -37,50 +24,8 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val f = new B[Unit, Unit]("f")
     val h = b[Unit, Boolean]
     val g = b[Unit, Unit]
-    a.name shouldEqual "a"
-    f.name shouldEqual "f"
-    g.name shouldEqual "g"
     // This should compile without any argument adaptation warnings:
     go { case a(_) + f(_, r) + g(_, s) + h(_, q) => a() + s() + f(); val status = r.checkTimeout(); q(status) }
-  }
-
-  it should "fail to compile a reaction with empty static clause" in {
-    "val r = go { case _ => }" shouldNot compile
-  }
-
-  it should "fail to compile a guard that replies to molecules" in {
-    val f = b[Unit, Unit]
-    val x = 2
-    x shouldEqual 2
-    f.isInstanceOf[B[Unit, Unit]] shouldEqual true
-
-    "val r = go { case f(_, r) if r() && x == 2 => }" shouldNot compile
-  }
-
-  it should "fail to compile a guard that emits molecules" in {
-    val f = b[Unit, Boolean]
-    f.isInstanceOf[B[Unit, Boolean]] shouldEqual true
-    "val r = go { case f(_, r) if f() => r(true) }" shouldNot compile
-  }
-
-  it should "fail to compile a reaction that is not defined inline" in {
-    val a = m[Unit]
-    val body: ReactionBody = {
-      case _ => a()
-    }
-    body.isInstanceOf[ReactionBody] shouldEqual true
-
-    "val r = go(body)" shouldNot compile
-  }
-
-  it should "fail to compile a reaction with two case clauses" in {
-    val a = m[Unit]
-    val b = m[Unit]
-
-    a.isInstanceOf[M[Unit]] shouldEqual true
-    b.isInstanceOf[M[Unit]] shouldEqual true
-
-    "val r = go { case a(_) =>; case b(_) => }" shouldNot compile
   }
 
   it should "compile a reaction within scalatest scope" in {
@@ -94,26 +39,13 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
     val c = m[(Int, (Int, Int))]
     c.name shouldEqual "c"
-    // TODO: make this compile in actual code, not just inside scalatest macro
+    // TODO: make this compile in actual code, not just inside scalatest macro. This is github issue #109
     "val r1 = go { case c(y@(_, z@(_, _))) => }" should compile // But this actually fails to compile when used in the code!
 
     val d = m[(Int, Option[Int])]
     "val r2 = go { case d((x, z@Some(_))) => }" should compile // But this actually fails to compile when used in the code!
 
     site(go { case d((x, z)) if z.nonEmpty => }) shouldEqual WarningsAndErrors(List(), List(), "Site{d => ...}")
-  }
-
-  it should "inspect reaction body with two cases" in {
-    val a = m[Int]
-    val qq = m[Unit]
-
-    a.isInstanceOf[M[Int]] shouldEqual true
-    qq.isInstanceOf[M[Unit]] shouldEqual true
-
-    """val result = go {
-      case a(x) => qq()
-      case qq(_) + a(y) => qq()
-    }""" shouldNot compile
   }
 
   it should "fail to compile reactions with incorrect pattern matching" in {
@@ -300,30 +232,6 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
   behavior of "compile-time errors due to chemistry"
 
-  it should "fail to compile reactions with unconditional livelock" in {
-    val a = m[(Int, Int)]
-    val bb = m[Int]
-    val bbb = m[Int]
-
-    a.isInstanceOf[M[(Int, Int)]] shouldEqual true
-    bb.isInstanceOf[M[Int]] shouldEqual true
-    bbb.isInstanceOf[M[Int]] shouldEqual true
-
-    "val r = go { case a((x,y)) => a((1,1)) }" shouldNot compile
-    "val r = go { case a((_,x)) => a((x,x)) }" shouldNot compile
-    "val r = go { case a((1,_)) => a((1,1)) }" should compile // cannot detect unconditional livelock here at compile time, since we can't evaluate the binder yet
-    "val r = go { case bb(x) if x > 0 => bb(1) }" should compile // no unconditional livelock due to guard
-    "val r = go { case bb(x) =>  if (x > 0) bb(1) }" should compile // no unconditional livelock due to `if` in reaction
-    "val r = go { case bb(x) =>  if (x > 0) bbb(1) else bb(2) }" should compile // no unconditional livelock due to `if` in reaction
-    "val r = go { case bb(x) =>  if (x > 0) bb(1) else bb(2) }" shouldNot compile // unconditional livelock due to shrinkage of `if` in reaction
-    "val r = go { case bbb(1) => bbb(2) }" should compile // no unconditional livelock
-    "val r = go { case bb(x) => bb(1) }" shouldNot compile // unconditional livelock
-    "val r = go { case a(_) => a((1,1)) }" shouldNot compile // unconditional livelock
-    "val r = go { case bbb(_) => bbb(0) }" shouldNot compile // unconditional livelock
-    "val r = go { case bbb(x) => bbb(x + 1) + bb(x) }" shouldNot compile
-    "val r = go { case bbb(x) + bb(y) => bbb(x + 1) + bb(x) + bb(y + 1) }" shouldNot compile
-  }
-
   it should "inspect a pattern with a compound constant" in {
     val a = m[(Int, Int)]
     val c = m[Unit]
@@ -354,8 +262,8 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
     (result.info.inputs match {
       case Array(
-      InputMoleculeInfo(`bb`, 0, WildcardInput, _),
-      InputMoleculeInfo(`bb`, 1, SimpleVarInput('z, Some(cond)), _)
+      InputMoleculeInfo(`bb`, 0, WildcardInput, _, Symbol("(Int, Option[Int])")),
+      InputMoleculeInfo(`bb`, 1, SimpleVarInput('z, Some(cond)), _, _)
       ) =>
         cond.isDefinedAt((1, Some(2))) shouldEqual true
         cond.isDefinedAt((1, None)) shouldEqual false

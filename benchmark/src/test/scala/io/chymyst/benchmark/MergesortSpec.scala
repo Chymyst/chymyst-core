@@ -57,7 +57,7 @@ class MergesortSpec extends FlatSpec with Matchers {
     val finalResult = m[Coll[T]]
     val getFinalResult = b[Unit, Coll[T]]
     val reactionPool = new FixedPool(threads)
-    val sitePool = new FixedPool(3)
+    val sitePool = new FixedPool(threads)
 
     site(sitePool, sitePool)(
       go { case finalResult(arr) + getFinalResult(_, r) => r(arr) }
