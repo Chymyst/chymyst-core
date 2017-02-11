@@ -90,20 +90,39 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual Some(6)
     Seq(1, 2, 3).flatFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual None
   }
-/*
-  it should "support earlyFoldLeft for Seq" in {
-    Seq[Int]().earlyFoldLeft(10)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual 10
-    Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual 6
-    Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n == 0) Some(x + n) else None) shouldEqual 0
-    Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual 1
-  }
-*/
+  /*
+    it should "support earlyFoldLeft for Seq" in {
+      Seq[Int]().earlyFoldLeft(10)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual 10
+      Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual 6
+      Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n == 0) Some(x + n) else None) shouldEqual 0
+      Seq(1, 2, 3).earlyFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual 1
+    }
+  */
   it should "support sortedGroupBy" in {
     Seq[Int]().sortedMapGroupBy(identity, identity) shouldEqual Seq[Int]()
     Seq(1).sortedMapGroupBy(x ⇒ x % 2, _ * 10) shouldEqual Seq((1, Seq(10)))
     Seq(1, 3, 2, 4).sortedMapGroupBy(x ⇒ x % 2, _ * 10) shouldEqual Seq((1, Seq(10, 30)), (0, Seq(20, 40)))
     Seq(1, 2, 3, 4).sortedMapGroupBy(_ < 3, identity) shouldEqual Seq((true, Seq(1, 2)), (false, Seq(3, 4)))
     Seq(1, 2, 2, 3, 3, 3, 1).sortedMapGroupBy(identity, identity) shouldEqual Seq((1, Seq(1)), (2, Seq(2, 2)), (3, Seq(3, 3, 3)), (1, Seq(1)))
+  }
+
+  behavior of "auxiliary fold ops for Array"
+
+  it should "support findAfterMap for Array" in {
+    val empty = new Array[Int](0)
+    val a = Array.tabulate[Int](10)(_ + 1)
+    empty.findAfterMap(x => Some(x)) shouldEqual None
+    a.findAfterMap(x => if (x % 2 == 0) Some(x) else None) shouldEqual Some(2)
+    a.findAfterMap(x => if (x % 2 != 0) Some(x) else None) shouldEqual Some(1)
+    a.findAfterMap(x => if (x == 0) Some(x) else None) shouldEqual None
+  }
+
+  it should "support flatFoldLeft for Array" in {
+    val empty = new Array[Int](0)
+    val a = Array.tabulate[Int](3)(_ + 1)
+    empty.flatFoldLeft(10)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual Some(10)
+    a.flatFoldLeft(0)((x, n) => if (n != 0) Some(x + n) else None) shouldEqual Some(6)
+    a.flatFoldLeft(0)((x, n) => if (n % 2 != 0) Some(x + n) else None) shouldEqual None
   }
 
   behavior of "cleanup utility"
@@ -139,18 +158,26 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     intHash(Array(0, 3)) should be < intHash(Array(1, 2))
   }
 
-  behavior of "random element in array"
-/*
-  it should "retrieve randomly chosen elements from array" in {
+  behavior of "random shuffle"
+  /*
+    it should "retrieve randomly chosen elements from array" in {
+      val n = 100
+      val arr = Array.tabulate(n)(identity)
+      println(arr.toList)
+      val retrieved = (0 until n).map(i ⇒ randomElementInArray(arr, i))
+
+      retrieved.toList shouldEqual arr.toList
+      retrieved.toList should not equal (0 until n).toList
+    }
+  */
+
+  it should "shuffle an array in place" in {
     val n = 100
     val arr = Array.tabulate(n)(identity)
-    println(arr.toList)
-    val retrieved = (0 until n).map(i ⇒ randomElementInArray(arr, i))
-
-    retrieved.toList shouldEqual arr.toList
-    retrieved.toList should not equal (0 until n).toList
+    arr.shuffle
+    arr.toList should not equal (0 until n).toList
   }
-*/
+
   it should "use shuffle on a sequence" in {
     val n = 100
     val s = (0 until n).shuffle

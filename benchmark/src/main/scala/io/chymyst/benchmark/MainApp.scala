@@ -8,7 +8,7 @@ import io.chymyst.jc._
 
 object MainAppConfig {
 
-  val n = 500000
+  val n = 50000
 
   val threads = 8
 }
