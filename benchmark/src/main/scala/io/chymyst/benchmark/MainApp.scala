@@ -8,14 +8,14 @@ import io.chymyst.jc._
 
 object MainAppConfig {
 
-  val n = 50000
+  val n = 500000
 
   val threads = 8
 }
 
 object MainApp extends App {
   import MainAppConfig._
-  val version = "0.0.5"
+  val version = "0.1.8-SNAPSHOT"
 
   def run3times(task: => Long): Long = {
     task // just priming, no measurement

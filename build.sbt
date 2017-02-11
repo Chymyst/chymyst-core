@@ -73,6 +73,15 @@ lazy val warningsForWartRemover = Seq(Wart.JavaConversions) //Seq(Wart.Any, Wart
 
 val rootProject = Some(buildAll)
 
+val flightRecorderJVMFlags = Seq(
+  "-Xmx1G",
+  "-XX:+UnlockCommercialFeatures",
+  "-XX:+FlightRecorder",
+  "-XX:+UnlockDiagnosticVMOptions",
+  "-XX:+DebugNonSafepoints",
+  "-XX:StartFlightRecording=delay=10s,duration=600s,name=Recording,filename=benchmark.jfr"
+)
+
 lazy val buildAll = (project in file("."))
   .settings(commonSettings: _*)
   .settings(
@@ -87,9 +96,8 @@ lazy val core = (project in file("core"))
     wartremoverWarnings in(Compile, compile) ++= warningsForWartRemover,
     wartremoverErrors in(Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
-
       "com.google.guava" % "guava" % "21.0",
-
+      //      "com.google.code.findbugs" % "jsr305" % "3.0.1", // Include this if there are weird compiler bugs due to Guava. See http://stackoverflow.com/questions/10007994/why-do-i-need-jsr305-to-use-guava-in-scala
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
       "org.scalatest" %% "scalatest" % "3.0.1" % Test,
       "org.scalacheck" %% "scalacheck" % "1.13.4" % Test,
@@ -100,9 +108,6 @@ lazy val core = (project in file("core"))
       "org.scala-lang" % "scala-compiler" % scalaVersion.value % "test"
     )
     , testFrameworks += new TestFramework("utest.runner.Framework")
-
-//    , parallelExecution in Test := false
-//    , concurrentRestrictions in Global += Tags.limit(Tags.Test, 1)
   )
 
 // Benchmarks - users do not need to depend on this.
@@ -110,21 +115,42 @@ lazy val benchmark = (project in file("benchmark"))
   .settings(commonSettings: _*)
   .settings(
     name := "benchmark",
+    //    fork in run := true,
     aggregate in assembly := false,
     test in assembly := {},
     //    unmanagedJars in Compile += file("lib/JiansenJoin-0.3.6-JoinRun-0.1.0.jar"),// they say it's no longer needed
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
     parallelExecution in Test := false,
+    runFR := { // see http://jkinkead.blogspot.com/2015/04/running-with-alternate-jvm-args-in-sbt.html
+      // Parse the arguments typed on the sbt console.
+      val args = sbt.complete.Parsers.spaceDelimited("[main args]").parsed
+      // Build up the classpath for the subprocess. Yes, this must be done manually.
+      // This also ensures that your code will be compiled before you run.
+      val classpath = (fullClasspath in Compile).value
+      val classpathString = Path.makeString(classpath.map(_.data))
+      Fork.java(
+        // Full options include whatever you want to add, plus the classpath.
+        ForkOptions(runJVMOptions = javaOptions.value ++ flightRecorderJVMFlags ++ Seq("-classpath", classpathString)),
+        // You could also add other default arguments here.
+        "io.chymyst.benchmark.MainApp" +: args
+      )
+    },
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.1" % Test
     )
   ).dependsOn(core)
 
+// Running benchmarks with Flight Recorder
+lazy val runFR = InputKey[Unit]("runFR", "run the project with activated FlightRecorder")
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////
 // Publishing to Sonatype Maven repository
 publishMavenStyle := true
-
-// pomIncludeRepository := { _ => false } // not sure we need this. http://www.scala-sbt.org/release/docs/Using-Sonatype.html says we might need it because "sometimes we have optional dependencies for special features".
-
+//
+// pomIncludeRepository := { _ => false } // not sure we need this.
+// http://www.scala-sbt.org/release/docs/Using-Sonatype.html says we might need it
+// because "sometimes we have optional dependencies for special features".
+//
 publishTo := {
   val nexus = "https://oss.sonatype.org/"
   if (isSnapshot.value)
@@ -132,6 +158,7 @@ publishTo := {
   else
     Some("releases" at nexus + "service/local/staging/deploy/maven2")
 }
-
+//
 publishArtifact in Test := false
-
+//
+/////////////////////////////////////////////////////////////////////////////////////////////////////

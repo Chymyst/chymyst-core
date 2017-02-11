@@ -139,12 +139,10 @@ Then run it as
 
 To run with FlightRecorder:
 
-```
-java -Xmx1G -XX:+UnlockCommercialFeatures -XX:+FlightRecorder -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints -XX:StartFlightRecording=delay=10s,duration=60s,name=Recording,filename=benchmark.jfr -jar benchmark/target/scala-2.11/benchmark-assembly-*.jar
-```
+`sbt benchmark/runFR`
 
 This will create the file `benchmark.jfr` in the current directory.
-Open this file with `jmc` (Oracle's "Java Mission Control" tool) to inspect the "Hot Methods" i.e. places where most time is spent.
+Open that file with `jmc` (Oracle's "Java Mission Control" tool) to inspect Code and then the "Hot Methods" (places where most time is spent).
 
 ## Use `Chymyst Core` in your programs
 
