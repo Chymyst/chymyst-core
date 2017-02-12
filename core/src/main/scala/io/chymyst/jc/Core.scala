@@ -176,10 +176,6 @@ object Core {
       if (found) Some(result) else None
     }
 
-    def shuffle: Array[T] = {
-      arrayShuffleInPlace(s)
-      s
-    }
   }
 
   implicit final class SeqWithExtraFoldOps[T](val s: Seq[T]) extends AnyVal {
@@ -319,7 +315,7 @@ object Core {
   }
 */
 
-  private def arrayShuffleInPlace[T](arr: Array[T]): Unit = {
+  def arrayShuffleInPlace[T](arr: Array[T]): Unit = {
     val s = arr.length
     // Do nothing when the array has length 1 or less.
     if (s >= 2) {

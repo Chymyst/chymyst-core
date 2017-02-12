@@ -487,7 +487,7 @@ final class ReactionInfo(
                           private[jc] val sha1: String
                         ) {
   // This should be lazy because molecule.isStatic is known late.
-  private[jc] lazy val staticMols = inputs.map(_.molecule).filter(_.isStatic).toSet
+  private[jc] lazy val staticMols: Set[Molecule] = inputs.map(_.molecule).filter(_.isStatic).toSet
 
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
@@ -498,7 +498,7 @@ final class ReactionInfo(
   }
 
   /** This array is either empty or contains several arrays, each of length at least 2. */
-  private[jc] val repeatedCrossConstrainedMolecules: Array[Array[InputMoleculeInfo]] = {
+  private val repeatedCrossConstrainedMolecules: Array[Array[InputMoleculeInfo]] = {
     inputs
       .groupBy(_.molecule)
       .filter(_._2.length >= 2)
@@ -516,8 +516,15 @@ final class ReactionInfo(
     * This value holds the set of indices for all such molecules, for quick access.
     */
   private[jc] val crossConditionals: Set[Int] = repeatedCrossConstrainedMolecules
-      .flatMap(_.map(_.index))
-      .toSet
+    .flatMap(_.map(_.index))
+    .toSet
+
+  private[jc] val crossGroupsSortedByComplexityGain: Array[Array[InputMoleculeInfo]] = {
+    val indexGroupsSortedByLength = (crossGuards.map(_.indices) ++ repeatedCrossConstrainedMolecules.map(_.map(_.index))).sortBy(- _.length)
+    indexGroupsSortedByLength.headOption.map{ largest ⇒
+      // sort by the metric: the total number of common members with the largest group
+    }
+  }
 
   // Optimization: this is used often.
   private[jc] val inputMoleculesSortedAlphabetically: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)

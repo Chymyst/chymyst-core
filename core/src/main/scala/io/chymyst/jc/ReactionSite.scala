@@ -131,8 +131,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def scheduleReaction(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit =
     poolForReaction.runClosure(runReaction(reaction, usedInputs, poolForReaction: Pool), reaction.newChymystThreadInfo)
 
-  private def emissionRunnable(m: Molecule): Runnable = new Runnable {
-    override def run(): Unit = decideReactionsForNewMolecule(m)
+  private def emissionRunnable(mol: Molecule): Runnable = new Runnable {
+    override def run(): Unit = {
+      val reactions = consumingReactions(mol.index)
+      reactions.synchronized { // The mutating shuffle is thread-safe because it is inside a `synchronized` block.
+        arrayShuffleInPlace(reactions)
+      }
+      decideReactionsForNewMolecule(mol)
+    }
   }
 
   private def reportError(message: String): Unit = {
@@ -254,7 +260,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private def findReaction(m: Molecule): Option[(Reaction, InputMoleculeList)] = {
-    consumingReactions(m.index).shuffle // The mutating shuffle is thread-safe because it is inside a `synchronized` block.
+    consumingReactions(m.index)
       // We only need to find one reaction whose input molecules are available. For this, we use the special `Core.findAfterMap`.
       .findAfterMap(_.findInputMolecules(m, bags))
   }
