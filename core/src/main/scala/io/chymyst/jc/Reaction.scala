@@ -518,14 +518,15 @@ final class ReactionInfo(
   private[jc] val crossConditionals: Set[Int] = repeatedCrossConstrainedMolecules
     .flatMap(_.map(_.index))
     .toSet
-
+/*
   private[jc] val crossGroupsSortedByComplexityGain: Array[Array[InputMoleculeInfo]] = {
     val indexGroupsSortedByLength = (crossGuards.map(_.indices) ++ repeatedCrossConstrainedMolecules.map(_.map(_.index))).sortBy(- _.length)
     indexGroupsSortedByLength.headOption.map{ largest ⇒
       // sort by the metric: the total number of common members with the largest group
+      // those groups that have no common members with the largest one should be sorted again recursively
     }
   }
-
+*/
   // Optimization: this is used often.
   private[jc] val inputMoleculesSortedAlphabetically: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
 
