@@ -112,7 +112,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   behavior of "multiple emission"
 
-  /** Emit an equal number of a,b,c molecules. One reaction consumes a+b and the other consumes b+c.
+  /** Emit an equal number of a, bb, c molecules. One reaction consumes a + bb and the other consumes bb + c.
     * Verify that both reactions proceed with probability roughly 1/2.
     */
   it should "schedule reactions fairly after multiple emission" in {
@@ -127,24 +127,27 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(8)
 
     site(tp, tp)(
-      go { case a(_) + bb(_) => d() },
-      go { case bb(_) + c(_) => e() },
+      go { case a(x) + bb(y) => d() },
+      go { case bb(x) + c(y) => e() },
       go { case d(_) + f((x, y, t)) => f((x + 1, y, t - 1)) },
       go { case e(_) + f((x, y, t)) => f((x, y + 1, t - 1)) },
       go { case g(_, r) + f((x, y, 0)) => r((x, y)) }
     )
+    (1 to 10).map { i ⇒
+      val n = 1000
 
-    val n = 1000
+      f((0, 0, n))
 
-    f((0, 0, n))
+      repeat(n) {
+        a() + bb() + c()
+      }
 
-    repeat(n) { a() + bb() + c() }
-
-    val (ab, bc) = g()
-    ab + bc shouldEqual n
-    val discrepancy = math.abs(ab - bc + 0.0) / n
-    discrepancy should be < 0.2
-
+      val (ab, bc) = g()
+      ab + bc shouldEqual n
+      val discrepancy = math.abs(ab - bc + 0.0) / n
+      println(s"Reaction a + bb occurred $ab times. Reaction bb + c occurred $bc times. Total $n. Discrepancy $discrepancy")
+      discrepancy
+    }.min should be < 0.2
     tp.shutdownNow()
   }
 
