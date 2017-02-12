@@ -174,7 +174,7 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "shuffle an array in place" in {
     val n = 100
     val arr = Array.tabulate(n)(identity)
-    arr.shuffle
+    arrayShuffleInPlace(arr)
     arr.toList should not equal (0 until n).toList
   }
 
