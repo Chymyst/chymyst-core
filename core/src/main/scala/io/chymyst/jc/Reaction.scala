@@ -497,23 +497,27 @@ final class ReactionInfo(
       Array[CrossMoleculeGuard]()
   }
 
+  /** This array is either empty or contains several arrays, each of length at least 2. */
+  private[jc] val repeatedCrossConstrainedMolecules: Array[Array[InputMoleculeInfo]] = {
+    inputs
+      .groupBy(_.molecule)
+      .filter(_._2.length >= 2)
+      .values
+      .filter { repeatedInput ⇒
+        crossGuards.exists { guard ⇒
+          (guard.indices intersect repeatedInput.map(_.index)).nonEmpty
+        } ||
+          repeatedInput.exists { info ⇒ !info.flag.isIrrefutable }
+      }
+      .toArray
+  }
+
   /** Cross-conditionals are repeated input molecules, such that one of them has a conditional or participates in a cross-molecule guard.
     * This value holds the set of indices for all such molecules, for quick access.
     */
-  private[jc] val crossConditionals: Set[Int] = {
-    inputs
-      .groupBy(_.molecule)
-      .filter(_._2.length > 1)
-      .values
-      .filter { repeatedInput =>
-        crossGuards.exists { guard =>
-          (guard.indices intersect repeatedInput.map(_.index)).nonEmpty
-        } ||
-          repeatedInput.exists { info => !info.flag.isIrrefutable }
-      }
+  private[jc] val crossConditionals: Set[Int] = repeatedCrossConstrainedMolecules
       .flatMap(_.map(_.index))
       .toSet
-  }
 
   // Optimization: this is used often.
   private[jc] val inputMoleculesSortedAlphabetically: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
@@ -521,7 +525,7 @@ final class ReactionInfo(
   private[jc] val inputMoleculesSet: Set[Molecule] = inputMoleculesSortedAlphabetically.toSet
 
   // The input pattern sequence is pre-sorted for further use.
-  private[jc] val inputsSortedByConstraintStrength: List[InputMoleculeInfo] =
+  private[jc] val inputsSortedByConstraintStrength: List[InputMoleculeInfo] = {
     inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha, _) =>
       // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers.
       val patternPrecedence = flag match {
@@ -546,6 +550,7 @@ final class ReactionInfo(
       }
       (mol.toString, patternPrecedence, molValueString, sha)
     }.toList
+  }
 
   // This must be lazy because molecule.index is known late.
   private[jc] lazy val (inputsSortedIrrefutableGrouped, inputsSortedConditional) = {
@@ -634,19 +639,19 @@ final case class Reaction(
   def noRetry: Reaction = copy(retry = false)
 
   // Optimization: this is used often.
-  private[jc] val inputMolecules: Seq[Molecule] = info.inputMoleculesSortedAlphabetically
+  private[jc] val inputMoleculesSortedAlphabetically: Seq[Molecule] = info.inputMoleculesSortedAlphabetically
 
   private[jc] val inputMoleculesSet: Set[Molecule] = info.inputMoleculesSet
 
   // This must be lazy because molecule indices are not known at `Reaction` construction time.
   private lazy val moleculeIndexRequiredCounts =
-    inputMoleculesSet.map { mol ⇒ (mol.index, inputMolecules.count(_ === mol)) }.toMap
+    inputMoleculesSet.map { mol ⇒ (mol.index, inputMoleculesSortedAlphabetically.count(_ === mol)) }.toMap
 
   /** Convenience method for debugging.
     *
     * @return String representation of input molecules of the reaction.
     */
-  override val toString: String = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${
+  override val toString: String = s"${inputMoleculesSortedAlphabetically.map(_.toString).mkString(" + ")} => ...${
     if (retry)
       "/R"
     else ""

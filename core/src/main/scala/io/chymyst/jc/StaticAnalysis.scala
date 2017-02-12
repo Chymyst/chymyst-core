@@ -195,7 +195,7 @@ private[jc] object StaticAnalysis {
       if (reactions.isEmpty)
         Map()
       else
-        staticMols.map { case (m, _) => m -> reactions.map(r => (r, r.inputMolecules.count(_ === m))).maxBy(_._2) }
+        staticMols.map { case (m, _) => m -> reactions.map(r => (r, r.inputMoleculesSortedAlphabetically.count(_ === m))).maxBy(_._2) }
 
     val wrongConsumed = staticMolsConsumedMaxTimes
       .flatMap {
@@ -208,7 +208,7 @@ private[jc] object StaticAnalysis {
       }
 
     val wrongOutput = staticMols.map {
-      case (m, _) => m -> reactions.find(r => r.inputMolecules.count(_ === m) == 1 && !r.info.outputs.exists(_.molecule === m))
+      case (m, _) => m -> reactions.find(r => r.inputMoleculesSortedAlphabetically.count(_ === m) == 1 && !r.info.outputs.exists(_.molecule === m))
     }.flatMap {
       case (mol, Some(r)) =>
         Some(s"static molecule ($mol) consumed but not emitted by reaction ${r.info}")

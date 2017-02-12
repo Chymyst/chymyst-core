@@ -38,7 +38,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   private val id: Long = getNextId
 
-  private val (nonStaticReactions, staticReactions) = reactions.toArray.partition(_.inputMolecules.nonEmpty)
+  private val (nonStaticReactions, staticReactions) = reactions.toArray.partition(_.inputMoleculesSortedAlphabetically.nonEmpty)
 
   private var unboundOutputMolecules: Set[Molecule] = _
 
@@ -498,7 +498,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private val knownMolecules: Map[Molecule, (Int, Symbol)] = nonStaticReactions
-    .flatMap(_.inputMolecules)
+    .flatMap(_.inputMoleculesSortedAlphabetically)
     .distinct // We only need to assign the owner on each distinct input molecule once.
     .sortBy(_.name)
     .zipWithIndex
@@ -568,7 +568,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private[jc] def checkWarningsAndErrors(): WarningsAndErrors = diagnostics.checkWarningsAndErrors()
 
-  // This should be done at the very end, after all other values are computed.
+  // This should be done at the very end, after all other values are computed, because it depends on `pipelinedMolecules`, `consumingReactions`, `knownMolecules`, and other computed values.
   private val diagnostics: WarningsAndErrors = initializeReactionSite()
 }
 
