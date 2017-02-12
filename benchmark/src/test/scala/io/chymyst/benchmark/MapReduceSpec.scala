@@ -164,13 +164,11 @@ class MapReduceSpec extends FlatSpec with Matchers {
     }
 
     var failures = 0
-    val n = 100
+    val n = 1000
     
     (1 to n).foreach { _ ⇒
       val numberOfCounters = 10
       val count = 2
-
-      // emit a blocking molecule `d` many times
 
       val tp = new FixedPool(8)
       val tp1 = new FixedPool(1)
@@ -188,13 +186,10 @@ class MapReduceSpec extends FlatSpec with Matchers {
       val d = make_counter_1(done, numberOfCounters, count, tp, tp1)
       // emit a blocking molecule `d` many times
       (1 to (count * numberOfCounters)).foreach(_ ⇒ d())
-      val result = f.timeout(initialTime)(2.second)
+      val result = f.timeout(initialTime)(1.second)
       if (result.isEmpty) {
         failures += 1
-        if (failures > 0) globalErrorLog.foreach(println)
-
       }
-      failures shouldEqual 0
       tp1.shutdownNow()
       tp.shutdownNow()
     }

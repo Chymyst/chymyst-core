@@ -3,6 +3,8 @@ package io.chymyst.jc
 import Core._
 import StaticAnalysis._
 
+import scala.annotation.tailrec
+
 /** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
   * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
   * The user will never see any instances of this class.
@@ -75,40 +77,44 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     s"$toString\n$moleculesPrettyPrinted"
   }
 
-  private def decideReactionsForNewMolecule(m: Molecule): Unit = try {
-    lazy val decidingReactionsMessage = s"Debug: In $this: deciding reactions for molecule $m"
+  @tailrec
+  private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
+    lazy val decidingReactionsMessage = s"Debug: In $this: deciding reactions for molecule $mol"
     if (logLevel > 3) println(decidingReactionsMessage)
     val foundReactionAndInputs =
       bags.synchronized {
-
         // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
-        val found: Option[(Reaction, InputMoleculeList)] = findReaction(m)
-
+        val found: Option[(Reaction, InputMoleculeList)] = findReaction(mol)
         found.foreach(_._2.foreach { case (k, v) => removeFromBag(k, v) })
         found
-      } // End of synchronized block.
-
+      }
+    // End of synchronized block.
     // We already decided on starting a reaction, so we don't hold the `synchronized` lock on the molecule bag any more.
+
     foundReactionAndInputs match {
       case Some((reaction, usedInputs)) =>
         // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
         val poolForReaction = reaction.threadPool.getOrElse(reactionPool)
-        if (poolForReaction.isInactive)
-          throw new ExceptionNoReactionPool(s"In $this: cannot run reaction {${reaction.info}} since reaction pool is not active")
-        else if (!Thread.currentThread().isInterrupted) {
-          lazy val startingReactionMessage = s"Debug: In $this: starting reaction {${reaction.info}} with inputs [${Core.moleculeBagToString(usedInputs)}] on reaction pool $poolForReaction while on site pool $sitePool"
-          if (logLevel > 1) println(startingReactionMessage)
+        if (poolForReaction.isInactive) {
+          reportError(s"In $this: cannot run reaction {${reaction.info}} since reaction pool is not active; input molecules ${Core.moleculeBagToString(usedInputs)} were consumed and not emitted again")
+          // In this case, we do not attempt to schedule a reaction. However, input molecules were consumed and not emitted again.
+        } else {
+          if (!Thread.currentThread().isInterrupted) {
+            lazy val startingReactionMessage = s"Debug: In $this: starting reaction {${reaction.info}} with inputs [${Core.moleculeBagToString(usedInputs)}] on reaction pool $poolForReaction while on site pool $sitePool"
+            if (logLevel > 1) println(startingReactionMessage)
+          }
+
+          lazy val moleculesRemainingMessage =
+            if (bags.forall(_.isEmpty))
+              s"Debug: In $this: no molecules remaining"
+            else
+              s"Debug: In $this: remaining molecules [${moleculeBagToString(bags)}]"
+
+          if (logLevel > 2) println(moleculesRemainingMessage)
+          // Schedule the reaction now. Provide reaction info to the thread.
+          scheduleReaction(reaction, usedInputs, poolForReaction)
+          decideReactionsForNewMolecule(mol) // Need to try running another reaction with the same molecule, if possible.
         }
-        lazy val moleculesRemainingMessage =
-          if (bags.forall(_.isEmpty))
-            s"Debug: In $this: no molecules remaining"
-          else
-            s"Debug: In $this: remaining molecules [${moleculeBagToString(bags)}]"
-
-        if (logLevel > 2) println(moleculesRemainingMessage)
-        // Schedule the reaction now. Provide reaction info to the thread.
-        scheduleReaction(reaction, usedInputs, poolForReaction)
-
       case None =>
         if (logLevel > 2) {
           lazy val noReactionsStartedMessage = s"Debug: In $this: no reactions started"
@@ -116,8 +122,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         }
     }
 
-  } catch {
-    case e: ExceptionInChymyst => reportError(e.getMessage)
   }
 
   private def scheduleReaction(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit =
