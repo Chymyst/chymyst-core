@@ -65,7 +65,7 @@ class CommonMacros(val c: blackbox.Context) {
     *
     * @param replyVar The Ident of a reply pattern variable.
     */
-  final case class ReplyVarF(replyVar: Ident) extends InputPatternFlag {
+  final case class ReplyVarF(replyVar: Ident) extends InputPatternFlag { // ignore warning about "outer reference in this type test"
     override def notReplyValue: Boolean = false
   }
 
@@ -73,7 +73,7 @@ class CommonMacros(val c: blackbox.Context) {
     *
     * @param v The Ident of the pattern variable.
     */
-  final case class SimpleVarF(v: Ident, binder: Tree, cond: Option[Tree]) extends InputPatternFlag {
+  final case class SimpleVarF(v: Ident, binder: Tree, cond: Option[Tree]) extends InputPatternFlag { // ignore warning about "outer reference in this type test"
     override def varNames: List[Ident] = List(v)
 
     override def patternSha1(showCode: Tree => String): String = cond.map(c => getSha1String(showCode(c))).getOrElse("")
@@ -88,7 +88,7 @@ class CommonMacros(val c: blackbox.Context) {
     * or a compound type such as `(2, 3)` or `(Some(2), 3, 4)`.
     * The value `v` represents a value of the `[T]` type of [[M]]`[T]` or [[B]]`[T,R]`.
     */
-  final case class ConstantPatternF(v: Tree) extends InputPatternFlag {
+  final case class ConstantPatternF(v: Tree) extends InputPatternFlag { // ignore warning about "outer reference in this type test"
     override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(v))
   }
 
@@ -101,7 +101,7 @@ class CommonMacros(val c: blackbox.Context) {
     * @param guard   `None` if the pattern is irrefutable; `Some(guard expression tree)` if the pattern is not irrefutable and potentially requires a guard condition.
     * @param vars    List of pattern variables in the order of their appearance in the syntax tree.
     */
-  final case class OtherInputPatternF(matcher: Tree, guard: Option[Tree], vars: List[Ident]) extends InputPatternFlag {
+  final case class OtherInputPatternF(matcher: Tree, guard: Option[Tree], vars: List[Ident]) extends InputPatternFlag { // ignore warning about "outer reference in this type test"
     override def needTraversing: Boolean = true
 
     override def varNames: List[Ident] = vars
@@ -126,7 +126,7 @@ class CommonMacros(val c: blackbox.Context) {
     override val toString: String = "?"
   }
 
-  final case class ConstOutputPatternF(v: Tree) extends OutputPatternFlag {
+  final case class ConstOutputPatternF(v: Tree) extends OutputPatternFlag { // ignore warning about "outer reference in this type test"
     override val patternType: OutputPatternType = ConstOutputPattern(v)
 
     override val toString: String = showCode(v)

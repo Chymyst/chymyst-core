@@ -9,6 +9,8 @@ import scala.language.postfixOps
 
 class ParallelOrSpec extends FlatSpec with Matchers {
 
+  behavior of "test"
+
   /** Given two blocking molecules f and g returning Boolean, construct a new blocking molecule `parallelOr`
     * that returns the Boolean Or value of whichever of f and g unblocks first.
     * If one of `f` and `g` returns `true` then `parallelOr` also unblocks and returns `true`.

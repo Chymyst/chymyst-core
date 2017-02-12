@@ -79,8 +79,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   @tailrec
   private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
-    lazy val decidingReactionsMessage = s"Debug: In $this: deciding reactions for molecule $mol"
-    if (logLevel > 3) println(decidingReactionsMessage)
+    if (logLevel > 3) println(s"Debug: In $this: deciding reactions for molecule $mol")
     val foundReactionAndInputs =
       bags.synchronized {
         // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
@@ -106,7 +105,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
           lazy val moleculesRemainingMessage =
             if (bags.forall(_.isEmpty))
-              s"Debug: In $this: no molecules remaining"
+              noMoleculesRemainingMessage
             else
               s"Debug: In $this: remaining molecules [${moleculeBagToString(bags)}]"
 
@@ -117,12 +116,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         }
       case None =>
         if (logLevel > 2) {
-          lazy val noReactionsStartedMessage = s"Debug: In $this: no reactions started"
           println(noReactionsStartedMessage)
         }
     }
 
   }
+
+  lazy val noMoleculesRemainingMessage = s"Debug: In $this: no molecules remaining"
+
+  lazy val noReactionsStartedMessage = s"Debug: In $this: no reactions started"
 
   private def scheduleReaction(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit =
     poolForReaction.runClosure(runReaction(reaction, usedInputs, poolForReaction: Pool), reaction.newChymystThreadInfo)

@@ -484,7 +484,7 @@ behavior of "reaction sha1"
     c(123)
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + c + f/B => ...}\nMolecules: a(Some(1)), c(123)"
+    a.logSoup shouldEqual "Site{a + c + f/B => ...}\nMolecules: a(Some(1)) + c(123)"
     f.timeout(0)(2.second) shouldEqual Some(124)
     a.logSoup shouldEqual "Site{a + c + f/B => ...}\nNo molecules"
   }

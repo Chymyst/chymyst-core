@@ -105,12 +105,12 @@ object Core {
           case (mv, 1) => s"$m($mv)"
           case (mv, i) => s"$m($mv) * $i"
         }
-      }.sorted.mkString(", ")
+      }.sorted.mkString(" + ")
 
   private[jc] def moleculeBagToString(inputs: InputMoleculeList): String =
     inputs.map {
       case (m, jmv) => s"$m($jmv)"
-    }.toSeq.sorted.mkString(", ")
+    }.toSeq.sorted.mkString(" + ")
 
   private[jc] val errorLog = new ConcurrentLinkedQueue[String]
 

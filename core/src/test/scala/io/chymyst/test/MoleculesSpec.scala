@@ -67,7 +67,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     Thread.sleep(100)
     d()
     g.timeout()(1.second) shouldEqual Some(())
-    a.logSoup shouldEqual "Site{a + bb + c + f/B => ...; d + g/B => ...}\nMolecules: a() * 2, bb()"
+    a.logSoup shouldEqual "Site{a + bb + c + f/B => ...; d + g/B => ...}\nMolecules: a() * 2 + bb()"
     c()
     f.timeout()(1.second) shouldEqual Some(())
     a.logSoup shouldEqual "Site{a + bb + c + f/B => ...; d + g/B => ...}\nMolecules: a()"
@@ -145,9 +145,9 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     val b = new M[Int]("b")
     val c = new M[Int]("c")
     site(tp0)(go { case a(x) + b(y) => c(x + y) }, go { case c(z) => waiter {
-      z shouldEqual 3;
+      z shouldEqual 3
       ()
-    };
+    }
       waiter.dismiss()
     })
     a(1)
@@ -280,7 +280,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
         go { case p(s) => s(123) }
       )
       p(c)
-//      if (i % 2 == 0) Thread.sleep(5)
+      //      if (i % 2 == 0) Thread.sleep(5)
       site(tp0)(
         go { case c(x) => r = x }
       )
