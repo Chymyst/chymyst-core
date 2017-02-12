@@ -154,7 +154,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       val thrown = intercept[Exception] {
         f()
       }
-      thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B()] finished without replying to f/B. Reported error: crash! ignore this exception"
+      thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception"
     }
     if (result.isFailure) println(s"Test failed with message: ${result.failed.get.getMessage}")
     result.get shouldEqual Succeeded
@@ -176,7 +176,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       val thrown = intercept[Exception] {
         f.timeout()(1.seconds)
       }
-      thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B()] finished without replying to f/B. Reported error: crash! ignore this exception"
+      thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception"
     }.get
   }
 

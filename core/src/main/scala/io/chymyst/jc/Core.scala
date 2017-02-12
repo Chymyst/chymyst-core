@@ -98,19 +98,25 @@ object Core {
 
   private[jc] def moleculeBagToString(mb: Map[Molecule, Map[AbsMolValue[_], Int]]): String =
     mb.toSeq
-      .map { case (m, vs) => (m.toString, vs) }
+      .map { case (mol, vs) => (s"$mol${pipelineSuffix(mol)}", vs) }
       .sortBy(_._1)
       .flatMap {
-        case (m, vs) => vs.map {
-          case (mv, 1) => s"$m($mv)"
-          case (mv, i) => s"$m($mv) * $i"
+        case (mol, vs) => vs.map {
+          case (mv, 1) => s"$mol($mv)"
+          case (mv, i) => s"$mol($mv) * $i"
         }
       }.sorted.mkString(" + ")
 
   private[jc] def moleculeBagToString(inputs: InputMoleculeList): String =
     inputs.map {
-      case (m, jmv) => s"$m($jmv)"
+      case (mol, jmv) => s"$mol${pipelineSuffix(mol)}($jmv)"
     }.toSeq.sorted.mkString(" + ")
+
+  private def pipelineSuffix(mol: Molecule): String =
+    if (mol.isPipelined)
+      "/P"
+    else
+      ""
 
   private[jc] val errorLog = new ConcurrentLinkedQueue[String]
 

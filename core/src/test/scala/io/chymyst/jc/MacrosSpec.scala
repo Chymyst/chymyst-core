@@ -418,7 +418,7 @@ behavior of "reaction sha1"
     a(Some(1))
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(1))"
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a/P(Some(1))"
     f.timeout()(2.second) shouldEqual Some(1)
     a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
   }
@@ -434,9 +434,9 @@ behavior of "reaction sha1"
     a(Some(1))
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(1))"
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a/P(Some(1))"
     f.timeout()(2.second) shouldEqual None
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(1))"
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a/P(Some(1))"
   }
 
   it should "not run a reaction whose cross-molecule guard is false" in {
@@ -484,7 +484,7 @@ behavior of "reaction sha1"
     c(123)
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + c + f/B => ...}\nMolecules: a(Some(1)) + c(123)"
+    a.logSoup shouldEqual "Site{a + c + f/B => ...}\nMolecules: a(Some(1)) + c/P(123)"
     f.timeout(0)(2.second) shouldEqual Some(124)
     a.logSoup shouldEqual "Site{a + c + f/B => ...}\nNo molecules"
   }
@@ -1038,7 +1038,7 @@ behavior of "reaction sha1"
     val expectedMessage = s"In Site{${dIncorrectStaticMol.name} + e => ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this thread does not run a chemical reaction"
     thrown.getMessage shouldEqual expectedMessage
     waitSome()
-    e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e => ...}\nMolecules: ${dIncorrectStaticMol.name}()"
+    e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e => ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
   }
 
   it should "refuse to emit static molecule from a reaction that did not consume it when this cannot be determined statically" in {
@@ -1054,7 +1054,7 @@ behavior of "reaction sha1"
 
     e(dIncorrectStaticMol)
     waitSome()
-    e.logSoup shouldEqual s"Site{c + ${dIncorrectStaticMol.name} => ...; e => ...}\nMolecules: ${dIncorrectStaticMol.name}()"
+    e.logSoup shouldEqual s"Site{c + ${dIncorrectStaticMol.name} => ...; e => ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
     globalErrorLog.exists(_.contains(s"In Site{c + ${dIncorrectStaticMol.name} => ...; e => ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this reaction {e(s) => } does not consume it")) shouldEqual true
   }
 
