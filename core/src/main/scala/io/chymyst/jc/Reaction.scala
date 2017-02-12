@@ -516,12 +516,12 @@ final class ReactionInfo(
   }
 
   // Optimization: this is used often.
-  private[jc] val inputMolecules: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
+  private[jc] val inputMoleculesSortedAlphabetically: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
 
-  private[jc] val inputMoleculesSet: Set[Molecule] = inputMolecules.toSet
+  private[jc] val inputMoleculesSet: Set[Molecule] = inputMoleculesSortedAlphabetically.toSet
 
   // The input pattern sequence is pre-sorted for further use.
-  private[jc] val inputsSorted: List[InputMoleculeInfo] =
+  private[jc] val inputsSortedByConstraintStrength: List[InputMoleculeInfo] =
     inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha, _) =>
       // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers.
       val patternPrecedence = flag match {
@@ -549,7 +549,7 @@ final class ReactionInfo(
 
   // This must be lazy because molecule.index is known late.
   private[jc] lazy val (inputsSortedIrrefutableGrouped, inputsSortedConditional) = {
-    val (inputsSortedIrrefutable, inputsSortedConditional) = inputsSorted.partition(_.flag.isIrrefutable)
+    val (inputsSortedIrrefutable, inputsSortedConditional) = inputsSortedByConstraintStrength.partition(_.flag.isIrrefutable)
     val inputsSortedIrrefutableGrouped =
       inputsSortedIrrefutable.sortedMapGroupBy(_.molecule.index, _.index)
         .map { case (i, is) ⇒ (i, is.toArray) }
@@ -581,7 +581,7 @@ final class ReactionInfo(
 
 
   override val toString: String = {
-    val inputsInfo = inputsSorted.map(_.toString).mkString(" + ")
+    val inputsInfo = inputsSortedByConstraintStrength.map(_.toString).mkString(" + ")
     val guardInfo = guardPresence match {
       case _
         if guardPresence.effectivelyAbsent =>
@@ -634,13 +634,13 @@ final case class Reaction(
   def noRetry: Reaction = copy(retry = false)
 
   // Optimization: this is used often.
-  private[jc] val inputMolecules: Seq[Molecule] = info.inputMolecules
+  private[jc] val inputMolecules: Seq[Molecule] = info.inputMoleculesSortedAlphabetically
 
   private[jc] val inputMoleculesSet: Set[Molecule] = info.inputMoleculesSet
 
   // This must be lazy because molecule indices are not known at `Reaction` construction time.
   private lazy val moleculeIndexRequiredCounts =
-    inputMoleculesSet.map { m ⇒ (m.index, inputMolecules.count(_ === m)) }.toMap
+    inputMoleculesSet.map { mol ⇒ (mol.index, inputMolecules.count(_ === mol)) }.toMap
 
   /** Convenience method for debugging.
     *
@@ -718,8 +718,8 @@ final case class Reaction(
               newValueOpt.nonEmpty
             } && {
               info.inputsSortedIrrefutableGrouped
-                .foreach { case (i, infos) ⇒
-                  val molValues = moleculesPresent(i).takeAny(moleculeIndexRequiredCounts(i))
+                .foreach { case (siteMolIndex, infos) ⇒
+                  val molValues = moleculesPresent(siteMolIndex).takeAny(moleculeIndexRequiredCounts(siteMolIndex))
                   infos.indices.foreach { idx ⇒ foundValues(infos(idx)) = molValues(idx) }
                 }
               true
@@ -734,7 +734,7 @@ final case class Reaction(
             type FoldType = (MolVals, BagMap)
 
             // TODO: only use the `flatMap-fold` separately for the clusters of interdependent molecules, not always for all molecules!
-            val found: Stream[MolVals] = info.inputsSorted // We go through all molecules in the order of decreasing strength of conditionals.
+            val found: Stream[MolVals] = info.inputsSortedByConstraintStrength // We go through all molecules in the order of decreasing strength of conditionals.
               .foldLeft[Stream[FoldType]](Stream[FoldType]((Map(), initRelevantMap))) { (prev, inputInfo) =>
               // In this `foldLeft` closure:
               // `prev` contains the molecule value assignments we have found so far (`prevValues`), as well as the map `prevRelevantMap` containing molecule values that would remain in the soup after these previous molecule values were removed.
@@ -786,7 +786,7 @@ final case class Reaction(
           }
 
         if (foundResult)
-          Some((this, Array.tabulate(foundValues.length)(i ⇒ (info.inputMolecules(i), foundValues(i)))))
+          Some((this, Array.tabulate(foundValues.length)(i ⇒ (info.inputs(i).molecule, foundValues(i)))))
         else
           None
       }

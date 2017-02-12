@@ -79,12 +79,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   @tailrec
   private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
-    if (logLevel > 3) println(s"Debug: In $this: deciding reactions for molecule $mol")
+    if (logLevel > 3) println(s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(bags)}]")
     val foundReactionAndInputs =
       bags.synchronized {
         // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
         val found: Option[(Reaction, InputMoleculeList)] = findReaction(mol)
-        found.foreach(_._2.foreach { case (k, v) => removeFromBag(k, v) })
+        found.foreach(_._2.foreach { case (k, v) =>
+          // This error indicates a bug in this code, which should already manifest itself in failing tests!
+          if (!removeFromBag(k, v)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $k($v) from its bag; molecule index ${k.index}, bag ${bags(k.index)}")
+        })
         found
       }
     // End of synchronized block.
@@ -99,17 +102,16 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           // In this case, we do not attempt to schedule a reaction. However, input molecules were consumed and not emitted again.
         } else {
           if (!Thread.currentThread().isInterrupted) {
-            lazy val startingReactionMessage = s"Debug: In $this: starting reaction {${reaction.info}} with inputs [${Core.moleculeBagToString(usedInputs)}] on reaction pool $poolForReaction while on site pool $sitePool"
-            if (logLevel > 1) println(startingReactionMessage)
+            if (logLevel > 1) println(s"Debug: In $this: starting reaction {${reaction.info}} with inputs [${Core.moleculeBagToString(usedInputs)}] on reaction pool $poolForReaction while on site pool $sitePool")
           }
-
-          lazy val moleculesRemainingMessage =
-            if (bags.forall(_.isEmpty))
-              noMoleculesRemainingMessage
-            else
-              s"Debug: In $this: remaining molecules [${moleculeBagToString(bags)}]"
-
-          if (logLevel > 2) println(moleculesRemainingMessage)
+          if (logLevel > 2) {
+            val moleculesRemainingMessage =
+              if (bags.forall(_.isEmpty))
+                noMoleculesRemainingMessage
+              else
+                s"Debug: In $this: remaining molecules [${moleculeBagToString(bags)}]"
+            println(moleculesRemainingMessage)
+          }
           // Schedule the reaction now. Provide reaction info to the thread.
           scheduleReaction(reaction, usedInputs, poolForReaction)
           decideReactionsForNewMolecule(mol) // Need to try running another reaction with the same molecule, if possible.
@@ -122,9 +124,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   }
 
-  lazy val noMoleculesRemainingMessage = s"Debug: In $this: no molecules remaining"
+  val noMoleculesRemainingMessage = s"Debug: In $this: no molecules remaining"
 
-  lazy val noReactionsStartedMessage = s"Debug: In $this: no reactions started"
+  val noReactionsStartedMessage = s"Debug: In $this: no reactions started"
 
   private def scheduleReaction(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit =
     poolForReaction.runClosure(runReaction(reaction, usedInputs, poolForReaction: Pool), reaction.newChymystThreadInfo)
@@ -252,7 +254,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private def findReaction(m: Molecule): Option[(Reaction, InputMoleculeList)] = {
-    consumingReactions(m.index).shuffle
+    consumingReactions(m.index).shuffle // The mutating shuffle is thread-safe because it is inside a `synchronized` block.
       // We only need to find one reaction whose input molecules are available. For this, we use the special `Core.findAfterMap`.
       .findAfterMap(_.findInputMolecules(m, bags))
   }
@@ -358,7 +360,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   private def addToBag(mol: Molecule, molValue: AbsMolValue[_]): Unit = bags(mol.index).add(molValue)
 
-  private def removeFromBag(mol: Molecule, molValue: AbsMolValue[_]): Unit = bags(mol.index).remove(molValue)
+  private def removeFromBag(mol: Molecule, molValue: AbsMolValue[_]): Boolean = bags(mol.index).remove(molValue)
 
   private[jc] def moleculeBagToString(bags: Array[MolValueBag[AbsMolValue[_]]]): String =
     Core.moleculeBagToString(bags.indices
