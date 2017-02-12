@@ -79,11 +79,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   @tailrec
   private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
+    // TODO: optimize: pre-fetch all counts for related molecules; also precompute all related molecules in ReactionSite
     if (logLevel > 3) println(s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(bags)}]")
     val foundReactionAndInputs =
       bags.synchronized {
+        // The optimization consists of fetching the largest count that we might need for any reaction; then takeAny(count).size does the right thing
+        val relatedMoleculeCounts = Array.tabulate[Int](bags.length)(i ⇒ bags(i).takeAny(maxRequiredMoleculeCount(i)).size)
         // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
-        val found: Option[(Reaction, InputMoleculeList)] = findReaction(mol)
+        val found: Option[(Reaction, InputMoleculeList)] = findReaction(mol, relatedMoleculeCounts)
         found.foreach(_._2.foreach { case (k, v) =>
           // This error indicates a bug in this code, which should already manifest itself in failing tests!
           if (!removeFromBag(k, v)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $k($v) from its bag; molecule index ${k.index}, bag ${bags(k.index)}")
@@ -134,7 +137,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def emissionRunnable(mol: Molecule): Runnable = new Runnable {
     override def run(): Unit = {
       val reactions = consumingReactions(mol.index)
-      reactions.synchronized { // The mutating shuffle is thread-safe because it is inside a `synchronized` block.
+      reactions.synchronized {
+        // The mutating shuffle is thread-safe because it is inside a `synchronized` block.
         arrayShuffleInPlace(reactions)
       }
       decideReactionsForNewMolecule(mol)
@@ -259,10 +263,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
   }
 
-  private def findReaction(m: Molecule): Option[(Reaction, InputMoleculeList)] = {
-    consumingReactions(m.index)
+  private def findReaction(mol: Molecule, molCounts: Array[Int]): Option[(Reaction, InputMoleculeList)] = {
+    consumingReactions(mol.index)
       // We only need to find one reaction whose input molecules are available. For this, we use the special `Core.findAfterMap`.
-      .findAfterMap(_.findInputMolecules(m, bags))
+      .findAfterMap(_.findInputMolecules(mol, molCounts, bags))
   }
 
   /** Check if the current thread is allowed to emit a static molecule.
@@ -461,8 +465,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           throw new ExceptionMoleculeAlreadyBound(s"Molecule $mol cannot be used as input in $this since it is already bound to $otherRS")
         case None => mol.setReactionSiteInfo(this, index, valType, pipelinedMolecules contains index)
       }
-
-      // Create the array of known reactions
     }
 
     // Add output reactions to molecules that may be bound to other reaction sites later.
@@ -472,6 +474,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // This set will be examined again when any molecule bound to this site is emitted, so that errors can be signalled as early as possible.
     unboundOutputMolecules = nonStaticReactions.flatMap(_.info.outputs.map(_.molecule)).toSet.filterNot(_.isBound)
+
+    // Precompute max required molecule counts in reactions.
+    maxRequiredMoleculeCount.indices.foreach { i ⇒
+      consumingReactions(i).foreach(_.inputMoleculesSortedAlphabetically.foreach(mol ⇒ maxRequiredMoleculeCount(mol.index) += 1))
+    }
 
     // Perform static analysis.
     val foundWarnings = findStaticMolWarnings(staticMolDeclared, nonStaticReactions) ++ findStaticWarnings(nonStaticReactions)
@@ -503,22 +510,27 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     diagnostics
   }
 
-  private val knownMolecules: Map[Molecule, (Int, Symbol)] = nonStaticReactions
-    .flatMap(_.inputMoleculesSortedAlphabetically)
-    .distinct // We only need to assign the owner on each distinct input molecule once.
-    .sortBy(_.name)
-    .zipWithIndex
-    .map { case (mol, index) ⇒
+  private val knownMolecules: Map[Molecule, (Int, Symbol)] = {
+    nonStaticReactions
+      .flatMap(_.inputMoleculesSortedAlphabetically)
+      .distinct // We only need to assign the owner on each distinct input molecule once.
+      .sortBy(_.name)
+      .zipWithIndex
+      .map { case (mol, index) ⇒
 
-      val valType = nonStaticReactions
-        .map(_.info.inputs)
-        .flatMap(_.find(_.molecule === mol))
-        .headOption
-        .map(_.valType)
-        .getOrElse("<unknown>".toScalaSymbol)
+        val valType = nonStaticReactions
+          .map(_.info.inputs)
+          .flatMap(_.find(_.molecule === mol))
+          .headOption
+          .map(_.valType)
+          .getOrElse("<unknown>".toScalaSymbol)
 
-      (mol, (index, valType))
-    }(scala.collection.breakOut)
+        (mol, (index, valType))
+      }(scala.collection.breakOut)
+  }
+
+  // This array will be filled at initialization time. The element at index i is the maximum number of copies of the molecule with site-wide index i that can be consumed by any reaction.
+  val maxRequiredMoleculeCount: Array[Int] = Array.fill(knownMolecules.size)(0)
 
   private def infosIfPipelined(i: Int): Option[Set[InputMoleculeInfo]] = {
     consumingReactions(i)
@@ -558,6 +570,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     */
   private val consumingReactions: Array[Array[Reaction]] = Array.tabulate(knownMolecules.size)(i ⇒ getConsumingReactions(moleculeAtIndex(i)))
+
+  // This must be lazy because it depends on site-wide molecule indices, which are known late.
+  // The inner array contains site-wide indices for reaction input molecules; the outer array is also indexed by site-wide molecule indices.
+//  private lazy val relatedMolecules: Array[Array[Int]] = Array.tabulate(knownMolecules.size)(i ⇒ consumingReactions(i).flatMap(_.inputMoleculesSet.map(_.index)).distinct)
 
   /** For each (site-wide) molecule index, the corresponding set of [[InputMoleculeInfo]]s contains only the infos with nontrivial conditions for the molecule value.
     *

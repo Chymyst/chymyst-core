@@ -131,8 +131,10 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
 
     val a = new M[Unit]("a")
     val b = new M[Unit]("b")
-    site(tp0)(go { case a(_) => b() }, go { case b(_) => waiter.dismiss() })
-
+    site(tp0)(
+      go { case a(_) => b() },
+      go { case b(_) => waiter.dismiss() }
+    )
     a()
     waiter.await()
   }

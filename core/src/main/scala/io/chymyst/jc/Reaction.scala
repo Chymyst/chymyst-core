@@ -518,15 +518,15 @@ final class ReactionInfo(
   private[jc] val crossConditionals: Set[Int] = repeatedCrossConstrainedMolecules
     .flatMap(_.map(_.index))
     .toSet
-/*
-  private[jc] val crossGroupsSortedByComplexityGain: Array[Array[InputMoleculeInfo]] = {
-    val indexGroupsSortedByLength = (crossGuards.map(_.indices) ++ repeatedCrossConstrainedMolecules.map(_.map(_.index))).sortBy(- _.length)
-    indexGroupsSortedByLength.headOption.map{ largest ⇒
-      // sort by the metric: the total number of common members with the largest group
-      // those groups that have no common members with the largest one should be sorted again recursively
+  /*
+    private[jc] val crossGroupsSortedByComplexityGain: Array[Array[InputMoleculeInfo]] = {
+      val indexGroupsSortedByLength = (crossGuards.map(_.indices) ++ repeatedCrossConstrainedMolecules.map(_.map(_.index))).sortBy(- _.length)
+      indexGroupsSortedByLength.headOption.map{ largest ⇒
+        // sort by the metric: the total number of common members with the largest group
+        // those groups that have no common members with the largest one should be sorted again recursively
+      }
     }
-  }
-*/
+  */
   // Optimization: this is used often.
   private[jc] val inputMoleculesSortedAlphabetically: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
 
@@ -684,7 +684,7 @@ final case class Reaction(
   type MolVals = Map[Int, AbsMolValue[_]]
 
   /** Find a set of input molecules for this reaction, among the present molecules. */
-  private[jc] def findInputMolecules(m: Molecule, moleculesPresent: MoleculeBagArray): Option[(Reaction, InputMoleculeList)] = {
+  private[jc] def findInputMolecules(mol: Molecule, molCounts: Array[Int], moleculesPresent: MoleculeBagArray): Option[(Reaction, InputMoleculeList)] = {
     // Evaluate the static guard first. If the static guard fails, we don't need to run the reaction or look for any input molecules.
     if (info.guardPresence.staticGuardFails)
       None
@@ -695,14 +695,8 @@ final case class Reaction(
 
       // First fetch all molecule counts for our candidate input molecules.
       // If any of the counts is less than required, we can return `None` immediately.
-
       if (moleculeIndexRequiredCounts.exists {
-        case (mIndex, count) ⇒
-          val molBag = moleculesPresent(mIndex)
-          if (count === 1)
-            molBag.isEmpty
-          else
-            molBag.takeAny(count).size < count
+        case (mIndex, count) ⇒ molCounts(mIndex) < count
       })
         None
       else {
@@ -740,7 +734,7 @@ final case class Reaction(
           } else {
             // Map of molecule values for molecules that are inputs to this reaction.
             val initRelevantMap: BagMap = inputMoleculesSet
-              .map(mol ⇒ (mol, moleculesPresent(mol.index).getCountMap))
+              .map(molecule ⇒ (molecule, moleculesPresent(molecule.index).getCountMap))
               .toMap
 
             type ValsMap = Map[AbsMolValue[_], Int]
