@@ -149,14 +149,14 @@ class MapReduceSpec extends FlatSpec with Matchers {
   }
 
   it should "correctly process concurrent counters" in {
-
+// Same logic as Benchmark 1 but designed to catch race conditions more quickly.
     def make_counter_1(done: M[Unit], counters: Int, init: Int, reactionPool: Pool, sitePool: Pool): B[Unit, Unit] = {
       val c = m[Int]
       val d = b[Unit, Unit]
 
       site(reactionPool, sitePool)(
         go { case c(0) ⇒ done() },
-        go { case c(n) + d(_, r) if n > 0 ⇒ c(n - 1); r() }
+        go { case c(x) + d(_, r) if x > 0 ⇒ c(x - 1); r() }
       )
       (1 to counters).foreach(_ ⇒ c(init))
       // We return just one molecule.
@@ -186,14 +186,17 @@ class MapReduceSpec extends FlatSpec with Matchers {
       val initialTime = LocalDateTime.now
       all_done(numberOfCounters)
       val d = make_counter_1(done, numberOfCounters, count, tp, tp1)
+      // emit a blocking molecule `d` many times
       (1 to (count * numberOfCounters)).foreach(_ ⇒ d())
       val result = f.timeout(initialTime)(2.second)
+      if (result.isEmpty) {
+        failures += 1
+        if (failures > 0) globalErrorLog.foreach(println)
+
+      }
+      failures shouldEqual 0
       tp1.shutdownNow()
       tp.shutdownNow()
-      if (result.isEmpty) {
-        println(s"Counter failure detected!\n   ${d.logSoup}\n   ${all_done.logSoup}\n")
-        failures += 1
-      }
     }
     (if (failures > 0) s"Detected $failures failures out of $n tries" else "OK") shouldEqual "OK"
   }

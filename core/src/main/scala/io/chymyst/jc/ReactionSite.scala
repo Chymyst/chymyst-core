@@ -76,6 +76,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private def decideReactionsForNewMolecule(m: Molecule): Unit = try {
+    lazy val decidingReactionsMessage = s"Debug: In $this: deciding reactions for molecule $m"
+    if (logLevel > 3) println(decidingReactionsMessage)
     val foundReactionAndInputs =
       bags.synchronized {
 
