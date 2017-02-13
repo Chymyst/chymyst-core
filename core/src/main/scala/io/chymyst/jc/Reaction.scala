@@ -533,7 +533,7 @@ final class ReactionInfo(
         }
         // Some groups have an intersection with the largest group, others don't.
         val (touched, untouched) = groups.partition(group ⇒ (largestGroup intersect group).nonEmpty)
-        val touchedSorted = touched.sortBy(arr ⇒ -arr.intersect(largestGroup).length / arr.length)
+        val touchedSorted = touched.sortBy(arr ⇒ (-arr.intersect(largestGroup).length / arr.length, arr.min, arr.max))
         if (untouched.isEmpty)
           result ++ touchedSorted
         else
