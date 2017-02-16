@@ -7,19 +7,15 @@ import scala.annotation.tailrec
   */
 object CrossGroupUtils {
 
-  def crossGroupsGrouped(allCrossGroups: Set[Set[Int]]): Array[(Set[Int], Array[Array[Int]])] = {
-    allCrossGroups.foldLeft((Set[Int](), IndexedSeq[Array[Int]](), Array[(Set[Int], Array[Array[Int]])]())) { case ((currentSet, currentGroups, currentResult), group) ⇒
-      if (currentSet.isEmpty) // we are at the very beginning of `foldLeft`
-        (group, IndexedSeq(group), currentResult)
-      else {
-        // If the new group does not intersect any of the sets so far, it's a new
+  def sortedConnectedSets(groupedSets: Array[(Set[Int], Array[Set[Int]])]): Array[(Set[Int], Array[Set[Int]])] =
+    groupedSets
+      .sortBy(_._1.size)
+      .map { case (s, a) ⇒
+        (s, a.sortBy { g ⇒ a.map(_ intersect g).map(_.size).sum })
       }
-      ???
-    }._3
-  }
 
   @tailrec
-  def groupConnectedSets(
+  private[jc] def groupConnectedSets(
     allGroups: Array[Set[Int]],
     result: Array[(Set[Int], Array[Set[Int]])] = Array()
   ): Array[(Set[Int], Array[Set[Int]])] = {
@@ -32,7 +28,7 @@ object CrossGroupUtils {
   }
 
   @tailrec
-  def findFirstConnectedGroupSet(
+  private[jc] def findFirstConnectedGroupSet(
     allGroups: Array[Set[Int]],
     currentSet: Set[Int] = Set(),
     result: Array[Set[Int]] = Array()
