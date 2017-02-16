@@ -2,7 +2,6 @@ package io.chymyst.jc
 
 import Core._
 
-import scala.annotation.tailrec
 import scala.{Symbol => ScalaSymbol}
 import scala.collection.mutable
 
@@ -521,28 +520,11 @@ final class ReactionInfo(
     .flatMap(_.map(_.index))
     .toSet
 
-  private[jc] val crossGroupsSortedByComplexityGain: Array[Array[Int]] = {
-    // sort by the metric: the total number of common members with the largest group
-    // those groups that have no common members with the largest one should be sorted again recursively
-    @tailrec
-    def sortByComplexityGain(result: Array[Array[Int]], groups: Array[Array[Int]]): Array[Array[Int]] = {
-      if (groups.isEmpty) groups
-      else {
-        val largestGroup = groups.foldLeft[Array[Int]](new Array(0)) { case (acc, group) ⇒
-          if (acc.length > group.length) acc else group
-        }
-        // Some groups have an intersection with the largest group, others don't.
-        val (touched, untouched) = groups.partition(group ⇒ (largestGroup intersect group).nonEmpty)
-        val touchedSorted = touched.sortBy(arr ⇒ (-arr.intersect(largestGroup).length / arr.length, arr.min, arr.max))
-        if (untouched.isEmpty)
-          result ++ touchedSorted
-        else
-          sortByComplexityGain(result ++ touchedSorted, untouched)
-      }
-    }
-    sortByComplexityGain(new Array(0), crossGuards.map(_.indices) ++ repeatedCrossConstrainedMolecules.map(_.map(_.index)))
-      .map(_.sorted)
-  }
+  private val allCrossGroups: Array[Set[Int]] = crossGuards.map(_.indices.toSet) ++ repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet)
+
+  /** The first integer is the number of cross-conditionals in which the molecule participates. The second is `true` when the molecule has its own conditional. */
+  private[jc] val moleculeWeights: Array[(Int, Boolean)] =
+    inputs.map(info ⇒ (allCrossGroups.map(_ intersect Set(info.index)).map(_.size).sum, !info.flag.isIrrefutable))
 
   // Optimization: this is used often.
   private[jc] val inputMoleculesSortedAlphabetically: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
@@ -669,7 +651,7 @@ final case class Reaction(
   private[jc] val inputMoleculesSet: Set[Molecule] = info.inputMoleculesSet
 
   // This must be lazy because molecule indices are not known at `Reaction` construction time.
-  private lazy val moleculeIndexRequiredCounts : Map[Int, Int] =
+  private lazy val moleculeIndexRequiredCounts: Map[Int, Int] =
     inputMoleculesSet.map { mol ⇒ (mol.index, inputMoleculesSortedAlphabetically.count(_ === mol)) }(scala.collection.breakOut)
 
   /** Convenience method for debugging.
