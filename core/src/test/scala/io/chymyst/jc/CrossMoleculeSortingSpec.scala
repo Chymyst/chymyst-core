@@ -3,7 +3,7 @@ package io.chymyst.jc
 import utest._
 import CrossMoleculeSorting._
 
-object CrossGroupUtilsSpec extends TestSuite {
+object CrossMoleculeSortingSpec extends TestSuite {
   val tests = this {
     val crossGroups1 = Array(Array(0, 1), Array(2, 3), Array(3, 4, 5), Array(0, 6), Array(6, 7)).map(_.toSet)
     val crossGroups2 = Array(Array(0, 1), Array(2, 3), Array(3, 4, 5), Array(0, 6), Array(6, 7), Array(7, 1)).map(_.toSet)
@@ -126,14 +126,13 @@ object CrossGroupUtilsSpec extends TestSuite {
 
       "from sorted connected sets" - {
         * - {
-          val result = getMoleculeSequence(Array(Set(0, 2), Set(0, 1), Set(3, 4)), moleculeWeightsIncr(5)).toList
+          val result = getMoleculeSequenceFromSorted(Array(Set(0, 2), Set(0, 1), Set(3, 4)), moleculeWeightsIncr(5)).toList
           assert(result == List(2, 0, 1, 4, 3))
         }
       }
 
       "from initial data" - {
-        def getMS(cg: Array[Set[Int]]): Array[Int] =
-          getMoleculeSequence(sortedConnectedSets(groupConnectedSets(cg)).flatMap(_._2), moleculeWeights(8))
+        def getMS(cg: Array[Set[Int]]): Array[Int] = getMoleculeSequence(cg, moleculeWeights(8))
 
         * - {
           val result = getMS(crossGroups1).toList

@@ -526,6 +526,8 @@ final class ReactionInfo(
   private[jc] val moleculeWeights: Array[(Int, Boolean)] =
     inputs.map(info ⇒ (allCrossGroups.map(_ intersect Set(info.index)).map(_.size).sum, !info.flag.isIrrefutable))
 
+  private[jc] val moleculeSequence: Array[Int] = CrossMoleculeSorting.getMoleculeSequenceFromSorted(allCrossGroups, moleculeWeights)
+
   // Optimization: this is used often.
   private[jc] val inputMoleculesSortedAlphabetically: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
 

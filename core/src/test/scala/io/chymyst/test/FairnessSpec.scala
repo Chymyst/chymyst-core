@@ -2,13 +2,9 @@ package io.chymyst.test
 
 import io.chymyst.jc._
 import Common._
-import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
-class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
-
-  val timeLimit = Span(5000, Millis)
+class FairnessSpec extends FlatSpec with Matchers {
 
   behavior of "reaction site"
 
@@ -21,7 +17,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "implement fairness across reactions" in {
     (1 to 10).map { _ =>
       val reactions = 4
-      val N = 2000
+      val N = 200
 
       val c = m[(Int, Array[Int])]
       val done = m[Array[Int]]
@@ -40,30 +36,39 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
         go {
           case a0(_) + c((n, arr)) => if (n > 0) {
             arr(0) += 1
-            c((n - 1, arr)) + a0()
+            c((n - 1, arr))
+            Thread.sleep(10)
+            a0()
           } else done(arr)
         },
         go {
           case a1(_) + c((n, arr)) => if (n > 0) {
             arr(1) += 1
-            c((n - 1, arr)) + a1()
+            c((n - 1, arr))
+            Thread.sleep(10)
+            a1()
           } else done(arr)
         },
         go {
           case a2(_) + c((n, arr)) => if (n > 0) {
             arr(2) += 1
-            c((n - 1, arr)) + a2()
+            c((n - 1, arr))
+            Thread.sleep(10)
+            a2()
           } else done(arr)
         },
         go {
           case a3(_) + c((n, arr)) => if (n > 0) {
             arr(3) += 1
-            c((n - 1, arr)) + a3()
+            c((n - 1, arr))
+            Thread.sleep(10)
+            a3()
           } else done(arr)
         }
       )
 
       a0() + a1() + a2() + a3()
+      Thread.sleep(10)
       c((N, Array.fill[Int](reactions)(0)))
 
       val result = getC()
