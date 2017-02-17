@@ -1,7 +1,7 @@
 package io.chymyst.jc
 
 import utest._
-import CrossGroupUtils._
+import CrossMoleculeSorting._
 
 object CrossGroupUtilsSpec extends TestSuite {
   val tests = this {
@@ -104,7 +104,7 @@ object CrossGroupUtilsSpec extends TestSuite {
         assert(
           result.length == 2,
           result(0)._1 == Set(0, 1, 6, 7),
-          result(0)._2 sameElements Array(Set(0, 1), Set(0, 6), Set(7, 1), Set(6, 7)),
+          result(0)._2 sameElements Array(Set(0, 6), Set(7, 1), Set(6, 7), Set(0, 1)),
           result(1)._1 == Set(2, 3, 4, 5),
           result(1)._2 sameElements Array(Set(2, 3), Set(3, 4, 5))
         )
@@ -114,9 +114,48 @@ object CrossGroupUtilsSpec extends TestSuite {
         assert(
           result.length == 1,
           result(0)._1 == Set(0, 1, 2, 3, 4, 5, 6, 7),
-          result(0)._2 sameElements Array(Set(0, 1), Set(0, 6), Set(6, 7), Set(7, 2), Set(2, 3), Set(3, 4, 5))
+          result(0)._2 sameElements Array(Set(2, 3), Set(3, 4, 5), Set(6, 7), Set(7, 2), Set(0, 1), Set(0, 6))
         )
       }
     }
+    "get the molecule sequence" - {
+
+      def moleculeWeights(n: Int) = Array.tabulate[(Int, Boolean)](n)(i ⇒ (1, false))
+
+      def moleculeWeightsIncr(n: Int) = Array.tabulate[(Int, Boolean)](n)(i ⇒ (i, false))
+
+      "from sorted connected sets" - {
+        * - {
+          val result = getMoleculeSequence(Array(Set(0, 2), Set(0, 1), Set(3, 4)), moleculeWeightsIncr(5)).toList
+          assert(result == List(2, 0, 1, 4, 3))
+        }
+      }
+
+      "from initial data" - {
+        def getMS(cg: Array[Set[Int]]): Array[Int] =
+          getMoleculeSequence(sortedConnectedSets(groupConnectedSets(cg)).flatMap(_._2), moleculeWeights(8))
+
+        * - {
+          val result = getMS(crossGroups1).toList
+          assert(
+            result == List(0, 1, 6, 7, 2, 3, 4, 5)
+          )
+        }
+        * - {
+          val result = getMS(crossGroups2).toList
+          assert(
+            result == List(0, 6, 7, 1, 2, 3, 4, 5)
+          )
+        }
+        * - {
+          val result = getMS(crossGroups3).toList
+          assert(
+            result == List(2, 3, 4, 5, 6, 7, 0, 1)
+          )
+        }
+      }
+
+    }
+
   }
 }
