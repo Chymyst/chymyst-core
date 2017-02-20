@@ -91,12 +91,13 @@ object CrossMoleculeSortingSpec extends TestSuite {
     "sort the connected subsets" - {
       * - {
         val result = sortedConnectedSets(groupConnectedSets(crossGroups1))
+        println(result(0)._2.toList)
         assert(
           result.length == 2,
           result(0)._1 == Set(0, 1, 6, 7),
-          result(0)._2 sameElements Array(Set(0, 1), Set(6, 7), Set(0, 6)),
+          result(0)._2 sameElements Array(Set(0, 6), Set(0, 1), Set(6, 7)),
           result(1)._1 == Set(2, 3, 4, 5),
-          result(1)._2 sameElements Array(Set(2, 3), Set(3, 4, 5))
+          result(1)._2 sameElements Array(Set(3, 4, 5), Set(2, 3))
         )
       }
       * - {
@@ -104,9 +105,9 @@ object CrossMoleculeSortingSpec extends TestSuite {
         assert(
           result.length == 2,
           result(0)._1 == Set(0, 1, 6, 7),
-          result(0)._2 sameElements Array(Set(0, 6), Set(7, 1), Set(6, 7), Set(0, 1)),
+          result(0)._2 sameElements Array(Set(6, 7), Set(0, 6), Set(7, 1), Set(0, 1)),
           result(1)._1 == Set(2, 3, 4, 5),
-          result(1)._2 sameElements Array(Set(2, 3), Set(3, 4, 5))
+          result(1)._2 sameElements Array(Set(3, 4, 5), Set(2, 3))
         )
       }
       * - {
@@ -114,7 +115,7 @@ object CrossMoleculeSortingSpec extends TestSuite {
         assert(
           result.length == 1,
           result(0)._1 == Set(0, 1, 2, 3, 4, 5, 6, 7),
-          result(0)._2 sameElements Array(Set(2, 3), Set(3, 4, 5), Set(6, 7), Set(7, 2), Set(0, 1), Set(0, 6))
+          result(0)._2 sameElements Array(Set(3, 4, 5), Set(2, 3), Set(7, 2), Set(6, 7), Set(0, 6), Set(0, 1))
         )
       }
     }
@@ -122,7 +123,7 @@ object CrossMoleculeSortingSpec extends TestSuite {
 
       def moleculeWeights(n: Int) = Array.tabulate[(Int, Boolean)](n)(i ⇒ (1, false))
 
-      def moleculeWeightsIncr(n: Int) = Array.tabulate[(Int, Boolean)](n)(i ⇒ (i, false))
+      def moleculeWeightsIncr(n: Int) = Array.tabulate[(Int, Boolean)](n)(i ⇒ (-i, false))
 
       "from sorted connected sets" - {
         * - {
@@ -137,19 +138,19 @@ object CrossMoleculeSortingSpec extends TestSuite {
         * - {
           val result = getMS(crossGroups1).toList
           assert(
-            result == List(0, 1, 6, 7, 2, 3, 4, 5)
+            result == List(0, 6, 1, 7, 3, 4, 5, 2)
           )
         }
         * - {
           val result = getMS(crossGroups2).toList
           assert(
-            result == List(0, 6, 7, 1, 2, 3, 4, 5)
+            result == List(6, 7, 0, 1, 3, 4, 5, 2)
           )
         }
         * - {
           val result = getMS(crossGroups3).toList
           assert(
-            result == List(2, 3, 4, 5, 6, 7, 0, 1)
+            result == List(3, 4, 5, 2, 7, 6, 0, 1)
           )
         }
       }

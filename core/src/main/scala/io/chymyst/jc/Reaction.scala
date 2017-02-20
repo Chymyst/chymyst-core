@@ -465,9 +465,9 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType,
   * @param reactionString String representation of the reaction, used for error messages.
   */
 final class ChymystThreadInfo(
-                               statics: Set[Molecule] = Set(),
-                               reactionString: String = "<no reaction>"
-                             ) {
+  statics: Set[Molecule] = Set(),
+  reactionString: String = "<no reaction>"
+) {
   override val toString: String = reactionString
 
   private[jc] val maybeEmit: Molecule => Boolean = {
@@ -481,12 +481,12 @@ final class ChymystThreadInfo(
 
 // This class is immutable.
 final class ReactionInfo(
-                          private[jc] val inputs: Array[InputMoleculeInfo],
-                          private[jc] val outputs: Array[OutputMoleculeInfo],
-                          private[jc] val shrunkOutputs: Array[OutputMoleculeInfo],
-                          private[jc] val guardPresence: GuardPresenceFlag,
-                          private[jc] val sha1: String
-                        ) {
+  private[jc] val inputs: Array[InputMoleculeInfo],
+  private[jc] val outputs: Array[OutputMoleculeInfo],
+  private[jc] val shrunkOutputs: Array[OutputMoleculeInfo],
+  private[jc] val guardPresence: GuardPresenceFlag,
+  private[jc] val sha1: String
+) {
   // This should be lazy because molecule.isStatic is known late.
   private[jc] lazy val staticMols: Set[Molecule] = inputs.map(_.molecule).filter(_.isStatic).toSet
 
@@ -524,16 +524,20 @@ final class ReactionInfo(
 
   /** The first integer is the number of cross-conditionals in which the molecule participates. The second is `true` when the molecule has its own conditional. */
   private[jc] val moleculeWeights: Array[(Int, Boolean)] =
-    inputs.map(info ⇒ (allCrossGroups.map(_ intersect Set(info.index)).map(_.size).sum, !info.flag.isIrrefutable))
+    inputs.map(info ⇒ (-allCrossGroups.map(_ intersect Set(info.index)).map(_.size).sum, info.flag.isIrrefutable))
 
-  private[jc] val moleculeSequence: Array[Int] = CrossMoleculeSorting.getMoleculeSequenceFromSorted(allCrossGroups, moleculeWeights)
+  private[jc] val moleculeIndexSequenceForSearchDSL: Array[Int] = {
+    val crossConstrainedMols = CrossMoleculeSorting.getMoleculeSequenceFromSorted(allCrossGroups, moleculeWeights)
+    val independentMols = inputs.indices.toArray.diff(crossConstrainedMols).sortBy(i ⇒ moleculeWeights(i))
+    crossConstrainedMols ++ independentMols
+  }
 
   // Optimization: this is used often.
   private[jc] val inputMoleculesSortedAlphabetically: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
 
   private[jc] val inputMoleculesSet: Set[Molecule] = inputMoleculesSortedAlphabetically.toSet
 
-  // The input pattern sequence is pre-sorted for further use.
+  // The input pattern sequence is pre-sorted by descending strength of constraint -- for pretty-printing as well as for use in static analysis.
   private[jc] val inputsSortedByConstraintStrength: List[InputMoleculeInfo] = {
     inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha, _) =>
       // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers.
@@ -618,11 +622,11 @@ final class ReactionInfo(
   * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is false.
   */
 final case class Reaction(
-                           private[jc] val info: ReactionInfo,
-                           private[jc] val body: ReactionBody,
-                           threadPool: Option[Pool],
-                           private[jc] val retry: Boolean
-                         ) {
+  private[jc] val info: ReactionInfo,
+  private[jc] val body: ReactionBody,
+  threadPool: Option[Pool],
+  private[jc] val retry: Boolean
+) {
   private[jc] def newChymystThreadInfo = new ChymystThreadInfo(info.staticMols, info.toString)
 
   /** Convenience method to specify thread pools per reaction.
@@ -752,9 +756,6 @@ final case class Reaction(
                   val valuesMap: ValsMap = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
                   val newFound = for {
                     newMolValue <-
-                    // This does not work... not sure why.
-                    //if (inputInfo.molecule === m) Some(molValue).toStream // In this case, we need to use the given value, which is guaranteed to be in the value map.
-                    //              else
                     if (inputInfo.molecule.isPipelined)
                       moleculesPresent(inputInfo.molecule.index).takeOne.toStream
                     //                      else if (inputInfo.flag.isIrrefutable && info.independentInputMolecules.contains(inputInfo.index))

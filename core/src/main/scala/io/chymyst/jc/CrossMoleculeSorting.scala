@@ -15,7 +15,7 @@ private[jc] object CrossMoleculeSorting {
 
   private[jc] def getMoleculeSequenceFromSorted(sortedSets: Coll[Set[Int]], moleculeWeights: Coll[(Int, Boolean)]): Coll[Int] =
     sortedSets
-      .flatMap { group ⇒ group.toArray.sortBy { i ⇒ (-moleculeWeights(i)._1, moleculeWeights(i)._2) } }
+      .flatMap(_.toArray.sortBy(i ⇒ moleculeWeights(i)))
       .distinct
 
   @tailrec
@@ -25,7 +25,7 @@ private[jc] object CrossMoleculeSorting {
         result
       case Some(largest) ⇒
         val (connected, nonConnected) = connectedSets.partition(_.exists(largest.contains))
-        sortConnectedSets(nonConnected, result ++ connected)
+        sortConnectedSets(nonConnected, result ++ connected.sortBy(g ⇒ (-(largest intersect g).size, g.min, g.max)))
     }
   }
 
@@ -73,3 +73,15 @@ private[jc] object CrossMoleculeSorting {
   }
 
 }
+
+private[jc] sealed trait SearchDSL
+
+private[jc] final case class ChooseMol(i: Int) extends SearchDSL
+
+private[jc] final case class ConstrainGuard(i: Int) extends SearchDSL
+
+private[jc] case object CloseGroup extends SearchDSL
+
+private[jc] final case class ChooseMolAndclose(i: Int) extends SearchDSL
+
+private[jc] final case class ConstrainGuardAndClose(i: Int) extends SearchDSL
