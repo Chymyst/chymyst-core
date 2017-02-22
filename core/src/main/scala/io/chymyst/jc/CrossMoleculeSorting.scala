@@ -10,16 +10,8 @@ private[jc] object CrossMoleculeSorting {
   private[jc] type Coll[T] = Array[T] // This type can be easily changed to another ordered collection such as `IndexedSeq` if that proves to be better.
   // There are only a few usages of Array() and Array(x) below.
 
-  private[jc] def getMoleculeSequence(crossGroups: Coll[Set[Int]], moleculeWeights: Coll[(Int, Boolean)]): Coll[Int] =
-    getMoleculeSequenceFromSorted(sortedConnectedSets(groupConnectedSets(crossGroups)).flatMap(_._2), moleculeWeights)
-
-  private[jc] def getMoleculeSequenceFromSorted(sortedSets: Coll[Set[Int]], moleculeWeights: Coll[(Int, Boolean)]): Coll[Int] =
-    sortedSets
-      .flatMap(_.toArray.sortBy(i ⇒ moleculeWeights(i)))
-      .distinct
-
   @tailrec
-  private[jc] def sortConnectedSets(connectedSets: Coll[Set[Int]], result: Coll[Set[Int]] = Array()): Coll[Set[Int]] = {
+  private def sortConnectedSets(connectedSets: Coll[Set[Int]], result: Coll[Set[Int]] = Array()): Coll[Set[Int]] = {
     connectedSets.lastOption match {
       case None ⇒
         result
@@ -72,6 +64,35 @@ private[jc] object CrossMoleculeSorting {
     }
   }
 
+  private[jc] def getDSLProgram(
+    crossGroups: Coll[Set[Int]],
+    repeatedMols: IndexedSeq[IndexedSeq[Int]],
+    independentMols: Coll[Int],
+    moleculeWeights: Coll[(Int, Boolean)]
+  ): IndexedSeq[SearchDSL] = {
+    def crossGroupsIndexed: Coll[(Set[Int], Int)] = crossGroups.zipWithIndex
+
+    def getDSLProgramForCrossGroup(groups: Coll[Coll[Int]]): IndexedSeq[SearchDSL] = {
+      groups.flatMap { group ⇒
+        val guardConditionIndex = crossGroupsIndexed
+          .filter(_._1 equals group.toSet)
+          .map(_._2)
+        group.map(ChooseMol) ++ guardConditionIndex.map(ConstrainGuard)
+      }.distinct :+ CloseGroup
+    }
+
+    def getDSLProgramForRepeatedMols(repeatedMolGroup: IndexedSeq[Int]): IndexedSeq[SearchDSL] = {
+      repeatedMolGroup.map(ChooseMol) :+ CloseGroup
+    }
+
+    val sortedCrossGroups: Coll[Coll[Coll[Int]]] = sortedConnectedSets(groupConnectedSets(crossGroups))
+      .map(_._2.map(_.toArray.sortBy(moleculeWeights.apply))) // each cross-guard set needs to be sorted by molecule weight
+
+    sortedCrossGroups.flatMap(getDSLProgramForCrossGroup) ++
+      repeatedMols.flatMap(getDSLProgramForRepeatedMols) ++
+      independentMols.map(ChooseMolAndClose)
+  }
+
 }
 
 private[jc] sealed trait SearchDSL
@@ -82,6 +103,4 @@ private[jc] final case class ConstrainGuard(i: Int) extends SearchDSL
 
 private[jc] case object CloseGroup extends SearchDSL
 
-private[jc] final case class ChooseMolAndclose(i: Int) extends SearchDSL
-
-private[jc] final case class ConstrainGuardAndClose(i: Int) extends SearchDSL
+private[jc] final case class ChooseMolAndClose(i: Int) extends SearchDSL

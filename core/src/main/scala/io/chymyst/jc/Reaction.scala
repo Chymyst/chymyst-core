@@ -522,15 +522,38 @@ final class ReactionInfo(
 
   private val allCrossGroups: Array[Set[Int]] = crossGuards.map(_.indices.toSet) ++ repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet)
 
+  /** Check whether the molecule given by inputInfo has no cross-dependencies, including cross-conditionals implied by a repeated input molecule.
+    */
+  private[jc] val independentInputMolecules: Set[Int] =
+    inputs.map(_.index)
+      .filter(index ⇒ !crossConditionals.contains(index) && crossGuards.forall {
+        case CrossMoleculeGuard(indices, _, _) ⇒
+          !indices.contains(index)
+      })
+      .toSet
+
   /** The first integer is the number of cross-conditionals in which the molecule participates. The second is `true` when the molecule has its own conditional. */
   private[jc] val moleculeWeights: Array[(Int, Boolean)] =
     inputs.map(info ⇒ (-allCrossGroups.map(_ intersect Set(info.index)).map(_.size).sum, info.flag.isIrrefutable))
+  /*
+    private val sortedConnectedSets: Array[(Set[Int], Array[Set[Int]])] = CrossMoleculeSorting.getSortedConnectedSets(allCrossGroups)
 
-  private[jc] val moleculeIndexSequenceForSearchDSL: Array[Int] = {
-    val crossConstrainedMols = CrossMoleculeSorting.getMoleculeSequenceFromSorted(allCrossGroups, moleculeWeights)
-    val independentMols = inputs.indices.toArray.diff(crossConstrainedMols).sortBy(i ⇒ moleculeWeights(i))
-    crossConstrainedMols ++ independentMols
-  }
+    private val sortedConnectedGroups: Set[Set[Int]] = sortedConnectedSets.map(_._1).toSet
+
+    // Refactor so that the set structure is used directly to output a sequence of DSL instructions, rather than sequence of molecule indices.
+    private val moleculeIndexSequenceForSearchDSL: Array[Int] = {
+      val crossConstrainedMols = CrossMoleculeSorting.getMoleculeSequence(sortedConnectedSets, moleculeWeights)
+      val independentMols = inputs.indices.toArray.diff(crossConstrainedMols).sortBy(i ⇒ moleculeWeights(i))
+      crossConstrainedMols ++ independentMols
+    }
+
+  */
+  private[jc] val searchDSLProgram = CrossMoleculeSorting.getDSLProgram(
+    crossGuards.map(_.indices.toSet),
+    repeatedCrossConstrainedMolecules.map(_.map(_.index).toIndexedSeq).toIndexedSeq,
+    independentInputMolecules.toArray.sortBy(moleculeWeights.apply),
+    moleculeWeights
+  )
 
   // Optimization: this is used often.
   private[jc] val inputMoleculesSortedAlphabetically: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
@@ -586,17 +609,6 @@ final class ReactionInfo(
       case _ => Array[Int]()
     }
   */
-
-  /** Check whether the molecule given by inputInfo has no cross-dependencies, including cross-conditionals implied by a repeated input molecule.
-    */
-  private[jc] val independentInputMolecules: Set[Int] =
-    inputs.map(_.index)
-      .filter(index ⇒ !crossConditionals.contains(index) && crossGuards.forall {
-        case CrossMoleculeGuard(indices, _, _) ⇒
-          !indices.contains(index)
-      })
-      .toSet
-
 
   override val toString: String = {
     val inputsInfo = inputsSortedByConstraintStrength.map(_.toString).mkString(" + ")

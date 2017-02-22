@@ -2,7 +2,7 @@
 
 # Version history
 
-- 0.1.8 "Singleton" molecules and reactions are now called "static", which is more accurate. Added more examples, including a fully concurrent Game of Life. Some optimizations in the reaction scheduler.
+- 0.1.8 "Singleton" molecules and reactions are now called "static", which is more accurate. Added more examples, including a fully concurrent Game of Life. Some optimizations in the reaction scheduler. Support for pipelined molecules (an automatic optimization).
 
 - 0.1.7 New compile-time restrictions, towards guaranteeing single reply for blocking molecules. It is now not allowed to call blocking molecules inside loops, or to emit replies in any non-linear code context (such as, under a closure or in a loop). Change of artifact package from `code.chymyst` to `io.chymyst`. This version is the first one published on Sonatype Maven repository. 
 
