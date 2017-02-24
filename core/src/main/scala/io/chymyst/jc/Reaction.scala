@@ -550,7 +550,7 @@ final class ReactionInfo(
   */
   private[jc] val searchDSLProgram = CrossMoleculeSorting.getDSLProgram(
     crossGuards.map(_.indices.toSet),
-    repeatedCrossConstrainedMolecules.map(_.map(_.index).toIndexedSeq).toIndexedSeq,
+    repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet),
     independentInputMolecules.toArray.sortBy(moleculeWeights.apply),
     moleculeWeights
   )

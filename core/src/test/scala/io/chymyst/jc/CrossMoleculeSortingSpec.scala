@@ -1,7 +1,7 @@
 package io.chymyst.jc
 
 import utest._
-import CrossMoleculeSorting._
+import CrossMoleculeSorting.{findFirstConnectedGroupSet, groupConnectedSets, sortedConnectedSets, getDSLProgram, Coll}
 
 object CrossMoleculeSortingSpec extends TestSuite {
   val tests = this {
@@ -131,7 +131,7 @@ object CrossMoleculeSortingSpec extends TestSuite {
       }
 
       def getDSL(cg: Array[Set[Int]], mw: Array[(Int, Boolean)]): List[SearchDSL] =
-        getDSLProgram(cg, IndexedSeq(), Array(), mw).toList
+        getDSLProgram(cg, Array(), Array(), mw).toList
 
       "with monotonic molecule weights" - {
         * - {
