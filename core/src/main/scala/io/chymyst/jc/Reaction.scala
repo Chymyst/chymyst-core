@@ -1,6 +1,7 @@
 package io.chymyst.jc
 
 import Core._
+
 import scala.{Symbol => ScalaSymbol}
 import scala.collection.mutable
 
@@ -178,7 +179,7 @@ private[jc] object OutputEnvironment {
                 val (othersRemaining, newFlag) = acc
                 val found = othersRemaining.find {
                   case (t, _, List(ChooserBlock(_, `newClause`, `total`))) =>
-                    true;
+                    true
                   case _ =>
                     false
                 }
@@ -464,9 +465,9 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType,
   * @param reactionString String representation of the reaction, used for error messages.
   */
 final class ChymystThreadInfo(
-                               statics: Set[Molecule] = Set(),
-                               reactionString: String = "<no reaction>"
-                             ) {
+  statics: Set[Molecule] = Set(),
+  reactionString: String = "<no reaction>"
+) {
   override val toString: String = reactionString
 
   private[jc] val maybeEmit: Molecule => Boolean = {
@@ -480,14 +481,14 @@ final class ChymystThreadInfo(
 
 // This class is immutable.
 final class ReactionInfo(
-                          private[jc] val inputs: Array[InputMoleculeInfo],
-                          private[jc] val outputs: Array[OutputMoleculeInfo],
-                          private[jc] val shrunkOutputs: Array[OutputMoleculeInfo],
-                          private[jc] val guardPresence: GuardPresenceFlag,
-                          private[jc] val sha1: String
-                        ) {
+  private[jc] val inputs: Array[InputMoleculeInfo],
+  private[jc] val outputs: Array[OutputMoleculeInfo],
+  private[jc] val shrunkOutputs: Array[OutputMoleculeInfo],
+  private[jc] val guardPresence: GuardPresenceFlag,
+  private[jc] val sha1: String
+) {
   // This should be lazy because molecule.isStatic is known late.
-  private[jc] lazy val staticMols = inputs.map(_.molecule).filter(_.isStatic).toSet
+  private[jc] lazy val staticMols: Set[Molecule] = inputs.map(_.molecule).filter(_.isStatic).toSet
 
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
@@ -497,31 +498,70 @@ final class ReactionInfo(
       Array[CrossMoleculeGuard]()
   }
 
+  /** This array is either empty or contains several arrays, each of length at least 2. */
+  private val repeatedCrossConstrainedMolecules: Array[Array[InputMoleculeInfo]] = {
+    inputs
+      .groupBy(_.molecule)
+      .filter(_._2.length >= 2)
+      .values
+      .filter { repeatedInput ⇒
+        crossGuards.exists { guard ⇒
+          (guard.indices intersect repeatedInput.map(_.index)).nonEmpty
+        } ||
+          repeatedInput.exists { info ⇒ !info.flag.isIrrefutable }
+      }
+      .toArray
+  }
+
   /** Cross-conditionals are repeated input molecules, such that one of them has a conditional or participates in a cross-molecule guard.
     * This value holds the set of indices for all such molecules, for quick access.
     */
-  private[jc] val crossConditionals: Set[Int] = {
-    inputs
-      .groupBy(_.molecule)
-      .filter(_._2.length > 1)
-      .values
-      .filter { repeatedInput =>
-        crossGuards.exists { guard =>
-          (guard.indices intersect repeatedInput.map(_.index)).nonEmpty
-        } ||
-          repeatedInput.exists { info => !info.flag.isIrrefutable }
-      }
-      .flatMap(_.map(_.index))
+  private[jc] val crossConditionals: Set[Int] = repeatedCrossConstrainedMolecules
+    .flatMap(_.map(_.index))
+    .toSet
+
+  private val allCrossGroups: Array[Set[Int]] = crossGuards.map(_.indices.toSet) ++ repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet)
+
+  /** Check whether the molecule given by inputInfo has no cross-dependencies, including cross-conditionals implied by a repeated input molecule.
+    */
+  private[jc] val independentInputMolecules: Set[Int] =
+    inputs.map(_.index)
+      .filter(index ⇒ !crossConditionals.contains(index) && crossGuards.forall {
+        case CrossMoleculeGuard(indices, _, _) ⇒
+          !indices.contains(index)
+      })
       .toSet
-  }
+
+  /** The first integer is the number of cross-conditionals in which the molecule participates. The second is `true` when the molecule has its own conditional. */
+  private[jc] val moleculeWeights: Array[(Int, Boolean)] =
+    inputs.map(info ⇒ (-allCrossGroups.map(_ intersect Set(info.index)).map(_.size).sum, info.flag.isIrrefutable))
+  /*
+    private val sortedConnectedSets: Array[(Set[Int], Array[Set[Int]])] = CrossMoleculeSorting.getSortedConnectedSets(allCrossGroups)
+
+    private val sortedConnectedGroups: Set[Set[Int]] = sortedConnectedSets.map(_._1).toSet
+
+    // Refactor so that the set structure is used directly to output a sequence of DSL instructions, rather than sequence of molecule indices.
+    private val moleculeIndexSequenceForSearchDSL: Array[Int] = {
+      val crossConstrainedMols = CrossMoleculeSorting.getMoleculeSequence(sortedConnectedSets, moleculeWeights)
+      val independentMols = inputs.indices.toArray.diff(crossConstrainedMols).sortBy(i ⇒ moleculeWeights(i))
+      crossConstrainedMols ++ independentMols
+    }
+
+  */
+  private[jc] val searchDSLProgram = CrossMoleculeSorting.getDSLProgram(
+    crossGuards.map(_.indices.toSet),
+    repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet),
+    independentInputMolecules.toArray.sortBy(moleculeWeights.apply),
+    moleculeWeights
+  )
 
   // Optimization: this is used often.
-  private[jc] val inputMolecules: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
+  private[jc] val inputMoleculesSortedAlphabetically: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
 
-  private[jc] val inputMoleculesSet: Set[Molecule] = inputMolecules.toSet
+  private[jc] val inputMoleculesSet: Set[Molecule] = inputMoleculesSortedAlphabetically.toSet
 
-  // The input pattern sequence is pre-sorted for further use.
-  private[jc] val inputsSorted: List[InputMoleculeInfo] =
+  // The input pattern sequence is pre-sorted by descending strength of constraint -- for pretty-printing as well as for use in static analysis.
+  private[jc] val inputsSortedByConstraintStrength: List[InputMoleculeInfo] = {
     inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha, _) =>
       // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers.
       val patternPrecedence = flag match {
@@ -546,10 +586,11 @@ final class ReactionInfo(
       }
       (mol.toString, patternPrecedence, molValueString, sha)
     }.toList
+  }
 
   // This must be lazy because molecule.index is known late.
   private[jc] lazy val (inputsSortedIrrefutableGrouped, inputsSortedConditional) = {
-    val (inputsSortedIrrefutable, inputsSortedConditional) = inputsSorted.partition(_.flag.isIrrefutable)
+    val (inputsSortedIrrefutable, inputsSortedConditional) = inputsSortedByConstraintStrength.partition(_.flag.isIrrefutable)
     val inputsSortedIrrefutableGrouped =
       inputsSortedIrrefutable.sortedMapGroupBy(_.molecule.index, _.index)
         .map { case (i, is) ⇒ (i, is.toArray) }
@@ -569,19 +610,8 @@ final class ReactionInfo(
     }
   */
 
-  /** Check whether the molecule given by inputInfo has no cross-dependencies, including cross-conditionals implied by a repeated input molecule.
-    */
-  private[jc] val independentInputMolecules: Set[Int] =
-    inputs.map(_.index)
-      .filter(index ⇒ !crossConditionals.contains(index) && crossGuards.forall {
-        case CrossMoleculeGuard(indices, _, _) ⇒
-          !indices.contains(index)
-      })
-      .toSet
-
-
   override val toString: String = {
-    val inputsInfo = inputsSorted.map(_.toString).mkString(" + ")
+    val inputsInfo = inputsSortedByConstraintStrength.map(_.toString).mkString(" + ")
     val guardInfo = guardPresence match {
       case _
         if guardPresence.effectivelyAbsent =>
@@ -604,11 +634,11 @@ final class ReactionInfo(
   * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is false.
   */
 final case class Reaction(
-                           private[jc] val info: ReactionInfo,
-                           private[jc] val body: ReactionBody,
-                           threadPool: Option[Pool],
-                           private[jc] val retry: Boolean
-                         ) {
+  private[jc] val info: ReactionInfo,
+  private[jc] val body: ReactionBody,
+  threadPool: Option[Pool],
+  private[jc] val retry: Boolean
+) {
   private[jc] def newChymystThreadInfo = new ChymystThreadInfo(info.staticMols, info.toString)
 
   /** Convenience method to specify thread pools per reaction.
@@ -634,19 +664,19 @@ final case class Reaction(
   def noRetry: Reaction = copy(retry = false)
 
   // Optimization: this is used often.
-  private[jc] val inputMolecules: Seq[Molecule] = info.inputMolecules
+  private[jc] val inputMoleculesSortedAlphabetically: Seq[Molecule] = info.inputMoleculesSortedAlphabetically
 
   private[jc] val inputMoleculesSet: Set[Molecule] = info.inputMoleculesSet
 
   // This must be lazy because molecule indices are not known at `Reaction` construction time.
-  private lazy val moleculeIndexRequiredCounts =
-    inputMoleculesSet.map { m ⇒ (m.index, inputMolecules.count(_ === m)) }.toMap
+  private lazy val moleculeIndexRequiredCounts: Map[Int, Int] =
+    inputMoleculesSet.map { mol ⇒ (mol.index, inputMoleculesSortedAlphabetically.count(_ === mol)) }(scala.collection.breakOut)
 
   /** Convenience method for debugging.
     *
     * @return String representation of input molecules of the reaction.
     */
-  override val toString: String = s"${inputMolecules.map(_.toString).mkString(" + ")} => ...${
+  override val toString: String = s"${inputMoleculesSortedAlphabetically.map(_.toString).mkString(" + ")} => ...${
     if (retry)
       "/R"
     else ""
@@ -668,28 +698,10 @@ final case class Reaction(
     }
   }
 
-  /** Convert a Map[Int, AbsMolValue[_]] to an array of AbsMolValue[_] using these indices.
-    * The map should contain all indices from 0 to (info.inputs.length - 1) and no other indices.
-    */
-  private def assignInputsToArray(valuesMap: Map[Int, AbsMolValue[_]]): InputMoleculeList = {
-    val requiredLength = info.inputMolecules.length
-
-    val inputs = new InputMoleculeList(requiredLength)
-
-    valuesMap.foreach {
-      case (i, molValue) =>
-        val mol = info.inputs(i).molecule
-        inputs.update(i, (mol, molValue))
-    }
-    inputs
-  }
-
   type MolVals = Map[Int, AbsMolValue[_]]
-  type ValsMap = Map[AbsMolValue[_], Int]
-  type FoldType = (MolVals, BagMap)
 
   /** Find a set of input molecules for this reaction, among the present molecules. */
-  private[jc] def findInputMolecules(m: Molecule, moleculesPresent: MoleculeBagArray): Option[(Reaction, InputMoleculeList)] = {
+  private[jc] def findInputMolecules(mol: Molecule, molCounts: Array[Int], moleculesPresent: MoleculeBagArray): Option[(Reaction, InputMoleculeList)] = {
     // Evaluate the static guard first. If the static guard fails, we don't need to run the reaction or look for any input molecules.
     if (info.guardPresence.staticGuardFails)
       None
@@ -700,17 +712,11 @@ final case class Reaction(
 
       // First fetch all molecule counts for our candidate input molecules.
       // If any of the counts is less than required, we can return `None` immediately.
-
       if (moleculeIndexRequiredCounts.exists {
-        case (mIndex, count) ⇒
-          val molBag = moleculesPresent(mIndex)
-          if (count === 1)
-            molBag.isEmpty
-          else
-            molBag.takeAny(count).size < count
-      }) None
+        case (mIndex, count) ⇒ molCounts(mIndex) < count
+      })
+        None
       else {
-
         // A simpler, non-flatMap algorithm for the case when there are no cross-dependencies of molecule values.
         // For each single (non-repeated) input molecule, select a molecule value that satisfies the conditional.
         // For each group of repeated input molecules of the same sort, check whether the bag contains enough molecule values.
@@ -719,91 +725,91 @@ final case class Reaction(
         // This array will be mutated in place as we search for molecule values.
         val foundValues = new Array[AbsMolValue[_]](info.inputs.length)
 
-        val foundResult: Option[MolVals] = // This will be now computed and will become either Some(molValsMap) or `None` (we found no values that match).
+        val foundResult: Boolean = // This will be now computed and will become true (and then `foundValues` has the molecule values) or false (we found no values that match).
           if (info.crossGuards.isEmpty && info.crossConditionals.isEmpty) {
             // flatFoldLeft is needed only over molecules with refutable matchers; filter them out first; all others don't need a fold since we already checked that present counts are sufficient.
 
-            info.inputsSortedConditional.flatFoldLeft(true) { (_, inputInfo) ⇒
+            info.inputsSortedConditional.forall { inputInfo ⇒
               val newValueOpt =
                 if (inputInfo.molecule.isPipelined)
                   moleculesPresent(inputInfo.molecule.index).takeOne.filter(inputInfo.admitsValue)
                 else
                   moleculesPresent(inputInfo.molecule.index).find(inputInfo.admitsValue)
 
-              newValueOpt.map { newMolValue ⇒
+              newValueOpt.foreach { newMolValue ⇒
                 foundValues(inputInfo.index) = newMolValue
-                true
               }
-            }.map { _ ⇒
+              newValueOpt.nonEmpty
+            } && {
               info.inputsSortedIrrefutableGrouped
-                .foreach { case (i, infos) ⇒
-                  val molValues = moleculesPresent(i).takeAny(moleculeIndexRequiredCounts(i))
+                .foreach { case (siteMolIndex, infos) ⇒
+                  val molValues = moleculesPresent(siteMolIndex).takeAny(moleculeIndexRequiredCounts(siteMolIndex))
                   infos.indices.foreach { idx ⇒ foundValues(infos(idx)) = molValues(idx) }
                 }
-              foundValues.indices.map { i ⇒ (i, foundValues(i)) }.toMap
+              true
             }
-
           } else {
             // Map of molecule values for molecules that are inputs to this reaction.
             val initRelevantMap: BagMap = inputMoleculesSet
-              .map(mol ⇒ (mol, moleculesPresent(mol.index).getCountMap))
-              .toMap
+              .map(molecule ⇒ (molecule, moleculesPresent(molecule.index).getCountMap))(scala.collection.breakOut)
+
+            type ValsMap = Map[AbsMolValue[_], Int]
+            type FoldType = (MolVals, BagMap)
 
             // TODO: only use the `flatMap-fold` separately for the clusters of interdependent molecules, not always for all molecules!
-            val found: Stream[MolVals] =
-              info.inputsSorted // We go through all molecules in the order of decreasing strength of conditionals.
-                .foldLeft[Stream[FoldType]](Stream[FoldType]((Map(), initRelevantMap))) { (prev, inputInfo) =>
-                // In this `foldLeft` closure:
-                // `prev` contains the molecule value assignments we have found so far (`prevValues`), as well as the map `prevRelevantMap` containing molecule values that would remain in the soup after these previous molecule values were removed.
-                // `inputInfo` describes the pattern matcher for the input molecule we are currently required to find.
-                // We need to find all admissible assignments of values for that input molecule, and return them as a stream of pairs (newValues, newRelevantMap).
-                prev.flatMap {
-                  case (prevValues, prevRelevantMap) =>
-                    val valuesMap: ValsMap = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
-                    val newFound = for {
-                      newMolValue <-
-                      // This does not work... not sure why.
-                      //if (inputInfo.molecule === m) Some(molValue).toStream // In this case, we need to use the given value, which is guaranteed to be in the value map.
-                      //              else
-                      if (inputInfo.molecule.isPipelined)
-                        moleculesPresent(inputInfo.molecule.index).takeOne.toStream
-//                      else if (inputInfo.flag.isIrrefutable && info.independentInputMolecules.contains(inputInfo.index))
-//                      // If this molecule is independent of others and has a trivial matcher, it suffices to select any of the existing values for that molecule.
-//                        valuesMap.headOption.map(_._1).toStream
-                      else // Do not eagerly evaluate the list of all possible values.
-                        valuesMap.keysIterator.toStream.filter(inputInfo.admitsValue)
+            val found: Stream[MolVals] = info.inputsSortedByConstraintStrength // We go through all molecules in the order of decreasing strength of conditionals.
+              .foldLeft[Stream[FoldType]](Stream[FoldType]((Map(), initRelevantMap))) { (prev, inputInfo) =>
+              // In this `foldLeft` closure:
+              // `prev` contains the molecule value assignments we have found so far (`prevValues`), as well as the map `prevRelevantMap` containing molecule values that would remain in the soup after these previous molecule values were removed.
+              // `inputInfo` describes the pattern matcher for the input molecule we are currently required to find.
+              // We need to find all admissible assignments of values for that input molecule, and return them as a stream of pairs (newValues, newRelevantMap).
+              prev.flatMap {
+                case (prevValues, prevRelevantMap) =>
+                  val valuesMap: ValsMap = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
+                  val newFound = for {
+                    newMolValue <-
+                    if (inputInfo.molecule.isPipelined)
+                      moleculesPresent(inputInfo.molecule.index).takeOne.toStream
+                    //                      else if (inputInfo.flag.isIrrefutable && info.independentInputMolecules.contains(inputInfo.index))
+                    //                      // If this molecule is independent of others and has a trivial matcher, it suffices to select any of the existing values for that molecule.
+                    //                        valuesMap.headOption.map(_._1).toStream
+                    else // Do not eagerly evaluate the list of all possible values.
+                      valuesMap.keysIterator.toStream.filter(inputInfo.admitsValue)
 
-                      newRelevantMap = removeFromBagMap(prevRelevantMap, inputInfo.molecule, newMolValue)
-                      newValues = prevValues.updated(inputInfo.index, newMolValue)
-                    } yield (newValues, newRelevantMap)
-                    newFound
-                }
-              }.map(_._1) // Get rid of BagMap and tuple.
+                    newRelevantMap = removeFromBagMap(prevRelevantMap, inputInfo.molecule, newMolValue)
+                    newValues = prevValues.updated(inputInfo.index, newMolValue)
+                  } yield (newValues, newRelevantMap)
+                  newFound
+              }
+            }.map(_._1) // Get rid of BagMap and tuple.
 
             // The reaction can run if `found` contains at least one admissible list of input molecules; just one is sufficient.
 
             // Evaluate all cross-molecule guards: they must all pass on the chosen molecule values.
-            val filteredAfterCrossGuards = if (info.crossGuards.nonEmpty) found.filter { inputValues =>
-              info.crossGuards.forall {
-                case CrossMoleculeGuard(indices, _, cond) =>
-                  cond.isDefinedAt(indices.flatMap(i => inputValues.get(i).map(_.getValue)).toList)
-              }
-            } else {
+            val filteredAfterCrossGuards =
+              if (info.crossGuards.nonEmpty)
+                found.filter { inputValues =>
+                  info.crossGuards.forall {
+                    case CrossMoleculeGuard(indices, _, cond) =>
+                      cond.isDefinedAt(indices.flatMap(i => inputValues.get(i).map(_.getValue)).toList)
+                  }
+                }
+              else
               // Here, we don't have any cross-molecule guards, but we do have some cross-molecule conditionals.
               // Those are already taken into account by the `flatMap-fold`. So, we don't need to filter the `found` result any further.
-              found
-            }
+                found
 
             // Return result if found something. Assign the found molecule values into the `inputs` array.
-            filteredAfterCrossGuards.headOption
+            val result = filteredAfterCrossGuards.headOption
+            result.foreach(_.foreach { case (i, molValue) ⇒ foundValues(i) = molValue })
+            result.nonEmpty
           }
-        foundResult.map { inputValues =>
-          val inputs = assignInputsToArray(inputValues)
-          (this, inputs)
-        }
+
+        if (foundResult)
+          Some((this, Array.tabulate(foundValues.length)(i ⇒ (info.inputs(i).molecule, foundValues(i)))))
+        else
+          None
       }
     }
   }
-
 }
-

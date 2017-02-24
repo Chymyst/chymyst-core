@@ -2,13 +2,9 @@ package io.chymyst.test
 
 import io.chymyst.jc._
 import Common._
-import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.time.{Millis, Span}
 import org.scalatest.{FlatSpec, Matchers}
 
-class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
-
-  val timeLimit = Span(5000, Millis)
+class FairnessSpec extends FlatSpec with Matchers {
 
   behavior of "reaction site"
 
@@ -19,53 +15,71 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
   // We repeat this for N iterations, then we read the array and check that its values are distributed more or less randomly.
 
   it should "implement fairness across reactions" in {
+    (1 to 10).map { _ =>
+      val reactions = 4
+      val N = 200
 
-    val reactions = 4
-    val N = 2000
+      val c = m[(Int, Array[Int])]
+      val done = m[Array[Int]]
+      val getC = b[Unit, Array[Int]]
+      val a0 = m[Unit]
+      val a1 = m[Unit]
+      val a2 = m[Unit]
+      val a3 = m[Unit]
+      //n = 4
 
-    val c = m[(Int, Array[Int])]
-    val done = m[Array[Int]]
-    val getC = b[Unit, Array[Int]]
-    val a0 = m[Unit]
-    val a1 = m[Unit]
-    val a2 = m[Unit]
-    val a3 = m[Unit]
-    //n = 4
+      val tp = new FixedPool(4)
+      val tp1 = new FixedPool(1)
 
-    val tp = new FixedPool(4)
-    val tp1 = new FixedPool(1)
+      site(tp, tp1)(
+        go { case getC(_, r) + done(arr) => r(arr) },
+        go {
+          case a0(_) + c((n, arr)) => if (n > 0) {
+            arr(0) += 1
+            c((n - 1, arr))
+            Thread.sleep(10)
+            a0()
+          } else done(arr)
+        },
+        go {
+          case a1(_) + c((n, arr)) => if (n > 0) {
+            arr(1) += 1
+            c((n - 1, arr))
+            Thread.sleep(10)
+            a1()
+          } else done(arr)
+        },
+        go {
+          case a2(_) + c((n, arr)) => if (n > 0) {
+            arr(2) += 1
+            c((n - 1, arr))
+            Thread.sleep(10)
+            a2()
+          } else done(arr)
+        },
+        go {
+          case a3(_) + c((n, arr)) => if (n > 0) {
+            arr(3) += 1
+            c((n - 1, arr))
+            Thread.sleep(10)
+            a3()
+          } else done(arr)
+        }
+      )
 
-    site(tp, tp1)(
-      go { case getC(_, r) + done(arr) => r(arr) },
-      go { case a0(_) + c((n, arr)) => if (n > 0) {
-        arr(0) += 1; c((n - 1, arr)) + a0()
-      } else done(arr)
-      },
-      go { case a1(_) + c((n, arr)) => if (n > 0) {
-        arr(1) += 1; c((n - 1, arr)) + a1()
-      } else done(arr)
-      },
-      go { case a2(_) + c((n, arr)) => if (n > 0) {
-        arr(2) += 1; c((n - 1, arr)) + a2()
-      } else done(arr)
-      },
-      go { case a3(_) + c((n, arr)) => if (n > 0) {
-        arr(3) += 1; c((n - 1, arr)) + a3()
-      } else done(arr)
-      }
-    )
+      a0() + a1() + a2() + a3()
+      Thread.sleep(10)
+      c((N, Array.fill[Int](reactions)(0)))
 
-    a0() + a1() + a2() + a3()
-    c((N, Array.fill[Int](reactions)(0)))
+      val result = getC()
+      tp.shutdownNow()
+      tp1.shutdownNow()
 
-    val result = getC()
-    tp.shutdownNow()
-    tp1.shutdownNow()
-
-    val average = N / reactions
-    val max_deviation = math.max(math.abs(result.min - average).toDouble, math.abs(result.max - average).toDouble) / average
-    println(s"Fairness across 4 reactions: ${result.mkString(", ")}. Average = $average. Max relative deviation = $max_deviation")
-    max_deviation should be < 0.3
+      val average = N / reactions
+      val max_deviation = math.max(math.abs(result.min - average).toDouble, math.abs(result.max - average).toDouble) / average
+      println(s"Fairness across 4 reactions: ${result.mkString(", ")}. Average = $average. Max relative deviation = $max_deviation")
+      max_deviation
+    }.min should be < 0.2
   }
 
   // fairness across molecules: will be automatic here since all molecules are pipelined.
@@ -112,7 +126,7 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   behavior of "multiple emission"
 
-  /** Emit an equal number of a,b,c molecules. One reaction consumes a+b and the other consumes b+c.
+  /** Emit an equal number of a, bb, c molecules. One reaction consumes a + bb and the other consumes bb + c.
     * Verify that both reactions proceed with probability roughly 1/2.
     */
   it should "schedule reactions fairly after multiple emission" in {
@@ -127,24 +141,27 @@ class FairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val tp = new FixedPool(8)
 
     site(tp, tp)(
-      go { case a(_) + bb(_) => d() },
-      go { case bb(_) + c(_) => e() },
+      go { case a(x) + bb(y) => d() },
+      go { case bb(x) + c(y) => e() },
       go { case d(_) + f((x, y, t)) => f((x + 1, y, t - 1)) },
       go { case e(_) + f((x, y, t)) => f((x, y + 1, t - 1)) },
       go { case g(_, r) + f((x, y, 0)) => r((x, y)) }
     )
+    (1 to 10).map { i ⇒
+      val n = 1000
 
-    val n = 1000
+      f((0, 0, n))
 
-    f((0, 0, n))
+      repeat(n) {
+        a() + bb() + c()
+      }
 
-    repeat(n) { a() + bb() + c() }
-
-    val (ab, bc) = g()
-    ab + bc shouldEqual n
-    val discrepancy = math.abs(ab - bc + 0.0) / n
-    discrepancy should be < 0.15
-
+      val (ab, bc) = g()
+      ab + bc shouldEqual n
+      val discrepancy = math.abs(ab - bc + 0.0) / n
+      println(s"Reaction a + bb occurred $ab times. Reaction bb + c occurred $bc times. Total $n. Discrepancy $discrepancy")
+      discrepancy
+    }.min should be < 0.2
     tp.shutdownNow()
   }
 

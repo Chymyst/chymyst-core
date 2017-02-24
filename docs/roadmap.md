@@ -2,7 +2,7 @@
 
 # Version history
 
-- 0.1.8 "Singleton" molecules and reactions are now called "static", which is more accurate. Added more examples, including a fully concurrent Game of Life. Some optimizations in the reaction scheduler.
+- 0.1.8 "Singleton" molecules and reactions are now called "static", which is more accurate. Added more examples, including a fully concurrent Game of Life. Some optimizations in the reaction scheduler. Support for pipelined molecules (an automatic optimization).
 
 - 0.1.7 New compile-time restrictions, towards guaranteeing single reply for blocking molecules. It is now not allowed to call blocking molecules inside loops, or to emit replies in any non-linear code context (such as, under a closure or in a loop). Change of artifact package from `code.chymyst` to `io.chymyst`. This version is the first one published on Sonatype Maven repository. 
 
@@ -117,10 +117,8 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  
  2 * 2 - Revisit Philippe's error reporting branch, perhaps salvage some code
   
- 3 * 3 - Replace some timed tests by probabilistic tests that run multiple times and fail much less often; perhaps use Li Haoyi's `utest` framework that has features for this. Also, it has features for specifying compilation errors, which I currently can't do. Investigate adding some minimal sugar to `utest` so that it looks superficially more like `scalatest`.
+ 3 * 3 - Replace some timed tests by probabilistic tests that run multiple times and fail much less often; perhaps use Li Haoyi's `utest` framework that has features for this.
  
- 3 * 3 - Implement "pipelined" molecules, detect them automatically. The criterion is that the union of all conditionals should be factorizable.
-
  3 * 3 - `SmartThread` should keep information about which RS and which reaction is now running. This can be used both for monitoring and for automatic assignment of thread pools for reactions defined in the scope of another reaction. 
  
 ## Will not do for now

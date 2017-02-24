@@ -2,6 +2,7 @@ package io.chymyst.jc
 
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
+
 //import java.util.function.{Function, BiFunction}
 
 import scala.annotation.tailrec
@@ -97,19 +98,25 @@ object Core {
 
   private[jc] def moleculeBagToString(mb: Map[Molecule, Map[AbsMolValue[_], Int]]): String =
     mb.toSeq
-      .map { case (m, vs) => (m.toString, vs) }
+      .map { case (mol, vs) => (s"$mol${pipelineSuffix(mol)}", vs) }
       .sortBy(_._1)
       .flatMap {
-        case (m, vs) => vs.map {
-          case (mv, 1) => s"$m($mv)"
-          case (mv, i) => s"$m($mv) * $i"
+        case (mol, vs) => vs.map {
+          case (mv, 1) => s"$mol($mv)"
+          case (mv, i) => s"$mol($mv) * $i"
         }
-      }.sorted.mkString(", ")
+      }.sorted.mkString(" + ")
 
   private[jc] def moleculeBagToString(inputs: InputMoleculeList): String =
     inputs.map {
-      case (m, jmv) => s"$m($jmv)"
-    }.toSeq.sorted.mkString(", ")
+      case (mol, jmv) => s"$mol${pipelineSuffix(mol)}($jmv)"
+    }.toSeq.sorted.mkString(" + ")
+
+  private def pipelineSuffix(mol: Molecule): String =
+    if (mol.isPipelined)
+      "/P"
+    else
+      ""
 
   private[jc] val errorLog = new ConcurrentLinkedQueue[String]
 
@@ -138,32 +145,37 @@ object Core {
 
   implicit final class ArrayWithExtraFoldOps[T](val s: Array[T]) extends AnyVal {
     def flatFoldLeft[R](z: R)(op: (R, T) => Option[R]): Option[R] = {
-
-      @tailrec
-      def flatFoldLeftImpl(z: R, xs: Array[T]): Option[R] =
-        xs.headOption match {
-          case Some(h) =>
-            op(z, h) match {
-              case Some(newZ) => flatFoldLeftImpl(newZ, xs.drop(1))
-              case None => None
-            }
-          case None => Some(z)
+      var result = z
+      var success = true
+      var i = 0
+      while (success && i < s.length) {
+        op(result, s(i)) match {
+          case Some(newZ) =>
+            result = newZ
+            i += 1
+          case None =>
+            success = false
         }
-
-      flatFoldLeftImpl(z, s)
+      }
+      if (success) Some(result) else None
     }
 
     def findAfterMap[R](f: T => Option[R]): Option[R] = {
       var result: R = null.asInstanceOf[R]
-      s.find { t =>
-        f(t).exists { r => result = r; true }
-      }.map(_ => result)
+      var found = false
+      var i = 0
+      while(!found && i < s.length) {
+        f(s(i)) match {
+          case Some(r) =>
+            result = r
+            found = true
+          case None =>
+            i += 1
+        }
+      }
+      if (found) Some(result) else None
     }
 
-    def shuffle: Array[T] = {
-      arrayShuffleInPlace(s)
-      s
-    }
   }
 
   implicit final class SeqWithExtraFoldOps[T](val s: Seq[T]) extends AnyVal {
@@ -197,22 +209,22 @@ object Core {
       * @return Sequence of tuples similar to the output of `groupBy`.
       */
     def sortedMapGroupBy[R, S](f: T ⇒ R, g: T ⇒ S): IndexedSeq[(R, IndexedSeq[S])] =
-      s.headOption match {
-        case None ⇒ IndexedSeq()
-        case Some(t) ⇒
-          val (finalR, finalSeq, finalSeqT) =
-            s.drop(1).foldLeft[(R, IndexedSeq[(R, IndexedSeq[S])], IndexedSeq[S])]((f(t), IndexedSeq(), IndexedSeq(g(t)))) {
-              (acc, t) ⇒
-                val (prevR, prevSeq, prevSeqT) = acc
-                val newR = f(t)
-                val newT = g(t)
-                if (newR === prevR)
-                  (newR, prevSeq, prevSeqT :+ newT)
-                else
-                  (newR, prevSeq :+ ((prevR, prevSeqT)), IndexedSeq(newT))
-            }
-          finalSeq :+ ((finalR, finalSeqT))
-      }
+    s.headOption match {
+      case None ⇒ IndexedSeq()
+      case Some(t) ⇒
+        val (finalR, finalSeq, finalSeqT) =
+          s.drop(1).foldLeft[(R, IndexedSeq[(R, IndexedSeq[S])], IndexedSeq[S])]((f(t), IndexedSeq(), IndexedSeq(g(t)))) {
+            (acc, t) ⇒
+              val (prevR, prevSeq, prevSeqT) = acc
+              val newR = f(t)
+              val newT = g(t)
+              if (newR === prevR)
+                (newR, prevSeq, prevSeqT :+ newT)
+              else
+                (newR, prevSeq :+ ((prevR, prevSeqT)), IndexedSeq(newT))
+          }
+        finalSeq :+ ((finalR, finalSeqT))
+    }
 
     /** "flat foldLeft" will perform a `foldLeft` unless the function `op` returns `None` at some point in the sequence.
       *
@@ -236,26 +248,27 @@ object Core {
 
       flatFoldLeftImpl(z, s)
     }
-/*
-    /** "early foldLeft" will perform a `foldLeft` until the function `op` returns `None` at some point in the sequence.
-      * At that point, it stops and returns the last accumulated value.
-      *
-      * This is an optimization: the usual `foldLeft` will continue going through the sequence, but `earlyFoldLeft` cuts short.
-      *
-      * @param z  Initial value of type `R`.
-      * @param op Binary operation, returning an `Option[R]`.
-      * @tparam R Type of the return value `r` under `Option`.
-      * @return Result value `r`, having folded either to the end of the sequence, or to the point in the sequence where `op` first returned `None`, whichever comes first.
-      */
-    @tailrec
-    def earlyFoldLeft[R](z: R)(op: (R, T) => Option[R]): R = s match {
-      case Nil => z
-      case h :: xs => op(z, h) match {
-        case Some(newZ) => xs.earlyFoldLeft(newZ)(op)
-        case None => z
-      }
-    }
-*/
+
+    /*
+        /** "early foldLeft" will perform a `foldLeft` until the function `op` returns `None` at some point in the sequence.
+          * At that point, it stops and returns the last accumulated value.
+          *
+          * This is an optimization: the usual `foldLeft` will continue going through the sequence, but `earlyFoldLeft` cuts short.
+          *
+          * @param z  Initial value of type `R`.
+          * @param op Binary operation, returning an `Option[R]`.
+          * @tparam R Type of the return value `r` under `Option`.
+          * @return Result value `r`, having folded either to the end of the sequence, or to the point in the sequence where `op` first returned `None`, whichever comes first.
+          */
+        @tailrec
+        def earlyFoldLeft[R](z: R)(op: (R, T) => Option[R]): R = s match {
+          case Nil => z
+          case h :: xs => op(z, h) match {
+            case Some(newZ) => xs.earlyFoldLeft(newZ)(op)
+            case None => z
+          }
+        }
+    */
   }
 
   def intHash(s: Seq[Int]): Int = s.foldLeft(0)(_ * s.length + _)
@@ -301,14 +314,20 @@ object Core {
     tempElement
   }
 */
-  private def arrayShuffleInPlace[T](arr: Array[T]): Unit = {
+
+  def arrayShuffleInPlace[T](arr: Array[T]): Unit = {
     val s = arr.length
-    arr.indices.foreach { index ⇒
-      val randomIndex = s - 1 - scala.util.Random.nextInt(s - index)
-      // between 0 and s - index
-      val tempElement = arr(randomIndex)
-      arr(randomIndex) = arr(index)
-      arr(index) = tempElement
+    // Do nothing when the array has length 1 or less.
+    if (s >= 2) {
+      (0 to s - 2).foreach { index ⇒
+        val randomIndex = s - 1 - scala.util.Random.nextInt(s - 1 - index)
+        // randomIndex is between index + 1 and s - 1 inclusive.
+        val tempElement = arr(randomIndex)
+        arr(randomIndex) = arr(index)
+        arr(index) = tempElement
+      }
+
     }
   }
+
 }

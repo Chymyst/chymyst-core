@@ -12,10 +12,10 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val c = m[Unit]
 
     // These should compile.
-    def emitThem() = { // Ignore the warning about this unused local method.
+    def emitThem() = { // ignore warning "local method is never used"
       c(())
       c()
-      c(123) // non-Unit value 123 is discarded, but it's only a warning
+      c(123) // ignore warnings "discarded non-Unit value" and "a pure expression does nothing"
     }
   }
 
@@ -45,7 +45,9 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val d = m[(Int, Option[Int])]
     "val r2 = go { case d((x, z@Some(_))) => }" should compile // But this actually fails to compile when used in the code!
 
-    site(go { case d((x, z)) if z.nonEmpty => }) shouldEqual WarningsAndErrors(List(), List(), "Site{d => ...}")
+    site(
+      go { case d((x, z)) if z.nonEmpty => } // ignore warning about "non-variable type argument Int"
+    ) shouldEqual WarningsAndErrors(List(), List(), "Site{d => ...}")
   }
 
   it should "fail to compile reactions with incorrect pattern matching" in {
@@ -251,10 +253,10 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
     val bb = m[(Int, Option[Int])]
 
-    val result = go {
+    val result = go { // ignore warning about "non-variable type argument Int"
       // This generates a compiler warning "class M expects 2 patterns to hold (Int, Option[Int]) but crushing into 2-tuple to fit single pattern (SI-6675)".
       // However, this "crushing" is precisely what this test focuses on, and we cannot tell scalac to ignore this warning.
-      case bb(_) + bb(z) if (z match {
+      case bb(_) + bb(z) if (z match { // ignore warning about "class M expects 2 patterns to hold"
         case (1, Some(x)) if x > 0 => true;
         case _ => false
       }) =>

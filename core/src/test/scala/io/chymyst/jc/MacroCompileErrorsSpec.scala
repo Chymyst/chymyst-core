@@ -187,16 +187,20 @@ case c(_) + a(y) => c()
             |""".stripMargin, "Unconditional livelock: Input molecules must not be a subset of output molecules, with all trivial matchers for (a)")
       }
       * - {
-          val r = go { case a((1,_)) => a((1,1)) }
+        val r = go { case a((1, _)) => a((1, 1)) }
+        assert(r.isInstanceOf[Reaction])
       } // cannot detect unconditional livelock here at compile time, since we can't evaluate the binder yet
       * - {
-          val r = go { case bb(y) if y > 0 => bb(1) }
+        val r = go { case bb(y) if y > 0 => bb(1) }
+        assert(r.isInstanceOf[Reaction])
       } // no unconditional livelock due to guard
       * - {
-          val r = go { case bb(y) =>  if (y > 0) bb(1) }
+        val r = go { case bb(y) => if (y > 0) bb(1) }
+        assert(r.isInstanceOf[Reaction])
       } // no unconditional livelock due to `if` in reaction
       * - {
-          val r = go { case bb(y) =>  if (y > 0) bbb(1) else bb(2) }
+        val r = go { case bb(y) => if (y > 0) bbb(1) else bb(2) }
+        assert(r.isInstanceOf[Reaction])
       } // no unconditional livelock due to `if` in reaction
       * - {
         compileError(
@@ -208,8 +212,10 @@ case c(_) + a(y) => c()
             |""".stripMargin, "Unconditional livelock: Input molecules must not be a subset of output molecules, with all trivial matchers for (bb)")
       } // unconditional livelock due to shrinkage of `if` in reaction
       * - {
-          val r = go { case bbb(1) => bbb(2) }
-      } // no unconditional livelock
+        val r = go { case bbb(1) => bbb(2) }
+        assert(r.isInstanceOf[Reaction])
+        // no livelock since constant values are different
+      }
       * - {
         compileError(
           "val r = go { case bb(x) => bb(1) }"
@@ -221,10 +227,10 @@ case c(_) + a(y) => c()
       } // unconditional livelock
       * - {
         compileError(
-          "val r = go { case a(_) => a((1,1)) }"
+          "val r = go { case a(_) => a((1,1)) }" // ignore warning "class M expects 2 patterns to hold"
         ).check(
           """
-            |          "val r = go { case a(_) => a((1,1)) }"
+            |          "val r = go { case a(_) => a((1,1)) }" // ignore warning "class M expects 2 patterns to hold"
             |                      ^
             |""".stripMargin, "Unconditional livelock: Input molecules must not be a subset of output molecules, with all trivial matchers for (a)")
       }

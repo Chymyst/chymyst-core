@@ -56,7 +56,7 @@ private[jc] object StaticAnalysis {
       if r1.info.guardPresence.effectivelyAbsent
       r2 <- reactions
       if r2 =!= r1
-      if allMatchersAreWeakerThan(r1.info.inputsSorted, r2.info.inputsSorted)
+      if allMatchersAreWeakerThan(r1.info.inputsSortedByConstraintStrength, r2.info.inputsSortedByConstraintStrength)
     } yield (r1, r2)
 
     if (suspiciousReactions.nonEmpty) {
@@ -81,7 +81,7 @@ private[jc] object StaticAnalysis {
 
   private def checkSingleReactionLivelock(reactions: Seq[Reaction]): Option[String] = {
     val errorList = reactions
-      .filter { r => r.info.guardPresence.effectivelyAbsent && inputMatchersSurelyWeakerThanOutput(r.info.inputsSorted, r.info.shrunkOutputs) }
+      .filter { r => r.info.guardPresence.effectivelyAbsent && inputMatchersSurelyWeakerThanOutput(r.info.inputsSortedByConstraintStrength, r.info.shrunkOutputs) }
       .map(r => s"{${r.info.toString}}")
     if (errorList.nonEmpty)
       Some(s"Unavoidable livelock: reaction${if (errorList.size == 1) "" else "s"} ${errorList.mkString(", ")}")
@@ -95,7 +95,7 @@ private[jc] object StaticAnalysis {
 
   private def checkSingleReactionLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
     val warningList = reactions
-      .filter { r => inputMatchersAreSimilarToOutput(r.info.inputsSorted, r.info.outputs) }
+      .filter { r => inputMatchersAreSimilarToOutput(r.info.inputsSortedByConstraintStrength, r.info.outputs) }
       .map(r => s"{${r.info.toString}}")
     if (warningList.nonEmpty)
       Some(s"Possible livelock: reaction${if (warningList.size == 1) "" else "s"} ${warningList.mkString(", ")}")
@@ -105,7 +105,7 @@ private[jc] object StaticAnalysis {
   private def checkInputsForDeadlockWarning(reactions: Seq[Reaction]): Option[String] = {
     // A "possible deadlock" means that an input blocking molecule is consumed together with other molecules that are emitted later by the same reactions that emit the blocking molecule.
     val blockingInputsWithNonblockingInputs: Seq[(InputMoleculeInfo, List[InputMoleculeInfo])] =
-      reactions.map(_.info.inputsSorted.partition(_.molecule.isBlocking)).filter(m => m._1.nonEmpty && m._2.nonEmpty)
+      reactions.map(_.info.inputsSortedByConstraintStrength.partition(_.molecule.isBlocking)).filter(m => m._1.nonEmpty && m._2.nonEmpty)
         .flatMap { case (bInputs, mInputs) => bInputs.map(b => (b, mInputs)) }
 
     val likelyDeadlocks: Seq[(InputMoleculeInfo, InputMoleculeInfo, Reaction)] = for {
@@ -151,7 +151,7 @@ private[jc] object StaticAnalysis {
         (info, info.molecule.consumingReactions.flatMap(
           _.find { r =>
             // For each reaction that consumes the molecule `info.molecule`, check whether this reaction also consumes any of the molecules from infos.map(_.molecule). If so, it's a likely deadlock.
-            val uniqueInputsThatAreAmongOutputs = r.info.inputsSorted
+            val uniqueInputsThatAreAmongOutputs = r.info.inputsSortedByConstraintStrength
               .filter(infos.map(_.molecule) contains _.molecule)
               .groupBy(_.molecule).mapValues(_.lastOption).values.toList.flatten // Among repeated input molecules, choose only one molecule with the weakest matcher.
 
@@ -195,7 +195,7 @@ private[jc] object StaticAnalysis {
       if (reactions.isEmpty)
         Map()
       else
-        staticMols.map { case (m, _) => m -> reactions.map(r => (r, r.inputMolecules.count(_ === m))).maxBy(_._2) }
+        staticMols.map { case (m, _) => m -> reactions.map(r => (r, r.inputMoleculesSortedAlphabetically.count(_ === m))).maxBy(_._2) }
 
     val wrongConsumed = staticMolsConsumedMaxTimes
       .flatMap {
@@ -208,7 +208,7 @@ private[jc] object StaticAnalysis {
       }
 
     val wrongOutput = staticMols.map {
-      case (m, _) => m -> reactions.find(r => r.inputMolecules.count(_ === m) == 1 && !r.info.outputs.exists(_.molecule === m))
+      case (m, _) => m -> reactions.find(r => r.inputMoleculesSortedAlphabetically.count(_ === m) == 1 && !r.info.outputs.exists(_.molecule === m))
     }.flatMap {
       case (mol, Some(r)) =>
         Some(s"static molecule ($mol) consumed but not emitted by reaction ${r.info}")

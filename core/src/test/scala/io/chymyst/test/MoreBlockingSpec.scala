@@ -145,7 +145,7 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
     f() shouldEqual 123
     // now there should be a(0) because the reaction has run
     Thread.sleep(150)
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(0)"
+    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a/P(0)"
 
     tp.shutdownNow()
   }

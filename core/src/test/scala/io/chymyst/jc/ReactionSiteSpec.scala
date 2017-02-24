@@ -154,7 +154,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       val thrown = intercept[Exception] {
         f()
       }
-      thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B()] finished without replying to f/B. Reported error: crash! ignore this exception"
+      thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception"
     }
     if (result.isFailure) println(s"Test failed with message: ${result.failed.get.getMessage}")
     result.get shouldEqual Succeeded
@@ -176,7 +176,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       val thrown = intercept[Exception] {
         f.timeout()(1.seconds)
       }
-      thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B()] finished without replying to f/B. Reported error: crash! ignore this exception"
+      thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception"
     }.get
   }
 
@@ -436,6 +436,17 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case a(x) + c(y) if x > 0 => } // same condition for all reactions, so a is pipelined
     )
     checkExpectedPipelined(Map(c -> true, a -> true)) shouldEqual ""
+  }
+
+  it should "detect non-pipelining with two conditions" in {
+    val c = m[Int]
+    val d = b[Unit, Unit]
+
+    site(
+      go { case c(0) => c(1) },
+      go { case c(n) + d(_, r) if n > 0 => c(n - 1); r() }
+    )
+    checkExpectedPipelined(Map(c → false, d → true)) shouldEqual ""
   }
 
 }

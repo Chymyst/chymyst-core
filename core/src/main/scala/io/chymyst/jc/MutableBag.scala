@@ -21,7 +21,7 @@ sealed trait MolValueBag[T] {
 
   def add(v: T): Unit
 
-  def remove(v: T): Unit
+  def remove(v: T): Boolean
 
   def find(predicate: T => Boolean): Option[T]
 
@@ -51,10 +51,7 @@ final class MolValueMapBag[T] extends MolValueBag[T] {
     ()
   }
 
-  override def remove(v: T): Unit = {
-    bag.remove(v)
-    ()
-  }
+  override def remove(v: T): Boolean = bag.removeExactly(v, 1)
 
   override def find(predicate: (T) => Boolean): Option[T] =
     bag.createEntrySet().asScala
@@ -100,10 +97,7 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
     ()
   }
 
-  override def remove(v: T): Unit = {
-    bag.remove(v)
-    ()
-  }
+  override def remove(v: T): Boolean = bag.remove(v)
 
   override def find(predicate: (T) => Boolean): Option[T] = bag.iterator.asScala.find(predicate)
 

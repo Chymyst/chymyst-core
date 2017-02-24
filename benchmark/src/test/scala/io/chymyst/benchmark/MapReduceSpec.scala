@@ -5,6 +5,7 @@ import java.time.temporal.ChronoUnit
 
 import io.chymyst.jc._
 import org.scalatest.{FlatSpec, Matchers}
+import scala.concurrent.duration._
 
 class MapReduceSpec extends FlatSpec with Matchers {
 
@@ -145,6 +146,54 @@ class MapReduceSpec extends FlatSpec with Matchers {
     tp.shutdownNow()
     tp1.shutdownNow()
     println(s"sum of $count numbers with nonlinear input patterns, branching emitters, and 1-thread site pool took ${elapsed(initTime)} ms")
+  }
+
+  it should "correctly process concurrent counters" in {
+// Same logic as Benchmark 1 but designed to catch race conditions more quickly.
+    def make_counter_1(done: M[Unit], counters: Int, init: Int, reactionPool: Pool, sitePool: Pool): B[Unit, Unit] = {
+      val c = m[Int]
+      val d = b[Unit, Unit]
+
+      site(reactionPool, sitePool)(
+        go { case c(0) ⇒ done() },
+        go { case c(x) + d(_, r) if x > 0 ⇒ c(x - 1); r() }
+      )
+      (1 to counters).foreach(_ ⇒ c(init))
+      // We return just one molecule.
+      d
+    }
+
+    var failures = 0
+    val n = 1000
+    
+    (1 to n).foreach { _ ⇒
+      val numberOfCounters = 10
+      val count = 2
+
+      val tp = new FixedPool(8)
+      val tp1 = new FixedPool(1)
+
+      val done = m[Unit]
+      val all_done = m[Int]
+      val f = b[LocalDateTime, Long]
+
+      site(tp)(
+        go { case all_done(0) + f(tInit, r) ⇒ r(elapsed(tInit)) },
+        go { case all_done(x) + done(_) if x > 0 ⇒ all_done(x - 1) }
+      )
+      val initialTime = LocalDateTime.now
+      all_done(numberOfCounters)
+      val d = make_counter_1(done, numberOfCounters, count, tp, tp1)
+      // emit a blocking molecule `d` many times
+      (1 to (count * numberOfCounters)).foreach(_ ⇒ d())
+      val result = f.timeout(initialTime)(1.second)
+      if (result.isEmpty) {
+        failures += 1
+      }
+      tp1.shutdownNow()
+      tp.shutdownNow()
+    }
+    (if (failures > 0) s"Detected $failures failures out of $n tries" else "OK") shouldEqual "OK"
   }
 
 }

@@ -15,7 +15,7 @@ object MainAppConfig {
 
 object MainApp extends App {
   import MainAppConfig._
-  val version = "0.0.5"
+  val version = "0.1.8-SNAPSHOT"
 
   def run3times(task: => Long): Long = {
     task // just priming, no measurement
