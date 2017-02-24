@@ -74,24 +74,19 @@ private[jc] object CrossMoleculeSorting {
 
     def crossGroupsIndexed: Coll[(Set[Int], Int)] = allGroups.zipWithIndex
 
-    def getDSLProgramForCrossGroup(groups: Coll[Coll[Int]]): IndexedSeq[SearchDSL] = {
-      groups.flatMap { group ⇒
-        val guardConditionIndices = crossGroupsIndexed
-          .filter(_._1 equals group.toSet)
-          .map(_._2)
-          .filter(_ < crossGroups.length) // only use indices for cross-molecule guards, not for repeated molecule groups
-        group.map(ChooseMol) ++ guardConditionIndices.map(ConstrainGuard)
-      }.distinct :+ CloseGroup
-    }
+    def getDSLProgramForCrossGroup(group: Coll[Int]): IndexedSeq[SearchDSL] = {
+      val guardConditionIndices = crossGroupsIndexed
+        .filter(_._1 equals group.toSet) // find all guard conditions that correspond to this group (could be > 1 due to cross-conditionals)
+        .map(_._2)
+        .filter(_ < crossGroups.length) // only use indices for cross-molecule guards, not for repeated molecule groups
 
-    //    def getDSLProgramForRepeatedMols(repeatedMolGroup: IndexedSeq[Int]): IndexedSeq[SearchDSL] = {
-    //      repeatedMolGroup.map(ChooseMol) :+ CloseGroup
-    //    }
+      group.map(ChooseMol) ++ guardConditionIndices.map(ConstrainGuard)
+    }
 
     val sortedCrossGroups: Coll[Coll[Coll[Int]]] = sortedConnectedSets(groupConnectedSets(allGroups))
       .map(_._2.map(_.toArray.sortBy(moleculeWeights.apply))) // each cross-guard set needs to be sorted by molecule weight
 
-    sortedCrossGroups.flatMap(getDSLProgramForCrossGroup) ++
+    sortedCrossGroups.flatMap(_.flatMap(getDSLProgramForCrossGroup).distinct :+ CloseGroup) ++
       independentMols.map(ChooseMolAndClose)
   }
 
