@@ -9,12 +9,12 @@ Another interesting application would be a concurrent GUI interaction together w
 Solving these problems via chemistry requires a certain paradigm shift.
 In order to build up our chemical intuition, let us go through some more examples.
 
-## Example: "Readers/Writers"
+## Example: “Readers/Writers”
 
 Suppose there is a shared resource that can be accessed by a number of **Readers** and a number of **Writers**.
 We require that either one Writer or up to three Readers be able to access the resource concurrently.
 
-To simplify our example, we assume that "accessing a resource" means calling `readResource()` for Readers and `writeResource()` for Writers.
+To simplify our example, we assume that “accessing a resource” means calling `readResource()` for Readers and `writeResource()` for Writers.
 The task is to create a chemical machine program that allows any number of concurrent Readers and Writers to call their respective functions but restricts the number of concurrent calls to at most three `readResource()` calls or at most one `writeResource()` call, but not both. 
 
 Let us begin reasoning about this problem in the chemical machine paradigm, deriving the solution in a systematic way.
@@ -30,8 +30,8 @@ Let us call these molecules `read()` and `write()` respectively:
 val read = m[Unit]
 val write = m[Unit]
 site(
-  go { case read(_) => readResource(); ??? },
-  go { case write(_) => writeResource(); ??? }
+  go { case read(_) ⇒ readResource(); ??? },
+  go { case write(_) ⇒ writeResource(); ??? }
 )
 
 ```
@@ -50,8 +50,8 @@ val read = m[Unit]
 val write = m[Unit]
 val access = m[Unit]
 site(
-  go { case read(_) + access(_) => readResource(); ??? },
-  go { case write(_) + access(_) => writeResource(); ??? }
+  go { case read(_) + access(_) ⇒ readResource(); ??? },
+  go { case write(_) + access(_) ⇒ writeResource(); ??? }
 )
 access() // Emit at the beginning.
 
@@ -66,8 +66,8 @@ val read = m[Unit]
 val write = m[Unit]
 val access = m[Unit]
 site(
-  go { case read(_) + access(_) => readResource(); access() },
-  go { case write(_) + access(_) => writeResource(); access() }
+  go { case read(_) + access(_) ⇒ readResource(); access() },
+  go { case write(_) + access(_) ⇒ writeResource(); access() }
 )
 access() // Emit at the beginning.
 
@@ -87,8 +87,8 @@ val read = m[Unit]
 val write = m[Unit]
 val access = m[Unit]
 site(
-  go { case read(_) + access(_) => readResource(); access() },
-  go { case write(_) + access(_) + access() + access() =>
+  go { case read(_) + access(_) ⇒ readResource(); access() },
+  go { case write(_) + access(_) + access() + access() ⇒
     writeResource(); access() + access() + access()
   }
 )
@@ -125,8 +125,8 @@ val write = m[Unit]
 val access = m[Int]
 val n = 3 // can be a run-time parameter
 site(
-  go { case read(_) + access(k) if k < n => readResource(); access(k + 1) },
-  go { case write(_) + access(0) => writeResource(); access(0) }
+  go { case read(_) + access(k) if k < n ⇒ readResource(); access(k + 1) },
+  go { case write(_) + access(0) ⇒ writeResource(); access(0) }
 )
 access(0) // Emit at the beginning.
 
@@ -143,7 +143,7 @@ The Reader reaction, however, does not work correctly for two reasons:
 The first problem can be fixed by emitting `access(k + 1)` at the beginning of the reaction, before `readResource()` is called:
 
 ```scala
-go { case read(_) + access(k) if k < n => access(k + 1); readResource() }
+go { case read(_) + access(k) if k < n ⇒ access(k + 1); readResource() }
 
 ```
 
@@ -154,7 +154,7 @@ Since the values on molecules are immutable, the only way of doing this in the c
 To start this reaction, we clearly need another molecule, say `readerFinished()`:
  
 ```scala
-go { case finished(_) + access(k) => access(k - 1) }
+go { case finished(_) + access(k) ⇒ access(k - 1) }
  
 ```
 
@@ -169,13 +169,13 @@ val access = m[Int]
 val readerFinished = m[Unit]
 val n = 3 // can be a run-time parameter
 site(
-  go { case read(_) + access(k) if k < n => 
+  go { case read(_) + access(k) if k < n ⇒ 
     access(k + 1)
     readResource()
     readerFinished()
   },
-  go { case write(_) + access(0) => writeResource(); access(0) },
-  go { case readerFinished(_) + access(k) => access(k - 1) }
+  go { case write(_) + access(0) ⇒ writeResource(); access(0) },
+  go { case readerFinished(_) + access(k) ⇒ access(k - 1) }
 )
 access(0) // Emit at the beginning.
 
@@ -207,13 +207,13 @@ val access = m[Int]
 val readerFinished = m[Unit]
 val n = 3 // can be a run-time parameter
 site(
-  go { case read(_) + access(k) if k < n =>
+  go { case read(_) + access(k) if k < n ⇒
     access(k + 1)
     val x = readResource(); readResult(x)
     readerFinished()
   },
-  go { case write(x) + access(0) => writeResource(x); access(0) + writeDone() },
-  go { case readerFinished(_) + access(k) => access(k - 1) }
+  go { case write(x) + access(0) ⇒ writeResource(x); access(0) + writeDone() },
+  go { case readerFinished(_) + access(k) ⇒ access(k - 1) }
 )
 access(0) // Emit at the beginning.
 
@@ -227,8 +227,8 @@ So the Reader client must implement _two_ reactions: one will emit `read()` and 
 ```scala
 // Reactions for a Reader: example
 site(
-  go { case startReader(_) => initializeReader(); read() },
-  go { case readResult(x) => continueReader(x) }
+  go { case startReader(_) ⇒ initializeReader(); read() },
+  go { case readResult(x) ⇒ continueReader(x) }
 )
 
 ```
@@ -238,7 +238,7 @@ Instead of writing a single reaction body for a Reader client,
 
 ```scala
 // Single reaction for Reader: not working!
-go { case startReader(_) =>
+go { case startReader(_) ⇒
   val a = ???
   val b = ???
   val x = read() // This won't work since `read()` doesn't return `x`
@@ -256,12 +256,12 @@ For this reason, we cannot rewrite the code shown above as two reactions like th
 ```scala
 // Two reactions for Reader: not working!
 site(
-  go { case startReader(_) =>
+  go { case startReader(_) ⇒
     val a = ???
     val b = ???
     read() 
   },
-  go { case readResult(x) =>
+  go { case readResult(x) ⇒
     continueReader(a, b, x) // Where do `a` and `b` come from???
   }
 )
@@ -281,28 +281,28 @@ Similarly, the code for a Writer client must implement two reactions such as
 ```scala
 // Reactions for a Writer: example
 site(
-  go { case startWriter(_) => initializeWriter(); val x: Int = ???; write(x) },
-  go { case writeDone(_) => continueWriter() }
+  go { case startWriter(_) ⇒ initializeWriter(); val x: Int = ???; write(x) },
+  go { case writeDone(_) ⇒ continueWriter() }
 )
 
 ```
 
 Again, the scope of the Writer client must be cut at the `write()` call.
 
-We will see in the next chapter how to avoid stack ripping by using "blocking molecules".
+We will see in the next chapter how to avoid stack ripping by using “blocking molecules”.
 For now, we can use a trick that allows the second reaction to see the local variables of the first one.
 The trick is to define the second reaction _within the scope_ of the first one:
 
 ```scala
 // Two reactions for Reader: almost working but not quite
 site(
-  go { case startReader(_) =>
+  go { case startReader(_) ⇒
     val a = ???
     val b = ???
     read()
     // Define the second reaction site within the scope of the first one.
     site(
-      go { case readResult(x) =>
+      go { case readResult(x) ⇒
         continueReader(a, b, x) // Now `a` and `b` are obtained from outer scope.
       }
     )
@@ -323,7 +323,7 @@ For this reason, we must emit `read(readResult)` only _after_ we define the reac
 The complete code looks like this:
 
 ```scala
-// Code for Readers/Writers access control.
+// Working code for Readers/Writers access control.
 val read = m[M[Int]]
 val write = m[Int]
 val writeDone = m[Unit]
@@ -331,28 +331,28 @@ val access = m[Int]
 val readerFinished = m[Unit]
 val n = 3 // can be a run-time parameter
 site(
-  go { case read(readResult) + access(k) if k < n =>
+  go { case read(readResult) + access(k) if k < n ⇒
     access(k + 1)
     val x = readResource(); readResult(x)
     readerFinished()
   },
-  go { case write(x) + access(0) => writeResource(x); access(0) + writeDone() },
-  go { case readerFinished(_) + access(k) => access(k - 1) }
+  go { case write(x) + access(0) ⇒ writeResource(x); access(0) + writeDone() },
+  go { case readerFinished(_) + access(k) ⇒ access(k - 1) }
 )
 access(0) // Emit at the beginning.
 
 ```
 
 ```scala
-// Code for Reader client reactions.
+// Working skeleton code for Reader client reactions.
 site(
-  go { case startReader(_) =>
+  go { case startReader(_) ⇒
     val a = ???
     val b = ???
     val readResult = m[Int]
     // Define the second reaction site within the scope of the first one.
     site(
-      go { case readResult(x) =>
+      go { case readResult(x) ⇒
         continueReader(a, b, x) // Now `a` and `b` are obtained from outer scope.
       }
     )
@@ -368,7 +368,7 @@ The price is adding some boilerplate code and passing the `readResult()` molecul
 
 ### Molecules and reactions in local scopes
 
-It is perfectly admissible to define a new reaction site (and/or new molecule emitters) within the scope of an existing reaction.
+It is perfectly admissible to define new reaction sites (and/or new molecule emitters) within the scope of an existing reaction.
 Reactions defined within a local scope are treated no differently from any other reactions.
 New molecule emitters, new reactions, and new reaction sites are always defined within _some_ local scope, and they can be defined within the scope of a function, a reaction, or even within the local scope of a value:
 
@@ -377,7 +377,7 @@ val a: M[Unit] = {
   val c = m[Int] // whatever
   val q = m[Unit]
   site(
-    go { case c(x) + q(_) => println(x); c(x + 1) } // whatever
+    go { case c(x) + q(_) ⇒ println(x); c(x + 1) } // whatever
   )
   c(0) // Emit this just once.
   q // Return the emitter `q` to outside scope.
@@ -387,11 +387,16 @@ val a: M[Unit] = {
 
 The chemistry implemented here is a "counter" that prints its current value and increments it, whenever `q()` is emitted.
 
-The result of defining this chemistry within the scope of a block is to create a new molecule emitter `a`.
-The emitters `c` and `q` are invisible outside that scope; however, the emitter `q` is returned as the result value of the block, and so the emitter `q` is now accessible as the value of `a`.
+The result of defining this chemistry within the scope of a block is to declare a new molecule emitter `a` as a top-level value in the outer scope.
 
-This trick gives us the ability to hide some emitters and in this way to encapsulate and protect the chemistry from tampering.
-The correct function of the chemistry depends on having a single copy of `c()`.
+The emitters `c` and `q` with their chemistry are also declared and active, but invisible outside the scope of their block.
+Only the emitter `q` is returned as the result value of the block, and so the emitter `q` is now accessible as the value of `a` in the outer scope.
+
+This trick gives us the ability to hide some emitters and in this way to encapsulate their chemistry, making it safe to use by outside code.
+In this example, the correct function of the counter depends on having a _single_ copy of `c()` in the soup.
+If the user were to emit (by mistake) several copies of `c()`, the incrementing functionality would become unpredictable since the user has no control over which copy of `c()` will be consumed by the reaction `c + q ⇒ ...`. 
+
+Encapsulating the chemistry in a block scope prohibits this error from happening.
 Indeed, the inner scope emits exactly one copy of `c(0)`.
 In the outer scope, the code has access to the `a` emitter and can emit molecules `a()` at will, but cannot emit any new copies of `c()`.
 Thus it is guaranteed that the encapsulated reactions involving `c()` will run correctly.
@@ -399,9 +404,9 @@ Thus it is guaranteed that the encapsulated reactions involving `c()` will run c
 ## Example: Concurrent map/reduce
 
 Consider the problem of implementing a concurrent map/reduce operation.
-This operation first takes an array of type `Array[A]` and applies a function `f : A => B` to each element of the array.
+This operation first takes an array of type `Array[A]` and applies a function `f : A ⇒ B` to each element of the array.
 This yields an `Array[B]` of intermediate results.
-After that, a “reduce”-like operation `reduceB : (B, B) => B`  is applied to that array, and the final result of type `B` is computed.
+After that, a “reduce”-like operation `reduceB : (B, B) ⇒ B`  is applied to that array, and the final result of type `B` is computed.
 
 This can be implemented in sequential code like this:
 
@@ -430,11 +435,11 @@ We will emit a copy of the `carrier` molecule for each element of the initial ar
 
 ```scala
 val arr : Array[A] = ???
-arr.foreach(i => carrier(i))
+arr.foreach(i ⇒ carrier(i))
 
 ```
 
-Since the molecule emitter inherits the function type `A => Unit`, we could equivalently write this as
+Since the molecule emitter inherits the function type `A ⇒ Unit`, we could equivalently write this as
 
 ```scala
 val arr : Array[A] = ???
@@ -452,7 +457,7 @@ val interm = m[B]
 Therefore, we need a reaction of this shape:
 
 ```scala
-go { case carrier(x) => val res = f(x); interm(res) }
+go { case carrier(x) ⇒ val res = f(x); interm(res) }
 
 ```
 
@@ -469,8 +474,8 @@ When all intermediate results are collected, we would like to print the final re
 At first we might write reactions for `accum` like this:
 
 ```scala
-go { case accum(b) + interm(res) => accum( reduceB(b, res) ) },
-go { case accum(b) => println(b) }
+go { case accum(b) + interm(res) ⇒ accum( reduceB(b, res) ) },
+go { case accum(b) ⇒ println(b) }
 
 ```
 
@@ -494,8 +499,8 @@ Reactions with `accum()` will increment the counter; the reaction with `fetch()`
 ```scala
 val accum = m[(Int, B)]
 
-go { case accum((n, b)) + interm(res) => accum( (n + 1, reduceB(b, res)) ) },
-go { case accum((n, b)) if n == arr.size => println(b) }
+go { case accum((n, b)) + interm(res) ⇒ accum( (n + 1, reduceB(b, res)) ) },
+go { case accum((n, b)) if n == arr.size ⇒ println(b) }
 
 ```
 
@@ -528,18 +533,18 @@ object C extends App {
 
   // declare the reaction for the "map" step
   site(
-    go { case carrier(x) => val res = f(x); interm(res) }
+    go { case carrier(x) ⇒ val res = f(x); interm(res) }
   )
 
   // The two reactions for the "reduce" step must be together since they both consume `accum`.
   site(
-      go { case accum((n, b)) + interm(res) => accum( (n + 1, reduceB(b, res)) ) },
-      go { case accum((n, b)) if n == arr.size => println(b) }
+      go { case accum((n, b)) + interm(res) ⇒ accum( (n + 1, reduceB(b, res)) ) },
+      go { case accum((n, b)) if n == arr.size ⇒ println(b) }
   )
 
   // emit molecules
   accum((0, 0))
-  arr.foreach(i => carrier(i))
+  arr.foreach(i ⇒ carrier(i))
  // prints 338350
 }
 
@@ -566,7 +571,7 @@ The main idea of the merge-sort algorithm is to split the array in half, sort ea
 
 ```scala
 site(
-  go { case mergesort(arr) =>
+  go { case mergesort(arr) ⇒
     if (arr.length == 1)
       sorted(arr) // all done, trivially
     else {
@@ -585,7 +590,7 @@ Let us assume that an array-merging function `arrayMerge(arr1, arr2)` is already
 We could then envision a reaction like this:
 
 ```scala
-go { case sorted1(arr1) + sorted2(arr2) =>
+go { case sorted1(arr1) + sorted2(arr2) ⇒
   sorted( arrayMerge(arr1, arr2) ) 
 }
 
@@ -596,7 +601,7 @@ In order to achieve this, we can define the merging reaction within the scope of
 
 ```scala
 site(
-  go { case mergesort(arr) =>
+  go { case mergesort(arr) ⇒
     if (arr.length == 1)
       sorted(arr) // all done, trivially
     else {
@@ -605,7 +610,7 @@ site(
       val sorted1 = m[Array[T]]
       val sorted2 = m[Array[T]]
       site(
-        go { case sorted1(arr1) + sorted2(arr2) =>
+        go { case sorted1(arr1) + sorted2(arr2) ⇒
          sorted( arrayMerge(arr1, arr2) ) // all done, merged
         } 
       )
@@ -627,7 +632,7 @@ val mergesort = new M[(Array[T], M[Array[T]])]
 
 site(
   go {
-    case mergesort((arr, sorted)) =>
+    case mergesort((arr, sorted)) ⇒
       if (arr.length <= 1)
         sorted(arr) // all done, trivially
       else {
@@ -636,7 +641,7 @@ site(
         val sorted1 = new M[Array[T]]
         val sorted2 = new M[Array[T]]
         site(
-          go { case sorted1(arr1) + sorted2(arr2) =>
+          go { case sorted1(arr1) + sorted2(arr2) ⇒
             sorted(arrayMerge(arr1, arr2)) // all done, merged 
           }
         )

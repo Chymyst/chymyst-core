@@ -29,7 +29,7 @@ For instance, we can postulate that there exist three sorts of molecules called 
 `a + c ⇒` [_nothing_]
 
 
-![Reaction diagram a + b => a, a + c => ...](https://chymyst.github.io/chymyst-core/reactions1.svg)
+![Reaction diagram a + b ⇒ a, a + c ⇒ ...](https://chymyst.github.io/chymyst-core/reactions1.svg)
 
 Of course, real-life chemistry does not allow a molecule to disappear without producing any other molecules.
 But our chemistry is purely imaginary, and so the programmer is free to postulate arbitrary chemical laws.
@@ -59,7 +59,7 @@ As reactions emit new molecules into the soup, the simulator will continue start
 The chemical machine is implemented by the runtime engine of `Chymyst`.
 Rather than merely watch as reactions happen, we are going to use the chemical machine for running actual concurrent programs.
 
-To this end, `Chymyst` introduces three features:
+To this end, we add three features to the chemical machine:
 
 1. Each molecule in the soup is now required to _carry a value_.
 Molecule values are strongly typed: a molecule of a given sort (such as `a` or `b`) can only carry values of some fixed type (such as `Boolean` or `String`).
@@ -100,22 +100,22 @@ a(x) + c(y) ⇒ println(x + y) // — reaction body with no output molecules
 This reaction consumes the molecules `a` and `c` as its input, but does not emit any output molecules.
 The only result of running the reaction is the side-effect of printing the number `x + y`.
 
-![Reaction diagram a(x) + b(y) => a(z), a(x) + c(y) => ...](https://chymyst.github.io/chymyst-core/reactions2.svg)
+![Reaction diagram a(x) + b(y) ⇒ a(z), a(x) + c(y) ⇒ ...](https://chymyst.github.io/chymyst-core/reactions2.svg)
 
 The computations performed by the chemical machine are _automatically concurrent_:
 Whenever input molecules are available in the soup, the runtime engine will start a reaction that consumes these input molecules.
 If many copies of input molecules are available, the runtime engine could start several reactions concurrently.
-The runtime engine can decide how many concurrent reactions to run depending on the number of available cores.
+The runtime engine will decide how many concurrent reactions to run, depending on the number of available cores or other considerations.
 
 The reaction body can be a _pure function_ that computes output values solely from the input values carried by the input molecules.
-If the reaction body is a pure function, it is completely safe (free of contention or race conditions) to execute concurrently several copies of the same reaction as different processes.
-Each process will consume its own input molecules and will work with its own input values.
+If the reaction body is a pure function, it is completely safe (free of contention or race conditions) to execute concurrently several copies of the same reaction.
+Each copy of the reaction will run in its own process, consuming its own set of input molecules and working with its own input values.
 This is how the chemical machine achieves safe and automatic concurrency in a purely functional way,
 with no global mutable state.
 
 ## The syntax of `Chymyst`
 
-So far, we have been writing chemical laws with a kind of chemistry-resembling pseudocode.
+So far, we have been writing chemical laws in a kind of chemistry-resembling pseudocode.
 The actual syntax of `Chymyst` is only a little more verbose:
 
 ```scala
@@ -127,7 +127,7 @@ val b = m[Int] // ditto for b(...)
 
 // declare the reaction site and the available reaction(s)
 site(
-  go { case a(x) + b(y) =>
+  go { case a(x) + b(y) ⇒
     val z = computeZ(x,y)
     a(z)
   }
@@ -137,7 +137,12 @@ site(
 
 The helper functions `m`, `site`, and `go` are defined in the `Chymyst` library.
 
-The `site()` function call declares a **reaction site**, which can be visualized as a place where molecules gather and wait for their reaction partners.
+The function `go(...)` defines a reaction.
+The left-hand side of a reaction is the set of its input molecules, represented as a pattern-matching expression `case a(x) + ...`.
+The values of the input molecules are pattern variables.
+The right-hand side of a reaction is an arbitrary Scala expression that can use the pattern variables to compute new values. 
+
+The function call `site(...)` declares a **reaction site**, which can be visualized as a place where molecules gather and wait for their reaction partners.
 
 ## Example: Concurrent counter
 
@@ -146,7 +151,7 @@ We already know enough to start implementing our first concurrent program!
 The task at hand is to maintain a counter with an integer value, which can be incremented or decremented by non-blocking concurrent requests.
 For example, we would like to be able to increment and decrement the counter from different processes running at the same time.
 
-To implement this in `Chymyst`, we begin by deciding which molecules we will need to define.
+To implement this in `Chymyst`, we begin by deciding which molecules we will need to use.
 Since there is no global mutable state, it is clear that the integer value of the counter needs to be carried by a molecule.
 Let's call this molecule `counter` and specify that it carries an integer value:
 
@@ -172,8 +177,8 @@ So, it looks like we will need two reactions. Let us write a reaction site:
 
 ```scala
 site(
-  go { case counter(n) + incr(_) => counter(n + 1) },
-  go { case counter(n) + decr(_) => counter(n - 1) }
+  go { case counter(n) + incr(_) ⇒ counter(n + 1) },
+  go { case counter(n) + decr(_) ⇒ counter(n - 1) }
 )
 
 ```
@@ -182,15 +187,14 @@ Each reaction says that the new value of the counter (either `n + 1` or `n - 1`)
 The previous molecule, `counter(n)`, will be consumed by the reactions.
 The `incr()` and `decr()` molecules will be likewise consumed.
 
-![Reaction diagram counter(n) + incr => counter(n+1) etc.](https://chymyst.github.io/chymyst-core/counter-incr-decr.svg)
+![Reaction diagram counter(n) + incr ⇒ counter(n+1) etc.](https://chymyst.github.io/chymyst-core/counter-incr-decr.svg)
 
-In `Chymyst`, a reaction site is created by calling `site(...)`.
-A reaction site can declare one or more reactions.
+In `Chymyst`, a reaction site can declare one or more reactions, since the function `site()` takes a variable number of arguments.
 
 In the present example, however, both reactions need to be written within the same reaction site.
 Here is why:
 
-Both reactions `{ counter + incr => ... }` and `{ counter + decr => ... }` consume the molecule `counter()`.
+Both reactions `{ counter + incr ⇒ ... }` and `{ counter + decr ⇒ ... }` consume the molecule `counter()`.
 In order for any of these reactions to start, the molecule `counter()` needs to be present at some reaction site.
 Therefore, the `incr()` and `decr()` molecules must be present at the _same_ reaction site, or else they cannot meet with `counter()` to start a reaction.
 For this reason, both reactions need to be defined _together_ in a single reaction site.
@@ -206,8 +210,9 @@ decr() + decr() // after a reaction with these two, the soup will have counter(9
 ```
 
 The syntax `decr() + decr()` is just a chemistry-resembling syntactic sugar for emitting several molecules at once.
+The expression `decr() + decr()` is equivalent to `decr(); decr()`.
 
-Note that `counter`, `incr` and `decr` are local values that we use as functions, e.g. by writing `incr()` and `decr()`, to actually emit the corresponding molecules.
+Note that `counter`, `incr` and `decr` are local values that we use as functions, e.g. by writing `counter(100)` and `decr()`, to actually emit the corresponding molecules.
 For this reason, we refer to `counter`, `incr`, and `decr` as **molecule emitters**. 
 
 It could happen that we are emitting `incr()` and `decr()` molecules too quickly for reactions to start.
@@ -215,9 +220,9 @@ This will result in many instances of `incr()` or `decr()` molecules being prese
 Is this a problem?
 
 Recall that when the chemical machine starts a reaction, all input molecules are consumed first, and only then the reaction body is evaluated.
-In our case, each reaction needs to consume a `counter` molecule, but only one instance of `counter` molecule is initially present in the soup.
-For this reason, the chemical machine will need to choose whether the single `counter` molecule will react with an `incr` or a `decr` molecule.
-Only when the incrementing or the decrementing calculation is finished, the new instance of the `counter` molecule (with the updated integer value) will be emitted into the soup.
+In our case, each reaction needs to consume a `counter()` molecule, but only one instance of `counter()` molecule is initially present in the soup.
+For this reason, the chemical machine will need to choose whether the single `counter()` molecule will react with an `incr()` or a `decr()` molecule.
+Only when the incrementing or the decrementing calculation is finished, the new instance of the `counter()` molecule (with the updated integer value) will be emitted into the soup.
 This automatically prevents race conditions with the counter: There is no possibility of updating the counter value simultaneously from different reactions.
 
 ## Tracing the output
@@ -240,8 +245,8 @@ def printAndEmit(x: Int) = {
 
 // write the reaction site
 site(
-  go { case counter(n) + decr(_) => printAndEmit(n - 1) }
-  go { case counter(n) + incr(_) => printAndEmit(n + 1) },
+  go { case counter(n) + decr(_) ⇒ printAndEmit(n - 1) }
+  go { case counter(n) + incr(_) ⇒ printAndEmit(n + 1) },
 )
 
 counter(100)
@@ -266,14 +271,14 @@ In our example, all three molecules `counter`, `incr`, and `decr` are declared a
 
 ```
 > println(decr.logSoup)
-Site{counter + decr => ...; counter + incr => ...}
+Site{counter + decr ⇒ ...; counter + incr ⇒ ...}
 Molecules: counter(98)
 
 ```
 
 The debug output contains two pieces of information:
 
-- The RS which is being logged: `Site{counter + decr => ...; counter + incr => ...}`
+- The RS which is being logged: `Site{counter + decr ⇒ ...; counter + incr ⇒ ...}`
 Note that the RS is identified by the reactions that are declared in it.
 The reactions are shown in a shorthand notation, which only mentions the input molecules.
 
@@ -342,7 +347,7 @@ The method `isBound` can be used to determine at run time whether a molecule has
 val x = m[Int]
 x.isBound // returns `false`
 
-site( go { case x(2) =>  } )
+site( go { case x(2) ⇒  } )
 
 x.isBound // returns `true`
 
@@ -361,14 +366,14 @@ val x = m[Int]
 val a = m[Unit]
 val b = m[Unit]
 
-site( go { case x(n) + a(_) => println(s"have x($n) + a") } ) // OK, "x" is now bound to this RS.
+site( go { case x(n) + a(_) ⇒ println(s"have x($n) + a") } ) // OK, "x" is now bound to this RS.
 
-site( go { case x(n) + b(_) => println(s"have x($n) + b") } )
-// java.lang.Exception: Molecule x cannot be used as input in Site{b + x => ...} since it is already bound to Site{a + x => ...}
+site( go { case x(n) + b(_) ⇒ println(s"have x($n) + b") } )
+// java.lang.Exception: Molecule x cannot be used as input in Site{b + x ⇒ ...} since it is already bound to Site{a + x ⇒ ...}
 
 ```
 
-What the programmer probably meant is that the molecule `x()` has two reactions that consume it.
+What the programmer probably meant to write is that the molecule `x()` has two reactions that consume it.
 Correct use of `Chymyst` requires that we put these two reactions together into _one_ reaction site:
  
 ```scala
@@ -377,63 +382,65 @@ val a = m[Unit]
 val b = m[Unit]
 
 site(
-  go { case x(n) + a(_) => println(s"have x($n) + a") },
-  go { case x(n) + b(_) => println(s"have x($n) + b") }
+  go { case x(n) + a(_) ⇒ println(s"have x($n) + a") },
+  go { case x(n) + b(_) ⇒ println(s"have x($n) + b") }
 ) // OK
 
 ``` 
 
 More generally, all reactions that share any input molecules must be defined together in a single RS.
-However, reactions that use a certain molecule only as an output molecule can be declared in another RS.
+Whenever a molecule is consumed by a reaction at some RS, we say that this molecule is **bound** to that RS, and any reactions that consume that molecule must be defined at the same RS.
+
+However, reactions that use that molecule only as an output molecule can be declared in another RS.
 Here is an example where we define one RS that computes a result and emits a molecule called `show`, which is bound to another RS:
 
 ```scala
 val show = m[Int]
 // reaction site where the “show” molecule is an input molecule
-site( go { case show(x) => println(s"got $x") })
+site( go { case show(x) ⇒ println(s"got $x") })
 
 val start = m[Unit]
 // reaction site where the “show” molecule is an output molecule (but not an input molecule)
 site(
-  go { case start(_) => val res = compute(???); show(res) }
+  go { case start(_) ⇒ val res = compute(???); show(res) }
 )
 
 ``` 
 
 ## Order of reactions and nondeterminism
 
-When a reaction site has enough waiting molecules for several different reactions to start, the runtime engine will choose the reaction at random, giving each candidate reaction an equal chance of starting.
+When a reaction site has so many waiting molecules that several different reactions could start, the runtime engine will choose at random the reaction that will actually be scheduled to start.
+Each candidate reaction has an equal chance of starting.
 
 The next figure shows a possibility of different reactions starting at a reaction site.
-In this example, the soup contains one copy of the `counter` molecule, one copy of `incr`, and one copy of `decr`.
-The `counter` molecule could either react with the `incr` molecule or with the `decr` molecule.
-One of these reactions (shown in solid lines) have been chosen to actually start, which leaves the second reaction (shown with a dashed line) without the input molecule `counter` and, therefore, the second reaction cannot start.
+In this example, the soup contains one copy of the `counter()` molecule, one copy of `incr()`, and one copy of `decr()`.
+The `counter` molecule could either react with the `incr()` molecule or with the `decr()` molecule.
+One of these reactions (shown in solid lines) have been chosen to actually start, which leaves the second reaction (shown with a dashed line) without the input molecule `counter()` and, therefore, the second reaction cannot start.
 
 ![Reaction diagram counter + incr, counter + decr](https://chymyst.github.io/chymyst-core/counter-multiple-reactions.svg)
 
 Similarly, when there are several copies of the same molecule that can be consumed by a reaction, the runtime engine will make a choice of which copy of the molecule to consume.
 
 The next figure shows the choice of input molecules among the ones present at a reaction site.
-In this example, the soup contains one copy of the `counter` molecule and four copies of the `incr` molecule.
-Each of the four `incr` molecules can react with the one `counter` molecule.
+In this example, the soup contains one copy of the `counter()` molecule and four copies of the `incr()` molecule.
+Each of the four `incr()` molecules can react with the one `counter()` molecule.
 The runtime engine will choose which molecules actually react.
-One reaction (shown in solid lines) will start, consuming the `counter` and `incr` molecules, while other possible reactions (shown in dashed lines) will not start.
+One reaction (shown in solid lines) will start, consuming the `counter()` and `incr()` molecules, while other possible reactions (shown in dashed lines) will not start.
 
 ![Reaction diagram counter + incr, counter + incr](https://chymyst.github.io/chymyst-core/counter-multiple-molecules.svg)
 
-After this reaction, the contents of the soup is one copy of the `counter` molecule (with the updated value) and the three remaining `incr` molecules.
-At the next step, another one of the `incr` molecules will be chosen to start a reaction, as shown in the next figure:
+After this reaction, the contents of the soup is one copy of the `counter()` molecule (with the updated value) and the three remaining `incr()` molecules.
+At the next step, another one of the `incr()` molecules will be chosen to start a reaction, as shown in the next figure:
 
 ![Reaction diagram counter + incr, counter + decr after reaction](https://chymyst.github.io/chymyst-core/counter-multiple-molecules-after-reaction.svg)
 
-Currently, `Chymyst` will _not_ fully randomize the input molecules but make an implementation-dependent choice.
-A truly random selection of input molecules may be implemented in the future.
+Currently, `Chymyst` will _not_ fully randomize the input molecules but make an implementation-dependent choice, designed to optimize the performance of the reaction scheduler.
 
 Importantly, it is _not possible_ to assign priorities to reactions or to molecules.
 The chemical machine ignores the order in which reactions are listed in the `site(...)` call, as well as the order of molecules in the input list of each reaction.
 Just for the purposes of debugging, molecules will be printed in alphabetical order of names, and reactions will be printed in an unspecified but fixed order.
 
-The result is that the order in which reactions will start is non-deterministic and unknown.
+To summarize: When there are sufficiently many waiting molecules so that several different reactions could start, the order in which reactions will start is non-deterministic and unknown.
 
 If the priority of certain reactions is important for a particular application, it is the programmer's task to design the chemistry in such a way that those reactions start in the desired order.
 This is always possible by using auxiliary molecules and/or guard conditions.
@@ -452,9 +459,9 @@ Here is an (incorrect) attempt to design the chemistry for this program:
 val data = m[Int]
 val sum = m[Int]
 site (
-  go { case data(x) + sum(y) => sum(x + y) }, // We really want the first reaction to be high priority
+  go { case data(x) + sum(y) ⇒ sum(x + y) }, // We really want the first reaction to be high priority
    
-  go { case sum(x) => println(s"sum = $x") }  // and run the second one only after all `data` molecules are gone.
+  go { case sum(x) ⇒ println(s"sum = $x") }  // and run the second one only after all `data` molecules are gone.
 )
 data(5) + data(10) + data(150)
 sum(0) // expect "sum = 165"
@@ -479,16 +486,15 @@ This kind of nondeterminism illustrates why concurrency is widely regarded as a 
 val data = m[Int]
 val sum = m[Int]
 site (
-  go { case data(x) + sum(y) => sum(x + y) },
-  go { case sum(x) => println(s"sum = $x") }
+  go { case data(x) + sum(y) ⇒ sum(x + y) },
+  go { case sum(x) ⇒ println(s"sum = $x") }
 )
 
 ```
+`Exception: In Site{data + sum ⇒ ...; sum ⇒ ...}: Unavoidable nondeterminism:`
+`reaction data + sum ⇒ ... is shadowed by sum ⇒ ...`
 
-`Exception: In Site{data + sum => ...; sum => ...}: Unavoidable nondeterminism:`
-`reaction data + sum => ... is shadowed by sum => ...`
-
-The error message means that the reaction `sum => ...` will sometimes prevent `data + sum => ...` from running,
+The error message means that the reaction `sum ⇒ ...` will sometimes prevent `data + sum ⇒ ...` from running,
 and that the programmer _has no control_ over this nondeterminism.
 
 The correct implementation needs to keep track of how many `data(...)` molecules we already consumed,
@@ -503,8 +509,8 @@ Otherwise, `sum(...)` should start its own reaction and print the final result.
 val data = m[Int]
 val sum = m[(Int, Int)]
 site (
-  go { case data(x) + sum((y, remaining)) if remaining > 0 => sum((x + y, remaining - 1)) },
-  go { case sum((x, 0)) => println(s"sum = $x") }
+  go { case data(x) + sum((y, remaining)) if remaining > 0 ⇒ sum((x + y, remaining - 1)) },
+  go { case sum((x, 0)) ⇒ println(s"sum = $x") }
 )
 data(5) + data(10) + data(150) // emit three `data` molecules
 sum((0, 3)) // "sum = 165" printed
@@ -523,7 +529,7 @@ Here is equivalent code with just one reaction:
 val data = m[Int]
 val sum = m[(Int, Int)]
 site (
-  go { case data(x) + sum((y, remaining)) =>
+  go { case data(x) + sum((y, remaining)) ⇒
       val newSum = x + y
       if (remaining == 1)  println(s"sum = $newSum")
       else  sum((newSum, remaining - 1)) 
@@ -615,17 +621,17 @@ val fork45 = m[Unit]
 val fork51 = m[Unit]
 
 site (
-  go { case thinking1(_) => wait("Socrates is thinking");  hungry1() },
-  go { case thinking2(_) => wait("Confucius is thinking"); hungry2() },
-  go { case thinking3(_) => wait("Plato is thinking");     hungry3() },
-  go { case thinking4(_) => wait("Descartes is thinking"); hungry4() },
-  go { case thinking5(_) => wait("Voltaire is thinking");  hungry5() },
+  go { case thinking1(_) ⇒ wait("Socrates is thinking");  hungry1() },
+  go { case thinking2(_) ⇒ wait("Confucius is thinking"); hungry2() },
+  go { case thinking3(_) ⇒ wait("Plato is thinking");     hungry3() },
+  go { case thinking4(_) ⇒ wait("Descartes is thinking"); hungry4() },
+  go { case thinking5(_) ⇒ wait("Voltaire is thinking");  hungry5() },
 
-  go { case hungry1(_) + fork12(_) + fork51(_) => wait("Socrates is eating");  thinking1() + fork12() + fork51() },
-  go { case hungry2(_) + fork23(_) + fork12(_) => wait("Confucius is eating"); thinking2() + fork23() + fork12() },
-  go { case hungry3(_) + fork34(_) + fork23(_) => wait("Plato is eating");     thinking3() + fork34() + fork23() },
-  go { case hungry4(_) + fork45(_) + fork34(_) => wait("Descartes is eating"); thinking4() + fork45() + fork34() },
-  go { case hungry5(_) + fork51(_) + fork45(_) => wait("Voltaire is eating");  thinking5() + fork51() + fork45() }
+  go { case hungry1(_) + fork12(_) + fork51(_) ⇒ wait("Socrates is eating");  thinking1() + fork12() + fork51() },
+  go { case hungry2(_) + fork23(_) + fork12(_) ⇒ wait("Confucius is eating"); thinking2() + fork23() + fork12() },
+  go { case hungry3(_) + fork34(_) + fork23(_) ⇒ wait("Plato is eating");     thinking3() + fork34() + fork23() },
+  go { case hungry4(_) + fork45(_) + fork34(_) ⇒ wait("Descartes is eating"); thinking4() + fork45() + fork34() },
+  go { case hungry5(_) + fork51(_) + fork45(_) ⇒ wait("Voltaire is eating");  thinking5() + fork51() + fork45() }
 )
 // Emit molecules representing the initial state:
 thinking1() + thinking2() + thinking3() + thinking4() + thinking5()
