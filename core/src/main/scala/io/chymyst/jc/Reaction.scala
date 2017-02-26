@@ -213,7 +213,7 @@ sealed trait GuardPresenceFlag {
     * @return `true` if the reaction's static guard returns `false`.
     *         `false` if the reaction has no static guard, or if the static guard returns `true`.
     */
-  def staticGuardFails: Boolean = false
+  def staticGuardFails(): Boolean = false
 
   /** Checks whether the reaction has no cross-molecule guard conditions.
     *
@@ -224,7 +224,7 @@ sealed trait GuardPresenceFlag {
     * @return `true` if the reaction has no guard condition, or if it has guard conditions that can be split between molecules;
     *         `false` if the reaction has a cross-molecule guard condition.
     */
-  def effectivelyAbsent: Boolean = true
+  val effectivelyAbsent: Boolean = true
 }
 
 /** Indicates whether guard conditions are required for this reaction to start.
@@ -249,9 +249,9 @@ sealed trait GuardPresenceFlag {
   *                    {{{indices = Array(1, 2), List((List('y, 'z), { case List(y: Int, z: Int) if y > z => () })) }}}.
   */
 final case class GuardPresent(staticGuard: Option[() => Boolean], crossGuards: Array[CrossMoleculeGuard]) extends GuardPresenceFlag {
-  override def staticGuardFails: Boolean = staticGuard.exists(guardFunction => !guardFunction())
+  override def staticGuardFails(): Boolean = staticGuard.exists(guardFunction => !guardFunction())
 
-  override def effectivelyAbsent: Boolean = staticGuard.isEmpty && crossGuards.isEmpty
+  override val effectivelyAbsent: Boolean = staticGuard.isEmpty && crossGuards.isEmpty
 
   override val toString: String =
     s"GuardPresent(${staticGuard.map(_ => "")}, [${crossGuards.map(_.toString).mkString("; ")}])"
@@ -691,7 +691,7 @@ final case class Reaction(
   /** Find a set of input molecules for this reaction, among the present molecules. */
   private[jc] def findInputMolecules(mol: Molecule, molCounts: Array[Int], moleculesPresent: MoleculeBagArray): Option[(Reaction, InputMoleculeList)] = {
     // Evaluate the static guard first. If the static guard fails, we don't need to run the reaction or look for any input molecules.
-    if (info.guardPresence.staticGuardFails)
+    if (info.guardPresence.staticGuardFails())
       None
     else {
       // For each input molecule used by the reaction, find all suitable values of this molecule that fit the conditional.
