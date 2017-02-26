@@ -54,9 +54,7 @@ object CrossMoleculeSortingSpec extends TestSuite {
       "empty array gives valid results" - {
         val result = groupConnectedSets(Array())
         assert(
-          result.length == 1,
-          result(0)._1 == Set(),
-          result(0)._2 sameElements Array[Set[Int]]()
+          result.length == 0
         )
       }
       * - {
@@ -89,6 +87,9 @@ object CrossMoleculeSortingSpec extends TestSuite {
       }
     }
     "sort the connected subsets" - {
+      "empty array gives empty result" - {
+        assert(sortedConnectedSets(groupConnectedSets(Array())).length == 0)
+      }
       * - {
         val result = sortedConnectedSets(groupConnectedSets(crossGroups1))
         assert(

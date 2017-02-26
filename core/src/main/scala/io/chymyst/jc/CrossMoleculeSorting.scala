@@ -34,11 +34,15 @@ private[jc] object CrossMoleculeSorting {
     result: Coll[(Set[Int], Coll[Set[Int]])] = Array()
   ): Coll[(Set[Int], Coll[Set[Int]])] = {
     val (currentSet, currentResult, remaining) = findFirstConnectedGroupSet(allGroups)
-    val newResult = result ++ Array((currentSet, currentResult))
-    if (remaining.isEmpty)
-      newResult
-    else
-      groupConnectedSets(remaining, newResult)
+    if (currentSet.isEmpty)
+      result
+    else {
+      val newResult = result ++ Array((currentSet, currentResult))
+      if (remaining.isEmpty)
+        newResult
+      else
+        groupConnectedSets(remaining, newResult)
+    }
   }
 
   @tailrec
