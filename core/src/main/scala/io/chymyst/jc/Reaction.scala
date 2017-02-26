@@ -533,21 +533,9 @@ final class ReactionInfo(
       .toSet
 
   /** The first integer is the number of cross-conditionals in which the molecule participates. The second is `true` when the molecule has its own conditional. */
-  private[jc] val moleculeWeights: Array[(Int, Boolean)] =
+  private val moleculeWeights: Array[(Int, Boolean)] =
     inputs.map(info ⇒ (-allCrossGroups.map(_ intersect Set(info.index)).map(_.size).sum, info.flag.isIrrefutable))
-  /*
-    private val sortedConnectedSets: Array[(Set[Int], Array[Set[Int]])] = CrossMoleculeSorting.getSortedConnectedSets(allCrossGroups)
 
-    private val sortedConnectedGroups: Set[Set[Int]] = sortedConnectedSets.map(_._1).toSet
-
-    // Refactor so that the set structure is used directly to output a sequence of DSL instructions, rather than sequence of molecule indices.
-    private val moleculeIndexSequenceForSearchDSL: Array[Int] = {
-      val crossConstrainedMols = CrossMoleculeSorting.getMoleculeSequence(sortedConnectedSets, moleculeWeights)
-      val independentMols = inputs.indices.toArray.diff(crossConstrainedMols).sortBy(i ⇒ moleculeWeights(i))
-      crossConstrainedMols ++ independentMols
-    }
-
-  */
   private[jc] val searchDSLProgram = CrossMoleculeSorting.getDSLProgram(
     crossGuards.map(_.indices.toSet),
     repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet),
