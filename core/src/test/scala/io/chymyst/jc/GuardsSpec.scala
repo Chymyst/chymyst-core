@@ -74,7 +74,10 @@ class GuardsSpec extends FlatSpec with Matchers {
     val a = m[Option[Int]]
     val bb = m[(Int, Option[String])]
 
-    val result = go { case a(xOpt) + bb(y) if xOpt.isEmpty && y._2.isEmpty => }
+    val result = go { // ignore warning about "non-variable type argument"
+      case a(xOpt) + bb(y) // ignore warning about "class M expects 2 patterns"
+        if xOpt.isEmpty && y._2.isEmpty =>
+    }
     result.info.guardPresence.effectivelyAbsent shouldEqual true
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
 
@@ -91,7 +94,10 @@ class GuardsSpec extends FlatSpec with Matchers {
     val a = m[Option[Int]]
     val bb = m[(List[Int], Option[String])]
 
-    val result = go { case a(Some(x)) + bb((list, Some(y))) if x == 1 && list.isEmpty && y == "abc" => }
+    val result = go { // ignore warning about "non-variable type argument"
+      case a(Some(x)) + bb((list, Some(y)))
+        if x == 1 && list.isEmpty && y == "abc" =>
+    }
     result.info.guardPresence.effectivelyAbsent shouldEqual true
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
 
@@ -108,7 +114,10 @@ class GuardsSpec extends FlatSpec with Matchers {
     val a = m[Option[Int]]
     val bb = m[(Int, Option[String])]
 
-    val result = go { case a(xOpt) + bb(y) if xOpt.isEmpty || y._2.isEmpty => }
+    val result = go { // ignore warnings about "non-variable type argument"
+      case a(xOpt) + bb(y) // ignore warning about "class M expects 2 patterns"
+        if xOpt.isEmpty || y._2.isEmpty =>
+    }
     result.info.guardPresence.effectivelyAbsent shouldEqual false
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('xOpt, 'y), _))) => }
 
@@ -125,7 +134,10 @@ class GuardsSpec extends FlatSpec with Matchers {
     val a = m[Option[Int]]
     val bb = m[(List[Int], Option[String])]
 
-    val result = go { case a(Some(x)) + bb((list, Some(y))) if x == 1 || list.isEmpty || y == "abc" => }
+    val result = go { // ignore warning about "non-variable type argument"
+      case a(Some(x)) + bb((list, Some(y)))
+        if x == 1 || list.isEmpty || y == "abc" =>
+    }
     result.info.guardPresence.effectivelyAbsent shouldEqual false
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'list, 'y), _))) => }
 
@@ -214,7 +226,7 @@ class GuardsSpec extends FlatSpec with Matchers {
   it should "compute reaction info with alternative irrefutable matcher" in {
     val a = m[(Int, Int)]
 
-    val reaction = go { case a((_, _) | (1, 2)) => }
+    val reaction = go { case a((_, _) | (1, 2)) => } // ignore warning about "class M expects 2 patterns to hold"
 
     reaction.info.guardPresence should matchPattern { case AllMatchersAreTrivial => }
     reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List(), true) => }

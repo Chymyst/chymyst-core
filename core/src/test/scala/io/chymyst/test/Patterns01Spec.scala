@@ -245,7 +245,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val total = 5000
 
     site(tp)(
-      go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) },
+      go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
       go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() },
       go { case _ => danceCounter(Nil) }
     )
@@ -286,7 +286,7 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val total = 100
 
     site(tp)(
-      go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) },
+      go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
       go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() },
       go { case _ => danceCounter(Nil) }
     )
