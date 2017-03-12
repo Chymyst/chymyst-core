@@ -541,7 +541,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         val inputsForThisMolecule = r.info.inputs.filter(_.molecule === moleculeAtIndex(i))
 
         // There should be no cross-molecule conditions / guards involving this molecule; otherwise, it is fatal.
-        if (inputsForThisMolecule.map(_.index).toSet subsetOf r.info.independentInputMolecules) {
+        if (inputsForThisMolecule.map(_.index).toSet subsetOf r.info.independentInputMolecules.toSet) {
           // Get the conditions for this molecule. There should be no conditions when the molecule is repeated, and at most one otherwise.
           val thisConds = inputsForThisMolecule.filterNot(_.flag.isIrrefutable).toSet
           // Check whether this molecule is nonlinear in input (if so, there should be no conditions).

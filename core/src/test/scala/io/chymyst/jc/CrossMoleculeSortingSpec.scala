@@ -132,26 +132,10 @@ object CrossMoleculeSortingSpec extends TestSuite {
         case _ => None
       }
 
-      "for independent molecules only" - {
-
-        def getDSL(independentMols: Array[Int], mw: Array[(Int, Boolean)]): List[SearchDSL] =
-          getDSLProgram(Array(), Array(), independentMols, mw).toList
-
-        "with given molecules" - {
-        val independentMols = Array(0,1,2)
-          val result = getDSL(independentMols, moleculeWeightsIncr(3))
-          assert(result == List(
-            ChooseMolAndClose(0),
-            ChooseMolAndClose(1),
-            ChooseMolAndClose(2)
-          ))
-        }
-      }
-
       "for cross-groups only" - {
 
         def getDSL(cg: Array[Set[Int]], mw: Array[(Int, Boolean)]): List[SearchDSL] =
-          getDSLProgram(cg, Array(), Array(), mw).toList
+          getDSLProgram(cg, Array(), mw).toList
 
         "with monotonic molecule weights" - {
           * - {

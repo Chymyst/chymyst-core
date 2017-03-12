@@ -71,7 +71,6 @@ private[jc] object CrossMoleculeSorting {
   private[jc] def getDSLProgram(
     crossGroups: Coll[Set[Int]],
     repeatedMols: Coll[Set[Int]],
-    independentMols: Coll[Int],
     moleculeWeights: Coll[(Int, Boolean)]
   ): Coll[SearchDSL] = {
     val allGroups: Coll[Set[Int]] = crossGroups ++ repeatedMols
@@ -90,8 +89,7 @@ private[jc] object CrossMoleculeSorting {
     val sortedCrossGroups: Coll[Coll[Coll[Int]]] = sortedConnectedSets(groupConnectedSets(allGroups))
       .map(_._2.map(_.toArray.sortBy(moleculeWeights.apply))) // each cross-guard set needs to be sorted by molecule weight
 
-    sortedCrossGroups.flatMap(_.flatMap(getDSLProgramForCrossGroup).distinct :+ CloseGroup) ++
-      independentMols.map(ChooseMolAndClose)
+    sortedCrossGroups.flatMap(_.flatMap(getDSLProgramForCrossGroup).distinct :+ CloseGroup)
   }
 
 }

@@ -199,8 +199,8 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       r4
     )
 
-    r2.info.independentInputMolecules shouldEqual Set(0, 1, 2, 3)
-    r4.info.independentInputMolecules shouldEqual Set(0, 1)
+    r2.info.independentInputMolecules shouldEqual Array(0, 1, 2, 3)
+    r4.info.independentInputMolecules shouldEqual Array(0, 1)
     r4.info.inputs.map(_.flag.isIrrefutable) shouldEqual List(true, true)
     Seq(a, c1, c2, c3, c4).map(_.isPipelined) shouldEqual Seq.fill(5)(true)
   }

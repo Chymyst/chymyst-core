@@ -522,24 +522,23 @@ final class ReactionInfo(
 
   private val allCrossGroups: Array[Set[Int]] = crossGuards.map(_.indices.toSet) ++ repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet)
 
+  /** The first integer is the number of cross-conditionals in which the molecule participates. The second is `true` when the molecule has its own conditional. */
+  private val moleculeWeights: Array[(Int, Boolean)] =
+    inputs.map(info ⇒ (-allCrossGroups.map(_ intersect Set(info.index)).map(_.size).sum, info.flag.isIrrefutable))
+
   /** Check whether the molecule given by inputInfo has no cross-dependencies, including cross-conditionals implied by a repeated input molecule.
     */
-  private[jc] val independentInputMolecules: Set[Int] =
+  private[jc] val independentInputMolecules =
     inputs.map(_.index)
       .filter(index ⇒ !crossConditionals.contains(index) && crossGuards.forall {
         case CrossMoleculeGuard(indices, _, _) ⇒
           !indices.contains(index)
       })
-      .toSet
-
-  /** The first integer is the number of cross-conditionals in which the molecule participates. The second is `true` when the molecule has its own conditional. */
-  private val moleculeWeights: Array[(Int, Boolean)] =
-    inputs.map(info ⇒ (-allCrossGroups.map(_ intersect Set(info.index)).map(_.size).sum, info.flag.isIrrefutable))
+      .sortBy(moleculeWeights.apply)
 
   private[jc] val searchDSLProgram = CrossMoleculeSorting.getDSLProgram(
     crossGuards.map(_.indices.toSet),
     repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet),
-    independentInputMolecules.toArray.sortBy(moleculeWeights.apply),
     moleculeWeights
   )
 
