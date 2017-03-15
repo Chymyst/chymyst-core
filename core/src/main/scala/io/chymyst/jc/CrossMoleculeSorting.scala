@@ -98,8 +98,10 @@ private[jc] sealed trait SearchDSL
 
 private[jc] final case class ChooseMol(i: Int) extends SearchDSL
 
+/** Impose a guard condition on the molecule values found so far.
+  *
+  * @param i Index of the guard in `crossGuards` array
+  */
 private[jc] final case class ConstrainGuard(i: Int) extends SearchDSL
 
 private[jc] case object CloseGroup extends SearchDSL
-
-private[jc] final case class ChooseMolAndClose(i: Int) extends SearchDSL

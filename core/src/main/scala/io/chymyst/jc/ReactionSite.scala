@@ -79,7 +79,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   @tailrec
   private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
-    // TODO: optimize: pre-fetch all counts for related molecules; also precompute all related molecules in ReactionSite
+    // TODO: optimize: pre-fetch all counts for related molecules and compare them with required counts before calling findInputMolecules; also precompute all related molecules in ReactionSite
     if (logLevel > 3) println(s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(bags)}]")
     val foundReactionAndInputs =
       bags.synchronized {
@@ -266,7 +266,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def findReaction(mol: Molecule, molCounts: Array[Int]): Option[(Reaction, InputMoleculeList)] = {
     consumingReactions(mol.index)
       // We only need to find one reaction whose input molecules are available. For this, we use the special `Core.findAfterMap`.
-      .findAfterMap(_.findInputMolecules(mol, molCounts, bags))
+      .findAfterMap(_.findInputMolecules(molCounts, bags))
   }
 
   /** Check if the current thread is allowed to emit a static molecule.
@@ -529,8 +529,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       }(scala.collection.breakOut)
   }
 
-  // This array will be filled at initialization time. The element at index i is the maximum number of copies of the molecule with site-wide index i that can be consumed by any reaction.
-  val maxRequiredMoleculeCount: Array[Int] = Array.fill(knownMolecules.size)(0)
+  /** The element of this array at index i is the maximum number of copies of the molecule with site-wide index i that can be consumed by any reaction.
+    * This array will be computed at reaction site initialization time.
+    */
+  private val maxRequiredMoleculeCount: Array[Int] = Array.fill(knownMolecules.size)(0)
 
   private def infosIfPipelined(i: Int): Option[Set[InputMoleculeInfo]] = {
     consumingReactions(i)
@@ -540,8 +542,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         val haveOtherInputs = r.info.inputs.exists(_.molecule =!= moleculeAtIndex(i))
         val inputsForThisMolecule = r.info.inputs.filter(_.molecule === moleculeAtIndex(i))
 
-        // There should be no cross-molecule conditions / guards involving this molecule; otherwise, it is fatal.
-        if (inputsForThisMolecule.map(_.index).toSet subsetOf r.info.independentInputMolecules.toSet) {
+        // There should be no cross-molecule conditions / guards involving this molecule or any of its reaction partners; otherwise, it cannot be pipelined.
+        if (inputsForThisMolecule.map(_.index).toSet subsetOf r.info.independentInputMolecules) {
           // Get the conditions for this molecule. There should be no conditions when the molecule is repeated, and at most one otherwise.
           val thisConds = inputsForThisMolecule.filterNot(_.flag.isIrrefutable).toSet
           // Check whether this molecule is nonlinear in input (if so, there should be no conditions).

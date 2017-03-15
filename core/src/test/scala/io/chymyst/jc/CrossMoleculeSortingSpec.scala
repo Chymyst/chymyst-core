@@ -127,7 +127,6 @@ object CrossMoleculeSortingSpec extends TestSuite {
       def moleculeWeightsIncr(n: Int) = Array.tabulate[(Int, Boolean)](n)(i ⇒ (-i, false))
 
       def getMolIndices(dsl: Seq[SearchDSL]): Seq[Int] = dsl.flatMap {
-        case ChooseMolAndClose(i) ⇒ Some(i)
         case ChooseMol(i) ⇒ Some(i)
         case _ => None
       }
