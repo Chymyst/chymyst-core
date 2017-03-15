@@ -30,6 +30,10 @@ sealed trait MolValueBag[T] {
   def takeAny(count: Int): Seq[T]
 
   def getCountMap: Map[T, Int]
+
+  def allValues: Stream[T]
+
+  def allValuesSkipping(skipping: List[T]): Stream[T]
 }
 
 /** Implementation using guava's [[ConcurrentHashMultiset]].
@@ -75,6 +79,10 @@ final class MolValueMapBag[T] extends MolValueBag[T] {
     .iterator().asScala
     .map(entry => (entry.getElement, entry.getCount))
     .toMap
+
+  override def allValues = ???
+
+  override def allValuesSkipping(skipping: List[T]) = ???
 }
 
 /** Implementation using [[ConcurrentLinkedQueue]].
@@ -109,6 +117,7 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
       Some(iterator.next)
     else
       None
+
   }
 
   // Very inefficient! O(n) operations.
@@ -116,6 +125,10 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
     .toSeq
     .groupBy(identity)
     .mapValues(_.size)
+
+  override def allValues = ???
+
+  override def allValuesSkipping(skipping: List[T]) = ???
 }
 
 /*
