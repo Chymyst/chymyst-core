@@ -26,7 +26,7 @@ object + {
   *
   * @tparam T Type of the molecule value.
   */
-private[jc] sealed trait AbsMolValue[T] {
+private[jc] sealed trait AbsMolValue[T] extends PersistentHashCode {
   private[jc] def getValue: T
 
   /** String representation of molecule values will omit printing the `Unit` values but print all other types normally.

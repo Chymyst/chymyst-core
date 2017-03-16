@@ -695,7 +695,7 @@ final case class Reaction(
     s"${inputMoleculesSortedAlphabetically.map(_.toString).mkString(" + ")} => ...$suffix"
   }
 
-  type MolVals = Map[Int, List[AbsMolValue[_]]]
+  type MolVals = Map[Int, IndexedSeq[AbsMolValue[_]]]
 
   /** Find a set of input molecule values for this reaction. */
   private[jc] def findInputMolecules(molCounts: Array[Int], moleculesPresent: MoleculeBagArray): Option[(Reaction, InputMoleculeList)] = {
@@ -760,12 +760,12 @@ final case class Reaction(
                     Some(repeatedMolValues.flatMap { prevRepeatedVals ⇒
                       val siteMolIndex = inputInfo.molecule.index
                       if (info.crossConditionalsForRepeatedMols contains i) {
+                        val prevValList = prevRepeatedVals.getOrElse(siteMolIndex, IndexedSeq())
                         moleculesPresent(siteMolIndex)
-                          .allValuesSkipping(prevRepeatedVals.getOrElse(siteMolIndex, List()))
+                          .allValuesSkipping(prevValList)
                           .map { v ⇒
                             foundValues(i) = v
-                            val prevValList = prevRepeatedVals.getOrElse(siteMolIndex, List())
-                            prevRepeatedVals.updated(siteMolIndex, v :: prevValList)
+                            prevRepeatedVals.updated(siteMolIndex, prevValList :+ v)
                           }
                       } else moleculesPresent(siteMolIndex)
                         .allValues

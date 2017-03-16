@@ -4,6 +4,7 @@ import Benchmarks1._
 import Benchmarks4._
 import Benchmarks7._
 import Benchmarks9._
+import Benchmarks11._
 import io.chymyst.jc._
 
 object MainAppConfig {
@@ -32,6 +33,7 @@ object MainApp extends App {
 
   Seq[(String, (Int, Pool) => Long)](
   // List the benchmarks that we should run.
+    s"sum an array of size ${counterMultiplier*n} using repeated molecules" -> benchmark11 _,
 
     s"count using Chymyst" -> benchmark1 _,
     s"count using Jiansen's Join.scala" -> benchmark2 _,
