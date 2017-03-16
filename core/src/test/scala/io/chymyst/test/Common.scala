@@ -16,11 +16,18 @@ object Common {
     (signal, fetch)
   }
 
-  def checkExpectedPipelined(expectedMap: Map[Molecule, Boolean]) = {
+  def checkExpectedPipelined(expectedMap: Map[Molecule, Boolean]): String = {
     val transformed = expectedMap.toList.map { case (t, r) => (t, t.isPipelined, r) }
     // Print detailed message.
     val difference = transformed.filterNot { case (_, x, y) => x == y }.map { case (m, actual, expected) => s"$m.isPipelined is $actual instead of $expected" }
     if (difference.nonEmpty) s"Test fails: ${difference.mkString("; ")}" else ""
+  }
+
+  def elapsedTimeMs[T](x: ⇒ T): (T, Long) = {
+    val initTime = System.currentTimeMillis()
+    val result = x
+    val elapsedTime = System.currentTimeMillis() - initTime
+    (result, elapsedTime)
   }
 
 }

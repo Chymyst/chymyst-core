@@ -688,26 +688,11 @@ final case class Reaction(
     *
     * @return String representation of input molecules of the reaction.
     */
-  override val toString: String = s"${inputMoleculesSortedAlphabetically.map(_.toString).mkString(" + ")} => ...${
-    if (retry)
+  override val toString: String = {
+    val suffix = if (retry)
       "/R"
     else ""
-  }"
-
-  private type BagMap = Map[Molecule, Map[AbsMolValue[_], Int]]
-
-  private def removeFromBagMap(relevantMap: BagMap, molecule: Molecule, molValue: AbsMolValue[_]) = {
-    val valuesMap = relevantMap.getOrElse(molecule, Map())
-    val count = valuesMap.getOrElse(molValue, 0)
-    if (count >= 2)
-      relevantMap.updated(molecule, valuesMap.updated(molValue, count - 1))
-    else {
-      val newValuesMap = valuesMap.filterKeys(_ != molValue)
-      if (newValuesMap.isEmpty)
-        relevantMap.filterKeys(_ != molecule)
-      else
-        relevantMap.updated(molecule, newValuesMap)
-    }
+    s"${inputMoleculesSortedAlphabetically.map(_.toString).mkString(" + ")} => ...$suffix"
   }
 
   type MolVals = Map[Int, List[AbsMolValue[_]]]
@@ -760,15 +745,7 @@ final case class Reaction(
             if (info.crossGuards.isEmpty && info.crossConditionalsForRepeatedMols.isEmpty)
               true
             else {
-              // Map of molecule values for molecules that are inputs to this reaction.
-              //              val initRelevantMap: BagMap = inputMoleculesSet
-              //                .map(molecule ⇒ (molecule, moleculesPresent(molecule.index).getCountMap))(scala.collection.breakOut)
-              //
-              //              type ValsMap = Map[AbsMolValue[_], Int]
-              //              type FoldType = (MolVals, BagMap)
-
               val initStream = Stream[MolVals](Map())
-
               val found: Option[Stream[MolVals]] = info.searchDSLProgram
                 // The `flatFoldLeft` accumulates the value `repeatedMolValues`, representing the stream of value maps for repeated input molecules (only).
                 // This is used to build a "skipping iterator" over molecule values that correctly handle repeated input molecules.
@@ -780,7 +757,6 @@ final case class Reaction(
                   // TODO consider refactoring this case match into overloaded methods on case classes
                   case ChooseMol(i) ⇒
                     val inputInfo = info.inputs(i) // This molecule cannot be pipelined since it is part of a cross-molecule constraint.
-                    // TODO: need an iterator over the bag that skips the molecules we already have in foundValues
                     Some(repeatedMolValues.flatMap { prevRepeatedVals ⇒
                       val siteMolIndex = inputInfo.molecule.index
                       if (info.crossConditionalsForRepeatedMols contains i) {
@@ -810,51 +786,6 @@ final case class Reaction(
                     // If the stream is empty, we will return `None` here and terminate the "flat fold".
                     repeatedMolValues.headOption.map(_ ⇒ initStream)
                 }
-                /*
-                // In this `foldLeft` closure:
-                // `prevStream` contains the molecule value assignments we have found so far (`prevValues`), as well as the map `prevRelevantMap` containing molecule values that would remain in the soup after these previous molecule values were removed.
-                // `inputInfo` describes the pattern matcher for the input molecule we are currently required to find.
-                // We need to find all admissible assignments of values for that input molecule, and return them as a stream of pairs (newValues, newRelevantMap).
-                prevStream.flatMap {
-                  case (prevValues, prevRelevantMap) =>
-                    val valuesMap: ValsMap = prevRelevantMap.getOrElse(inputInfo.molecule, Map())
-                    val newFound = for {
-                      newMolValue <-
-                      if (inputInfo.molecule.isPipelined)
-                        moleculesPresent(inputInfo.molecule.index).takeOne.toStream
-                      //                      else if (inputInfo.flag.isIrrefutable && info.independentInputMolecules.contains(inputInfo.index))
-                      //                      // If this molecule is independent of others and has a trivial matcher, it suffices to select any of the existing values for that molecule.
-                      //                        valuesMap.headOption.map(_._1).toStream
-                      else // Do not eagerly evaluate the list of all possible values.
-                        valuesMap.keysIterator.toStream.filter(inputInfo.admitsValue)
-
-                      newRelevantMap = removeFromBagMap(prevRelevantMap, inputInfo.molecule, newMolValue)
-                      newValues = prevValues.updated(inputInfo.index, newMolValue)
-                    } yield (newValues, newRelevantMap)
-                    newFound
-                }
-              }.map(_._1) // Get rid of BagMap and tuple.
-
-              // The reaction can run if `found` contains at least one admissible list of input molecules; just one is sufficient.
-
-              // Evaluate all cross-molecule guards: they must all pass on the chosen molecule values.
-              val filteredAfterCrossGuards =
-                if (info.crossGuards.nonEmpty)
-                  found.filter { inputValues =>
-                    info.crossGuards.forall {
-                      case CrossMoleculeGuard(indices, _, cond) =>
-                        cond.isDefinedAt(indices.flatMap(i => inputValues.get(i).map(_.getValue)).toList)
-                    }
-                  }
-                else
-                // Here, we don't have any cross-molecule guards, but we do have some cross-molecule conditionals.
-                // Those are already taken into account by the `flatMap-fold`. So, we don't need to filter the `found` result any further.
-                  found
-*/
-                // Return result if found something. Assign the found molecule values into the `inputs` array.
-                //              val result = filteredAfterCrossGuards.headOption
-                //              result.foreach(_.foreach { case (i, molValue) ⇒ foundValues(i) = molValue })
-                //              result.nonEmpty
               }
               found.nonEmpty
             }

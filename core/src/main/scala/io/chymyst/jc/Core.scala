@@ -282,7 +282,7 @@ object Core {
 
   /** Built-in Scala types for which there exist only relatively few distinct values.
     *
-    * It then makes sense to represent a multiset of these values as a hash map.
+    * These are types `T` for which we can represent a multiset of values of `T` as a hash map with little or no space penalty.
     */
   val simpleTypes: Set[scala.Symbol] = Set('Unit, 'Boolean, 'Symbol, 'Char, 'Short, 'Byte, 'Null, 'Nothing)
 

@@ -31,9 +31,20 @@ sealed trait MolValueBag[T] {
 
   def getCountMap: Map[T, Int]
 
+  /** List all values, perhaps with repetitions.
+    * It is not guaranteed that the values will be repeated the correct number of times.
+    *
+    * @return A stream of values.
+    */
   def allValues: Stream[T]
 
-  def allValuesSkipping(skipping: List[T]): Stream[T]
+  /** List all values, with repetitions, excluding values from a given sequence (which can also contain repeated values).
+    * It is guaranteed that the values will be repeated the correct number of times.
+    *
+    * @param skipping A sequence of values that should be skipped while running the iterator.
+    * @return A stream of values.
+    */
+  def allValuesSkipping(skipping: Seq[T]): Stream[T]
 }
 
 /** Implementation using guava's [[ConcurrentHashMultiset]].
@@ -42,7 +53,7 @@ sealed trait MolValueBag[T] {
   * or for molecules constrained by cross-molecule dependencies where selection by value is important.
   */
 final class MolValueMapBag[T] extends MolValueBag[T] {
-  private val bag: ConcurrentHashMultiset[T] = ConcurrentHashMultiset.create()
+  private val bag = ConcurrentHashMultiset.create[T]()
 
   //  override def count(v: T): Int = bag.count(v)
 
@@ -80,9 +91,16 @@ final class MolValueMapBag[T] extends MolValueBag[T] {
     .map(entry => (entry.getElement, entry.getCount))
     .toMap
 
-  override def allValues = ???
+  override def allValues: Stream[T] = bag
+    .createEntrySet()
+    .iterator().asScala
+    .map(_.getElement)
+    .toStream
 
-  override def allValuesSkipping(skipping: List[T]) = ???
+  override def allValuesSkipping(skipping: Seq[T]): Stream[T] = bag
+    .iterator().asScala
+    .toStream
+    .diff(skipping)
 }
 
 /** Implementation using [[ConcurrentLinkedQueue]].
@@ -91,7 +109,7 @@ final class MolValueMapBag[T] extends MolValueBag[T] {
   * or for cases where we do not need to group molecules by value (pipelined molecules).
   */
 final class MolValueQueueBag[T] extends MolValueBag[T] {
-  private val bag: ConcurrentLinkedQueue[T] = new ConcurrentLinkedQueue[T]()
+  private val bag = new ConcurrentLinkedQueue[T]()
 
   // Very inefficient! O(n) operations.
   //  override def count(v: T): Int = bag.iterator.asScala.count(_ === v)
@@ -120,15 +138,15 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
 
   }
 
-  // Very inefficient! O(n) operations.
+  // Very inefficient! O(n) operations. Used only for debug output.
   override def getCountMap: Map[T, Int] = bag.iterator.asScala
     .toSeq
     .groupBy(identity)
     .mapValues(_.size)
 
-  override def allValues = ???
+  override def allValues: Stream[T] = bag.iterator.asScala.toStream
 
-  override def allValuesSkipping(skipping: List[T]) = ???
+  override def allValuesSkipping(skipping: Seq[T]): Stream[T] = allValues.diff(skipping)
 }
 
 /*
