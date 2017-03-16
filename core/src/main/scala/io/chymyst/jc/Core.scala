@@ -337,4 +337,11 @@ object Core {
     }
   }
 
+  def streamDiff[T](s: Stream[T], skip: Seq[T]): Stream[T] = s.scanLeft[(Option[T], Seq[T]), Stream[(Option[T], Seq[T])]]((None, skip)){ (b, t) ⇒
+    val (_, prevSkip) = b
+    if (prevSkip contains t)
+      (None, prevSkip diff Seq(t))
+    else (Some(t), prevSkip)
+  }.flatMap(_._1)
+
 }

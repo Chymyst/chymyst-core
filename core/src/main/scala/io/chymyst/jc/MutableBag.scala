@@ -97,10 +97,7 @@ final class MolValueMapBag[T] extends MolValueBag[T] {
     .map(_.getElement)
     .toStream
 
-  override def allValuesSkipping(skipping: Seq[T]): Stream[T] = bag
-    .iterator().asScala
-    .toStream
-    .diff(skipping)
+  override def allValuesSkipping(skipping: Seq[T]): Stream[T] = Core.streamDiff(bag.iterator().asScala.toStream, skipping)
 }
 
 /** Implementation using [[ConcurrentLinkedQueue]].
@@ -146,7 +143,7 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
 
   override def allValues: Stream[T] = bag.iterator.asScala.toStream
 
-  override def allValuesSkipping(skipping: Seq[T]): Stream[T] = allValues.diff(skipping)
+  override def allValuesSkipping(skipping: Seq[T]): Stream[T] = Core.streamDiff(allValues, skipping)
 }
 
 /*
