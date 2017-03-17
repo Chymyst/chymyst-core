@@ -35,6 +35,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
     bag.add(20)
     bag.add(10)
     bag.takeAny(3) shouldEqual Seq(20, 10, 10)
+    bag.getCountMap shouldEqual Map(10 -> 2, 20 -> 1)
   }
 
   it should "retrieve all elements without repetitions" in {
@@ -113,6 +114,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
     bag.add(20)
     bag.add(10)
     bag.takeAny(3) shouldEqual Seq(10, 20, 10)
+    bag.getCountMap shouldEqual Map(10 -> 2, 20 -> 1)
   }
 
   it should "retrieve all elements with repetitions" in {
@@ -161,6 +163,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "create empty bag" in {
     val b = new MutableMultiset[Int]
     b.size shouldEqual 0
+    b.isEmpty shouldEqual true
     b.getCount(1) shouldEqual 0
     b.contains(1) shouldEqual false
   }
@@ -169,6 +172,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val b = new MutableMultiset[Int]
     b.add(1)
     b.size shouldEqual 1
+    b.isEmpty shouldEqual false
     b.getCount(1) shouldEqual 1
     b.getCount(2) shouldEqual 0
     b.contains(1) shouldEqual true
@@ -188,14 +192,16 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
     b.remove(1)
     b.getCount(1) shouldEqual 1
     b.contains(1) shouldEqual true
-
     b.size shouldEqual 1
+    b.isEmpty shouldEqual false
+
     b.remove(1)
     b.size shouldEqual 0
     b.contains(1) shouldEqual false
 
     b.remove(1)
     b.size shouldEqual 0
+    b.isEmpty shouldEqual true
     b.contains(1) shouldEqual false
   }
 
