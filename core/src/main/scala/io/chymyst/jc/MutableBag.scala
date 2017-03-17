@@ -8,14 +8,11 @@ import com.google.common.collect.ConcurrentHashMultiset
 
 import scala.collection.mutable
 
-/** Abstract container for molecule values. Concrete implementations may optimize for specific access patterns.
+/** Abstract container with multiset functionality. Concrete implementations may optimize for specific access patterns.
   *
   * @tparam T Type of the value carried by molecule.
   */
-sealed trait MolValueBag[T] {
-  // This is unused now.
-  //  def count(v: T): Int
-
+sealed trait MutableBag[T] {
   def isEmpty: Boolean
 
   def size: Int
@@ -53,10 +50,8 @@ sealed trait MolValueBag[T] {
   * This is suitable for types that have a small number of possible values (i.e. [[Core.simpleTypes]]),
   * or for molecules constrained by cross-molecule dependencies where selection by value is important.
   */
-final class MolValueMapBag[T] extends MolValueBag[T] {
+final class MutableMapBag[T] extends MutableBag[T] {
   private val bag = ConcurrentHashMultiset.create[T]()
-
-  //  override def count(v: T): Int = bag.count(v)
 
   override def isEmpty: Boolean = bag.isEmpty
 
@@ -106,11 +101,8 @@ final class MolValueMapBag[T] extends MolValueBag[T] {
   * This is suitable for molecule value types that have a large number of possible values (so that a `Map` storage would be inefficient),
   * or for cases where we do not need to group molecules by value (pipelined molecules).
   */
-final class MolValueQueueBag[T] extends MolValueBag[T] {
+final class MutableQueueBag[T] extends MutableBag[T] {
   private val bag = new ConcurrentLinkedQueue[T]()
-
-  // Very inefficient! O(n) operations.
-  //  override def count(v: T): Int = bag.iterator.asScala.count(_ === v)
 
   override def isEmpty: Boolean = bag.isEmpty
 
@@ -147,8 +139,16 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
   override def allValuesSkipping(skipping: Seq[T]): Stream[T] = Core.streamDiff(allValues, skipping)
 }
 
+/** A simple, limited multiset implementation currently only used by [[Core.streamDiff]].
+  * - Not thread-safe.
+  * - No iterators over values.
+  *
+  * @tparam T Type of values held by the multiset.
+  */
 class MutableMultiset[T] {
   private val bag = mutable.Map[T, Int]()
+
+  def getCountMap: Map[T, Int] = bag.toMap
 
   def isEmpty: Boolean = bag.isEmpty
 
@@ -180,7 +180,7 @@ class MutableMultiset[T] {
 
   def contains(v: T): Boolean = bag.contains(v)
 
-  override def toString: String = bag.toString
+  override def toString: String = getCountMap.toString
 }
 
 /*

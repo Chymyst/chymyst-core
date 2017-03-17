@@ -372,7 +372,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   private def removeFromBag(mol: Molecule, molValue: AbsMolValue[_]): Boolean = bags(mol.index).remove(molValue)
 
-  private[jc] def moleculeBagToString(bags: Array[MolValueBag[AbsMolValue[_]]]): String =
+  private[jc] def moleculeBagToString(bags: Array[MutableBag[AbsMolValue[_]]]): String =
     Core.moleculeBagToString(bags.indices
       .flatMap(i => if (bags(i).isEmpty)
         None
@@ -455,9 +455,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       val pipelined = pipelinedMolecules contains index
       val simpleType = simpleTypes contains valType
       bags(index) = if (simpleType && !pipelined)
-        new MolValueMapBag[AbsMolValue[_]]()
+        new MutableMapBag[AbsMolValue[_]]()
       else
-        new MolValueQueueBag[AbsMolValue[_]]()
+        new MutableQueueBag[AbsMolValue[_]]()
 
       // Assign the RS info on molecule or throw exception on error.
       mol.isBoundToAnotherReactionSite(this) match {

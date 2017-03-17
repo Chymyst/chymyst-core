@@ -14,7 +14,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   behavior of "MolValueMapBag"
 
   it should "retrieve None from empty bag" in {
-    val bag = new MolValueMapBag[Int]()
+    val bag = new MutableMapBag[Int]()
 
     bag.takeOne shouldEqual None
     bag.takeAny(0) shouldEqual Seq()
@@ -22,14 +22,14 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "add one element and get it back" in {
-    val bag = new MolValueMapBag[Int]()
+    val bag = new MutableMapBag[Int]()
 
     bag.add(10)
     bag.takeOne shouldEqual Some(10)
   }
 
   it should "retrieve elements in hash order" in {
-    val bag = new MolValueMapBag[Int]()
+    val bag = new MutableMapBag[Int]()
 
     bag.add(10)
     bag.add(20)
@@ -38,14 +38,14 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "retrieve all elements without repetitions" in {
-    val bag = new MolValueMapBag[Int]()
+    val bag = new MutableMapBag[Int]()
     val data = (1 to 10) ++ (1 to 10)
     data.foreach(bag.add)
     bag.allValues.toList shouldEqual (1 to 10).toList
   }
 
   it should "retrieve all elements with repetitions and with skipping" in {
-    val bag = new MolValueMapBag[Int]()
+    val bag = new MutableMapBag[Int]()
     val data = (1 to 10) ++ (1 to 10)
     data.foreach(bag.add)
     val expectedValues = List(3, 4) ++ (5 to 10).flatMap(x ⇒ List(x, x)).toList
@@ -53,7 +53,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "quickly add and remove elements with the same value" in {
-    val b = new MolValueMapBag[Int]()
+    val b = new MutableMapBag[Int]()
     val t: Long = elapsedTimeMs {
       (1 to n).foreach { _ => b.add(1) }
       (1 to n).foreach { _ => b.remove(1) }
@@ -62,7 +62,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "quickly add and remove elements with different values" in {
-    val b = new MolValueMapBag[Int]()
+    val b = new MutableMapBag[Int]()
     val t: Long = elapsedTimeMs {
       (1 to n).foreach { i => b.add(i) }
       (1 to n).foreach { i => b.remove(i) }
@@ -70,7 +70,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
     println(s"MolValueMapBag: add and remove $n different values takes $t ms")
   }
 
-  def checkSkippingForBag(b: MolValueBag[Int], n: Int): Unit = {
+  def checkSkippingForBag(b: MutableBag[Int], n: Int): Unit = {
     (1 to n).foreach { i =>
       b.add(i)
       b.add(i)
@@ -82,7 +82,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "quickly add elements with different values and run the skipping iterator" in {
-    val b = new MolValueMapBag[Int]()
+    val b = new MutableMapBag[Int]()
     val t: Long = elapsedTimeMs {
       checkSkippingForBag(b, n)
     }._2
@@ -91,7 +91,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   behavior of "MolValueQueueBag"
 
   it should "retrieve None from empty queue bag" in {
-    val bag = new MolValueQueueBag[Int]()
+    val bag = new MutableQueueBag[Int]()
 
     bag.takeOne shouldEqual None
     bag.takeAny(0) shouldEqual Seq()
@@ -99,14 +99,14 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "add one element from queue bag and get it back" in {
-    val bag = new MolValueQueueBag[Int]()
+    val bag = new MutableQueueBag[Int]()
 
     bag.add(10)
     bag.takeOne shouldEqual Some(10)
   }
 
   it should "retrieve elements in FIFO order" in {
-    val bag = new MolValueQueueBag[Int]()
+    val bag = new MutableQueueBag[Int]()
 
     bag.add(10)
     bag.add(20)
@@ -115,14 +115,14 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "retrieve all elements with repetitions" in {
-    val bag = new MolValueQueueBag[Int]()
+    val bag = new MutableQueueBag[Int]()
     val data = (1 to 10) ++ (1 to 10)
     data.foreach(bag.add)
     bag.allValues.toList shouldEqual data.toList
   }
 
   it should "retrieve all elements with repetitions and with skipping" in {
-    val bag = new MolValueQueueBag[Int]()
+    val bag = new MutableQueueBag[Int]()
     val data = (1 to 10) ++ (1 to 10)
     data.foreach(bag.add)
     val expectedValues = ((5 to 10) ++ (3 to 10)).toList
@@ -130,7 +130,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "quickly add and remove elements with the same value" in {
-    val b = new MolValueQueueBag[Int]()
+    val b = new MutableQueueBag[Int]()
     val t: Long = elapsedTimeMs {
       (1 to n).foreach { _ => b.add(1) }
       (1 to n).foreach { _ => b.remove(1) }
@@ -139,7 +139,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "quickly add and remove elements with different values" in {
-    val b = new MolValueQueueBag[Int]()
+    val b = new MutableQueueBag[Int]()
     val t: Long = elapsedTimeMs {
       (1 to n).foreach { i => b.add(i) }
       (1 to n).foreach { i => b.remove(i) }
@@ -148,7 +148,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "quickly add elements with different values and run the skipping iterator" in {
-    val b = new MolValueQueueBag[Int]()
+    val b = new MutableQueueBag[Int]()
     val t: Long = elapsedTimeMs {
       checkSkippingForBag(b, n)
     }._2

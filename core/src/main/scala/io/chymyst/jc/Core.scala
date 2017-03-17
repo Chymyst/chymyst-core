@@ -92,7 +92,7 @@ object Core {
   //  private[jc] type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
   private[jc] type MutableLinearMoleculeBag = mutable.Map[Molecule, AbsMolValue[_]]
 
-  private[jc] type MoleculeBagArray = Array[MolValueBag[AbsMolValue[_]]]
+  private[jc] type MoleculeBagArray = Array[MutableBag[AbsMolValue[_]]]
 
   //  private[jc] def moleculeBagToString(mb: MoleculeBag): String = moleculeBagToString(mb.getMap)
 
