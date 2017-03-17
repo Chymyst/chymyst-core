@@ -258,7 +258,7 @@ sealed trait GuardPresenceFlag {
   *                    {{{ CrossMoleculeGuard(indices = Array(1, 2), List((List('y, 'z), { case List(y: Int, z: Int) if y > z => () }))) }}}
   */
 final case class GuardPresent(staticGuard: Option[() => Boolean], crossGuards: Array[CrossMoleculeGuard]) extends GuardPresenceFlag {
-  override def staticGuardHolds(): Boolean = staticGuard.exists(guardFunction => guardFunction())
+  override def staticGuardHolds(): Boolean = staticGuard.forall(guardFunction => guardFunction())
 
   override val effectivelyAbsent: Boolean = staticGuard.isEmpty && crossGuards.isEmpty
 
