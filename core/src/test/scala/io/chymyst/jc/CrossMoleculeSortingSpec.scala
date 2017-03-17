@@ -145,14 +145,14 @@ object CrossMoleculeSortingSpec extends TestSuite {
               ChooseMol(3),
               ConstrainGuard(1),
               CloseGroup,
-              ChooseMol(2),
-              ChooseMol(0),
-              ConstrainGuard(2),
               ChooseMol(1),
+              ChooseMol(0),
               ConstrainGuard(0),
+              ChooseMol(2),
+              ConstrainGuard(2),
               CloseGroup
             ))
-            assert(getMolIndices(result) == List(4, 3, 2, 0, 1))
+            assert(getMolIndices(result) == List(4, 3, 1, 0, 2))
           }
           * - {
             val crossGroups0 = Array(Set(0, 2), Set(0, 1), Set(3, 4))
@@ -162,14 +162,14 @@ object CrossMoleculeSortingSpec extends TestSuite {
               ChooseMol(3),
               ConstrainGuard(2),
               CloseGroup,
-              ChooseMol(1),
-              ChooseMol(0),
-              ConstrainGuard(1),
               ChooseMol(2),
+              ChooseMol(0),
               ConstrainGuard(0),
+              ChooseMol(1),
+              ConstrainGuard(1),
               CloseGroup
             ))
-            assert(getMolIndices(result) == List(4, 3, 1, 0, 2))
+            assert(getMolIndices(result) == List(4, 3, 2, 0, 1))
           }
         }
 
@@ -179,73 +179,71 @@ object CrossMoleculeSortingSpec extends TestSuite {
           * - {
             val result = getMS(crossGroups1)
             assert(
-              getMolIndices(result) == List(0, 6, 1, 7, 3, 4, 5, 2)
+              getMolIndices(result) == List(6, 7, 0, 1, 2, 3, 4, 5)
             )
-            assert(// Array(Set(0, 1), Set(2, 3), Set(3, 4, 5), Set(0, 6), Set(6, 7))
+            assert(// crossGroups1 = Array(Set(0, 1), Set(2, 3), Set(3, 4, 5), Set(0, 6), Set(6, 7))
               result == List(
-                ChooseMol(0),
                 ChooseMol(6),
-                ConstrainGuard(3),
-                ChooseMol(1),
-                ConstrainGuard(0),
                 ChooseMol(7),
                 ConstrainGuard(4),
+                ChooseMol(0),
+                ChooseMol(1),
+                ConstrainGuard(0),
+                ConstrainGuard(3),
                 CloseGroup,
+                ChooseMol(2),
                 ChooseMol(3),
+                ConstrainGuard(1),
                 ChooseMol(4),
                 ChooseMol(5),
                 ConstrainGuard(2),
-                ChooseMol(2),
-                ConstrainGuard(1),
                 CloseGroup
               )
             )
           }
           * - {
             val result = getMS(crossGroups2)
-            assert(
-              getMolIndices(result) == List(6, 7, 0, 1, 3, 4, 5, 2)
-            )
-            assert(// Array(Set(0, 1), Set(2, 3), Set(3, 4, 5), Set(0, 6), Set(6, 7), Set(7, 1))
+            assert(getMolIndices(result) == List(0, 1, 7, 6, 2, 3, 4, 5))
+            assert(// crossGroups2 = Array(Set(0, 1), Set(2, 3), Set(3, 4, 5), Set(0, 6), Set(6, 7), Set(7, 1))
               result == List(
-                ChooseMol(6),
-                ChooseMol(7),
-                ConstrainGuard(4),
                 ChooseMol(0),
-                ConstrainGuard(3),
                 ChooseMol(1),
-                ConstrainGuard(5),
                 ConstrainGuard(0),
+                ChooseMol(7),
+                ConstrainGuard(5),
+                ChooseMol(6),
+                ConstrainGuard(3),
+                ConstrainGuard(4),
                 CloseGroup,
+                ChooseMol(2),
                 ChooseMol(3),
+                ConstrainGuard(1),
                 ChooseMol(4),
                 ChooseMol(5),
                 ConstrainGuard(2),
-                ChooseMol(2),
-                ConstrainGuard(1),
                 CloseGroup
               )
             )
           }
           * - {
             val result = getMS(crossGroups3)
-            assert(getMolIndices(result) == List(3, 4, 5, 2, 7, 6, 0, 1))
+            assert(getMolIndices(result) == List(0, 1, 6, 7, 2, 3, 4, 5))
             assert(
               result == List(
+                ChooseMol(0),
+                ChooseMol(1),
+                ConstrainGuard(0),
+                ChooseMol(6),
+                ConstrainGuard(3),
+                ChooseMol(7),
+                ConstrainGuard(4),
+                ChooseMol(2),
+                ConstrainGuard(5),
                 ChooseMol(3),
+                ConstrainGuard(1),
                 ChooseMol(4),
                 ChooseMol(5),
                 ConstrainGuard(2),
-                ChooseMol(2),
-                ConstrainGuard(1),
-                ChooseMol(7),
-                ConstrainGuard(5),
-                ChooseMol(6),
-                ConstrainGuard(4),
-                ChooseMol(0),
-                ConstrainGuard(3),
-                ChooseMol(1),
-                ConstrainGuard(0),
                 CloseGroup
               )
 
