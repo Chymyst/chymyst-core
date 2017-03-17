@@ -209,20 +209,24 @@ private[jc] object OutputEnvironment {
   */
 sealed trait GuardPresenceFlag {
   /** Checks whether the reaction should not start because its static guard is present and returns `false`.
+    * A static guard is a reaction guard that does not depend on molecule values.
+    * For example, `go { case a(x) if n > 0 && x < n => ...}` contains a static guard `n > 0` and a non-static guard `x < n`.
+    * A static guard could depend on mutable global values, such as `n`, and so it is evaluated each time.
     *
     * @return `true` if the reaction's static guard returns `false`.
     *         `false` if the reaction has no static guard, or if the static guard returns `true`.
     */
   def staticGuardFails(): Boolean = false
 
-  /** Checks whether the reaction has no cross-molecule guard conditions.
+  /** Checks whether the reaction has no cross-molecule guard conditions, that is,
+    * conditions that cannot be factorized as conjunctions of conditions that each constrain individual molecules.
     *
     * For example, `go { case a(x) + b(y) if x > y => }` has a cross-molecule guard condition,
-    * whereas `go { case a(x) + b(y) if x == 1 && y == 2 => }` has no cross-molecule guard conditions because its guard condition
-    * can be split into a conjunction of guard conditions that each constrain the value of a single molecule.
+    * whereas `go { case a(x) + b(y) if x > 1 && y < 2 => }` has no cross-molecule guard conditions because its guard condition
+    * can be split into a conjunction of guard conditions that each constrain the value of one molecule.
     *
     * @return `true` if the reaction has no guard condition, or if it has guard conditions that can be split between molecules;
-    *         `false` if the reaction has a cross-molecule guard condition.
+    *         `false` if the reaction has at least one cross-molecule guard condition.
     */
   val effectivelyAbsent: Boolean = true
 }
@@ -233,7 +237,8 @@ sealed trait GuardPresenceFlag {
   *
   * For example, consider the reaction
   * {{{ go { case a(x) + b(y) + c(z) if x > n && y > 0 && y > z && n > 1 => ...} }}}
-  * Here `n` is an integer constant defined outside the reaction.
+  * Here `n` is an integer value defined outside the reaction.
+  *
   * The conditions for starting this reaction is that `a(x)` has value `x` such that `x > n`; that `b(y)` has value `y` such that `y > 0`;
   * that `c(z)` has value `z` such that `y > z`; and finally that `n > 1`, independently of any molecule values.
   * The condition `n > 1` is a static guard. The condition `x > n` restricts only the molecule `a(x)` and therefore can be moved out of the guard
@@ -245,8 +250,8 @@ sealed trait GuardPresenceFlag {
   *
   * @param staticGuard The conjunction of all the clauses of the guard that are independent of pattern variables. This closure can be called in order to determine whether the reaction should even be considered to start, regardless of the presence of molecules. In this example, the value of `staticGuard` will be `Some(() => n > 1)`.
   * @param crossGuards A list of values of type [[CrossMoleculeGuard]], each representing one cross-molecule clauses of the guard. The partial function `Any => Unit` should be called with the arguments representing the tuples of pattern variables from each molecule used by the cross guard.
-  *                    In the present example, the value of `crossGuards` will be
-  *                    {{{indices = Array(1, 2), List((List('y, 'z), { case List(y: Int, z: Int) if y > z => () })) }}}.
+  *                    In the present example, the value of `crossGuards` will be an array with the single element
+  *                    {{{ CrossMoleculeGuard(indices = Array(1, 2), List((List('y, 'z), { case List(y: Int, z: Int) if y > z => () }))) }}}
   */
 final case class GuardPresent(staticGuard: Option[() => Boolean], crossGuards: Array[CrossMoleculeGuard]) extends GuardPresenceFlag {
   override def staticGuardFails(): Boolean = staticGuard.exists(guardFunction => !guardFunction())
@@ -258,12 +263,11 @@ final case class GuardPresent(staticGuard: Option[() => Boolean], crossGuards: A
 }
 
 /** Indicates that a guard was initially present but has been simplified, or it was absent but some molecules have nontrivial pattern matchers (not a wildcard and not a simple variable).
-  * Nevertheless, no cross-molecule guard conditions need to be checked for this reaction to start.
+  * In any case, no cross-molecule guard conditions need to be checked for this reaction to start.
   */
 case object GuardAbsent extends GuardPresenceFlag
 
-/** Indicates that a guard was initially absent and, in addition, all molecules have trivial matchers - this reaction can start with any molecule values.
-  */
+/** Indicates that a guard was initially absent and, in addition, all molecules have trivial matchers - this reaction can start with any molecule values. */
 case object AllMatchersAreTrivial extends GuardPresenceFlag
 
 /** Represents the structure of the cross-molecule guard condition for a reaction.
