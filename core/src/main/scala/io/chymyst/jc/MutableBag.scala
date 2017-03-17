@@ -83,13 +83,13 @@ final class MutableMapBag[T] extends MutableBag[T] {
 
   override def getCountMap: Map[T, Int] = bag
     .createEntrySet()
-    .iterator().asScala
+    .asScala
     .map(entry => (entry.getElement, entry.getCount))
     .toMap
 
   override def allValues: Stream[T] = bag
     .createEntrySet()
-    .iterator().asScala
+    .asScala
     .map(_.getElement)
     .toStream
 

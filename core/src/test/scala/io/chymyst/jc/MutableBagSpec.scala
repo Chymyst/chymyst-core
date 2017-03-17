@@ -236,42 +236,5 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
     b.contains(1) shouldEqual false
     b.contains(2) shouldEqual false
   }
-  /*
-    it should "add two elements with different keys and different values, then remove them one by one" in {
-      val b = new MutableBag[Int, String]
-      b.addToBag(1, "a")
-      b.size shouldEqual 1
-      b.addToBag(2, "b")
-      b.size shouldEqual 2
-      b.getCount(1) shouldEqual 1
-      b.getCount(2) shouldEqual 1
 
-      b.getOne(1) shouldEqual Some("a")
-      b.getOne(2) shouldEqual Some("b")
-
-      b.removeFromBag(1, "a")
-      b.size shouldEqual 1
-      b.getCount(1) shouldEqual 0
-      b.getCount(2) shouldEqual 1
-
-      b.getOne(1) shouldEqual None
-      b.getOne(2) shouldEqual Some("b")
-      b.removeFromBag(2, "b")
-      b.size shouldEqual 0
-    }
-
-    it should "quickly add and remove elements with the same keys and the same value" in {
-      val b = new MutableBag[Int, Int]
-      val n = 200000
-      (1 to n).foreach { _ => b.addToBag(1, 1) }
-      (1 to n).foreach { _ => b.removeFromBag(1, 1) }
-    }
-
-    it should "quickly add and remove elements with the same keys and different values" in {
-      val b = new MutableBag[Int, Int]
-      val n = 20000
-      (1 to n).foreach { i => b.addToBag(1, i) }
-      (1 to n).foreach { i => b.removeFromBag(1, i) }
-    }
-  */
 }

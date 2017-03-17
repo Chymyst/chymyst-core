@@ -720,11 +720,14 @@ final case class Reaction(
 
     // First, consider independent molecules with conditionals. If we fail to find their values, `foundResult` will be `false`.
       info.inputsSortedIndependentConditional.forall { inputInfo ⇒
+        val molBag = moleculesPresent(inputInfo.molecule.index)
         val newValueOpt =
           if (inputInfo.molecule.isPipelined)
-            moleculesPresent(inputInfo.molecule.index).takeOne.filter(inputInfo.admitsValue)
+            molBag.takeOne.filter(inputInfo.admitsValue) // For pipelined molecules, we take the first one; if condition fails, we treat that case as if no molecule is available.
+//          else if (inputInfo.isConstantValue && !inputInfo.molecule.isBlocking)
+//            molBag.takeValue(inputInfo.flag.constantValue).toStream
           else
-            moleculesPresent(inputInfo.molecule.index).find(inputInfo.admitsValue)
+            molBag.find(inputInfo.admitsValue)
 
         newValueOpt.foreach { newMolValue ⇒
           foundValues(inputInfo.index) = newMolValue
@@ -760,6 +763,7 @@ final case class Reaction(
                       val prevValList = prevRepeatedVals.getOrElse(siteMolIndex, IndexedSeq())
                       moleculesPresent(siteMolIndex)
                         .allValuesSkipping(prevValList)
+                        .filter(inputInfo.admitsValue)
                         .map { v ⇒
                           foundValues(i) = v
                           prevRepeatedVals.updated(siteMolIndex, prevValList :+ v)
@@ -767,6 +771,7 @@ final case class Reaction(
                     } else
                       moleculesPresent(siteMolIndex)
                         .allValues
+                        .filter(inputInfo.admitsValue)
                         .map { v ⇒
                           foundValues(i) = v
                           prevRepeatedVals
