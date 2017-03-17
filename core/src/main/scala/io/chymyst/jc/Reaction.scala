@@ -15,6 +15,8 @@ import scala.collection.mutable
   * {{{OtherInputPattern(matcher = { case (x, Some((y,z)))) if x > y => }, vars = List('x, 'y, 'z), isIrrefutable = false)}}}
   */
 sealed trait InputPatternType {
+  val isConstantValue: Boolean = false
+
   /** Detect whether the input pattern is irrefutable and will always match any given value.
     * An irrefutable pattern does not constrain the input value but merely puts variables on the value or on its parts.
     *
@@ -40,7 +42,9 @@ final case class SimpleVarInput(v: ScalaSymbol, cond: Option[PartialFunction[Any
   *
   * @param v Value of the constant. This is nominally of type `Any` but actually is of the molecule's value type `T`.
   */
-final case class ConstInputPattern(v: Any) extends InputPatternType
+final case class ConstInputPattern(v: Any) extends InputPatternType {
+  override val isConstantValue: Boolean = true
+}
 
 /** Represents a general pattern that is neither a wildcard nor a single variable nor a constant.
   * Examples of such patterns are `a(Some(x))` and `a( (x, _, 2, List(a, b)) )`.
@@ -295,6 +299,8 @@ final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSym
   * @param valType  String representation of the type `T` of the molecule's value, e.g. for [[M]]`[T]` or [[B]]`[T, R]`.
   */
 final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPatternType, sha1: String, valType: ScalaSymbol) {
+  val isConstantValue: Boolean = flag.isConstantValue
+
   private[jc] def admitsValue(molValue: AbsMolValue[_]): Boolean = flag match {
     case WildcardInput | SimpleVarInput(_, None) =>
       true
@@ -724,8 +730,7 @@ final case class Reaction(
         val newValueOpt =
           if (inputInfo.molecule.isPipelined)
             molBag.takeOne.filter(inputInfo.admitsValue) // For pipelined molecules, we take the first one; if condition fails, we treat that case as if no molecule is available.
-//          else if (inputInfo.isConstantValue && !inputInfo.molecule.isBlocking)
-//            molBag.takeValue(inputInfo.flag.constantValue).toStream
+            // It is probably useless to try optimizing the selection of a constant value, because 1) values are wrapped and 2) values that are not "simple types" are most likely to be stored in a linear container.
           else
             molBag.find(inputInfo.admitsValue)
 
@@ -755,27 +760,37 @@ final case class Reaction(
             searchDslCommand match {
               // TODO consider refactoring this case match into overloaded methods on case classes
               case ChooseMol(i) ⇒
-                val inputInfo = info.inputs(i) // This molecule cannot be pipelined since it is part of a cross-molecule constraint.
+                // Note that this molecule cannot be pipelined since it is part of a cross-molecule constraint.
+                val inputInfo = info.inputs(i)
+
+                def filteredWithConstant[T](s: Stream[T]): Stream[T] = {
+                  if (inputInfo.isConstantValue)
+                    s.take(1)
+                  else s
+                }
+
                 Some(
                   repeatedMolValues.flatMap { prevRepeatedVals ⇒
                     val siteMolIndex = inputInfo.molecule.index
                     if (info.crossConditionalsForRepeatedMols contains i) {
                       val prevValList = prevRepeatedVals.getOrElse(siteMolIndex, IndexedSeq())
-                      moleculesPresent(siteMolIndex)
+                      filteredWithConstant(moleculesPresent(siteMolIndex)
                         .allValuesSkipping(prevValList)
                         .filter(inputInfo.admitsValue)
+                      )
                         .map { v ⇒
                           foundValues(i) = v
                           prevRepeatedVals.updated(siteMolIndex, prevValList :+ v)
                         }
-                    } else
-                      moleculesPresent(siteMolIndex)
+                    } else {
+                      filteredWithConstant(moleculesPresent(siteMolIndex)
                         .allValues
                         .filter(inputInfo.admitsValue)
-                        .map { v ⇒
-                          foundValues(i) = v
-                          prevRepeatedVals
-                        }
+                      ).map { v ⇒
+                        foundValues(i) = v
+                        prevRepeatedVals
+                      }
+                    }
                   }
                 )
               case ConstrainGuard(i) ⇒
