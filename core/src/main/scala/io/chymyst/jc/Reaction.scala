@@ -709,8 +709,6 @@ final case class Reaction(
     s"${inputMoleculesSortedAlphabetically.map(_.toString).mkString(" + ")} => ...$suffix"
   }
 
-  type MolVals = Map[Int, IndexedSeq[AbsMolValue[_]]]
-
   /** Find a set of input molecule values for this reaction. */
   private[jc] def findInputMolecules(moleculesPresent: MoleculeBagArray): Option[(Reaction, InputMoleculeList)] = {
     // A simpler, non-flatMap algorithm for the case when there are no cross-dependencies of molecule values.
@@ -730,7 +728,7 @@ final case class Reaction(
         val newValueOpt =
           if (inputInfo.molecule.isPipelined)
             molBag.takeOne.filter(inputInfo.admitsValue) // For pipelined molecules, we take the first one; if condition fails, we treat that case as if no molecule is available.
-            // It is probably useless to try optimizing the selection of a constant value, because 1) values are wrapped and 2) values that are not "simple types" are most likely to be stored in a linear container.
+          // It is probably useless to try optimizing the selection of a constant value, because 1) values are wrapped and 2) values that are not "simple types" are most likely to be stored in a linear container.
           else
             molBag.find(inputInfo.admitsValue)
 
@@ -739,7 +737,7 @@ final case class Reaction(
         }
         newValueOpt.nonEmpty
       } && {
-        // Here we don't need to check any conditions because we already know that the molecule counts are sufficient.
+        // Here we don't need to check any conditions because we already know that the molecule counts are sufficient for all molecules.
         info.inputsSortedIndependentIrrefutableGrouped
           .foreach { case (siteMolIndex, infos) ⇒
             val molValues = moleculesPresent(siteMolIndex).takeAny(moleculeIndexRequiredCounts(siteMolIndex))
@@ -749,13 +747,16 @@ final case class Reaction(
         if (info.crossGuards.isEmpty && info.crossConditionalsForRepeatedMols.isEmpty)
           true
         else {
+          type MolVals = Map[Int, List[AbsMolValue[_]]]
+
           val initStream = Stream[MolVals](Map())
+
           val found: Option[Stream[MolVals]] = info.searchDSLProgram
             // The `flatFoldLeft` accumulates the value `repeatedMolValues`, representing the stream of value maps for repeated input molecules (only).
             // This is used to build a "skipping iterator" over molecule values that correctly handle repeated input molecules.
 
             // This is a "flat fold" because should be able to stop early even though we can't examine the stream value.
-            .flatFoldLeft[Stream[MolVals]](initStream) { (repeatedMolValues, searchDslCommand) ⇒
+            .flatFoldLeft[Stream[MolVals]](initStream) { (repeatedMolValuesStream, searchDslCommand) ⇒
             // We need to return Option[Stream[MolVals]].
             searchDslCommand match {
               // TODO consider refactoring this case match into overloaded methods on case classes
@@ -769,41 +770,42 @@ final case class Reaction(
                   else s
                 }
 
-                Some(
-                  repeatedMolValues.flatMap { prevRepeatedVals ⇒
+                Some(// The stream contains repetitions of the immutable values `repeatedVals`, which represents the value map for repeated input molecules.
+                  // If there are no repeated input molecules, this will be an empty map.
+                  // However, each item in the stream will mutate `foundValues` in place, so that we always have the last chosen molecule values.
+                  // The search DSL program is guaranteed to check cross-molecule conditions only for molecules whose values we already chose.
+                  repeatedMolValuesStream.flatMap { repeatedVals ⇒
                     val siteMolIndex = inputInfo.molecule.index
                     if (info.crossConditionalsForRepeatedMols contains i) {
-                      val prevValList = prevRepeatedVals.getOrElse(siteMolIndex, IndexedSeq())
+                      val prevValList = repeatedVals.getOrElse(siteMolIndex, List())
                       filteredWithConstant(moleculesPresent(siteMolIndex)
                         .allValuesSkipping(prevValList)
                         .filter(inputInfo.admitsValue)
                       )
                         .map { v ⇒
                           foundValues(i) = v
-                          prevRepeatedVals.updated(siteMolIndex, prevValList :+ v)
+                          repeatedVals.updated(siteMolIndex, v :: prevValList)
                         }
                     } else {
+                      // This is not a repeated molecule.
                       filteredWithConstant(moleculesPresent(siteMolIndex)
                         .allValues
                         .filter(inputInfo.admitsValue)
                       ).map { v ⇒
                         foundValues(i) = v
-                        prevRepeatedVals
+                        repeatedVals
                       }
                     }
                   }
                 )
               case ConstrainGuard(i) ⇒
                 val guard = info.crossGuards(i)
-                Some(repeatedMolValues.filter { _ ⇒
-                  guard match {
-                    case CrossMoleculeGuard(indices, _, cond) ⇒
-                      cond.isDefinedAt(indices.map(i ⇒ foundValues(i).getValue).toList)
-                  }
+                Some(repeatedMolValuesStream.filter { _ ⇒
+                  guard.cond.isDefinedAt(guard.indices.map(i ⇒ foundValues(i).getValue).toList)
                 })
               case CloseGroup ⇒
                 // If the stream is empty, we will return `None` here and terminate the "flat fold".
-                repeatedMolValues.headOption.map(_ ⇒ initStream)
+                repeatedMolValuesStream.headOption.map(_ ⇒ initStream)
             }
           }
           found.nonEmpty
