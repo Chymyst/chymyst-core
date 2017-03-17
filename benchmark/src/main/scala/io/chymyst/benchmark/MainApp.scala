@@ -57,7 +57,7 @@ object MainApp extends App {
 
     s"count to ${counterMultiplier * n} using blocking access with checking reply status" -> benchmark10 _,
 
-    s"sum an array of size ${counterMultiplier * n} using repeated molecules" -> benchmark11 _,
+    s"sum an array of size ${counterMultiplier * n} using repeated molecules" -> benchmark11 _
 
   ).zipWithIndex.foreach {
     case ((message, benchmark), i) => println(s"Benchmark ${i + 1} took ${
