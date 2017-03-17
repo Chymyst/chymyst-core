@@ -42,7 +42,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val bag = new MutableMapBag[Int]()
     val data = (1 to 10) ++ (1 to 10)
     data.foreach(bag.add)
-    bag.allValues.toList shouldEqual (1 to 10).toList
+    bag.allValues.toSet shouldEqual (1 to 10).toSet
   }
 
   it should "retrieve all elements with repetitions and with skipping" in {
