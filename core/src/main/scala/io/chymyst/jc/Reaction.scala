@@ -817,8 +817,7 @@ final case class Reaction(
       None
   }
 
-
-  /** Find a set of input molecules for this reaction, among the present molecules. */
+/*
   private[jc] def oldfindInputMolecules(moleculesPresent: MoleculeBagArray): Option[(Reaction, InputMoleculeList)] = {
     // A simpler, non-flatMap algorithm for the case when there are no cross-dependencies of molecule values.
     // For each single (non-repeated) input molecule, select a molecule value that satisfies the conditional.
@@ -926,5 +925,5 @@ final case class Reaction(
     else
       None
   }
-
+*/
 }

@@ -1,6 +1,7 @@
 package io.chymyst.jc
 
 import org.scalatest.{FlatSpec, Matchers}
+import scala.concurrent.duration._
 
 class GuardsSpec extends FlatSpec with Matchers {
 
@@ -550,6 +551,30 @@ class GuardsSpec extends FlatSpec with Matchers {
       case _ => false
     }) shouldEqual true
 
+  }
+
+  it should "handle reactions with constant values and cross-conditionals on repeated molecules" in {
+    val a = m[Int]
+    val f = b[Unit, Boolean]
+
+    withPool(new FixedPool(4)) { tp ⇒
+      site(tp)(go { case a(1) + a(y) + a(z) + f(_, r) if y > z ⇒ r(true) })
+
+      (1 to 3).foreach{ i ⇒ a(i) }
+      f.timeout()(1.second)
+    }.get shouldEqual Some(true)
+  }
+
+  it should "handle reactions with conditionals and cross-conditionals on repeated molecules" in {
+    val a = m[Option[Int]]
+    val f = b[Unit, Boolean]
+
+    withPool(new FixedPool(4)) { tp ⇒
+      site(tp)(go { case a(Some(1)) + a(Some(y)) + a(Some(z)) + f(_, r) if y > z ⇒ r(true) })
+
+      (1 to 3).foreach{ i ⇒ a(Some(i)) }
+      f.timeout()(1.second)
+    }.get shouldEqual Some(true)
   }
 
 }
