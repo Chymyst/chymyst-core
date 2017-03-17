@@ -517,6 +517,21 @@ class GuardsSpec extends FlatSpec with Matchers {
     }
   }
 
+  it should "handle reactions with conditionals and cross-conditionals with constants" in {
+    val a = m[Option[Int]]
+    val bb = m[Option[Int]]
+    val f = b[Unit, Boolean]
+
+    withPool(new FixedPool(4)) { tp ⇒
+      site(tp)(go { case a(Some(px@(1))) + bb(py@Some(y)) + f(_, r) // ignore warning about "non-variable type argument Int"
+        if py.get > px ⇒ r(true) })
+      // TODO: fix type breakage if we write z + px.get instead of z + x: the reason is that `px` is inferred to be Some[Any] instead of Some[Int]
+
+      a(Some(1)) + bb(Some(2))
+      f.timeout()(1.second)
+    }.get shouldEqual Some(true)
+  }
+
   behavior of "guard conditions with repeated molecules"
 
   it should "correctly order input molecules and run reaction" in {
@@ -570,7 +585,20 @@ class GuardsSpec extends FlatSpec with Matchers {
     val f = b[Unit, Boolean]
 
     withPool(new FixedPool(4)) { tp ⇒
-      site(tp)(go { case a(Some(1)) + a(Some(y)) + a(Some(z)) + f(_, r) if y > z ⇒ r(true) })
+      site(tp)(go { case a(Some(1)) + a(Some(y)) + a(Some(z)) + f(_, r) if y > z && z > 1 ⇒ r(true) })
+      (1 to 3).foreach(_ ⇒ (1 to 3).foreach{ i ⇒ a(Some(i)) })
+      (1 to 3).map(_ ⇒ f.timeout()(1.second)).map(_.get).reduce(_ && _)
+    }.get shouldEqual true
+  }
+
+  it should "handle reactions with conditionals and cross-conditionals on repeated molecules with constants" in {
+    val a = m[Option[Int]]
+    val f = b[Unit, Boolean]
+
+    withPool(new FixedPool(4)) { tp ⇒
+      site(tp)(go { case a(Some(px@(1))) + a(py@Some(y)) + a(Some(z)) + f(_, r) // ignore warning about "non-variable type argument Int"
+        if py.get >= z + px ⇒ r(true) })
+      // TODO: fix type breakage if we write z + px.get instead of z + x: the reason is that `px` is inferred to be Some[Any] instead of Some[Int]
 
       (1 to 3).foreach{ i ⇒ a(Some(i)) }
       f.timeout()(1.second)
