@@ -547,7 +547,7 @@ final class ReactionInfo(
       .toSet
 
   /** The sequence of [[SearchDSL]] instructions for selecting the molecule values under cross-molecule constraints.
-    * Independent molecules are not included in this DSL program and need to be selected separately.
+    * Independent molecules are not included in this DSL program; their values are to be selected separately.
     */
   private[jc] val searchDSLProgram = CrossMoleculeSorting.getDSLProgram(
     crossGuards.map(_.indices.toSet),

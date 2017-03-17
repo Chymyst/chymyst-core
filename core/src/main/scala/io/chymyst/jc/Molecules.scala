@@ -29,6 +29,11 @@ object + {
 private[jc] sealed trait AbsMolValue[T] {
   private[jc] def getValue: T
 
+  /** The hash code of an [[AbsMolValue]] should not depend on anything but the wrapped value (of type `T`).
+    * However, extending [[PersistentHashCode]] leads to errors!
+    * (See the test "correctly store several molecule copies in a MutableQueueBag" in `ReactionSiteSpec.scala`.)
+    * Therefore, we override the `hashCode` directly here, and make it a `lazy val`.
+    */
   override lazy val hashCode: Int = getValue.hashCode()
 
   /** String representation of molecule values will omit printing the `Unit` values but print all other types normally.
@@ -40,6 +45,14 @@ private[jc] sealed trait AbsMolValue[T] {
     case v => v.toString
   }
 
+  /** Checks whether the reaction has sent no reply to this molecule. This check is meaningful only after the reaction body has finished evaluating.
+    * This check does not make sense for non-blocking molecules.
+    * This method is in the parent trait only because we would like to check for missing replies faster,
+    * without pattern-matching on blocking vs non-blocking molecules.
+    *
+    * @return `true` if the reaction has failed to send a reply to this instance of the blocking molecule.
+    *        Will also return `false` if the molecule is not a blocking molecule.
+    */
   private[jc] def reactionSentNoReply: Boolean = false
 }
 
@@ -54,7 +67,7 @@ private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
 
 /** Container for the value of a blocking molecule.
   * The `hashCode` of a [[BlockingMolValue]] should depend only on the `hashCode` of the value `v`,
-  * and not on the reply value (which is mutable).
+  * and not on the reply value (which is mutable). This is now implemented in the parent trait [[AbsMolValue]].
   *
   * @param v          The value of type T carried by the molecule.
   * @param replyValue The wrapper for the reply value, which will ultimately return a value of type R.
