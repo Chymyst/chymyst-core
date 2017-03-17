@@ -68,6 +68,26 @@ private[jc] object CrossMoleculeSorting {
     }
   }
 
+  // Insert ConstrainGuard(i) commands whenever the already chosen molecules contain the set constrained by the guard.
+  private def insertConstrainGuardCommands(crossGroups: Coll[Set[Int]], program: Coll[SearchDSL]): Coll[SearchDSL] = {
+    val groupIndexed = crossGroups.zipWithIndex
+    // Accumulator is a 4-tuple: (all guards seen so far, current guards, all molecules seen so far, current command)
+    program.scanLeft((Set[Int](), Set[Int](), Set[Int](), CloseGroup: SearchDSL)) {
+      // If the current command is ChooseMol() then we need to update the sets of molecules and guards.
+      case ((oldAllGuards, _, oldAvailableMolecules, _), c@ChooseMol(i)) ⇒
+        val newAvailableMolecules = oldAvailableMolecules + i
+        val newAllGuards = groupIndexed.filter(_._1.subsetOf(newAvailableMolecules)).map(_._2).toSet
+        val currentGuards = newAllGuards diff oldAllGuards
+        (newAllGuards, currentGuards, newAvailableMolecules, c)
+      // If the current command is any other `c`, we need to simply insert it into the tuple, with empty set of guards.
+      case ((a, _, s, _), c) ⇒
+        (a, Set[Int](), s, c)
+    }
+      .drop(1) // scanLeft produces an initial element, which we don't need.
+      // Retain only the sets of currentGuards; transform into ConstrainGuard(i).
+      .flatMap { case (_, g, _, c) ⇒ Array(c) ++ g.toArray.map(ConstrainGuard) }
+  }
+
   private[jc] def getDSLProgram(
     crossGroups: Coll[Set[Int]],
     repeatedMols: Coll[Set[Int]],
@@ -75,29 +95,17 @@ private[jc] object CrossMoleculeSorting {
   ): Coll[SearchDSL] = {
     val allGroups: Coll[Set[Int]] = crossGroups ++ repeatedMols
 
-    def getDSLProgramForCrossGroup(group: Coll[Int]): IndexedSeq[SearchDSL] = {
-      val groupAsSet = group.toSet
-      // avoid converting toSet inside a loop over groups
-      val guardConditionIndices = allGroups
-        .zipWithIndex
-        .filter(_._1 equals groupAsSet) // find all guard conditions that correspond to this group (could be > 1 due to cross-conditionals)
-        .map(_._2)
-        .filter(_ < crossGroups.length) // only use indices for cross-molecule guards, not for repeated molecule groups
-
-      group.map(ChooseMol) ++ guardConditionIndices.map(ConstrainGuard)
-    }
-
-
-
     val sortedCrossGroups: Coll[Coll[Coll[Int]]] = sortedConnectedSets(groupConnectedSets(allGroups))
       .map(_._2.map(_.toArray.sortBy(moleculeWeights.apply))) // each cross-guard set needs to be sorted by molecule weight
 
-    val program = sortedCrossGroups.flatMap(
-      // We reverse the order so that smaller groups go first, which may help optimize the guard positions.
-      _.reverse.flatMap(getDSLProgramForCrossGroup).distinct :+ CloseGroup
-    )
-program
-//    optimizeConstraintPositions(program)
+    val programWithoutConstrainGuardCommands: Coll[SearchDSL] =
+      sortedCrossGroups.flatMap(
+        // We reverse the order so that smaller groups go first, which may help optimize the guard positions.
+        _.reverse
+          .flatMap(_.map(ChooseMol)).distinct :+ CloseGroup
+      )
+
+    insertConstrainGuardCommands(crossGroups, programWithoutConstrainGuardCommands)
   }
 
 }

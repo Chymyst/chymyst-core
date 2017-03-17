@@ -147,8 +147,8 @@ class FairnessSpec extends FlatSpec with Matchers {
       go { case e(_) + f((x, y, t)) => f((x, y + 1, t - 1)) },
       go { case g(_, r) + f((x, y, 0)) => r((x, y)) }
     )
-    (1 to 10).map { i ⇒
-      val n = 1000
+    (1 to 20).map { i ⇒
+      val n = 500
 
       f((0, 0, n))
 
@@ -161,7 +161,7 @@ class FairnessSpec extends FlatSpec with Matchers {
       val discrepancy = math.abs(ab - bc + 0.0) / n
       println(s"Reaction a + bb occurred $ab times. Reaction bb + c occurred $bc times. Total $n. Discrepancy $discrepancy")
       discrepancy
-    }.min should be < 0.2
+    }.min should be < 0.3
     tp.shutdownNow()
   }
 
