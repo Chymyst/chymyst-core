@@ -26,8 +26,10 @@ object + {
   *
   * @tparam T Type of the molecule value.
   */
-private[jc] sealed trait AbsMolValue[T] extends PersistentHashCode {
+private[jc] sealed trait AbsMolValue[T] {
   private[jc] def getValue: T
+
+  override lazy val hashCode: Int = getValue.hashCode()
 
   /** String representation of molecule values will omit printing the `Unit` values but print all other types normally.
     *
@@ -51,21 +53,18 @@ private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
 }
 
 /** Container for the value of a blocking molecule.
+  * The `hashCode` of a [[BlockingMolValue]] should depend only on the `hashCode` of the value `v`,
+  * and not on the reply value (which is mutable).
   *
   * @param v          The value of type T carried by the molecule.
   * @param replyValue The wrapper for the reply value, which will ultimately return a value of type R.
   * @tparam T The type of the value carried by the molecule.
   * @tparam R The type of the reply value.
   */
-private[jc] final case class BlockingMolValue[T, R](v: T, replyValue: AbsReplyValue[T, R]) extends AbsMolValue[T] with PersistentHashCode {
+private[jc] final case class BlockingMolValue[T, R](v: T, replyValue: AbsReplyValue[T, R]) extends AbsMolValue[T] {
   override private[jc] def getValue: T = v
 
   override private[jc] def reactionSentNoReply: Boolean = replyValue.noReplyAttemptedYet // no value, no error, and no timeout
-
-  /** The `hashCode` of a [[BlockingMolValue]] should depend only on the `hashCode` of the value `v`,
-    * and not on the reply value (which is mutable).
-    */
-//  override lazy val hashCode: Int = v.hashCode()
 }
 
 /** Abstract trait representing a molecule emitter.

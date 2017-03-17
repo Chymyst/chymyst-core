@@ -442,8 +442,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
   }
 
-  /** This is called once, when the reaction site is first declared using the [[site()]] call.
-    * It is called on the thread that calls [[site()]].
+  /** This is called once, when the reaction site is first declared using the [[site]] call.
+    * It is called on the thread that calls [[site]].
     *
     * @return A tuple containing the molecule value bags, and a list of warning and error messages.
     */
@@ -635,8 +635,8 @@ private[jc] final class ExceptionNoStaticMol(message: String) extends ExceptionI
   * Molecules will call only functions from this wrapper.
   * This is intended to make it impossible to access the reaction site object via reflection on private fields in the Molecule class.
   *
-  * Specific values of [[ReactionSiteWrapper]] are created by [[ReactionSite.makeWrapper()]]
-  * and assigned to molecule emitters by [[Molecule.setReactionSiteInfo()]]).
+  * Specific values of [[ReactionSiteWrapper]] are created by [[ReactionSite.makeWrapper]]
+  * and assigned to molecule emitters by [[Molecule.setReactionSiteInfo]].
   */
 private[jc] final class ReactionSiteWrapper[T, R](
                                                    override val toString: String,

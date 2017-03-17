@@ -6,6 +6,18 @@ import scala.concurrent.duration._
 
 class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
+  behavior of "MolValue hash codes"
+
+  it should "correctly store several molecule copies in a MutableQueueBag" in {
+    val v1 = MolValue(())
+    val v2 = MolValue(())
+    v1.hashCode() shouldEqual v2.hashCode()
+    val b = new MutableQueueBag[AbsMolValue[_]]()
+    b.add(v1)
+    b.add(v2)
+    b.getCountMap.get(v1) shouldEqual Some(2)
+  }
+
   behavior of "reaction"
 
   it should "admit values by simple constant matching" in {

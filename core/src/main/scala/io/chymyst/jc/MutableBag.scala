@@ -45,7 +45,7 @@ sealed trait MutableBag[T] {
   def allValuesSkipping(skipping: Seq[T]): Stream[T]
 }
 
-/** Implementation using guava's [[ConcurrentHashMultiset]].
+/** Implementation using guava's `com.google.common.collect.ConcurrentHashMultiset`.
   *
   * This is suitable for types that have a small number of possible values (i.e. [[Core.simpleTypes]]),
   * or for molecules constrained by cross-molecule dependencies where selection by value is important.
@@ -96,7 +96,7 @@ final class MutableMapBag[T] extends MutableBag[T] {
   override def allValuesSkipping(skipping: Seq[T]): Stream[T] = Core.streamDiff(bag.iterator().asScala.toStream, skipping)
 }
 
-/** Implementation using [[ConcurrentLinkedQueue]].
+/** Implementation using `java.util.concurrent.ConcurrentLinkedQueue`.
   *
   * This is suitable for molecule value types that have a large number of possible values (so that a `Map` storage would be inefficient),
   * or for cases where we do not need to group molecules by value (pipelined molecules).

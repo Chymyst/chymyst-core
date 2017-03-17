@@ -358,7 +358,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     println(results.groupBy(identity).mapValues(_.size))
     globalErrorLog.toList should not contain "In Site{q => ...}: Reaction {q(s) => } with inputs [q/P(e)] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site"
     results should contain(246)
-    results should not contain (0)
+    results should not contain 0
   }
 
   it should "start reaction but throw exception when unbound molecule emitter is passed on input molecule" in {
