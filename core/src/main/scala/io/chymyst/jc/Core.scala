@@ -165,7 +165,7 @@ object Core {
       var result: R = null.asInstanceOf[R]
       var found = false
       var i = 0
-      while(!found && i < s.length) {
+      while (!found && i < s.length) {
         f(s(i)) match {
           case Some(r) =>
             result = r
@@ -213,22 +213,22 @@ object Core {
       * @return Sequence of tuples similar to the output of `groupBy`.
       */
     def orderedMapGroupBy[R, S](f: T ⇒ R, g: T ⇒ S): IndexedSeq[(R, IndexedSeq[S])] =
-    s.headOption match {
-      case None ⇒ IndexedSeq()
-      case Some(t) ⇒
-        val (finalR, finalSeq, finalSeqT) =
-          s.drop(1).foldLeft[(R, IndexedSeq[(R, IndexedSeq[S])], IndexedSeq[S])]((f(t), IndexedSeq(), IndexedSeq(g(t)))) {
-            (acc, t) ⇒
-              val (prevR, prevSeq, prevSeqT) = acc
-              val newR = f(t)
-              val newT = g(t)
-              if (newR === prevR)
-                (newR, prevSeq, prevSeqT :+ newT)
-              else
-                (newR, prevSeq :+ ((prevR, prevSeqT)), IndexedSeq(newT))
-          }
-        finalSeq :+ ((finalR, finalSeqT))
-    }
+      s.headOption match {
+        case None ⇒ IndexedSeq()
+        case Some(t) ⇒
+          val (finalR, finalSeq, finalSeqT) =
+            s.drop(1).foldLeft[(R, IndexedSeq[(R, IndexedSeq[S])], IndexedSeq[S])]((f(t), IndexedSeq(), IndexedSeq(g(t)))) {
+              (acc, t) ⇒
+                val (prevR, prevSeq, prevSeqT) = acc
+                val newR = f(t)
+                val newT = g(t)
+                if (newR === prevR)
+                  (newR, prevSeq, prevSeqT :+ newT)
+                else
+                  (newR, prevSeq :+ ((prevR, prevSeqT)), IndexedSeq(newT))
+            }
+          finalSeq :+ ((finalR, finalSeqT))
+      }
 
     /** "flatMap + foldLeft" will perform a `foldLeft` unless the function `op` returns `None` at some point in the sequence.
       *
@@ -337,11 +337,15 @@ object Core {
     }
   }
 
-  def streamDiff[T](s: Stream[T], skip: Seq[T]): Stream[T] = s.scanLeft[(Option[T], Seq[T]), Stream[(Option[T], Seq[T])]]((None, skip)){ (b, t) ⇒
-    val (_, prevSkip) = b
-    if (prevSkip contains t)
-      (None, prevSkip diff Seq(t))
-    else (Some(t), prevSkip)
-  }.flatMap(_._1)
+  def streamDiff[T](s: Stream[T], skip: Seq[T]): Stream[T] = {
+    val skipBag = new MutableMultiset[T].add(skip)
+    s.scanLeft[Option[T], Stream[Option[T]]](None) { (b, t) ⇒
+      if (skipBag contains t) {
+        skipBag.remove(t)
+        None
+      }
+      else Some(t)
+    }.flatten
+  }
 
 }

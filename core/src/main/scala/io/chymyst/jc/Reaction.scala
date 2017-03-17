@@ -757,23 +757,26 @@ final case class Reaction(
                   // TODO consider refactoring this case match into overloaded methods on case classes
                   case ChooseMol(i) ⇒
                     val inputInfo = info.inputs(i) // This molecule cannot be pipelined since it is part of a cross-molecule constraint.
-                    Some(repeatedMolValues.flatMap { prevRepeatedVals ⇒
-                      val siteMolIndex = inputInfo.molecule.index
-                      if (info.crossConditionalsForRepeatedMols contains i) {
-                        val prevValList = prevRepeatedVals.getOrElse(siteMolIndex, IndexedSeq())
-                        moleculesPresent(siteMolIndex)
-                          .allValuesSkipping(prevValList)
-                          .map { v ⇒
-                            foundValues(i) = v
-                            prevRepeatedVals.updated(siteMolIndex, prevValList :+ v)
-                          }
-                      } else moleculesPresent(siteMolIndex)
-                        .allValues
-                        .map { v ⇒
-                          foundValues(i) = v
-                          prevRepeatedVals
-                        }
-                    })
+                    Some(
+                      repeatedMolValues.flatMap { prevRepeatedVals ⇒
+                        val siteMolIndex = inputInfo.molecule.index
+                        if (info.crossConditionalsForRepeatedMols contains i) {
+                          val prevValList = prevRepeatedVals.getOrElse(siteMolIndex, IndexedSeq())
+                          moleculesPresent(siteMolIndex)
+                            .allValuesSkipping(prevValList)
+                            .map { v ⇒
+                              foundValues(i) = v
+                              prevRepeatedVals.updated(siteMolIndex, prevValList :+ v)
+                            }
+                        } else
+                          moleculesPresent(siteMolIndex)
+                            .allValues
+                            .map { v ⇒
+                              foundValues(i) = v
+                              prevRepeatedVals
+                            }
+                      }
+                    )
                   case ConstrainGuard(i) ⇒
                     val guard = info.crossGuards(i)
                     Some(repeatedMolValues.filter { _ ⇒

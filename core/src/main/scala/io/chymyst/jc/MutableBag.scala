@@ -4,8 +4,9 @@ package io.chymyst.jc
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import scala.collection.JavaConverters.{asScalaIteratorConverter, asScalaSetConverter}
-
 import com.google.common.collect.ConcurrentHashMultiset
+
+import scala.collection.mutable
 
 /** Abstract container for molecule values. Concrete implementations may optimize for specific access patterns.
   *
@@ -144,6 +145,42 @@ final class MolValueQueueBag[T] extends MolValueBag[T] {
   override def allValues: Stream[T] = bag.iterator.asScala.toStream
 
   override def allValuesSkipping(skipping: Seq[T]): Stream[T] = Core.streamDiff(allValues, skipping)
+}
+
+class MutableMultiset[T] {
+  private val bag = mutable.Map[T, Int]()
+
+  def isEmpty: Boolean = bag.isEmpty
+
+  def size: Int = bag.values.sum
+
+  def add(v: T): MutableMultiset[T] = {
+    val count = bag.getOrElseUpdate(v, 0)
+    bag.update(v, count + 1)
+    this
+  }
+
+  def add(vs: Seq[T]): MutableMultiset[T] = {
+    vs.foreach(add)
+    this
+  }
+
+  def remove(v: T): MutableMultiset[T] = {
+    bag.get(v).foreach { count ⇒
+      if (count <= 1) {
+        bag.remove(v)
+      } else {
+        bag.update(v, count - 1)
+      }
+    }
+    this
+  }
+
+  def getCount(v: T): Int = bag.getOrElse(v, 0)
+
+  def contains(v: T): Boolean = bag.contains(v)
+
+  override def toString: String = bag.toString
 }
 
 /*

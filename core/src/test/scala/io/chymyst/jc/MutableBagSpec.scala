@@ -155,81 +155,81 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
     println(s"MolValueQueueBag: skipping with $n different values takes $t ms")
   }
 
-  /*
-    behavior of "mutable bag"
+    behavior of "mutable multiset"
 
     it should "create empty bag" in {
-      val b = new MutableBag[Int, String]
+      val b = new MutableMultiset[Int]
       b.size shouldEqual 0
       b.getCount(1) shouldEqual 0
-      b.getOne(1) shouldEqual None
+      b.contains(1) shouldEqual false
     }
 
     it should "add one element to bag" in {
-      val b = new MutableBag[Int, String]
-      b.addToBag(1, "a")
+      val b = new MutableMultiset[Int]
+      b.add(1)
       b.size shouldEqual 1
-      b.getOne(1) shouldEqual Some("a")
       b.getCount(1) shouldEqual 1
       b.getCount(2) shouldEqual 0
+      b.contains(1) shouldEqual true
+      b.contains(2) shouldEqual false
     }
 
-    it should "make a bag with one element" in {
-      val b = new MutableBag[Int, String]
-      b.addToBag(1, "a")
+    it should "add two elements with the same value, them remove them both" in {
+      val b = new MutableMultiset[Int]
+      b.add(1)
       b.size shouldEqual 1
-      b.getOne(1) shouldEqual Some("a")
-      b.getCount(1) shouldEqual 1
-      b.getCount(2) shouldEqual 0
-    }
-
-    it should "print a bag" in {
-      val b = new MutableBag[Int, String]
-      b.addToBag(1, "a")
-      b.addToBag(2, "b")
-      b.toString shouldEqual "Map(2 -> Map(b -> 1), 1 -> Map(a -> 1))"
-    }
-
-    it should "add two elements with the same key and the same value, them remove them both" in {
-      val b = new MutableBag[Int, String]
-      b.addToBag(1, "a")
-      b.size shouldEqual 1
-      b.addToBag(1, "a")
+      b.add(1)
       b.size shouldEqual 2
       b.getCount(1) shouldEqual 2
       b.getCount(2) shouldEqual 0
+      b.contains(1) shouldEqual true
 
-      b.getOne(1) shouldEqual Some("a")
-      b.removeFromBag(1, "a")
+      b.remove(1)
       b.getCount(1) shouldEqual 1
+      b.contains(1) shouldEqual true
 
       b.size shouldEqual 1
-      b.getOne(1) shouldEqual Some("a")
-      b.removeFromBag(1, "a")
+      b.remove(1)
       b.size shouldEqual 0
+      b.contains(1) shouldEqual false
+
+      b.remove(1)
+      b.size shouldEqual 0
+      b.contains(1) shouldEqual false
     }
-    it should "add two elements with the same key and different values, remove them one by one" in {
-      val b = new MutableBag[Int, String]
-      b.addToBag(1, "a")
-      b.size shouldEqual 1
-      b.addToBag(1, "b")
-      b.size shouldEqual 2
+
+    it should "add two elements with different values, remove them one by one" in {
+      val b = new MutableMultiset[Int]
+      b.add(Seq(1, 2, 1))
+      b.size shouldEqual 3
       b.getCount(1) shouldEqual 2
-      b.getCount(2) shouldEqual 0
+      b.getCount(2) shouldEqual 1
 
-      val c1 = b.getOne(1).get
-      Set("a", "b").contains(c1) shouldEqual true
-      b.removeFromBag(1, "a")
+      b.toString shouldEqual "Map(2 -> 1, 1 -> 2)"
+
+      b.remove(1)
       b.getCount(1) shouldEqual 1
+      b.size shouldEqual 2
+      b.contains(1) shouldEqual true
+      b.contains(2) shouldEqual true
 
-      val c2 = b.getOne(1)
-      c2 shouldEqual Some("b")
+      b.toString shouldEqual "Map(2 -> 1, 1 -> 1)"
+
+      b.remove(2)
+      b.getCount(1) shouldEqual 1
+      b.getCount(2) shouldEqual 0
+      b.contains(1) shouldEqual true
+      b.contains(2) shouldEqual false
       b.size shouldEqual 1
-      b.removeFromBag(1, "b")
+
+      b.remove(1)
       b.size shouldEqual 0
       b.getCount(1) shouldEqual 0
-
+      b.getCount(2) shouldEqual 0
+      b.contains(1) shouldEqual false
+      b.contains(2) shouldEqual false
     }
+  /*
     it should "add two elements with different keys and different values, then remove them one by one" in {
       val b = new MutableBag[Int, String]
       b.addToBag(1, "a")
