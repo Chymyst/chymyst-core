@@ -11,7 +11,7 @@ class RepeatedInputSpec extends FlatSpec with Matchers {
 
   it should "handle cross-molecule guard with constant values" in {
     val k = 5
-    val total = 10000
+    val total = 1000
     val repetitions = 20
 
     val (_, elapsed) = elapsedTimeMs(
@@ -35,7 +35,7 @@ class RepeatedInputSpec extends FlatSpec with Matchers {
 
   it should "handle cross-molecule guard with effectively constant values" in {
     val k = 5
-    val total = 10000
+    val total = 1000
     val repetitions = 20
 
     val (_, elapsed) = elapsedTimeMs(
@@ -63,7 +63,7 @@ class RepeatedInputSpec extends FlatSpec with Matchers {
 
   it should "handle cross-molecule guard with simple effectively constant values" in {
     val k = 5
-    val total = 10000
+    val total = 1000
     val repetitions = 20
 
     val (_, elapsed) = elapsedTimeMs(
@@ -91,7 +91,7 @@ class RepeatedInputSpec extends FlatSpec with Matchers {
 
   it should "handle cross-molecule guard with simple constant values" in {
     val k = 5
-    val total = 10000
+    val total = 1000
     val repetitions = 20
 
     val (_, elapsed) = elapsedTimeMs(
@@ -119,7 +119,7 @@ class RepeatedInputSpec extends FlatSpec with Matchers {
 
   it should "handle cross-molecule guard with simple constant values and inert values" in {
     val k = 5
-    val total = 300
+    val total = 200
     val repetitions = 20
 
     val (_, elapsed) = elapsedTimeMs(
