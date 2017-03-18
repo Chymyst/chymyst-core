@@ -147,14 +147,14 @@ final class MutableQueueBag[T] extends MutableBag[T] {
   *
   * @tparam T Type of values held by the multiset.
   */
-class MutableMultiset[T] {
-  private val bag = mutable.Map[T, Int]()
-
+class MutableMultiset[T](bag: mutable.Map[T, Int] = mutable.Map[T, Int]()) {
   def getCountMap: Map[T, Int] = bag.toMap
 
   def isEmpty: Boolean = bag.isEmpty
 
   def size: Int = bag.values.sum
+
+  def copyBag: MutableMultiset[T] = new MutableMultiset[T](bag.clone)
 
   def add(v: T): MutableMultiset[T] = {
     val count = bag.getOrElseUpdate(v, 0)

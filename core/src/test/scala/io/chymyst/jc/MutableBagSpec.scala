@@ -240,4 +240,15 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
     b.contains(2) shouldEqual false
   }
 
+  it should "obtain an independent copy of the bag" in {
+    val b = new MutableMultiset[Int]
+    val c = b.copyBag
+    b.add(1)
+    c.add(2)
+    b.contains(1) shouldEqual true
+    b.contains(2) shouldEqual false
+    c.contains(2) shouldEqual true
+    c.contains(1) shouldEqual false
+  }
+
 }
