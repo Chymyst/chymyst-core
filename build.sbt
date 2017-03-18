@@ -141,7 +141,7 @@ lazy val benchmark = (project in file("benchmark"))
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.1" % Test
     )
-  ).dependsOn(core)
+  ).dependsOn(core % "compile->compile;test->test")
 
 // Running benchmarks with Flight Recorder
 lazy val runFR = InputKey[Unit]("runFR", "run the project with activated FlightRecorder")
