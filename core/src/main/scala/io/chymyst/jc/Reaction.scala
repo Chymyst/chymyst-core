@@ -545,7 +545,7 @@ final class ReactionInfo(
 
   /** The first integer is the number of cross-conditionals in which the molecule participates. The second is `true` when the molecule has its own conditional. */
   private val moleculeWeights: Array[(Int, Boolean)] =
-  inputs.map(info ⇒ (-allCrossGroups.map(_ intersect Set(info.index)).map(_.size).sum, info.flag.isIrrefutable))
+    inputs.map(info ⇒ (-allCrossGroups.map(_ intersect Set(info.index)).map(_.size).sum, info.flag.isIrrefutable))
 
   /** The input molecule indices for all molecules that have no cross-dependencies and also no cross-conditionals.
     * Note that cross-conditionals are created by a repeated input molecule that has a conditional or participates in a cross-molecule guard.
@@ -699,14 +699,14 @@ final case class Reaction(
   private[jc] val inputMoleculesSet: Set[Molecule] = info.inputMoleculesSet
 
   private[jc] val searchDSLProgram: Coll[SearchDSL] = info.searchDSLProgram
-    .filter{
-      case ChooseMol(i) => ! info.inputs(i).isConstantValue
+    .filter {
+      case ChooseMol(i) => !info.inputs(i).isConstantValue
       case _ => true
     }
 
   // This must be lazy because molecule indices are not known at `Reaction` construction time.
   private[jc] lazy val moleculeIndexRequiredCounts: Map[Int, Int] =
-  inputMoleculesSet.map { mol ⇒ (mol.index, inputMoleculesSortedAlphabetically.count(_ === mol)) }(scala.collection.breakOut)
+    inputMoleculesSet.map { mol ⇒ (mol.index, inputMoleculesSortedAlphabetically.count(_ === mol)) }(scala.collection.breakOut)
 
   /** Convenience method for debugging.
     *
@@ -748,6 +748,8 @@ final case class Reaction(
         newValueOpt.nonEmpty
       } && {
         // Here we don't need to check any conditions because we already know that the molecule counts are sufficient for all molecules.
+        // However, it is important to assign these molecule values here before we embark on the SearchDSL program for cross-molecule groups,
+        // because the SearchDSL program does not include molecules with constant value matchers, so they have to be assigned now.
         info.inputsSortedIndependentIrrefutableGrouped
           .foreach { case (siteMolIndex, infos) ⇒
             val molValues = moleculesPresent(siteMolIndex).takeAny(moleculeIndexRequiredCounts(siteMolIndex))
@@ -775,13 +777,6 @@ final case class Reaction(
                 // Note that this molecule cannot be pipelined since it is part of a cross-molecule constraint.
                 val inputInfo = info.inputs(i)
 
-                // TODO: remove this code; instead, make sure that constant values are never included into cross-dependent groups
-                def filteredWithConstant[T](s: Stream[T]): Stream[T] = {
-                  if (inputInfo.isConstantValue)
-                    s.take(1)
-                  else s
-                }
-
                 Some(// The stream contains repetitions of the immutable values `repeatedVals` of type `MolVals`, which represents the value map for repeated input molecules.
                   // If there are no repeated input molecules, this will be an empty map.
                   // However, each item in the stream will mutate `foundValues` in place, so that we always have the last chosen molecule values.
@@ -790,24 +785,24 @@ final case class Reaction(
                     val siteMolIndex = inputInfo.molecule.index
                     if (info.crossConditionalsForRepeatedMols contains i) {
                       val prevValMap = repeatedVals.getOrElse(siteMolIndex, List[AbsMolValue[_]]())
-                      filteredWithConstant(moleculesPresent(siteMolIndex)
+                      moleculesPresent(siteMolIndex)
                         // TODO: move this to the skipping interface, restore Seq[T] as its argument
                         .allValuesSkipping(new MutableMultiset[AbsMolValue[_]]().add(prevValMap))
                         .filter(inputInfo.admitsValue)
-                      )
+
                         .map { v ⇒
                           foundValues(i) = v
                           repeatedVals.updated(siteMolIndex, v :: prevValMap)
                         }
                     } else {
                       // This is not a repeated molecule.
-                      filteredWithConstant(moleculesPresent(siteMolIndex)
+                      moleculesPresent(siteMolIndex)
                         .allValues
                         .filter(inputInfo.admitsValue)
-                      ).map { v ⇒
-                        foundValues(i) = v
-                        repeatedVals
-                      }
+                        .map { v ⇒
+                          foundValues(i) = v
+                          repeatedVals
+                        }
                     }
                   }
                 )
