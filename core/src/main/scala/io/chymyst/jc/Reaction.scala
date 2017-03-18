@@ -764,13 +764,14 @@ final case class Reaction(
                 // Note that this molecule cannot be pipelined since it is part of a cross-molecule constraint.
                 val inputInfo = info.inputs(i)
 
+                // TODO: remove this code; instead, make sure that constant values are never included into cross-dependent groups
                 def filteredWithConstant[T](s: Stream[T]): Stream[T] = {
                   if (inputInfo.isConstantValue)
                     s.take(1)
                   else s
                 }
 
-                Some(// The stream contains repetitions of the immutable values `repeatedVals`, which represents the value map for repeated input molecules.
+                Some(// The stream contains repetitions of the immutable values `repeatedVals` of type `MolVals`, which represents the value map for repeated input molecules.
                   // If there are no repeated input molecules, this will be an empty map.
                   // However, each item in the stream will mutate `foundValues` in place, so that we always have the last chosen molecule values.
                   // The search DSL program is guaranteed to check cross-molecule conditions only for molecules whose values we already chose.
@@ -798,11 +799,13 @@ final case class Reaction(
                     }
                   }
                 )
+
               case ConstrainGuard(i) ⇒
                 val guard = info.crossGuards(i)
                 Some(repeatedMolValuesStream.filter { _ ⇒
                   guard.cond.isDefinedAt(guard.indices.map(i ⇒ foundValues(i).getValue).toList)
                 })
+
               case CloseGroup ⇒
                 // If the stream is empty, we will return `None` here and terminate the "flat fold".
                 repeatedMolValuesStream.headOption.map(_ ⇒ initStream)

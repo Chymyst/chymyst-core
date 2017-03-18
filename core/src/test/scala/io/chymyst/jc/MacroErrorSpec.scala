@@ -12,7 +12,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val c = m[Unit]
 
     // These should compile.
-    def emitThem() = { // ignore warning "local method is never used"
+    def emitThem() = { // ignore warning "local method ... is never used"
       c(())
       c()
       c(123) // ignore warnings "discarded non-Unit value" and "a pure expression does nothing"

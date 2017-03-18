@@ -11,7 +11,7 @@ class RepeatedInputSpec extends FlatSpec with Matchers {
 
   it should "handle cross-molecule guard with constant values" in {
     val k = 5
-    val total = 500
+    val total = 10000
     val repetitions = 20
 
     val (_, elapsed) = elapsedTimeMs(
@@ -19,18 +19,130 @@ class RepeatedInputSpec extends FlatSpec with Matchers {
         withPool(new FixedPool(8)) { tp =>
           val a = m[Option[Int]]
           val done = m[Int]
-          val (all_done, f) = litmus[Unit](tp)
+          val (all_done, f) = litmus[Boolean](tp)
           site(tp)(
             go { case a(Some(1)) + a(Some(2)) + a(Some(3)) + a(Some(4)) + a(Some(5)) + a(Some(x)) if x > k => done(1) },
-            go { case done(x) + done(y) => if (x + y < total) done(x + y) else all_done() }
+            go { case done(x) + done(y) => if (x + y < total) done(x + y) else all_done(true) }
           )
 
           (1 to total).foreach(_ => a(Some(1)) + a(Some(2)) + a(Some(3)) + a(Some(4)) + a(Some(5)) + a(Some(k * 2)))
           f()
-        }
+        }.get shouldEqual true
       }
     )
     println(s"Repeated input 1: total = $total, repetitions = $repetitions, elapsed = $elapsed ms")
+  }
+
+  it should "handle cross-molecule guard with effectively constant values" in {
+    val k = 5
+    val total = 10000
+    val repetitions = 20
+
+    val (_, elapsed) = elapsedTimeMs(
+      (1 to repetitions).foreach { i =>
+        withPool(new FixedPool(8)) { tp =>
+          val a = m[Option[Int]]
+          val done = m[Int]
+          val (all_done, f) = litmus[Boolean](tp)
+          site(tp)(
+            go {
+              case a(Some(x1)) + a(Some(x2)) + a(Some(x3)) + a(Some(x4)) + a(Some(x5)) + a(Some(x))
+                if x > k && x1 == 1 && x2 == 2 && x3 == 3 && x4 == 4 && x5 == 5
+              => done(1)
+            },
+            go { case done(x) + done(y) => if (x + y < total) done(x + y) else all_done(true) }
+          )
+
+          (1 to total).foreach(_ => a(Some(1)) + a(Some(2)) + a(Some(3)) + a(Some(4)) + a(Some(5)) + a(Some(k * 2)))
+          f()
+        }.get shouldEqual true
+      }
+    )
+    println(s"Repeated input 2: total = $total, repetitions = $repetitions, elapsed = $elapsed ms")
+  }
+
+  it should "handle cross-molecule guard with simple effectively constant values" in {
+    val k = 5
+    val total = 10000
+    val repetitions = 20
+
+    val (_, elapsed) = elapsedTimeMs(
+      (1 to repetitions).foreach { i =>
+        withPool(new FixedPool(8)) { tp =>
+          val a = m[Int]
+          val done = m[Int]
+          val (all_done, f) = litmus[Boolean](tp)
+          site(tp)(
+            go {
+              case a(x1) + a(x2) + a(x3) + a(x4) + a(x5) + a(x)
+                if x > k && x1 == 1 && x2 == 2 && x3 == 3 && x4 == 4 && x5 == 5
+              => done(1)
+            },
+            go { case done(x) + done(y) => if (x + y < total) done(x + y) else all_done(true) }
+          )
+
+          (1 to total).foreach(_ => a(1) + a(2) + a(3) + a(4) + a(5) + a(k * 2))
+          f()
+        }.get shouldEqual true
+      }
+    )
+    println(s"Repeated input 3: total = $total, repetitions = $repetitions, elapsed = $elapsed ms")
+  }
+
+  it should "handle cross-molecule guard with simple constant values" in {
+    val k = 5
+    val total = 10000
+    val repetitions = 20
+
+    val (_, elapsed) = elapsedTimeMs(
+      (1 to repetitions).foreach { i =>
+        withPool(new FixedPool(8)) { tp =>
+          val a = m[Int]
+          val done = m[Int]
+          val (all_done, f) = litmus[Boolean](tp)
+          site(tp)(
+            go {
+              case a(1) + a(2) + a(3) + a(4) + a(5) + a(x)
+                if x > k
+              => done(1)
+            },
+            go { case done(x) + done(y) => if (x + y < total) done(x + y) else all_done(true) }
+          )
+
+          (1 to total).foreach(_ => a(1) + a(2) + a(3) + a(4) + a(5) + a(k * 2))
+          f()
+        }.get shouldEqual true
+      }
+    )
+    println(s"Repeated input 4: total = $total, repetitions = $repetitions, elapsed = $elapsed ms")
+  }
+
+  it should "handle cross-molecule guard with simple constant values and inert values" in {
+    val k = 5
+    val total = 300
+    val repetitions = 20
+
+    val (_, elapsed) = elapsedTimeMs(
+      (1 to repetitions).foreach { i =>
+        withPool(new FixedPool(8)) { tp =>
+          val a = m[Int]
+          val done = m[Int]
+          val (all_done, f) = litmus[Boolean](tp)
+          site(tp)(
+            go {
+              case a(1) + a(2) + a(3) + a(4) + a(5) + a(x)
+                if x > k
+              => done(1)
+            },
+            go { case done(x) + done(y) => if (x + y < total) done(x + y) else all_done(true) }
+          )
+
+          (1 to total).foreach(_ => a(-100) + a(1) + a(2) + a(3) + a(4) + a(5) + a(k * 2))
+          f()
+        }.get shouldEqual true
+      }
+    )
+    println(s"Repeated input 5: total = $total, repetitions = $repetitions, elapsed = $elapsed ms")
   }
 
   it should "handle cross-molecule guard with nonconstant values" in {
@@ -46,7 +158,7 @@ class RepeatedInputSpec extends FlatSpec with Matchers {
 
     val (_, elapsed) = elapsedTimeMs(
       (1 to repetitions).foreach { i =>
-//        println(s"iteration $i")
+        //        println(s"iteration $i")
         withPool(new FixedPool(8)) { tp =>
           val a = m[Long]
           val done = m[Int]
@@ -65,7 +177,7 @@ class RepeatedInputSpec extends FlatSpec with Matchers {
         }.get shouldEqual true
       }
     )
-    println(s"Repeated input 2: total = $total, repetitions = $repetitions, elapsed = $elapsed ms")
+    println(s"Repeated input 6: total = $total, repetitions = $repetitions, elapsed = $elapsed ms")
   }
 
 }
