@@ -157,8 +157,7 @@ class MutableMultiset[T](bag: mutable.Map[T, Int] = mutable.Map[T, Int]()) {
   def copyBag: MutableMultiset[T] = new MutableMultiset[T](bag.clone)
 
   def add(v: T): MutableMultiset[T] = {
-    val count = bag.getOrElseUpdate(v, 0)
-    bag.update(v, count + 1)
+    bag.update(v, getCount(v) + 1)
     this
   }
 

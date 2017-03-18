@@ -755,13 +755,12 @@ final case class Reaction(
 
           val found: Option[Stream[MolVals]] = info.searchDSLProgram
             // The `flatFoldLeft` accumulates the value `repeatedMolValues`, representing the stream of value maps for repeated input molecules (only).
-            // This is used to build a "skipping iterator" over molecule values that correctly handle repeated input molecules.
+            // This is used to build a "skipping iterator" over molecule values that correctly handles repeated input molecules.
 
             // This is a "flat fold" because should be able to stop early even though we can't examine the stream value.
             .flatFoldLeft[Stream[MolVals]](initStream) { (repeatedMolValuesStream, searchDslCommand) ⇒
             // We need to return Option[Stream[MolVals]].
             searchDslCommand match {
-              // TODO consider refactoring this case match into overloaded methods on case classes
               case ChooseMol(i) ⇒
                 // Note that this molecule cannot be pipelined since it is part of a cross-molecule constraint.
                 val inputInfo = info.inputs(i)
@@ -782,6 +781,7 @@ final case class Reaction(
                     if (info.crossConditionalsForRepeatedMols contains i) {
                       val prevValMap = repeatedVals.getOrElse(siteMolIndex, List[AbsMolValue[_]]())
                       filteredWithConstant(moleculesPresent(siteMolIndex)
+                        // TODO: move this to the skipping interface, restore Seq[T] as its argument
                         .allValuesSkipping(new MutableMultiset[AbsMolValue[_]]().add(prevValMap))
                         .filter(inputInfo.admitsValue)
                       )
