@@ -747,7 +747,7 @@ final case class Reaction(
         if (info.crossGuards.isEmpty && info.crossConditionalsForRepeatedMols.isEmpty)
           true
         else {
-          type MolVals = Map[Int, List[AbsMolValue[_]]]
+          type MolVals = Map[Int, MutableMultiset[AbsMolValue[_]]]
 
           val initStream = Stream[MolVals](Map())
 
@@ -778,14 +778,15 @@ final case class Reaction(
                   repeatedMolValuesStream.flatMap { repeatedVals ⇒
                     val siteMolIndex = inputInfo.molecule.index
                     if (info.crossConditionalsForRepeatedMols contains i) {
-                      val prevValList = repeatedVals.getOrElse(siteMolIndex, List())
+                      val prevValMap = repeatedVals.getOrElse(siteMolIndex, new MutableMultiset())
                       filteredWithConstant(moleculesPresent(siteMolIndex)
-                        .allValuesSkipping(prevValList)
+                        .allValuesSkipping(prevValMap)
                         .filter(inputInfo.admitsValue)
                       )
                         .map { v ⇒
                           foundValues(i) = v
-                          repeatedVals.updated(siteMolIndex, v :: prevValList)
+                          prevValMap.add(v)
+                          repeatedVals.updated(siteMolIndex, prevValMap)
                         }
                     } else {
                       // This is not a repeated molecule.

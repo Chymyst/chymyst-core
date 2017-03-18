@@ -337,8 +337,7 @@ object Core {
     }
   }
 
-  def streamDiff[T](s: Stream[T], skip: Seq[T]): Stream[T] = {
-    val skipBag = new MutableMultiset[T].add(skip)
+  def streamDiff[T](s: Stream[T], skipBag: MutableMultiset[T]): Stream[T] = {
     s.scanLeft[Option[T], Stream[Option[T]]](None) { (b, t) ⇒
       if (skipBag contains t) {
         skipBag.remove(t)

@@ -42,7 +42,7 @@ sealed trait MutableBag[T] {
     * @param skipping A sequence of values that should be skipped while running the iterator.
     * @return A stream of values.
     */
-  def allValuesSkipping(skipping: Seq[T]): Stream[T]
+  def allValuesSkipping(skipping: MutableMultiset[T]): Stream[T]
 }
 
 /** Implementation using guava's `com.google.common.collect.ConcurrentHashMultiset`.
@@ -93,7 +93,8 @@ final class MutableMapBag[T] extends MutableBag[T] {
     .map(_.getElement)
     .toStream
 
-  override def allValuesSkipping(skipping: Seq[T]): Stream[T] = Core.streamDiff(bag.iterator().asScala.toStream, skipping)
+  override def allValuesSkipping(skipping: MutableMultiset[T]): Stream[T] =
+    Core.streamDiff(bag.iterator().asScala.toStream, skipping)
 }
 
 /** Implementation using `java.util.concurrent.ConcurrentLinkedQueue`.
@@ -136,7 +137,8 @@ final class MutableQueueBag[T] extends MutableBag[T] {
 
   override def allValues: Stream[T] = bag.iterator.asScala.toStream
 
-  override def allValuesSkipping(skipping: Seq[T]): Stream[T] = Core.streamDiff(allValues, skipping)
+  override def allValuesSkipping(skipping: MutableMultiset[T]): Stream[T] =
+    Core.streamDiff(allValues, skipping)
 }
 
 /** A simple, limited multiset implementation currently only used by [[Core.streamDiff]].
