@@ -24,12 +24,12 @@ We can define molecules of any sort, and we can postulate arbitrary reactions be
 
 For instance, we can postulate that there exist three sorts of molecules called `a`, `b`, `c`, and that they can react as follows:
 
-`a + b ⇒ a`
+`a + b → a`
 
-`a + c ⇒` [_nothing_]
+`a + c →` [_nothing_]
 
 
-![Reaction diagram a + b ⇒ a, a + c ⇒ ...](https://chymyst.github.io/chymyst-core/reactions1.svg)
+![Reaction diagram a + b → a, a + c → ...](https://chymyst.github.io/chymyst-core/reactions1.svg)
 
 Of course, real-life chemistry does not allow a molecule to disappear without producing any other molecules.
 But our chemistry is purely imaginary, and so the programmer is free to postulate arbitrary chemical laws.
@@ -44,7 +44,7 @@ The chemical machine will run all the reactions that are allowed by the chemical
 
 We will say that in a reaction such as
 
-`a + b + c ⇒ d + e`
+`a + b + c → d + e`
 
 the **input molecules** are  `a`, `b`, and `c`, and the **output molecules** are `d` and `e`.
 A reaction can have one or more input molecules, and zero or more output molecules.
@@ -78,9 +78,9 @@ Molecules to the left-hand side of the arrow are the input molecules of the reac
 
 A typical reaction, equipped with molecule values and a reaction body, looks like this in pseudocode syntax:
 
-```scala
-a(x) + b(y) ⇒ a(z)
-where z = computeZ(x,y) // — reaction body
+```
+a(x) + b(y) → a(z)
+  where z = computeZ(x,y)
 
 ```
 
@@ -92,15 +92,15 @@ The newly computed value `z` is placed onto the output molecule `a(z)`, which is
 
 Another example of a reaction is
 
-```scala
-a(x) + c(y) ⇒ println(x + y) // — reaction body with no output molecules
+```
+a(x) + c(y) → println(x + y) // — reaction body with no output molecules
 
 ```
 
 This reaction consumes the molecules `a` and `c` as its input, but does not emit any output molecules.
 The only result of running the reaction is the side-effect of printing the number `x + y`.
 
-![Reaction diagram a(x) + b(y) ⇒ a(z), a(x) + c(y) ⇒ ...](https://chymyst.github.io/chymyst-core/reactions2.svg)
+![Reaction diagram a(x) + b(y) → a(z), a(x) + c(y) → ...](https://chymyst.github.io/chymyst-core/reactions2.svg)
 
 The computations performed by the chemical machine are _automatically concurrent_:
 Whenever input molecules are available in the soup, the runtime engine will start a reaction that consumes these input molecules.
@@ -116,7 +116,10 @@ with no global mutable state.
 ## The syntax of `Chymyst`
 
 So far, we have been writing chemical laws in a kind of chemistry-resembling pseudocode.
-The actual syntax of `Chymyst` is only a little more verbose:
+The actual syntax of `Chymyst` is only a little more verbose.
+Reactions are defined using `case` expressions that specify the input molecules by pattern-matching.
+
+Here is the translation of the example reaction shown above:
 
 ```scala
 import io.chymyst.jc._
@@ -127,7 +130,7 @@ val b = m[Int] // ditto for b(...)
 
 // declare the reaction site and the available reaction(s)
 site(
-  go { case a(x) + b(y) ⇒
+  go { case a(x) + b(y) =>
     val z = computeZ(x,y)
     a(z)
   }
@@ -194,9 +197,9 @@ In `Chymyst`, a reaction site can declare one or more reactions, since the funct
 In the present example, however, both reactions need to be written within the same reaction site.
 Here is why:
 
-Both reactions `{ counter + incr ⇒ ... }` and `{ counter + decr ⇒ ... }` consume the molecule `counter()`.
+Both reactions `counter + incr → ...` and `counter + decr → ...` consume the molecule `counter()`.
 In order for any of these reactions to start, the molecule `counter()` needs to be present at some reaction site.
-Therefore, the `incr()` and `decr()` molecules must be present at the _same_ reaction site, or else they cannot meet with `counter()` to start a reaction.
+Therefore, the molecules `incr()` and `decr()` must be present at the _same_ reaction site, or else they cannot meet with `counter()` to start a reaction.
 For this reason, both reactions need to be defined _together_ in a single reaction site.
 
 After defining the molecules and their reactions, we can start emitting new molecules into the soup:
@@ -271,14 +274,14 @@ In our example, all three molecules `counter`, `incr`, and `decr` are declared a
 
 ```
 > println(decr.logSoup)
-Site{counter + decr ⇒ ...; counter + incr ⇒ ...}
+Site{counter + decr → ...; counter + incr → ...}
 Molecules: counter(98)
 
 ```
 
 The debug output contains two pieces of information:
 
-- The RS which is being logged: `Site{counter + decr ⇒ ...; counter + incr ⇒ ...}`
+- The RS which is being logged: `Site{counter + decr → ...; counter + incr → ...}`
 Note that the RS is identified by the reactions that are declared in it.
 The reactions are shown in a shorthand notation, which only mentions the input molecules.
 
@@ -369,7 +372,7 @@ val b = m[Unit]
 site( go { case x(n) + a(_) ⇒ println(s"have x($n) + a") } ) // OK, "x" is now bound to this RS.
 
 site( go { case x(n) + b(_) ⇒ println(s"have x($n) + b") } )
-// java.lang.Exception: Molecule x cannot be used as input in Site{b + x ⇒ ...} since it is already bound to Site{a + x ⇒ ...}
+// java.lang.Exception: Molecule x cannot be used as input in Site{b + x → ...} since it is already bound to Site{a + x → ...}
 
 ```
 
@@ -491,10 +494,10 @@ site (
 )
 
 ```
-`Exception: In Site{data + sum ⇒ ...; sum ⇒ ...}: Unavoidable nondeterminism:`
-`reaction data + sum ⇒ ... is shadowed by sum ⇒ ...`
+`Exception: In Site{data + sum → ...; sum → ...}: Unavoidable nondeterminism:`
+`reaction {data + sum → } is shadowed by {sum → }`
 
-The error message means that the reaction `sum ⇒ ...` will sometimes prevent `data + sum ⇒ ...` from running,
+The error message means that the reaction `sum → ...` will sometimes prevent `data + sum → ...` from running,
 and that the programmer _has no control_ over this nondeterminism.
 
 The correct implementation needs to keep track of how many `data(...)` molecules we already consumed,
@@ -503,7 +506,7 @@ Since reactions do not have mutable state, the information about the remaining `
 So, we will define the `sum(...)` molecule with type `(Int, Int)`, where the second integer will be the number of `data(...)` molecules that remain to be consumed.
 
 The reaction `data + sum` should proceed only when we know that some `data(...)` molecules are still remaining.
-Otherwise, `sum(...)` should start its own reaction and print the final result. 
+Otherwise, the `sum(...)` molecule should start its own reaction and print the final result. 
 
 ```scala
 val data = m[Int]

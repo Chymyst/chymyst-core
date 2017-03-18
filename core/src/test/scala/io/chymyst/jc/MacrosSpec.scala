@@ -68,7 +68,7 @@ behavior of "reaction sha1"
     b.isBound shouldEqual false
     c.isBound shouldEqual true
 
-    val expectedReaction = "<no name> + a123 => ..."
+    val expectedReaction = "<no name> + a123 → ..."
 
     // These methods are private to the package!
     a.emittingReactions shouldEqual Set()
@@ -127,13 +127,13 @@ behavior of "reaction sha1"
   it should "correctly sort input molecules with compound values and Option" in {
     val bb = m[(Int, Option[Int])]
     val reaction = go { case bb((1, Some(2))) + bb((0, None)) => }
-    reaction.info.toString shouldEqual "bb((0,None)) + bb((1,Some(2))) => "
+    reaction.info.toString shouldEqual "bb((0,None)) + bb((1,Some(2))) → "
   }
 
   it should "correctly sort input molecules with compound values" in {
     val bb = m[(Int, Int)]
     val reaction = go { case bb((1, 2)) + bb((0, 3)) + bb((4, _)) => }
-    reaction.info.toString shouldEqual "bb((0,3)) + bb((1,2)) + bb(?) => "
+    reaction.info.toString shouldEqual "bb((0,3)) + bb((1,2)) + bb(?) → "
   }
 
   it should "inspect reaction body with default clause that declares a static molecule" in {
@@ -346,7 +346,7 @@ behavior of "reaction sha1"
       OutputMoleculeInfo(qq, ConstOutputPattern(()), List())
     )
 
-    result.info.toString shouldEqual "a(1) + a(p) + a(y) + bb((0,None)) + bb((1,Some(2))) + bb(?z) + bb(?) + bb(?t,q) + c(_) + c(_) + s/B(_) => s/B() + a(?) + qq()"
+    result.info.toString shouldEqual "a(1) + a(p) + a(y) + bb((0,None)) + bb((1,Some(2))) + bb(?z) + bb(?) + bb(?t,q) + c(_) + c(_) + s/B(_) → s/B() + a(?) + qq()"
   }
 
   it should "not fail to define a reaction with correct inputs with non-default pattern-matching in the middle of reaction" in {
@@ -356,7 +356,7 @@ behavior of "reaction sha1"
 
     site(tp0)(go { case b(_) + a(Some(x)) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with default pattern-matching in the middle of reaction" in {
@@ -366,7 +366,7 @@ behavior of "reaction sha1"
 
     site(tp0)(go { case b(_) + a(None) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with non-simple default pattern-matching in the middle of reaction" in {
@@ -376,7 +376,7 @@ behavior of "reaction sha1"
 
     site(go { case b(_) + a(List()) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "not fail to define a simple reaction with correct inputs with empty option pattern-matching at start of reaction" in {
@@ -386,7 +386,7 @@ behavior of "reaction sha1"
 
     site(tp0)(go { case a(None) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with empty option pattern-matching at start of reaction" in {
@@ -396,7 +396,7 @@ behavior of "reaction sha1"
 
     site(tp0)(go { case a(None) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at start of reaction" in {
@@ -406,7 +406,7 @@ behavior of "reaction sha1"
 
     site(tp0)(go { case a(Some(x)) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "run reactions correctly with non-default pattern-matching at start of reaction" in {
@@ -418,9 +418,9 @@ behavior of "reaction sha1"
     a(Some(1))
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a/P(Some(1))"
+    a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a/P(Some(1))"
     f.timeout()(2.second) shouldEqual Some(1)
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + f/B → ...}\nNo molecules"
   }
 
   it should "not run a reaction whose static guard is false" in {
@@ -434,9 +434,9 @@ behavior of "reaction sha1"
     a(Some(1))
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a/P(Some(1))"
+    a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a/P(Some(1))"
     f.timeout()(2.second) shouldEqual None
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a/P(Some(1))"
+    a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a/P(Some(1))"
   }
 
   it should "not run a reaction whose cross-molecule guard is false" in {
@@ -450,9 +450,9 @@ behavior of "reaction sha1"
     a(Some(10))
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(10))"
+    a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a(Some(10))"
     f.timeout(0)(2.second) shouldEqual None
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(10))"
+    a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a(Some(10))"
   }
 
   it should "run a reaction whose cross-molecule guard is true" in {
@@ -466,9 +466,9 @@ behavior of "reaction sha1"
     a(Some(1))
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a(Some(1))"
+    a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a(Some(1))"
     f.timeout(0)(2.second) shouldEqual Some(1)
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + f/B → ...}\nNo molecules"
   }
 
   it should "run a reaction with cross-molecule guards and some independent molecules" in {
@@ -484,9 +484,9 @@ behavior of "reaction sha1"
     c(123)
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + c + f/B => ...}\nMolecules: a(Some(1)) + c/P(123)"
+    a.logSoup shouldEqual "Site{a + c + f/B → ...}\nMolecules: a(Some(1)) + c/P(123)"
     f.timeout(0)(2.second) shouldEqual Some(124)
-    a.logSoup shouldEqual "Site{a + c + f/B => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + c + f/B → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant non-default pattern-matching at start of reaction" in {
@@ -496,7 +496,7 @@ behavior of "reaction sha1"
 
     site(tp0)(go { case a(1) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant default option pattern-matching at start of reaction" in {
@@ -506,7 +506,7 @@ behavior of "reaction sha1"
 
     site(tp0)(go { case a(None) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "determine constant input and output patterns correctly" in {
@@ -577,7 +577,7 @@ behavior of "reaction sha1"
       InputMoleculeInfo(`bb`, 2, OtherInputPattern(_, List('p, 'ytt, 's, 't), false), _, Symbol("(Int, Int, Option[Int], (Int, Option[Int]))"))
       ) =>
     }
-    result.info.toString shouldEqual "a(?) + bb(?p,ytt,s,t) + c(_) => "
+    result.info.toString shouldEqual "a(?) + bb(?p,ytt,s,t) + c(_) → "
   }
 
   it should "create partial functions for matching from reaction body" in {
@@ -855,7 +855,7 @@ behavior of "reaction sha1"
       )
       a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(List(OutputMoleculeInfo(a, ConstOutputPattern(1), List())))
     }
-    thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction {a(1) => a(1)}"
+    thrown.getMessage shouldEqual "In Site{a → ...}: Unavoidable livelock: reaction {a(1) → a(1)}"
   }
 
   it should "compute inputs and outputs for an inline nested reaction" in {
@@ -869,7 +869,7 @@ behavior of "reaction sha1"
           a(2)
       }
     )
-    a.consumingReactions.get.size shouldEqual 1
+    a.consumingReactions.get.length shouldEqual 1
     a.emittingReactions.size shouldEqual 1
     a.consumingReactions.get.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, ConstOutputPattern(2), List()))
     a.consumingReactions.get.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, ConstInputPattern(1), constantOneSha1, 'Int))
@@ -890,7 +890,7 @@ behavior of "reaction sha1"
         }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a => ...}: Unavoidable livelock: reaction {a(1) => a(1)}"
+    thrown.getMessage shouldEqual "In Site{a → ...}: Unavoidable livelock: reaction {a(1) → a(1)}"
   }
 
   it should "compute outputs in the correct order for a reaction with no livelock" in {
@@ -899,7 +899,7 @@ behavior of "reaction sha1"
     site(
       go { case a(2) => b(2); a(1); b(1) }
     )
-    a.consumingReactions.get.size shouldEqual 1
+    a.consumingReactions.get.length shouldEqual 1
     a.consumingReactions.get.map(_.info.outputs).head shouldEqual List(
       OutputMoleculeInfo(b, ConstOutputPattern(2), List()),
       OutputMoleculeInfo(a, ConstOutputPattern(1), List()),
@@ -1035,10 +1035,10 @@ behavior of "reaction sha1"
     val thrown = intercept[Exception] {
       r1.body.apply((inputs.length - 1, inputs)) shouldEqual 123 // Reaction ran on a non-reaction thread (i.e. on this thread) and attempted to emit the static molecule.
     }
-    val expectedMessage = s"In Site{${dIncorrectStaticMol.name} + e => ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this thread does not run a chemical reaction"
+    val expectedMessage = s"In Site{${dIncorrectStaticMol.name} + e → ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this thread does not run a chemical reaction"
     thrown.getMessage shouldEqual expectedMessage
     waitSome()
-    e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e => ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
+    e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
   }
 
   it should "refuse to emit static molecule from a reaction that did not consume it when this cannot be determined statically" in {
@@ -1054,8 +1054,8 @@ behavior of "reaction sha1"
 
     e(dIncorrectStaticMol)
     waitSome()
-    e.logSoup shouldEqual s"Site{c + ${dIncorrectStaticMol.name} => ...; e => ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
-    globalErrorLog.exists(_.contains(s"In Site{c + ${dIncorrectStaticMol.name} => ...; e => ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this reaction {e(s) => } does not consume it")) shouldEqual true
+    e.logSoup shouldEqual s"Site{c + ${dIncorrectStaticMol.name} → ...; e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
+    globalErrorLog.exists(_.contains(s"In Site{c + ${dIncorrectStaticMol.name} → ...; e → ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this reaction {e(s) → } does not consume it")) shouldEqual true
   }
 
 }

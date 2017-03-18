@@ -135,17 +135,17 @@ class MoreBlockingSpec extends FlatSpec with Matchers with TimeLimitedTests {
       go { case f(_, r) + a(x) => r(x); a(0) }
     )
     a.setLogLevel(4)
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + f/B → ...}\nNo molecules"
     f.timeout()(100 millis) shouldEqual None
     // TODO: this test sometimes fails because f is not withdrawn and reacts with a(123) - even though logSoup prints "No molecules"!
     // there should be no a(0) now, because the reaction has not yet run ("f" timed out and was withdrawn, so no molecules)
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nNo molecules"
+    a.logSoup shouldEqual "Site{a + f/B → ...}\nNo molecules"
     a(123)
     // there still should be no a(0), because the reaction did not run (have "a" but no "f")
     f() shouldEqual 123
     // now there should be a(0) because the reaction has run
     Thread.sleep(150)
-    a.logSoup shouldEqual "Site{a + f/B => ...}\nMolecules: a/P(0)"
+    a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a/P(0)"
 
     tp.shutdownNow()
   }

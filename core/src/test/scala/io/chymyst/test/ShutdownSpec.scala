@@ -21,7 +21,7 @@ class ShutdownSpec extends FlatSpec with Matchers {
     val thrown = intercept[Exception] {
       x()
     }
-    thrown.getMessage shouldEqual "In Site{x => ...}: Cannot emit molecule x() because site pool is not active"
+    thrown.getMessage shouldEqual "In Site{x → ...}: Cannot emit molecule x() because site pool is not active"
     pool.shutdownNow()
   }
 
@@ -50,6 +50,6 @@ class ShutdownSpec extends FlatSpec with Matchers {
     val thrown = intercept[Exception] {
       x()
     }
-    thrown.getMessage shouldEqual "In Site{x => ...}: Cannot emit molecule x() because site pool is not active"
+    thrown.getMessage shouldEqual "In Site{x → ...}: Cannot emit molecule x() because site pool is not active"
   }
 }

@@ -566,17 +566,14 @@ final class ReactionInfo(
 
   /** The sequence of [[SearchDSL]] instructions for selecting the molecule values under cross-molecule constraints.
     * Independent molecules are not included in this DSL program; their values are to be selected separately.
+    *
+    * This [[SearchDSL]] program is already optimized by including the constraint guards as early as possible.
     */
   private[jc] val searchDSLProgram = CrossMoleculeSorting.getDSLProgram(
     crossGuards.map(_.indices.toSet),
     repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet),
     moleculeWeights
   )
-
-  // Optimization: this is used often.
-  private[jc] val inputMoleculesSortedAlphabetically: Array[Molecule] = inputs.map(_.molecule).sortBy(_.toString)
-
-  private[jc] val inputMoleculesSet: Set[Molecule] = inputMoleculesSortedAlphabetically.toSet
 
   // The input pattern sequence is pre-sorted by descending strength of constraint -- for pretty-printing as well as for use in static analysis.
   private[jc] val inputsSortedByConstraintStrength: List[InputMoleculeInfo] = {
@@ -653,7 +650,7 @@ final class ReactionInfo(
         s" if($crossGuardsInfo)"
     }
     val outputsInfo = outputs.map(_.toString).mkString(" + ")
-    s"$inputsInfo$guardInfo => $outputsInfo"
+    s"$inputsInfo$guardInfo → $outputsInfo"
   }
 }
 
@@ -694,11 +691,20 @@ final case class Reaction(
   def noRetry: Reaction = copy(retry = false)
 
   // Optimization: this is used often.
-  private[jc] val inputMoleculesSortedAlphabetically: Seq[Molecule] = info.inputMoleculesSortedAlphabetically
+  private[jc] val inputMoleculesSortedAlphabetically: Seq[Molecule] =
+    info.inputs
+      .map(_.molecule)
+      .sortBy(_.toString)
 
-  private[jc] val inputMoleculesSet: Set[Molecule] = info.inputMoleculesSet
+  // Optimization: this is used often.
+  private[jc] val inputMoleculesSet: Set[Molecule] = inputMoleculesSortedAlphabetically.toSet
 
-  private[jc] val searchDSLProgram: Coll[SearchDSL] = info.searchDSLProgram
+  /** The final SearchDSL program for finding values of molecules affected by cross-molecule constraints.
+    *
+    * This computation optimizes `info.searchDSLProgram` by removing molecules that have constant value matchers.
+    *
+    */
+  private val searchDSLProgram: Coll[SearchDSL] = info.searchDSLProgram
     .filter {
       case ChooseMol(i) => !info.inputs(i).isConstantValue
       case _ => true
@@ -716,7 +722,7 @@ final case class Reaction(
     val suffix = if (retry)
       "/R"
     else ""
-    s"${inputMoleculesSortedAlphabetically.map(_.toString).mkString(" + ")} => ...$suffix"
+    s"${inputMoleculesSortedAlphabetically.map(_.toString).mkString(" + ")} → ...$suffix"
   }
 
   /** Find a set of input molecule values for this reaction. */
