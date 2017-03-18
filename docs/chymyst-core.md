@@ -585,6 +585,34 @@ go { case d((x, z)) if z.nonEmpty => }
 
 This code compiles and works, and is equivalent to the more complicated pattern match.
 
+## Type mismatch "found `Any`, required `X`" with pattern variables
+
+When pattern variables have type parameters, these type parameters are replaced by `Any` due to type erasure.
+The current implementation of guard conditions in `Chymyst` is unable to recognize the type parameters that pattern variables actually have.
+This limitation does not affect the reaction body; however, guard conditions involving these pattern variables will suffer from incorrect type parameter `Any`.
+
+An (artificial) example is shown in this reaction:
+
+```scala
+val a = m[Option[Int]]
+
+go { case a(p@Some(_)) if 1 - p.get > 0 => ??? }
+
+```
+
+The pattern variable `p` has type `Some[Int]`, which has a type parameter set to `Int`.
+The reaction body is able to evaluate expressions such as `1 - p.get` with no problems, with `p.get` typed as `Int`.
+However, the guard condition as implemented by `Chymyst` suffers from type erasure,
+and so the type of `p` within the guard expression becomes `Some[Any]`.
+Therefore, `p.get` is typed as `Any`, and the presence of `1 - p.get` in the guard condition
+will cause a compile-time error "type mismatch: found `Any`, required `Int`".
+
+Several workarounds are possible:
+ 
+- Avoid using pattern variables whose type is parameterized; in this example, write `a(Some(x))` instead of `a(p@Some(_))`.
+- Rewrite some expressions so that compilation succeeds; in this example, `p.get < 1` would compile without errors, despite the type `Any`.
+
+
 # Implementation notes
 
 ## Choice of molecules for reactions

@@ -42,7 +42,7 @@ This will allow us to implement interesting features such as:
 
 - start many reactions at once when possible, even at one and the same reaction site
 - allow nonlinear input patterns and arbitrary guards (done in 0.1.5)
-- automatic pipelining (i.e. strict ordering of consumed molecules) should give a speedup
+- automatic pipelining (i.e. strict ordering of consumed molecules) should give a speedup (done in 0.1.8)
 
 Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka Streaming, Kafka, Heron. Define and use "pipelined" molecules that are optimized for streaming usage.
 
