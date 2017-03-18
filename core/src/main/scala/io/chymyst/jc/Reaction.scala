@@ -749,7 +749,7 @@ final case class Reaction(
         else {
           // Map from site-wide molecule index to the multiset of values that have been selected for repeated copies of this molecule.
           // This is used only for selecting repeated input molecules.
-          type MolVals = Map[Int, MutableMultiset[AbsMolValue[_]]]
+          type MolVals = Map[Int, List[AbsMolValue[_]]]
 
           val initStream = Stream[MolVals](Map())
 
@@ -780,14 +780,14 @@ final case class Reaction(
                   repeatedMolValuesStream.flatMap { repeatedVals ⇒
                     val siteMolIndex = inputInfo.molecule.index
                     if (info.crossConditionalsForRepeatedMols contains i) {
-                      val prevValMap = repeatedVals.getOrElse(siteMolIndex, new MutableMultiset[AbsMolValue[_]])
+                      val prevValMap = repeatedVals.getOrElse(siteMolIndex, List[AbsMolValue[_]]())
                       filteredWithConstant(moleculesPresent(siteMolIndex)
-                        .allValuesSkipping(prevValMap)
+                        .allValuesSkipping(new MutableMultiset[AbsMolValue[_]]().add(prevValMap))
                         .filter(inputInfo.admitsValue)
                       )
                         .map { v ⇒
                           foundValues(i) = v
-                          repeatedVals.updated(siteMolIndex, prevValMap.copyBag.add(v))
+                          repeatedVals.updated(siteMolIndex, v :: prevValMap)
                         }
                     } else {
                       // This is not a repeated molecule.
