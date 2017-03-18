@@ -1,6 +1,7 @@
 package io.chymyst.jc
 
 import Core._
+import io.chymyst.jc.CrossMoleculeSorting.Coll
 
 import scala.{Symbol => ScalaSymbol}
 import scala.collection.mutable
@@ -539,8 +540,8 @@ final class ReactionInfo(
     * The cross-molecule dependency groups include both the molecules that are constrained by cross-molecule guards and also
     * repeated molecules whose copies participate in a cross-molecule guard or a per-molecule conditional.
     */
-  private val allCrossGroups: Array[Set[Int]] =
-  crossGuards.map(_.indices.toSet) ++ repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet)
+  private val allCrossGroups: Array[Set[Int]] = crossGuards.map(_.indices.toSet) ++
+    repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet)
 
   /** The first integer is the number of cross-conditionals in which the molecule participates. The second is `true` when the molecule has its own conditional. */
   private val moleculeWeights: Array[(Int, Boolean)] =
@@ -550,15 +551,18 @@ final class ReactionInfo(
     * Note that cross-conditionals are created by a repeated input molecule that has a conditional or participates in a cross-molecule guard.
     * A repeated input molecule is independent when all its repeated instances in the input list have irrefutable matchers and do not participate in any cross-molecule guards.
     * A non-repeated input molecule is independent when it does not participate in any cross-molecule guards (but it may have a conditional matcher).
+    * An exception to these rules is a molecule with a constant matcher: this molecule is always independent.
     */
-  private[jc] val independentInputMolecules =
-  inputs.map(_.index)
-    .filter(index ⇒ !crossConditionalsForRepeatedMols.contains(index) && crossGuards.forall {
-      case CrossMoleculeGuard(indices, _, _) ⇒
-        !indices.contains(index)
-    })
-    .sortBy(moleculeWeights.apply)
-    .toSet
+  private[jc] val independentInputMolecules = {
+    val moleculesWithoutCrossConditionals = inputs.map(_.index)
+      .filter(index ⇒
+        !crossConditionalsForRepeatedMols.contains(index) && crossGuards.forall {
+          case CrossMoleculeGuard(indices, _, _) ⇒
+            !indices.contains(index)
+        })
+    val moleculesWithConstantValues = inputs.filter(_.isConstantValue).map(_.index)
+    (moleculesWithoutCrossConditionals ++ moleculesWithConstantValues).toSet
+  }
 
   /** The sequence of [[SearchDSL]] instructions for selecting the molecule values under cross-molecule constraints.
     * Independent molecules are not included in this DSL program; their values are to be selected separately.
@@ -603,10 +607,10 @@ final class ReactionInfo(
   }
 
   /** [[inputsSortedIndependentIrrefutableGrouped]] is the list of input indices of only the input molecules that
-    * have irrefutable matchers, grouped by site-wide index.
+    * have irrefutable matchers, grouped by site-wide index. (These molecules are automatically independent.)
     * If a molecule is repeated, it will be represented as a tuple `(sitewide index, Array[input index])`.
     *
-    * [[inputsSortedIndependentConditional]] is the list of [[InputMoleculeInfo]] values for all molecules whose matchers are not irrefutable (including repeated molecules).
+    * [[inputsSortedIndependentConditional]] is the list of [[InputMoleculeInfo]] values for all independent molecules whose matchers are not irrefutable (including repeated molecules).
     *
     * Both these lists must be lazy because `molecule.index` is known late.
     */
@@ -694,6 +698,12 @@ final case class Reaction(
 
   private[jc] val inputMoleculesSet: Set[Molecule] = info.inputMoleculesSet
 
+  private[jc] val searchDSLProgram: Coll[SearchDSL] = info.searchDSLProgram
+    .filter{
+      case ChooseMol(i) => ! info.inputs(i).isConstantValue
+      case _ => true
+    }
+
   // This must be lazy because molecule indices are not known at `Reaction` construction time.
   private[jc] lazy val moleculeIndexRequiredCounts: Map[Int, Int] =
   inputMoleculesSet.map { mol ⇒ (mol.index, inputMoleculesSortedAlphabetically.count(_ === mol)) }(scala.collection.breakOut)
@@ -753,7 +763,7 @@ final case class Reaction(
 
           val initStream = Stream[MolVals](Map())
 
-          val found: Option[Stream[MolVals]] = info.searchDSLProgram
+          val found: Option[Stream[MolVals]] = searchDSLProgram
             // The `flatFoldLeft` accumulates the value `repeatedMolValues`, representing the stream of value maps for repeated input molecules (only).
             // This is used to build a "skipping iterator" over molecule values that correctly handles repeated input molecules.
 
