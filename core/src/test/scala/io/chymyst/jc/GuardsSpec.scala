@@ -1,6 +1,7 @@
 package io.chymyst.jc
 
 import org.scalatest.{FlatSpec, Matchers}
+import scala.concurrent.duration._
 
 class GuardsSpec extends FlatSpec with Matchers {
 
@@ -22,7 +23,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       OutputMoleculeInfo(`bbb`, ConstOutputPattern(List()), Nil)
       ) =>
     }
-    result.info.toString shouldEqual "aaa(List()) + aaa(List()) => bbb(List()) + bbb(List())"
+    result.info.toString shouldEqual "aaa(List()) + aaa(List()) → bbb(List()) + bbb(List())"
   }
 
   it should "correctly recognize constants of various kinds" in {
@@ -45,7 +46,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       ) =>
     }
 
-    result.info.toString shouldEqual "a(Right(input)) + bb('input) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) => bb('output) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) + a(Right(output))"
+    result.info.toString shouldEqual "a(Right(input)) + bb('input) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) → bb('output) + ccc(List()) + ccc(List()) + ccc(List(1)) + ccc(List(1, 2, 3)) + a(Right(output))"
   }
 
   behavior of "guard conditions"
@@ -57,7 +58,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a(Left(1)) + a(Right("input")) + bb((2, Some(3))) + bb((0, None)) if true => a(Right("output")); bb((1, None)) }
     result.info.guardPresence shouldEqual GuardAbsent
 
-    result.info.toString shouldEqual "a(Left(1)) + a(Right(input)) + bb((0,None)) + bb((2,Some(3))) => a(Right(output)) + bb((1,None))"
+    result.info.toString shouldEqual "a(Left(1)) + a(Right(input)) + bb((0,None)) + bb((2,Some(3))) → a(Right(output)) + bb((1,None))"
 
     result.info.inputs should matchPattern {
       case Array(
@@ -74,7 +75,10 @@ class GuardsSpec extends FlatSpec with Matchers {
     val a = m[Option[Int]]
     val bb = m[(Int, Option[String])]
 
-    val result = go { case a(xOpt) + bb(y) if xOpt.isEmpty && y._2.isEmpty => }
+    val result = go { // ignore warning about "non-variable type argument"
+      case a(xOpt) + bb(y) // ignore warning about "class M expects 2 patterns"
+        if xOpt.isEmpty && y._2.isEmpty =>
+    }
     result.info.guardPresence.effectivelyAbsent shouldEqual true
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
 
@@ -84,14 +88,17 @@ class GuardsSpec extends FlatSpec with Matchers {
       InputMoleculeInfo(`bb`, 1, SimpleVarInput('y, Some(_)), _, _)
       ) =>
     }
-    result.info.toString shouldEqual "a(xOpt if ?) + bb(y if ?) => "
+    result.info.toString shouldEqual "a(xOpt if ?) + bb(y if ?) → "
   }
 
   it should "use parameterized types and tuple in simple guard condition" in {
     val a = m[Option[Int]]
     val bb = m[(List[Int], Option[String])]
 
-    val result = go { case a(Some(x)) + bb((list, Some(y))) if x == 1 && list.isEmpty && y == "abc" => }
+    val result = go { // ignore warning about "non-variable type argument"
+      case a(Some(x)) + bb((list, Some(y)))
+        if x == 1 && list.isEmpty && y == "abc" =>
+    }
     result.info.guardPresence.effectivelyAbsent shouldEqual true
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
 
@@ -101,14 +108,17 @@ class GuardsSpec extends FlatSpec with Matchers {
       InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y), false), _, _)
       ) =>
     }
-    result.info.toString shouldEqual "a(?x) + bb(?list,y) => "
+    result.info.toString shouldEqual "a(?x) + bb(?list,y) → "
   }
 
   it should "use parameterized types in cross-molecule guard condition" in {
     val a = m[Option[Int]]
     val bb = m[(Int, Option[String])]
 
-    val result = go { case a(xOpt) + bb(y) if xOpt.isEmpty || y._2.isEmpty => }
+    val result = go { // ignore warnings about "non-variable type argument"
+      case a(xOpt) + bb(y) // ignore warning about "class M expects 2 patterns"
+        if xOpt.isEmpty || y._2.isEmpty =>
+    }
     result.info.guardPresence.effectivelyAbsent shouldEqual false
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('xOpt, 'y), _))) => }
 
@@ -118,14 +128,17 @@ class GuardsSpec extends FlatSpec with Matchers {
       InputMoleculeInfo(`bb`, 1, SimpleVarInput('y, None), _, Symbol("(Int, Option[String])"))
       ) =>
     }
-    result.info.toString shouldEqual "a(xOpt) + bb(y) if(xOpt,y) => "
+    result.info.toString shouldEqual "a(xOpt) + bb(y) if(xOpt,y) → "
   }
 
   it should "use parameterized types and tuple in cross-molecule guard condition" in {
     val a = m[Option[Int]]
     val bb = m[(List[Int], Option[String])]
 
-    val result = go { case a(Some(x)) + bb((list, Some(y))) if x == 1 || list.isEmpty || y == "abc" => }
+    val result = go { // ignore warning about "non-variable type argument"
+      case a(Some(x)) + bb((list, Some(y)))
+        if x == 1 || list.isEmpty || y == "abc" =>
+    }
     result.info.guardPresence.effectivelyAbsent shouldEqual false
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'list, 'y), _))) => }
 
@@ -135,7 +148,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y), false), _, Symbol("(List[Int], Option[String])"))
       ) =>
     }
-    result.info.toString shouldEqual "a(?x) + bb(?list,y) if(x,list,y) => "
+    result.info.toString shouldEqual "a(?x) + bb(?list,y) if(x,list,y) → "
   }
 
   it should "correctly simplify guard condition using true and false" in {
@@ -146,7 +159,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
 
     result.info.inputs should matchPattern { case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, None), _, 'Int)) => }
-    result.info.toString shouldEqual "a(x) => "
+    result.info.toString shouldEqual "a(x) → "
   }
 
   it should "correctly recognize a guard condition with no variables" in {
@@ -164,7 +177,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     }) shouldEqual true
 
     result.info.inputs should matchPattern { case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, None), _, _)) => }
-    result.info.toString shouldEqual "a(x) if(?) => "
+    result.info.toString shouldEqual "a(x) if(?) → "
   }
 
   it should "compute reaction info with condition matcher" in {
@@ -214,7 +227,7 @@ class GuardsSpec extends FlatSpec with Matchers {
   it should "compute reaction info with alternative irrefutable matcher" in {
     val a = m[(Int, Int)]
 
-    val reaction = go { case a((_, _) | (1, 2)) => }
+    val reaction = go { case a((_, _) | (1, 2)) => } // ignore warning about "class M expects 2 patterns to hold"
 
     reaction.info.guardPresence should matchPattern { case AllMatchersAreTrivial => }
     reaction.info.inputs.head.flag should matchPattern { case OtherInputPattern(_, List(), true) => }
@@ -274,7 +287,7 @@ class GuardsSpec extends FlatSpec with Matchers {
 
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => // `n` should not be among the guard variables
     }
-    result.info.toString shouldEqual "a(xyz if ?) => "
+    result.info.toString shouldEqual "a(xyz if ?) → "
     (result.info.inputs match {
       case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('xyz, Some(cond)), _, _)) =>
         cond.isDefinedAt(n + 1) shouldEqual true
@@ -297,7 +310,7 @@ class GuardsSpec extends FlatSpec with Matchers {
         true
       case _ => false
     }) shouldEqual true
-    result.info.toString shouldEqual "a(x if ?) + a(y if ?) if(?) => "
+    result.info.toString shouldEqual "a(x if ?) + a(y if ?) if(?) → "
   }
 
   it should "correctly handle a guard condition with ||" in {
@@ -308,7 +321,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a(x) + a(y) if (1 > n || x > n) && y > n => }
 
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
-    result.info.toString shouldEqual "a(x if ?) + a(y if ?) => "
+    result.info.toString shouldEqual "a(x if ?) + a(y if ?) → "
   }
 
   it should "perform Boolean transformation on a guard condition to eliminate cross dependency" in {
@@ -319,7 +332,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a(x) + a(y) if x > n && y > n || 1 > n => }
 
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
-    result.info.toString shouldEqual "a(x if ?) + a(y if ?) => "
+    result.info.toString shouldEqual "a(x if ?) + a(y if ?) → "
   }
 
   it should "correctly handle a guard condition with nontrivial unapply matcher" in {
@@ -328,7 +341,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a((x, y, z)) if x > y => }
 
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
-    result.info.toString shouldEqual "a(?x,y,z) => "
+    result.info.toString shouldEqual "a(?x,y,z) → "
   }
 
   it should "compile a guard that references a variable via library functions" in {
@@ -357,7 +370,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case _ => false
     }) shouldEqual true
 
-    result.info.toString shouldEqual "a(x) + a(y) if(x,y) => "
+    result.info.toString shouldEqual "a(x) + a(y) if(x,y) → "
   }
 
   it should "handle a guard condition with cross dependency that cannot be eliminated by Boolean transformations" in {
@@ -375,7 +388,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case _ => false
     }) shouldEqual true
 
-    result.info.toString shouldEqual "a(x) + a(y) if(x,y) => "
+    result.info.toString shouldEqual "a(x) + a(y) if(x,y) → "
   }
 
   it should "correctly split a guard condition when some clauses contain no pattern variables" in {
@@ -398,7 +411,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case _ => false
     }) shouldEqual true
 
-    result.info.toString shouldEqual "a(1) + a(y if ?) + a(p) + bb(?z) + bb(?t,qwerty) + f/B(_) if(t,p) => "
+    result.info.toString shouldEqual "a(1) + a(y if ?) + a(p) + bb(?z) + bb(?t,qwerty) + f/B(_) if(t,p) → "
   }
 
   it should "correctly flatten a guard condition with complicated nested clauses" in {
@@ -412,7 +425,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 4), Array('t, 'p), _), CrossMoleculeGuard(Array(1, 4), Array('y, 'q), _))) =>
     }
     result.info.guardPresence.toString shouldEqual "GuardPresent(None, [CrossMoleculeGuard([0,4], ['t,'p]); CrossMoleculeGuard([1,4], ['y,'q])])"
-    result.info.toString shouldEqual "a(1) + a(p if ?) + a(y if ?) + bb(?z) + bb(?t,q) if(t,p,y,q) => "
+    result.info.toString shouldEqual "a(1) + a(p if ?) + a(y if ?) + bb(?z) + bb(?t,q) if(t,p,y,q) → "
   }
 
   it should "simplify a guard with an if clause and a negation of one term" in {
@@ -423,7 +436,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a(x) + a(y) if x > n && (if (y > n) 1 > n else !(x == y)) => }
 
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('y, 'x), _))) => }
-    result.info.toString shouldEqual "a(x if ?) + a(y if ?) if(y,x) => "
+    result.info.toString shouldEqual "a(x if ?) + a(y if ?) if(y,x) → "
   }
 
   it should "simplify a guard with an if clause into no cross guard" in {
@@ -434,7 +447,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a(x) + a(y) if x > n || (if (!false) 1 > n else x == y) => }
 
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
-    result.info.toString shouldEqual "a(x if ?) + a(y) => "
+    result.info.toString shouldEqual "a(x if ?) + a(y) → "
   }
 
   it should "merge cross guard with simple pattern variables" in {
@@ -445,7 +458,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a(x) + a(y) if x > n && x > y && y + 2 > x ⇒ }
 
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'y), _))) ⇒ }
-    result.info.toString shouldEqual "a(x if ?) + a(y) if(x,y) => "
+    result.info.toString shouldEqual "a(x if ?) + a(y) if(x,y) → "
   }
 
   it should "merge cross guard with multiple pattern variables" in {
@@ -456,7 +469,7 @@ class GuardsSpec extends FlatSpec with Matchers {
     val result = go { case a((p, q)) + a((x, y)) if x > n && x > y && x + 1 > p + 1 && y > q ⇒ }
 
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'p, 'y, 'q), _))) ⇒ }
-    result.info.toString shouldEqual "a(?x,y) + a(p,q) if(x,p,y,q) => "
+    result.info.toString shouldEqual "a(?x,y) + a(p,q) if(x,p,y,q) → "
     (result.info.guardPresence match {
       case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'p, 'y, 'q), cond))) ⇒
         cond.isDefinedAt(List((1, 2), (4, 3))) shouldEqual true // x > n is not part of the cross-molecule guard
@@ -504,6 +517,21 @@ class GuardsSpec extends FlatSpec with Matchers {
     }
   }
 
+  it should "handle reactions with conditionals and cross-conditionals with constants" in {
+    val a = m[Option[Int]]
+    val bb = m[Option[Int]]
+    val f = b[Unit, Boolean]
+
+    withPool(new FixedPool(4)) { tp ⇒
+      site(tp)(go { case a(Some(px@(1))) + bb(py@Some(y)) + f(_, r) // ignore warning about "non-variable type argument Int"
+        if py.get > px ⇒ r(true) })
+      // TODO: fix type breakage if we write z + px.get instead of z + x: the reason is that `px` is inferred to be Some[Any] instead of Some[Int]
+
+      a(Some(1)) + bb(Some(2))
+      f.timeout()(1.second)
+    }.get shouldEqual Some(true)
+  }
+
   behavior of "guard conditions with repeated molecules"
 
   it should "correctly order input molecules and run reaction" in {
@@ -538,6 +566,43 @@ class GuardsSpec extends FlatSpec with Matchers {
       case _ => false
     }) shouldEqual true
 
+  }
+
+  it should "handle reactions with constant values and cross-conditionals on repeated molecules" in {
+    val a = m[Int]
+    val f = b[Unit, Boolean]
+
+    withPool(new FixedPool(4)) { tp ⇒
+      site(tp)(go { case a(1) + a(y) + a(z) + f(_, r) if y > z ⇒ r(true) })
+
+      (1 to 3).foreach{ i ⇒ a(i) }
+      f.timeout()(1.second)
+    }.get shouldEqual Some(true)
+  }
+
+  it should "handle reactions with conditionals and cross-conditionals on repeated molecules" in {
+    val a = m[Option[Int]]
+    val f = b[Unit, Boolean]
+
+    withPool(new FixedPool(4)) { tp ⇒
+      site(tp)(go { case a(Some(1)) + a(Some(y)) + a(Some(z)) + f(_, r) if y > z && z > 1 ⇒ r(true) })
+      (1 to 3).foreach(_ ⇒ (1 to 3).foreach{ i ⇒ a(Some(i)) })
+      (1 to 3).map(_ ⇒ f.timeout()(1.second)).map(_.get).reduce(_ && _)
+    }.get shouldEqual true
+  }
+
+  it should "handle reactions with conditionals and cross-conditionals on repeated molecules with constants" in {
+    val a = m[Option[Int]]
+    val f = b[Unit, Boolean]
+
+    withPool(new FixedPool(4)) { tp ⇒
+      site(tp)(go { case a(Some(px@(1))) + a(py@Some(y)) + a(Some(z)) + f(_, r) // ignore warning about "non-variable type argument Int"
+        if py.get >= z + px ⇒ r(true) })
+      // TODO: fix type breakage if we write z + px.get instead of z + x: the reason is that `px` is inferred to be Some[Any] instead of Some[Int]
+
+      (1 to 3).foreach{ i ⇒ a(Some(i)) }
+      f.timeout()(1.second)
+    }.get shouldEqual Some(true)
   }
 
 }

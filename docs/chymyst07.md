@@ -1110,7 +1110,7 @@ How can we prevent the molecules `manL(1)` and `womanL(1)` from reacting if `man
 
 In the chemical machine, the only way to prevent reactions is to omit some input molecules.
 Therefore, the dancing reaction must have _another_ input molecule, say `mayBegin`.
-If the dancing reaction has the form `manL + womanL + mayBegin => ...`, and if `mayBegin` carries value 0,
+If the dancing reaction has the form `manL + womanL + mayBegin → ...`, and if `mayBegin` carries value 0,
 we can enforce the requirement that `manL(0)` and `womanL(0)` should begin dancing first.
 
 Now it is clear that the `mayBegin` molecule must carry the most recently used position label, and increment this label every time a new pair goes off to dance:

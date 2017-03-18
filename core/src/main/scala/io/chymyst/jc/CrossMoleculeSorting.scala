@@ -34,11 +34,15 @@ private[jc] object CrossMoleculeSorting {
     result: Coll[(Set[Int], Coll[Set[Int]])] = Array()
   ): Coll[(Set[Int], Coll[Set[Int]])] = {
     val (currentSet, currentResult, remaining) = findFirstConnectedGroupSet(allGroups)
-    val newResult = result ++ Array((currentSet, currentResult))
-    if (remaining.isEmpty)
-      newResult
-    else
-      groupConnectedSets(remaining, newResult)
+    if (currentSet.isEmpty)
+      result
+    else {
+      val newResult = result ++ Array((currentSet, currentResult))
+      if (remaining.isEmpty)
+        newResult
+      else
+        groupConnectedSets(remaining, newResult)
+    }
   }
 
   @tailrec
@@ -64,35 +68,44 @@ private[jc] object CrossMoleculeSorting {
     }
   }
 
+  // Insert ConstrainGuard(i) commands whenever the already chosen molecules contain the set constrained by the guard.
+  private def insertConstrainGuardCommands(crossGroups: Coll[Set[Int]], program: Coll[SearchDSL]): Coll[SearchDSL] = {
+    val groupIndexed = crossGroups.zipWithIndex
+    // Accumulator is a 4-tuple: (all guards seen so far, current guards, all molecules seen so far, current command)
+    program.scanLeft((Set[Int](), Set[Int](), Set[Int](), CloseGroup: SearchDSL)) {
+      // If the current command is ChooseMol() then we need to update the sets of molecules and guards.
+      case ((oldAllGuards, _, oldAvailableMolecules, _), c@ChooseMol(i)) ⇒
+        val newAvailableMolecules = oldAvailableMolecules + i
+        val newAllGuards = groupIndexed.filter(_._1.subsetOf(newAvailableMolecules)).map(_._2).toSet
+        val currentGuards = newAllGuards diff oldAllGuards
+        (newAllGuards, currentGuards, newAvailableMolecules, c)
+      // If the current command is any other `c`, we need to simply insert it into the tuple, with empty set of guards.
+      case ((a, _, s, _), c) ⇒
+        (a, Set[Int](), s, c)
+    }
+      .drop(1) // scanLeft produces an initial element, which we don't need.
+      // Retain only the sets of currentGuards; transform into ConstrainGuard(i).
+      .flatMap { case (_, g, _, c) ⇒ Array(c) ++ g.toArray.map(ConstrainGuard) }
+  }
+
   private[jc] def getDSLProgram(
     crossGroups: Coll[Set[Int]],
     repeatedMols: Coll[Set[Int]],
-    independentMols: Coll[Int],
     moleculeWeights: Coll[(Int, Boolean)]
   ): Coll[SearchDSL] = {
     val allGroups: Coll[Set[Int]] = crossGroups ++ repeatedMols
 
-    def crossGroupsIndexed: Coll[(Set[Int], Int)] = allGroups.zipWithIndex
-
-    def getDSLProgramForCrossGroup(groups: Coll[Coll[Int]]): IndexedSeq[SearchDSL] = {
-      groups.flatMap { group ⇒
-        val guardConditionIndices = crossGroupsIndexed
-          .filter(_._1 equals group.toSet)
-          .map(_._2)
-          .filter(_ < crossGroups.length) // only use indices for cross-molecule guards, not for repeated molecule groups
-        group.map(ChooseMol) ++ guardConditionIndices.map(ConstrainGuard)
-      }.distinct :+ CloseGroup
-    }
-
-    //    def getDSLProgramForRepeatedMols(repeatedMolGroup: IndexedSeq[Int]): IndexedSeq[SearchDSL] = {
-    //      repeatedMolGroup.map(ChooseMol) :+ CloseGroup
-    //    }
-
     val sortedCrossGroups: Coll[Coll[Coll[Int]]] = sortedConnectedSets(groupConnectedSets(allGroups))
       .map(_._2.map(_.toArray.sortBy(moleculeWeights.apply))) // each cross-guard set needs to be sorted by molecule weight
 
-    sortedCrossGroups.flatMap(getDSLProgramForCrossGroup) ++
-      independentMols.map(ChooseMolAndClose)
+    val programWithoutConstrainGuardCommands: Coll[SearchDSL] =
+      sortedCrossGroups.flatMap(
+        // We reverse the order so that smaller groups go first, which may help optimize the guard positions.
+        _.reverse
+          .flatMap(_.map(ChooseMol)).distinct :+ CloseGroup
+      )
+
+    insertConstrainGuardCommands(crossGroups, programWithoutConstrainGuardCommands)
   }
 
 }
@@ -101,8 +114,10 @@ private[jc] sealed trait SearchDSL
 
 private[jc] final case class ChooseMol(i: Int) extends SearchDSL
 
+/** Impose a guard condition on the molecule values found so far.
+  *
+  * @param i Index of the guard in `crossGuards` array
+  */
 private[jc] final case class ConstrainGuard(i: Int) extends SearchDSL
 
 private[jc] case object CloseGroup extends SearchDSL
-
-private[jc] final case class ChooseMolAndClose(i: Int) extends SearchDSL

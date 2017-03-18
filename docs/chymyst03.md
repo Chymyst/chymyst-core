@@ -57,7 +57,7 @@ We would like to use the blocking molecule in order to fetch the integer value t
 val f = b[Unit, Int]
 val c = m[Int]
 
-site( go { case c(n) + f(_ , reply) => reply(n) } )
+site( go { case c(n) + f(_ , reply) ⇒ reply(n) } )
 
 c(123) // emit a molecule `c` with value 123
 
@@ -67,15 +67,15 @@ val x = f() // now x = 123
 
 Let us walk through the execution of this example step by step.
 
-After defining the chemical law `c + f => ...`, we first emit an instance of `c(123)`.
-By itself, this does not start any reactions since the chemical law states `c + f => ...`, and we don't yet have any instances of `f` in the soup.
+After defining the chemical law `c + f → ...`, we first emit an instance of `c(123)`.
+By itself, this does not start any reactions since the chemical law states `c + f → ...`, and we don't yet have any instances of `f` in the soup.
 So `c(123)` will remain in the soup for now, waiting at the reaction site.
 
 Next, we call the blocking emitter `f()`, which emits an instance of `f()` into the soup.
 Now the soup has both `c` and `f`.
 According to the semantics of blocking emitters, the calling process is blocked until a reaction involving `f` can start.
 
-At this point, we have such a reaction: this is `c + f => ...`.
+At this point, we have such a reaction: this is `c + f → ...`.
 This reaction is ready to start since both its inputs, `c` and `f`, are now present.
 Nevertheless, the start of the reaction is concurrent with the process that calls `f`, and may occur somewhat later than the call to `f()`, depending on the CPU load.
 So, the call to `f()` will be blocked for some (hopefully short) time.
@@ -105,7 +105,7 @@ The reply emitter is of special type `ReplyValue[T, R]` that inherits the type o
 In general, the pattern-matching expression for a blocking molecule `g` of type `B[T, R]` has the form
 
 ```scala
-{ case ... + g(v, r) + ... => ... }
+{ case ... + g(v, r) + ... ⇒ ... }
 
 ```
 The pattern variable `v` will match a value of type `T`.
@@ -132,14 +132,14 @@ val fetch = b[Unit, Unit]
 We can implement this reaction by using a guard in the `case` clause:
 
 ```scala
-go { case fetch(_, reply) + counter(n) if n == 0  => reply() }
+go { case fetch(_, reply) + counter(n) if n == 0  ⇒ reply() }
 
 ```
 
 For more clarity, we can also use Scala's pattern matching facility to implement the same reaction like this:
 
 ```scala
-go { case counter(0) + fetch(_, reply)  => reply() }
+go { case counter(0) + fetch(_, reply)  ⇒ reply() }
 
 ```
 
@@ -160,8 +160,8 @@ object C extends App {
 
   // declare reactions
   site(
-    go { case counter(0) + fetch(_, reply)  => reply() },
-    go { case counter(n) + decr(_) => counter(n - 1) }
+    go { case counter(0) + fetch(_, reply)  ⇒ reply() },
+    go { case counter(n) + decr(_) ⇒ counter(n - 1) }
   )
 
   // emit molecules
@@ -169,7 +169,7 @@ object C extends App {
   val N = 10000
   val initTime = now
   counter(N)
-  (1 to N).foreach( _ => decr() )
+  (1 to N).foreach( _ ⇒ decr() )
   fetch()
   val elapsed = initTime.until(now, MILLIS)
   println(s"Elapsed: $elapsed ms")
@@ -203,13 +203,13 @@ val access = m[Int]
 val readerFinished = m[Unit]
 val n = 3 // can be a run-time parameter
 site(
-  go { case read(readResult) + access(k) if k < n =>
+  go { case read(readResult) + access(k) if k < n ⇒
     access(k + 1)
     val x = readResource(); readResult(x)
     readerFinished()
   },
-  go { case write((x, writeDone)) + access(0) => writeResource(x); access(0) + writeDone() },
-  go { case readerFinished(_) + access(k) => access(k - 1) }
+  go { case write((x, writeDone)) + access(0) ⇒ writeResource(x); access(0) + writeDone() },
+  go { case readerFinished(_) + access(k) ⇒ access(k - 1) }
 )
 access(0) // Emit at the beginning.
 
@@ -233,13 +233,13 @@ val access = m[Int]
 val finished = m[Unit]
 val n = 3 // can be a run-time parameter
 site(
-  go { case read(_, readReply) + access(k) if k < n =>
+  go { case read(_, readReply) + access(k) if k < n ⇒
     access(k + 1)
     val x = readResource(); readReply(x)
     finished()
   },
-  go { case write(x, writeReply) + access(0) => writeResource(x); writeReply(); access(0) },
-  go { case finished(_) + access(k) => access(k - 1) }
+  go { case write(x, writeReply) + access(0) ⇒ writeResource(x); writeReply(); access(0) },
+  go { case finished(_) + access(k) ⇒ access(k - 1) }
 )
 access(0) // Emit at the beginning.
 
@@ -255,7 +255,7 @@ we do not need the boilerplate previously used to mitigate the "stack ripping" p
 ```scala
 // Code for Reader client reactions, with blocking molecules.
 site(
-  go { case startReader(_) =>
+  go { case startReader(_) ⇒
     val a = ???
     val b = ???
     val x = read() // This is blocked until we get access to the resource.
@@ -280,7 +280,7 @@ The following two code snippets illustrate the correspondence:
 ```scala
 // Reaction that emits a blocking molecule.
 val blockingMol = b[T, R]
-go { case ... => 
+go { case ... ⇒
   /* start of reaction body, defines `a`, `b`, ... */
   val t: T = ???
   val x: R = blockingMol(t)
@@ -288,7 +288,7 @@ go { case ... =>
 }
 
 // Reaction that consumes the blocking molecule.
-go { case blockingMol(t, reply) + ... =>
+go { case blockingMol(t, reply) + ... ⇒
   /* part 1 of reaction body, uses `t`, defines `x` */
   val x: R = ???
   reply(x)
@@ -300,12 +300,12 @@ go { case blockingMol(t, reply) + ... =>
 ```scala
 // Reaction that emits a non-blocking molecule.
 val nonBlockingMol = m[(T, M[R])]
-go { case ... => 
+go { case ... ⇒
   /* stat of reaction body, defines `a`, `b`, ... */
   val t: T = ???
   val auxReply = m[T] // auxiliary reply emitter
   site(
-    go { case auxReply(x) =>
+    go { case auxReply(x) ⇒
     /* continuation of reaction body, can use `x`, `a`, `b`, `t`, ... */
     }
   )
@@ -313,7 +313,7 @@ go { case ... =>
 }
 
 // Reaction that consumes the non-blocking molecule.
-go { case nonBlockingMol((t, reply)) + ... =>
+go { case nonBlockingMol((t, reply)) + ... ⇒
   /* part 1 of reaction body, uses `t`, defines `x` */
   val x: R = ???
   reply(x)
@@ -372,8 +372,8 @@ def makeCounter(initCount: Int): (M[Unit], B[Unit, Int]) = {
   val fetch = m[Unit, Int]
 
   site(
-    go { counter(n) + fetch(_, r) => counter(n) + r(n)},
-    go { counter(n) + decr(_) => counter(n - 1) }
+    go { counter(n) + fetch(_, r) ⇒ counter(n) + r(n)},
+    go { counter(n) + decr(_) ⇒ counter(n - 1) }
   )
   // emit exactly one copy of `counter`
   counter(initCount)
@@ -429,7 +429,7 @@ Therefore we need two different reactions, one emitting `f()` and another emitti
 These two reactions need some input molecules.
 These input molecules cannot be `f` and `g` since these two molecules are given to us, their chemistry is already fixed, and so we cannot add new reactions that consume them.
 Therefore, we need at least one new molecule that will be consumed to start these two reactions.
-However, if we declare the two reactions as `c() => f()` and `c() => g()` and emit two copies of `c()`, we are not guaranteed that both reactions will start.
+However, if we declare the two reactions as `c() → f()` and `c() → g()` and then emit two copies of `c()`, we are not guaranteed that both reactions will start.
 It is possible that two copies of the first reaction or two copies of the second reaction are started instead.
 In other words, there will be an _unavoidable nondeterminism_ in our chemistry.
 
@@ -445,8 +445,8 @@ site(
 )
 
 ```
-`java.lang.Exception: In Site{c => ...; c => ...}: Unavoidable nondeterminism:`
-`reaction c => ... is shadowed by c => ...`
+`java.lang.Exception: In Site{c → ...; c → ...}: Unavoidable nondeterminism:`
+`reaction {c → } is shadowed by {c → }`
 
 So, we need to define two _different_ molecules (say, `c` and `d`) as inputs for these two reactions.
 
@@ -487,7 +487,7 @@ go { case firstResult(_, reply) + done(x) => reply(x) }
 
 ```
 
-Now it is clear that the value `x` should be emitted on `done(x)` in both of the `c => ...` and `d => ...` reactions.
+Now it is clear that the value `x` should be emitted on `done(x)` in both of the `c → ...` and `d → ...` reactions.
 The complete program looks like this:
 
 ```scala
@@ -739,7 +739,7 @@ f()
 
 ```
 
-`java.lang.Exception: Error: In Site{c + f/B => ...}: Reaction {c + f/B => ...} finished without replying to f/B. Reported error: Bad value of n!`
+`java.lang.Exception: Error: In Site{c + f/B → ...}: Reaction {c + f/B → ...} finished without replying to f/B. Reported error: Bad value of n!`
 
 In general, there can be one or more blocked threads still waiting for replies when this kind of situation occurs.
 The chemical machine will throw an exception in all threads that are still waiting for replies, unblocking all those threads (and possibly killing their calculations, unless exceptions are caught).

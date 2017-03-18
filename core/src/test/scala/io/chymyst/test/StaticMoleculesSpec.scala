@@ -37,7 +37,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       val thrown = intercept[Exception] {
         d(s"bad $i") // this "d" should not be emitted, even though "d" is sometimes not in the soup due to reactions!
       }
-      thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit static molecule d(bad $i) because this thread does not run a chemical reaction"
+      thrown.getMessage shouldEqual s"In Site{d + f/B → ...}: Refusing to emit static molecule d(bad $i) because this thread does not run a chemical reaction"
       f.timeout()(500 millis) shouldEqual Some("ok")
     })
 
@@ -63,7 +63,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
           d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
           // and even if the initial d() emission was done late
         }
-        thrown.getMessage shouldEqual s"In Site{d + f/B => ...}: Refusing to emit static molecule d(bad $i $j) because this thread does not run a chemical reaction"
+        thrown.getMessage shouldEqual s"In Site{d + f/B → ...}: Refusing to emit static molecule d(bad $i $j) because this thread does not run a chemical reaction"
         f.timeout()(500 millis) shouldEqual Some("ok")
       })
     })
@@ -81,7 +81,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect static molecule declaration: static molecule (d) consumed but not emitted by reaction c/B(_) + d(_) => "
+    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Incorrect static molecule declaration: static molecule (d) consumed but not emitted by reaction c/B(_) + d(_) → "
   }
 
   it should "signal error when a static molecule is consumed by reaction and emitted twice" in {
@@ -94,7 +94,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Incorrect static molecule declaration: static molecule (d) emitted more than once by reaction c/B(_) + d(_) => d() + d()"
+    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Incorrect static molecule declaration: static molecule (d) emitted more than once by reaction c/B(_) + d(_) → d() + d()"
   }
 
   it should "signal error when a static molecule is emitted but not consumed by reaction" in {
@@ -109,7 +109,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B => ...; e => ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction c/B(_) => d(); static molecule (d) emitted but not consumed by reaction e(_) => d(); Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B → ...; e → ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction c/B(_) → d(); static molecule (d) emitted but not consumed by reaction e(_) → d(); Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
   }
 
   it should "signal error when a static molecule is emitted by reaction inside a loop to trick static analysis" in {
@@ -123,7 +123,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       )
       c()
     }
-    thrown.getMessage shouldEqual "Error: In Site{c/B + d => ...}: Reaction {c/B(_) + d(_) => d()} with inputs [c/B/P() + d/P()] finished without replying to c/B. Reported error: In Site{c/B + d => ...}: Reaction {c/B(_) + d(_) => d()} with inputs [c/B/P() + d/P()] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: In Site{c/B + d => ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + d(_) => d()} already emitted it"
+    thrown.getMessage shouldEqual "Error: In Site{c/B + d → ...}: Reaction {c/B(_) + d(_) → d()} with inputs [c/B/P() + d/P()] finished without replying to c/B. Reported error: In Site{c/B + d → ...}: Reaction {c/B(_) + d(_) → d()} with inputs [c/B/P() + d/P()] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: In Site{c/B + d → ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + d(_) → d()} already emitted it"
   }
 
   it should "signal error when a static molecule is consumed multiple times by reaction" in {
@@ -136,7 +136,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{d + d + e => ...}: Incorrect static molecule declaration: static molecule (d) consumed 2 times by reaction d(_) + d(_) + e(_) => d()"
+    thrown.getMessage shouldEqual "In Site{d + d + e → ...}: Incorrect static molecule declaration: static molecule (d) consumed 2 times by reaction d(_) + d(_) + e(_) → d()"
   }
 
   it should "signal error when a static molecule is emitted but not bound to any reaction site" in {
@@ -164,7 +164,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B => ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction c/B(_) => d(); Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B → ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction c/B(_) → d(); Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
   }
 
   it should "signal error when a static molecule is defined by a static reaction with guard" in {
@@ -179,7 +179,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ if n > 0 => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d => ...}: Static reaction { if(?) => d()} should not have a guard condition"
+    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Static reaction { if(?) → d()} should not have a guard condition"
   }
 
   it should "refuse to define a blocking molecule as a static molecule" in {
@@ -195,7 +195,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       )
     }
 
-    thrown.getMessage shouldEqual "In Site{c + d => ...; f/B => ...}: Refusing to emit molecule f/B() as static (must be a non-blocking molecule)"
+    thrown.getMessage shouldEqual "In Site{c + d → ...; f/B → ...}: Refusing to emit molecule f/B() as static (must be a non-blocking molecule)"
   }
 
   behavior of "volatile reader"
@@ -218,7 +218,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       c.volatileValue
     }
 
-    thrown.getMessage shouldEqual "In Site{c => ...}: volatile reader requested for non-static molecule (c)"
+    thrown.getMessage shouldEqual "In Site{c → ...}: volatile reader requested for non-static molecule (c)"
   }
 
   it should "always be able to read the value of a static molecule early" in {
@@ -274,7 +274,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
     g() // now we have attempted to emit d123(123) but we should have failed
     c(0)
     f.timeout()(1.second) shouldEqual None // if this is Some(1), reaction ran, which means the test failed
-    globalErrorLog.find(_.contains("Refusing to emit static pipelined molecule")) shouldEqual Some("In Site{c + d123 => ...; d123 + g/B => ...}: Refusing to emit static pipelined molecule d123(123) since its value fails the relevant conditions")
+    globalErrorLog.find(_.contains("Refusing to emit static pipelined molecule")) shouldEqual Some("In Site{c + d123 → ...; d123 + g/B → ...}: Refusing to emit static pipelined molecule d123(123) since its value fails the relevant conditions")
   }
 
   it should "handle static molecules with cross-molecule guards" in {
@@ -384,7 +384,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         } // static molecules d() and e() will actually not be emitted because of a condition
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d + e + f => ...}: Too few static molecules emitted: d emitted 0 times instead of 1, e emitted 0 times instead of 1"
+    thrown.getMessage shouldEqual "In Site{c/B + d + e + f → ...}: Too few static molecules emitted: d emitted 0 times instead of 1, e emitted 0 times instead of 1"
   }
 
   it should "signal no error (but a warning) when a static molecule is emitted more times than declared" in {
@@ -410,7 +410,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ => c(0) }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a + c => ...}: Unavoidable livelock: reaction {a(_) + c(x if ?) => c(1) + a()}"
+    thrown.getMessage shouldEqual "In Site{a + c → ...}: Unavoidable livelock: reaction {a(_) + c(x if ?) → c(1) + a()}"
   }
 
 }

@@ -92,7 +92,7 @@ object Core {
   //  private[jc] type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
   private[jc] type MutableLinearMoleculeBag = mutable.Map[Molecule, AbsMolValue[_]]
 
-  private[jc] type MoleculeBagArray = Array[MolValueBag[AbsMolValue[_]]]
+  private[jc] type MoleculeBagArray = Array[MutableBag[AbsMolValue[_]]]
 
   //  private[jc] def moleculeBagToString(mb: MoleculeBag): String = moleculeBagToString(mb.getMap)
 
@@ -125,7 +125,8 @@ object Core {
     ()
   }
 
-  // List of molecules used as inputs by a reaction.
+  // TODO: simplify InputMoleculeList to an array of AbsMolValue, eliminating the tuple - we already have the input list and it's fixed for each reaction at compile time
+  /** List of molecules used as inputs by a reaction. */
   type InputMoleculeList = Array[(Molecule, AbsMolValue[_])]
 
   // Type used as argument for ReactionBody.
@@ -164,7 +165,7 @@ object Core {
       var result: R = null.asInstanceOf[R]
       var found = false
       var i = 0
-      while(!found && i < s.length) {
+      while (!found && i < s.length) {
         f(s(i)) match {
           case Some(r) =>
             result = r
@@ -195,12 +196,15 @@ object Core {
       }.map(_ => result)
     }
 
-    /** A `Seq#groupBy` produces a `Map` and loses the ordering present in the original sequence.
-      * Instead, `sortedGroupBy` produces a sequence of tuples that preserves the ordering of the original sequence.
-      * This is suitable for stream processing or for cases when the original sequence is already sorted.
+    /** A standard `Seq#groupBy` produces a `Map` and loses the ordering present in the original sequence.
+      * Instead, [[orderedMapGroupBy]] produces a sequence of tuples that preserves the ordering of the original sequence.
       * The result is not a true `groupBy` since it never reorders sequence elements.
       *
-      * For example, `Seq(1,2,3,4).sortedGroupBy(x < 3)` yields `Seq((true, Seq(1,2)), (false, Seq(3,4))`
+      * This is suitable for stream processing or for cases when the original sequence is sorted,
+      * and we need to split the sorted sequence into sorted subsequences.
+      *
+      * For example, `Seq(1,2,3,4).orderedMapGroupBy(x < 3)` yields `Seq((true, Seq(1,2)), (false, Seq(3,4))`
+      * and `Seq(1,2,3,2,1).orderedMapGroupBy(x < 3)` yields `Seq((true, Seq(1,2)), (false, Seq(3)), (true, Seq(2,1)))`
       *
       * @param f A function that determines the grouping key.
       * @param g A function that is applied to elements as a `map`.
@@ -208,25 +212,25 @@ object Core {
       * @tparam S Type of the elements of the resulting sequence.
       * @return Sequence of tuples similar to the output of `groupBy`.
       */
-    def sortedMapGroupBy[R, S](f: T ⇒ R, g: T ⇒ S): IndexedSeq[(R, IndexedSeq[S])] =
-    s.headOption match {
-      case None ⇒ IndexedSeq()
-      case Some(t) ⇒
-        val (finalR, finalSeq, finalSeqT) =
-          s.drop(1).foldLeft[(R, IndexedSeq[(R, IndexedSeq[S])], IndexedSeq[S])]((f(t), IndexedSeq(), IndexedSeq(g(t)))) {
-            (acc, t) ⇒
-              val (prevR, prevSeq, prevSeqT) = acc
-              val newR = f(t)
-              val newT = g(t)
-              if (newR === prevR)
-                (newR, prevSeq, prevSeqT :+ newT)
-              else
-                (newR, prevSeq :+ ((prevR, prevSeqT)), IndexedSeq(newT))
-          }
-        finalSeq :+ ((finalR, finalSeqT))
-    }
+    def orderedMapGroupBy[R, S](f: T ⇒ R, g: T ⇒ S): IndexedSeq[(R, IndexedSeq[S])] =
+      s.headOption match {
+        case None ⇒ IndexedSeq()
+        case Some(t) ⇒
+          val (finalR, finalSeq, finalSeqT) =
+            s.drop(1).foldLeft[(R, IndexedSeq[(R, IndexedSeq[S])], IndexedSeq[S])]((f(t), IndexedSeq(), IndexedSeq(g(t)))) {
+              (acc, t) ⇒
+                val (prevR, prevSeq, prevSeqT) = acc
+                val newR = f(t)
+                val newT = g(t)
+                if (newR === prevR)
+                  (newR, prevSeq, prevSeqT :+ newT)
+                else
+                  (newR, prevSeq :+ ((prevR, prevSeqT)), IndexedSeq(newT))
+            }
+          finalSeq :+ ((finalR, finalSeqT))
+      }
 
-    /** "flat foldLeft" will perform a `foldLeft` unless the function `op` returns `None` at some point in the sequence.
+    /** "flatMap + foldLeft" will perform a `foldLeft` unless the function `op` returns `None` at some point in the sequence.
       *
       * @param z  Initial value of type `R`.
       * @param op Binary operation, returning an `Option[R]`.
@@ -271,11 +275,14 @@ object Core {
     */
   }
 
+  /** A primitive but very fast algorithm for converting a sequence of integers into an integer hash value.
+    * To be used only for small sequences and when true hashing is unnecessary.
+    */
   def intHash(s: Seq[Int]): Int = s.foldLeft(0)(_ * s.length + _)
 
-  /** Types for which there exist only relatively few distinct values.
+  /** Built-in Scala types for which there exist only relatively few distinct values.
     *
-    * It then makes sense to represent a multiset of these values as a hash map.
+    * These are types `T` for which we can represent a multiset of values of `T` as a hash map with little or no space penalty.
     */
   val simpleTypes: Set[scala.Symbol] = Set('Unit, 'Boolean, 'Symbol, 'Char, 'Short, 'Byte, 'Null, 'Nothing)
 
@@ -328,6 +335,16 @@ object Core {
       }
 
     }
+  }
+
+  def streamDiff[T](s: Stream[T], skipBag: MutableMultiset[T]): Stream[T] = {
+    s.scanLeft[Option[T], Stream[Option[T]]](None) { (b, t) ⇒
+      if (skipBag contains t) {
+        skipBag.remove(t)
+        None
+      }
+      else Some(t)
+    }.flatten
   }
 
 }

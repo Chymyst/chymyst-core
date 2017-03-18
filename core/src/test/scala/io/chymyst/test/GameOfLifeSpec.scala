@@ -22,7 +22,7 @@ class GameOfLifeSpec extends FlatSpec with Matchers {
   }
 
   // Test 1
-  // This implementation is intentionally as inefficient as possible.
+  // This implementation is intentionally chosen to be as inefficient as possible: 1 reaction with 9 repeated molecules.
   it should "1. run correctly using 1-reaction 1-molecule implementation (the absolute worst)" in {
     case class Cell(x: Int, y: Int, t: Int, state: Int, label: (Int, Int))
 

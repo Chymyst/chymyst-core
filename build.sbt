@@ -71,8 +71,6 @@ lazy val errorsForWartRemover = Seq(Wart.EitherProjectionPartial, Wart.Enumerati
 
 lazy val warningsForWartRemover = Seq(Wart.JavaConversions) //Seq(Wart.Any, Wart.AsInstanceOf, Wart.ImplicitConversion, Wart.IsInstanceOf, Wart.JavaConversions, Wart.Option2Iterable, Wart.OptionPartial, Wart.NoNeedForMonad, Wart.Nothing, Wart.Product, Wart.Serializable, Wart.ToString, Wart.While)
 
-val rootProject = Some(buildAll)
-
 val flightRecorderJVMFlags = Seq(
   "-Xmx1G",
   "-XX:+UnlockCommercialFeatures",
@@ -85,9 +83,13 @@ val flightRecorderJVMFlags = Seq(
 lazy val buildAll = (project in file("."))
   .settings(commonSettings: _*)
   .settings(
+    //    aggregate in assembly := false, // This would disable assembly in aggregated tasks - not what we want.
     name := "buildAll"
   )
   .aggregate(core, benchmark)
+  .disablePlugins(sbtassembly.AssemblyPlugin) // do not create an assembly JAR for `buildAll`, but do create it for aggregate subprojects
+
+lazy val rootProject = Some(buildAll)
 
 lazy val core = (project in file("core"))
   .settings(commonSettings: _*)
@@ -105,10 +107,11 @@ lazy val core = (project in file("core"))
 
       // the "scala-compiler" is a necessary dependency only if we want to debug macros;
       // the project does not actually depend on scala-compiler.
-      "org.scala-lang" % "scala-compiler" % scalaVersion.value % "test"
+      "org.scala-lang" % "scala-compiler" % scalaVersion.value % Test
     )
     , testFrameworks += new TestFramework("utest.runner.Framework")
   )
+  .disablePlugins(sbtassembly.AssemblyPlugin) // do not create an assembly JAR for `core`
 
 // Benchmarks - users do not need to depend on this.
 lazy val benchmark = (project in file("benchmark"))
@@ -116,12 +119,12 @@ lazy val benchmark = (project in file("benchmark"))
   .settings(
     name := "benchmark",
     //    fork in run := true,
-    aggregate in assembly := false,
     test in assembly := {},
     //    unmanagedJars in Compile += file("lib/JiansenJoin-0.3.6-JoinRun-0.1.0.jar"),// they say it's no longer needed
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
     parallelExecution in Test := false,
-    runFR := { // see http://jkinkead.blogspot.com/2015/04/running-with-alternate-jvm-args-in-sbt.html
+    runFR := {
+      // see http://jkinkead.blogspot.com/2015/04/running-with-alternate-jvm-args-in-sbt.html
       // Parse the arguments typed on the sbt console.
       val args = sbt.complete.Parsers.spaceDelimited("[main args]").parsed
       // Build up the classpath for the subprocess. Yes, this must be done manually.
@@ -138,7 +141,7 @@ lazy val benchmark = (project in file("benchmark"))
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.1" % Test
     )
-  ).dependsOn(core)
+  ).dependsOn(core % "compile->compile;test->test")
 
 // Running benchmarks with Flight Recorder
 lazy val runFR = InputKey[Unit]("runFR", "run the project with activated FlightRecorder")

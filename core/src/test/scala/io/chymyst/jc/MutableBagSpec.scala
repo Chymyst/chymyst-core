@@ -3,15 +3,18 @@ package io.chymyst.jc
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
+import io.chymyst.test.Common.elapsedTimeMs
 
 class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(1500, Millis)
+  val timeLimit = Span(3000, Millis)
+
+  val n = 100000
 
   behavior of "MolValueMapBag"
 
   it should "retrieve None from empty bag" in {
-    val bag = new MolValueMapBag[Int]()
+    val bag = new MutableMapBag[Int]()
 
     bag.takeOne shouldEqual None
     bag.takeAny(0) shouldEqual Seq()
@@ -19,24 +22,80 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "add one element and get it back" in {
-    val bag = new MolValueMapBag[Int]()
+    val bag = new MutableMapBag[Int]()
 
     bag.add(10)
     bag.takeOne shouldEqual Some(10)
   }
 
   it should "retrieve elements in hash order" in {
-    val bag = new MolValueMapBag[Int]()
+    val bag = new MutableMapBag[Int]()
 
     bag.add(10)
     bag.add(20)
     bag.add(10)
     bag.takeAny(3) shouldEqual Seq(20, 10, 10)
+    bag.getCountMap shouldEqual Map(10 -> 2, 20 -> 1)
   }
+
+  it should "retrieve all elements without repetitions" in {
+    val bag = new MutableMapBag[Int]()
+    val data = (1 to 10) ++ (1 to 10)
+    data.foreach(bag.add)
+    bag.allValues.toSet shouldEqual (1 to 10).toSet
+  }
+
+  it should "retrieve all elements with repetitions and with skipping" in {
+    val bag = new MutableMapBag[Int]()
+    val data = (1 to 10) ++ (1 to 10)
+    val skip = new MutableMultiset[Int]().add(List(1, 1, 2, 2, 3, 4))
+    data.foreach(bag.add)
+    val expectedValues = List(3, 4) ++ (5 to 10).flatMap(x ⇒ List(x, x)).toList
+    bag.allValuesSkipping(skip).toList shouldEqual expectedValues
+  }
+
+  it should "quickly add and remove elements with the same value" in {
+    val b = new MutableMapBag[Int]()
+    val t: Long = elapsedTimeMs {
+      (1 to n).foreach { _ => b.add(1) }
+      (1 to n).foreach { _ => b.remove(1) }
+    }._2
+    println(s"MolValueMapBag: add and remove $n identical values takes $t ms")
+  }
+
+  it should "quickly add and remove elements with different values" in {
+    val b = new MutableMapBag[Int]()
+    val t: Long = elapsedTimeMs {
+      (1 to n).foreach { i => b.add(i) }
+      (1 to n).foreach { i => b.remove(i) }
+    }._2
+    println(s"MolValueMapBag: add and remove $n different values takes $t ms")
+  }
+
+  def checkSkippingForBag(b: MutableBag[Int], n: Int): Unit = {
+    (1 to n).foreach { i =>
+      b.add(i)
+      b.add(i)
+    }
+    val skip = new MutableMultiset[Int]().add(1 to n)
+    val skipped = b.allValuesSkipping(skip)
+    skipped.size shouldEqual n
+    skipped.sum shouldEqual (1 to n).sum
+    ()
+  }
+
+  it should "quickly add elements with different values and run the skipping iterator" in {
+    val b = new MutableMapBag[Int]()
+    val t: Long = elapsedTimeMs {
+      checkSkippingForBag(b, n)
+    }._2
+    println(s"MolValueMapBag: skipping with $n different values takes $t ms")
+  }
+
   behavior of "MolValueQueueBag"
 
   it should "retrieve None from empty queue bag" in {
-    val bag = new MolValueQueueBag[Int]()
+    val bag = new MutableQueueBag[Int]()
 
     bag.takeOne shouldEqual None
     bag.takeAny(0) shouldEqual Seq()
@@ -44,131 +103,152 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   it should "add one element from queue bag and get it back" in {
-    val bag = new MolValueQueueBag[Int]()
+    val bag = new MutableQueueBag[Int]()
 
     bag.add(10)
     bag.takeOne shouldEqual Some(10)
   }
 
   it should "retrieve elements in FIFO order" in {
-    val bag = new MolValueQueueBag[Int]()
+    val bag = new MutableQueueBag[Int]()
 
     bag.add(10)
     bag.add(20)
     bag.add(10)
     bag.takeAny(3) shouldEqual Seq(10, 20, 10)
+    bag.getCountMap shouldEqual Map(10 -> 2, 20 -> 1)
   }
 
-  /*
-    behavior of "mutable bag"
+  it should "retrieve all elements with repetitions" in {
+    val bag = new MutableQueueBag[Int]()
+    val data = (1 to 10) ++ (1 to 10)
+    data.foreach(bag.add)
+    bag.allValues.toList shouldEqual data.toList
+  }
 
-    it should "create empty bag" in {
-      val b = new MutableBag[Int, String]
-      b.size shouldEqual 0
-      b.getCount(1) shouldEqual 0
-      b.getOne(1) shouldEqual None
-    }
+  it should "retrieve all elements with repetitions and with skipping" in {
+    val bag = new MutableQueueBag[Int]()
+    val data = (1 to 10) ++ (1 to 10)
+    val skip = new MutableMultiset[Int]().add(List(1, 1, 2, 2, 3, 4))
+    data.foreach(bag.add)
+    val expectedValues = ((5 to 10) ++ (3 to 10)).toList
+    bag.allValuesSkipping(skip).toList shouldEqual expectedValues
+  }
 
-    it should "add one element to bag" in {
-      val b = new MutableBag[Int, String]
-      b.addToBag(1, "a")
-      b.size shouldEqual 1
-      b.getOne(1) shouldEqual Some("a")
-      b.getCount(1) shouldEqual 1
-      b.getCount(2) shouldEqual 0
-    }
+  it should "quickly add and remove elements with the same value" in {
+    val b = new MutableQueueBag[Int]()
+    val t: Long = elapsedTimeMs {
+      (1 to n).foreach { _ => b.add(1) }
+      (1 to n).foreach { _ => b.remove(1) }
+    }._2
+    println(s"MolValueQueueBag: add and remove $n identical values takes $t ms")
+  }
 
-    it should "make a bag with one element" in {
-      val b = new MutableBag[Int, String]
-      b.addToBag(1, "a")
-      b.size shouldEqual 1
-      b.getOne(1) shouldEqual Some("a")
-      b.getCount(1) shouldEqual 1
-      b.getCount(2) shouldEqual 0
-    }
+  it should "quickly add and remove elements with different values" in {
+    val b = new MutableQueueBag[Int]()
+    val t: Long = elapsedTimeMs {
+      (1 to n).foreach { i => b.add(i) }
+      (1 to n).foreach { i => b.remove(i) }
+    }._2
+    println(s"MolValueQueueBag: add and remove $n different values takes $t ms")
+  }
 
-    it should "print a bag" in {
-      val b = new MutableBag[Int, String]
-      b.addToBag(1, "a")
-      b.addToBag(2, "b")
-      b.toString shouldEqual "Map(2 -> Map(b -> 1), 1 -> Map(a -> 1))"
-    }
+  it should "quickly add elements with different values and run the skipping iterator" in {
+    val b = new MutableQueueBag[Int]()
+    val t: Long = elapsedTimeMs {
+      checkSkippingForBag(b, n)
+    }._2
+    println(s"MolValueQueueBag: skipping with $n different values takes $t ms")
+  }
 
-    it should "add two elements with the same key and the same value, them remove them both" in {
-      val b = new MutableBag[Int, String]
-      b.addToBag(1, "a")
-      b.size shouldEqual 1
-      b.addToBag(1, "a")
-      b.size shouldEqual 2
-      b.getCount(1) shouldEqual 2
-      b.getCount(2) shouldEqual 0
+  behavior of "mutable multiset"
 
-      b.getOne(1) shouldEqual Some("a")
-      b.removeFromBag(1, "a")
-      b.getCount(1) shouldEqual 1
+  it should "create empty bag" in {
+    val b = new MutableMultiset[Int]
+    b.size shouldEqual 0
+    b.isEmpty shouldEqual true
+    b.getCount(1) shouldEqual 0
+    b.contains(1) shouldEqual false
+  }
 
-      b.size shouldEqual 1
-      b.getOne(1) shouldEqual Some("a")
-      b.removeFromBag(1, "a")
-      b.size shouldEqual 0
-    }
-    it should "add two elements with the same key and different values, remove them one by one" in {
-      val b = new MutableBag[Int, String]
-      b.addToBag(1, "a")
-      b.size shouldEqual 1
-      b.addToBag(1, "b")
-      b.size shouldEqual 2
-      b.getCount(1) shouldEqual 2
-      b.getCount(2) shouldEqual 0
+  it should "add one element to bag" in {
+    val b = new MutableMultiset[Int]
+    b.add(1)
+    b.size shouldEqual 1
+    b.isEmpty shouldEqual false
+    b.getCount(1) shouldEqual 1
+    b.getCount(2) shouldEqual 0
+    b.contains(1) shouldEqual true
+    b.contains(2) shouldEqual false
+  }
 
-      val c1 = b.getOne(1).get
-      Set("a", "b").contains(c1) shouldEqual true
-      b.removeFromBag(1, "a")
-      b.getCount(1) shouldEqual 1
+  it should "add two elements with the same value, them remove them both" in {
+    val b = new MutableMultiset[Int]
+    b.add(1)
+    b.size shouldEqual 1
+    b.add(1)
+    b.size shouldEqual 2
+    b.getCount(1) shouldEqual 2
+    b.getCount(2) shouldEqual 0
+    b.contains(1) shouldEqual true
 
-      val c2 = b.getOne(1)
-      c2 shouldEqual Some("b")
-      b.size shouldEqual 1
-      b.removeFromBag(1, "b")
-      b.size shouldEqual 0
-      b.getCount(1) shouldEqual 0
+    b.remove(1)
+    b.getCount(1) shouldEqual 1
+    b.contains(1) shouldEqual true
+    b.size shouldEqual 1
+    b.isEmpty shouldEqual false
 
-    }
-    it should "add two elements with different keys and different values, then remove them one by one" in {
-      val b = new MutableBag[Int, String]
-      b.addToBag(1, "a")
-      b.size shouldEqual 1
-      b.addToBag(2, "b")
-      b.size shouldEqual 2
-      b.getCount(1) shouldEqual 1
-      b.getCount(2) shouldEqual 1
+    b.remove(1)
+    b.size shouldEqual 0
+    b.contains(1) shouldEqual false
 
-      b.getOne(1) shouldEqual Some("a")
-      b.getOne(2) shouldEqual Some("b")
+    b.remove(1)
+    b.size shouldEqual 0
+    b.isEmpty shouldEqual true
+    b.contains(1) shouldEqual false
+  }
 
-      b.removeFromBag(1, "a")
-      b.size shouldEqual 1
-      b.getCount(1) shouldEqual 0
-      b.getCount(2) shouldEqual 1
+  it should "add two elements with different values, remove them one by one" in {
+    val b = new MutableMultiset[Int]
+    b.add(Seq(1, 2, 1))
+    b.size shouldEqual 3
+    b.getCount(1) shouldEqual 2
+    b.getCount(2) shouldEqual 1
 
-      b.getOne(1) shouldEqual None
-      b.getOne(2) shouldEqual Some("b")
-      b.removeFromBag(2, "b")
-      b.size shouldEqual 0
-    }
+    b.toString shouldEqual "Map(2 -> 1, 1 -> 2)"
 
-    it should "quickly add and remove elements with the same keys and the same value" in {
-      val b = new MutableBag[Int, Int]
-      val n = 200000
-      (1 to n).foreach { _ => b.addToBag(1, 1) }
-      (1 to n).foreach { _ => b.removeFromBag(1, 1) }
-    }
+    b.remove(1)
+    b.getCount(1) shouldEqual 1
+    b.size shouldEqual 2
+    b.contains(1) shouldEqual true
+    b.contains(2) shouldEqual true
 
-    it should "quickly add and remove elements with the same keys and different values" in {
-      val b = new MutableBag[Int, Int]
-      val n = 20000
-      (1 to n).foreach { i => b.addToBag(1, i) }
-      (1 to n).foreach { i => b.removeFromBag(1, i) }
-    }
-  */
+    b.toString shouldEqual "Map(2 -> 1, 1 -> 1)"
+
+    b.remove(2)
+    b.getCount(1) shouldEqual 1
+    b.getCount(2) shouldEqual 0
+    b.contains(1) shouldEqual true
+    b.contains(2) shouldEqual false
+    b.size shouldEqual 1
+
+    b.remove(1)
+    b.size shouldEqual 0
+    b.getCount(1) shouldEqual 0
+    b.getCount(2) shouldEqual 0
+    b.contains(1) shouldEqual false
+    b.contains(2) shouldEqual false
+  }
+
+  it should "obtain an independent copy of the bag" in {
+    val b = new MutableMultiset[Int]
+    val c = b.copyBag
+    b.add(1)
+    c.add(2)
+    b.contains(1) shouldEqual true
+    b.contains(2) shouldEqual false
+    c.contains(2) shouldEqual true
+    c.contains(1) shouldEqual false
+  }
+
 }

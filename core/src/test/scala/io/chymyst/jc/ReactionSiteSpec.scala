@@ -6,6 +6,18 @@ import scala.concurrent.duration._
 
 class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
+  behavior of "MolValue hash codes"
+
+  it should "correctly store several molecule copies in a MutableQueueBag" in {
+    val v1 = MolValue(())
+    val v2 = MolValue(())
+    v1.hashCode shouldEqual v2.hashCode
+    val b = new MutableQueueBag[AbsMolValue[_]]()
+    b.add(v1)
+    b.add(v2)
+    b.getCountMap.get(v1) shouldEqual Some(2)
+  }
+
   behavior of "reaction"
 
   it should "admit values by simple constant matching" in {
@@ -13,7 +25,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val r = go { case a(1) => }
 
-    r.info.toString shouldEqual "a(1) => "
+    r.info.toString shouldEqual "a(1) → "
     val input = r.info.inputs.head
     input.admitsValue(MolValue(1)) shouldEqual true
     input.admitsValue(MolValue(0)) shouldEqual false
@@ -27,7 +39,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val r = go { case a(x) => }
 
-    r.info.toString shouldEqual "a(x) => "
+    r.info.toString shouldEqual "a(x) → "
     val input = r.info.inputs.head
     input.admitsValue(MolValue(1)) shouldEqual true
     input.admitsValue(MolValue(0)) shouldEqual true
@@ -38,7 +50,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val r = go { case a(x) if x > 0 => }
 
-    r.info.toString shouldEqual "a(x if ?) => "
+    r.info.toString shouldEqual "a(x if ?) → "
     val input = r.info.inputs.head
     input.admitsValue(MolValue(1)) shouldEqual true
     input.admitsValue(MolValue(0)) shouldEqual false
@@ -49,7 +61,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val r = go { case a(Some(x)) => }
 
-    r.info.toString shouldEqual "a(?x) => "
+    r.info.toString shouldEqual "a(?x) → "
     val input = r.info.inputs.head
     input.admitsValue(MolValue(Some(1))) shouldEqual true
     input.admitsValue(MolValue(None)) shouldEqual false
@@ -63,7 +75,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val r = go { case a(Some(x)) if x > 0 => }
 
-    r.info.toString shouldEqual "a(?x) => "
+    r.info.toString shouldEqual "a(?x) → "
     val input = r.info.inputs.head
     input.admitsValue(MolValue(Some(1))) shouldEqual true
     input.admitsValue(MolValue(Some(0))) shouldEqual false
@@ -75,7 +87,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     val r = go { case a((1, Some(x))) => }
 
-    r.info.toString shouldEqual "a(?x) => "
+    r.info.toString shouldEqual "a(?x) → "
     val input = r.info.inputs.head
     input.admitsValue(MolValue((1, Some(1)))) shouldEqual true
     input.admitsValue(MolValue((1, Some(0)))) shouldEqual true
@@ -94,6 +106,46 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       a(2)
       f() shouldEqual 3 // If this fails, a message will be printed below.
     }.get
+  }
+
+  case class Cell(x: Int, y: Int, t: Int, state: Int, label: (Int, Int))
+
+  it should "create DSL program for cross-molecule conditionals with repeated inputs" in {
+    val c = m[Cell]
+    val reaction = go { case
+      c(Cell(x0, y0, t0, state0, (0, 0))) +
+        c(Cell(x1, y1, t1, state1, (1, 0))) +
+        c(Cell(x2, y2, t2, state2, (-1, 0))) +
+        c(Cell(x3, y3, t3, state3, (0, 1))) +
+        c(Cell(x4, y4, t4, state4, (1, 1))) +
+        c(Cell(x5, y5, t5, state5, (-1, 1))) +
+        c(Cell(x6, y6, t6, state6, (0, -1))) +
+        c(Cell(x7, y7, t7, state7, (1, -1))) +
+        c(Cell(x8, y8, t8, state8, (-1, -1)))
+      if x0 == x1 && x0 == x2 && x0 == x3 && x0 == x4 && x0 == x5 && x0 == x6 && x0 == x7 && x0 == x8 &&
+        y0 == y1 && y0 == y2 && y0 == y3 && y0 == y4 && y0 == y5 && y0 == y6 && y0 == y7 && y0 == y8 &&
+        t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 && t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 =>
+    }
+    reaction.info.searchDSLProgram.toList shouldEqual List(
+      ChooseMol(0),
+      ChooseMol(8),
+      ConstrainGuard(7),
+      ChooseMol(7),
+      ConstrainGuard(6),
+      ChooseMol(6),
+      ConstrainGuard(5),
+      ChooseMol(5),
+      ConstrainGuard(4),
+      ChooseMol(4),
+      ConstrainGuard(3),
+      ChooseMol(3),
+      ConstrainGuard(2),
+      ChooseMol(2),
+      ConstrainGuard(1),
+      ChooseMol(1),
+      ConstrainGuard(0),
+      CloseGroup
+    )
   }
 
   behavior of "shrinkage algorithm"
@@ -154,7 +206,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       val thrown = intercept[Exception] {
         f()
       }
-      thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception"
+      thrown.getMessage shouldEqual "Error: In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception"
     }
     if (result.isFailure) println(s"Test failed with message: ${result.failed.get.getMessage}")
     result.get shouldEqual Succeeded
@@ -176,7 +228,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       val thrown = intercept[Exception] {
         f.timeout()(1.seconds)
       }
-      thrown.getMessage shouldEqual "Error: In Site{f/B => ...}: Reaction {f/B(_) => } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception"
+      thrown.getMessage shouldEqual "Error: In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception"
     }.get
   }
 
@@ -398,7 +450,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         go { case c(x) => },
         go { case c(x) + a(_) => } // this is a livelock but we are interested in pipelining of c
       )
-    }.getMessage shouldEqual "In Site{a + c => ...; c => ...}: Unavoidable nondeterminism: reaction {a(_) + c(x) => } is shadowed by {c(x) => }"
+    }.getMessage shouldEqual "In Site{a + c → ...; c → ...}: Unavoidable nondeterminism: reaction {a(_) + c(x) → } is shadowed by {c(x) → }"
     checkExpectedPipelined(Map(c -> true, a -> true)) shouldEqual ""
   }
 
@@ -410,7 +462,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
         go { case c(x) + c(y) => },
         go { case c(x) + c(y) + c(z) => } // unconditional nondeterminism with several inputs
       )
-    }.getMessage shouldEqual "In Site{c + c + c => ...; c + c => ...; c => ...}: Unavoidable nondeterminism: reaction {c(x) + c(y) + c(z) => } is shadowed by {c(x) + c(y) => }"
+    }.getMessage shouldEqual "In Site{c + c + c → ...; c + c → ...; c → ...}: Unavoidable nondeterminism: reaction {c(x) + c(y) + c(z) → } is shadowed by {c(x) + c(y) → }"
     checkExpectedPipelined(Map(c -> true)) shouldEqual ""
   }
 
@@ -423,7 +475,7 @@ class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
       go { case c(x) if x > 0 => },
       go { case c(x) + a(_) if x > 0 => } // this is a livelock (although we can't detect it!) but we are interested in pipelining of c
     )
-    //    }.getMessage shouldEqual "In Site{a + c => ...; c => ...}: Unavoidable nondeterminism: reaction {a(_) + c(x) => } is shadowed by {c(x) => }"
+    //    }.getMessage shouldEqual "In Site{a + c → ...; c → ...}: Unavoidable nondeterminism: reaction {a(_) + c(x) => } is shadowed by {c(x) => }"
     checkExpectedPipelined(Map(c -> true, a -> true)) shouldEqual ""
   }
 

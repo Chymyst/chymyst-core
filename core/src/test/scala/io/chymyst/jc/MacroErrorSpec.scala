@@ -12,7 +12,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val c = m[Unit]
 
     // These should compile.
-    def emitThem() = { // ignore warning "local method is never used"
+    def emitThem() = { // ignore warning "local method ... is never used"
       c(())
       c()
       c(123) // ignore warnings "discarded non-Unit value" and "a pure expression does nothing"
@@ -30,12 +30,12 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
   it should "compile a reaction within scalatest scope" in {
     val x = m[Int]
-    site(go { case x(_) => }) shouldEqual WarningsAndErrors(List(), List(), "Site{x => ...}")
+    site(go { case x(_) => }) shouldEqual WarningsAndErrors(List(), List(), "Site{x → ...}")
   }
 
   it should "compile a reaction with scoped pattern variables" in {
     val a = m[(Int, Int)]
-    site(go { case a(y@(_, q@_)) => }) shouldEqual WarningsAndErrors(List(), List(), "Site{a => ...}")
+    site(go { case a(y@(_, q@_)) => }) shouldEqual WarningsAndErrors(List(), List(), "Site{a → ...}")
 
     val c = m[(Int, (Int, Int))]
     c.name shouldEqual "c"
@@ -47,7 +47,7 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
     site(
       go { case d((x, z)) if z.nonEmpty => } // ignore warning about "non-variable type argument Int"
-    ) shouldEqual WarningsAndErrors(List(), List(), "Site{d => ...}")
+    ) shouldEqual WarningsAndErrors(List(), List(), "Site{d → ...}")
   }
 
   it should "fail to compile reactions with incorrect pattern matching" in {
