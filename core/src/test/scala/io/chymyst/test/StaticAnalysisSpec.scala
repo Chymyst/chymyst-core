@@ -281,7 +281,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val thrown = intercept[Exception] {
       val result = site(
         go { case a((1, x)) => if (x > 0) a((1, 2)) else a((1, 2)) }
-      )// If this test fails because of no exception, it means this `shouldEqual` passes, so a warning was generated instead of an error.
+      ) // If this test fails because of no exception, it means this `shouldEqual` passes, so a warning was generated instead of an error.
       result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(?x) → a((1,2)) + a((1,2))}"), List(), "Site{a → ...}")
     }
     thrown.getMessage shouldEqual "In Site{a → ...}: Unavoidable livelock: reaction {a(?x) → a((1,2)) + a((1,2))}"
@@ -376,6 +376,70 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
     thrown.getMessage shouldEqual "In Site{a + b → ...; a + b → ...; a → ...}: Unavoidable nondeterminism: reaction {a(2) + b(3) → } is shadowed by {a(?x) → a(2)}; Unavoidable livelock: reactions {a(1) + b(_) → b(1) + b(2) + a(1)}, {a(?x) → a(2)}"
+  }
+
+  behavior of "livelock with repeated inputs" // see issue https://github.com/Chymyst/chymyst-core/issues/102
+
+  it should "be detected in a reaction with repeated output" in {
+    val a = m[Unit]
+
+    val warnings = site(
+      go { case a(_) + a(_) ⇒ if (true) a() + a() }
+    )
+    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(_) + a(_) → a() + a()}"), List(), "Site{a + a → ...}")
+  }
+
+  it should "be detected as compile-time error in a reaction with repeated output and static guard" in {
+    val a = m[Unit]
+    a.name shouldEqual "a"
+    "site(go { case a(_) + a(_) if 1 == 1 ⇒ a() + a() })" shouldNot compile // Unavoidable livelock
+  }
+
+  it should "not be detected in a reaction with non-repeated output" in {
+    val a = m[Unit]
+
+    val warnings = site(
+      go { case a(_) + a(_) ⇒ a() }
+    )
+    warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a + a → ...}")
+  }
+
+  it should "throw error in a reaction with unconditional repeated output with constants" in {
+    val a = m[Int]
+
+    intercept[Exception] {
+      site(
+        go { case a(1) + a(_) ⇒ a(1) + a(2) }
+      )
+    }.getMessage shouldEqual "In Site{a + a → ...}: Unavoidable livelock: reaction {a(1) + a(_) → a(1) + a(2)}"
+  }
+
+  it should "throw error in a reaction with unconditional repeated output with constants and true guard" in {
+    val a = m[Int]
+
+    intercept[Exception] {
+      site(
+        go { case a(1) + a(_) if (true) ⇒ a(1) + a(2) }
+      )
+    }.getMessage shouldEqual "In Site{a + a → ...}: Unavoidable livelock: reaction {a(1) + a(_) → a(1) + a(2)}"
+  }
+
+  it should "give warning in a reaction with unconditional repeated output with constants and a cross-guard" in {
+    val a = m[Int]
+
+    val warnings = site(
+      go { case a(x) + a(y) if x > y ⇒ a(1) + a(2) }
+    )
+    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(x) + a(y) if(x,y) → a(1) + a(2)}"), List(), "Site{a + a → ...}")
+  }
+
+  it should "give no warning in a reaction with unconditional non-repeated output with constants and a cross-guard" in {
+    val a = m[Int]
+
+    val warnings = site(
+      go { case a(x) + a(y) if x > y ⇒ a(1) }
+    )
+    warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a + a → ...}")
   }
 
   behavior of "deadlock detection"

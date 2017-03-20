@@ -36,8 +36,8 @@ private[jc] object StaticAnalysis {
 
   private def inputMatchersWeakerThanOutput(isWeaker: (InputMoleculeInfo, OutputMoleculeInfo) => Option[Boolean])
                                            (input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean = {
-    input.flatFoldLeft[Array[OutputMoleculeInfo]](output) { (acc, inputInfo) =>
-      output
+    input.flatFoldLeft(output) { (acc, inputInfo) ⇒
+      acc
         .find(outputInfo => isWeaker(inputInfo, outputInfo).getOrElse(false))
         .map { correspondingMatcher => acc diff Array(correspondingMatcher) }
     }.nonEmpty
@@ -53,7 +53,7 @@ private[jc] object StaticAnalysis {
   private def checkReactionShadowing(reactions: Seq[Reaction]): Option[String] = {
     val suspiciousReactions = for {
       r1 <- reactions
-      if r1.info.guardPresence.effectivelyAbsent
+      if r1.info.guardPresence.noCrossGuards
       r2 <- reactions
       if r2 =!= r1
       if allMatchersAreWeakerThan(r1.info.inputsSortedByConstraintStrength, r2.info.inputsSortedByConstraintStrength)
@@ -81,7 +81,7 @@ private[jc] object StaticAnalysis {
 
   private def checkSingleReactionLivelock(reactions: Seq[Reaction]): Option[String] = {
     val errorList = reactions
-      .filter { r => r.info.guardPresence.effectivelyAbsent && inputMatchersSurelyWeakerThanOutput(r.info.inputsSortedByConstraintStrength, r.info.shrunkOutputs) }
+      .filter { r => r.info.guardPresence.noCrossGuards && inputMatchersSurelyWeakerThanOutput(r.info.inputsSortedByConstraintStrength, r.info.shrunkOutputs) }
       .map(r => s"{${r.info.toString}}")
     if (errorList.nonEmpty)
       Some(s"Unavoidable livelock: reaction${if (errorList.size == 1) "" else "s"} ${errorList.mkString(", ")}")
@@ -257,7 +257,7 @@ private[jc] object StaticAnalysis {
 
 
   private[jc] def findStaticMolDeclarationErrors(staticReactions: Seq[Reaction]): Seq[String] = {
-    val foundErrors = staticReactions.map(_.info).filterNot(_.guardPresence.effectivelyAbsent)
+    val foundErrors = staticReactions.map(_.info).filterNot(_.guardPresence.noCrossGuards)
     if (foundErrors.nonEmpty)
       foundErrors.map { info => s"Static reaction {$info} should not have a guard condition" }
     else Seq()

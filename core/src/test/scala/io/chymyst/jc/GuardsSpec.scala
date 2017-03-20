@@ -79,7 +79,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case a(xOpt) + bb(y) // ignore warning about "class M expects 2 patterns"
         if xOpt.isEmpty && y._2.isEmpty =>
     }
-    result.info.guardPresence.effectivelyAbsent shouldEqual true
+    result.info.guardPresence.noCrossGuards shouldEqual true
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
 
     result.info.inputs should matchPattern {
@@ -99,7 +99,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case a(Some(x)) + bb((list, Some(y)))
         if x == 1 && list.isEmpty && y == "abc" =>
     }
-    result.info.guardPresence.effectivelyAbsent shouldEqual true
+    result.info.guardPresence.noCrossGuards shouldEqual true
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
 
     result.info.inputs should matchPattern {
@@ -119,7 +119,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case a(xOpt) + bb(y) // ignore warning about "class M expects 2 patterns"
         if xOpt.isEmpty || y._2.isEmpty =>
     }
-    result.info.guardPresence.effectivelyAbsent shouldEqual false
+    result.info.guardPresence.noCrossGuards shouldEqual false
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('xOpt, 'y), _))) => }
 
     result.info.inputs should matchPattern {
@@ -139,7 +139,7 @@ class GuardsSpec extends FlatSpec with Matchers {
       case a(Some(x)) + bb((list, Some(y)))
         if x == 1 || list.isEmpty || y == "abc" =>
     }
-    result.info.guardPresence.effectivelyAbsent shouldEqual false
+    result.info.guardPresence.noCrossGuards shouldEqual false
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'list, 'y), _))) => }
 
     result.info.inputs should matchPattern {

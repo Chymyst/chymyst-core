@@ -142,7 +142,7 @@ behavior of "reaction sha1"
     val reaction = go { case _ => a(123) }
 
     reaction.info.inputs shouldEqual Nil
-    reaction.info.guardPresence.effectivelyAbsent shouldEqual true
+    reaction.info.guardPresence.noCrossGuards shouldEqual true
     reaction.info.outputs shouldEqual List(OutputMoleculeInfo(a, ConstOutputPattern(123), List()))
   }
 

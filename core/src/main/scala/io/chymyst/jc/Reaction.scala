@@ -237,7 +237,7 @@ sealed trait GuardPresenceFlag {
     * @return `true` if the reaction has no guard condition, or if it has guard conditions that can be split between molecules;
     *         `false` if the reaction has at least one cross-molecule guard condition.
     */
-  val effectivelyAbsent: Boolean = true
+  val noCrossGuards: Boolean = true
 }
 
 /** Indicates whether guard conditions are required for this reaction to start.
@@ -265,7 +265,7 @@ sealed trait GuardPresenceFlag {
 final case class GuardPresent(staticGuard: Option[() => Boolean], crossGuards: Array[CrossMoleculeGuard]) extends GuardPresenceFlag {
   override def staticGuardHolds(): Boolean = staticGuard.forall(guardFunction => guardFunction())
 
-  override val effectivelyAbsent: Boolean = staticGuard.isEmpty && crossGuards.isEmpty
+  override val noCrossGuards: Boolean = staticGuard.isEmpty && crossGuards.isEmpty
 
   override val toString: String =
     s"GuardPresent(${staticGuard.map(_ => "")}, [${crossGuards.map(_.toString).mkString("; ")}])"
@@ -641,7 +641,7 @@ final class ReactionInfo(
     val inputsInfo = inputsSortedByConstraintStrength.map(_.toString).mkString(" + ")
     val guardInfo = guardPresence match {
       case _
-        if guardPresence.effectivelyAbsent =>
+        if guardPresence.noCrossGuards =>
         ""
       case GuardPresent(Some(_), Array()) =>
         " if(?)" // There is a static guard but no cross-molecule guards.
