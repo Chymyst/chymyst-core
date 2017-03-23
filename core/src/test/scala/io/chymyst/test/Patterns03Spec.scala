@@ -1,10 +1,12 @@
 package io.chymyst.test
 
+import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import io.chymyst.jc._
 import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters.asScalaIteratorConverter
 
 class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
@@ -26,6 +28,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
     sealed trait LockEvent {
       val name: String
+
       def toString: String
     }
     case class LockAcquisition(override val name: String) extends LockEvent {
@@ -37,11 +40,14 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val logFile = new ConcurrentLinkedQueue[LockEvent]
 
     def useResource(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
+
     def waitForUserRequest(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
+
     def visitCriticalSection(name: String): Unit = {
       logFile.add(LockAcquisition(name))
       useResource()
     }
+
     def leaveCriticalSection(name: String): Unit = {
       logFile.add(LockRelease(name))
       ()
@@ -70,14 +76,14 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       },
       go { case count(0) + readerCount(0) + check(_, r) => r() }, // readerCount(0) condition ensures we end when all locks are released.
 
-      go { case readerCount(n) + readerExit(name)  =>
+      go { case readerCount(n) + readerExit(name) =>
         readerCount(n - 1)
         leaveCriticalSection(name)
         waitForUserRequest() // gives a chance to writer to do some work
         reader(name)
       },
-      go { case readerCount(n) + reader(name)  =>
-        readerCount(n+1)
+      go { case readerCount(n) + reader(name) =>
+        readerCount(n + 1)
         visitCriticalSection(name)
         readerExit(name)
       }
@@ -109,7 +115,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }
 
     // 1) Number of locks being acquired is same as number being released (the other ones as there are only two types of events)
-    val acquiredLocks = events.collect{case (event: LockAcquisition) => 1}.sum
+    val acquiredLocks = events.collect { case (event: LockAcquisition) => 1 }.sum
     acquiredLocks * 2 shouldBe events.size
 
     val (writersByName, readersPart) = eventsWithIndices.partition(_._1.name == writerName) // binary split by predicate
@@ -135,5 +141,79 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
       case _ => // don't care about LockRelease as it's handled above
     }
 
+  }
+
+  behavior of "fork/join"
+
+  final case class SimpleFraction(num: Int, denom: Int) {
+    def <(x: Int): Boolean = num < denom
+
+    def +(f: SimpleFraction): SimpleFraction = {
+      val SimpleFraction(n, d) = f
+      val newNum = num * d + denom * n
+      val newDenom = d * denom
+      val newGcd = SimpleFraction.gcd(newNum, newDenom)
+      SimpleFraction(newNum / newGcd, newDenom / newGcd)
+    }
+
+    def /(x: Int): SimpleFraction = SimpleFraction(num, denom * x)
+  }
+
+  object SimpleFraction {
+    def apply(x: Int): SimpleFraction = SimpleFraction(1, 1)
+
+    @tailrec
+    def gcd(x: Int, y: Int): Int = if (x == y) x else {
+      val a = math.min(x, y)
+      val b = math.max(x, y)
+      if (a == 0) b
+      else gcd(b % a, a)
+    }
+  }
+
+  def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R], aggr: (R, R) ⇒ R, done: M[R]): Unit = {
+
+    type Counter = SimpleFraction
+
+    val res = m[(R, Counter)]
+    val task = m[(T, Counter)]
+
+    site(tp)(
+      go { case task((t, c)) ⇒
+        fork(t) match {
+          case Left(ts) ⇒ ts.foreach(x ⇒ task((x, c / ts.length)))
+          case Right(r) ⇒ res((r, c))
+        }
+      },
+      go { case res((x, a)) + res((y, b)) ⇒
+        val c = a + b
+        val r = aggr(x, y)
+        if (c < 1) res((r, c))
+        else done(r)
+      }
+    )
+    // Initially, emit one `task` molecule with weight `1`.
+    task((init, SimpleFraction(1)))
+  }
+
+  it should "implement fork/join with unordered aggregation of file size histogram" in {
+    type R = List[Long]
+    type T = File
+
+    val (done, finished) = Common.litmus[R](tp)
+
+    done.name shouldEqual "signal"
+    done.isBound shouldEqual true
+
+    def fork(f: File): Either[List[File], R] = {
+      if (f.isDirectory) Left(f.listFiles().toList)
+      else Right(List(f.length))
+    }
+
+    doForkJoin[R, T](new File("./core/src/test/resources"), fork, _ ++ _, done)
+
+    val result = finished()
+    println(s"fork/join test result: $result")
+    result.count(_ == 140L) should be >= 3
   }
 }

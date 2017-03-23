@@ -1164,8 +1164,8 @@ TODO
 ## Concurrent recursive traversal ("fork/join")
 
 A typical task of "fork/join" type is to traverse recursively a directory that contains many files and subdirectories.
-For each file found by the traversal, some operation needs to be performed, such as computing a word count over the file's text.
-Finally, all the gathered data needs to be aggregated in some way: for instance, by compiling a histogram of word counts over all files.
+For each file found by the traversal, some operation needs to be performed, such as getting the file size or computing a word count over the file's text.
+Finally, all the gathered data needs to be aggregated in some way: for instance, by creating a histogram of file sizes over all files.
 
 This procedure is similar to "map/reduce" in that tasks are first split into smaller sub-tasks and then the results of all sub-tasks are aggregated.
 The main difference is that the "fork/join" procedure will split its sub-tasks into further sub-tasks, which may be again be split into yet smaller sub-tasks.
@@ -1287,7 +1287,7 @@ Thus `Counter` must be a numerical data type that performs exact fractional arit
 For the present computation, we do not actually need a full implementation of fractional arithmetic;
 we only need to be able to add two fractions, to divide a fraction by an integer, and to compare fractions with `1`.
 
-Assuming that this data type is available as `SimpleFraction`, we can write the final working code for the "fork/join" procedure:
+Assuming that this data type is available as `SimpleFraction`, we can write the final code for the "fork/join" procedure:
 
 ```scala
 def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R], done: M[R]): Unit = {
@@ -1301,7 +1301,7 @@ def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R], done: M[R]): Unit 
   site(
     go { case task((t, c)) ⇒
       fork(t) match {
-           case Left(ts) ⇒ ts.foreach(x ⇒ task((x, c / ts.length))
+           case Left(ts) ⇒ ts.foreach(x ⇒ task((x, c / ts.length)))
            case Right(r) ⇒ res((r, c))
       }
      },
@@ -1317,6 +1317,8 @@ def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R], done: M[R]): Unit 
 }
 
 ```
+
+The full working test code for this example is in `Patterns03Spec.scala`.
 
 ### Exercise
 
