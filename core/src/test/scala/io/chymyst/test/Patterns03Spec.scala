@@ -155,7 +155,12 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     site(tp)(
       go { case task((t, c)) ⇒
         fork(t) match {
-          case Left(ts) ⇒ ts.foreach(x ⇒ task((x, c / ts.length)))
+          case Left(ts) ⇒
+            val total = ts.length
+            if (total > 0)
+              ts.foreach(x ⇒ task((x, c / ts.length)))
+            else
+              res((zero, c))
           case Right(r) ⇒ res((r, c))
         }
       },
@@ -168,7 +173,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     )
     // Initially, emit one `task` molecule with weight `1`.
     task((init, SimpleFraction(1)))
-    // Also emit a zero aggregate value, in case we have no tasks.
+    // Also emit a zero aggregate value, in case we have no results at all.
     res((zero, SimpleFraction(0)))
   }
 
@@ -179,23 +184,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     else Right(List(f.length))
   }
 
-  it should "implement fork/join with unordered aggregation of file size histogram" in {
-    type R = List[Long]
-    type T = File
-
-    val (done, finished) = Common.litmus[R](tp)
-
-    done.name shouldEqual "signal"
-    done.isBound shouldEqual true
-
-    doForkJoin[R, T](new File("./core/src/test"), fork, _ ++ _, List(), done)
-
-    val result = finished()
-    result.length should be > 5
-    result.count(_ == 140L) should be >= 3
-  }
-
-  def doForkJoinRecursive[R, T](init: T, fork: T ⇒ Either[List[T], R], aggr: (R, R) ⇒ R, all_done: M[R]): Unit = {
+  def doForkJoinOrdered[R, T](init: T, fork: T ⇒ Either[List[T], R], aggr: (R, R) ⇒ R, zero: R, all_done: M[R]): Unit = {
     val task = m[(T, M[(R, Int)])]
     val local_done = m[(R, Int)]
     site(tp)(
@@ -216,8 +205,11 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
               )
               ts.foreach(t ⇒ task((t, res)))
 
-            } else {
+            } else if (total == 1) {
               ts.foreach(t ⇒ task((t, done))) // Splitting into 1 sub-tasks is a special case where we do not need to aggregate partial restuls.
+            } else {
+              // total = 0, no subtasks and no results, we are done
+              done((zero, 1))
             }
 
           case Right(r) ⇒ done((r, 1))
@@ -227,17 +219,55 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     task((init, local_done))
   }
 
-  it should "implement fork/join with ordered aggregation" in {
+  def runForkJoinTest(filePath: String, useOrdered: Boolean): List[Long] = {
     type R = List[Long]
     type T = File
 
     val (done, finished) = Common.litmus[R](tp)
 
-    doForkJoinRecursive[R, T](new File("./core/src/test"), fork, _ ++ _, done)
-
+    if (useOrdered)
+      doForkJoinOrdered[R, T](new File(filePath), fork, _ ++ _, List(), done)
+    else
+      doForkJoin[R, T](new File(filePath), fork, _ ++ _, List(), done)
     val result = finished()
-    result.length should be > 5
-    result.count(_ == 140L) should be >= 3
+    println(result)
+    result
+  }
+
+  it should "implement fork/join with unordered aggregation" in {
+    val result = runForkJoinTest("./core/src/test/resources/fork-join-test", useOrdered = false)
+    result.length shouldEqual 4
+    result.count(_ == 140L) shouldEqual 4
+  }
+
+  it should "implement fork/join with ordered aggregation" in {
+    val result = runForkJoinTest("./core/src/test/resources/fork-join-test", useOrdered = true)
+    result.length shouldEqual 4
+    result.count(_ == 140L) shouldEqual 4
+  }
+
+  it should "run fork/join with unordered aggregation on empty list of tasks" in {
+    val empty = "./core/src/test/resources/fork-join-test/empty-dir"
+    new File(empty).mkdirs()
+    val result = runForkJoinTest(empty, useOrdered = false)
+    result.length shouldEqual 0
+  }
+
+  it should "run fork/join with ordered aggregation on empty list of tasks" in {
+    val result = runForkJoinTest("./core/src/test/resources/fork-join-test/empty-dir", useOrdered = true)
+    result.length shouldEqual 0
+  }
+
+  it should "run fork/join with unordered aggregation on list of 1 subtasks" in {
+    val result = runForkJoinTest("./core/src/test/resources/fork-join-test/non-empty-dir", useOrdered = false)
+    result.length shouldEqual 1
+    result.count(_ == 140L) shouldEqual 1
+  }
+
+  it should "run fork/join with ordered aggregation on list of 1 subtasks" in {
+    val result = runForkJoinTest("./core/src/test/resources/fork-join-test/non-empty-dir", useOrdered = true)
+    result.length shouldEqual 1
+    result.count(_ == 140L) shouldEqual 1
   }
 }
 
@@ -256,7 +286,7 @@ final case class SimpleFraction(num: Int, denom: Int) {
 }
 
 object SimpleFraction {
-  def apply(x: Int): SimpleFraction = SimpleFraction(1, 1)
+  def apply(x: Int): SimpleFraction = SimpleFraction(x, 1)
 
   @tailrec
   def gcd(x: Int, y: Int): Int = if (x == y) x else {
