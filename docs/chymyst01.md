@@ -180,8 +180,8 @@ So, it looks like we will need two reactions. Let us write a reaction site:
 
 ```scala
 site(
-  go { case counter(n) + incr(_) ⇒ counter(n + 1) },
-  go { case counter(n) + decr(_) ⇒ counter(n - 1) }
+  go { case counter(n) + incr(_) => counter(n + 1) },
+  go { case counter(n) + decr(_) => counter(n - 1) }
 )
 
 ```
@@ -248,8 +248,8 @@ def printAndEmit(x: Int) = {
 
 // write the reaction site
 site(
-  go { case counter(n) + decr(_) ⇒ printAndEmit(n - 1) }
-  go { case counter(n) + incr(_) ⇒ printAndEmit(n + 1) },
+  go { case counter(n) + decr(_) => printAndEmit(n - 1) }
+  go { case counter(n) + incr(_) => printAndEmit(n + 1) },
 )
 
 counter(100)
@@ -350,7 +350,7 @@ The method `isBound` can be used to determine at run time whether a molecule has
 val x = m[Int]
 x.isBound // returns `false`
 
-site( go { case x(2) ⇒  } )
+site( go { case x(2) => } )
 
 x.isBound // returns `true`
 
