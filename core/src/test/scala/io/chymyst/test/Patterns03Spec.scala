@@ -145,33 +145,7 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "fork/join"
 
-  final case class SimpleFraction(num: Int, denom: Int) {
-    def <(x: Int): Boolean = num < denom
-
-    def +(f: SimpleFraction): SimpleFraction = {
-      val SimpleFraction(n, d) = f
-      val newNum = num * d + denom * n
-      val newDenom = d * denom
-      val newGcd = SimpleFraction.gcd(newNum, newDenom)
-      SimpleFraction(newNum / newGcd, newDenom / newGcd)
-    }
-
-    def /(x: Int): SimpleFraction = SimpleFraction(num, denom * x)
-  }
-
-  object SimpleFraction {
-    def apply(x: Int): SimpleFraction = SimpleFraction(1, 1)
-
-    @tailrec
-    def gcd(x: Int, y: Int): Int = if (x == y) x else {
-      val a = math.min(x, y)
-      val b = math.max(x, y)
-      if (a == 0) b
-      else gcd(b % a, a)
-    }
-  }
-
-  def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R], aggr: (R, R) ⇒ R, done: M[R]): Unit = {
+  def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R], aggr: (R, R) ⇒ R, zero: R, done: M[R]): Unit = {
 
     type Counter = SimpleFraction
 
@@ -194,6 +168,15 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     )
     // Initially, emit one `task` molecule with weight `1`.
     task((init, SimpleFraction(1)))
+    // Also emit a zero aggregate value, in case we have no tasks.
+    res((zero, SimpleFraction(0)))
+  }
+
+  def fork(f: File): Either[List[File], List[Long]] = {
+    if (f.isDirectory) {
+      Left(f.listFiles().toList)
+    }
+    else Right(List(f.length))
   }
 
   it should "implement fork/join with unordered aggregation of file size histogram" in {
@@ -205,15 +188,81 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     done.name shouldEqual "signal"
     done.isBound shouldEqual true
 
-    def fork(f: File): Either[List[File], R] = {
-      if (f.isDirectory) Left(f.listFiles().toList)
-      else Right(List(f.length))
-    }
-
-    doForkJoin[R, T](new File("./core/src/test/resources"), fork, _ ++ _, done)
+    doForkJoin[R, T](new File("./core/src/test"), fork, _ ++ _, List(), done)
 
     val result = finished()
-    println(s"fork/join test result: $result")
+    result.length should be > 5
     result.count(_ == 140L) should be >= 3
+  }
+
+  def doForkJoinRecursive[R, T](init: T, fork: T ⇒ Either[List[T], R], aggr: (R, R) ⇒ R, all_done: M[R]): Unit = {
+    val task = m[(T, M[(R, Int)])]
+    val local_done = m[(R, Int)]
+    site(tp)(
+      go { case local_done((r, _)) ⇒ all_done(r) },
+      go { case task((t, done)) ⇒
+        fork(t) match {
+          case Left(ts) ⇒
+            val total = ts.length
+            if (total > 1) {
+              val res = m[(R, Int)]
+              site(tp)(
+                go { case res((r1, x1)) + res((r2, x2)) ⇒
+                  val newR = aggr(r1, r2)
+                  val newCount = x1 + x2
+                  if (newCount < total) res((newR, newCount))
+                  else done((newR, 1))
+                }
+              )
+              ts.foreach(t ⇒ task((t, res)))
+
+            } else {
+              ts.foreach(t ⇒ task((t, done))) // Splitting into 1 sub-tasks is a special case where we do not need to aggregate partial restuls.
+            }
+
+          case Right(r) ⇒ done((r, 1))
+        }
+      }
+    )
+    task((init, local_done))
+  }
+
+  it should "implement fork/join with ordered aggregation" in {
+    type R = List[Long]
+    type T = File
+
+    val (done, finished) = Common.litmus[R](tp)
+
+    doForkJoinRecursive[R, T](new File("./core/src/test"), fork, _ ++ _, done)
+
+    val result = finished()
+    result.length should be > 5
+    result.count(_ == 140L) should be >= 3
+  }
+}
+
+final case class SimpleFraction(num: Int, denom: Int) {
+  def <(x: Int): Boolean = num < denom
+
+  def +(f: SimpleFraction): SimpleFraction = {
+    val SimpleFraction(n, d) = f
+    val newNum = num * d + denom * n
+    val newDenom = d * denom
+    val newGcd = SimpleFraction.gcd(newNum, newDenom)
+    SimpleFraction(newNum / newGcd, newDenom / newGcd)
+  }
+
+  def /(x: Int): SimpleFraction = SimpleFraction(num, denom * x)
+}
+
+object SimpleFraction {
+  def apply(x: Int): SimpleFraction = SimpleFraction(1, 1)
+
+  @tailrec
+  def gcd(x: Int, y: Int): Int = if (x == y) x else {
+    val a = math.min(x, y)
+    val b = math.max(x, y)
+    if (a == 0) b
+    else gcd(b % a, a)
   }
 }

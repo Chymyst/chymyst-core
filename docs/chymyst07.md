@@ -1287,7 +1287,7 @@ Thus `Counter` must be a numerical data type that performs exact fractional arit
 For the present computation, we do not actually need a full implementation of fractional arithmetic;
 we only need to be able to add two fractions, to divide a fraction by an integer, and to compare fractions with `1`.
 
-Assuming that this data type is available as `SimpleFraction`, we can write the final code for the "fork/join" procedure:
+Assuming that this data type is available as `SimpleFraction`, we can write this code for the "fork/join" procedure:
 
 ```scala
 def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R], done: M[R]): Unit = {
@@ -1296,7 +1296,6 @@ def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R], done: M[R]): Unit 
   
   val res = m[(R, Counter)]
   val task = m[(T, Counter)]
-  val done = m[R]
   
   site(
     go { case task((t, c)) ⇒
@@ -1318,7 +1317,7 @@ def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R], done: M[R]): Unit 
 
 ```
 
-The full working test code for this example is in `Patterns03Spec.scala`.
+The complete working test code for this example is in `Patterns03Spec.scala`.
 
 ### Exercise
 
