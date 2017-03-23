@@ -1163,7 +1163,175 @@ TODO
 
 ## Concurrent recursive traversal ("fork/join")
 
-TODO
+A typical task of "fork/join" type is to traverse recursively a directory that contains many files and subdirectories.
+For each file found by the traversal, some operation needs to be performed, such as getting the file size or computing a word count over the file's text.
+Finally, all the gathered data needs to be aggregated in some way: for instance, by creating a histogram of file sizes over all files.
+
+This procedure is similar to "map/reduce" in that tasks are first split into smaller sub-tasks and then the results of all sub-tasks are aggregated.
+The main difference is that the "fork/join" procedure will split its sub-tasks into further sub-tasks, which may be again be split into yet smaller sub-tasks.
+The total number of splitting levels is known only at run time, so the procedure results in a computation tree of more or less arbitrary shape.
+The vertices of the tree are sub-tasks that are split; the leaves of the tree are sub-tasks that can be completed without any splitting. 
+
+Tasks of "fork/join" type can be formalized by specifying these four items:
+
+- A type `T` representing a value that fully specifies one sub-task.
+- A type `R` representing a partial result value computed by any sub-task (whether or not that subtask was split into further subtasks).
+We assume that `R` is a monoid type with a binary operation `++` of type `(R, R) ⇒ R`,
+so that we can aggregate partial results into the final result of type `R`.
+- A value `init` of type `T` that specifies the main task (the root of the computation tree).
+- A function `fork` of type `T ⇒ Either[List[T], R]` that decides whether the task needs to be split.
+ If so, `fork` determines the list of new values of type `T` that correspond to the new sub-tasks.
+ Otherwise, `fork` will compute a partial result of type `R`. 
+
+We assume for simplicity that the aggregation of partial results can be performed in any order, so that we can use a commutative monoid for `R`.
+
+Let us now implement this generic "fork/join" procedure using `Chymyst`.
+The type signature should look like this:
+
+```scala
+def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R]): R = ???
+
+```
+
+How would we design the chemistry that performs this procedure?
+
+It is clear that each sub-task needs to run a reaction starting with a molecule that carries a value of type `T`.
+
+```scala
+val task = m[T]
+
+site( go { case task(t) ⇒ ??? } )
+
+// Initially, emit one `task` molecule.
+task(init)
+
+```
+
+When the reaction `task → ...` is finished, it should either emit a number of other `task` molecules, or return a result value.
+Therefore, we need another type of molecule that carries the result value:
+
+```scala
+val res = m[R]
+val task = m[T]
+
+site(
+ go { case task(t) ⇒
+  fork(t) match {
+       case Left(ts) ⇒ ts.foreach(x ⇒ task(x))
+       case Right(r) ⇒ res(r)
+  }
+ }
+)
+
+// Initially, emit one `task` molecule.
+task(init)
+
+```
+
+After all `task()` molecules are consumed, a number of `res(...)` molecules will be emitted into the soup.
+To aggregate their values into a single final result, we need to add a reaction for `res(...)`:
+
+```scala
+go { case res(x) + res(y) ⇒ res(x ++ y) }
+
+```
+
+The result of this chemistry will be that eventually a single `res(r)` molecule will be present in the soup, and its value `r` will be the final result value.
+There remains, however, a major problem with the code as written so far: it does not terminate!
+The chemistry does not know how many `task` molecules to expect, and the code keeps waiting for more `task(...)` molecules to be emitted into the soup.
+
+Not knowing when molecules are emitted is a fundamental feature of programming in the chemical machine paradigm.
+That feature makes the programs robust with respect to accidental slowness of the computer, making race conditions impossible.
+The price is the need for additional "bookkeeping" in programs that need to wait until a number of tasks are finished.
+
+In previous chapters, we have already seen two examples of this bookkeeping.
+In the "map/reduce" pattern, we put an additional counter on the `result` molecules so that we know when we finished aggregating the partial results.
+In the "merge/sort" example, we used a recursive chemical reaction to make sure that the computation tree terminates.
+
+The recursive code is elegant in its way but makes reasoning more complicated.
+Let us first try to achieve termination by using a counter.
+
+If `Counter` represents the type of the counter value, we might write code similarly to the "map/reduce" pattern where we add up the counters on `res()` molecules until the total accumulated count reaches a predefined value:
+
+```scala
+type Counter = ???
+val res = m[(R, Counter)]
+val done = m[R]
+val total: Counter = ???
+
+go { case res((x, a)) + res((y, b)) ⇒
+    val c = a + b
+    val r = x ++ y
+    if (c < total) res((r, c))
+    else done(r)
+}
+
+```
+
+However, a simple integer counter will not work in the present situation because we do not know in advance how many `task()` molecules will be generated.
+We need a different approach.
+
+Consider an example where the main task is first split into `3` subtasks.
+We can imagine that each subtask now has to perform a fraction `1/3` of the total work.
+Now suppose that one of these subtasks is further split into `3`, another into `2` subtasks, and the third one is not split.
+
+![Fork/join tree diagram](https://chymyst.github.io/chymyst-core/fork-join-weights.svg)
+
+The computation tree now contains one subtask that needs to perform `1/3` of the work, 2 subtasks that need to perform `1/6` of the work, and 3 subtasks that need to perform `1/9` of the work.
+The sum total of the work fractions is `1/3 + 2 * 1/6 + 3 * 1/9 = 1`, as it should be.
+
+Therefore, what we need is to assign _fractional weights_ to the result values of all subtasks.
+The sum total of all fractional weights will remain `1`, no matter how we split tasks into subtasks.
+When we aggregate partial results, we will add up the fractional weights.
+When the weight of a partial result is equal to 1, that result is actually the total final result of the entire computation tree.
+In this way we can easily detect the termination of the entire task.
+
+Thus, `Counter` must be a numerical data type that performs exact fractional arithmetic.
+For the present computation, we do not actually need a full implementation of fractional arithmetic;
+we only need to be able to add two fractions, to divide a fraction by an integer, and to compare fractions with `1`.
+
+Assuming that this data type is available as `SimpleFraction`, we can write the "fork/join" procedure:
+
+```scala
+def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R], done: M[R]): Unit = {
+
+  type Counter = SimpleFraction
+  
+  val res = m[(R, Counter)]
+  val task = m[(T, Counter)]
+  
+  site(
+    go { case task((t, c)) ⇒
+      fork(t) match {
+           case Left(ts) ⇒ ts.foreach(x ⇒ task((x, c / ts.length)))
+           case Right(r) ⇒ res((r, c))
+      }
+     },
+    go { case res((x, a)) + res((y, b)) ⇒
+        val c = a + b
+        val r = x ++ y
+        if (c < 1) res((r, c))
+        else done(r)
+    }
+  )
+  // Initially, emit one `task` molecule with weight `1`.
+  task((init, SimpleFraction(1)))
+}
+
+```
+
+### Exercises
+
+1. In the "fork/join" chemistry just described, partial results are aggregated in an arbitrary order.
+Implement the chemistry using recursive reactions instead of counters,
+so that the partial results are always aggregated first within the recursive split that generated them.
+
+2. The code as shown in the previous section will fail in certain corner cases:
+
+- when any task is split into an empty list of subtasks, the code will divide `c` by `ts.length`, which will be equal to zero
+- when there is only one `res()` molecule ever emitted, the reaction `res + res → res` will never run; this will happen, for instance, if the initial task is split into exactly one sub-task, which then immediately returns its result
+
+Fix the chemistry so that the procedure works correctly in these corner cases.
 
 ## Producer-consumer, or `java.util.concurrent.ConcurrentLinkedQueue`
 

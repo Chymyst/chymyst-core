@@ -1,0 +1,2 @@
+This file should have length 140.
+The three files fork-join-test-1.txt, fork-join-test-2.txt, fork-join-test-3.txt should have equal length.
