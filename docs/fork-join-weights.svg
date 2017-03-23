@@ -1,0 +1,38 @@
+<svg width="580" height="400" xmlns="http://www.w3.org/2000/svg">
+ <!-- Created with Method Draw - http://github.com/duopixel/Method-Draw/ -->
+ <g>
+  <title>background</title>
+  <rect fill="#fff" id="canvas_background" height="402" width="582" y="-1" x="-1"/>
+  <g display="none" overflow="visible" y="0" x="0" height="100%" width="100%" id="canvasGrid">
+   <rect fill="url(#gridpattern)" stroke-width="0" y="0" x="0" height="100%" width="100%"/>
+  </g>
+ </g>
+ <g>
+  <title>Layer 1</title>
+  <line stroke="#000" stroke-linecap="undefined" stroke-linejoin="undefined" id="svg_1" y2="128.690563" x2="133.214157" y1="49.40473" x1="169.230189" stroke-width="1.5" fill="none"/>
+  <line stroke="#000" stroke-linecap="undefined" stroke-linejoin="undefined" id="svg_2" y2="133.885495" x2="211.314996" y1="49.794939" x1="169.593511" fill-opacity="null" stroke-opacity="null" stroke-width="1.5" fill="none"/>
+  <line stroke="#000" stroke-linecap="undefined" stroke-linejoin="undefined" id="svg_3" y2="49.881131" x2="168.643225" y1="129.172789" x1="64.940569" fill-opacity="null" stroke-opacity="null" stroke-width="1.5" fill="none"/>
+  <line stroke-linecap="undefined" stroke-linejoin="undefined" id="svg_5" y2="129.145726" x2="64.120607" y1="196.482412" x1="34.472364" fill-opacity="null" stroke-opacity="null" stroke-width="1.5" stroke="#000" fill="none"/>
+  <line stroke="#000" stroke-linecap="undefined" stroke-linejoin="undefined" id="svg_6" y2="129.542907" x2="64.887907" y1="196.799865" x1="81.020975" fill-opacity="null" stroke-opacity="null" stroke-width="1.5" fill="none"/>
+  <line stroke-linecap="undefined" stroke-linejoin="undefined" id="svg_7" y2="131.155776" x2="210.351769" y1="194.472362" x1="150.552771" fill-opacity="null" stroke-opacity="null" stroke-width="1.5" stroke="#000" fill="none"/>
+  <line stroke="#000" stroke-linecap="undefined" stroke-linejoin="undefined" id="svg_8" y2="132.59574" x2="210.745754" y1="193.887939" x1="232.257142" fill-opacity="null" stroke-opacity="null" stroke-width="1.5" fill="none"/>
+  <line stroke-linecap="undefined" stroke-linejoin="undefined" id="svg_9" y2="132.649799" x2="209.99874" y1="193.956334" x1="197.435926" fill-opacity="null" stroke-opacity="null" stroke-width="1.5" stroke="#000" fill="none"/>
+  <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="18" id="svg_11" y="40.316558" x="161.901137" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">1</text>
+  <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="18" id="svg_12" y="133.012896" x="215.233278" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">1/3</text>
+  <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="18" id="svg_14" y="133.012897" x="139.044505" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">1/3</text>
+  <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="18" id="svg_15" y="133.33035" x="31.11041" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">1/3</text>
+  <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="18" id="svg_16" y="210.47148" x="35.237305" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">1/6</text>
+  <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="18" id="svg_17" y="210.788934" x="81.585476" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">1/6</text>
+  <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="18" id="svg_19" y="210.788933" x="183.170503" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">1/9</text>
+  <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="18" id="svg_20" y="211.106387" x="135.869974" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">1/9</text>
+  <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="18" id="svg_21" y="210.47148" x="220.947435" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">1/9</text>
+  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_30" cy="194.757546" cx="232.851926" stroke-width="3.5" fill="none"/>
+  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_31" cy="195.075005" cx="196.662259" stroke-width="3.5" fill="none"/>
+  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_32" cy="195.392449" cx="150.314091" stroke-width="3.5" fill="none"/>
+  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_33" cy="196.344809" cx="81.109288" stroke-width="3.5" fill="none"/>
+  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_34" cy="196.662262" cx="34.126218" stroke-width="3.5" fill="none"/>
+  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_35" cy="129.362183" cx="132.536711" stroke-width="3.5" fill="none"/>
+  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_36" cy="51.903603" cx="34.761121" stroke-width="3.5" fill="none"/>
+  <text style="cursor: move;" xml:space="preserve" text-anchor="start" font-family="'Times New Roman', Times, serif" font-size="14" id="svg_37" y="54.919406" x="42.856183" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#FFDFB8" fill="#000000">partial result</text>
+ </g>
+</svg>

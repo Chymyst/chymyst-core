@@ -1271,11 +1271,14 @@ go { case res((x, a)) + res((y, b)) ⇒
 However, a simple integer counter will not work in the present situation because we do not know in advance how many `task()` molecules will be generated.
 We need a different approach.
 
-Consider an example where the main task is first split into `5` subtasks.
-We can imagine that each subtask now has to perform a fraction `1/5` of the total work.
-Now suppose that one of these subtasks is further split into `3`, while other subtasks are not split.
-The computation tree now contains 4 subtasks that need to perform `1/5` of the total work, and 3 subtasks that need to perform only `1/15` of the total work.
-The sum total of the work fractions is `4 * 1/5 + 3 * 1/15 = 1`, as it should be.
+Consider an example where the main task is first split into `3` subtasks.
+We can imagine that each subtask now has to perform a fraction `1/3` of the total work.
+Now suppose that one of these subtasks is further split into `3`, another into `2` subtasks, and the third one is not split.
+
+![Fork/join tree diagram](https://chymyst.github.io/chymyst-core/fork-join-weights.svg)
+
+The computation tree now contains one subtask that needs to perform `1/3` of the work, 2 subtasks that need to perform `1/6` of the work, and 3 subtasks that need to perform `1/9` of the work.
+The sum total of the work fractions is `1/3 + 2 * 1/6 + 3 * 1/9 = 1`, as it should be.
 
 Therefore, what we need is to assign _fractional weights_ to the result values of all subtasks.
 The sum total of all fractional weights will remain `1`, no matter how we split tasks into subtasks.
@@ -1283,11 +1286,11 @@ When we aggregate partial results, we will add up the fractional weights.
 When the weight of a partial result is equal to 1, that result is actually the total final result of the entire computation tree.
 In this way we can easily detect the termination of the entire task.
 
-Thus `Counter` must be a numerical data type that performs exact fractional arithmetic.
+Thus, `Counter` must be a numerical data type that performs exact fractional arithmetic.
 For the present computation, we do not actually need a full implementation of fractional arithmetic;
 we only need to be able to add two fractions, to divide a fraction by an integer, and to compare fractions with `1`.
 
-Assuming that this data type is available as `SimpleFraction`, we can write this code for the "fork/join" procedure:
+Assuming that this data type is available as `SimpleFraction`, we can write the "fork/join" procedure:
 
 ```scala
 def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R], done: M[R]): Unit = {
@@ -1317,13 +1320,18 @@ def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R], done: M[R]): Unit 
 
 ```
 
-The complete working test code for this example is in `Patterns03Spec.scala`.
+### Exercises
 
-### Exercise
-
-In the "fork/join" chemistry just described, partial results are aggregated in an arbitrary order.
+1. In the "fork/join" chemistry just described, partial results are aggregated in an arbitrary order.
 Implement the chemistry using recursive reactions instead of counters,
 so that the partial results are always aggregated first within the recursive split that generated them.
+
+2. The code as shown in the previous section will fail in certain corner cases:
+
+- when any task is split into an empty list of subtasks, the code will divide `c` by `ts.length`, which will be equal to zero
+- when there is only one `res()` molecule ever emitted, the reaction `res + res → res` will never run; this will happen, for instance, if the initial task is split into exactly one sub-task, which then immediately returns its result
+
+Fix the chemistry so that the procedure works correctly in these corner cases.
 
 ## Producer-consumer, or `java.util.concurrent.ConcurrentLinkedQueue`
 
