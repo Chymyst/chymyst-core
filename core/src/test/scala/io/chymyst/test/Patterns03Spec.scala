@@ -230,7 +230,6 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     else
       doForkJoin[R, T](new File(filePath), fork, _ ++ _, List(), done)
     val result = finished()
-    println(result)
     result
   }
 
@@ -269,10 +268,47 @@ class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     result.length shouldEqual 1
     result.count(_ == 140L) shouldEqual 1
   }
+
+  behavior of "SimpleFraction"
+
+  it should "create simple fractions from integers and compare with 1" in {
+    val a0 = SimpleFraction(0)
+    val a1 = SimpleFraction(1)
+    val a2 = SimpleFraction(2)
+
+    a0 < 2 shouldEqual true
+    a0 < 1 shouldEqual true
+    a0 < 0 shouldEqual false
+
+    a1 < 2 shouldEqual true
+    a1 < 1 shouldEqual false
+    a1 < 0 shouldEqual false
+
+    a2 < 2 shouldEqual false
+    a2 < 1 shouldEqual false
+    a2 < 0 shouldEqual false
+
+    SimpleFraction(5, 2) < 2 shouldEqual false
+    SimpleFraction(2, 5) < SimpleFraction(3, 7) shouldEqual true
+  }
+
+  it should "divide fractions by integers" in {
+    SimpleFraction(1, 2) / 2 shouldEqual SimpleFraction(1, 4)
+    SimpleFraction(3, 5) / 2 shouldEqual SimpleFraction(3, 10)
+    SimpleFraction(3, 5) / 3 shouldEqual SimpleFraction(1, 5)
+  }
+
+  it should "add fractions" in {
+    SimpleFraction(1, 2) + SimpleFraction(1, 2) shouldEqual SimpleFraction(1)
+    SimpleFraction(1, 3) + SimpleFraction(1, 2) shouldEqual SimpleFraction(5, 6)
+    SimpleFraction(1, 3) + SimpleFraction(2, 5) shouldEqual SimpleFraction(11, 15)
+  }
 }
 
 final case class SimpleFraction(num: Int, denom: Int) {
-  def <(x: Int): Boolean = num < denom
+  def <(x: Int): Boolean = this < SimpleFraction(x)
+
+  def <(x: SimpleFraction): Boolean = num * x.denom < x.num * denom
 
   def +(f: SimpleFraction): SimpleFraction = {
     val SimpleFraction(n, d) = f
@@ -282,14 +318,18 @@ final case class SimpleFraction(num: Int, denom: Int) {
     SimpleFraction(newNum / newGcd, newDenom / newGcd)
   }
 
-  def /(x: Int): SimpleFraction = SimpleFraction(num, denom * x)
+  def /(x: Int): SimpleFraction = {
+    val newGcd = SimpleFraction.gcd(num, denom * x)
+    SimpleFraction(num / newGcd, denom * x / newGcd)
+  }
 }
 
 object SimpleFraction {
   def apply(x: Int): SimpleFraction = SimpleFraction(x, 1)
 
   @tailrec
-  def gcd(x: Int, y: Int): Int = if (x == y) x else {
+  def gcd(x: Int, y: Int): Int = if (x == y) x
+  else {
     val a = math.min(x, y)
     val b = math.max(x, y)
     if (a == 0) b
