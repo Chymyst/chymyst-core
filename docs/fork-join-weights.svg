@@ -23,13 +23,13 @@
   <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="18" id="svg_19" y="210.788933" x="183.170503" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">1/9</text>
   <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="18" id="svg_20" y="211.106387" x="135.869974" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">1/9</text>
   <text xml:space="preserve" text-anchor="start" font-family="Helvetica, Arial, sans-serif" font-size="18" id="svg_21" y="210.47148" x="220.947435" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#000" fill="#000000">1/9</text>
-  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_30" cy="194.757546" cx="232.851926" stroke-width="3.5" fill="none"/>
-  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_31" cy="195.075005" cx="196.662259" stroke-width="3.5" fill="none"/>
-  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_32" cy="195.392449" cx="150.314091" stroke-width="3.5" fill="none"/>
-  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_33" cy="196.344809" cx="81.109288" stroke-width="3.5" fill="none"/>
-  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_34" cy="196.662262" cx="34.126218" stroke-width="3.5" fill="none"/>
-  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_35" cy="129.362183" cx="132.536711" stroke-width="3.5" fill="none"/>
-  <ellipse stroke="#FFDFB8" ry="1" rx="1" id="svg_36" cy="51.903603" cx="34.761121" stroke-width="3.5" fill="none"/>
+  <ellipse stroke="#0FBF8F" ry="1" rx="1" id="svg_30" cy="194.757546" cx="232.851926" stroke-width="3.5" fill="none"/>
+  <ellipse stroke="#0FBF8F" ry="1" rx="1" id="svg_31" cy="195.075005" cx="196.662259" stroke-width="3.5" fill="none"/>
+  <ellipse stroke="#0FBF8F" ry="1" rx="1" id="svg_32" cy="195.392449" cx="150.314091" stroke-width="3.5" fill="none"/>
+  <ellipse stroke="#0FBF8F" ry="1" rx="1" id="svg_33" cy="196.344809" cx="81.109288" stroke-width="3.5" fill="none"/>
+  <ellipse stroke="#0FBF8F" ry="1" rx="1" id="svg_34" cy="196.662262" cx="34.126218" stroke-width="3.5" fill="none"/>
+  <ellipse stroke="#0FBF8F" ry="1" rx="1" id="svg_35" cy="129.362183" cx="132.536711" stroke-width="3.5" fill="none"/>
+  <ellipse stroke="#0FBF8F" ry="1" rx="1" id="svg_36" cy="51.903603" cx="34.761121" stroke-width="3.5" fill="none"/>
   <text style="cursor: move;" xml:space="preserve" text-anchor="start" font-family="'Times New Roman', Times, serif" font-size="14" id="svg_37" y="54.919406" x="42.856183" fill-opacity="null" stroke-opacity="null" stroke-width="0" stroke="#FFDFB8" fill="#000000">partial result</text>
  </g>
 </svg>
