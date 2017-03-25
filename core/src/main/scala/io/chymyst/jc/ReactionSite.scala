@@ -472,7 +472,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       mol.isBoundToAnotherReactionSite(this) match {
         case Some(otherRS) =>
           throw new ExceptionMoleculeAlreadyBound(s"Molecule $mol cannot be used as input in $this since it is already bound to $otherRS")
-        case None => mol.setReactionSiteInfo(this, index, valType, pipelinedMolecules contains index)
+        case None ⇒
+          mol.setReactionSiteInfo(this, index, valType, pipelined)
       }
     }
 
@@ -590,8 +591,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     */
   private val pipelinedMolecules: Map[Int, Set[InputMoleculeInfo]] =
-    moleculeAtIndex
-      .flatMap { case (index, _) ⇒ infosIfPipelined(index).map(c ⇒ (index, c)) }
+    moleculeAtIndex.flatMap {
+      case (index, _) ⇒ infosIfPipelined(index).map(c ⇒ (index, c))
+    }
 
   private val moleculesPresent: MoleculeBagArray = new Array(knownMolecules.size)
 
@@ -667,11 +669,11 @@ private[jc] object ReactionSiteWrapper {
       toString = "",
       logSoup = () => exception,
       setLogLevel = _ => exception,
-      staticMolsDeclared = null,
+      staticMolsDeclared = List[Molecule](),
       emit = (_: Molecule, _: AbsMolValue[T]) => exception,
       emitAndAwaitReply = (_: B[T, R], _: T, _: AbsReplyValue[T, R]) => exception,
       emitAndAwaitReplyWithTimeout = (_: Long, _: B[T, R], _: T, _: AbsReplyValue[T, R]) => exception,
-      consumingReactions = null,
+      consumingReactions = Array[Reaction](),
       sameReactionSite = _ => exception
     )
   }

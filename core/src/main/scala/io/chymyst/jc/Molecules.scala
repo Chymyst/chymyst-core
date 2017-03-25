@@ -13,7 +13,7 @@ import scala.concurrent.duration.Duration
   * {{{go { case a(MyCaseClass(x, y)) + b(Some(z)) if x > z => ... } }}}
   *
   * The chemical notation should be used only with the left-associative `+` operator grouped to the left.
-  * Input patterns with a right-associative grouping of the `+` operator, for example `a(x) + ( b(y) + c(z) )`, are refused.
+  * Input patterns with a right-associative grouping of the `+` operator, for example `a(x) + ( b(y) + c(z) )`, are rejected at compile time.
   */
 object + {
   def unapply(inputs: ReactionBodyInput): Option[(ReactionBodyInput, ReactionBodyInput)] = {
@@ -45,39 +45,36 @@ private[jc] sealed trait AbsMolValue[T] {
     case v => v.toString
   }
 
-  /** Checks whether the reaction has sent no reply to this molecule. This check is meaningful only after the reaction body has finished evaluating.
-    * This check does not make sense for non-blocking molecules.
-    * This method is in the parent trait only because we would like to check for missing replies faster,
-    * without pattern-matching on blocking vs non-blocking molecules.
+  /** Checks whether the reaction has sent no reply to this molecule, and also that there was no error and no timeout with reply.
+    * This check is meaningful only for blocking molecules and only after the reaction body has finished evaluating.
     *
     * @return `true` if the reaction has failed to send a reply to this instance of the blocking molecule.
-    *        Will also return `false` if the molecule is not a blocking molecule.
+    *         Will also return `false` if this molecule is not a blocking molecule.
     */
+  // This method is in the parent trait only because we would like to check for missing replies faster,
+  // without pattern-matching on blocking vs non-blocking molecules.
   private[jc] def reactionSentNoReply: Boolean = false
 }
 
 /** Container for the value of a non-blocking molecule.
   *
-  * @param v The value of type T carried by the molecule.
   * @tparam T The type of the value.
   */
-private[jc] final case class MolValue[T](v: T) extends AbsMolValue[T] {
-  override private[jc] def getValue: T = v
-}
+private[jc] final case class MolValue[T](private[jc] val getValue: T) extends AbsMolValue[T]
 
 /** Container for the value of a blocking molecule.
   * The `hashCode` of a [[BlockingMolValue]] should depend only on the `hashCode` of the value `v`,
   * and not on the reply value (which is mutable). This is now implemented in the parent trait [[AbsMolValue]].
   *
-  * @param v          The value of type T carried by the molecule.
   * @param replyValue The wrapper for the reply value, which will ultimately return a value of type R.
   * @tparam T The type of the value carried by the molecule.
   * @tparam R The type of the reply value.
   */
-private[jc] final case class BlockingMolValue[T, R](v: T, replyValue: AbsReplyValue[T, R]) extends AbsMolValue[T] {
-  override private[jc] def getValue: T = v
-
-  override private[jc] def reactionSentNoReply: Boolean = replyValue.noReplyAttemptedYet // no value, no error, and no timeout
+private[jc] final case class BlockingMolValue[T, R](
+  private[jc] val getValue: T,
+  replyValue: AbsReplyValue[T, R]
+) extends AbsMolValue[T] {
+  override private[jc] def reactionSentNoReply: Boolean = replyValue.noReplyAttemptedYet // `true` if no value, no error, and no timeout
 }
 
 /** Abstract trait representing a molecule emitter.
@@ -96,8 +93,6 @@ sealed trait Molecule extends PersistentHashCode {
   def typeSymbol: Symbol = valTypeSymbol
 
   def index: Int = inputIndex
-
-  override def toString: String = (if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "")
 
   /** This is called by a [[ReactionSite]] when a molecule becomes bound to that reaction site.
     *
@@ -131,6 +126,7 @@ sealed trait Molecule extends PersistentHashCode {
     else
       None
 
+  // All these variables will be assigned exactly once and will never change thereafter. It's not clear how best to enforce this in Scala.
   private var valIsPipelined: Boolean = false
 
   protected var reactionSiteWrapper: ReactionSiteWrapper[_, _] = ReactionSiteWrapper.noReactionSite(this)
@@ -141,13 +137,12 @@ sealed trait Molecule extends PersistentHashCode {
 
   protected var hasReactionSite: Boolean = false
 
-  /** The set of reactions that can consume this molecule.
+  /** The list of reactions that can consume this molecule.
     *
-    * @return `None` if the molecule emitter is not yet bound to any reaction site.
+    * Will be empty if the molecule emitter is not yet bound to any reaction site.
+    * Note that this value is private and is used only for static analysis.
     */
-  final private[jc] def consumingReactions: Option[Array[Reaction]] = if (isBound)
-    Some(reactionSiteWrapper.consumingReactions)
-  else None
+  private[jc] lazy val consumingReactions: Array[Reaction] = reactionSiteWrapper.consumingReactions
 
   /** The set of all reactions that *potentially* emit this molecule as output.
     * Some of these reactions may evaluate a run-time condition to decide whether to emit the molecule; so emission is not guaranteed.
@@ -155,13 +150,18 @@ sealed trait Molecule extends PersistentHashCode {
     * Note that these reactions may be defined in any reaction sites, not necessarily at the site to which this molecule is bound.
     * The set of these reactions may change at run time if new reaction sites are written that output this molecule.
     *
+    * This is used only during static analysis. This cannot be made a `lazy val` since static analysis can proceed before all emitting reactions are known.
+    * Static analysis may be incomplete if that happens; but we can do little about this, since reaction sites are activated at run time.
+    *
     * @return Empty set if the molecule is not yet bound to any reaction site.
     */
   final private[jc] def emittingReactions: Set[Reaction] = emittingReactionsSet.toSet
 
   private val emittingReactionsSet: mutable.Set[Reaction] = mutable.Set()
 
-  // This is called by the reaction site only during the initial setup. Once the reaction site is activated, the set of emitting reactions will never change.
+  // This is called by the reaction site only during the initial setup.
+  // Each reaction site will add emitting reactions to all molecules it emits, including molecules bound to other reaction sites.
+  // Once all reaction sites are activated, the set of emitting reactions for this molecule will never change.
   final private[jc] def addEmittingReaction(r: Reaction): Unit = {
     emittingReactionsSet += r
     ()
@@ -175,6 +175,12 @@ sealed trait Molecule extends PersistentHashCode {
 
   /** This is `lazy` because we will only know whether this molecule is static after this molecule is bound to a reaction site, at run time. */
   lazy val isStatic: Boolean = false
+
+  /** Prints a molecule's displayed name and a `/B` suffix for blocking molecules.
+    *
+    * @return A molecule's displayed name as string.
+    */
+  override def toString: String = (if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "") // This can't be a lazy val because `isBlocking` is overridden in derived classes.
 }
 
 /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -186,7 +192,7 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
 
   def unapply(arg: ReactionBodyInput): Option[T] = {
     val (index, inputMoleculeList) = arg
-    inputMoleculeList.lift(index).map(_._2.asInstanceOf[MolValue[T]].v)
+    inputMoleculeList.lift(index).map(_._2.asInstanceOf[MolValue[T]].getValue)
   }
 
   /** Emit a non-blocking molecule.
@@ -214,12 +220,11 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
 
   @volatile private var volatileValueContainer: T = _
 
-  override lazy val isStatic: Boolean = isBound &&
-    reactionSiteWrapper.staticMolsDeclared.contains(this)
+  override lazy val isStatic: Boolean = reactionSiteWrapper.staticMolsDeclared.contains(this)
 
   override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean) = {
     super.setReactionSiteInfo(rs, index, valType, pipelined)
-    reactionSiteWrapper = rs.makeWrapper[T, Unit](this)
+    reactionSiteWrapper = rs.makeWrapper[T, Unit](this) // need to specify types for `makeWrapper`; set `Unit` instead of `R` for non-blocking molecules
   }
 }
 
@@ -312,10 +317,10 @@ private[jc] sealed trait AbsReplyValue[T, R] {
     * The reply value will be received by the process that emitted the blocking molecule, and will unblock that process.
     * The reply value will not be received if the emitting process timed out on the blocking call, or if the reply was already made (then it is an error to reply again).
     *
-    * @param x Value to reply with.
+    * @param r Value to reply with.
     * @return `true` if the reply was received normally, `false` if it was not received due to one of the above conditions.
     */
-  final protected def performReplyAction(x: R): Boolean = {
+  final protected def performReplyAction(r: R): Boolean = {
     // TODO: simplify this code under the assumption that repeated replies are impossible
     val replyWasNotRepeated = hasReply.compareAndSet(false, true)
 
@@ -328,7 +333,7 @@ private[jc] sealed trait AbsReplyValue[T, R] {
       // After acquiring this semaphore, it is safe to read and modify `replyStatus`.
       // The reply value will be assigned only if there was no timeout and no previous reply action.
 
-      replyStatus = HaveReply(x)
+      replyStatus = HaveReply(r)
 
       releaseSemaphoreForEmitter() // Unblock the reaction that emitted this blocking molecule.
       // That reaction will now set reply status and release semaphoreForReplyStatus again.
@@ -340,11 +345,11 @@ private[jc] sealed trait AbsReplyValue[T, R] {
   }
 
   /** This is similar to [[performReplyAction]] except that user did not request the timeout checking, so we have fewer semaphores to deal with. */
-  final protected def performReplyActionWithoutTimeoutCheck(x: R): Unit = {
+  final protected def performReplyActionWithoutTimeoutCheck(r: R): Unit = {
     val replyWasNotRepeated = hasReply.compareAndSet(false, true)
     if (replyWasNotRepeated) {
       // We have not yet tried to reply.
-      replyStatus = HaveReply(x)
+      replyStatus = HaveReply(r)
       releaseSemaphoreForEmitter() // Unblock the reaction that emitted this blocking molecule.
     }
   }
@@ -362,10 +367,10 @@ private[jc] final class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[
     * If a timeout occurred after the reaction body started evaluating but before the reply action was performed, the reply value will not be actually sent anywhere.
     * This method will not fail in that case, but since it returns `Unit`, the user will not know whether the reply succeeded.
     *
-    * @param x Value to reply with.
+    * @param r Value to reply with.
     * @return Unit value, regardless of whether the reply succeeded before timeout.
     */
-  def apply(x: R): Unit = performReplyActionWithoutTimeoutCheck(x)
+  def apply(r: R): Unit = performReplyActionWithoutTimeoutCheck(r)
 
   /** Same but for molecules with type `R = Unit`. */
   def apply()(implicit arg: TypeMustBeUnit[R]): Unit = apply(arg.getUnit)
@@ -375,10 +380,10 @@ private[jc] final class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[
     * If a timeout occurred after the reaction body started evaluating but before the reply action was performed, the reply value will not be actually sent anywhere.
     * This method will return `false` in that case.
     *
-    * @param x Value to reply with.
+    * @param r Value to reply with.
     * @return `true` if the reply was successful, `false` if the blocking molecule timed out, or if a reply action was already performed.
     */
-  def checkTimeout(x: R): Boolean = performReplyAction(x)
+  def checkTimeout(r: R): Boolean = performReplyAction(r)
 
   /** Same as [[checkTimeout]] above but for molecules with type `R = Unit`, with shorter syntax. */
   def checkTimeout()(implicit arg: TypeMustBeUnit[R]): Boolean = checkTimeout(arg.getUnit)
@@ -415,7 +420,7 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     val (index, inputMoleculeList) = arg
     inputMoleculeList.lift(index)
       .map(_._2.asInstanceOf[BlockingMolValue[T, R]])
-      .map { bmv => (bmv.v, bmv.replyValue.asInstanceOf[ReplyValue[T, R]]) }
+      .map { bmv => (bmv.getValue, bmv.replyValue.asInstanceOf[ReplyValue[T, R]]) }
   }
 
   /** Emit a blocking molecule and receive a value when the reply action is performed.
@@ -431,7 +436,7 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
 
   override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean) = {
     super.setReactionSiteInfo(rs, index, valType, pipelined)
-    reactionSiteWrapper = rs.makeWrapper[T, R](this)
+    reactionSiteWrapper = rs.makeWrapper[T, R](this) // need to specify types for `makeWrapper`
   }
 
 }

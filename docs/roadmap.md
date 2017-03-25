@@ -2,7 +2,7 @@
 
 # Version history
 
-- 0.1.8 "Singleton" molecules and reactions are now called "static", which is more accurate. Added more examples, including a fully concurrent Game of Life. Some optimizations in the reaction scheduler. Support for pipelined molecules (an automatic optimization).
+- 0.1.8 "Singleton" molecules and reactions are now called "static", which is more accurate. Added more examples, including a fully concurrent Game of Life. Some optimizations in the reaction scheduler, especially for reactions with repeated input molecules. Support for pipelined molecules (an automatic optimization).
 
 - 0.1.7 New compile-time restrictions, towards guaranteeing single reply for blocking molecules. It is now not allowed to call blocking molecules inside loops, or to emit replies in any non-linear code context (such as, under a closure or in a loop). Change of artifact package from `code.chymyst` to `io.chymyst`. This version is the first one published on Sonatype Maven repository. 
 
@@ -66,6 +66,8 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
  Also define a "shut down" molecule which will enforce quiescence and then shut down the site pool and the reaction pool.
 
+ 3 * 2 - figure out why pipelining does not enforce pairing order in the "pair up to dance" example
+
  2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for statics / pipelined?
 
  4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same reaction site, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on reaction site information gleaned using a macro.
@@ -84,11 +86,11 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 
  3 * 5 - implement automatic thread fusion for static molecules?
  
+ 2 * 3 - when attaching molecules to futures or futures to molecules, we can perhaps schedule the new futures on the same thread pool as the reaction site to which the molecule is bound? This requires having access to that thread pool. Maybe that access would be handy to users anyway?
+ 
  5 * 5 - is it possible to implement distributed execution by sharing the site pool with another machine (but running the reaction sites only on the master node)? Use Paxos, Raft, or other consensus algorithm to ensure consistency?
 
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic. — Will not do now. Not sure that lazy values on molecules are important as a primitive. We can always simulate them using closures.
-
- 3 * 5 - Can we implement Chymyst Core using Future / Promise and remove all blocking and all semaphores?
 
  3 * 2 - add per-molecule logging; log to file or to logger function
 
@@ -107,9 +109,9 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  3 * 5 - consider whether we would like to prohibit emitting molecules from non-reaction code. Maybe with a construct such as `withMolecule{ ... }` where the special molecule will be emitted by the system? Can we rewrite tests so that everything happens only inside reactions?
 
  3 * 3 - perhaps prohibit using explicit thread pools? It's error-prone because the user can forget to stop a pool. Perhaps only expose an API such as `withFixedPool(4){ implicit tp => ...}`? Investigate using implicit values for pools.
- Maybe remove default pools altogether? It seems that every pool needs to be stopped.
+ Maybe remove default pools altogether? It seems that every pool needs to be stopped. -- However, this would prevent sharing thread pools across scopes. Maybe that is not particularly useful?
   
- 3 * 3 - implement "one-off" or "perishable" molecules that are emitted once (like static, from the reaction site itself) and may be emitted only if first consumed (but not necessarily emitted)
+ 3 * 3 - implement "one-off" or "perishable" molecules that are emitted once (like static, from the reaction site itself) and may be emitted only if first consumed (but not necessarily emitted at start of the reaction site)
   
  2 * 2 - If a blocking molecule was emitted without a timeout, we don't need the second semaphore, and checkTimeout() should return `true`
  
@@ -120,6 +122,8 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  3 * 3 - Replace some timed tests by probabilistic tests that run multiple times and fail much less often; perhaps use Li Haoyi's `utest` framework that has features for this.
  
  3 * 3 - `SmartThread` should keep information about which RS and which reaction is now running. This can be used both for monitoring and for automatic assignment of thread pools for reactions defined in the scope of another reaction. 
+ 
+ 3 * 3 - Write a tutorial section about timers and time-outs: cancellable recurring jobs, cancellable subscriptions, time-outs on receiving replies from non-blocking molecules (?)
  
 ## Will not do for now
  
@@ -135,3 +139,5 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  
  3 * 3 - Can we use macros to rewrite f() into f(_) inside reactions for Unit types? Otherwise it seems impossible to implement short syntax `case a() + b() => ` in the input patterns. — No, we can't because { case a() => } doesn't get past the Scala typer, and so macros don't see it at all.
  
+ 3 * 5 - Can we implement Chymyst Core using Future / Promise and remove all blocking and all semaphores? -- No. Automatic concurrent execution of reactions when multiple molecules are available cannot be implemented using promises / futures.
+

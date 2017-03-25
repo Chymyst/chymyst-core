@@ -35,7 +35,7 @@ private[jc] object StaticAnalysis {
   }
 
   private def inputMatchersWeakerThanOutput(isWeaker: (InputMoleculeInfo, OutputMoleculeInfo) => Option[Boolean])
-                                           (input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean = {
+    (input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean = {
     input.flatFoldLeft(output) { (acc, inputInfo) ⇒
       acc
         .find(outputInfo => isWeaker(inputInfo, outputInfo).getOrElse(false))
@@ -148,19 +148,17 @@ private[jc] object StaticAnalysis {
     // The chemistry is likely to be a deadlock if at least one the other output molecules are consumed together with the blocking molecule in the same reaction.
     val likelyDeadlocks = possibleDeadlocks.map {
       case (info, infos) =>
-        (info, info.molecule.consumingReactions.flatMap(
-          _.find { r =>
-            // For each reaction that consumes the molecule `info.molecule`, check whether this reaction also consumes any of the molecules from infos.map(_.molecule). If so, it's a likely deadlock.
-            val uniqueInputsThatAreAmongOutputs = r.info.inputsSortedByConstraintStrength
-              .filter(infos.map(_.molecule) contains _.molecule)
-              .groupBy(_.molecule).mapValues(_.lastOption).values.toList.flatten // Among repeated input molecules, choose only one molecule with the weakest matcher.
+        (info, info.molecule.consumingReactions.find { r =>
+          // For each reaction that consumes the molecule `info.molecule`, check whether this reaction also consumes any of the molecules from infos.map(_.molecule). If so, it's a likely deadlock.
+          val uniqueInputsThatAreAmongOutputs = r.info.inputsSortedByConstraintStrength
+            .filter(infos.map(_.molecule) contains _.molecule)
+            .groupBy(_.molecule).mapValues(_.lastOption).values.toList.flatten // Among repeated input molecules, choose only one molecule with the weakest matcher.
 
-            uniqueInputsThatAreAmongOutputs.exists(infoInput =>
-              infos.exists(infoOutput =>
-                infoInput.matcherIsWeakerThanOutput(infoOutput).getOrElse(false))
-            )
-          }
-        )
+          uniqueInputsThatAreAmongOutputs.exists(infoInput =>
+            infos.exists(infoOutput =>
+              infoInput.matcherIsWeakerThanOutput(infoOutput).getOrElse(false))
+          )
+        }
         )
     }
 
