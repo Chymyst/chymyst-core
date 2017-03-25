@@ -16,6 +16,9 @@ package io.chymyst.jc
   * Negation of a conjunction or disjunction, such as `! (a || b)`, can be simplified to CNF.
   */
 object ConjunctiveNormalForm {
+
+  type CNF[T] = List[List[T]]
+
   /** Compute `a || b` where `a` is a single Boolean term and `b` is a Boolean formula in CNF.
     *
     * @param a Primitive Boolean term that cannot be simplified; does not contain disjunctions or conjunctions.
@@ -23,7 +26,7 @@ object ConjunctiveNormalForm {
     * @tparam T Type of primitive Boolean terms.
     * @return The resulting Boolean formula in CNF.
     */
-  def disjunctionOneTerm[T](a: T, b: List[List[T]]): List[List[T]] = b.map(y => (a :: y).distinct).distinct
+  def disjunctionOneTerm[T](a: T, b: CNF[T]): CNF[T] = b.map(y => (a :: y).distinct).distinct
 
   /** Compute `a || b` where `a` is a single "clause", i.e. a disjunction of primitive Boolean terms, and `b` is a Boolean formula in CNF.
     *
@@ -32,7 +35,7 @@ object ConjunctiveNormalForm {
     * @tparam T Type of primitive Boolean terms.
     * @return The resulting Boolean formula in CNF.
     */
-  def disjunctionOneClause[T](a: List[T], b: List[List[T]]): List[List[T]] = b.map(y => (a ++ y).distinct).distinct
+  def disjunctionOneClause[T](a: List[T], b: CNF[T]): CNF[T] = b.map(y => (a ++ y).distinct).distinct
 
   /** Compute `a || b` where `a` and `b` are Boolean formulas in CNF.
     *
@@ -41,7 +44,7 @@ object ConjunctiveNormalForm {
     * @tparam T Type of primitive Boolean terms.
     * @return The resulting Boolean formula in CNF.
     */
-  def disjunction[T](a: List[List[T]], b: List[List[T]]): List[List[T]] = a.flatMap(x => disjunctionOneClause(x, b)).distinct
+  def disjunction[T](a: CNF[T], b: CNF[T]): CNF[T] = a.flatMap(x => disjunctionOneClause(x, b)).distinct
 
   /** Compute `a && b` where `a` and `b` are Boolean formulas in CNF.
     *
@@ -50,7 +53,7 @@ object ConjunctiveNormalForm {
     * @tparam T Type of primitive Boolean terms.
     * @return The resulting Boolean formula in CNF.
     */
-  def conjunction[T](a: List[List[T]], b: List[List[T]]): List[List[T]] = (a ++ b).distinct
+  def conjunction[T](a: CNF[T], b: CNF[T]): CNF[T] = (a ++ b).distinct
 
   /** Compute `! a` where `a` is a Boolean formula in CNF.
     *
@@ -60,7 +63,7 @@ object ConjunctiveNormalForm {
     * @tparam T Type of primitive Boolean terms.
     * @return The resulting Boolean formula in CNF.
     */
-  def negation[T](negateOneTerm: T => T)(a: List[List[T]]): List[List[T]] = a match {
+  def negation[T](negateOneTerm: T => T)(a: CNF[T]): CNF[T] = a match {
     case x :: xs =>
       val nxs = negation(negateOneTerm)(xs)
       x.flatMap(t => disjunctionOneTerm(negateOneTerm(t), nxs))
@@ -68,11 +71,11 @@ object ConjunctiveNormalForm {
   }
 
   /** Represents the constant `true` value in CNF. */
-  def trueConstant[T]: List[List[T]] = List()
+  def trueConstant[T]: CNF[T] = List()
 
   /** Represents the constant `false` value in CNF. */
-  def falseConstant[T]: List[List[T]] = List(List())
+  def falseConstant[T]: CNF[T] = List(List())
 
   /** Injects a single primitive term into a CNF. */
-  def oneTerm[T](a: T): List[List[T]] = List(List(a))
+  def oneTerm[T](a: T): CNF[T] = List(List(a))
 }
