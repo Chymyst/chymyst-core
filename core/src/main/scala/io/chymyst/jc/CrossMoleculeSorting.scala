@@ -110,8 +110,15 @@ private[jc] object CrossMoleculeSorting {
 
 }
 
+/** Commands used while searching for molecule values among groups of input molecules that are constrained by cross-molecule guards or conditionals.
+  * A sequence of these commands (the "DSL program") is computed for each reaction by the reaction site.
+  */
 private[jc] sealed trait SearchDSL
 
+/** Choose a molecule value among the molecules available at the reaction site.
+  *
+  * @param i Index of the molecule within the reaction input list (the "input index").
+  */
 private[jc] final case class ChooseMol(i: Int) extends SearchDSL
 
 /** Impose a guard condition on the molecule values found so far.
@@ -120,4 +127,8 @@ private[jc] final case class ChooseMol(i: Int) extends SearchDSL
   */
 private[jc] final case class ConstrainGuard(i: Int) extends SearchDSL
 
+/** A group of cross-dependent molecules has been closed.
+  * At this point, we can select one set of molecule values and stop searching for other molecule values within this group.
+  * If no molecule values are found that satisfy all constraints for this group, the search for the molecule values can be abandoned (the current reaction cannot run).
+  */
 private[jc] case object CloseGroup extends SearchDSL

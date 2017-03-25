@@ -3,29 +3,23 @@ package io.chymyst.jc
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
 
-//import java.util.function.{Function, BiFunction}
-
 import scala.annotation.tailrec
-import scala.collection.mutable
 import scala.util.{Left, Right}
 
 
 /** Syntax helper for zero-argument molecule emitters.
+  * This trait has a single method, `getUnit`, which returns a value of type `T`, but the only instance will exist if `T` is `Unit` and will return `()`.
   *
-  * @tparam A Type of the molecule value. If this is `Unit`, we will have an implicit value of type `TypeIsUnit[A]`, which will provide extra functionality.
+  * @tparam A Type of the molecule value. If this is `Unit`, we will have an implicit value of type `TypeIsUnit[A]`, which will define `getUnit` to return `()`.
   */
 sealed trait TypeMustBeUnit[A] {
-  type UnapplyType
-
   def getUnit: A
 }
 
 /** Syntax helper for molecules with unit values.
-  * A value of [[TypeMustBeUnit]]`[A]` is available only for `A == Unit`.
+  * An implicit value of [[TypeMustBeUnit]]`[A]` is available only if `A == Unit`.
   */
 object TypeMustBeUnitValue extends TypeMustBeUnit[Unit] {
-  override type UnapplyType = Boolean
-
   override def getUnit: Unit = ()
 }
 
@@ -70,6 +64,12 @@ object Core {
     def =!=(other: A): Boolean = self != other
   }
 
+  /** Compute the difference between sequences, enforcing type equality.
+    * (The standard `diff` method will allow type mismatch, which has lead to an error.)
+    *
+    * @param s Sequence whose elements need to be "subtracted".
+    * @tparam T Type of sequence elements.
+    */
   implicit final class SafeSeqDiff[T](val s: Seq[T]) extends AnyVal {
     def difff(t: Seq[T]): Seq[T] = s diff t
   }
@@ -78,23 +78,17 @@ object Core {
     def difff(t: List[T]): List[T] = s diff t
   }
 
+  /** Provide `.toScalaSymbol` method for `String` values. */
   implicit final class StringToSymbol(val s: String) extends AnyVal {
     def toScalaSymbol: scala.Symbol = scala.Symbol(s)
   }
 
-  /** Type alias for reaction body.
-    *
-    */
+  /** Type alias for reaction body, which is used often. */
   private[jc] type ReactionBody = PartialFunction[ReactionBodyInput, Any]
 
-  // for M[T] molecules, the value inside AbsMolValue[T] is of type T; for B[T,R] molecules, the value is of type
-  // ReplyValue[T,R]. For now, we don't use shapeless to enforce this typing relation.
-  //  private[jc] type MoleculeBag = MutableBag[Molecule, AbsMolValue[_]]
-  private[jc] type MutableLinearMoleculeBag = mutable.Map[Molecule, AbsMolValue[_]]
-
+  /** For each site-wide molecule, this array holds the values of the molecules actually present at the reaction site.
+    * The `MutableBag` instance may be of different subclass for each molecule. */
   private[jc] type MoleculeBagArray = Array[MutableBag[AbsMolValue[_]]]
-
-  //  private[jc] def moleculeBagToString(mb: MoleculeBag): String = moleculeBagToString(mb.getMap)
 
   private[jc] def moleculeBagToString(mb: Map[Molecule, Map[AbsMolValue[_], Int]]): String =
     mb.toSeq
@@ -107,17 +101,24 @@ object Core {
         }
       }.sorted.mkString(" + ")
 
-  private[jc] def moleculeBagToString(inputs: InputMoleculeList): String =
-    inputs.map {
-      case (mol, jmv) => s"$mol${pipelineSuffix(mol)}($jmv)"
+  private[jc] def moleculeBagToString(reaction: Reaction, inputs: InputMoleculeList): String =
+    inputs.indices.map { i ⇒
+      val jmv = inputs(i)
+      val mol = reaction.info.inputs(i).molecule
+      s"$mol${pipelineSuffix(mol)}($jmv)"
     }.toSeq.sorted.mkString(" + ")
 
+  /** The pipeline suffix is printed only in certain debug messages; the molecule's [[Molecule.name]] does not include that suffix.
+    * The reason for this choice is that typically many molecules are automatically pipelined,
+    * so output messages would be unnecessarily encumbered with the `/P` suffix.
+    */
   private def pipelineSuffix(mol: Molecule): String =
     if (mol.isPipelined)
       "/P"
     else
       ""
 
+  /** Global log of all error and warning messages ever emitted by any reaction site. */
   private[jc] val errorLog = new ConcurrentLinkedQueue[String]
 
   private[jc] def reportError(message: String): Unit = {
@@ -125,11 +126,10 @@ object Core {
     ()
   }
 
-  // TODO: simplify InputMoleculeList to an array of AbsMolValue, eliminating the tuple - we already have the input list and it's fixed for each reaction at compile time
-  /** List of molecules used as inputs by a reaction. */
-  type InputMoleculeList = Array[(Molecule, AbsMolValue[_])]
+  /** List of molecules used as inputs by a reaction. The molecules are ordered the same as in the reaction input list. */
+  type InputMoleculeList = Array[AbsMolValue[_]]
 
-  // Type used as argument for ReactionBody.
+  /** Type used as argument for [[ReactionBody]]. The `Int` value is the index into the [[InputMoleculeList]] array. */
   type ReactionBodyInput = (Int, InputMoleculeList)
 
   implicit final class EitherMonad[L, R](val e: Either[L, R]) extends AnyVal {

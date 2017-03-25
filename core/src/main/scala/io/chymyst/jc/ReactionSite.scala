@@ -87,25 +87,30 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         val relatedMoleculeCounts = Array.tabulate[Int](moleculesPresent.length)(i ⇒ moleculesPresent(i).takeAny(maxRequiredMoleculeCount(i)).size)
         // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
         val found: Option[(Reaction, InputMoleculeList)] = findReaction(mol, relatedMoleculeCounts)
-        found.foreach(_._2.foreach { case (k, v) =>
-          // This error indicates a bug in this code, which should already manifest itself in failing tests!
-          if (!removeFromBag(k, v)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $k($v) from its bag; molecule index ${k.index}, bag ${moleculesPresent(k.index)}")
-        })
+        // If we have found a reaction that can be run, remove its input molecule values from their bags.
+        found.foreach { case (thisReaction, thisInputList) ⇒
+          thisInputList.indices.foreach { i ⇒
+            val molValue = thisInputList(i)
+            val mol = thisReaction.info.inputs(i).molecule
+            // This error (molecule value was not in bag) indicates a bug in this code, which should already manifest itself in failing tests!
+            if (!removeFromBag(mol, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $mol($molValue) from its bag; molecule index ${mol.index}, bag ${moleculesPresent(mol.index)}")
+          }
+        }
         found
       }
     // End of synchronized block.
     // We already decided on starting a reaction, so we don't hold the `synchronized` lock on the molecule bag any more.
 
     foundReactionAndInputs match {
-      case Some((reaction, usedInputs)) =>
+      case Some((thisReaction, usedInputs)) =>
         // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
-        val poolForReaction = reaction.threadPool.getOrElse(reactionPool)
+        val poolForReaction = thisReaction.threadPool.getOrElse(reactionPool)
         if (poolForReaction.isInactive) {
-          reportError(s"In $this: cannot run reaction {${reaction.info}} since reaction pool is not active; input molecules ${Core.moleculeBagToString(usedInputs)} were consumed and not emitted again")
+          reportError(s"In $this: cannot run reaction {${thisReaction.info}} since reaction pool is not active; input molecules ${Core.moleculeBagToString(thisReaction, usedInputs)} were consumed and not emitted again")
           // In this case, we do not attempt to schedule a reaction. However, input molecules were consumed and not emitted again.
         } else {
           if (!Thread.currentThread().isInterrupted) {
-            if (logLevel > 1) println(s"Debug: In $this: starting reaction {${reaction.info}} with inputs [${Core.moleculeBagToString(usedInputs)}] on reaction pool $poolForReaction while on site pool $sitePool")
+            if (logLevel > 1) println(s"Debug: In $this: starting reaction {${thisReaction.info}} with inputs [${Core.moleculeBagToString(thisReaction, usedInputs)}] on reaction pool $poolForReaction while on site pool $sitePool")
           }
           if (logLevel > 2) {
             val moleculesRemainingMessage =
@@ -116,7 +121,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             println(moleculesRemainingMessage)
           }
           // Schedule the reaction now. Provide reaction info to the thread.
-          scheduleReaction(reaction, usedInputs, poolForReaction)
+          scheduleReaction(thisReaction, usedInputs, poolForReaction)
           decideReactionsForNewMolecule(mol) // Need to try running another reaction with the same molecule, if possible.
         }
       case None =>
@@ -170,16 +175,17 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   /** This closure will be run on the reaction thread pool to start a new reaction.
     *
-    * @param reaction   Reaction to run.
-    * @param usedInputs Molecules (with values) that are consumed by the reaction.
+    * @param thisReaction Reaction to run.
+    * @param usedInputs   Molecules (with values) that are consumed by the reaction.
     */
-  private def runReaction(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit = {
-    lazy val reactionStartMessage = s"Debug: In $this: reaction {${reaction.info}} started on thread pool $reactionPool with thread id ${Thread.currentThread().getId}"
+  private def runReaction(thisReaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit = {
+    lazy val reactionStartMessage = s"Debug: In $this: reaction {${thisReaction.info}} started on thread pool $reactionPool with thread id ${Thread.currentThread().getId}"
 
     if (logLevel > 1) println(reactionStartMessage)
+    lazy val reactionInputs = Core.moleculeBagToString(thisReaction, usedInputs)
     val exitStatus: ReactionExitStatus = try {
       // Here we actually apply the reaction body to its input molecules.
-      reaction.body.apply((usedInputs.length - 1, usedInputs))
+      thisReaction.body.apply((usedInputs.length - 1, usedInputs))
       // If we are here, we had no exceptions during evaluation of reaction body.
       ReactionExitSuccess
     } catch {
@@ -188,7 +194,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // Running the reaction body produced an exception that is internal to `Chymyst Core`.
         // We should not try to recover from this; it is either an error on user's part
         // or a bug in `Chymyst Core`.
-        val message = s"In $this: Reaction {${reaction.info}} with inputs [${Core.moleculeBagToString(usedInputs)}] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: ${e.getMessage}"
+        val message = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: ${e.getMessage}"
         reportError(message)
         ReactionExitFailure(message)
 
@@ -196,13 +202,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // Running the reaction body produced an exception. Note that the exception has killed a thread.
         // We will now re-insert the input molecules (except the blocking ones). Hopefully, no side-effects or output molecules were produced so far.
         val (status, retryMessage) =
-          if (reaction.retry) {
-            scheduleReaction(reaction, usedInputs, poolForReaction)
+          if (thisReaction.retry) {
+            scheduleReaction(thisReaction, usedInputs, poolForReaction)
             (ReactionExitRetryFailure(e.getMessage), " Retry run was scheduled.")
           }
           else (ReactionExitFailure(e.getMessage), " Retry run was not scheduled.")
 
-        val generalExceptionMessage = s"In $this: Reaction {${reaction.info}} with inputs [${Core.moleculeBagToString(usedInputs)}] produced an exception.$retryMessage Message: ${e.getMessage}"
+        val generalExceptionMessage = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] produced an exception.$retryMessage Message: ${e.getMessage}"
 
         reportError(generalExceptionMessage)
         status
@@ -214,15 +220,17 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // value to unblock the threads.
 
     // Compute error messages here in case we will need them later.
-    val blockingMoleculesWithNoReply = usedInputs
-      .filter(_._2.reactionSentNoReply)
-      .map(_._1).toSeq.toOptionSeq.map(_.map(_.toString).sorted.mkString(", "))
+    val blockingMoleculesWithNoReply = usedInputs.zipWithIndex
+      .filter(_._1.reactionSentNoReply)
+      .map{ case (_, i) ⇒ thisReaction.info.inputs(i).molecule}
+      .toSeq.toOptionSeq
+      .map(_.map(_.toString).sorted.mkString(", "))
 
     // Make this non-lazy to improve coverage.
     val errorMessageFromStatus = exitStatus.getMessage.map(message => s". Reported error: $message").getOrElse("")
 
     lazy val messageNoReply = blockingMoleculesWithNoReply.map { s =>
-      s"Error: In $this: Reaction {${reaction.info}} with inputs [${Core.moleculeBagToString(usedInputs)}] finished without replying to $s$errorMessageFromStatus"
+      s"Error: In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] finished without replying to $s$errorMessageFromStatus"
     }
 
     // We will report all errors to each blocking molecule.
@@ -233,7 +241,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // Insert error messages into the reply wrappers and release all semaphores.
     usedInputs.foreach {
-      case (_, bm@BlockingMolValue(_, replyValue)) =>
+      case bm@BlockingMolValue(_, replyValue) =>
         if (haveErrorsWithBlockingMolecules && exitStatus.reactionSucceededOrFailedWithoutRetry) {
           // Do not send error messages to molecules that already got a reply - this is pointless and leads to errors.
           if (bm.reactionSentNoReply) {

@@ -27,20 +27,20 @@ object + {
   * @tparam T Type of the molecule value.
   */
 private[jc] sealed trait AbsMolValue[T] {
-  private[jc] def getValue: T
+  private[jc] def moleculeValue: T
 
   /** The hash code of an [[AbsMolValue]] should not depend on anything but the wrapped value (of type `T`).
     * However, extending [[PersistentHashCode]] leads to errors!
     * (See the test "correctly store several molecule copies in a MutableQueueBag" in `ReactionSiteSpec.scala`.)
     * Therefore, we override the `hashCode` directly here, and make it a `lazy val`.
     */
-  override lazy val hashCode: Int = getValue.hashCode()
+  override lazy val hashCode: Int = moleculeValue.hashCode()
 
   /** String representation of molecule values will omit printing the `Unit` values but print all other types normally.
     *
     * @return String representation of molecule value of type T. Unit values are printed as empty strings.
     */
-  override final def toString: String = getValue match {
+  override final def toString: String = moleculeValue match {
     case () => ""
     case v => v.toString
   }
@@ -60,7 +60,7 @@ private[jc] sealed trait AbsMolValue[T] {
   *
   * @tparam T The type of the value.
   */
-private[jc] final case class MolValue[T](private[jc] val getValue: T) extends AbsMolValue[T]
+private[jc] final case class MolValue[T](private[jc] val moleculeValue: T) extends AbsMolValue[T]
 
 /** Container for the value of a blocking molecule.
   * The `hashCode` of a [[BlockingMolValue]] should depend only on the `hashCode` of the value `v`,
@@ -71,7 +71,7 @@ private[jc] final case class MolValue[T](private[jc] val getValue: T) extends Ab
   * @tparam R The type of the reply value.
   */
 private[jc] final case class BlockingMolValue[T, R](
-  private[jc] val getValue: T,
+  private[jc] val moleculeValue: T,
   replyValue: AbsReplyValue[T, R]
 ) extends AbsMolValue[T] {
   override private[jc] def reactionSentNoReply: Boolean = replyValue.noReplyAttemptedYet // `true` if no value, no error, and no timeout
@@ -140,7 +140,7 @@ sealed trait Molecule extends PersistentHashCode {
   /** The list of reactions that can consume this molecule.
     *
     * Will be empty if the molecule emitter is not yet bound to any reaction site.
-    * Note that this value is private and is used only for static analysis.
+    * This value is used only for static analysis.
     */
   private[jc] lazy val consumingReactions: Array[Reaction] = reactionSiteWrapper.consumingReactions
 
@@ -192,7 +192,7 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
 
   def unapply(arg: ReactionBodyInput): Option[T] = {
     val (index, inputMoleculeList) = arg
-    inputMoleculeList.lift(index).map(_._2.asInstanceOf[MolValue[T]].getValue)
+    inputMoleculeList.lift(index).map(_.asInstanceOf[MolValue[T]].moleculeValue)
   }
 
   /** Emit a non-blocking molecule.
@@ -216,7 +216,7 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
   else throw new Exception("Molecule c is not bound to any reaction site")
 
   private[jc] def assignStaticMolVolatileValue(molValue: AbsMolValue[_]) =
-    volatileValueContainer = molValue.asInstanceOf[MolValue[T]].getValue
+    volatileValueContainer = molValue.asInstanceOf[MolValue[T]].moleculeValue
 
   @volatile private var volatileValueContainer: T = _
 
@@ -396,7 +396,6 @@ private[jc] final class ReplyValue[T, R] extends (R => Unit) with AbsReplyValue[
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
 final class B[T, R](val name: String) extends (T => R) with Molecule {
-
   override val isBlocking = true
 
   /** Emit a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
@@ -408,7 +407,7 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
   def timeout(v: T)(duration: Duration): Option[R] = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, R]]
     .emitAndAwaitReplyWithTimeout(duration.toNanos, this, v, new ReplyValue[T, R])
 
-  /** Same but for molecules with type `T = Unit`, with shorter syntax. */
+  /** Same but for molecules with type `T = Unit`; enables shorter syntax `b().timeout(1.second)`. */
   def timeout()(duration: Duration)(implicit arg: TypeMustBeUnit[T]): Option[R] = timeout(arg.getUnit)(duration)
 
   /** Perform the unapply matching and return a wrapped ReplyValue on success.
@@ -419,8 +418,8 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
   def unapply(arg: ReactionBodyInput): Option[(T, ReplyValue[T, R])] = {
     val (index, inputMoleculeList) = arg
     inputMoleculeList.lift(index)
-      .map(_._2.asInstanceOf[BlockingMolValue[T, R]])
-      .map { bmv => (bmv.getValue, bmv.replyValue.asInstanceOf[ReplyValue[T, R]]) }
+      .map(_.asInstanceOf[BlockingMolValue[T, R]])
+      .map { bmv => (bmv.moleculeValue, bmv.replyValue.asInstanceOf[ReplyValue[T, R]]) }
   }
 
   /** Emit a blocking molecule and receive a value when the reply action is performed.
@@ -431,7 +430,7 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
   def apply(v: T): R = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, R]]
     .emitAndAwaitReply(this, v, new ReplyValue[T, R])
 
-  /** This enables the short syntax `b()` and will only work when `T == Unit`. */
+  /** This enables the short syntax `b()` instead of `b(())`, and will only work when `T == Unit`. */
   def apply()(implicit arg: TypeMustBeUnit[T]): R = apply(arg.getUnit)
 
   override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean) = {

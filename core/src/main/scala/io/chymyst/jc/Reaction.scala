@@ -306,13 +306,13 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
     case WildcardInput | SimpleVarInput(_, None) =>
       true
     case SimpleVarInput(v, Some(cond)) =>
-      cond.isDefinedAt(molValue.getValue)
+      cond.isDefinedAt(molValue.moleculeValue)
     case ConstInputPattern(v) =>
-      v === molValue.getValue
+      v === molValue.moleculeValue
     case OtherInputPattern(_, _, true) =>
       true
     case OtherInputPattern(matcher, _, _) =>
-      matcher.isDefinedAt(molValue.getValue)
+      matcher.isDefinedAt(molValue.moleculeValue)
   }
 
   private[jc] val isSimpleType: Boolean = simpleTypes contains valType
@@ -816,7 +816,7 @@ final case class Reaction(
               case ConstrainGuard(i) ⇒
                 val guard = info.crossGuards(i)
                 Some(repeatedMolValuesStream.filter { _ ⇒
-                  guard.cond.isDefinedAt(guard.indices.map(i ⇒ foundValues(i).getValue).toList)
+                  guard.cond.isDefinedAt(guard.indices.map(i ⇒ foundValues(i).moleculeValue).toList)
                 })
 
               case CloseGroup ⇒
@@ -828,7 +828,7 @@ final case class Reaction(
         }
       }
     if (foundResult)
-      Some((this, Array.tabulate(foundValues.length)(i ⇒ (info.inputs(i).molecule, foundValues(i)))))
+      Some((this, foundValues))
     else
       None
   }

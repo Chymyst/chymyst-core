@@ -77,7 +77,7 @@ behavior of "reaction sha1"
     c.emittingReactions shouldEqual Set()
     a.consumingReactions.length shouldEqual 1
     a.consumingReactions.head.toString shouldEqual expectedReaction
-    b.consumingReactions shouldEqual None
+    b.consumingReactions shouldEqual Array()
     c.consumingReactions shouldEqual a.consumingReactions
   }
 
@@ -1030,8 +1030,8 @@ behavior of "reaction sha1"
     )
 
     val inputs = new InputMoleculeList(2)
-    inputs(0) = (dIncorrectStaticMol, MolValue(()))
-    inputs(1) = (e, MolValue(()))
+    inputs(0) = MolValue(())
+    inputs(1) = MolValue(())
     val thrown = intercept[Exception] {
       r1.body.apply((inputs.length - 1, inputs)) shouldEqual 123 // Reaction ran on a non-reaction thread (i.e. on this thread) and attempted to emit the static molecule.
     }
