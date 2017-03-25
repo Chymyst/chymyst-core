@@ -442,6 +442,15 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a + a → ...}")
   }
 
+  it should "give warning in a reaction with static molecule possible livelock" in {
+    val a = m[Int]
+    val warnings = site(
+      go { case _ ⇒ a(1) },
+      go { case a(1) ⇒ val x = 1; a(x) }
+    )
+    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
+  }
+
   behavior of "deadlock detection"
 
   it should "not warn about likely deadlock for a reaction that emits molecules for itself in the right order" in {

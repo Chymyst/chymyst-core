@@ -57,8 +57,6 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 # Current To-Do List
 
  value * difficulty - description
-  
- 2 * 3 - detect livelock due to static molecule emission (at the moment, they are not considered as present inputs?)
 
  3 * 2 - figure out why pipelining does not enforce pairing order in the "pair up to dance" example
 
