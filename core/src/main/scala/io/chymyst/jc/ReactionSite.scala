@@ -345,6 +345,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         }
       } else {
         // For pipelined molecules, check whether their value satisfies at least one of the conditions (if any conditions are present).
+        // For non-pipelined molecules, `admitsValue` will be `true`.
         val admitsValue = pipelinedMolecules.get(mol.index).forall(infos ⇒ infos.isEmpty || infos.exists(_.admitsValue(molValue)))
         if (mol.isStatic) {
           // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
@@ -509,8 +510,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     staticDiagnostics.checkWarningsAndErrors()
 
-    // Emit static molecules (note: this is on the same thread as the call to `site`!).
-    // This must be done without starting any reactions.
+    // Emit static molecules now.
+    // This must be done without starting any reactions that might consume these molecules.
+    // So, we set the flag `emittingStaticMolsNow`, which will prevent other reactions from starting.
+    // Note: mutable variables are OK since this is on the same thread as the call to `site`, so it's guaranteed to be single-threaded!
     emittingStaticMolsNow = true
     staticReactions.foreach { reaction =>
       // It is OK that the argument is `null` because static reactions match on the wildcard: { case _ => ... }
