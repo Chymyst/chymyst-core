@@ -422,16 +422,19 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
 object Macros {
 
-  /** Return the raw expression tree. This macro is used only for testing.
+  /** Return the raw expression tree. This macro is used only in tests, to verify that certain expression trees are what the code expects them to be.
     *
     * @param x Any scala expression. The expression will not be evaluated.
     * @return The raw syntax tree object (after typer) corresponding to the expression.
     */
   private[jc] def rawTree(x: Any): String = macro CommonMacros.rawTreeImpl
 
-  /** This macro is not actually used.
-    * It serves only for testing the mechanism by which we detect the name of the enclosing value.
-    * For example, `val myVal = { 1; 2; 3; getName }` returns the string "myVal".
+  /** Determine the name of the enclosing value.
+    * For example, `val myVal = { 1; 2; 3; getName }` returns the string `"myVal"`.
+    *
+    * This works only for simple values, but not for pattern-matched values such as `val (x,y) = (getName, getName)`.
+    *
+    * This macro is used only in tests, to check the mechanism by which we detect the name of the enclosing value.
     *
     * @return The name of the enclosing value as string.
     */

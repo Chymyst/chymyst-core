@@ -124,6 +124,7 @@ package object jc {
     }
   }
 
+  /** We need to have a single implicit instance of [[TypeMustBeUnit]]. */
   implicit val _: TypeMustBeUnit[Unit] = TypeMustBeUnitValue
 
 }

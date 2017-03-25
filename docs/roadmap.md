@@ -2,15 +2,15 @@
 
 # Version history
 
-- 0.1.8 "Singleton" molecules and reactions are now called "static", which is more accurate. Added more examples, including a fully concurrent Game of Life. Some optimizations in the reaction scheduler, especially for reactions with repeated input molecules. Support for pipelined molecules (an automatic optimization).
+- 0.1.8 "Singleton" molecules and reactions are now called "static", which is more accurate. Added more tutorial examples, including fork/join and a fully concurrent Game of Life. Some code cleanups and optimizations in the reaction scheduler, especially for reactions with repeated input molecules and cross-molecule conditions. Support for pipelined molecules (an automatic optimization) makes molecule selection faster.
 
 - 0.1.7 New compile-time restrictions, towards guaranteeing single reply for blocking molecules. It is now not allowed to call blocking molecules inside loops, or to emit replies in any non-linear code context (such as, under a closure or in a loop). Change of artifact package from `code.chymyst` to `io.chymyst`. This version is the first one published on Sonatype Maven repository. 
 
-- 0.1.6 A different mechanism now implements the syntax `a()` for emitting molecules with `Unit` values; no more auxiliary classes `E`, `BE`, `EB`, `EE`, which simplifies code and eliminates the need for whitebox macros. Breaking change: `timeout(value)(duraction)` instead of `timeout(duraction)(value)` as before. An optimization for the reaction scheduler now makes simple reactions start faster. The project build has been revamped: now there is a single JAR artifact and a single SBT project for `Chymyst`, rather than 3 as before. A skeleton "hello-world" project is available in a separate repository. `Chymyst` has been moved to a separate repository as well. Various improvements in the compile-time analysis of reactions: livelock detection now understands that molecules emitted under `if/else` constructions are not always emitted.
+- 0.1.6 A different type-safe mechanism now implements the syntax `a()` for emitting molecules with `Unit` values; no more auxiliary classes `E`, `BE`, `EB`, `EE`, which simplified code and eliminated the need for whitebox macros. Breaking API change: `timeout(value)(duraction)` instead of `timeout(duraction)(value)` used previously. An optimization for the reaction scheduler now makes simple reactions start faster. The project build has been revamped: now there is a single JAR artifact and a single SBT project for `Chymyst`, rather than 3 as before. A skeleton "hello-world" project is available in a separate repository. `Chymyst` has been moved to a separate repository as well. Various improvements in the compile-time analysis of reactions: livelock detection now understands that molecules emitted under `if/else` constructions are not always emitted.
 
 - 0.1.5 Bug fix for a rare race condition with time-out on blocking molecules. New `checkTimeout` API to make a clean distinction between replies that need to check the timeout status and replies that don't. Documentation was improved. Code cleanups resulted in 100% test coverage. Revamped reaction site code now supports nonlinear input patterns.
 
-- 0.1.4 Simplify API: now users need only one package import. Many more tutorial examples of chemical machine concurrency. Test code coverage is 97%. More compiler warnings enabled (including deprecation warnings). There are now more intelligent "whitebox" macros that generate different subclasses of `M[T]` and `B[T,R]` when `T` or `R` are the `Unit` type, to avoid deprecation warnings with the syntax `f()`.
+- 0.1.4 Simplify API: now users need only one package import. Many more tutorial examples of chemical machine concurrency. Test code coverage is at 97%. More compiler warnings enabled (including deprecation warnings). There are now more intelligent "whitebox" macros that generate different subclasses of `M[T]` and `B[T,R]` when `T` or `R` are the `Unit` type, to avoid deprecation warnings with the syntax `f()`.
 
 - 0.1.3 Major changes in the API ("site", "go" instead of "join", "run") and in the terminology used in the tutorial and in the code: we now use the chemical machine paradigm more consistently, and avoid using the vague term "join". The build system now uses the "wartremover" SBT plugin to check for more possible errors. Test code coverage is at 96%.
 
@@ -41,7 +41,7 @@ In particular, do not lock the entire molecule bag - only lock some groups of mo
 This will allow us to implement interesting features such as:
 
 - start many reactions at once when possible, even at one and the same reaction site
-- allow nonlinear input patterns and arbitrary guards (done in 0.1.5)
+- allow nonlinear input patterns and arbitrary guards (done in 0.1.5, optimized in 0.1.8)
 - automatic pipelining (i.e. strict ordering of consumed molecules) should give a speedup (done in 0.1.8)
 
 Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka Streaming, Kafka, Heron. Define and use "pipelined" molecules that are optimized for streaming usage.
@@ -60,19 +60,19 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
   
  2 * 3 - detect livelock due to static molecule emission (at the moment, they are not considered as present inputs?)
 
+ 3 * 2 - figure out why pipelining does not enforce pairing order in the "pair up to dance" example
+
+ 4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same reaction site, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on reaction site information gleaned using a macro.
+
+ 4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
+
  2 * 2 - Detect this condition at the reaction site time:
  A cycle of input molecules being subset of output molecules, possibly spanning several reaction sites (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.  - This depends on better detection of output environments.
  
  3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
  Also define a "shut down" molecule which will enforce quiescence and then shut down the site pool and the reaction pool.
 
- 3 * 2 - figure out why pipelining does not enforce pairing order in the "pair up to dance" example
-
  2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for statics / pipelined?
-
- 4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same reaction site, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on reaction site information gleaned using a macro.
-
- 4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
 
  3 * 3 - add logging of reactions currently in progress at a given RS. (Need a custom thread class, or a registry of reactions?)
  
@@ -84,7 +84,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 
  3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is emitted from a thread T and the corresponding reaction site runs on the same thread T, do not schedule a task but simply run the reaction site synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a reaction site that runs on thread T and the reaction is configured to run on the same thread, do not schedule a task but simply run the reaction synchronously.
 
- 3 * 5 - implement automatic thread fusion for static molecules?
+ 3 * 5 - implement automatic thread fusion for static molecules? -- not sure how that would work.
  
  2 * 3 - when attaching molecules to futures or futures to molecules, we can perhaps schedule the new futures on the same thread pool as the reaction site to which the molecule is bound? This requires having access to that thread pool. Maybe that access would be handy to users anyway?
  

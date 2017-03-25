@@ -111,7 +111,8 @@ private[jc] object CrossMoleculeSorting {
 }
 
 /** Commands used while searching for molecule values among groups of input molecules that are constrained by cross-molecule guards or conditionals.
-  * A sequence of these commands (the "DSL program") is computed for each reaction by the reaction site.
+  * A sequence of these commands (the "SearchDSL program") is computed for each reaction by the reaction site.
+  * SearchDSL programs are interpreted at run time by [[Reaction.findInputMolecules]].
   */
 private[jc] sealed trait SearchDSL
 
