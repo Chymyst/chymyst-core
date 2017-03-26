@@ -151,7 +151,7 @@ private[jc] object OutputEnvironment {
   private[jc] type OutputItem[T] = (T, OutputPatternType, List[OutputEnvironment])
   private[jc] type OutputList[T] = List[OutputItem[T]]
 
-  private[jc] def shrink[T](outputs: OutputList[T], equals: (Any, Any) => Boolean = (a, b) => a === b): OutputList[T] = {
+  private[jc] final def shrink[T](outputs: OutputList[T], equals: (Any, Any) => Boolean = (a, b) => a === b): OutputList[T] = {
     outputs.foldLeft[(OutputList[T], OutputList[T])]((Nil, outputs)) { (accOutputs, outputInfo) =>
       val (outputList, remaining) = accOutputs
       if (remaining contains outputInfo) {

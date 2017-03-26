@@ -6,20 +6,6 @@ import org.scalatest.{FlatSpec, Matchers}
 
 class MacroErrorSpec extends FlatSpec with Matchers {
 
-  behavior of "miscellaneous compile-time errors"
-
-  it should "compile unit-type molecules emitted with non-unit type discarded values" in {
-    val c = m[Unit]
-
-    // These should compile.
-    def emitThem() = // ignore warning "local method ... is never used"
-    {
-      c(())
-      c()
-      c(123) // ignore warnings "discarded non-Unit value" and "a pure expression does nothing"
-    }
-  }
-
   it should "support concise syntax for Unit-typed molecules" in {
     val a = new M[Unit]("a")
     val f = new B[Unit, Unit]("f")

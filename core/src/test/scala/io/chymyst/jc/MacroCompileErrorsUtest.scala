@@ -3,10 +3,9 @@ package io.chymyst.jc
 import io.chymyst.jc.Core.ReactionBody
 import utest._
 import utest.framework.{Test, Tree}
-
 import scala.concurrent.duration._
 
-object MacroCompileErrorsSpec extends TestSuite {
+object MacroCompileErrorsUtest extends TestSuite {
   val tests: Tree[Test] = this {
     val a = m[Int]
     val c = m[Unit]
@@ -811,8 +810,11 @@ case c(_) + a(y) => c()
                 |                          ^
                 |""".stripMargin, "Reaction body must not emit blocking molecules inside function blocks (molecule f2(?))")
           } // same
+
           //      "val r = go { case c(_) => (0 until 10).foreach{_ => g(f); () } }" shouldNot compile
           // TODO: for some reason, utest fails to detect the compile error here (but the error does exist)
+          // for now, this test was moved to MacroErrorSpec.scala
+
           //          * - {
           //            compileError(
           //              "val r = go { case c(_) => (0 until 10).foreach{_ => g(f); () } }"
@@ -883,9 +885,28 @@ case c(_) + a(y) => c()
               """
                 |              "val r = go { case f(_, r) => d(r); r() }"
                 |                          ^
-                |""".stripMargin, "Blocking molecules must receive only one reply but possibly multiple replies found for (reply emitter r)")
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(?))")
           } // TODO: error message should be "can't put the reply emitter onto a molecule"
+          * - {
+            compileError(
+              "val r = go { case f(_, r) => d(r) }"
+            ).check(
+              """
+                |              "val r = go { case f(_, r) => d(r) }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(?))")
+          }
+          * - {
+            val g = b[ReplyValue[Unit, Unit], Unit]
 
+            compileError(
+              "val r = go { case f(_, r) => g(r) }"
+            ).check(
+              """
+                |              "val r = go { case f(_, r) => g(r) }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(?))")
+          }
         }
 
         "refuse calling a function on a reply emitter" - {

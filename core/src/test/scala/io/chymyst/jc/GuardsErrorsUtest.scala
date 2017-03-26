@@ -2,7 +2,7 @@ package io.chymyst.jc
 
 import utest._
 
-object GuardsErrorSpec extends TestSuite {
+object GuardsErrorsUtest extends TestSuite {
   val tests = this {
     "recognize an identically false guard condition" - {
       val a = m[Int]
