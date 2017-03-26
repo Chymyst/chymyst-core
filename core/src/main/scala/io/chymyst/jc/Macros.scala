@@ -190,11 +190,11 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     maybeError("Input guard", "matches on additional input molecules", guardIn.map(_._1.name))
     maybeError("Input guard", "emit any output molecules", guardOut.map(_._1.name), "not")
     maybeError("Input guard", "perform any reply actions", guardReply.map(_._1.name), "not")
-    maybeError("Input guard", "uses other molecules inside molecule value patterns", wrongMoleculesInGuard)
+    maybeError("Input guard", "matches on molecules", wrongMoleculesInGuard.map(_.name))
 
     val (bodyIn, bodyOut, bodyReply, wrongMoleculesInBody) = moleculeInfoMaker.from(body) // bodyIn should be empty
     maybeError("Reaction body", "matches on additional input molecules", bodyIn.map(_._1.name))
-    maybeError("Reaction body", "uses other molecules inside molecule value patterns", wrongMoleculesInBody)
+    maybeError("Reaction body", "matches on molecules", wrongMoleculesInBody.map(_.name))
 
     // Blocking molecules should not be used under nontrivial output environments.
     val nontrivialEmittedBlockingMoleculeStrings = bodyOut
@@ -342,7 +342,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
     // It is an error to have blocking molecules that do not match on a simple variable.
     val wrongBlockingMolecules = blockingMolecules.filter(_._3.get.notReplyValue).map(_._1)
-    maybeError("Blocking input molecules", "matches a reply emitter with anything else than a simple variable", wrongBlockingMolecules)
+    maybeError("Blocking input molecules", "matches a reply emitter with a simple variable", wrongBlockingMolecules.map(ms ⇒ s"molecule ${ms.name}"), "contain a pattern that")
 
     // If we are here, all reply emitters have correct pattern variables. Now we check that each blocking molecule has one and only one reply.
     val bodyReplyInfoMacro = bodyReply.map { case (m, p, envs) => (m, p.patternType, envs) }
@@ -358,8 +358,8 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     val blockingMoleculesWithoutReply = expectedBlockingReplies difff shrunkGuaranteedReplies
     val blockingMoleculesWithMultipleReply = shrunkPossibleReplies difff expectedBlockingReplies
 
-    maybeError("Blocking molecules", "but no unconditional reply found for", blockingMoleculesWithoutReply, "receive a reply")
-    maybeError("Blocking molecules", "but possibly multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
+    maybeError("Blocking molecules", "but no unconditional reply found for", blockingMoleculesWithoutReply.map(ms ⇒ s"molecule $ms"), "receive a reply")
+    maybeError("Blocking molecules", "but possibly multiple replies found for", blockingMoleculesWithMultipleReply.map(ms ⇒ s"molecule $ms"), "receive only one reply")
 
     if (patternIn.isEmpty && !isStaticReaction(pattern, guard, body)) // go { case x => ... }
       reportError(s"Reaction input must be `_` or must contain some input molecules, but is ${showCode(pattern)}")
@@ -398,7 +398,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     // That is, only if all matchers are trivial, and if the guard is absent.
     // Then it is sufficient to take the shrunk output info list and to see whether enough output molecules are present to cover all input molecules.
     if (isGuardAbsent && allInputMatchersAreTrivial && inputMoleculesAreSubsetOfOutputMolecules) {
-      maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
+      maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.name), "not be a subset of")
     }
 
     // Compute reaction sha1 from simplified input list.

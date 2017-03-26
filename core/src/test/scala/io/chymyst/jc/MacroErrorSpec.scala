@@ -8,11 +8,12 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
   behavior of "miscellaneous compile-time errors"
 
-  it should "fail to compile molecules with non-unit types emitted as a()" in {
+  it should "compile unit-type molecules emitted with non-unit type discarded values" in {
     val c = m[Unit]
 
     // These should compile.
-    def emitThem() = { // ignore warning "local method ... is never used"
+    def emitThem() = // ignore warning "local method ... is never used"
+    {
       c(())
       c()
       c(123) // ignore warnings "discarded non-Unit value" and "a pure expression does nothing"
@@ -48,83 +49,6 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     site(
       go { case d((x, z)) if z.nonEmpty => } // ignore warning about "non-variable type argument Int"
     ) shouldEqual WarningsAndErrors(List(), List(), "Site{d → ...}")
-  }
-
-  it should "fail to compile reactions with incorrect pattern matching" in {
-    val a = b[Unit, Unit]
-    val c = b[Unit, Unit]
-    val e = m[Unit]
-
-    a.isInstanceOf[B[Unit, Unit]] shouldEqual true
-    c.isInstanceOf[B[Unit, Unit]] shouldEqual true
-    e.isInstanceOf[M[Unit]] shouldEqual true
-
-    // Note: these tests will produce several warnings "expects 2 patterns to hold but crushing into 2-tuple to fit single pattern".
-    // However, it is precisely this crushing that we are testing here, that actually should not compile with our `go` macro.
-    // So, these warnings cannot be removed here and should be ignored.
-    "val r = go { case e() => }" shouldNot compile // no pattern variable in a non-blocking molecule "e"
-    "val r = go { case e(_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
-    "val r = go { case e(_,_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
-
-    "val r = go { case a() => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = go { case a(_) => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = go { case a(_, _) => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = go { case a(_, _, _) => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = go { case a(_, r) => }" shouldNot compile // no reply is performed with r
-    "val r = go { case a(_, r) + a(_) + c(_) => r()  }" shouldNot compile // invalid patterns for "a" and "c"
-    "val r = go { case a(_, r) + a(_) + c(_) => r(); r() }" shouldNot compile // two replies are performed with r, and invalid patterns for "a" and "c"
-
-    "val r = go { case e(_) if true => c() }" should compile // input guard does not emit molecules
-    "val r = go { case e(_) if c() => }" shouldNot compile // input guard emits molecules
-    "val r = go { case a(_,r) if r() => }" shouldNot compile // input guard performs reply actions
-
-    "val r = go { case e(_) => { case e(_) => } }" shouldNot compile // reaction body matches on input molecules
-  }
-
-  it should "fail to compile reactions with no input molecules" in {
-    val bb = m[Int]
-    val bbb = m[Int]
-
-    bb.isInstanceOf[M[Int]] shouldEqual true
-    bbb.isInstanceOf[M[Int]] shouldEqual true
-
-    "val r = go { case _ => bb(0) }" should compile // declaration of a static molecule
-    "val r = go { case x => bb(x.asInstanceOf[Int]) }" shouldNot compile // no input molecules
-    "val r = go { case x => x }" shouldNot compile // no input molecules
-  }
-
-  it should "fail to compile a reaction with regrouped inputs" in {
-    val a = m[Unit]
-    a.isInstanceOf[M[Unit]] shouldEqual true
-
-    "val r = go { case a(_) + (a(_) + a(_)) => }" shouldNot compile
-    "val r = go { case a(_) + (a(_) + a(_)) + a(_) => }" shouldNot compile
-    "val r = go { case (a(_) + a(_)) + a(_) + a(_) => }" should compile
-  }
-
-  it should "fail to compile a reaction with grouped pattern variables in inputs" in {
-    val a = m[Unit]
-    a.name shouldEqual "a"
-
-    "val r = go { case a(_) + x@(a(_) + a(_)) => }" shouldNot compile
-    "val r = go { case a(_) + (a(_) + a(_)) + x@a(_) => }" shouldNot compile
-    "val r = go { case x@a(_) + (a(_) + a(_)) + a(_) => }" shouldNot compile
-    "val r = go { case x@(a(_) + a(_)) + a(_) + a(_) => }" shouldNot compile
-    "val r = go { case x@a(_) => }" shouldNot compile
-  }
-
-  it should "refuse reactions that match on other molecules in molecule input values" in {
-    val a = m[Any]
-    val f = b[Any, Any]
-    a.name shouldEqual "a"
-    f.name shouldEqual "f"
-
-    go { case a(1) => a(a(1)) } // OK
-
-    "val r = go { case a(a(1)) => }" shouldNot compile
-    "val r = go { case f(_, 123) => }" shouldNot compile
-    "val r = go { case f(a(1), r) => r(1) }" shouldNot compile
-    "val r = go { case f(f(1,s), r) => r(1) }" shouldNot compile
   }
 
   behavior of "reply check"
@@ -253,10 +177,12 @@ class MacroErrorSpec extends FlatSpec with Matchers {
 
     val bb = m[(Int, Option[Int])]
 
-    val result = go { // ignore warning about "non-variable type argument Int"
+    val result = go // ignore warning about "non-variable type argument Int"
+    {
       // This generates a compiler warning "class M expects 2 patterns to hold (Int, Option[Int]) but crushing into 2-tuple to fit single pattern (SI-6675)".
       // However, this "crushing" is precisely what this test focuses on, and we cannot tell scalac to ignore this warning.
-      case bb(_) + bb(z) if (z match { // ignore warning about "class M expects 2 patterns to hold"
+      case bb(_) + bb(z) if (z match // ignore warning about "class M expects 2 patterns to hold"
+      {
         case (1, Some(x)) if x > 0 => true;
         case _ => false
       }) =>
