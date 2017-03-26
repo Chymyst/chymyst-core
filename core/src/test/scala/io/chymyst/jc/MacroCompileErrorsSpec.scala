@@ -352,7 +352,7 @@ case c(_) + a(y) => c()
           """
             |          "val r = go { case a(_, r) => }"
             |                      ^
-            |""".stripMargin, "Blocking molecules must receive a reply but no unconditional reply found for (molecule r)")
+            |""".stripMargin, "Blocking molecules must receive a reply but no unconditional reply found for (reply emitter r)")
       }
       //    "val r = go { case a(_, r) + a(_) + c(_) => r()  }" shouldNot compile // invalid patterns for "a" and "c"
       * - {
@@ -571,10 +571,10 @@ case c(_) + a(y) => c()
         //      "val r = go { case a(a(1)) => }" shouldNot compile
         * - {
           compileError(
-            "val r = go { case a(c(1)) => }"
+            "val r = go { case a(c(1)) => }" // ignore warning "non-variable type argument"
           ).check(
             """
-              |            "val r = go { case a(c(1)) => }"
+              |            "val r = go { case a(c(1)) => }" // ignore warning "non-variable type argument"
               |                        ^
               |""".stripMargin, "Input molecules must not contain a pattern that uses other molecules inside molecule value patterns (c)")
         }
@@ -600,26 +600,416 @@ case c(_) + a(y) => c()
         //      "val r = go { case f(a(1), r) => r(1) }" shouldNot compile
         * - {
           compileError(
-            "val r = go { case f(a(1), r) => r(1) }"
+            "val r = go { case f(a(1), r) => r(1) }" // ignore warning "non-variable type argument"
           ).check(
             """
-              |            "val r = go { case f(a(1), r) => r(1) }"
+              |            "val r = go { case f(a(1), r) => r(1) }" // ignore warning "non-variable type argument"
               |                        ^
               |""".stripMargin, "Input molecules must not contain a pattern that uses other molecules inside molecule value patterns (a)")
         }
         //      "val r = go { case f(f(1, s), r) => r(1) }" shouldNot compile
         * - {
           compileError(
-            "val r = go { case f(f(1, s), r) => r(1) }"
+            "val r = go { case f(f(1, s), r) => r(1) }" // ignore warning "non-variable type argument"
           ).check(
             """
-              |            "val r = go { case f(f(1, s), r) => r(1) }"
+              |            "val r = go { case f(f(1, s), r) => r(1) }" // ignore warning "non-variable type argument"
               |                        ^
               |""".stripMargin, "Input molecules must not contain a pattern that uses other molecules inside molecule value patterns (f)")
         }
       }
     }
 
+    "reply checking" - {
+      "compile a reaction with unconditional reply after shrinking" - {
+        val f = b[Unit, Int]
+        assert(f.name == "f")
+
+        //        "val r = go { case f(_,r) => if (System.nanoTime() > 0) r(1) else r(2) }" should compile
+        * - {
+          go { case f(_, r) => if (System.nanoTime() > 0) r(1) else r(2) }
+        }
+        //      "val r = go { case f(_,r) => r(0); if (System.nanoTime() > 0) r(1) else r(2) }" shouldNot compile
+        * - {
+          compileError(
+            "val r = go { case f(_,r) => r(0); if (System.nanoTime() > 0) r(1) else r(2) }"
+          ).check(
+            """
+              |            "val r = go { case f(_,r) => r(0); if (System.nanoTime() > 0) r(1) else r(2) }"
+              |                        ^
+              |""".stripMargin, "Blocking molecules must receive only one reply but possibly multiple replies found for (reply emitter r)")
+        }
+        //      "val r = go { case f(_,r) => r(0); if (System.nanoTime() > 0) r(1) }" shouldNot compile
+        * - {
+          compileError(
+            "val r = go { case f(_,r) => r(0); if (System.nanoTime() > 0) r(1) }"
+          ).check(
+            """
+              |            "val r = go { case f(_,r) => r(0); if (System.nanoTime() > 0) r(1) }"
+              |                        ^
+              |""".stripMargin, "Blocking molecules must receive only one reply but possibly multiple replies found for (reply emitter r)")
+        }
+        //      "val r = go { case f(_,r) => if (System.nanoTime() > 0) r(1) }" shouldNot compile
+        * - {
+          compileError(
+            "val r = go { case f(_,r) => if (System.nanoTime() > 0) r(1) }"
+          ).check(
+            """
+              |            "val r = go { case f(_,r) => if (System.nanoTime() > 0) r(1) }"
+              |                        ^
+              |""".stripMargin, "Blocking molecules must receive a reply but no unconditional reply found for (reply emitter r)")
+        }
+      }
+
+      "refuse to compile a reaction with two conditional replies" - {
+        val f = b[Unit, Int]
+        assert(f.name == "f")
+
+        //      "val r = go { case f(_,r) => val x = System.nanoTime() > 0; if (x) r(1); if (x) r(2) }" shouldNot compile
+        * - {
+          compileError(
+            "val r = go { case f(_,r) => val x = System.nanoTime() > 0; if (x) r(1); if (x) r(2) }"
+          ).check(
+            """
+              |            "val r = go { case f(_,r) => val x = System.nanoTime() > 0; if (x) r(1); if (x) r(2) }"
+              |                        ^
+              |""".stripMargin, "Blocking molecules must receive a reply but no unconditional reply found for (reply emitter r)")
+        } // reply emitted in only one `if` branch, twice
+        //      "val r = go { case f(_,r) => val x = System.nanoTime() > 0; r(1); if (x) r(2) }" shouldNot compile
+        * - {
+          compileError(
+            "val r = go { case f(_,r) => val x = System.nanoTime() > 0; r(1); if (x) r(2) }"
+          ).check(
+            """
+              |            "val r = go { case f(_,r) => val x = System.nanoTime() > 0; r(1); if (x) r(2) }"
+              |                        ^
+              |""".stripMargin, "Blocking molecules must receive only one reply but possibly multiple replies found for (reply emitter r)")
+        } // reply emitted once, and then in one `if` branch
+        //      "val r = go { case f(_,r) => val x = System.nanoTime() > 0; r(1); if (x) r(2) else r(3) }" shouldNot compile
+        * - {
+          compileError(
+            "val r = go { case f(_,r) => val x = System.nanoTime() > 0; r(1); if (x) r(2) else r(3) }"
+          ).check(
+            """
+              |            "val r = go { case f(_,r) => val x = System.nanoTime() > 0; r(1); if (x) r(2) else r(3) }"
+              |                        ^
+              |""".stripMargin, "Blocking molecules must receive only one reply but possibly multiple replies found for (reply emitter r)")
+        } // reply emitted once, and then in both `if` branches
+      }
+
+      "refuse to compile a reaction with no unconditional reply" - {
+        val f = b[Unit, Unit]
+        assert(f.name == "f")
+
+        //      "val r = go { case f(_,r) => if (System.nanoTime() > 0) r() }" shouldNot compile
+        * - {
+          compileError(
+            "val r = go { case f(_,r) => if (System.nanoTime() > 0) r() }"
+          ).check(
+            """
+              |            "val r = go { case f(_,r) => if (System.nanoTime() > 0) r() }"
+              |                        ^
+              |""".stripMargin, "Blocking molecules must receive a reply but no unconditional reply found for (reply emitter r)")
+        } // reply emitted in only one `if` branch
+        //      "val r = go { case f(_,r) => if (System.nanoTime() > 0) f() else r() }" shouldNot compile
+        * - {
+          compileError(
+            "val r = go { case f(_,r) => if (System.nanoTime() > 0) f() else r() }"
+          ).check(
+            """
+              |            "val r = go { case f(_,r) => if (System.nanoTime() > 0) f() else r() }"
+              |                        ^
+              |""".stripMargin, "Blocking molecules must receive a reply but no unconditional reply found for (reply emitter r)")
+        } // ditto
+      }
+
+      "refuse to compile a reaction with reply under try/catch" - {
+        val f = b[Unit, Unit]
+        assert(f.name == "f")
+
+        //      """val r = go { case f(_,r) => try{ throw new Exception(""); r() } catch { case e: Exception => } }""" shouldNot compile
+        * - {
+          compileError(
+            "val r = go { case f(_,r) => try{ throw new Exception(\"\"); r() } catch { case e: Exception => } }" // ignore warning "dead code following"
+          ).check(
+            """
+              |            "val r = go { case f(_,r) => try{ throw new Exception(\"\"); r() } catch { case e: Exception => } }" // ignore warning "dead code following"
+              |                        ^
+              |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(()))")
+        } // reply emitted under try
+        //      """val r = go { case f(_,r) => try{ throw new Exception("") } catch { case e: Exception => r() } }""" shouldNot compile
+        * - {
+          compileError(
+            "val r = go { case f(_,r) => try{ throw new Exception(\"\") } catch { case e: Exception => r() } }"
+          ).check(
+            """
+              |            "val r = go { case f(_,r) => try{ throw new Exception(\"\") } catch { case e: Exception => r() } }"
+              |                        ^
+              |""".stripMargin
+            , "Reaction body must not use reply emitters inside function blocks (reply emitter r(()))"
+          )
+        } // reply emitted under try
+        //        """val r = go { case f(_,r) => try{ throw new Exception("") } catch { case e: Exception => } finally { r() } }""" should compile // reply emitted under finally
+        * - {
+          go { case f(_, r) => try {
+            throw new Exception("")
+          } catch {
+            case e: Exception =>
+          } finally {
+            r()
+          }
+          }
+        }
+      }
+
+      "nonlinear output environments" - {
+        "refuse emitting blocking molecules" - {
+          val c = m[Unit]
+          val f = b[Unit, Unit]
+          val f2 = b[Int, Unit]
+          val f3 = b[Unit, Boolean]
+          val g: Any => Any = x => x
+
+          assert(c.name == "c")
+          assert(f.name == "f")
+          assert(f2.name == "f2")
+          assert(f3.name == "f3")
+          assert(g(()) == (()))
+
+          go { case c(_) => g(f) } // OK to apply a function to a blocking molecule emitter?
+          //      "val r = go { case c(_) => (0 until 10).flatMap { _ => f(); List() } }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case c(_) => (0 until 10).flatMap { _ => f(); List() } }"
+            ).check(
+              """
+                |              "val r = go { case c(_) => (0 until 10).flatMap { _ => f(); List() } }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not emit blocking molecules inside function blocks (molecule f(()))")
+          } // reaction body must not emit blocking molecules inside function blocks
+          //      "val r = go { case c(_) => (0 until 10).foreach(i => f2(i)) }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case c(_) => (0 until 10).foreach(i => f2(i)) }"
+            ).check(
+              """
+                |              "val r = go { case c(_) => (0 until 10).foreach(i => f2(i)) }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not emit blocking molecules inside function blocks (molecule f2(?))")
+          } // same
+          //          "val r = go { case c(_) => (0 until 10).foreach(_ => c()) }" should compile // `c` is a non-blocking molecule, OK to emit it anywhere
+          * - {
+            go { case c(_) => (0 until 10).foreach(_ => c()) }
+          }
+          //      "val r = go { case c(_) => (0 until 10).foreach(f2) }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case c(_) => (0 until 10).foreach(f2) }"
+            ).check(
+              """
+                |              "val r = go { case c(_) => (0 until 10).foreach(f2) }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not emit blocking molecules inside function blocks (molecule f2(?))")
+          } // same
+          //      "val r = go { case c(_) => (0 until 10).foreach{_ => g(f); () } }" shouldNot compile
+          // TODO: for some reason, utest fails to detect the compile error here (but the error does exist)
+          //          * - {
+          //            compileError(
+          //              "val r = go { case c(_) => (0 until 10).foreach{_ => g(f); () } }"
+          //            ).check(
+          //              """
+          //                |            "val r = go { case c(_) => (0 until 10).foreach{_ => g(f); () } }"
+          //                |                        ^
+          //                |""".stripMargin, "error message")
+          //          }
+          //      "val r = go { case c(_) => while (true) f() }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case c(_) => while (true) f() }"
+            ).check(
+              """
+                |              "val r = go { case c(_) => while (true) f() }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not emit blocking molecules inside function blocks (molecule f(()))")
+          }
+          //          "val r = go { case c(_) => while (true) c() }" should compile // `c` is a non-blocking molecule, OK to emit it anywhere
+          * - {
+            go { case c(_) => while (true) c() }
+          }
+          //      "val r = go { case c(_) => while (f3()) { () } }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case c(_) => while (f3()) { () } }"
+            ).check(
+              """
+                |              "val r = go { case c(_) => while (f3()) { () } }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not emit blocking molecules inside function blocks (molecule f3(()))")
+          }
+          //      "val r = go { case c(_) => do f() while (true) }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case c(_) => do f() while (true) }"
+            ).check(
+              """
+                |              "val r = go { case c(_) => do f() while (true) }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not emit blocking molecules inside function blocks (molecule f(()))")
+          }
+          //      "val r = go { case c(_) => do c() while (f3()) }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case c(_) => do c() while (f3()) }"
+            ).check(
+              """
+                |              "val r = go { case c(_) => do c() while (f3()) }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not emit blocking molecules inside function blocks (molecule f3(()))")
+          }
+        }
+
+        "refuse putting a reply emitter on another molecule" - {
+          val f = b[Unit, Unit]
+          val d = m[ReplyValue[Unit, Unit]]
+
+          assert(f.name == "f")
+          assert(d.name == "d")
+
+          //      "val r = go { case f(_, r) => d(r); r() }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case f(_, r) => d(r); r() }"
+            ).check(
+              """
+                |              "val r = go { case f(_, r) => d(r); r() }"
+                |                          ^
+                |""".stripMargin, "Blocking molecules must receive only one reply but possibly multiple replies found for (reply emitter r)")
+          } // TODO: error message should be "can't put the reply emitter onto a molecule"
+
+        }
+
+        "refuse calling a function on a reply emitter" - {
+          val f = b[Unit, Unit]
+          val g: Any => Any = x => x
+
+          assert(f.name == "f")
+          assert(g(()) == (()))
+
+          //      "val r = go { case f(_, r) => g(r); r() }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case f(_, r) => g(r); r() }"
+            ).check(
+              """
+                |              "val r = go { case f(_, r) => g(r); r() }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(?))")
+          } // can't call a function on a reply emitter
+          //      "val r = go { case f(_, r) => val x = r; g(x); r() }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case f(_, r) => val x = r; g(x); r() }"
+            ).check(
+              """
+                |              "val r = go { case f(_, r) => val x = r; g(x); r() }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter x(?))")
+          } // can't call a function on an alias for reply emitter
+        }
+
+        "refuse emitting blocking molecule replies" - {
+          val f = b[Unit, Unit]
+          val f2 = b[Unit, Int]
+          val g: Any => Any = x => x
+
+          assert(f.name == "f")
+          assert(f2.name == "f2")
+          assert(g(()) == (()))
+
+          //      "val r = go { case f(_, r) => (0 until 10).flatMap { _ => r(); List() } }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case f(_, r) => (0 until 10).flatMap { _ => r(); List() } }"
+            ).check(
+              """
+                |              "val r = go { case f(_, r) => (0 until 10).flatMap { _ => r(); List() } }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(()))")
+          } // reaction body must not emit blocking molecule replies inside function blocks
+          //      "val r = go { case f2(_, r) => (0 until 10).foreach(i => r(i)) }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case f2(_, r) => (0 until 10).foreach(i => r(i)) }"
+            ).check(
+              """
+                |              "val r = go { case f2(_, r) => (0 until 10).foreach(i => r(i)) }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(?))")
+          } // same
+          //      "val r = go { case f2(_, r) => (0 until 10).foreach(r) }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case f2(_, r) => (0 until 10).foreach(r) }"
+            ).check(
+              """
+                |              "val r = go { case f2(_, r) => (0 until 10).foreach(r) }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(?))")
+          } // same
+          //      "val r = go { case f2(_, r) => (0 until 10).foreach(_ => g(r)); r(0) }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case f2(_, r) => (0 until 10).foreach(_ => g(r)); r(0) }"
+            ).check(
+              """
+                |              "val r = go { case f2(_, r) => (0 until 10).foreach(_ => g(r)); r(0) }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(?))")
+          }
+          //      "val r = go { case f(_, r) => while (true) r() }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case f(_, r) => while (true) r() }"
+            ).check(
+              """
+                |              "val r = go { case f(_, r) => while (true) r() }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(()))")
+          }
+          //      "val r = go { case f(_, r) => while (r.checkTimeout()) { () } }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case f(_, r) => while (r.checkTimeout()) { () } }"
+            ).check(
+              """
+                |              "val r = go { case f(_, r) => while (r.checkTimeout()) { () } }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(()))")
+          }
+          //      "val r = go { case f(_, r) => do r() while (true) }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case f(_, r) => do r() while (true) }"
+            ).check(
+              """
+                |              "val r = go { case f(_, r) => do r() while (true) }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(()))")
+          }
+          //      "val r = go { case f(_, r) => do () while (r.checkTimeout()) }" shouldNot compile
+          * - {
+            compileError(
+              "val r = go { case f(_, r) => do () while (r.checkTimeout()) }"
+            ).check(
+              """
+                |              "val r = go { case f(_, r) => do () while (r.checkTimeout()) }"
+                |                          ^
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(()))")
+          }
+        }
+
+      }
+    }
     // End of tests.
   }
 }

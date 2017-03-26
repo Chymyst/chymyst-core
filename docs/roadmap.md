@@ -57,6 +57,10 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 # Current To-Do List
 
  value * difficulty - description
+  
+ 2 * 3 - detect static molecule emission in not-exactly-once code environments (see tests with TODO in StaticAnalysisSpec.scala)
+ 
+ 1 * 1 - static molecules cannot have reactions with only one input (?)
 
  3 * 2 - figure out why pipelining does not enforce pairing order in the "pair up to dance" example
 
