@@ -6,19 +6,6 @@ import org.scalatest.{FlatSpec, Matchers}
 
 class MacroErrorSpec extends FlatSpec with Matchers {
 
-  behavior of "miscellaneous compile-time errors"
-
-  it should "fail to compile molecules with non-unit types emitted as a()" in {
-    val c = m[Unit]
-
-    // These should compile.
-    def emitThem() = { // ignore warning "local method ... is never used"
-      c(())
-      c()
-      c(123) // ignore warnings "discarded non-Unit value" and "a pure expression does nothing"
-    }
-  }
-
   it should "support concise syntax for Unit-typed molecules" in {
     val a = new M[Unit]("a")
     val f = new B[Unit, Unit]("f")
@@ -50,186 +37,20 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     ) shouldEqual WarningsAndErrors(List(), List(), "Site{d → ...}")
   }
 
-  it should "fail to compile reactions with incorrect pattern matching" in {
-    val a = b[Unit, Unit]
-    val c = b[Unit, Unit]
-    val e = m[Unit]
-
-    a.isInstanceOf[B[Unit, Unit]] shouldEqual true
-    c.isInstanceOf[B[Unit, Unit]] shouldEqual true
-    e.isInstanceOf[M[Unit]] shouldEqual true
-
-    // Note: these tests will produce several warnings "expects 2 patterns to hold but crushing into 2-tuple to fit single pattern".
-    // However, it is precisely this crushing that we are testing here, that actually should not compile with our `go` macro.
-    // So, these warnings cannot be removed here and should be ignored.
-    "val r = go { case e() => }" shouldNot compile // no pattern variable in a non-blocking molecule "e"
-    "val r = go { case e(_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
-    "val r = go { case e(_,_,_) => }" shouldNot compile // two pattern variables in a non-blocking molecule "e"
-
-    "val r = go { case a() => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = go { case a(_) => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = go { case a(_, _) => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = go { case a(_, _, _) => }" shouldNot compile // no pattern variable for reply in "a"
-    "val r = go { case a(_, r) => }" shouldNot compile // no reply is performed with r
-    "val r = go { case a(_, r) + a(_) + c(_) => r()  }" shouldNot compile // invalid patterns for "a" and "c"
-    "val r = go { case a(_, r) + a(_) + c(_) => r(); r() }" shouldNot compile // two replies are performed with r, and invalid patterns for "a" and "c"
-
-    "val r = go { case e(_) if true => c() }" should compile // input guard does not emit molecules
-    "val r = go { case e(_) if c() => }" shouldNot compile // input guard emits molecules
-    "val r = go { case a(_,r) if r() => }" shouldNot compile // input guard performs reply actions
-
-    "val r = go { case e(_) => { case e(_) => } }" shouldNot compile // reaction body matches on input molecules
-  }
-
-  it should "fail to compile reactions with no input molecules" in {
-    val bb = m[Int]
-    val bbb = m[Int]
-
-    bb.isInstanceOf[M[Int]] shouldEqual true
-    bbb.isInstanceOf[M[Int]] shouldEqual true
-
-    "val r = go { case _ => bb(0) }" should compile // declaration of a static molecule
-    "val r = go { case x => bb(x.asInstanceOf[Int]) }" shouldNot compile // no input molecules
-    "val r = go { case x => x }" shouldNot compile // no input molecules
-  }
-
-  it should "fail to compile a reaction with regrouped inputs" in {
-    val a = m[Unit]
-    a.isInstanceOf[M[Unit]] shouldEqual true
-
-    "val r = go { case a(_) + (a(_) + a(_)) => }" shouldNot compile
-    "val r = go { case a(_) + (a(_) + a(_)) + a(_) => }" shouldNot compile
-    "val r = go { case (a(_) + a(_)) + a(_) + a(_) => }" should compile
-  }
-
-  it should "fail to compile a reaction with grouped pattern variables in inputs" in {
-    val a = m[Unit]
-    a.name shouldEqual "a"
-
-    "val r = go { case a(_) + x@(a(_) + a(_)) => }" shouldNot compile
-    "val r = go { case a(_) + (a(_) + a(_)) + x@a(_) => }" shouldNot compile
-    "val r = go { case x@a(_) + (a(_) + a(_)) + a(_) => }" shouldNot compile
-    "val r = go { case x@(a(_) + a(_)) + a(_) + a(_) => }" shouldNot compile
-    "val r = go { case x@a(_) => }" shouldNot compile
-  }
-
-  it should "refuse reactions that match on other molecules in molecule input values" in {
-    val a = m[Any]
-    val f = b[Any, Any]
-    a.name shouldEqual "a"
-    f.name shouldEqual "f"
-
-    go { case a(1) => a(a(1)) } // OK
-
-    "val r = go { case a(a(1)) => }" shouldNot compile
-    "val r = go { case f(_, 123) => }" shouldNot compile
-    "val r = go { case f(a(1), r) => r(1) }" shouldNot compile
-    "val r = go { case f(f(1,s), r) => r(1) }" shouldNot compile
-  }
-
-  behavior of "reply check"
-
-  it should "compile a reaction with unconditional reply after shrinking" in {
-    val f = b[Unit, Int]
-    f.name shouldEqual "f"
-
-    "val r = go { case f(_,r) => if (System.nanoTime() > 0) r(1) else r(2) }" should compile
-    "val r = go { case f(_,r) => r(0); if (System.nanoTime() > 0) r(1) else r(2) }" shouldNot compile
-  }
-
-  it should "refuse to compile a reaction with two conditional replies" in {
-    val f = b[Unit, Int]
-    f.name shouldEqual "f"
-
-    "val r = go { case f(_,r) => val x = System.nanoTime() > 0; if (x) r(1); if (x) r(2) }" shouldNot compile // reply emitted in only one `if` branch, twice
-    "val r = go { case f(_,r) => val x = System.nanoTime() > 0; r(1); if (x) r(2) }" shouldNot compile // reply emitted once, and then in one `if` branch
-    "val r = go { case f(_,r) => val x = System.nanoTime() > 0; r(1); if (x) r(2) else r(3) }" shouldNot compile // reply emitted once, and then in both `if` branches
-  }
-
-  it should "refuse to compile a reaction with no unconditional reply" in {
-    val f = b[Unit, Unit]
-    f.name shouldEqual "f"
-
-    "val r = go { case f(_,r) => if (System.nanoTime() > 0) r() }" shouldNot compile // reply emitted in only one `if` branch
-    "val r = go { case f(_,r) => if (System.nanoTime() > 0) f() else r() }" shouldNot compile // ditto
-  }
-
-  it should "refuse to compile a reaction with reply under try/catch" in {
-    val f = b[Unit, Unit]
-    f.name shouldEqual "f"
-
-    """val r = go { case f(_,r) => try{ throw new Exception(""); r() } catch { case e: Exception => } }""" shouldNot compile // reply emitted under try
-    """val r = go { case f(_,r) => try{ throw new Exception("") } catch { case e: Exception => r() } }""" shouldNot compile // reply emitted under try
-    """val r = go { case f(_,r) => try{ throw new Exception("") } catch { case e: Exception => } finally { r() } }""" should compile // reply emitted under finally
-  }
-
-  behavior of "nonlinear output environments"
+  behavior of "output environments"
 
   it should "refuse emitting blocking molecules" in {
     val c = m[Unit]
     val f = b[Unit, Unit]
-    val f2 = b[Int, Unit]
-    val f3 = b[Unit, Boolean]
     val g: Any => Any = x => x
 
-    c.name shouldEqual "c"
-    f.name shouldEqual "f"
-    f2.name shouldEqual "f2"
-    f3.name shouldEqual "f3"
-    g(()) shouldEqual (())
+    assert(c.name == "c")
+    assert(f.name == "f")
+    assert(g(()) == (()))
 
-    go { case c(_) => g(f) } // OK to apply a function to a blocking molecule emitter?
-    "val r = go { case c(_) => (0 until 10).flatMap { _ => f(); List() } }" shouldNot compile // reaction body must not emit blocking molecules inside function blocks
-    "val r = go { case c(_) => (0 until 10).foreach(i => f2(i)) }" shouldNot compile // same
-    "val r = go { case c(_) => (0 until 10).foreach(_ => c()) }" should compile // `c` is a non-blocking molecule, OK to emit it anywhere
-    "val r = go { case c(_) => (0 until 10).foreach(f2) }" shouldNot compile // same
+    // For some reason, utest cannot get the compiler error message for this case.
+    // So we have to move this test back to scalatest, even though here we can't check the error message.
     "val r = go { case c(_) => (0 until 10).foreach{_ => g(f); () } }" shouldNot compile
-    "val r = go { case c(_) => while (true) f() }" shouldNot compile
-    "val r = go { case c(_) => while (true) c() }" should compile // `c` is a non-blocking molecule, OK to emit it anywhere
-    "val r = go { case c(_) => while (f3()) { () } }" shouldNot compile
-    "val r = go { case c(_) => do f() while (true) }" shouldNot compile
-    "val r = go { case c(_) => do c() while (f3()) }" shouldNot compile
-  }
-
-  it should "refuse putting a reply emitter on another molecule" in {
-    val f = b[Unit, Unit]
-    val d = m[ReplyValue[Unit, Unit]]
-
-    f.name shouldEqual "f"
-    d.name shouldEqual "d"
-
-    "val r = go { case f(_, r) => d(r); r() }" shouldNot compile // can't put the reply emitter onto a molecule
-
-  }
-
-  it should "refuse calling a function on a reply emitter" in {
-    val f = b[Unit, Unit]
-    val g: Any => Any = x => x
-
-    f.name shouldEqual "f"
-    g(()) shouldEqual (())
-
-    "val r = go { case f(_, r) => g(r); r() }" shouldNot compile // can't call a function on a reply emitter
-    "val r = go { case f(_, r) => val x = r; g(x); r() }" shouldNot compile // can't call a function on an alias for reply emitter
-  }
-
-  it should "refuse emitting blocking molecule replies" in {
-    val f = b[Unit, Unit]
-    val f2 = b[Unit, Int]
-    val g: Any => Any = x => x
-
-    f.name shouldEqual "f"
-    f2.name shouldEqual "f2"
-    g(()) shouldEqual (())
-
-    "val r = go { case f(_, r) => (0 until 10).flatMap { _ => r(); List() } }" shouldNot compile // reaction body must not emit blocking molecule replies inside function blocks
-    "val r = go { case f2(_, r) => (0 until 10).foreach(i => r(i)) }" shouldNot compile // same
-    "val r = go { case f2(_, r) => (0 until 10).foreach(r) }" shouldNot compile // same
-    "val r = go { case f2(_, r) => (0 until 10).foreach(_ => g(r)); r(0) }" shouldNot compile
-    "val r = go { case f(_, r) => while (true) r() }" shouldNot compile
-    "val r = go { case f(_, r) => while (r.checkTimeout()) { () } }" shouldNot compile
-    "val r = go { case f(_, r) => do r() while (true) }" shouldNot compile
-    "val r = go { case f(_, r) => do () while (r.checkTimeout()) }" shouldNot compile
   }
 
   behavior of "compile-time errors due to chemistry"
@@ -254,9 +75,11 @@ class MacroErrorSpec extends FlatSpec with Matchers {
     val bb = m[(Int, Option[Int])]
 
     val result = go { // ignore warning about "non-variable type argument Int"
+
       // This generates a compiler warning "class M expects 2 patterns to hold (Int, Option[Int]) but crushing into 2-tuple to fit single pattern (SI-6675)".
       // However, this "crushing" is precisely what this test focuses on, and we cannot tell scalac to ignore this warning.
-      case bb(_) + bb(z) if (z match { // ignore warning about "class M expects 2 patterns to hold"
+      case bb(_) + bb(z) if (z match // ignore warning about "class M expects 2 patterns to hold"
+      {
         case (1, Some(x)) if x > 0 => true;
         case _ => false
       }) =>

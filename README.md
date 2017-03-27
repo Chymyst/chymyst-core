@@ -39,7 +39,7 @@ See also these [talk slides revised for the current syntax](https://github.com/w
 
 #### [Comparison of the chemical machine vs. the coroutines / channels approach (CSP)](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-csp)
 
-#### [Technical documentation for `Chymyst Core`](docs/chymyst-core.md).
+#### [Technical documentation for `Chymyst Core`](docs/chymyst-core.md)
 
 ## Example: "dining philosophers"
 

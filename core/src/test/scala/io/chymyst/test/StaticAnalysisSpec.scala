@@ -442,6 +442,45 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a + a → ...}")
   }
 
+  behavior of "livelock with static molecules"
+
+  it should "give warning in a simple reaction with possible livelock" in {
+    withPool(new FixedPool(2)) { tp ⇒
+      val a = m[Int]
+      val warnings = site(tp)(
+        go { case _ ⇒ a(1) },
+        go { case a(1) ⇒ val x = 1; a(x) }
+      )
+      warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
+    }.get
+  }
+
+  // TODO: rewrite this test when static molecules are property analyzed for emitting code environment
+  it should "in a reaction with static molecule emitted conditionally" in {
+    withPool(new FixedPool(2)) { tp ⇒
+      val a = m[Int]
+      val warnings = site(tp)(
+        go { case _ ⇒ a(1) },
+        go { case a(1) ⇒ val x = 1; if (x > 0) a(x) }
+      )
+      warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
+    }.get
+  }
+
+  // TODO: rewrite this test when static molecules are property analyzed for emitting code environment
+  it should "in a reaction with static molecule emitted conditionally with two branches" in {
+    withPool(new FixedPool(2)) { tp ⇒
+      val a = m[Int]
+      the[Exception] thrownBy {
+        val warnings = site(tp)(
+          go { case _ ⇒ a(1) },
+          go { case a(1) ⇒ val x = 1; if (x > 0) a(x) else a(-x) }
+        )
+        warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
+      } should have message "In Site{a → ...}: Incorrect static molecule declaration: static molecule (a) emitted more than once by reaction a(1) → a(?) + a(?)"
+    }.get
+  }
+
   behavior of "deadlock detection"
 
   it should "not warn about likely deadlock for a reaction that emits molecules for itself in the right order" in {

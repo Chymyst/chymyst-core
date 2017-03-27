@@ -35,7 +35,7 @@ private[jc] object StaticAnalysis {
   }
 
   private def inputMatchersWeakerThanOutput(isWeaker: (InputMoleculeInfo, OutputMoleculeInfo) => Option[Boolean])
-                                           (input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean = {
+    (input: List[InputMoleculeInfo], output: Array[OutputMoleculeInfo]): Boolean = {
     input.flatFoldLeft(output) { (acc, inputInfo) ⇒
       acc
         .find(outputInfo => isWeaker(inputInfo, outputInfo).getOrElse(false))
@@ -148,9 +148,10 @@ private[jc] object StaticAnalysis {
     // The chemistry is likely to be a deadlock if at least one the other output molecules are consumed together with the blocking molecule in the same reaction.
     val likelyDeadlocks = possibleDeadlocks.map {
       case (info, infos) =>
-        (info, info.molecule.consumingReactions.flatMap(
-          _.find { r =>
-            // For each reaction that consumes the molecule `info.molecule`, check whether this reaction also consumes any of the molecules from infos.map(_.molecule). If so, it's a likely deadlock.
+        (info, info.molecule.consumingReactions
+          .find { r =>
+            // For each reaction that consumes the molecule `info.molecule`, check whether this reaction also consumes
+            // any of the molecules from infos.map(_.molecule). If so, it's a likely deadlock.
             val uniqueInputsThatAreAmongOutputs = r.info.inputsSortedByConstraintStrength
               .filter(infos.map(_.molecule) contains _.molecule)
               .groupBy(_.molecule).mapValues(_.lastOption).values.toList.flatten // Among repeated input molecules, choose only one molecule with the weakest matcher.
@@ -160,7 +161,6 @@ private[jc] object StaticAnalysis {
                 infoInput.matcherIsWeakerThanOutput(infoOutput).getOrElse(false))
             )
           }
-        )
         )
     }
 
@@ -227,14 +227,13 @@ private[jc] object StaticAnalysis {
   private def checkOutputsForStaticMols(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
     val errorList = staticMols.flatMap {
       case (m, _) =>
-        reactions.flatMap {
-          r =>
-            val outputTimes = r.info.outputs.count(_.molecule === m)
-            if (outputTimes > 1)
-              Some(s"static molecule ($m) emitted more than once by reaction ${r.info}")
-            else if (outputTimes == 1 && !r.inputMoleculesSet.contains(m))
-              Some(s"static molecule ($m) emitted but not consumed by reaction ${r.info}")
-            else None
+        reactions.flatMap { r =>
+          val outputTimes = r.info.outputs.count(_.molecule === m)
+          if (outputTimes > 1)
+            Some(s"static molecule ($m) emitted more than once by reaction ${r.info}")
+          else if (outputTimes == 1 && !r.inputMoleculesSet.contains(m))
+            Some(s"static molecule ($m) emitted but not consumed by reaction ${r.info}")
+          else None
         }
     }
 
@@ -254,7 +253,6 @@ private[jc] object StaticAnalysis {
     // TODO: implement
     Seq()
   }
-
 
   private[jc] def findStaticMolDeclarationErrors(staticReactions: Seq[Reaction]): Seq[String] = {
     val foundErrors = staticReactions.map(_.info).filterNot(_.guardPresence.noCrossGuards)

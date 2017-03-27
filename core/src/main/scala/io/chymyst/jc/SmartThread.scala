@@ -20,7 +20,6 @@ private[jc] final class SmartThread(runnable: Runnable, pool: SmartPool) extends
     inBlockingCall = false
     result
   }
-
 }
 
 /** Thread that knows how Chymyst uses it at any time.

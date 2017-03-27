@@ -55,20 +55,3 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => (ExecutorSe
 
   override def runRunnable(runnable: Runnable): Unit = execService.execute(runnable)
 }
-
-/** Create a pool from a Handler interface. The pool will submit tasks using a Handler.post() method.
-  *
-  * This is useful for Android and JavaFX environments. Not yet tested. Behavior with static molecules will be probably wrong.
-  *
-  * Note: the structural type for `handler` should not be used. Here it is used only as an illustration.
-  */
-/*
-class HandlerPool(handler: { def post(r: Runnable): Unit }) extends Pool {
-  override def shutdownNow(): Unit = ()
-
-  override def runClosure(closure: => Unit, info: ReactionInfo): Unit =
-    handler.post(new RunnableWithInfo(closure, info))
-
-  override def isInactive: Boolean = false
-}
-*/

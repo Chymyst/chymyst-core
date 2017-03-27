@@ -75,10 +75,10 @@ behavior of "reaction sha1"
     b.emittingReactions.size shouldEqual 1
     b.emittingReactions.map(_.toString) shouldEqual Set(expectedReaction)
     c.emittingReactions shouldEqual Set()
-    a.consumingReactions.get.size shouldEqual 1
-    a.consumingReactions.get.head.toString shouldEqual expectedReaction
-    b.consumingReactions shouldEqual None
-    c.consumingReactions.get shouldEqual a.consumingReactions.get
+    a.consumingReactions.length shouldEqual 1
+    a.consumingReactions.head.toString shouldEqual expectedReaction
+    b.consumingReactions shouldEqual Array()
+    c.consumingReactions shouldEqual a.consumingReactions
   }
 
   behavior of "macros for defining new molecule emitters"
@@ -853,7 +853,7 @@ behavior of "reaction sha1"
       site(
         go { case a(1) => a(1) }
       )
-      a.consumingReactions.get.map(_.info.outputs) shouldEqual Set(List(OutputMoleculeInfo(a, ConstOutputPattern(1), List())))
+      a.consumingReactions.map(_.info.outputs) shouldEqual Set(List(OutputMoleculeInfo(a, ConstOutputPattern(1), List())))
     }
     thrown.getMessage shouldEqual "In Site{a → ...}: Unavoidable livelock: reaction {a(1) → a(1)}"
   }
@@ -869,10 +869,10 @@ behavior of "reaction sha1"
           a(2)
       }
     )
-    a.consumingReactions.get.length shouldEqual 1
     a.emittingReactions.size shouldEqual 1
-    a.consumingReactions.get.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, ConstOutputPattern(2), List()))
-    a.consumingReactions.get.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, ConstInputPattern(1), constantOneSha1, 'Int))
+    a.consumingReactions.length shouldEqual 1
+    a.consumingReactions.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, ConstOutputPattern(2), List()))
+    a.consumingReactions.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, ConstInputPattern(1), constantOneSha1, 'Int))
     a.emittingReactions.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, ConstOutputPattern(2), List()))
     a.emittingReactions.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, ConstInputPattern(1), constantOneSha1, Symbol("Int")))
   }
@@ -899,8 +899,8 @@ behavior of "reaction sha1"
     site(
       go { case a(2) => b(2); a(1); b(1) }
     )
-    a.consumingReactions.get.length shouldEqual 1
-    a.consumingReactions.get.map(_.info.outputs).head shouldEqual List(
+    a.consumingReactions.length shouldEqual 1
+    a.consumingReactions.map(_.info.outputs).head shouldEqual List(
       OutputMoleculeInfo(b, ConstOutputPattern(2), List()),
       OutputMoleculeInfo(a, ConstOutputPattern(1), List()),
       OutputMoleculeInfo(b, ConstOutputPattern(1), List())
@@ -923,7 +923,7 @@ behavior of "reaction sha1"
     a.isBound shouldEqual true
     c.isBound shouldEqual false
 
-    val reaction = a.consumingReactions.get.head
+    val reaction = a.consumingReactions.head
     c.emittingReactions.head shouldEqual reaction
     a.emittingReactions.head shouldEqual reaction
 
@@ -950,11 +950,11 @@ behavior of "reaction sha1"
     c.isBound shouldEqual false
     d.isBound shouldEqual true
 
-    val reaction1 = d.consumingReactions.get.head
+    val reaction1 = d.consumingReactions.head
     a.emittingReactions.head shouldEqual reaction1
     c.emittingReactions.head shouldEqual reaction1
 
-    val reaction2 = a.consumingReactions.get.head
+    val reaction2 = a.consumingReactions.head
     d.emittingReactions.head shouldEqual reaction2
 
     reaction1.info.inputs shouldEqual List(InputMoleculeInfo(d, 0, WildcardInput, wildcardSha1, 'Unit))
@@ -1030,8 +1030,8 @@ behavior of "reaction sha1"
     )
 
     val inputs = new InputMoleculeList(2)
-    inputs(0) = (dIncorrectStaticMol, MolValue(()))
-    inputs(1) = (e, MolValue(()))
+    inputs(0) = MolValue(())
+    inputs(1) = MolValue(())
     val thrown = intercept[Exception] {
       r1.body.apply((inputs.length - 1, inputs)) shouldEqual 123 // Reaction ran on a non-reaction thread (i.e. on this thread) and attempted to emit the static molecule.
     }

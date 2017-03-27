@@ -4,8 +4,9 @@ import scala.language.experimental.macros
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.util.{Failure, Success, Try}
 
-/** This is a pure interface to other functions to make them visible to users.
-  * This object does not contain any new code.
+/** This object contains code that should be visible to users of `Chymyst Core`.
+  * It also serves as an interface to macros.
+  * This allows users to import just one package and use all functionality of `Chymyst Core`.
   */
 package object jc {
 
@@ -33,12 +34,14 @@ package object jc {
     reactionSite.checkWarningsAndErrors()
   }
 
+  /** `site()` call with a default reaction pool and site pool. */
   def site(reactions: Reaction*): WarningsAndErrors = site(defaultReactionPool, defaultSitePool)(reactions: _*)
 
-  def site(reactionPool: Pool)(reactions: Reaction*): WarningsAndErrors = site(reactionPool, reactionPool)(reactions: _*)
+  /** `site()` call with the specified pool serving as both the site pool and the reaction pool. */
+  def site(pool: Pool)(reactions: Reaction*): WarningsAndErrors = site(pool, pool)(reactions: _*)
 
   /**
-    * Users will define reactions using this function.
+    * This is the main method for defining reactions.
     * Examples: {{{ go { a(_) => ... } }}}
     * {{{ go { a (_) => ...}.withRetry onThreads threadPool }}}
     *
@@ -47,6 +50,7 @@ package object jc {
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
     * @return A [[Reaction]] value, containing the reaction body as well as static information about input and output molecules.
     */
+  // IDEA cannot resolve symbol `BlackboxMacros`, but compilation works.
   def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl
 
   /**
@@ -57,7 +61,8 @@ package object jc {
     * @param x the first emitted molecule
     * @return An auxiliary class with a `+` operation.
     */
-  implicit final class EmitMultiple(x: Unit) { // Making this `extend AnyVal` crashes JVM in tests!
+  // Making this `extend AnyVal` crashes JVM in tests!
+  implicit final class EmitMultiple(x: Unit) {
     def +(n: Unit): Unit = ()
   }
 
@@ -81,11 +86,37 @@ package object jc {
   val defaultSitePool = new FixedPool(2)
   val defaultReactionPool = new FixedPool(4)
 
+  /** Access the global error log used by all reaction sites to report runtime errors.
+    *
+    * @return An [[Iterable]] representing the complete error log.
+    */
   def globalErrorLog: Iterable[String] = Core.errorLog.iterator().asScala.toIterable
 
+  /** Clear the global error log used by all reaction sites to report runtime errors.
+    *
+    */
+  def clearErrorLog(): Unit = Core.errorLog.clear()
+
+  /** A helper method to run a closure that uses a thread pool, safely closing the pool after use.
+    *
+    * @param pool   A thread pool value, evaluated lazily - typically `new SmartPool(...)`.
+    * @param doWork A closure, typically containing a `site(pool)(...)` call.
+    * @tparam T Type of the value returned by the closure.
+    * @return The value returned by the closure, wrapped in a `Try`.
+    */
   def withPool[T](pool: => Pool)(doWork: Pool => T): Try[T] = cleanup(pool)(_.shutdownNow())(doWork)
 
-  def cleanup[T,R](resource: => T)(cleanup: T => Unit)(doWork: T => R): Try[R] = {
+  /** Run a closure with a resource that is allocated and safely cleaned up after use.
+    * Resource will be cleaned up even if the closure throws an exception.
+    *
+    * @param resource A value of type `T` that needs to be created for use by `doWork`.
+    * @param cleanup  A closure that will perform the necessary cleanup on the resource.
+    * @param doWork   A closure that will perform useful work, using the resource.
+    * @tparam T Type of the resource value.
+    * @tparam R Type of the result of `doWork`.
+    * @return The value returned by `doWork`, wrapped in a `Try`.
+    */
+  def cleanup[T, R](resource: => T)(cleanup: T => Unit)(doWork: T => R): Try[R] = {
     try {
       Success(doWork(resource))
     } catch {
@@ -102,6 +133,7 @@ package object jc {
     }
   }
 
+  /** We need to have a single implicit instance of [[TypeMustBeUnit]]. */
   implicit val _: TypeMustBeUnit[Unit] = TypeMustBeUnitValue
 
 }

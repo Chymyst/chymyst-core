@@ -1,6 +1,7 @@
 package io.chymyst.jc
 
 import Core._
+import io.chymyst.jc.ConjunctiveNormalForm.CNF
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
@@ -109,10 +110,13 @@ class CommonMacros(val c: blackbox.Context) {
     override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(matcher) + showCode(guard.getOrElse(EmptyTree)))
   }
 
-  /** Describes the pattern matcher for output molecules.
+  /** Describes the pattern matcher for output molecules. This flag is used only within the macro code and is not exported to compiled code.
+    * The corresponding value of type [[OutputPatternType]] is exported to compiled code of the [[Reaction]] instance.
+    *
     * Possible values:
     * ConstOutputPatternF(x): a(123) or a(Some(4)), etc.
     * OtherOutputPatternF: a(x), a(x+y), or any other kind of expression.
+    * EmptyOutputPatternF: no argument given, i.e. bare molecule emitter value or reply emitter value
     */
   sealed trait OutputPatternFlag {
     val needTraversal: Boolean = false
@@ -123,6 +127,14 @@ class CommonMacros(val c: blackbox.Context) {
     override val needTraversal: Boolean = true
     override val patternType: OutputPatternType = OtherOutputPattern
 
+    override val toString: String = "?"
+  }
+
+  case object EmptyOutputPatternF extends OutputPatternFlag {
+    override val needTraversal: Boolean = true
+    override val patternType: OutputPatternType = OtherOutputPattern
+
+    /** The pattern is empty, and most probably will be used with a value, so we print `f(?)` in error messages. */
     override val toString: String = "?"
   }
 
@@ -190,28 +202,31 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     maybeError("Input guard", "matches on additional input molecules", guardIn.map(_._1.name))
     maybeError("Input guard", "emit any output molecules", guardOut.map(_._1.name), "not")
     maybeError("Input guard", "perform any reply actions", guardReply.map(_._1.name), "not")
-    maybeError("Input guard", "uses other molecules inside molecule value patterns", wrongMoleculesInGuard)
+    maybeError("Input guard", "matches on molecules", wrongMoleculesInGuard.map(_.name))
 
     val (bodyIn, bodyOut, bodyReply, wrongMoleculesInBody) = moleculeInfoMaker.from(body) // bodyIn should be empty
     maybeError("Reaction body", "matches on additional input molecules", bodyIn.map(_._1.name))
-    maybeError("Reaction body", "uses other molecules inside molecule value patterns", wrongMoleculesInBody)
+    maybeError("Reaction body", "matches on molecules", wrongMoleculesInBody.map(_.name))
 
     // Blocking molecules should not be used under nontrivial output environments.
     val nontrivialEmittedBlockingMoleculeStrings = bodyOut
       .filter(_._1.typeSignature <:< weakTypeOf[B[_, _]])
       .filter(_._3.exists(!_.linear))
-      .map { case (molSymbol, flag, _) => s"${molSymbol.name}($flag)" }
+      .map { case (molSymbol, flag, _) => s"molecule ${molSymbol.name}($flag)" }
     maybeError("Reaction body", "emit blocking molecules inside function blocks", nontrivialEmittedBlockingMoleculeStrings, "not")
 
     // Reply emitters should not be used under nontrivial output environments.
     val nontrivialEmittedRepliesStrings = bodyReply
-      .filter(_._3.exists(!_.linear))
-      .map { case (molSymbol, flag, _) => s"${molSymbol.name}($flag)" }
+      .filter{
+        case (_, EmptyOutputPatternF, _) ⇒ true
+        case (_, _, envs) ⇒ envs.exists(!_.linear)
+      }
+      .map { case (molSymbol, flag, _) => s"reply emitter ${molSymbol.name}($flag)" }
     maybeError("Reaction body", "use reply emitters inside function blocks", nontrivialEmittedRepliesStrings, "not")
 
-    // TODO: Reply emitters should be used only once. This depends on proper shrinkage.
+    // TODO: Code should check at compile time that each reply emitter is used only once. This depends on proper shrinkage.
 
-    val guardCNF: List[List[Tree]] = convertToCNF(guard) // Conjunctive normal form of the guard condition. In this CNF, `true` is List() and `false` is List(List()).
+    val guardCNF: CNF[Tree] = convertToCNF(guard) // Conjunctive normal form of the guard condition. In this CNF, `true` is List() and `false` is List(List()).
 
     // If any of the CNF clauses is empty, the entire guard is identically `false`. This is an error condition: reactions should not be permanently prohibited.
     if (guardCNF.exists(_.isEmpty)) {
@@ -342,7 +357,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
     // It is an error to have blocking molecules that do not match on a simple variable.
     val wrongBlockingMolecules = blockingMolecules.filter(_._3.get.notReplyValue).map(_._1)
-    maybeError("Blocking input molecules", "matches a reply emitter with anything else than a simple variable", wrongBlockingMolecules)
+    maybeError("Blocking input molecules", "matches a reply emitter with a simple variable", wrongBlockingMolecules.map(ms ⇒ s"molecule ${ms.name}"), "contain a pattern that")
 
     // If we are here, all reply emitters have correct pattern variables. Now we check that each blocking molecule has one and only one reply.
     val bodyReplyInfoMacro = bodyReply.map { case (m, p, envs) => (m, p.patternType, envs) }
@@ -358,8 +373,8 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     val blockingMoleculesWithoutReply = expectedBlockingReplies difff shrunkGuaranteedReplies
     val blockingMoleculesWithMultipleReply = shrunkPossibleReplies difff expectedBlockingReplies
 
-    maybeError("Blocking molecules", "but no unconditional reply found for", blockingMoleculesWithoutReply, "receive a reply")
-    maybeError("Blocking molecules", "but possibly multiple replies found for", blockingMoleculesWithMultipleReply, "receive only one reply")
+    maybeError("Blocking molecules", "but no unconditional reply found for", blockingMoleculesWithoutReply.map(ms ⇒ s"reply emitter $ms"), "receive a reply")
+    maybeError("Blocking molecules", "but possibly multiple replies found for", blockingMoleculesWithMultipleReply.map(ms ⇒ s"reply emitter $ms"), "receive only one reply")
 
     if (patternIn.isEmpty && !isStaticReaction(pattern, guard, body)) // go { case x => ... }
       reportError(s"Reaction input must be `_` or must contain some input molecules, but is ${showCode(pattern)}")
@@ -379,7 +394,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     // However, the order of output molecules corresponds to the order in which they might be emitted.
     val allOutputInfo = bodyOut
     // Output molecule info comes only from the body since neither the pattern nor the guard can emit output molecules.
-    val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
+    val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, ${p.patternType}, ${envs.reverse})" }.toArray
 
     val outputMoleculeInfoMacro = allOutputInfo.map { case (m, p, envs) => (m, p.patternType, envs) }
 
@@ -398,7 +413,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     // That is, only if all matchers are trivial, and if the guard is absent.
     // Then it is sufficient to take the shrunk output info list and to see whether enough output molecules are present to cover all input molecules.
     if (isGuardAbsent && allInputMatchersAreTrivial && inputMoleculesAreSubsetOfOutputMolecules) {
-      maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.asTerm.name.decodedName), "not be a subset of")
+      maybeError("Unconditional livelock: Input molecules", "output molecules, with all trivial matchers for", patternIn.map(_._1.name), "not be a subset of")
     }
 
     // Compute reaction sha1 from simplified input list.
@@ -422,16 +437,19 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
 object Macros {
 
-  /** Return the raw expression tree. This macro is used only for testing.
+  /** Return the raw expression tree. This macro is used only in tests, to verify that certain expression trees are what the code expects them to be.
     *
     * @param x Any scala expression. The expression will not be evaluated.
     * @return The raw syntax tree object (after typer) corresponding to the expression.
     */
   private[jc] def rawTree(x: Any): String = macro CommonMacros.rawTreeImpl
 
-  /** This macro is not actually used.
-    * It serves only for testing the mechanism by which we detect the name of the enclosing value.
-    * For example, `val myVal = { 1; 2; 3; getName }` returns the string "myVal".
+  /** Determine the name of the enclosing value.
+    * For example, `val myVal = { 1; 2; 3; getName }` returns the string `"myVal"`.
+    *
+    * This works only for simple values, but not for pattern-matched values such as `val (x,y) = (getName, getName)`.
+    *
+    * This macro is used only in tests, to check the mechanism by which we detect the name of the enclosing value.
     *
     * @return The name of the enclosing value as string.
     */

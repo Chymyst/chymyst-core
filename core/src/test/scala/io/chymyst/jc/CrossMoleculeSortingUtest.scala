@@ -3,7 +3,7 @@ package io.chymyst.jc
 import utest._
 import CrossMoleculeSorting.{findFirstConnectedGroupSet, groupConnectedSets, sortedConnectedSets, getDSLProgram}
 
-object CrossMoleculeSortingSpec extends TestSuite {
+object CrossMoleculeSortingUtest extends TestSuite {
   val tests = this {
     val crossGroups1 = Array(Set(0, 1), Set(2, 3), Set(3, 4, 5), Set(0, 6), Set(6, 7))
     val crossGroups2 = Array(Set(0, 1), Set(2, 3), Set(3, 4, 5), Set(0, 6), Set(6, 7), Set(7, 1))
