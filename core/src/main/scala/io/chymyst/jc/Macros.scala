@@ -110,10 +110,13 @@ class CommonMacros(val c: blackbox.Context) {
     override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(matcher) + showCode(guard.getOrElse(EmptyTree)))
   }
 
-  /** Describes the pattern matcher for output molecules.
+  /** Describes the pattern matcher for output molecules. This flag is used only within the macro code and is not exported to compiled code.
+    * The corresponding value of type [[OutputPatternType]] is exported to compiled code of the [[Reaction]] instance.
+    *
     * Possible values:
     * ConstOutputPatternF(x): a(123) or a(Some(4)), etc.
     * OtherOutputPatternF: a(x), a(x+y), or any other kind of expression.
+    * EmptyOutputPatternF: no argument given, i.e. bare molecule emitter value or reply emitter value
     */
   sealed trait OutputPatternFlag {
     val needTraversal: Boolean = false
@@ -124,6 +127,14 @@ class CommonMacros(val c: blackbox.Context) {
     override val needTraversal: Boolean = true
     override val patternType: OutputPatternType = OtherOutputPattern
 
+    override val toString: String = "?"
+  }
+
+  case object EmptyOutputPatternF extends OutputPatternFlag {
+    override val needTraversal: Boolean = true
+    override val patternType: OutputPatternType = OtherOutputPattern
+
+    /** The pattern is empty, and most probably will be used with a value, so we print `f(?)` in error messages. */
     override val toString: String = "?"
   }
 
@@ -206,7 +217,10 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
     // Reply emitters should not be used under nontrivial output environments.
     val nontrivialEmittedRepliesStrings = bodyReply
-      .filter(_._3.exists(!_.linear))
+      .filter{
+        case (_, EmptyOutputPatternF, _) ⇒ true
+        case (_, _, envs) ⇒ envs.exists(!_.linear)
+      }
       .map { case (molSymbol, flag, _) => s"reply emitter ${molSymbol.name}($flag)" }
     maybeError("Reaction body", "use reply emitters inside function blocks", nontrivialEmittedRepliesStrings, "not")
 
@@ -380,7 +394,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     // However, the order of output molecules corresponds to the order in which they might be emitted.
     val allOutputInfo = bodyOut
     // Output molecule info comes only from the body since neither the pattern nor the guard can emit output molecules.
-    val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
+    val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, ${p.patternType}, ${envs.reverse})" }.toArray
 
     val outputMoleculeInfoMacro = allOutputInfo.map { case (m, p, envs) => (m, p.patternType, envs) }
 

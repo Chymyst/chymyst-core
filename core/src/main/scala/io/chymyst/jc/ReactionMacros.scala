@@ -466,7 +466,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     private def isMolecule(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< typeOf[Molecule]
 
-    private def isReplyEmitter(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< weakTypeOf[AbsReplyValue[_, _]]
+    private def isReplyEmitter(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< weakTypeOf[AbsReplyEmitter[_, _]]
 
     @SuppressWarnings(Array("org.wartremover.warts.Equals")) // For some reason, q"while($cond) $body" triggers wartremover's error about disabled `==` operator.
     override def traverse(tree: Tree): Unit = {
@@ -590,7 +590,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           finishTraverseWithOutputEnv()
 
         /* The expression is `t.f(argumentList)`.
-         * This expression could be a molecule emission, but could be any function call.
+         * This expression could be a molecule emission, but could be any call to `apply`, `checkTimeout`, or `timeout`.
+         * Other function calls will be analyzed in a later `case` clause.
          *
          * For example, if `c` is a molecule then `c(123)` is matched as `c.apply(List(123))`.
          * Then `t` will be `c` and `f` will be `apply`.
@@ -606,14 +607,14 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           lazy val funcName = s"${t.symbol.fullName}.$f"
           if (flag1.needTraversal) {
             // Traverse the trees of the argument list elements (molecules should only have one argument anyway).
-//            if (thisSymbolIsAMolecule || thisSymbolIsAReply) {
-//              argumentList.foreach(traverse)
-//            } else {
+            if (thisSymbolIsAMolecule || thisSymbolIsAReply) {
+              argumentList.foreach(traverse) // Molecules and replies are a once-only output environment, so no need to push another environment.
+            } else {
               renewOutputEnvId()
               pushEnv(FuncBlock(currentOutputEnvId, name = funcName))
               argumentList.foreach(traverse)
               finishTraverseWithOutputEnv()
-//            }
+            }
           }
 
           if (includeThisSymbol) {
@@ -651,16 +652,17 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
                 // This is an iterator that takes a molecule emitter, in a short syntax,
                 // e.g. `(0 until n).foreach(a)` where `a : M[Int]`.
                 // In that case, the molecule could be emitted zero or more times.
-                outputMolecules.append((t.asInstanceOf[Tree].symbol, OtherOutputPatternF, outputEnv))
+                outputMolecules.append((t.asInstanceOf[Tree].symbol, EmptyOutputPatternF, outputEnv))
               }
               traverse(t.asInstanceOf[Tree])
             }
             finishTraverseWithOutputEnv()
           }
 
-        case Ident(TermName(name)) if isReplyEmitter(tree) =>
+        // This term is a bare identifier.
+        case Ident(TermName(_)) if isReplyEmitter(tree) =>
           // All use of reply emitters must be logged, including just copying an emitter itself.
-          replyActions.append((tree.asInstanceOf[Tree].symbol, OtherOutputPatternF, outputEnv))
+          replyActions.append((tree.asInstanceOf[Tree].symbol, EmptyOutputPatternF, outputEnv))
 
         case _ => super.traverse(tree)
       }
@@ -699,16 +701,9 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       q"_root_.io.chymyst.jc.WildcardInput" // this case will not be encountered here; we are conflating InputPatternFlag and ReplyInputPatternFlag
   }
 
-  implicit val liftableOutputPatternFlag: Liftable[OutputPatternFlag] = Liftable[OutputPatternFlag] {
-    case ConstOutputPatternF(tree) =>
-      q"_root_.io.chymyst.jc.ConstOutputPattern($tree)"
-    case OtherOutputPatternF =>
-      q"_root_.io.chymyst.jc.OtherOutputPattern"
-  }
-
   implicit val liftableOutputPatternType: Liftable[OutputPatternType] = Liftable[OutputPatternType] {
     case ConstOutputPattern(v) =>
-      q"_root_.io.chymyst.jc.ConstOutputPattern(${v.asInstanceOf[Tree]})" // When we lift it here, it always has type `Tree`.
+      q"_root_.io.chymyst.jc.ConstOutputPattern(${v.asInstanceOf[Tree]})" // When we lift it here, `v` always has type `Tree`.
     case OtherOutputPattern =>
       q"_root_.io.chymyst.jc.OtherOutputPattern"
   }

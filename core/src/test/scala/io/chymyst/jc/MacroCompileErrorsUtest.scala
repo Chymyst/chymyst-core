@@ -311,7 +311,7 @@ case c(_) + a(y) => c()
           """
             |          "val r = go { case a() => }" // ignore warning "non-variable type argument"
             |                             ^
-            |""".stripMargin, "not enough patterns for class B offering (Unit, io.chymyst.jc.ReplyValue[Unit,Unit]): expected 2, found 0")
+            |""".stripMargin, "not enough patterns for class B offering (Unit, io.chymyst.jc.ReplyEmitter[Unit,Unit]): expected 2, found 0")
       }
       //    "val r = go { case a(_) => }" shouldNot compile // no pattern variable for reply in "a"
       * - {
@@ -341,7 +341,7 @@ case c(_) + a(y) => c()
           """
             |          "val r = go { case a(_, _, _) => }" // ignore warning "non-variable type argument"
             |                             ^
-            |""".stripMargin, "too many patterns for class B offering (Unit, io.chymyst.jc.ReplyValue[Unit,Unit]): expected 2, found 3")
+            |""".stripMargin, "too many patterns for class B offering (Unit, io.chymyst.jc.ReplyEmitter[Unit,Unit]): expected 2, found 3")
       }
       //    "val r = go { case a(_, r) => }" shouldNot compile // no reply is performed with r
       * - {
@@ -585,7 +585,7 @@ case c(_) + a(y) => c()
             """
               |            "val r = go { case f(_, 123) => }"
               |                                    ^
-              |""".stripMargin, "type mismatch;\n found   : Int(123)\n required: io.chymyst.jc.ReplyValue[Any,Any]")
+              |""".stripMargin, "type mismatch;\n found   : Int(123)\n required: io.chymyst.jc.ReplyEmitter[Any,Any]")
         }
         * - {
           compileError(
@@ -872,7 +872,7 @@ case c(_) + a(y) => c()
 
         "refuse putting a reply emitter on another molecule" - {
           val f = b[Unit, Unit]
-          val d = m[ReplyValue[Unit, Unit]]
+          val d = m[ReplyEmitter[Unit, Unit]]
 
           assert(f.name == "f")
           assert(d.name == "d")
@@ -897,7 +897,8 @@ case c(_) + a(y) => c()
                 |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(?))")
           }
           * - {
-            val g = b[ReplyValue[Unit, Unit], Unit]
+            val g = b[ReplyEmitter[Unit, Unit], Unit]
+            assert(g.isBlocking)
 
             compileError(
               "val r = go { case f(_, r) => g(r) }"
@@ -934,7 +935,7 @@ case c(_) + a(y) => c()
               """
                 |              "val r = go { case f(_, r) => val x = r; g(x); r() }"
                 |                          ^
-                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter x(?))")
+                |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(?), reply emitter x(?))")
           } // can't call a function on an alias for reply emitter
         }
 
