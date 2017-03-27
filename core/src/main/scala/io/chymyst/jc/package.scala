@@ -86,7 +86,16 @@ package object jc {
   val defaultSitePool = new FixedPool(2)
   val defaultReactionPool = new FixedPool(4)
 
+  /** Access the global error log used by all reaction sites to report runtime errors.
+    *
+    * @return An [[Iterable]] representing the complete error log.
+    */
   def globalErrorLog: Iterable[String] = Core.errorLog.iterator().asScala.toIterable
+
+  /** Clear the global error log used by all reaction sites to report runtime errors.
+    *
+    */
+  def clearErrorLog(): Unit = Core.errorLog.clear()
 
   /** A helper method to run a closure that uses a thread pool, safely closing the pool after use.
     *

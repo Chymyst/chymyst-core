@@ -16,6 +16,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
   implicit val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
   override def beforeEach(): Unit = {
+    clearErrorLog()
     tp0 = new FixedPool(4)
   }
 
@@ -289,12 +290,15 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       Thread.sleep(20)
       r
     }
-    println(results.groupBy(identity).mapValues(_.size))
+    println(s"results for test 1: ${results.groupBy(identity).mapValues(_.size)}")
     globalErrorLog.toList should contain("In Site{p → ...}: Reaction {p(s) → } with inputs [p/P(c)] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
     results should contain(123)
     results should contain(0)
   }
 
+  // This test verifies that unbound molecule emitters will cause an exception when used in a nested reaction site.
+  // The way to avoid this problem is to define nested reaction sites *before* the new emitters are used.
+  // This test intentionally defines the reaction site defining the {e -> } reaction *after* the `e` emitter is passed to the `a` reaction.
   it should "start reactions and throw exception when molecule emitters are passed to nested reactions slightly before they are bound" in {
     val results = (1 to 100).map { i =>
       val a = m[M[Int]]
@@ -323,10 +327,10 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
         }
       )
       begin()
-      Thread.sleep(20)
+      Thread.sleep(scala.util.Random.nextInt(40).toLong)
       r
     }
-    println(results.groupBy(identity).mapValues(_.size))
+    println(s"results for test 2: ${results.groupBy(identity).mapValues(_.size)}")
     results should contain(246)
     globalErrorLog.toList should contain("In Site{a → ...}: Reaction {a(s) → } with inputs [a/P(e)] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site")
     results should contain(0)
@@ -355,7 +359,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
       begin()
       f()
     }
-    println(results.groupBy(identity).mapValues(_.size))
+    println(s"results for test 3: ${results.groupBy(identity).mapValues(_.size)}")
     globalErrorLog.toList should not contain "In Site{q → ...}: Reaction {q(s) → } with inputs [q/P(e)] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site"
     results should contain(246)
     results should not contain 0
@@ -548,7 +552,7 @@ class MoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with Be
     c(n)
     (1 to n).foreach { _ =>
       if (d.timeout()(1500 millis).isEmpty) {
-        println(globalErrorLog.take(50).toList) // this should not happen, but will be helpful for debugging
+        println(s"first 50 items from global log for test 4:\n${globalErrorLog.take(50).toList}") // this should not happen, but will be helpful for debugging
       }
     }
 
