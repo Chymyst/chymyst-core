@@ -3,7 +3,7 @@
 [![Coverage Status](https://codecov.io/gh/Chymyst/chymyst-core/coverage.svg?branch=master)](https://codecov.io/gh/Chymyst/chymyst-core?branch=master)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Github Tag](https://img.shields.io/github/tag/Chymyst/chymyst-core.svg?label=release&colorB=blue)](https://github.com/Chymyst/chymyst-core/tags)
-[![Maven Central](https://img.shields.io/maven-central/v/io.chymyst/core_2.11.svg)](http://search.maven.org/#search%7Cga%7C1%7Cio.chymyst)
+[![Maven Central](https://img.shields.io/maven-central/v/io.chymyst/chymyst-core_2.11.svg)](http://search.maven.org/#search%7Cga%7C1%7Cio.chymyst)
 
 # `Chymyst` — declarative concurrency in Scala
 
