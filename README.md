@@ -169,6 +169,13 @@ This will prepare JAR assemblies as well as their Scaladoc documentation package
 The main library is in the `core` JAR assembly (`core/target/scala-2.11/core-*.jar`).
 User code should depend on that JAR only.
 
+## Prepare new release
+
+- Edit the version string at the top of `build.sbt`
+- Make sure there is a description of changes for this release at the top of `docs/roadmap.md`
+- Commit everything to master and add tag with release version
+- Push everything with tags to master
+
 ## Publish to Sonatype
 
 ```bash
