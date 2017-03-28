@@ -174,7 +174,7 @@ User code should depend on that JAR only.
 - Edit the version string at the top of `build.sbt`
 - Make sure there is a description of changes for this release at the top of `docs/roadmap.md`
 - Commit everything to master and add tag with release version
-- Push everything with tags to master
+- Push everything (with tag) to master; build must pass on CI
 
 ## Publish to Sonatype
 
