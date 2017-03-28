@@ -88,7 +88,7 @@ package object jc {
 
   /** Access the global error log used by all reaction sites to report runtime errors.
     *
-    * @return An [[Iterable]] representing the complete error log.
+    * @return An `Iterable` representing the complete error log.
     */
   def globalErrorLog: Iterable[String] = Core.errorLog.iterator().asScala.toIterable
 

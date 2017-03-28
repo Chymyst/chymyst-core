@@ -127,10 +127,10 @@ object Core {
   }
 
   /** List of molecules used as inputs by a reaction. The molecules are ordered the same as in the reaction input list. */
-  type InputMoleculeList = Array[AbsMolValue[_]]
+  private[jc] type InputMoleculeList = Array[AbsMolValue[_]]
 
   /** Type used as argument for [[ReactionBody]]. The `Int` value is the index into the [[InputMoleculeList]] array. */
-  type ReactionBodyInput = (Int, InputMoleculeList)
+  private[jc] type ReactionBodyInput = (Int, InputMoleculeList)
 
   implicit final class EitherMonad[L, R](val e: Either[L, R]) extends AnyVal {
     def map[S](f: R => S): Either[L, S] = e match {
