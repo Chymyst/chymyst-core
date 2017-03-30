@@ -86,7 +86,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // The optimization consists of fetching the largest count that we might need for any reaction; then takeAny(count).size does the right thing
         val relatedMoleculeCounts = Array.tabulate[Int](moleculesPresent.length)(i ⇒ moleculesPresent(i).takeAny(maxRequiredMoleculeCount(i)).size)
         // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
-        val found: Option[(Reaction, InputMoleculeList)] = findReaction(mol, relatedMoleculeCounts)
+        val found: Option[(Reaction, InputMoleculeList)] =
+          findReaction(consumingReactions(mol.index), relatedMoleculeCounts)
         // If we have found a reaction that can be run, remove its input molecule values from their bags.
         found.foreach { case (thisReaction, thisInputList) ⇒
           thisInputList.indices.foreach { i ⇒
@@ -222,7 +223,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // Compute error messages here in case we will need them later.
     val blockingMoleculesWithNoReply = usedInputs.zipWithIndex
       .filter(_._1.reactionSentNoReply)
-      .map{ case (_, i) ⇒ thisReaction.info.inputs(i).molecule}
+      .map { case (_, i) ⇒ thisReaction.info.inputs(i).molecule }
       .toSeq.toOptionSeq
       .map(_.map(_.toString).sorted.mkString(", "))
 
@@ -279,11 +280,19 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       r.info.guardPresence.staticGuardHolds()
   }
 
-  private def findReaction(mol: Molecule, molCounts: Array[Int]): Option[(Reaction, InputMoleculeList)] = {
-    consumingReactions(mol.index)
+  /** We only need to find one reaction whose input molecules are available.
+    * For this, we use the special method [[ArrayWithExtraFoldOps.findAfterMap]].
+    * We return Option[(Reaction, InputMoleculeList)] indicating both the selected reaction and its input molecule values.
+    *
+    * @param reactions Array of reactions that need to be checked for possibly starting them.
+    * @param molCounts Current molecule counts for all molecules at the reaction site.
+    * @return `None` if no reaction can be started. Otherwise, the tuple contains the selected reaction
+    *         and its input molecule values.
+    */
+  private def findReaction(reactions: Array[Reaction], molCounts: Array[Int]): Option[(Reaction, InputMoleculeList)] = {
+    reactions
       .filter(reactionHasAChanceOfStarting(molCounts))
-      // We only need to find one reaction whose input molecules are available. For this, we use the special `Core.findAfterMap`.
-      .findAfterMap(_.findInputMolecules(moleculesPresent))
+      .findAfterMap(r ⇒ r.findInputMolecules(moleculesPresent).map(f ⇒ (r, f)))
   }
 
   /** Check if the current thread is allowed to emit a static molecule.
@@ -592,7 +601,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** For each site-wide molecule index, this array holds the array of reactions consuming that molecule.
     *
     */
-  private val consumingReactions: Array[Array[Reaction]] = Array.tabulate(knownMolecules.size)(i ⇒ getConsumingReactions(moleculeAtIndex(i)))
+  private val consumingReactions: Array[Array[Reaction]] =
+    Array.tabulate(knownMolecules.size)(i ⇒ getConsumingReactions(moleculeAtIndex(i)))
 
   // This must be lazy because it depends on site-wide molecule indices, which are known late.
   // The inner array contains site-wide indices for reaction input molecules; the outer array is also indexed by site-wide molecule indices.

@@ -726,7 +726,7 @@ final case class Reaction(
   }
 
   /** Find a set of input molecule values for this reaction. */
-  private[jc] def findInputMolecules(moleculesPresent: MoleculeBagArray): Option[(Reaction, InputMoleculeList)] = {
+  private[jc] def findInputMolecules(moleculesPresent: MoleculeBagArray): Option[InputMoleculeList] = {
     // A simpler, non-flatMap algorithm for the case when there are no cross-dependencies of molecule values.
     // For each single (non-repeated) input molecule, select a molecule value that satisfies the conditional.
     // For each group of repeated input molecules of the same sort, check whether the bag contains enough molecule values.
@@ -763,7 +763,7 @@ final case class Reaction(
           }
         // If we have no cross-conditionals, we do not need to use the SearchDSL sequence and we are finished.
         if (info.crossGuards.isEmpty && info.crossConditionalsForRepeatedMols.isEmpty)
-          true
+          true // The expression `if () true else ()` was not simplified only to preserve code readability.
         else {
           // Map from site-wide molecule index to the multiset of values that have been selected for repeated copies of this molecule.
           // This is used only for selecting repeated input molecules.
@@ -828,7 +828,7 @@ final case class Reaction(
         }
       }
     if (foundResult)
-      Some((this, foundValues))
+      Some(foundValues)
     else
       None
   }
