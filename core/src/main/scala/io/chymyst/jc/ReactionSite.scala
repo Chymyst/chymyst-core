@@ -79,15 +79,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   @tailrec
   private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
-    // TODO: optimize: pre-fetch all counts for related molecules and compare them with required counts before calling findInputMolecules; also precompute all related molecules in ReactionSite
+    // TODO: optimize: precompute all related molecules in ReactionSite
     if (logLevel > 3) println(s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(moleculesPresent)}]")
     val foundReactionAndInputs =
       moleculesPresent.synchronized {
-        // The optimization consists of fetching the largest count that we might need for any reaction; then takeAny(count).size does the right thing
-        val relatedMoleculeCounts = Array.tabulate[Int](moleculesPresent.length)(i ⇒ moleculesPresent(i).takeAny(maxRequiredMoleculeCount(i)).size)
         // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
         val found: Option[(Reaction, InputMoleculeList)] =
-          findReaction(consumingReactions(mol.index), relatedMoleculeCounts)
+          findReaction(consumingReactions(mol.index))
         // If we have found a reaction that can be run, remove its input molecule values from their bags.
         found.foreach { case (thisReaction, thisInputList) ⇒
           thisInputList.indices.foreach { i ⇒
@@ -269,29 +267,17 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
   }
 
-  private def reactionHasAChanceOfStarting(molCounts: Array[Int])(r: Reaction): Boolean = {
-    // Check that all input molecules for this reaction have counts that are not less than required by this reaction.
-    // This is just a preliminary check, since molecule values could fail some conditions.
-    r.moleculeIndexRequiredCounts.forall {
-      case (mIndex, count) ⇒ molCounts(mIndex) >= count
-    } &&
-      // Check that the static guard holds.
-      // If the static guard fails, we don't need to search for any input molecule values.
-      r.info.guardPresence.staticGuardHolds()
-  }
-
   /** We only need to find one reaction whose input molecules are available.
     * For this, we use the special method [[ArrayWithExtraFoldOps.findAfterMap]].
-    * We return Option[(Reaction, InputMoleculeList)] indicating both the selected reaction and its input molecule values.
+    * We return `Option[(Reaction, InputMoleculeList)]` indicating both the selected reaction and its input molecule values.
     *
     * @param reactions Array of reactions that need to be checked for possibly starting them.
-    * @param molCounts Current molecule counts for all molecules at the reaction site.
     * @return `None` if no reaction can be started. Otherwise, the tuple contains the selected reaction
     *         and its input molecule values.
     */
-  private def findReaction(reactions: Array[Reaction], molCounts: Array[Int]): Option[(Reaction, InputMoleculeList)] = {
+  private def findReaction(reactions: Array[Reaction]): Option[(Reaction, InputMoleculeList)] = {
     reactions
-      .filter(reactionHasAChanceOfStarting(molCounts))
+      .filter(_.info.guardPresence.staticGuardHolds())
       .findAfterMap(r ⇒ r.findInputMolecules(moleculesPresent).map(f ⇒ (r, f)))
   }
 
@@ -503,11 +489,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // This set will be examined again when any molecule bound to this site is emitted, so that errors can be signalled as early as possible.
     unboundOutputMolecules = nonStaticReactions.flatMap(_.info.outputs.map(_.molecule)).toSet.filterNot(_.isBound)
 
-    // Precompute max required molecule counts in reactions.
-    maxRequiredMoleculeCount.indices.foreach { i ⇒
-      consumingReactions(i).foreach(_.inputMoleculesSortedAlphabetically.foreach(mol ⇒ maxRequiredMoleculeCount(mol.index) += 1))
-    }
-
     // Perform static analysis.
     val foundWarnings = findStaticMolWarnings(staticMolDeclared, nonStaticReactions) ++ findStaticWarnings(nonStaticReactions)
 
@@ -558,11 +539,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         (mol, (index, valType))
       }(scala.collection.breakOut)
   }
-
-  /** The element of this array at index i is the maximum number of copies of the molecule with site-wide index i that can be consumed by any reaction.
-    * This array will be computed at reaction site initialization time.
-    */
-  private val maxRequiredMoleculeCount: Array[Int] = Array.fill(knownMolecules.size)(0)
 
   private def infosIfPipelined(i: Int): Option[Set[InputMoleculeInfo]] = {
     consumingReactions(i)

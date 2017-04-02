@@ -710,9 +710,15 @@ final case class Reaction(
       case _ => true
     }
 
-  // This must be lazy because molecule indices are not known at `Reaction` construction time.
+  /** A table of required molecule counts for each input molecule in this reaction.
+    * This is an optimization used when searching for independent molecule values.
+    *
+    * This value must be `lazy` because molecule site-wide indices are not known at `Reaction` construction time.
+    */
   private[jc] lazy val moleculeIndexRequiredCounts: Map[Int, Int] =
-    inputMoleculesSet.map { mol ⇒ (mol.index, inputMoleculesSortedAlphabetically.count(_ === mol)) }(scala.collection.breakOut)
+    inputMoleculesSet.map { mol ⇒
+      (mol.index, inputMoleculesSortedAlphabetically.count(_ === mol))
+    }(scala.collection.breakOut)
 
   /** Convenience method for debugging.
     *
@@ -727,24 +733,23 @@ final case class Reaction(
 
   /** Find a set of input molecule values for this reaction. */
   private[jc] def findInputMolecules(moleculesPresent: MoleculeBagArray): Option[InputMoleculeList] = {
-    // A simpler, non-flatMap algorithm for the case when there are no cross-dependencies of molecule values.
-    // For each single (non-repeated) input molecule, select a molecule value that satisfies the conditional.
-    // For each group of repeated input molecules of the same sort, check whether the bag contains enough molecule values.
-    // Begin checking with molecules that have more stringent constraints (and thus, are not repeated).
-
     // This array will be mutated in place as we search for molecule values.
     val foundValues = new Array[AbsMolValue[_]](info.inputs.length)
 
     val foundResult: Boolean =
     // `foundResult` will be `true` (and then `foundValues` has the molecule values) or `false` (we found no values that match).
 
-    // First, consider independent molecules with conditionals. If we fail to find their values, `foundResult` will be `false`.
+    // Handle molecules that have no cross-dependencies of molecule values, but have conditionals.
+    // For each single (non-repeated) input molecule, select a molecule value that satisfies the conditional.
+
+    // If we fail to find all such values, `foundResult` will be `false`.
       info.inputsSortedIndependentConditional.forall { inputInfo ⇒
         val molBag = moleculesPresent(inputInfo.molecule.index)
         val newValueOpt =
+        // It is probably useless to try optimizing the selection of a constant value, because 1) values are wrapped and 2) values that are not "simple types" are most likely to be stored in a queue-based molecule bag rather than in a hash map-based molecule bag.
+        // So we handle pipelined and non-pipelined molecules here, without a special case for constant values.
           if (inputInfo.molecule.isPipelined)
             molBag.takeOne.filter(inputInfo.admitsValue) // For pipelined molecules, we take the first one; if condition fails, we treat that case as if no molecule is available.
-          // It is probably useless to try optimizing the selection of a constant value, because 1) values are wrapped and 2) values that are not "simple types" are most likely to be stored in a queue-based molecule bag rather than in a hash map-based molecule bag.
           else
             molBag.find(inputInfo.admitsValue)
 
@@ -753,17 +758,22 @@ final case class Reaction(
         }
         newValueOpt.nonEmpty
       } && {
-        // Here we don't need to check any conditions because we already know that the molecule counts are sufficient for all molecules.
-        // However, it is important to assign these molecule values here before we embark on the SearchDSL program for cross-molecule groups,
-        // because the SearchDSL program does not include molecules with constant value matchers, so they have to be assigned now.
-        info.inputsSortedIndependentIrrefutableGrouped
-          .foreach { case (siteMolIndex, infos) ⇒
-            val molValues = moleculesPresent(siteMolIndex).takeAny(moleculeIndexRequiredCounts(siteMolIndex))
-            infos.indices.foreach { idx ⇒ foundValues(infos(idx)) = molValues(idx) }
+        // Here we handle irrefutable molecules.
+        // It is important to assign these molecule values here before we embark on the SearchDSL program for cross-molecule groups
+        // because the SearchDSL program does not include independent molecules, so they have to be assigned now.
+
+        // `foundAll` will be `true` if we could get sufficient counts for all required molecules from `inputsSortedIndependentIrrefutableGrouped`.
+        val foundAll = info.inputsSortedIndependentIrrefutableGrouped
+          .forall { case (molSiteIndex, infos) ⇒
+            val molValues = moleculesPresent(molSiteIndex).takeAny(moleculeIndexRequiredCounts(molSiteIndex))
+            (molValues.length === infos.length) && {
+              infos.indices.foreach { idx ⇒ foundValues(infos(idx)) = molValues(idx) }
+              true
+            }
           }
         // If we have no cross-conditionals, we do not need to use the SearchDSL sequence and we are finished.
         if (info.crossGuards.isEmpty && info.crossConditionalsForRepeatedMols.isEmpty)
-          true // The expression `if () true else ()` was not simplified only to preserve code readability.
+          foundAll
         else {
           // Map from site-wide molecule index to the multiset of values that have been selected for repeated copies of this molecule.
           // This is used only for selecting repeated input molecules.
@@ -801,7 +811,7 @@ final case class Reaction(
                           repeatedVals.updated(siteMolIndex, v :: prevValMap)
                         }
                     } else {
-                      // This is not a repeated molecule.
+                      // This is not a repeated molecule, so `repeatedVals` is unchanged but `foundValues` is mutated in place.
                       moleculesPresent(siteMolIndex)
                         .allValues
                         .filter(inputInfo.admitsValue)
