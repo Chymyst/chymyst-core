@@ -4,6 +4,7 @@ import Core._
 import StaticAnalysis._
 
 import scala.annotation.tailrec
+import scala.collection.breakOut
 
 /** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
   * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
@@ -34,8 +35,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     sameReactionSite = _.id === this.id
   )
 
-  private def getConsumingReactions(m: Molecule): Array[Reaction] = reactionInfos.keys.filter(_.inputMoleculesSet contains m).toArray
+  private def getConsumingReactions(m: Molecule): Array[Reaction] =
+    reactionInfos.keys.filter(_.inputMoleculesSet contains m).toArray
 
+  /** Each reaction site has a permanent unique ID number.
+    *
+    */
   private val id: Long = getNextId
 
   private val (nonStaticReactions, staticReactions) = reactions.toArray.partition(_.inputMoleculesSortedAlphabetically.nonEmpty)
@@ -57,7 +62,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * Static reactions are not included here.
     */
   private val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonStaticReactions
-    .map { r => (r, r.info.inputs) }(scala.collection.breakOut)
+    .map { r => (r, r.info.inputs) }(breakOut)
 
   override val toString: String = s"Site{${nonStaticReactions.map(_.toString).sorted.mkString("; ")}}"
 
@@ -79,7 +84,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   @tailrec
   private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
-    // TODO: optimize: precompute all related molecules in ReactionSite
+    // TODO: optimize: precompute all related molecules in ReactionSite?
     if (logLevel > 3) println(s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(moleculesPresent)}]")
     val foundReactionAndInputs =
       moleculesPresent.synchronized {
@@ -91,7 +96,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           thisInputList.indices.foreach { i ⇒
             val molValue = thisInputList(i)
             val mol = thisReaction.info.inputs(i).molecule
-            // This error (molecule value was not in bag) indicates a bug in this code, which should already manifest itself in failing tests!
+            // This error (molecule value was not in bag) indicates a bug in this code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
             if (!removeFromBag(mol, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $mol($molValue) from its bag; molecule index ${mol.index}, bag ${moleculesPresent(mol.index)}")
           }
         }
@@ -379,7 +384,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         None
       else
         Some((moleculeAtIndex(i), moleculesPresent(i).size))
-      )(scala.collection.breakOut)
+      )(breakOut)
 
   private def addToBag(mol: Molecule, molValue: AbsMolValue[_]): Unit = moleculesPresent(mol.index).add(molValue)
 
@@ -391,7 +396,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         None
       else
         Some((moleculeAtIndex(i), bags(i).getCountMap))
-      )(scala.collection.breakOut): Map[Molecule, Map[AbsMolValue[_], Int]]
+      )(breakOut): Map[Molecule, Map[AbsMolValue[_], Int]]
     )
 
   // Remove a blocking molecule if it is present.
@@ -461,7 +466,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @return A tuple containing the molecule value bags, and a list of warning and error messages.
     */
   private def initializeReactionSite() = {
-
     // Set the RS info on all input molecules in this reaction site.
     knownMolecules.foreach { case (mol, (index, valType)) ⇒
       // Assign the value bag.
@@ -521,14 +525,16 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     diagnostics
   }
 
+  /** Create the site-wide index map for all molecules.
+    *
+    */
   private val knownMolecules: Map[Molecule, (Int, Symbol)] = {
     nonStaticReactions
       .flatMap(_.inputMoleculesSortedAlphabetically)
-      .distinct // We only need to assign the owner on each distinct input molecule once.
+      .distinct // Take all input molecules from all reactions; arrange them in a single list.
       .sortBy(_.name)
       .zipWithIndex
       .map { case (mol, index) ⇒
-
         val valType = nonStaticReactions
           .map(_.info.inputs)
           .flatMap(_.find(_.molecule === mol))
@@ -537,7 +543,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           .getOrElse("<unknown>".toScalaSymbol)
 
         (mol, (index, valType))
-      }(scala.collection.breakOut)
+      }(breakOut)
   }
 
   private def infosIfPipelined(i: Int): Option[Set[InputMoleculeInfo]] = {
@@ -572,7 +578,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }.map(_._1)
   }
 
-  private val moleculeAtIndex: Map[Int, Molecule] = knownMolecules.map { case (mol, (i, _)) ⇒ (i, mol) }(scala.collection.breakOut)
+  private val moleculeAtIndex: Map[Int, Molecule] =
+    knownMolecules.map { case (mol, (i, _)) ⇒ (i, mol) }(breakOut)
 
   /** For each site-wide molecule index, this array holds the array of reactions consuming that molecule.
     *
@@ -588,19 +595,25 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     */
   private val pipelinedMolecules: Map[Int, Set[InputMoleculeInfo]] =
-    moleculeAtIndex.flatMap {
-      case (index, _) ⇒ infosIfPipelined(index).map(c ⇒ (index, c))
+    moleculeAtIndex.flatMap { case (index, _) ⇒
+      infosIfPipelined(index).map(c ⇒ (index, c))
     }
 
+  /** For each (site-wide) molecule index, the corresponding array element represents the container for
+    * that molecule's present values.
+    * That container will be mutated as molecules arrive or leave the reaction site.
+    * The specific type of the container - [[MutableMapBag]] or [[MutableQueueBag]]
+    * - will be chosen separately for each molecule when this array is initialized.
+    */
   private val moleculesPresent: MoleculeBagArray = new Array(knownMolecules.size)
 
-  /** Print warnings messages and throw exception if the initialization of this reaction site caused errors.
+  /** Print warning messages and throw exception if the initialization of this reaction site caused errors.
     *
     * @return Warnings and errors as a [[WarningsAndErrors]] value. If errors were found, throws an exception and returns nothing.
     */
   private[jc] def checkWarningsAndErrors(): WarningsAndErrors = diagnostics.checkWarningsAndErrors()
 
-  // This should be done at the very end, after all other values are computed, because it depends on `pipelinedMolecules`, `consumingReactions`, `knownMolecules`, and other computed values.
+  // This call should be done at the very end, after all other values are computed, because it depends on `pipelinedMolecules`, `consumingReactions`, `knownMolecules`, and other computed values.
   private val diagnostics: WarningsAndErrors = initializeReactionSite()
 }
 
