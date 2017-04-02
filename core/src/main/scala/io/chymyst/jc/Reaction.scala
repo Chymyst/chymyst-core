@@ -758,22 +758,24 @@ final case class Reaction(
         }
         newValueOpt.nonEmpty
       } && {
-        // Here we handle irrefutable molecules.
+        // Here we handle independent irrefutable molecules.
         // It is important to assign these molecule values here before we embark on the SearchDSL program for cross-molecule groups
         // because the SearchDSL program does not include independent molecules, so they have to be assigned now.
 
-        // `foundAll` will be `true` if we could get sufficient counts for all required molecules from `inputsSortedIndependentIrrefutableGrouped`.
-        val foundAll = info.inputsSortedIndependentIrrefutableGrouped
-          .forall { case (molSiteIndex, infos) ⇒
-            val molValues = moleculesPresent(molSiteIndex).takeAny(moleculeIndexRequiredCounts(molSiteIndex))
-            (molValues.length === infos.length) && {
-              infos.indices.foreach { idx ⇒ foundValues(infos(idx)) = molValues(idx) }
+        // This value will be `true` if we could get sufficient counts for all required molecules from `inputsSortedIndependentIrrefutableGrouped`.
+        info.inputsSortedIndependentIrrefutableGrouped
+          .forall { case (molSiteIndex, molInputIndices) ⇒
+            val molValuesFound = moleculesPresent(molSiteIndex).takeAny(moleculeIndexRequiredCounts(molSiteIndex))
+            // This will give `false` if we failed to find a sufficient number of molecule values.
+            (molValuesFound.length === molInputIndices.length) && {
+              molInputIndices.indices.foreach(i ⇒ foundValues(molInputIndices(i)) = molValuesFound(i))
               true
             }
           }
+      } && {
         // If we have no cross-conditionals, we do not need to use the SearchDSL sequence and we are finished.
         if (info.crossGuards.isEmpty && info.crossConditionalsForRepeatedMols.isEmpty)
-          foundAll
+          true
         else {
           // Map from site-wide molecule index to the multiset of values that have been selected for repeated copies of this molecule.
           // This is used only for selecting repeated input molecules.
