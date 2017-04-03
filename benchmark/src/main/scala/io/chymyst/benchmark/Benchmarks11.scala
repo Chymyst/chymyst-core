@@ -12,7 +12,7 @@ object Benchmarks11 {
 
     val total = count * Benchmarks9.counterMultiplier
 
-    val tp1 = new FixedPool(1)
+    val tp1 = new FixedPool(5)
 
     site(tp, tp1)(
       go { case f(_, r) + done(x) => r(x) },

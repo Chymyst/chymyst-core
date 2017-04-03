@@ -31,8 +31,9 @@ object Benchmarks9 {
     val all_done = m[Int]
     val f = b[LocalDateTime,Long]
 
+    val tp1 = new FixedPool(8)
 
-    site(tp)(
+    site(tp, tp1)(
       go { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
       go { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
     )
@@ -43,7 +44,9 @@ object Benchmarks9 {
     val d = make_counter_1(done, numberOfCounters, count, tp)
     (1 to (count*numberOfCounters)).foreach{ _ => d() }
 
-    f(initialTime)
+    val result = f(initialTime)
+    tp1.shutdownNow()
+    result
   }
 
 
