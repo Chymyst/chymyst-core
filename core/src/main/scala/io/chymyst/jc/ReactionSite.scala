@@ -386,9 +386,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         Some((moleculeAtIndex(i), moleculesPresent(i).size))
       )(breakOut)
 
-  private def addToBag(mol: Molecule, molValue: AbsMolValue[_]): Unit = moleculesPresent(mol.index).add(molValue)
+  private def addToBag(mol: Molecule, molValue: AbsMolValue[_]): Unit =
+    moleculesPresent(mol.index).add(molValue)
 
-  private def removeFromBag(mol: Molecule, molValue: AbsMolValue[_]): Boolean = moleculesPresent(mol.index).remove(molValue)
+  private def removeFromBag(mol: Molecule, molValue: AbsMolValue[_]): Boolean =
+    moleculesPresent(mol.index).remove(molValue)
 
   private[jc] def moleculeBagToString(bags: Array[MutableBag[AbsMolValue[_]]]): String =
     Core.moleculeBagToString(bags.indices

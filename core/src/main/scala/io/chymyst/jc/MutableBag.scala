@@ -2,6 +2,7 @@ package io.chymyst.jc
 
 
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicInteger
 
 import scala.collection.JavaConverters.{asScalaIteratorConverter, asScalaSetConverter}
 import com.google.common.collect.ConcurrentHashMultiset
@@ -105,16 +106,22 @@ final class MutableMapBag[T] extends MutableBag[T] {
 final class MutableQueueBag[T] extends MutableBag[T] {
   private val bag = new ConcurrentLinkedQueue[T]()
 
+  private val sizeValue = new AtomicInteger(0)
+
   override def isEmpty: Boolean = bag.isEmpty
 
-  override def size: Int = bag.size
+  override def size: Int = sizeValue.get
 
   override def add(v: T): Unit = {
     bag.add(v)
+    sizeValue.incrementAndGet()
     ()
   }
 
-  override def remove(v: T): Boolean = bag.remove(v)
+  override def remove(v: T): Boolean = {
+    sizeValue.decrementAndGet()
+    bag.remove(v)
+  }
 
   override def find(predicate: (T) => Boolean): Option[T] = bag.iterator.asScala.find(predicate)
 
