@@ -143,7 +143,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           }
           // Schedule the reaction now. Provide reaction info to the thread.
           scheduleReaction(thisReaction, usedInputs, poolForReaction)
-          decideReactionsForNewMolecule(mol) // Need to try running another reaction with the same molecule, if possible.
+          // The scheduler loops, trying to run another reaction with the same molecule, if possible. This is required for correct operation.
+          decideReactionsForNewMolecule(mol)
         }
       case None =>
         if (logLevel > 2)
@@ -461,11 +462,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private def emit[T](mol: Molecule, molValue: AbsMolValue[T]): Unit = {
     if (findUnboundOutputMolecules) {
-      lazy val noReactionMessage = s"In $this: As $mol($molValue) is emitted, some reactions may emit molecules (${unboundOutputMolecules.map(_.toString).toList.sorted.mkString(", ")}) that are not bound to any reaction site"
+      val noReactionMessage = s"In $this: As $mol($molValue) is emitted, some reactions may emit molecules (${unboundOutputMolecules.map(_.toString).toList.sorted.mkString(", ")}) that are not bound to any reaction site"
       throw new ExceptionNoReactionSite(noReactionMessage)
     }
     else if (sitePool.isInactive) {
-      lazy val noPoolMessage = s"In $this: Cannot emit molecule $mol($molValue) because site pool is not active"
+      val noPoolMessage = s"In $this: Cannot emit molecule $mol($molValue) because site pool is not active"
       throw new ExceptionNoSitePool(noPoolMessage)
     }
     else if (!Thread.currentThread().isInterrupted) {
@@ -475,13 +476,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           addToBag(mol, molValue)
           mol.asInstanceOf[M[T]].assignStaticMolVolatileValue(molValue)
         } else {
-          throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit molecule $mol($molValue) as static (must be a non-blocking molecule)")
+          val refusingEmitAsStatic = s"In $this: Refusing to emit molecule $mol($molValue) initially as static (must be a non-blocking molecule)"
+          throw new ExceptionEmittingStaticMol(refusingEmitAsStatic)
         }
       } else {
         // For pipelined molecules, check whether their value satisfies at least one of the conditions (if any conditions are present).
         // (If no condition is satisfied, we will not emit this value for a pipelined molecule.)
         // For non-pipelined molecules, `admitsValue` will be identically `true`.
         val admitsValue = !mol.isPipelined ||
+        // TODO: could optimize this, since `pipelinedMolecules` is only used to check `admitsValue`
           pipelinedMolecules.get(mol.siteIndex).forall(infos ⇒ infos.isEmpty || infos.exists(_.admitsValue(molValue)))
         if (mol.isStatic) {
           // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
