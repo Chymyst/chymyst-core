@@ -107,7 +107,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       moleculesPresent.synchronized {
         // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
         val found: Option[(Reaction, InputMoleculeList)] =
-          findReaction(consumingReactions.apply(mol.siteIndex))
+          findReaction(consumingReactions(mol.siteIndex))
         // If we have found a reaction that can be run, remove its input molecule values from their bags.
         found.foreach { case (thisReaction, thisInputList) ⇒
           thisInputList.indices.foreach { i ⇒
@@ -296,16 +296,129 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @return `None` if no reaction can be started. Otherwise, the tuple contains the selected reaction
     *         and its input molecule values.
     */
-  private def findReaction(reactions: Array[Reaction]): Option[(Reaction, InputMoleculeList)] = {
+  private def findReaction(reactions: Array[Reaction]): Option[(Reaction, InputMoleculeList)] =
     reactions
       .filter(_.info.guardPresence.staticGuardHolds())
       .findAfterMap { r ⇒
         acquireLock(r.initialMoleculeValueLock)
-        r.findInputMolecules(moleculesPresent).map(f ⇒ (r, f))
+        findInputMolecules(r, moleculesPresent)
       }
-  }
 
-  // TODO: refactor functions like `findReaction` and `findInputMolecules` so that they are not class methods
+  /** Find a set of input molecule values for a reaction. */
+  private def findInputMolecules(r: Reaction, moleculesPresent: MoleculeBagArray): Option[(Reaction, InputMoleculeList)] = {
+    val info = r.info
+    // This array will be mutated in place as we search for molecule values.
+    val foundValues = new Array[AbsMolValue[_]](info.inputs.length)
+
+    val foundResult: Boolean =
+    // `foundResult` will be `true` (and then `foundValues` has the molecule values) or `false` (we found no values that match).
+
+    // Handle molecules that have no cross-dependencies of molecule values, but have conditionals.
+    // For each single (non-repeated) input molecule, select a molecule value that satisfies the conditional.
+
+    // If we fail to find all such values, `foundResult` will be `false`.
+      info.inputsSortedIndependentConditional.forall { inputInfo ⇒
+        val molBag = moleculesPresent(inputInfo.molecule.siteIndex)
+        val newValueOpt =
+        // It is probably useless to try optimizing the selection of a constant value, because 1) values are wrapped and 2) values that are not "simple types" are most likely to be stored in a queue-based molecule bag rather than in a hash map-based molecule bag.
+        // So we handle pipelined and non-pipelined molecules here, without a special case for constant values.
+          if (inputInfo.molecule.isPipelined)
+            molBag.takeOne.filter(inputInfo.admitsValue) // For pipelined molecules, we take the first one; if condition fails, we treat that case as if no molecule is available.
+          else
+            molBag.find(inputInfo.admitsValue)
+
+        newValueOpt.foreach { newMolValue ⇒
+          foundValues(inputInfo.index) = newMolValue
+        }
+        newValueOpt.nonEmpty
+      } && {
+        // Here we handle independent irrefutable molecules.
+        // It is important to assign these molecule values here before we embark on the SearchDSL program for cross-molecule groups
+        // because the SearchDSL program does not include independent molecules, so they have to be assigned now.
+
+        // This value will be `true` if we could get sufficient counts for all required molecules from `inputsSortedIndependentIrrefutableGrouped`.
+        info.inputsSortedIndependentIrrefutableGrouped
+          .forall { case (molSiteIndex, molInputIndices) ⇒
+            val molValuesFound = moleculesPresent(molSiteIndex).takeAny(r.moleculeIndexRequiredCounts(molSiteIndex))
+            // This will give `false` if we failed to find a sufficient number of molecule values.
+            (molValuesFound.length === molInputIndices.length) && {
+              molInputIndices.indices.foreach(i ⇒ foundValues(molInputIndices(i)) = molValuesFound(i))
+              true
+            }
+          }
+      } && {
+        // If we have no cross-conditionals, we do not need to use the SearchDSL sequence and we are finished.
+        if (info.crossGuards.isEmpty && info.crossConditionalsForRepeatedMols.isEmpty)
+          true
+        else {
+          // Map from site-wide molecule index to the multiset of values that have been selected for repeated copies of this molecule.
+          // This is used only for selecting repeated input molecules.
+          type MolVals = Map[Int, List[AbsMolValue[_]]]
+
+          val initStream = Stream[MolVals](Map())
+
+          val found: Option[Stream[MolVals]] = r.info.searchDSLProgram
+            // The `flatFoldLeft` accumulates the value `repeatedMolValues`, representing the stream of value maps for repeated input molecules (only).
+            // This is used to build a "skipping iterator" over molecule values that correctly handles repeated input molecules.
+
+            // This is a "flat fold" because should be able to stop early even though we can't examine the stream value.
+            .flatFoldLeft[Stream[MolVals]](initStream) { (repeatedMolValuesStream, searchDslCommand) ⇒
+            // We need to return Option[Stream[MolVals]].
+            searchDslCommand match {
+              case ChooseMol(i) ⇒
+                // Note that this molecule cannot be pipelined since it is part of a cross-molecule constraint.
+                val inputInfo = info.inputs(i)
+
+                Some(// The stream contains repetitions of the immutable values `repeatedVals` of type `MolVals`, which represents the value map for repeated input molecules.
+                  // If there are no repeated input molecules, this will be an empty map.
+                  // However, each item in the stream will mutate `foundValues` in place, so that we always have the last chosen molecule values.
+                  // The search DSL program is guaranteed to check cross-molecule conditions only for molecules whose values we already chose.
+                  repeatedMolValuesStream.flatMap { repeatedVals ⇒
+                    val siteMolIndex = inputInfo.molecule.siteIndex
+                    if (info.crossConditionalsForRepeatedMols contains i) {
+                      val prevValMap = repeatedVals.getOrElse(siteMolIndex, List[AbsMolValue[_]]())
+                      moleculesPresent(siteMolIndex)
+                        // TODO: move this to the skipping interface, restore Seq[T] as its argument
+                        .allValuesSkipping(new MutableMultiset[AbsMolValue[_]]().add(prevValMap))
+                        .filter(inputInfo.admitsValue)
+
+                        .map { v ⇒
+                          foundValues(i) = v
+                          repeatedVals.updated(siteMolIndex, v :: prevValMap)
+                        }
+                    } else {
+                      // This is not a repeated molecule, so `repeatedVals` is unchanged but `foundValues` is mutated in place.
+                      moleculesPresent(siteMolIndex)
+                        .allValues
+                        .filter(inputInfo.admitsValue)
+                        .map { v ⇒
+                          foundValues(i) = v
+                          repeatedVals
+                        }
+                    }
+                  }
+                )
+
+              case ConstrainGuard(i) ⇒
+                val guard = info.crossGuards(i)
+                Some(repeatedMolValuesStream.filter { _ ⇒
+                  guard.cond.isDefinedAt(guard.indices.map(i ⇒ foundValues(i).moleculeValue).toList)
+                })
+
+              case CloseGroup ⇒
+                // If the stream is empty, we will return `None` here and terminate the "flat fold".
+                repeatedMolValuesStream.headOption.map(_ ⇒ initStream)
+            }
+          }
+          found.nonEmpty
+        }
+      }
+    // Returning the final result now.
+    if (foundResult)
+      Some((r, foundValues))
+    else
+      None
+  }
 
   /** Check if the current thread is allowed to emit a static molecule.
     * If so, remove the emitter from the mutable set.
@@ -571,6 +684,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       }(breakOut)
   }
 
+  /** Determine whether the molecule with site-wide index `i` can be pipelined, and return the corresponding input information.
+    * A molecule can be pipelined only if its input conditions are completely independent of all other molecules.
+    *
+    * @param i Site-wide index of a molecule.
+    * @return `None` if the molecule is not pipelined. Otherwise return the set of [[InputMoleculeInfo]] values
+    *         describing that molecule's conditionals in all reactions consuming that molecule.
+    *         The set is empty if the molecule has no conditionals in any of the consuming reactions.
+    */
   private def infosIfPipelined(i: Int): Option[Set[InputMoleculeInfo]] = {
     consumingReactions(i)
       .flatFoldLeft[(Set[InputMoleculeInfo], Boolean, Boolean)]((Set(), false, true)) {
@@ -580,11 +701,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         val inputsForThisMolecule = r.info.inputs.filter(_.molecule === moleculeAtIndex(i))
 
         // There should be no cross-molecule conditions / guards involving this molecule or any of its reaction partners; otherwise, it cannot be pipelined.
+        // So, if this molecule is nonlinear (`inputsForThisMolecule.length > 1`) there should be no conditions on its values.
         if (inputsForThisMolecule.map(_.index).toSet subsetOf r.info.independentInputMolecules) {
           // Get the conditions for this molecule. There should be no conditions when the molecule is repeated, and at most one otherwise.
           val thisConds = inputsForThisMolecule.filterNot(_.flag.isIrrefutable).toSet
-          // Check whether this molecule is nonlinear in input (if so, there should be no conditions).
-          //          val isNonlinear = inputsForThisMolecule.length >= 2
           // If we have no previous other inputs and no current other inputs, we can concatenate the conditions and we are done.
           val newHaveOtherInputs = haveOtherInputs || prevHaveOtherInputs
           if (newHaveOtherInputs) {
@@ -603,6 +723,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }.map(_._1)
   }
 
+  /** Map the site-wide index to molecule emitter. This is used often.
+    *
+    */
   private val moleculeAtIndex: Map[Int, Molecule] =
     knownMolecules.map { case (mol, (i, _)) ⇒ (i, mol) }(breakOut)
 
