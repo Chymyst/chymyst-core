@@ -1,22 +1,19 @@
 package io.chymyst.benchmark
 
-import java.time.LocalDateTime
-import java.time.temporal.ChronoUnit
-
 import io.chymyst.jc._
 import org.scalatest.{FlatSpec, Matchers}
 import scala.concurrent.duration._
 
 class MapReduceSpec extends FlatSpec with Matchers {
 
-  def elapsed(initTime: LocalDateTime): Long = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
+  def elapsed(initTime: Long): Long = System.currentTimeMillis() - initTime
 
   behavior of "map-reduce-like reactions"
 
   it should "perform a map/reduce-like computation" in {
     val count = 10
 
-    val initTime = LocalDateTime.now
+    val initTime = System.currentTimeMillis()
 
     val res = m[List[Int]]
     val r = m[Int]
@@ -46,6 +43,8 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     def reduceB(acc: Int, x: Int): Int = acc + x
 
+    def initTime = System.currentTimeMillis()
+
     val arr = 1 to 100
 
     // declare molecule types
@@ -74,6 +73,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     arr.foreach(i => carrier(i))
     val result = fetch()
     result shouldEqual arr.map(f).reduce(reduceB) // 338350
+    println(s"map-reduce as in tutorial: took ${elapsed(initTime)} ms")
     tp.shutdownNow()
   }
 
@@ -86,7 +86,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     val tp = new FixedPool(cpuCores + 1)
     val tp1 = new FixedPool(1)
-    val initTime = LocalDateTime.now
+    val initTime = System.currentTimeMillis()
 
     site(tp, tp1)(
       go { case f(_, r) + done(x) => r(x) },
@@ -96,7 +96,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
         if (p == count)
           done(z)
         else
-          c((n + m, x + y))
+          c((n + m, z))
       }
     )
 
@@ -117,7 +117,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     val tp = new FixedPool(cpuCores + 1)
     val tp1 = new FixedPool(1)
-    val initTime = LocalDateTime.now
+    val initTime = System.currentTimeMillis()
 
     site(tp, tp1)(
       go { case f(_, r) + done(x) => r(x) },
@@ -127,7 +127,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
         if (p == count)
           done(z)
         else
-          c((n + m, x + y))
+          c((n + m, z))
       }
     )
 
@@ -149,7 +149,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     val tp = new FixedPool(cpuCores + 1)
     val tp1 = new FixedPool(1)
-    val initTime = LocalDateTime.now
+    val initTime = System.currentTimeMillis()
 
     site(tp, tp1)(
       go {
@@ -167,7 +167,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
         if (p >= count)
           done(z)
         else
-          c((n + m, x + y))
+          c((n + m, z))
       }
     )
 
@@ -180,7 +180,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
   }
 
   it should "correctly process concurrent counters" in {
-// Same logic as Benchmark 1 but designed to catch race conditions more quickly.
+    // Same logic as Benchmark 1 but designed to catch race conditions more quickly.
     def make_counter_1(done: M[Unit], counters: Int, init: Int, reactionPool: Pool, sitePool: Pool): B[Unit, Unit] = {
       val c = m[Int]
       val d = b[Unit, Unit]
@@ -194,25 +194,25 @@ class MapReduceSpec extends FlatSpec with Matchers {
       d
     }
 
+    val initTime = System.currentTimeMillis()
     var failures = 0
     val n = 1000
-    
-    (1 to n).foreach { _ ⇒
-      val numberOfCounters = 10
-      val count = 2
+    val numberOfCounters = 10
+    val count = 2
 
+    (1 to n).foreach { _ ⇒
       val tp = new FixedPool(8)
       val tp1 = new FixedPool(1)
 
       val done = m[Unit]
       val all_done = m[Int]
-      val f = b[LocalDateTime, Long]
+      val f = b[Long, Long]
 
       site(tp)(
         go { case all_done(0) + f(tInit, r) ⇒ r(elapsed(tInit)) },
         go { case all_done(x) + done(_) if x > 0 ⇒ all_done(x - 1) }
       )
-      val initialTime = LocalDateTime.now
+      val initialTime = System.currentTimeMillis()
       all_done(numberOfCounters)
       val d = make_counter_1(done, numberOfCounters, count, tp, tp1)
       // emit a blocking molecule `d` many times
@@ -224,7 +224,52 @@ class MapReduceSpec extends FlatSpec with Matchers {
       tp1.shutdownNow()
       tp.shutdownNow()
     }
+    println(s"concurrent counters correctness check: $numberOfCounters counters, count = $count, $n numbers, took ${elapsed(initTime)} ms")
+
     (if (failures > 0) s"Detected $failures failures out of $n tries" else "OK") shouldEqual "OK"
   }
 
+  /** A binary operation on integers that is associative but not commutative.
+    * See: F. J. Budden. A Non-Commutative, Associative Operation on the Reals. The Mathematical Gazette, Vol. 54, No. 390 (Dec., 1970), pp. 368-372
+    * http://www.jstor.org/stable/3613855
+    *
+    * @param x First integer.
+    * @param y Second integer.
+    * @return Integer result.
+    */
+  def assocNonCommut(x: Int, y: Int): Int = {
+    val s = 1 - math.abs(x % 2) * 2 // s = 1 if x is even, s = -1 if x is odd; math.abs is needed to fix the bug where (-1) % 2 == -1
+    x + s * y
+  }
+
+
+  it should "perform ordered map-reduce" in {
+    // c((l, r, x)) represents the left-closed, right-open interval (l, r) over which we already performed the reduce operation, and the result value x.
+    val c = m[(Int, Int, Int)]
+    val done = m[Int]
+    val f = b[Unit, Int]
+
+    val count = 50000
+
+    val tp = new FixedPool(cpuCores)
+    val tp1 = new FixedPool(1)
+    val initTime = System.currentTimeMillis()
+
+    site(tp, tp1)(
+      go { case f(_, r) + done(x) => r(x) },
+      go { case c((l1, r1, x)) + c((l2, r2, y)) if r2 == l1 || l2 == r1 =>
+        val l3 = math.min(l1, l2)
+        val r3 = math.max(r1, r2)
+        val z = if (l2 == r1) assocNonCommut(x, y) else assocNonCommut(y, x)
+        if (r3 - l3 == count)
+          done(z)
+        else
+          c((l3, r3, z))
+      }
+    )
+
+    (1 to count).foreach(i => c((i, i + 1, i * i)))
+    f() shouldEqual (1 to count).map(i => i * i).reduce(assocNonCommut)
+    println(s"associative non-commutative operation of $count numbers with nonlinear input patterns and 1-thread site pool took ${elapsed(initTime)} ms")
+  }
 }
