@@ -118,9 +118,17 @@ final class MutableQueueBag[T] extends MutableBag[T] {
     ()
   }
 
+  /** Remove value from the bag. This is expected to succeed.
+    * If the value was not present in the bag, the removal fails.
+    *
+    * @param v Value to remove.
+    * @return `true` if removal was successful, `false` otherwise.
+    */
   override def remove(v: T): Boolean = {
     sizeValue.decrementAndGet()
-    bag.remove(v)
+    val status = bag.remove(v)
+    if (!status) sizeValue.incrementAndGet()
+    status
   }
 
   override def find(predicate: (T) => Boolean): Option[T] = bag.iterator.asScala.find(predicate)

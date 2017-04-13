@@ -502,6 +502,8 @@ final class ReactionInfo(
   private[jc] val guardPresence: GuardPresenceFlag,
   private[jc] val sha1: String
 ) {
+  private[jc] val hasBlockingInputs: Boolean = inputs.exists(_.molecule.isBlocking)
+
   // This should be lazy because molecule.isStatic is known late.
   private[jc] lazy val staticMols: Set[Molecule] = inputs.map(_.molecule).filter(_.isStatic).toSet
 
@@ -619,7 +621,7 @@ final class ReactionInfo(
     val inputsSortedIrrefutableGrouped =
       inputsSortedIrrefutable
         .filter(info ⇒ independentInputMolecules contains info.index)
-        .orderedMapGroupBy(_.molecule.index, _.index)
+        .orderedMapGroupBy(_.molecule.siteIndex, _.index)
         .map { case (i, is) ⇒ (i, is.toArray) }
         .toArray
     (inputsSortedIrrefutableGrouped, inputsSortedConditional.filter(info ⇒ independentInputMolecules contains info.index))
@@ -663,7 +665,7 @@ final class ReactionInfo(
 final case class Reaction(
   private[jc] val info: ReactionInfo,
   private[jc] val body: ReactionBody,
-  threadPool: Option[Pool],
+  private[jc] val threadPool: Option[Pool],
   private[jc] val retry: Boolean
 ) {
   private[jc] def newChymystThreadInfo = new ChymystThreadInfo(info.staticMols, info.toString)
@@ -699,6 +701,17 @@ final case class Reaction(
   // Optimization: this is used often.
   private[jc] val inputMoleculesSet: Set[Molecule] = inputMoleculesSortedAlphabetically.toSet
 
+  // Compute the initial molecule value lock. This requires site-wide indices.
+  private[jc] lazy val initialMoleculeValueLock = {
+    val counts: Map[Int, Int] = info.inputsSortedIndependentIrrefutableGrouped
+      .map{ case (i, a) ⇒ (i, a.length) }(scala.collection.breakOut)
+    val molecules: Set[Int] = info.inputs
+      .map(_.molecule.siteIndex)
+      .toSet
+      .diff(counts.keySet)
+    MoleculeValueLock(counts, molecules)
+  }
+
   /** The final SearchDSL program for finding values of molecules affected by cross-molecule constraints.
     *
     * This computation optimizes `info.searchDSLProgram` by removing molecules that have constant value matchers.
@@ -717,7 +730,7 @@ final case class Reaction(
     */
   private[jc] lazy val moleculeIndexRequiredCounts: Map[Int, Int] =
     inputMoleculesSet.map { mol ⇒
-      (mol.index, inputMoleculesSortedAlphabetically.count(_ === mol))
+      (mol.siteIndex, inputMoleculesSortedAlphabetically.count(_ === mol))
     }(scala.collection.breakOut)
 
   /** Convenience method for debugging.
@@ -744,7 +757,7 @@ final case class Reaction(
 
     // If we fail to find all such values, `foundResult` will be `false`.
       info.inputsSortedIndependentConditional.forall { inputInfo ⇒
-        val molBag = moleculesPresent(inputInfo.molecule.index)
+        val molBag = moleculesPresent(inputInfo.molecule.siteIndex)
         val newValueOpt =
         // It is probably useless to try optimizing the selection of a constant value, because 1) values are wrapped and 2) values that are not "simple types" are most likely to be stored in a queue-based molecule bag rather than in a hash map-based molecule bag.
         // So we handle pipelined and non-pipelined molecules here, without a special case for constant values.
@@ -800,7 +813,7 @@ final case class Reaction(
                   // However, each item in the stream will mutate `foundValues` in place, so that we always have the last chosen molecule values.
                   // The search DSL program is guaranteed to check cross-molecule conditions only for molecules whose values we already chose.
                   repeatedMolValuesStream.flatMap { repeatedVals ⇒
-                    val siteMolIndex = inputInfo.molecule.index
+                    val siteMolIndex = inputInfo.molecule.siteIndex
                     if (info.crossConditionalsForRepeatedMols contains i) {
                       val prevValMap = repeatedVals.getOrElse(siteMolIndex, List[AbsMolValue[_]]())
                       moleculesPresent(siteMolIndex)

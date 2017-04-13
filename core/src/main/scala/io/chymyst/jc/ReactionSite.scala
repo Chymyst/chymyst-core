@@ -1,10 +1,12 @@
 package io.chymyst.jc
 
+import java.util.concurrent.Semaphore
+
 import Core._
 import StaticAnalysis._
 
 import scala.annotation.tailrec
-import scala.collection.breakOut
+import scala.collection.{breakOut, mutable}
 
 /** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
   * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
@@ -31,7 +33,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     emit = (mol, molValue) => emit[T](mol, molValue),
     emitAndAwaitReply = (mol, molValue, replyValue) => emitAndAwaitReply[T, R](mol, molValue, replyValue),
     emitAndAwaitReplyWithTimeout = (timeout, mol, molValue, replyValue) => emitAndAwaitReplyWithTimeout[T, R](timeout, mol, molValue, replyValue),
-    consumingReactions = consumingReactions(molecule.index),
+    consumingReactions = consumingReactions(molecule.siteIndex),
     sameReactionSite = _.id === this.id
   )
 
@@ -82,22 +84,37 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     s"$toString\n$moleculesPrettyPrinted"
   }
 
+  private val countLockUnion = mutable.Map[Int, Int]()
+
+  private val moleculeLockUnion = mutable.Set[Int]()
+
+  private val activeLocks = mutable.Set[Semaphore]()
+
+  private[jc] def acquireLock(lock: MoleculeValueLock): Unit = {
+
+  }
+
+  private[jc] def relaxLock(oldLock: MoleculeValueLock, newLock: MoleculeValueLock): Unit = {
+
+  }
+
   @tailrec
   private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
     // TODO: optimize: precompute all related molecules in ReactionSite?
-    if (logLevel > 3) println(s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(moleculesPresent)}]")
+    lazy val decidingMoleculeMessage = s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(moleculesPresent)}]"
+    if (logLevel > 3) println(decidingMoleculeMessage)
     val foundReactionAndInputs =
       moleculesPresent.synchronized {
         // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
         val found: Option[(Reaction, InputMoleculeList)] =
-          findReaction(consumingReactions(mol.index))
+          findReaction(consumingReactions.apply(mol.siteIndex))
         // If we have found a reaction that can be run, remove its input molecule values from their bags.
         found.foreach { case (thisReaction, thisInputList) ⇒
           thisInputList.indices.foreach { i ⇒
             val molValue = thisInputList(i)
             val mol = thisReaction.info.inputs(i).molecule
             // This error (molecule value was not in bag) indicates a bug in this code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
-            if (!removeFromBag(mol, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $mol($molValue) from its bag; molecule index ${mol.index}, bag ${moleculesPresent(mol.index)}")
+            if (!removeFromBag(mol, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $mol($molValue) from its bag; molecule index ${mol.siteIndex}, bag ${moleculesPresent(mol.siteIndex)}")
           }
         }
         found
@@ -129,23 +146,22 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           decideReactionsForNewMolecule(mol) // Need to try running another reaction with the same molecule, if possible.
         }
       case None =>
-        if (logLevel > 2) {
+        if (logLevel > 2)
           println(noReactionsStartedMessage)
-        }
     }
 
   }
 
-  val noMoleculesRemainingMessage = s"Debug: In $this: no molecules remaining"
+  private val noMoleculesRemainingMessage = s"Debug: In $this: no molecules remaining"
 
-  val noReactionsStartedMessage = s"Debug: In $this: no reactions started"
+  private val noReactionsStartedMessage = s"Debug: In $this: no reactions started"
 
   private def scheduleReaction(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit =
     poolForReaction.runClosure(runReaction(reaction, usedInputs, poolForReaction: Pool), reaction.newChymystThreadInfo)
 
   private def emissionRunnable(mol: Molecule): Runnable = new Runnable {
     override def run(): Unit = {
-      val reactions = consumingReactions(mol.index)
+      val reactions = consumingReactions(mol.siteIndex)
       reactions.synchronized {
         // The mutating shuffle is thread-safe because it is inside a `synchronized` block.
         arrayShuffleInPlace(reactions)
@@ -218,47 +234,47 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         status
     }
 
-    // Now that the reaction is finished, we inspect the results.
+    // The reaction is finished. If it had any blocking input molecules, we check if any of them got no reply.
+    if (thisReaction.info.hasBlockingInputs) {
+      // For any blocking input molecules that have no reply, put an error message into them and reply with empty
+      // value to unblock the threads.
 
-    // For any blocking input molecules that have no reply, put an error message into them and reply with empty
-    // value to unblock the threads.
+      // Compute error messages here in case we will need them later.
+      val blockingMoleculesWithNoReply = usedInputs.zipWithIndex
+        .filter(_._1.reactionSentNoReply)
+        .map { case (_, i) ⇒ thisReaction.info.inputs(i).molecule }
+        .toSeq.toOptionSeq
+        .map(_.map(_.toString).sorted.mkString(", "))
 
-    // Compute error messages here in case we will need them later.
-    val blockingMoleculesWithNoReply = usedInputs.zipWithIndex
-      .filter(_._1.reactionSentNoReply)
-      .map { case (_, i) ⇒ thisReaction.info.inputs(i).molecule }
-      .toSeq.toOptionSeq
-      .map(_.map(_.toString).sorted.mkString(", "))
+      // Make this non-lazy to improve coverage.
+      val errorMessageFromStatus = exitStatus.getMessage.map(message => s". Reported error: $message").getOrElse("")
 
-    // Make this non-lazy to improve coverage.
-    val errorMessageFromStatus = exitStatus.getMessage.map(message => s". Reported error: $message").getOrElse("")
+      lazy val messageNoReply = blockingMoleculesWithNoReply.map { s =>
+        s"Error: In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] finished without replying to $s$errorMessageFromStatus"
+      }
 
-    lazy val messageNoReply = blockingMoleculesWithNoReply.map { s =>
-      s"Error: In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] finished without replying to $s$errorMessageFromStatus"
-    }
+      // We will report all errors to each blocking molecule.
+      // However, if the reaction failed with retry, we don't yet need to release semaphores and don't need to report errors due to missing reply.
+      lazy val errorMessage = messageNoReply.mkString("; ")
 
-    // We will report all errors to each blocking molecule.
-    // However, if the reaction failed with retry, we don't yet need to release semaphores and don't need to report errors due to missing reply.
-    lazy val errorMessage = messageNoReply.mkString("; ")
+      val haveErrorsWithBlockingMolecules = blockingMoleculesWithNoReply.nonEmpty && exitStatus.reactionSucceededOrFailedWithoutRetry
 
-    val haveErrorsWithBlockingMolecules = blockingMoleculesWithNoReply.nonEmpty && exitStatus.reactionSucceededOrFailedWithoutRetry
-
-    // Insert error messages into the reply wrappers and release all semaphores.
-    usedInputs.foreach {
-      case bm@BlockingMolValue(_, replyValue) =>
-        if (haveErrorsWithBlockingMolecules && exitStatus.reactionSucceededOrFailedWithoutRetry) {
-          // Do not send error messages to molecules that already got a reply - this is pointless and leads to errors.
-          if (bm.reactionSentNoReply) {
-            replyValue.acquireSemaphoreForReply()
-            replyValue.setErrorStatus(errorMessage)
-            replyValue.releaseSemaphoreForEmitter()
+      // Insert error messages into the reply wrappers and release all semaphores.
+      usedInputs.foreach {
+        case bm@BlockingMolValue(_, replyValue) =>
+          if (haveErrorsWithBlockingMolecules && exitStatus.reactionSucceededOrFailedWithoutRetry) {
+            // Do not send error messages to molecules that already got a reply - this is pointless and leads to errors.
+            if (bm.reactionSentNoReply) {
+              replyValue.acquireSemaphoreForReply()
+              replyValue.setErrorStatus(errorMessage)
+              replyValue.releaseSemaphoreForEmitter()
+            }
           }
-        }
-      case _ => ()
+        case _ => ()
+      }
+
+      if (haveErrorsWithBlockingMolecules) reportError(errorMessage)
     }
-
-    if (haveErrorsWithBlockingMolecules) reportError(errorMessage)
-
   }
 
   /** Determine whether the current thread is running a reaction, and if so, fetch the reaction info.
@@ -283,8 +299,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def findReaction(reactions: Array[Reaction]): Option[(Reaction, InputMoleculeList)] = {
     reactions
       .filter(_.info.guardPresence.staticGuardHolds())
-      .findAfterMap(r ⇒ r.findInputMolecules(moleculesPresent).map(f ⇒ (r, f)))
+      .findAfterMap { r ⇒
+        acquireLock(r.initialMoleculeValueLock)
+        r.findInputMolecules(moleculesPresent).map(f ⇒ (r, f))
+      }
   }
+
+  // TODO: refactor functions like `findReaction` and `findInputMolecules` so that they are not class methods
 
   /** Check if the current thread is allowed to emit a static molecule.
     * If so, remove the emitter from the mutable set.
@@ -345,8 +366,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         }
       } else {
         // For pipelined molecules, check whether their value satisfies at least one of the conditions (if any conditions are present).
-        // For non-pipelined molecules, `admitsValue` will be `true`.
-        val admitsValue = pipelinedMolecules.get(mol.index).forall(infos ⇒ infos.isEmpty || infos.exists(_.admitsValue(molValue)))
+        // (If no condition is satisfied, we will not emit this value for a pipelined molecule.)
+        // For non-pipelined molecules, `admitsValue` will be identically `true`.
+        val admitsValue = !mol.isPipelined ||
+          pipelinedMolecules.get(mol.siteIndex).forall(infos ⇒ infos.isEmpty || infos.exists(_.admitsValue(molValue)))
         if (mol.isStatic) {
           // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
           // If successful, this will modify the thread's copy of `ChymystThreadInfo` to register the fact that we emitted that static molecule.
@@ -378,7 +401,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     * @return For each molecule present in the soup, the map shows the number of copies present.
     */
-  private def getMoleculeCountsAfterFirstEmission: Map[Molecule, Int] =
+  private def getMoleculeCountsAfterInitialStaticEmission: Map[Molecule, Int] =
     moleculesPresent.indices
       .flatMap(i => if (moleculesPresent(i).isEmpty)
         None
@@ -387,10 +410,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       )(breakOut)
 
   private def addToBag(mol: Molecule, molValue: AbsMolValue[_]): Unit =
-    moleculesPresent(mol.index).add(molValue)
+    moleculesPresent(mol.siteIndex).add(molValue)
 
   private def removeFromBag(mol: Molecule, molValue: AbsMolValue[_]): Boolean =
-    moleculesPresent(mol.index).remove(molValue)
+    moleculesPresent(mol.siteIndex).remove(molValue)
 
   private[jc] def moleculeBagToString(bags: Array[MutableBag[AbsMolValue[_]]]): String =
     Core.moleculeBagToString(bags.indices
@@ -517,7 +540,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
     emittingStaticMolsNow = false
 
-    val staticMolsActuallyEmitted = getMoleculeCountsAfterFirstEmission
+    val staticMolsActuallyEmitted = getMoleculeCountsAfterInitialStaticEmission
     val staticMolsEmissionWarnings = findStaticMolsEmissionWarnings(staticMolDeclared, staticMolsActuallyEmitted)
     val staticMolsEmissionErrors = findStaticMolsEmissionErrors(staticMolDeclared, staticMolsActuallyEmitted)
 
@@ -527,8 +550,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     diagnostics
   }
 
-  /** Create the site-wide index map for all molecules.
-    *
+  /** Create the site-wide index map for all molecules bound to this reaction site.
+    * This computation determines the site-wide index for each molecule.
     */
   private val knownMolecules: Map[Molecule, (Int, Symbol)] = {
     nonStaticReactions
@@ -594,7 +617,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   //  private lazy val relatedMolecules: Array[Array[Int]] = Array.tabulate(knownMolecules.size)(i ⇒ consumingReactions(i).flatMap(_.inputMoleculesSet.map(_.index)).distinct)
 
   /** For each (site-wide) molecule index, the corresponding set of [[InputMoleculeInfo]]s contains only the infos with nontrivial conditions for the molecule value.
-    *
+    * This is used to assign the pipelined status of a molecules and also to obtain the conditional for that molecule's value.
     */
   private val pipelinedMolecules: Map[Int, Set[InputMoleculeInfo]] =
     moleculeAtIndex.flatMap { case (index, _) ⇒
@@ -690,3 +713,5 @@ private[jc] object ReactionSiteWrapper {
     )
   }
 }
+
+private[jc] final case class MoleculeValueLock(counts: Map[Int, Int], molecules: Set[Int])

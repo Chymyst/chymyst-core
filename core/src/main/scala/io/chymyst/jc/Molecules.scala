@@ -92,17 +92,17 @@ sealed trait Molecule extends PersistentHashCode {
 
   def typeSymbol: Symbol = valTypeSymbol
 
-  def index: Int = inputIndex
+  def siteIndex: Int = siteIndexValue
 
   /** This is called by a [[ReactionSite]] when a molecule becomes bound to that reaction site.
     *
-    * @param rs    Reaction site to which the molecule is now bound.
-    * @param index Zero-based index of the input molecule at that reaction site.
+    * @param rs        Reaction site to which the molecule is now bound.
+    * @param siteIndex Zero-based index of the input molecule at that reaction site.
     */
-  private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean): Unit = {
+  private[jc] def setReactionSiteInfo(rs: ReactionSite, siteIndex: Int, typeSymbol: Symbol, pipelined: Boolean): Unit = {
     hasReactionSite = true
-    inputIndex = index
-    valTypeSymbol = valType
+    siteIndexValue = siteIndex
+    valTypeSymbol = typeSymbol
     valIsPipelined = pipelined
   }
 
@@ -133,7 +133,7 @@ sealed trait Molecule extends PersistentHashCode {
 
   protected var valTypeSymbol: Symbol = _
 
-  protected var inputIndex: Int = -1
+  protected var siteIndexValue: Int = -1
 
   protected var hasReactionSite: Boolean = false
 

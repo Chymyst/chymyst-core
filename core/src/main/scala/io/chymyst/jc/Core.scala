@@ -324,16 +324,18 @@ object Core {
 
   def arrayShuffleInPlace[T](arr: Array[T]): Unit = {
     val s = arr.length
+    //    java.util.Collections.shuffle(java.util.Arrays.asList(arr: _*))
     // Do nothing when the array has length 1 or less.
     if (s >= 2) {
-      (0 to s - 2).foreach { index ⇒
+      var index = 0
+      while (index < s - 1) {
         val randomIndex = s - 1 - scala.util.Random.nextInt(s - 1 - index)
         // randomIndex is between index + 1 and s - 1 inclusive.
         val tempElement = arr(randomIndex)
         arr(randomIndex) = arr(index)
         arr(index) = tempElement
+        index += 1
       }
-
     }
   }
 
