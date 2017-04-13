@@ -97,7 +97,7 @@ def f(x1) + f(x2) + g() =>
 
 ```
 
-However, this code does not specify that the reply value `x2` should be sent to the process that emitted `f(x1)` rather than to the process that emitted `f(x2)`.
+However, this code cannot specify that the reply value `x2` should be sent to the process that emitted `f(x1)` rather than to the process that emitted `f(x2)`.
 
 ## Reactions are values
 

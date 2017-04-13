@@ -270,7 +270,7 @@ A side benefit is that emitting `read()` and `write()` will get unblocked only _
 The price for this convenience is that the Reader thread will remain blocked until access is granted.
 The non-blocking version of the code never blocks any threads, which improves parallelism.
 
-## Nonblocking transformation
+## The "Nonblocking Transformation"
 
 By comparing two versions of the Readers/Writers code, we notice that there is a certain correspondence between blocking and non-blocking code.
 A reaction that emits a blocking molecule is equivalent to two reactions with a new auxiliary reply molecule defined in the scope of the first reaction.

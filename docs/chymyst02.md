@@ -418,7 +418,7 @@ arr.map(f).reduce(reduceB)
 
 Our task is to implement all these computations concurrently — both the application of `f` to each element of the array and the accumulation of the final result.
 
-For simplicity, we will assume that the `reduceB` operation is associative and commutative and has a zero element (i.e. that the type `B` is a commutative monoid).
+Let us assume that the `reduceB` operation is associative and commutative and has a zero element (i.e. that the type `B` is a commutative monoid).
 In that case, we may apply the `reduceB` operation to array elements in arbitrary order, which makes our task easier.
 
 Implementing the map/reduce operation does not actually require the full power of concurrency: a [bulk synchronous processing](https://en.wikipedia.org/wiki/Bulk_synchronous_parallel) framework such as Hadoop or Spark will do the job.
@@ -518,7 +518,7 @@ We will apply the function `f(x) = x * x` to elements of an integer array, and t
 ```scala
 import io.chymyst.jc._
 
-object C extends App {
+object C1 extends App {
 
   // declare the "map" and the "reduce" functions
   def f(x: Int): Int = x * x
@@ -550,13 +550,169 @@ object C extends App {
 
 ```
 
+### Increasing the parallelism
+
+The code in the previous subsection works correctly but has an important drawback:
+Since there is always at most one copy of the `accum()` molecule present, the reaction `accum + interm → ... reduceB() ...` cannot run concurrently with other instances of itself.
+In other words, at most one call to `reduceB()` will run at any time.
+We would like to increase the parallelism level, so that multiple calls to `reduceB()` may run at once.
+
+Since the `reduceB()` operation is commutative and associative, we may reduce intermediate results in any order.
+The easiest way of implementing this in the chemical machine would be to write a reaction such as
+
+```scala
+go { case interm(x) + interm(y) ⇒ interm(reduceB(x, y)) }
+
+```
+
+As `interm()` molecules are emitted, this reaction will run at random between any available pairs of `interm()` molecules.
+When running on a multi-core CPU, the chemical machine will be able to schedule several such reactions concurrently.
+
+This code, however, is not yet fully working.
+When all `interm()` molecule pairs have reacted, the single `interm()` molecule will remain inert in the soup, since no other molecules can react with it.
+We need a means of tracking progress and detecting when the entire computation is finished. 
+
+In our previous solution, we kept track of progress by using a counter `n` on the `accum()` molecule.
+Let us therefore add a counter to the `interm()` molecule.
+The presence of an `interm((n, x))` molecule indicates that the partial reduce of `n` numbers was already completed, with the result value `x`.
+
+The reaction is rewritten like this:
+
+```scala
+site(
+  go { case interm((n1, x1)) + interm((n2, x2)) ⇒
+    interm((n1 + n2, reduceB(x1, x2))) 
+  },
+  go { case interm((n, x)) if n == arr.size ⇒ println(x) }
+)
+
+```
+
+This will work correctly if we initially emit `interm((1, x))`, indicating that the value `x` is a result of a partial reduce of a single number.
+Here is the complete code:
+
+```scala
+import io.chymyst.jc._
+
+object C2 extends App {
+
+  // declare the "map" and the "reduce" functions
+  def f(x: Int): Int = x * x
+  def reduceB(acc: Int, x: Int): Int = acc + x
+
+  val arr = 1 to 100
+
+  // declare molecule types
+  val carrier = m[Int]
+  val interm = m[(Int, Int)]
+
+  // declare the reaction for the "map" step
+  site(
+    go { case carrier(x) ⇒ val res = f(x); interm((1, res)) }
+  )
+
+  // The two reactions for the "reduce" step must be together since they both consume `accum`.
+  site(
+    go { case interm((n1, x1)) + interm((n2, x2)) ⇒
+      val x = reduceB(x1, x2)
+      val n = n1 + n2
+      if (n == arr.size) println(x) else interm((n, x))
+    }
+  )
+
+  // emit molecules
+  arr.foreach(i ⇒ carrier(i))
+ // prints 338350
+}
+
+```
+
+### Ordered map/reduce
+
+If the `reduceB()` operation is not commutative, we may not apply the reduce operation to any pair of partial results.
+The map/reduce example in the previous subsection will fail to compute the correct final value for non-commutative operations.
+
+For instance, suppose we have an array `x1, x2, ..., x10` of intermediate results that we need to reduce with a `reduceB()` operation that is not commutative.
+We may now reduce `x4` with `x3` or with `x5`, but not with `x6` or any other element.
+Also, we need to reduce in the correct order, e.g. `reduceB(x3, x4)` but not `reduceB(x4, x3)`.
+Once we have computed the new intermediate result `reduceB(x3, x4)`, we may reduce that with `x5`, with `x2`, or with the result of `reduceB(x1, x2)` or `reduceB(x5, x6, x7)` -- but not with anything else.
+
+What we need to do is to restrict the `reduceB()` operation so that it runs only on _consecutive_ partial results.
+How can we modify the chemistry to support these restrictions?
+
+We need to assure that the reaction `interm + interm → interm` only consumes molecules that represent consecutive intermediate results.
+The chemical machine has two ways of preventing reactions from starting:
+
+1. to control the presence of input molecules, e.g. withholding some input molecules so that reactions do not run, or configuring reactions only between certain molecules;
+2. to specify guard conditions on input molecule values, so that reactions run only when these conditions hold.
+
+If we wanted to use the first method, we would need to model all the allowed reactions with special auxiliary input molecules.
+We would have to define a new input molecule for each possible intermediate result: first, for each element of the initial array; then for each possible reduction between two consecutive elements; then for each possible reduction result between those, and so on.
+While this is certainly possible to implement, there will be a very large number of possible molecules and reactions for the scheduler to choose from,
+and the performance of this program will suffer.
+
+The solution with the second method is to put a condition on the reaction `interm + interm → interm` so that it will only run between consecutive intermediate results.
+To identify such intermediate results, we need to put an ordering label on the `interm()` molecule values, which will allow us to write a reaction like this:
+
+```scala
+go { case interm((l1, x1)) + interm((l2, x2)) if isConsecutive???(l1, l2) ⇒ 
+  interm((???, reduceB(x1, x2))) 
+}
+
+```
+
+Note that `interm()` already carried a counter value, which we need to keep track of the progress of the computation.
+The ordering label we denoted by `l1` must be set in addition to that counter.
+The ordering label value `l` could represent the smallest index that has been reduced.
+
+Thus, we find that the `interm()` molecule must carry a triple such as `interm((l, n, x))`, representing an intermediate result `x` that was computed after reducing `n` numbers.
+For example, `reduceB(reduceB(x5, x6), x7)` would be represented by `l = 5` and `n = 3`. 
+We can then easily check whether two intermediate results are consecutive: the condition is `l1 + n1 == l2`.
+In this way, we combine the functions of the counter and the ordering label.
+
+The "reduce" reaction can be now written as
+
+```scala
+go { case interm((l1, n1, x1)) + interm((l2, n2, x2)) 
+  if l1 + n1 == l2 ⇒ 
+  interm((l1, n1 + n2, reduceB(x1, x2))) 
+}
+
+```
+
+Other code remains unchanged, except for emitting the initial `interm()` molecules during the "map" step:
+
+```scala
+go { case carrier(i) ⇒ val res = f(i); interm((i, 1, res)) }
+
+```
+
+The performance of this code is significantly slower than that of the commutative map/reduce,
+because the chemical machine must go through many copies of the `interm()` molecule before selecting the ones that can react together.
+To improve performance, we can allow the two `interm()` molecules to react in any order:
+
+```scala
+go { case interm((l1, n1, x1)) + interm((l2, n2, x2)) 
+  if l1 + n1 == l2 || l2 + n2 == l1 ⇒
+   if (l1 + n1 == l2)
+    interm((l1, n1 + n2, reduceB(x1, x2)))
+   else
+    interm((l2, n1 + n2, reduceB(x2, x1)))
+}
+
+```
+
+This optimization is completely mechanical: it consists of permuting the order of repeated molecules before applying the guard condition.
+The chemical machine could perform this optimization automatically for all such reactions.
+As of version 0.1.8, `Chymyst Core` does not implement this optimization.
+
 ## Example: Concurrent merge-sort
 
 Chemical laws can be recursive: a molecule can start a reaction whose reaction body defines further reactions and emits the same molecule.
 Since each reaction body will have a fresh scope, new molecules and new reactions will be defined every time.
 This will create a recursive configuration of reactions, such as a linked list or a tree.
 
-We will now figure out how to use recursive molecules for implementing the merge-sort algorithm in `Chymyst`.
+We will now figure out how to use recursive chemistry for implementing the merge-sort algorithm in `Chymyst`.
 
 The initial data will be an array of type `T`, and we will therefore need a molecule to carry that array.
 We will also need another molecule, `sorted()`, to carry the sorted result.

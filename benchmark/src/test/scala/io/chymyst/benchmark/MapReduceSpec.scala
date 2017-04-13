@@ -11,7 +11,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
   behavior of "map-reduce-like reactions"
 
   it should "perform a map/reduce-like computation" in {
-    val count = 10
+    val count = 10000
 
     val initTime = System.currentTimeMillis()
 
@@ -37,15 +37,15 @@ class MapReduceSpec extends FlatSpec with Matchers {
     println(s"map/reduce test with n=$count took ${elapsed(initTime)} ms")
   }
 
-  it should "perform map-reduce as in tutorial" in {
+  it should "perform map-reduce as in tutorial, object C1" in {
     // declare the "map" and the "reduce" functions
     def f(x: Int): Int = x * x
 
     def reduceB(acc: Int, x: Int): Int = acc + x
 
-    def initTime = System.currentTimeMillis()
+    val initTime = System.currentTimeMillis()
 
-    val arr = 1 to 100
+    val arr = 1 to 100000
 
     // declare molecule types
     val carrier = m[Int]
@@ -53,7 +53,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     val accum = m[(Int, Int)]
     val fetch = b[Unit, Int]
 
-    val tp = new FixedPool(4)
+    val tp = new FixedPool(8)
 
     // declare the reaction for "map"
     site(tp)(
@@ -73,7 +73,45 @@ class MapReduceSpec extends FlatSpec with Matchers {
     arr.foreach(i => carrier(i))
     val result = fetch()
     result shouldEqual arr.map(f).reduce(reduceB) // 338350
-    println(s"map-reduce as in tutorial: took ${elapsed(initTime)} ms")
+    println(s"map-reduce as in tutorial object C1 with arr.size=${arr.size}: took ${elapsed(initTime)} ms")
+    tp.shutdownNow()
+  }
+
+  it should "perform map-reduce as in tutorial, object C2" in {
+    // declare the "map" and the "reduce" functions
+    def f(x: Int): Int = x * x
+
+    def reduceB(acc: Int, x: Int): Int = acc + x
+
+    val initTime = System.currentTimeMillis()
+
+    val arr = 1 to 100000
+
+    // declare molecule types
+    val carrier = m[Int]
+    val interm = m[(Int, Int)]
+    val fetch = b[Unit, Int]
+
+    val tp = new FixedPool(8)
+
+    // declare the reaction for "map"
+    site(tp)(
+      go { case carrier(x) => val res = f(x); interm((1, res)) }
+    )
+
+    // reactions for "reduce" must be together since they share "accum"
+    site(tp)(
+      go { case interm((n1, x1)) + interm((n2, x2)) ⇒
+        interm((n1 + n2, reduceB(x1, x2)))
+      },
+      go { case interm((n, x)) + fetch(_, reply) if n == arr.size ⇒ reply(x) }
+    )
+
+    // emit molecules
+    arr.foreach(i => carrier(i))
+    val result = fetch()
+    result shouldEqual arr.map(f).reduce(reduceB) // 338350
+    println(s"map-reduce as in tutorial object C2 with arr.size=${arr.size}: took ${elapsed(initTime)} ms")
     tp.shutdownNow()
   }
 
@@ -145,7 +183,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     val done = m[Int]
     val f = b[Unit, Int]
 
-    val count = 10000
+    val count = 100000
 
     val tp = new FixedPool(cpuCores + 1)
     val tp1 = new FixedPool(1)
@@ -155,10 +193,11 @@ class MapReduceSpec extends FlatSpec with Matchers {
       go {
         case a(x) if x <= count ⇒
           c((1, x * x))
-          // TODO: when these IF conditions are restored, performance improves 2x; this needs to be fixed
-          // This also depends on discarding pipelined values that do not fit any conditions.
-          if (x * 2 <= count) a(x * 2)
-          if (x * 2 + 1 <= count) a(x * 2 + 1)
+          // When these IF conditions are restored, performance improves slightly.
+//          if (x * 2 <= count)
+            a(x * 2)
+//          if (x * 2 + 1 <= count)
+            a(x * 2 + 1)
       },
       go { case f(_, r) + done(x) => r(x) },
       go { case c((n, x)) + c((m, y)) =>
