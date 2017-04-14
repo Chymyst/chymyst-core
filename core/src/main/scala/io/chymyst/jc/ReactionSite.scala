@@ -302,7 +302,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       .filter(_.info.guardPresence.staticGuardHolds())
       .findAfterMap { r ⇒
         acquireLock(r.initialMoleculeValueLock)
-        findInputMolecules(r, moleculesPresent)
+        val result = findInputMolecules(r, moleculesPresent)
+        relaxLock(r.initialMoleculeValueLock, MoleculeValueLock())
+        result
       }
 
   /** Find a set of input molecule values for a reaction. */
@@ -840,4 +842,4 @@ private[jc] object ReactionSiteWrapper {
   }
 }
 
-private[jc] final case class MoleculeValueLock(counts: Map[Int, Int], molecules: Set[Int])
+private[jc] final case class MoleculeValueLock(counts: Map[Int, Int] = Map(), molecules: Set[Int] = Set())

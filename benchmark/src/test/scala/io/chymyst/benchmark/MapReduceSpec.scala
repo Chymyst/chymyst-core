@@ -194,10 +194,10 @@ class MapReduceSpec extends FlatSpec with Matchers {
         case a(x) if x <= count ⇒
           c((1, x * x))
           // When these IF conditions are restored, performance improves slightly.
-//          if (x * 2 <= count)
-            a(x * 2)
-//          if (x * 2 + 1 <= count)
-            a(x * 2 + 1)
+          //          if (x * 2 <= count)
+          a(x * 2)
+          //          if (x * 2 + 1 <= count)
+          a(x * 2 + 1)
       },
       go { case f(_, r) + done(x) => r(x) },
       go { case c((n, x)) + c((m, y)) =>
@@ -282,20 +282,24 @@ class MapReduceSpec extends FlatSpec with Matchers {
   }
 
 
-  it should "perform ordered map-reduce" in {
+  it should "perform ordered map-reduce using conditional reactions" in {
     // c((l, r, x)) represents the left-closed, right-open interval (l, r) over which we already performed the reduce operation, and the result value x.
     val c = m[(Int, Int, Int)]
     val done = m[Int]
     val f = b[Unit, Int]
 
     val count = 50000
+    val nThreadsSite = 1
 
     val tp = new FixedPool(cpuCores)
-    val tp1 = new FixedPool(1)
+    val tp1 = new FixedPool(nThreadsSite)
     val initTime = System.currentTimeMillis()
 
     site(tp, tp1)(
-      go { case f(_, r) + done(x) => r(x) },
+      go { case f(_, r) + done(x) => r(x) }
+    )
+
+    site(tp, tp1)(
       go { case c((l1, r1, x)) + c((l2, r2, y)) if r2 == l1 || l2 == r1 =>
         val l3 = math.min(l1, l2)
         val r3 = math.max(r1, r2)
@@ -309,6 +313,47 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     (1 to count).foreach(i => c((i, i + 1, i * i)))
     f() shouldEqual (1 to count).map(i => i * i).reduce(assocNonCommut)
-    println(s"associative non-commutative operation of $count numbers with nonlinear input patterns and 1-thread site pool took ${elapsed(initTime)} ms")
+    println(s"associative but non-commutative reduceB() onf $count numbers with nonlinear input patterns and $nThreadsSite-thread site pool took ${elapsed(initTime)} ms")
   }
+
+  it should "perform ordered map-reduce using unique reactions (very slow)" in {
+    // c((l, r, x)) represents the left-closed, right-open interval (l, r) over which we already performed the reduce operation, and the result value x.
+    val done = m[Int]
+    val f = b[Unit, Int]
+
+    val count = 20
+    val nThreadsSite = 1
+
+    val tp = new FixedPool(cpuCores)
+    val tp1 = new FixedPool(nThreadsSite)
+    val initTime = System.currentTimeMillis()
+
+    site(tp, tp1)(
+      go { case f(_, r) + done(x) => r(x) }
+    )
+
+    // Define all molecule emitters as a 2-indexed map
+    val emitters: Map[(Int, Int), M[Int]] =
+      (0 until count).flatMap(i ⇒ (i + 1 to count).map(j ⇒ (i, j) → new M[Int](s"c[$i,$j]")))(scala.collection.breakOut)
+
+    val lastMol = emitters((0, count))
+
+    val reactions = (0 until count).flatMap(i ⇒ (i + 1 to count).flatMap(j ⇒ (j + 1 to count).map { k ⇒
+      val mol1 = emitters((i, j))
+      val mol2 = emitters((j, k))
+      val mol3 = emitters((i, k))
+      go { case mol1(x) + mol2(y) ⇒ mol3(assocNonCommut(x, y)) }
+    })) :+ go { case lastMol(x) ⇒ done(x) }
+
+    println(s"created emitters and reactions: at ${elapsed(initTime)} ms")
+
+    site(tp, tp1)(reactions: _*)
+
+    println(s"defined reactions: at ${elapsed(initTime)} ms")
+
+    (1 to count).foreach(i ⇒ emitters((i - 1, i))(i * i))
+    f() shouldEqual (1 to count).map(i => i * i).reduce(assocNonCommut)
+    println(s"associative but non-commutative reduceB() on $count numbers with ${emitters.size} unique molecules, ${reactions.size} unique reactions, and $nThreadsSite-thread site pool took ${elapsed(initTime)} ms")
+  }
+
 }

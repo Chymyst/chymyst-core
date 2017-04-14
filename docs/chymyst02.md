@@ -648,8 +648,11 @@ The chemical machine has two ways of preventing reactions from starting:
 
 If we wanted to use the first method, we would need to model all the allowed reactions with special auxiliary input molecules.
 We would have to define a new input molecule for each possible intermediate result: first, for each element of the initial array; then for each possible reduction between two consecutive elements; then for each possible reduction result between those, and so on.
-While this is certainly possible to implement, there will be a very large number of possible molecules and reactions for the scheduler to choose from,
-and the performance of this program will suffer.
+While this is certainly possible to implement, it would require is to define _O_(_n_<sub>2</sub>) different molecules and _O_(_n_<sub>3</sub>) different reactions,
+where _n_ is the number of the initial `interm()` molecules before first `reduceB()` is called.  
+This means a very large number of possible molecules and reactions for the scheduler to choose from:
+we will need _O_(_n_<sub>3</sub>) operations just to define the chemistry for this code, which will then run only _O_(_n_) reduce steps.
+For this reason, the code will run unacceptably slowly if implemented in this way.
 
 The solution with the second method is to put a condition on the reaction `interm + interm → interm` so that it will only run between consecutive intermediate results.
 To identify such intermediate results, we need to put an ordering label on the `interm()` molecule values, which will allow us to write a reaction like this:
@@ -703,7 +706,7 @@ go { case interm((l1, n1, x1)) + interm((l2, n2, x2))
 ```
 
 This optimization is completely mechanical: it consists of permuting the order of repeated molecules before applying the guard condition.
-The chemical machine could perform this optimization automatically for all such reactions.
+The chemical machine could perform this code transformation automatically for all such reactions.
 As of version 0.1.8, `Chymyst Core` does not implement this optimization.
 
 ## Example: Concurrent merge-sort
