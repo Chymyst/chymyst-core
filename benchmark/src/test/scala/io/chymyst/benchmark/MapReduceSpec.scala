@@ -321,7 +321,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     val done = m[Int]
     val f = b[Unit, Int]
 
-    val count = 20
+    val count = 30
     val nThreadsSite = 1
 
     val tp = new FixedPool(cpuCores)

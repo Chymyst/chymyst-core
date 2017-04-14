@@ -701,6 +701,8 @@ final case class Reaction(
       .map(_.molecule)
       .sortBy(_.toString)
 
+  private[jc] lazy val inputMoleculesSha1: String = getSha1String(inputMoleculesSortedAlphabetically.map(_.hashCode()).mkString(","))
+
   // Optimization: this is used often.
   private[jc] val inputMoleculesSet: Set[Molecule] = inputMoleculesSortedAlphabetically.toSet
 

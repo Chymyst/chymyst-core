@@ -66,7 +66,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonStaticReactions
     .map { r => (r, r.info.inputs) }(breakOut)
 
-  override val toString: String = s"Site{${nonStaticReactions.map(_.toString).sorted.mkString("; ")}}"
+  private val toStringLimit = 1024
+
+  override val toString: String = {
+    val raw = s"Site{${nonStaticReactions.map(_.toString).sorted.mkString("; ")}}".take(toStringLimit + 1)
+    if (raw.length > toStringLimit)
+      raw.substring(0, toStringLimit) + "..."
+    else raw
+  }
 
   /** The sha1 hash sum of the entire reaction site, computed from sha1 of each reaction.
     * The sha1 hash of each reaction is computed from the Scala syntax tree of the reaction's source code.
