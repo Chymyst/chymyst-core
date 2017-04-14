@@ -45,7 +45,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     val initTime = System.currentTimeMillis()
 
-    val arr = 1 to 100000
+    val arr = 1 to 10000
 
     // declare molecule types
     val carrier = m[Int]
@@ -85,7 +85,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     val initTime = System.currentTimeMillis()
 
-    val arr = 1 to 100000
+    val arr = 1 to 10000
 
     // declare molecule types
     val carrier = m[Int]
