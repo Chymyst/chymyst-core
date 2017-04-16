@@ -377,15 +377,16 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           // This is used only for selecting repeated input molecules.
           type MolVals = Map[Int, List[AbsMolValue[_]]]
 
-          val initStream = Stream[MolVals](Map())
+          // We are using a much faster Iterator instead of Stream now. Conceptually it's a stream of `MolVals` values.
+          val initStream = Iterator[MolVals](Map())
 
-          val found: Option[Stream[MolVals]] = r.info.searchDSLProgram
+          val found: Option[Iterator[MolVals]] = r.info.searchDSLProgram
             // The `flatFoldLeft` accumulates the value `repeatedMolValues`, representing the stream of value maps for repeated input molecules (only).
             // This is used to build a "skipping iterator" over molecule values that correctly handles repeated input molecules.
 
             // This is a "flat fold" because should be able to stop early even though we can't examine the stream value.
-            .flatFoldLeft[Stream[MolVals]](initStream) { (repeatedMolValuesStream, searchDslCommand) ⇒
-            // We need to return Option[Stream[MolVals]].
+            .flatFoldLeft[Iterator[MolVals]](initStream) { (repeatedMolValuesStream, searchDslCommand) ⇒
+            // We need to return Option[Iterator[MolVals]].
             searchDslCommand match {
               case ChooseMol(i) ⇒
                 // Note that this molecule cannot be pipelined since it is part of a cross-molecule constraint.
@@ -429,7 +430,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
               case CloseGroup ⇒
                 // If the stream is empty, we will return `None` here and terminate the "flat fold".
-                repeatedMolValuesStream.headOption.map(_ ⇒ initStream)
+                // Otherwise, we take the first available `MolVals` value and set the accumulator back to the initial stream.
+                repeatedMolValuesStream.toIterable.headOption.map(_ ⇒ initStream)
             }
           }
           found.nonEmpty

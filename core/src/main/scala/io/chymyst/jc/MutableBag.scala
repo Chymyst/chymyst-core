@@ -36,17 +36,17 @@ sealed trait MutableBag[T] {
   /** List all values, perhaps with repetitions.
     * It is not guaranteed that the values will be repeated the correct number of times.
     *
-    * @return A stream of values.
+    * @return An iterator of values.
     */
-  def allValues: Stream[T]
+  def allValues: Iterator[T]
 
   /** List all values, with repetitions, excluding values from a given sequence (which can also contain repeated values).
     * It is guaranteed that the values will be repeated the correct number of times.
     *
     * @param skipping A sequence of values that should be skipped while running the iterator.
-    * @return A stream of values.
+    * @return An iterator of values.
     */
-  def allValuesSkipping(skipping: MutableMultiset[T]): Stream[T]
+  def allValuesSkipping(skipping: MutableMultiset[T]): Iterator[T]
 }
 
 /** Implementation using guava's `com.google.common.collect.ConcurrentHashMultiset`.
@@ -81,14 +81,14 @@ final class MutableMapBag[T] extends MutableBag[T] {
     .map(entry => (entry.getElement, entry.getCount))
     .toMap
 
-  override def allValues: Stream[T] = bag
+  override def allValues: Iterator[T] = bag
     .createEntrySet()
     .asScala
-    .toStream
+    .toIterator
     .map(_.getElement)
 
-  override def allValuesSkipping(skipping: MutableMultiset[T]): Stream[T] =
-    Core.streamDiff(iterator.toStream, skipping)
+  override def allValuesSkipping(skipping: MutableMultiset[T]): Iterator[T] =
+    Core.streamDiff(iterator, skipping)
 }
 
 /** Implementation using `java.util.concurrent.ConcurrentLinkedQueue`.
@@ -135,9 +135,9 @@ final class MutableQueueBag[T] extends MutableBag[T] {
       .groupBy(identity)
       .mapValues(_.size)
 
-  override def allValues: Stream[T] = iterator.toStream
+  override def allValues: Iterator[T] = iterator
 
-  override def allValuesSkipping(skipping: MutableMultiset[T]): Stream[T] =
+  override def allValuesSkipping(skipping: MutableMultiset[T]): Iterator[T] =
     Core.streamDiff(allValues, skipping)
 }
 

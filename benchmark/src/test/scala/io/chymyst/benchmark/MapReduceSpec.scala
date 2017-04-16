@@ -67,7 +67,6 @@ class MapReduceSpec extends FlatSpec with Matchers {
       },
       go { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
     )
-carrier.setLogLevel(2)
     // emit molecules
     accum((0, 0))
     arr.foreach(i => carrier(i))
@@ -98,7 +97,6 @@ carrier.setLogLevel(2)
     site(tp)(
       go { case carrier(x) => val res = f(x); interm((1, res)) }
     )
- carrier.setLogLevel(2)
     // reactions for "reduce" must be together since they share "accum"
     site(tp)(
       go { case interm((n1, x1)) + interm((n2, x2)) ⇒
@@ -106,7 +104,6 @@ carrier.setLogLevel(2)
       },
       go { case interm((n, x)) + fetch(_, reply) if n == arr.size ⇒ reply(x) }
     )
-
     // emit molecules
     arr.foreach(i => carrier(i))
     val result = fetch()

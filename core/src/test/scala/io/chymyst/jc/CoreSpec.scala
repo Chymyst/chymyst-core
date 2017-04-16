@@ -192,7 +192,7 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "not exclude elements when skip is empty" in {
     val data = (1 to 10) ++ (1 to 10)
     val skip = new MutableMultiset[Int]()
-    val result = streamDiff(data.toStream, skip)
+    val result = streamDiff(data.toIterator, skip)
     result.toList shouldEqual data.toList
   }
 
@@ -200,7 +200,7 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val data = (1 to 10) ++ (1 to 10)
     val skip = new MutableMultiset[Int]().add(Seq(1, 1, 2, 2, 3, 4))
     val expected = (5 to 10) ++ (3 to 10)
-    val result = streamDiff(data.toStream, skip)
+    val result = streamDiff(data.toIterator, skip)
     result.toList shouldEqual expected.toList
   }
 
