@@ -400,6 +400,8 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
   private[jc] def matcherIsSimilarToOutput(info: OutputMoleculeInfo): Option[Boolean] = {
     if (molecule =!= info.molecule)
       Some(false)
+    else if (!info.atLeastOnce)
+      None
     else flag match {
       case WildcardInput |
            SimpleVarInput(_, None) |
@@ -650,8 +652,11 @@ final class ReactionInfo(
     }
   */
 
+  val isStatic: Boolean = inputsSortedByConstraintStrength.isEmpty
+
   override val toString: String = {
     val inputsInfo = inputsSortedByConstraintStrength.map(_.toString).mkString(" + ")
+    val staticPrefix = if (isStatic) "_" else ""
     val guardInfo = guardPresence match {
       case _
         if guardPresence.noCrossGuards =>
@@ -662,8 +667,8 @@ final class ReactionInfo(
         val crossGuardsInfo = guards.flatMap(_.symbols).map(_.name).distinct.mkString(",")
         s" if($crossGuardsInfo)"
     }
-    val outputsInfo = outputs.map(_.toString).mkString(" + ")
-    s"$inputsInfo$guardInfo → $outputsInfo"
+    val outputsInfo = shrunkOutputs.map(_.toString).mkString(" + ")
+    s"$inputsInfo$staticPrefix$guardInfo → $outputsInfo"
   }
 }
 

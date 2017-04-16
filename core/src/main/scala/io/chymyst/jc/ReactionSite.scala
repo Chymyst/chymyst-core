@@ -46,7 +46,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private val id: Long = getNextId
 
-  private val (nonStaticReactions, staticReactions) = reactions.toArray.partition(_.inputMoleculesSortedAlphabetically.nonEmpty)
+  private val (staticReactions, nonStaticReactions) = reactions.toArray.partition(_.info.isStatic)
 
   private var unboundOutputMolecules: Set[Molecule] = _
 

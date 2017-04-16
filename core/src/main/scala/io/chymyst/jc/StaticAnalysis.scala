@@ -95,7 +95,7 @@ private[jc] object StaticAnalysis {
 
   private def checkSingleReactionLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
     val warningList = reactions
-      .filter { r => inputMatchersAreSimilarToOutput(r.info.inputsSortedByConstraintStrength, r.info.outputs) }
+      .filter { r => inputMatchersAreSimilarToOutput(r.info.inputsSortedByConstraintStrength, r.info.shrunkOutputs) }
       .map(r => s"{${r.info.toString}}")
     if (warningList.nonEmpty)
       Some(s"Possible livelock: reaction${if (warningList.size == 1) "" else "s"} ${warningList.mkString(", ")}")
@@ -210,14 +210,14 @@ private[jc] object StaticAnalysis {
         case (mol, Some((_, 1))) ⇒
           None
         case (mol, Some((reaction, countConsumed))) =>
-          Some(s"static molecule ($mol) consumed $countConsumed times by reaction ${reaction.info}")
+          Some(s"static molecule ($mol) consumed $countConsumed times by reaction {${reaction.info}}")
       }
 
     val wrongOutput = staticMols.map {
       case (m, _) => m -> reactions.find(r => r.inputMoleculesSortedAlphabetically.count(_ === m) == 1 && !r.info.outputs.exists(_.molecule === m))
     }.flatMap {
       case (mol, Some(r)) =>
-        Some(s"static molecule ($mol) consumed but not emitted by reaction ${r.info}")
+        Some(s"static molecule ($mol) consumed but not emitted by reaction {${r.info}}")
       case _ => None
     }
 
@@ -236,9 +236,9 @@ private[jc] object StaticAnalysis {
         reactions.flatMap { r =>
           val outputTimes = r.info.outputs.count(_.molecule === m)
           if (outputTimes > 1)
-            Some(s"static molecule ($m) emitted more than once by reaction ${r.info}")
+            Some(s"static molecule ($m) emitted more than once by reaction {${r.info}}")
           else if (outputTimes == 1 && !r.inputMoleculesSet.contains(m))
-            Some(s"static molecule ($m) emitted but not consumed by reaction ${r.info}")
+            Some(s"static molecule ($m) emitted but not consumed by reaction {${r.info}}")
           else None
         }
     }

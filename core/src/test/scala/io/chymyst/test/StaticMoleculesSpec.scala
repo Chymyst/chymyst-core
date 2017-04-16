@@ -81,7 +81,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Incorrect static molecule declaration: static molecule (d) consumed but not emitted by reaction c/B(_) + d(_) → "
+    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Incorrect static molecule declaration: static molecule (d) consumed but not emitted by reaction {c/B(_) + d(_) → }"
   }
 
   it should "signal error when a static molecule is consumed by reaction and emitted twice" in {
@@ -94,7 +94,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Incorrect static molecule declaration: static molecule (d) emitted more than once by reaction c/B(_) + d(_) → d() + d()"
+    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Incorrect static molecule declaration: static molecule (d) emitted more than once by reaction {c/B(_) + d(_) → d() + d()}"
   }
 
   it should "signal error when a static molecule is emitted but not consumed by reaction" in {
@@ -109,7 +109,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B → ...; e → ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction c/B(_) → d(); static molecule (d) emitted but not consumed by reaction e(_) → d(); Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B → ...; e → ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction {c/B(_) → d()}; static molecule (d) emitted but not consumed by reaction {e(_) → d()}; Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
   }
 
   it should "signal error when a static molecule is emitted by reaction inside a loop to trick static analysis" in {
@@ -136,7 +136,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{d + d + e → ...}: Incorrect static molecule declaration: static molecule (d) consumed 2 times by reaction d(_) + d(_) + e(_) → d()"
+    thrown.getMessage shouldEqual "In Site{d + d + e → ...}: Incorrect static molecule declaration: static molecule (d) consumed 2 times by reaction {d(_) + d(_) + e(_) → d()}"
   }
 
   it should "signal error when a static molecule is emitted but has no reactions" in {
@@ -195,7 +195,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B → ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction c/B(_) → d(); Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B → ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction {c/B(_) → d()}; Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
   }
 
   it should "signal error when a static molecule is defined by a static reaction with guard" in {
@@ -210,7 +210,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ if n > 0 => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Static reaction { if(?) → d()} should not have a guard condition"
+    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Static reaction {_ if(?) → d()} should not have a guard condition"
   }
 
   it should "refuse to define a blocking molecule as a static molecule" in {
