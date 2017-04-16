@@ -1,5 +1,6 @@
 package io.chymyst.jc
 
+import java.security.MessageDigest
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
 
@@ -24,15 +25,13 @@ object TypeMustBeUnitValue extends TypeMustBeUnit[Unit] {
 }
 
 object Core {
-  private lazy val sha1Digest = java.security.MessageDigest.getInstance("SHA-1")
-
   private val longId: AtomicLong = new AtomicLong(0L)
 
   private[jc] def getNextId: Long = longId.incrementAndGet()
 
-  def getSha1String(c: String): String = sha1Digest.digest(c.getBytes("UTF-8")).map("%02X".format(_)).mkString
+  def getMessageDigest: MessageDigest = MessageDigest.getInstance("SHA-1")
 
-  def getSha1(c: Any): String = getSha1String(c.toString)
+  def getSha1(c: String, md: MessageDigest): String = md.digest(c.getBytes("UTF-8")).map("%02X".format(_)).mkString
 
   //  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 

@@ -1,5 +1,7 @@
 package io.chymyst.jc
 
+import java.security.MessageDigest
+
 import Core._
 
 import scala.{Symbol => ScalaSymbol}
@@ -701,7 +703,10 @@ final case class Reaction(
       .map(_.molecule)
       .sortBy(_.toString)
 
-  private[jc] lazy val inputMoleculesSha1: String = getSha1String(inputMoleculesSortedAlphabetically.map(_.hashCode()).mkString(","))
+  // java.security.MessageDigest is not thread safe, so we use a new MessageDigest for each reaction.
+  private lazy val md: MessageDigest = getMessageDigest
+
+  private[jc] lazy val inputMoleculesSha1: String = getSha1(inputMoleculesSortedAlphabetically.map(_.hashCode()).mkString(","), md)
 
   // Optimization: this is used often.
   private[jc] val inputMoleculesSet: Set[Molecule] = inputMoleculesSortedAlphabetically.toSet

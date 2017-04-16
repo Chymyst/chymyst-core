@@ -228,7 +228,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
       case e: Exception =>
         // Running the reaction body produced an exception. Note that the exception has killed a thread.
-        // We will now re-insert the input molecules (except the blocking ones). Hopefully, no side-effects or output molecules were produced so far.
+        // We will now schedule this reaction again if retry was requested. Hopefully, no side-effects or output molecules were produced so far.
         val (status, retryMessage) =
           if (thisReaction.retry) {
             scheduleReaction(thisReaction, usedInputs, poolForReaction)
@@ -236,7 +236,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           }
           else (ReactionExitFailure(e.getMessage), " Retry run was not scheduled.")
 
-        val generalExceptionMessage = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] produced an exception.$retryMessage Message: ${e.getMessage}"
+        val generalExceptionMessage = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] produced ${e.getClass.getSimpleName}.$retryMessage Message: ${e.getMessage}"
 
         reportError(generalExceptionMessage)
         status
@@ -652,7 +652,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     val staticDiagnostics = WarningsAndErrors(foundWarnings, foundErrors, s"$this")
 
-    staticDiagnostics.checkWarningsAndErrors()
+//    staticDiagnostics.checkWarningsAndErrors()
 
     // Emit static molecules now.
     // This must be done without starting any reactions that might consume these molecules.

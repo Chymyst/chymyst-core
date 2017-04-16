@@ -548,7 +548,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       go { case a(x) if x > 0 => },
       go { case a(x) + a(_) => }
     )
-    warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a(x if ?) → }"), List(), "Site{a + a → ...; a → ...; a → ...}")
+    warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a(x if ?) → }, {a(x if ?) → }"), List(), "Site{a + a → ...; a → ...; a → ...}")
   }
 
   it should "detect a repeated reaction with different conditions" in {
@@ -573,7 +573,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     warnings.warnings shouldEqual Nil
   }
 
-  it should "detect several repeated reactions" in {
+  it should "not detect several repeated reactions when different molecules are given" in {
 
     val a1 = m[Int]
     val a2 = m[Int]
@@ -613,7 +613,39 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val warnings = site(reaction1, reaction2, reaction3, reaction4, reaction5)
 
-    warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a1(x) + c1(_) → a1(?)}, {c1(_) + f/B(_) → }"), List(), "Site{a1 + c1 → ...; a2 + c2 → ...; a3 + c3 → ...; c1 + f/B → ...; c2 + f/B → ...}")
+    warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a1 + c1 → ...; a2 + c2 → ...; a3 + c3 → ...; c1 + f/B → ...; c2 + f/B → ...}")
+  }
+
+  it should "detect several repeated reactions when same molecules are given" in {
+
+    val a = m[Int]
+    val c = m[Unit]
+    val f = b[Unit, Int]
+
+    val reaction1 = {
+      go { case a(x) + c(_) => a(x) }
+    }
+
+    val reaction2 = {
+      go { case a(x) + c(_) => a(x) }
+    }
+
+    val reaction3 = {
+      go { case a(x) + c(_) => a(x) }
+    }
+
+    val reaction4 = {
+      go { case f(_, r) + c(_) => r(0) }
+    }
+
+    val reaction5 = {
+      go { case f(_, r) + c(_) => r(0) }
+    }
+    the[Exception] thrownBy {
+      val warnings = site(reaction1, reaction2, reaction3, reaction4, reaction5)
+
+      warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a1(x) + c1(_) → a1(?)}, {c1(_) + f/B(_) → }"), List(), "Site{a1 + c1 → ...; a2 + c2 → ...; a3 + c3 → ...; c1 + f/B → ...; c2 + f/B → ...}")
+    } should have message "In Site{a + c → ...; a + c → ...; a + c → ...; c + f/B → ...; c + f/B → ...}: Unavoidable nondeterminism: reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {c(_) + f/B(_) → } is shadowed by {c(_) + f/B(_) → }, reaction {c(_) + f/B(_) → } is shadowed by {c(_) + f/B(_) → }"
   }
 
 }
