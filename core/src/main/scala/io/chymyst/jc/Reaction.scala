@@ -481,18 +481,24 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType,
   * @param reactionString String representation of the reaction, used for error messages.
   */
 final class ChymystThreadInfo(
-  statics: Set[Molecule] = Set(),
+  statics: Set[Int] = Set(),
   reactionString: String = "<no reaction>"
 ) {
   override val toString: String = reactionString
 
-  private[jc] val maybeEmit: Molecule => Boolean = {
-    val allowedToEmit: mutable.Set[Molecule] = mutable.Set() ++ statics
+  /** This closure will contain a mutable set and will update it whenever a static molecule is emitted.
+    * If the static molecule has been already emitted, we disallow further `emit()` because a reaction can only consume one and emit one static molecule.
+    */
+  private[jc] val maybeEmit: Int => Boolean = {
+    val allowedToEmit: mutable.Set[Int] = if (statics.isEmpty)
+      mutable.Set()
+    else
+      mutable.Set() ++ statics
 
-    { m: Molecule => allowedToEmit.remove(m) }
+    { molSiteIndex: Int => allowedToEmit.remove(molSiteIndex) }
   }
 
-  private[jc] def couldEmit(m: Molecule): Boolean = statics.contains(m)
+  private[jc] def couldEmit(molSiteIndex: Int): Boolean = statics.contains(molSiteIndex)
 }
 
 // This class is immutable.
@@ -629,7 +635,7 @@ final class ReactionInfo(
         .orderedMapGroupBy(_.molecule.siteIndex, _.index)
         .map { case (i, is) ⇒ (i, is.toArray) }
         .toArray
-    (inputsSortedIrrefutableGrouped, inputsSortedConditional.filter(info ⇒ independentInputMolecules contains info.index))
+    (inputsSortedIrrefutableGrouped, inputsSortedConditional.filter(info ⇒ independentInputMolecules contains info.index).toArray)
   }
 
   /* Not sure if this is still useful.
@@ -673,7 +679,7 @@ final case class Reaction(
   private[jc] val threadPool: Option[Pool],
   private[jc] val retry: Boolean
 ) {
-  private[jc] def newChymystThreadInfo = new ChymystThreadInfo(info.staticMols, info.toString)
+  private[jc] def newChymystThreadInfo = new ChymystThreadInfo(info.staticMols.map(_.siteIndex), info.toString)
 
   /** Convenience method to specify thread pools per reaction.
     *

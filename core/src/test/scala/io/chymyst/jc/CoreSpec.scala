@@ -198,7 +198,7 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   it should "exclude elements with repetitions" in {
     val data = (1 to 10) ++ (1 to 10)
-    val skip = new MutableMultiset[Int]().add(Seq(1, 1, 2, 2, 3, 4))
+    val skip = new MutableMultiset[Int](List(1, 1, 2, 2, 3, 4))
     val expected = (5 to 10) ++ (3 to 10)
     val result = streamDiff(data.toIterator, skip)
     result.toList shouldEqual expected.toList

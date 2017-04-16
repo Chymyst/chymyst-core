@@ -256,11 +256,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
 
     // The reaction is finished. If it had any blocking input molecules, we check if any of them got no reply.
-    if (thisReaction.info.hasBlockingInputs) {
+    if (thisReaction.info.hasBlockingInputs && usedInputs.exists(_.reactionSentNoReply)) {
       // For any blocking input molecules that have no reply, put an error message into them and reply with empty value to unblock the threads.
 
       // Compute error messages here in case we will need them later.
-      val blockingMoleculesWithNoReply = usedInputs.view.zipWithIndex
+      val blockingMoleculesWithNoReply = usedInputs.zipWithIndex
         .filter(_._1.reactionSentNoReply)
         .map { case (_, i) ⇒ thisReaction.info.inputs(i).molecule }
         .toSeq.toOptionSeq
@@ -402,7 +402,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
                       val prevValMap = repeatedVals.getOrElse(siteMolIndex, List[AbsMolValue[_]]())
                       moleculesPresent(siteMolIndex)
                         // TODO: move this to the skipping interface, restore Seq[T] as its argument
-                        .allValuesSkipping(new MutableMultiset[AbsMolValue[_]]().add(prevValMap))
+                        .allValuesSkipping(new MutableMultiset[AbsMolValue[_]](prevValMap))
                         .filter(inputInfo.admitsValue)
 
                         .map { v ⇒
@@ -444,17 +444,18 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       None
   }
 
-  /** Check if the current thread is allowed to emit a static molecule.
+  /** Check if the current reaction is allowed to emit a static molecule.
     * If so, remove the emitter from the mutable set.
+    * The information about the current reaction is kept in the thread info.
     *
     * @param m A static molecule emitter.
     * @return `()` if the thread is allowed to emit that molecule. Otherwise, an exception is thrown with a refusal reason message.
     */
   private def allowEmittedStaticMolOrThrow(m: Molecule, throwError: String => Unit): Unit = {
     currentReactionInfo.foreach { info =>
-      if (!info.maybeEmit(m)) {
+      if (!info.maybeEmit(m.siteIndex)) {
         val refusalReason =
-          if (!info.couldEmit(m))
+          if (!info.couldEmit(m.siteIndex))
             s"because this reaction {$info} does not consume it"
           else s"because this reaction {$info} already emitted it"
         throwError(refusalReason)
@@ -469,7 +470,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private var nowEmittingStaticMols = false
 
-  private def findUnboundOutputMolecules: Boolean = unboundOutputMolecules.nonEmpty && {
+  /** This is computed only once, when the first molecule is emitted into this reaction site.
+    * If, at that time, there are any molecules that are still unbound but used as output by this reaction site, we report an error.
+    * This value does not need to be recomputed because this error is permanent (would be a compile-time error in JoCaml).
+    */
+  private lazy val findUnboundOutputMolecules: Boolean = unboundOutputMolecules.nonEmpty && {
     val stillUnbound = unboundOutputMolecules.filterNot(_.isBound)
     unboundOutputMolecules = stillUnbound
     stillUnbound.nonEmpty

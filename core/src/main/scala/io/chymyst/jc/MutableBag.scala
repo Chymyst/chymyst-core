@@ -101,6 +101,7 @@ final class MutableQueueBag[T] extends MutableBag[T] {
 
   override protected def iterator: Iterator[T] = bag.iterator.asScala
 
+  // Attempting to optimize the size computations, at risk of race conditions, which is mitigated by ordering of operations below.
   private val sizeValue = new AtomicInteger(0)
 
   override def isEmpty: Boolean = bag.isEmpty
@@ -109,7 +110,7 @@ final class MutableQueueBag[T] extends MutableBag[T] {
 
   override def add(v: T): Unit = {
     bag.add(v)
-    sizeValue.incrementAndGet()
+    sizeValue.incrementAndGet() // Incrementing the size only after adding to the bag.
     ()
   }
 
@@ -120,7 +121,7 @@ final class MutableQueueBag[T] extends MutableBag[T] {
     * @return `true` if removal was successful, `false` otherwise.
     */
   override def remove(v: T): Boolean = {
-    sizeValue.decrementAndGet()
+    sizeValue.decrementAndGet() // Decrementing the size before removing from the bag.
     val status = bag.remove(v)
     if (!status) sizeValue.incrementAndGet()
     status
@@ -148,6 +149,11 @@ final class MutableQueueBag[T] extends MutableBag[T] {
   * @tparam T Type of values held by the multiset.
   */
 class MutableMultiset[T](bag: mutable.Map[T, Int] = mutable.Map[T, Int]()) {
+  def this(values: List[T]) = {
+    this()
+    add(values)
+  }
+
   def getCountMap: Map[T, Int] = bag.toMap
 
   def isEmpty: Boolean = bag.isEmpty
@@ -156,17 +162,15 @@ class MutableMultiset[T](bag: mutable.Map[T, Int] = mutable.Map[T, Int]()) {
 
   def copyBag: MutableMultiset[T] = new MutableMultiset[T](bag.clone)
 
-  def add(v: T): MutableMultiset[T] = {
+  def add(v: T): Unit = {
     bag.update(v, getCount(v) + 1)
-    this
   }
 
-  def add(vs: Seq[T]): MutableMultiset[T] = {
+  def add(vs: Seq[T]): Unit = {
     vs.foreach(add)
-    this
   }
 
-  def remove(v: T): MutableMultiset[T] = {
+  def remove(v: T): Unit = {
     bag.get(v).foreach { count ⇒
       if (count <= 1) {
         bag.remove(v)
@@ -174,7 +178,6 @@ class MutableMultiset[T](bag: mutable.Map[T, Int] = mutable.Map[T, Int]()) {
         bag.update(v, count - 1)
       }
     }
-    this
   }
 
   def getCount(v: T): Int = bag.getOrElse(v, 0)

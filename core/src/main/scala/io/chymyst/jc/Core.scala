@@ -339,14 +339,13 @@ object Core {
   }
 
   def streamDiff[T](s: Iterator[T], skipBag: MutableMultiset[T]): Iterator[T] = {
-    s.map(Some(_)).scanLeft[Option[T]](None) { (b, tOpt) ⇒
-      val Some(t) = tOpt
+    s.filter{ t ⇒
       if (skipBag contains t) {
         skipBag.remove(t)
-        None
+        false
       }
-      else tOpt
-    }.flatten
+      else true
+    }
   }
 
 }
