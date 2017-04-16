@@ -29,7 +29,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     toString,
     logSoup = () => printBag,
     setLogLevel = { level => logLevel = level },
-    staticMolDeclared.keys.toList,
+    isStatic = () ⇒ staticMolDeclared.contains(molecule),
     emit = (mol, molValue) => emit[T](mol, molValue),
     emitAndAwaitReply = (mol, molValue, replyValue) => emitAndAwaitReply[T, R](mol, molValue, replyValue),
     emitAndAwaitReplyWithTimeout = (timeout, mol, molValue, replyValue) => emitAndAwaitReplyWithTimeout[T, R](timeout, mol, molValue, replyValue),
@@ -823,7 +823,7 @@ private[jc] final class ReactionSiteWrapper[T, R](
   override val toString: String,
   val logSoup: () => String,
   val setLogLevel: Int => Unit,
-  val staticMolsDeclared: List[Molecule],
+  val isStatic: () => Boolean,
   val emit: (Molecule, AbsMolValue[T]) => Unit,
   val emitAndAwaitReply: (B[T, R], T, AbsReplyEmitter[T, R]) => R,
   val emitAndAwaitReplyWithTimeout: (Long, B[T, R], T, AbsReplyEmitter[T, R]) => Option[R],
@@ -833,13 +833,13 @@ private[jc] final class ReactionSiteWrapper[T, R](
 
 private[jc] object ReactionSiteWrapper {
   def noReactionSite[T, R](m: Molecule): ReactionSiteWrapper[T, R] = {
-    def exception: Nothing = throw new ExceptionNoReactionSite(s"Molecule $m is not bound to any reaction site")
+    def exception: Nothing = throw new ExceptionNoReactionSite(s"Molecule $m is not bound to any reaction site!")
 
     new ReactionSiteWrapper(
       toString = "",
       logSoup = () => exception,
       setLogLevel = _ => exception,
-      staticMolsDeclared = List[Molecule](),
+      isStatic = () ⇒ exception,
       emit = (_: Molecule, _: AbsMolValue[T]) => exception,
       emitAndAwaitReply = (_: B[T, R], _: T, _: AbsReplyEmitter[T, R]) => exception,
       emitAndAwaitReplyWithTimeout = (_: Long, _: B[T, R], _: T, _: AbsReplyEmitter[T, R]) => exception,

@@ -213,14 +213,14 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
       volatileValueContainer
     else throw new Exception(s"In $reactionSiteWrapper: volatile reader requested for non-static molecule ($this)")
   }
-  else throw new Exception("Molecule c is not bound to any reaction site")
+  else throw new Exception(s"Molecule $name is not bound to any reaction site")
 
   private[jc] def assignStaticMolVolatileValue(molValue: AbsMolValue[_]) =
     volatileValueContainer = molValue.asInstanceOf[MolValue[T]].moleculeValue
 
   @volatile private var volatileValueContainer: T = _
 
-  override lazy val isStatic: Boolean = reactionSiteWrapper.staticMolsDeclared.contains(this)
+  override lazy val isStatic: Boolean = reactionSiteWrapper.isStatic()
 
   override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean) = {
     super.setReactionSiteInfo(rs, index, valType, pipelined)

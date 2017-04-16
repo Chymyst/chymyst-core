@@ -201,13 +201,13 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
   behavior of "volatile reader"
 
   it should "refuse to read the value of a molecule not bound to a reaction site" in {
-    val c = m[Int]
+    val cc = m[Int]
 
     val thrown = intercept[Exception] {
-      c.volatileValue shouldEqual null.asInstanceOf[Int] // If this passes, we are not detecting the fact that c is not bound.
+      cc.volatileValue shouldEqual null.asInstanceOf[Int] // If this passes, we are not detecting the fact that cc is not bound.
     }
 
-    thrown.getMessage shouldEqual "Molecule c is not bound to any reaction site"
+    thrown.getMessage shouldEqual "Molecule cc is not bound to any reaction site"
   }
 
   it should "refuse to read the value of a non-static molecule" in {
