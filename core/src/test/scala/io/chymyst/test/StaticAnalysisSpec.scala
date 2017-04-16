@@ -528,27 +528,29 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = m[Unit]
     val f = b[Unit, Int]
 
-    val thrown = intercept[Exception] {
+    the[Exception] thrownBy {
       val warnings = site(
         go { case c(_) + a(x) => a(x) },
         go { case c(_) + a(x) => a(x) },
         go { case a(x) + f(_, r) => r(x) },
         go { case a(x) + f(_, r) => r(x) }
       )
-      warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a(x) + c(_) → a(?)}, {a(x) + f/B(_) → }"), List(), "Site{a + c → ...; a + c → ...; a + f/B → ...; a + f/B → ...}") // this is probably unreachable; later we could rewrite this test when logging is better handled
-    }
-    thrown.getMessage shouldEqual "In Site{a + c → ...; a + c → ...; a + f/B → ...; a + f/B → ...}: Unavoidable nondeterminism: reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + f/B(_) → } is shadowed by {a(x) + f/B(_) → }, reaction {a(x) + f/B(_) → } is shadowed by {a(x) + f/B(_) → }"
+      warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a + c → ...; a + c → ...; a + f/B → ...; a + f/B → ...}") // this is unreachable if test passes; later we could rewrite this test when error logging is handled better
+    } should have message
+    "In Site{a + c → ...; a + c → ...; a + f/B → ...; a + f/B → ...}: Identical repeated reactions: {a(x) + c(_) → a(?)}, {a(x) + c(_) → a(?)}, {a(x) + f/B(_) → }, {a(x) + f/B(_) → }; Unavoidable nondeterminism: reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + f/B(_) → } is shadowed by {a(x) + f/B(_) → }, reaction {a(x) + f/B(_) → } is shadowed by {a(x) + f/B(_) → }"
   }
 
   it should "detect a repeated reaction with identical conditions" in {
     val a = m[Int]
 
-    val warnings = site(
-      go { case a(x) if x > 0 => },
-      go { case a(x) if x > 0 => },
-      go { case a(x) + a(_) => }
-    )
-    warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a(x if ?) → }, {a(x if ?) → }"), List(), "Site{a + a → ...; a → ...; a → ...}")
+    the[Exception] thrownBy {
+      val warnings = site(
+        go { case a(x) if x > 0 => },
+        go { case a(x) if x > 0 => },
+        go { case a(x) + a(_) => }
+      )
+      warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a + a → ...; a → ...; a → ...}")
+    } should have message "In Site{a + a → ...; a → ...; a → ...}: Identical repeated reactions: {a(x if ?) → }, {a(x if ?) → }"
   }
 
   it should "detect a repeated reaction with different conditions" in {
@@ -644,8 +646,9 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     the[Exception] thrownBy {
       val warnings = site(reaction1, reaction2, reaction3, reaction4, reaction5)
 
-      warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a1(x) + c1(_) → a1(?)}, {c1(_) + f/B(_) → }"), List(), "Site{a1 + c1 → ...; a2 + c2 → ...; a3 + c3 → ...; c1 + f/B → ...; c2 + f/B → ...}")
-    } should have message "In Site{a + c → ...; a + c → ...; a + c → ...; c + f/B → ...; c + f/B → ...}: Unavoidable nondeterminism: reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {c(_) + f/B(_) → } is shadowed by {c(_) + f/B(_) → }, reaction {c(_) + f/B(_) → } is shadowed by {c(_) + f/B(_) → }"
+      warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a1 + c1 → ...; a2 + c2 → ...; a3 + c3 → ...; c1 + f/B → ...; c2 + f/B → ...}")
+    } should have message
+      "In Site{a + c → ...; a + c → ...; a + c → ...; c + f/B → ...; c + f/B → ...}: Identical repeated reactions: {a(x) + c(_) → a(?)}, {a(x) + c(_) → a(?)}, {a(x) + c(_) → a(?)}, {c(_) + f/B(_) → }, {c(_) + f/B(_) → }; Unavoidable nondeterminism: reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {c(_) + f/B(_) → } is shadowed by {c(_) + f/B(_) → }, reaction {c(_) + f/B(_) → } is shadowed by {c(_) + f/B(_) → }"
   }
 
 }

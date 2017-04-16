@@ -173,6 +173,7 @@ private[jc] object StaticAnalysis {
 
   private[jc] def findGeneralErrors(reactions: Seq[Reaction]) = {
     Seq(
+      findIdenticalReactions _,
       checkReactionShadowing _,
       checkSingleReactionLivelock _,
       checkMultiReactionLivelock _
@@ -181,7 +182,6 @@ private[jc] object StaticAnalysis {
 
   private[jc] def findStaticWarnings(reactions: Seq[Reaction]) = {
     Seq(
-      findIdenticalReactions _,
       checkOutputsForDeadlockWarning _,
       checkInputsForDeadlockWarning _,
       checkSingleReactionLivelockWarning _
