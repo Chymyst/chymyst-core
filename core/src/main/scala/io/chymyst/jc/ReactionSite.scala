@@ -260,7 +260,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       // For any blocking input molecules that have no reply, put an error message into them and reply with empty value to unblock the threads.
 
       // Compute error messages here in case we will need them later.
-      val blockingMoleculesWithNoReply = usedInputs.zipWithIndex
+      val blockingMoleculesWithNoReply = usedInputs.view.zipWithIndex
         .filter(_._1.reactionSentNoReply)
         .map { case (_, i) ⇒ thisReaction.info.inputs(i).molecule }
         .toSeq.toOptionSeq
@@ -699,7 +699,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       .sortBy(_.name)
       .zipWithIndex
       .map { case (mol, index) ⇒
-        val valType = nonStaticReactions
+        val valType = nonStaticReactions.view
           .map(_.info.inputs)
           .flatMap(_.find(_.molecule === mol))
           .headOption
