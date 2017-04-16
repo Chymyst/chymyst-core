@@ -55,9 +55,11 @@ object MainApp extends App {
 
     s"${Benchmarks9.pingPongCalls} blocked threads with ping-pong calls" -> benchmark9_2 _,
 
-    s"count to ${counterMultiplier * n} using blocking access with checking reply status" -> benchmark10 _,
+    s"count to ${Benchmarks9.counterMultiplier * n} using blocking access with checking reply status" -> benchmark10 _,
 
-    s"sum an array of size ${counterMultiplier * n} using repeated molecules" -> benchmark11 _
+    s"sum an array of size $n using repeated molecules, ${Benchmarks11.counterMultiplier} times" -> benchmark11 _,
+
+    s"perform merge-sort of size ${Benchmarks11.mergeSortSize}, ${Benchmarks11.mergeSortIterations} times" → benchmark12 _
 
   ).zipWithIndex.foreach {
     case ((message, benchmark), i) => println(s"Benchmark ${i + 1} took ${
