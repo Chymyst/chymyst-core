@@ -37,7 +37,6 @@ object Benchmarks9 {
       go { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
       go { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
     )
-    //    done.setLogLevel(2)
     val initialTime = LocalDateTime.now
     all_done(numberOfCounters)
 
@@ -95,7 +94,6 @@ object Benchmarks9 {
       go { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },
       go { case all_done(x) + done(_) if x > 0 => all_done(x-1) }
     )
-    //    done.setLogLevel(2)
     val initialTime = LocalDateTime.now
     all_done(1)
 

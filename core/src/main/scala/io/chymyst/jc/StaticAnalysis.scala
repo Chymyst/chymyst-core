@@ -188,22 +188,28 @@ private[jc] object StaticAnalysis {
     ).flatMap(_ (reactions))
   }
 
-  // Each static molecule should occur in some reaction as an input. No static molecule should be consumed twice by a reaction.
+  // Each static molecule must occur in some reaction as an input.
+  // No static molecule should be consumed twice by a reaction.
   // Each static molecule that is consumed by a reaction should also be emitted by the same reaction.
   private def checkInputsForStaticMols(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
-    val staticMolsConsumedMaxTimes: Map[Molecule, (Reaction, Int)] =
-      if (reactions.isEmpty)
-        Map()
-      else
-        staticMols.map { case (m, _) => m -> reactions.map(r => (r, r.inputMoleculesSortedAlphabetically.count(_ === m))).maxBy(_._2) }
+    val staticMolsConsumedMaxTimes: Map[Molecule, Option[(Reaction, Int)]] =
+      staticMols.map { case (m, _) ⇒
+        val reactionsWithCounts = if (reactions.isEmpty)
+          None
+        else
+          Some(reactions.map(r => (r, r.inputMoleculesSortedAlphabetically.count(_ === m))).maxBy(_._2))
+        m → reactionsWithCounts
+      }
 
     val wrongConsumed = staticMolsConsumedMaxTimes
       .flatMap {
-        case (mol, (reaction, 0)) =>
+        case (mol, None) ⇒
           Some(s"static molecule ($mol) not consumed by any reactions")
-        case (mol, (reaction, 1)) =>
+        case (mol, Some((_, 0))) ⇒
+          Some(s"static molecule ($mol) not consumed by any reactions")
+        case (mol, Some((_, 1))) ⇒
           None
-        case (mol, (reaction, countConsumed)) =>
+        case (mol, Some((reaction, countConsumed))) =>
           Some(s"static molecule ($mol) consumed $countConsumed times by reaction ${reaction.info}")
       }
 

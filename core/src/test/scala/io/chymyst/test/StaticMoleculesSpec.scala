@@ -123,7 +123,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       )
       c()
     }
-    thrown.getMessage shouldEqual "Error: In Site{c/B + d → ...}: Reaction {c/B(_) + d(_) → d()} with inputs [c/B/P() + d/P()] finished without replying to c/B. Reported error: In Site{c/B + d → ...}: Reaction {c/B(_) + d(_) → d()} with inputs [c/B/P() + d/P()] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: In Site{c/B + d → ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + d(_) → d()} already emitted it"
+    thrown.getMessage shouldEqual "Error: In Site{c/B + d → ...}: Reaction {c/B(_) + d(_) → d()} with inputs [c/B/P() + d/P()] finished without replying to c/B. Reported error: In Site{c/B + d → ...}: Reaction {c/B(_) + d(_) → d()} with inputs [c/B/P() + d/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: In Site{c/B + d → ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + d(_) → d()} already emitted it"
   }
 
   it should "signal error when a static molecule is consumed multiple times by reaction" in {
@@ -139,7 +139,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
     thrown.getMessage shouldEqual "In Site{d + d + e → ...}: Incorrect static molecule declaration: static molecule (d) consumed 2 times by reaction d(_) + d(_) + e(_) → d()"
   }
 
-  it should "signal error when a static molecule is emitted but not bound to any reaction site" in {
+  it should "signal error when a static molecule is emitted but has no reactions" in {
     val thrown = intercept[Exception] {
       val d = m[Unit]
 
@@ -147,7 +147,38 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "Molecule d is not bound to any reaction site"
+    thrown.getMessage shouldEqual "In Site{}: Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
+  }
+
+  it should "signal error when a static molecule is emitted but bound to another reaction site" in {
+    val thrown = intercept[Exception] {
+      val d = m[Unit]
+
+      site(tp)(
+        go { case d(_) => }
+      )
+
+      site(tp)(
+        go { case _ => d() } // static reaction
+      )
+    }
+    thrown.getMessage shouldEqual "In Site{}: Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
+  }
+
+  it should "signal error when a static molecule is emitted but incorrectly bound to another reaction site" in {
+    val thrown = intercept[Exception] {
+      val d = m[Unit]
+
+      site(tp)(
+        go { case d(_) => }
+      )
+
+      site(tp)(
+        go { case d(_) => },
+        go { case _ => d() } // static reaction
+      )
+    }
+    thrown.getMessage shouldEqual "Molecule d cannot be used as input in Site{d → ...} since it is already bound to Site{d → ...}"
   }
 
   it should "signal error when a static molecule is emitted but not bound to this reaction site" in {
@@ -207,7 +238,7 @@ class StaticMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests w
       cc.volatileValue shouldEqual null.asInstanceOf[Int] // If this passes, we are not detecting the fact that cc is not bound.
     }
 
-    thrown.getMessage shouldEqual "Molecule cc is not bound to any reaction site"
+    thrown.getMessage shouldEqual "Molecule cc is not bound to any reaction site, cannot read volatile value"
   }
 
   it should "refuse to read the value of a non-static molecule" in {

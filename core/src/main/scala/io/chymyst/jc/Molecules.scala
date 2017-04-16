@@ -2,7 +2,7 @@ package io.chymyst.jc
 
 import Core._
 import java.util.concurrent.{Semaphore, TimeUnit}
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
@@ -210,15 +210,15 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
     */
   def volatileValue: T = if (isBound) {
     if (isStatic)
-      volatileValueContainer
+      volatileValueRef.get
     else throw new Exception(s"In $reactionSiteWrapper: volatile reader requested for non-static molecule ($this)")
   }
-  else throw new Exception(s"Molecule $name is not bound to any reaction site")
+  else throw new Exception(s"Molecule $name is not bound to any reaction site, cannot read volatile value")
 
   private[jc] def assignStaticMolVolatileValue(molValue: AbsMolValue[_]) =
-    volatileValueContainer = molValue.asInstanceOf[MolValue[T]].moleculeValue
+    volatileValueRef.set(molValue.asInstanceOf[MolValue[T]].moleculeValue)
 
-  @volatile private var volatileValueContainer: T = _
+  private var volatileValueRef: AtomicReference[T] = new AtomicReference[T]()
 
   override lazy val isStatic: Boolean = reactionSiteWrapper.isStatic()
 

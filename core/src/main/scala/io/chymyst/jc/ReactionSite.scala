@@ -220,9 +220,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       // Catch various exceptions that occurred while running the reaction body.
       case e: ExceptionInChymyst =>
         // Running the reaction body produced an exception that is internal to `Chymyst Core`.
-        // We should not try to recover from this; it is either an error on user's part
-        // or a bug in `Chymyst Core`.
-        val message = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] produced an exception that is internal to Chymyst Core. Retry run was not scheduled. Message: ${e.getMessage}"
+        // We should not try to recover from this; it is either an error on user's part or a bug in `Chymyst Core`.
+        val message = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: ${e.getMessage}"
         reportError(message)
         ReactionExitFailure(message)
 
@@ -493,7 +492,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // (If no condition is satisfied, we will not emit this value for a pipelined molecule.)
         // For non-pipelined molecules, `admitsValue` will be identically `true`.
         val admitsValue = !mol.isPipelined ||
-        // TODO: could optimize this, since `pipelinedMolecules` is only used to check `admitsValue`
+          // TODO: could optimize this, since `pipelinedMolecules` is only used to check `admitsValue`
           pipelinedMolecules.get(mol.siteIndex).forall(infos ⇒ infos.isEmpty || infos.exists(_.admitsValue(molValue)))
         if (mol.isStatic) {
           // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
@@ -652,27 +651,26 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     val staticDiagnostics = WarningsAndErrors(foundWarnings, foundErrors, s"$this")
 
-//    staticDiagnostics.checkWarningsAndErrors()
+    // This is necessary to prevent the static reactions from running in case there are already errors.
+    if (staticDiagnostics.noErrors) {
+      // Emit static molecules now.
+      // This must be done without starting any reactions that might consume these molecules.
+      // So, we set the flag `emittingStaticMolsNow`, which will prevent other reactions from starting.
+      // Note: mutable variables are OK since this is on the same thread as the call to `site`, so it's guaranteed to be single-threaded!
+      emittingStaticMolsNow = true
+      staticReactions.foreach { reaction =>
+        // It is OK that the argument is `null` because static reactions match on the wildcard: { case _ => ... }
+        reaction.body.apply(null.asInstanceOf[ReactionBodyInput])
+      }
+      emittingStaticMolsNow = false
 
-    // Emit static molecules now.
-    // This must be done without starting any reactions that might consume these molecules.
-    // So, we set the flag `emittingStaticMolsNow`, which will prevent other reactions from starting.
-    // Note: mutable variables are OK since this is on the same thread as the call to `site`, so it's guaranteed to be single-threaded!
-    emittingStaticMolsNow = true
-    staticReactions.foreach { reaction =>
-      // It is OK that the argument is `null` because static reactions match on the wildcard: { case _ => ... }
-      reaction.body.apply(null.asInstanceOf[ReactionBodyInput])
-    }
-    emittingStaticMolsNow = false
+      val staticMolsActuallyEmitted = getMoleculeCountsAfterInitialStaticEmission
+      val staticMolsEmissionWarnings = findStaticMolsEmissionWarnings(staticMolDeclared, staticMolsActuallyEmitted)
+      val staticMolsEmissionErrors = findStaticMolsEmissionErrors(staticMolDeclared, staticMolsActuallyEmitted)
 
-    val staticMolsActuallyEmitted = getMoleculeCountsAfterInitialStaticEmission
-    val staticMolsEmissionWarnings = findStaticMolsEmissionWarnings(staticMolDeclared, staticMolsActuallyEmitted)
-    val staticMolsEmissionErrors = findStaticMolsEmissionErrors(staticMolDeclared, staticMolsActuallyEmitted)
-
-    val staticMolsDiagnostics = WarningsAndErrors(staticMolsEmissionWarnings, staticMolsEmissionErrors, s"$this")
-    val diagnostics = staticDiagnostics ++ staticMolsDiagnostics
-
-    diagnostics
+      val staticMolsDiagnostics = WarningsAndErrors(staticMolsEmissionWarnings, staticMolsEmissionErrors, s"$this")
+      staticDiagnostics ++ staticMolsDiagnostics
+    } else staticDiagnostics
   }
 
   /** Create the site-wide index map for all molecules bound to this reaction site.
@@ -778,6 +776,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 }
 
 final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], reactionSite: String) {
+  def noErrors: Boolean = errors.isEmpty
+
   def checkWarningsAndErrors(): WarningsAndErrors = {
     if (warnings.nonEmpty) println(s"In $reactionSite: ${warnings.mkString("; ")}")
     if (errors.nonEmpty) throw new Exception(s"In $reactionSite: ${errors.mkString("; ")}")
@@ -833,7 +833,7 @@ private[jc] final class ReactionSiteWrapper[T, R](
 
 private[jc] object ReactionSiteWrapper {
   def noReactionSite[T, R](m: Molecule): ReactionSiteWrapper[T, R] = {
-    def exception: Nothing = throw new ExceptionNoReactionSite(s"Molecule $m is not bound to any reaction site!")
+    def exception: Nothing = throw new ExceptionNoReactionSite(s"Molecule $m is not bound to any reaction site")
 
     new ReactionSiteWrapper(
       toString = "",
