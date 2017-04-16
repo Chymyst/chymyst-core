@@ -706,7 +706,8 @@ final case class Reaction(
   // java.security.MessageDigest is not thread safe, so we use a new MessageDigest for each reaction.
   private lazy val md: MessageDigest = getMessageDigest
 
-  private[jc] lazy val inputMoleculesSha1: String = getSha1(inputMoleculesSortedAlphabetically.map(_.hashCode()).mkString(","), md)
+  private[jc] lazy val inputInfoSha1: String =
+    getSha1(inputMoleculesSortedAlphabetically.map(_.hashCode()).mkString(","), md) + info.sha1
 
   // Optimization: this is used often.
   private[jc] val inputMoleculesSet: Set[Molecule] = inputMoleculesSortedAlphabetically.toSet

@@ -69,9 +69,9 @@ private[jc] object StaticAnalysis {
 
   // There should not be any two reactions whose source code is identical to each other.
   private def findIdenticalReactions(reactions: Seq[Reaction]): Option[String] = {
-    val reactionsSha1 = reactions.map(_.inputMoleculesSha1)
+    val reactionsSha1 = reactions.map(_.inputInfoSha1)
     val repeatedReactionSha1 = (reactionsSha1 difff reactionsSha1.distinct).distinct
-    val repeatedReactions = repeatedReactionSha1.flatMap(sha1 ⇒ reactions.filter(_.inputMoleculesSha1 === sha1))
+    val repeatedReactions = repeatedReactionSha1.flatMap(sha1 ⇒ reactions.filter(_.inputInfoSha1 === sha1))
 
     if (repeatedReactions.nonEmpty) {
       val errorList = repeatedReactions.map { r => s"{${r.info}}" }.mkString(", ")
