@@ -86,7 +86,7 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
   }
 
-  it should "run tasks on smart threads and store info" in {
+  it should "run tasks on chymyst threads and store info" in {
     val waiter = new Waiter
 
     var x = 0
@@ -104,6 +104,16 @@ class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     x shouldEqual 1
     smartThread.chymystInfo shouldEqual Some(emptyReactionInfo)
+  }
+
+  behavior of "smart pool"
+
+  it should "initialize with default CPU core parallelism" in {
+    val tp = new SmartPool()
+
+    tp.currentPoolSize shouldEqual cpuCores
+
+    tp.close()
   }
 
 }
