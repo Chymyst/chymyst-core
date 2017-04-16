@@ -1,6 +1,7 @@
 package io.chymyst.jc
 
 import java.util.concurrent.Semaphore
+import java.util.concurrent.atomic.AtomicIntegerArray
 
 import Core._
 import StaticAnalysis._
@@ -105,11 +106,24 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   }
 
+  private lazy val needScheduling: AtomicIntegerArray = new AtomicIntegerArray(knownMolecules.size)
+
+  private val NEED_TO_SCHEDULE = 0
+
+  private val NO_NEED_TO_SCHEDULE = 1
+
+  private def noNeedToSchedule(mol: Molecule): Unit = needScheduling.set(mol.siteIndex, NO_NEED_TO_SCHEDULE)
+
+  private def needToSchedule(mol: Molecule): Unit = needScheduling.set(mol.siteIndex, NEED_TO_SCHEDULE)
+
+  private def schedulingNeeded(mol: Molecule): Boolean = needScheduling.compareAndSet(mol.siteIndex, NEED_TO_SCHEDULE, NO_NEED_TO_SCHEDULE)
+
   @tailrec
   private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
     // TODO: optimize: precompute all related molecules in ReactionSite?
     lazy val decidingMoleculeMessage = s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(moleculesPresent)}]"
     if (logLevel > 3) println(decidingMoleculeMessage)
+    needToSchedule(mol)
     val foundReactionAndInputs =
       moleculesPresent.synchronized {
         // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
@@ -123,6 +137,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             // This error (molecule value was not in bag) indicates a bug in this code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
             if (!removeFromBag(mol, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $mol($molValue) from its bag; molecule index ${mol.siteIndex}, bag ${moleculesPresent(mol.siteIndex)}")
           }
+          noNeedToSchedule(mol)
         }
         found
       }
@@ -157,7 +172,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         if (logLevel > 2)
           println(noReactionsStartedMessage)
     }
-
   }
 
   private val noMoleculesRemainingMessage = s"Debug: In $this: no molecules remaining"
@@ -243,8 +257,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // The reaction is finished. If it had any blocking input molecules, we check if any of them got no reply.
     if (thisReaction.info.hasBlockingInputs) {
-      // For any blocking input molecules that have no reply, put an error message into them and reply with empty
-      // value to unblock the threads.
+      // For any blocking input molecules that have no reply, put an error message into them and reply with empty value to unblock the threads.
 
       // Compute error messages here in case we will need them later.
       val blockingMoleculesWithNoReply = usedInputs.zipWithIndex
@@ -452,7 +465,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** This variable is true only at the initial stage of building the reaction site,
     * when static reactions are run (on the same thread as the `site()` call) in order to emit the initial static molecules.
     */
-  private var emittingStaticMolsNow = false
+  private var nowEmittingStaticMols = false
 
   private def findUnboundOutputMolecules: Boolean = unboundOutputMolecules.nonEmpty && {
     val stillUnbound = unboundOutputMolecules.filterNot(_.isBound)
@@ -478,7 +491,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       throw new ExceptionNoSitePool(noPoolMessage)
     }
     else if (!Thread.currentThread().isInterrupted) {
-      if (emittingStaticMolsNow) {
+      if (nowEmittingStaticMols) {
         // Emit them on the same thread, and do not start any reactions.
         if (mol.isStatic) {
           addToBag(mol, molValue)
@@ -511,8 +524,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
           lazy val emitMoleculeMessage = s"Debug: In $this: emitting $mol($molValue), now have molecules [${moleculeBagToString(moleculesPresent)}]"
           if (logLevel > 0) println(emitMoleculeMessage)
-
-          sitePool.runRunnable(emissionRunnable(mol))
+          if (schedulingNeeded(mol))
+            sitePool.runRunnable(emissionRunnable(mol))
+//          else if (logLevel > 1) println(s"Debug: In $this: not scheduling emissionRunnable") // This is too verbose.
         } else {
           reportError(s"In $this: Refusing to emit${if (mol.isStatic) " static" else ""} pipelined molecule $mol($molValue) since its value fails the relevant conditions")
         }
@@ -655,14 +669,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     if (staticDiagnostics.noErrors) {
       // Emit static molecules now.
       // This must be done without starting any reactions that might consume these molecules.
-      // So, we set the flag `emittingStaticMolsNow`, which will prevent other reactions from starting.
+      // So, we set the flag `nowEmittingStaticMols`, which will prevent other reactions from starting.
       // Note: mutable variables are OK since this is on the same thread as the call to `site`, so it's guaranteed to be single-threaded!
-      emittingStaticMolsNow = true
+      nowEmittingStaticMols = true
       staticReactions.foreach { reaction =>
         // It is OK that the argument is `null` because static reactions match on the wildcard: { case _ => ... }
         reaction.body.apply(null.asInstanceOf[ReactionBodyInput])
       }
-      emittingStaticMolsNow = false
+      nowEmittingStaticMols = false
 
       val staticMolsActuallyEmitted = getMoleculeCountsAfterInitialStaticEmission
       val staticMolsEmissionWarnings = findStaticMolsEmissionWarnings(staticMolDeclared, staticMolsActuallyEmitted)

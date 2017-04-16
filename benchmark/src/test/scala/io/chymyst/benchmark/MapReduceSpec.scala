@@ -67,7 +67,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
       },
       go { case accum((n, b)) + fetch(_, reply) if n == arr.size => reply(b) }
     )
-
+carrier.setLogLevel(2)
     // emit molecules
     accum((0, 0))
     arr.foreach(i => carrier(i))
@@ -98,7 +98,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     site(tp)(
       go { case carrier(x) => val res = f(x); interm((1, res)) }
     )
-
+ carrier.setLogLevel(2)
     // reactions for "reduce" must be together since they share "accum"
     site(tp)(
       go { case interm((n1, x1)) + interm((n2, x2)) ⇒
@@ -282,14 +282,11 @@ class MapReduceSpec extends FlatSpec with Matchers {
   }
 
 
-  it should "perform ordered map-reduce using conditional reactions" in {
+  def orderedMapReduce(count: Int, nThreadsSite: Int): Unit = {
     // c((l, r, x)) represents the left-closed, right-open interval (l, r) over which we already performed the reduce operation, and the result value x.
     val c = m[(Int, Int, Int)]
     val done = m[Int]
     val f = b[Unit, Int]
-
-    val count = 50000
-    val nThreadsSite = 1
 
     val tp = new FixedPool(cpuCores)
     val tp1 = new FixedPool(nThreadsSite)
@@ -313,7 +310,16 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     (1 to count).foreach(i => c((i, i + 1, i * i)))
     f() shouldEqual (1 to count).map(i => i * i).reduce(assocNonCommut)
-    println(s"associative but non-commutative reduceB() onf $count numbers with nonlinear input patterns and $nThreadsSite-thread site pool took ${elapsed(initTime)} ms")
+    println(s"associative but non-commutative reduceB() on $count numbers with nonlinear input patterns and $nThreadsSite-thread site pool took ${elapsed(initTime)} ms")
+
+  }
+
+  it should "perform ordered map-reduce using conditional reactions with 2-thread site pool" in {
+    orderedMapReduce(count = 50000, nThreadsSite = 2)
+  }
+
+  it should "perform ordered map-reduce using conditional reactions" in {
+    orderedMapReduce(count = 50000, nThreadsSite = 1)
   }
 
   it should "perform ordered map-reduce using unique reactions (very slow)" in {
