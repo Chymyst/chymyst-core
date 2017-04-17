@@ -131,7 +131,12 @@ The status value will be `true` only if the caller has actually received the rep
 ## Debugging
 
 Molecule emitters have the method `setLogLevel`, which is by default set to `-1`.
-Nonnegative values will lead to more debugging output.
+Nonnegative values will lead to more debugging output:
+
+- level 0 will print all internal error messages and exceptions occurring within reactions
+- level 1 will print messages about emitting molecules and removing blocking molecules after timeout
+- level 2 will print messages about scheduling and starting reactions 
+- level 3 will print messages about molecules remaining after starting a reaction, as well as messages about no reactions started 
 
 The log level will affect the entire reaction site to which the molecule is bound.
 

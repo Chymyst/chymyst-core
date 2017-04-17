@@ -1,6 +1,7 @@
 package io.chymyst.jc
 
 import java.security.MessageDigest
+import java.time.LocalDateTime
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
 
@@ -352,4 +353,7 @@ object Core {
 
   private[jc] def unboundOutputMoleculesString(nonStaticReactions: Seq[Reaction]): String = unboundOutputMolecules(nonStaticReactions).map(_.toString).toList.sorted.mkString(", ")
 
+  private[jc] def logMessage(s: String): Unit = {
+    println(s"${LocalDateTime.now}: $s")
+  }
 }

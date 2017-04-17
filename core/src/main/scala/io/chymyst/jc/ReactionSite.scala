@@ -117,13 +117,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** Determine whether the lock can be granted. This function is called only in the synchronized context.
     *
     * @param lock A requested lock.
-    * @return A pair of Boolean values. The first value is `true` if we have in principle enough molecules for the requested
-    *         lock. The second value is `true` if the requested lock can be actually granted now.
+    * @return `None` if we do not have some molecules for the requested lock.
+    *         `Some(true)` if the requested lock can be actually granted now.
+    *         `Some(false)` if the requested lock cannot be granted now and we need to wait for other locks to be released.
     */
-  private def tryAcquireLock(lock: MoleculeValueLock): (Boolean, Boolean) = {
+  private def canAcquireLock(lock: MoleculeValueLock): Option[Boolean] = {
     val sizes: Map[Int, Int] = lock.usedMoleculesSeq.map(i ⇒ i → moleculesPresent(i).size)(breakOut)
     if (lock.usedMoleculesSeq.exists(i ⇒ sizes(i) == 0)) // We fail if we require some molecule that is not present at all.
-      (false, false)
+      None
     else if (lock.molecules.exists { i ⇒ moleculeLockUnion.contains(i) || countLockUnion.contains(i) } ||
       lock.counts.exists {
         case (i, count) ⇒
@@ -131,34 +132,42 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             countLockUnion.getOrElse(i, 0) + count > sizes(i)
       }
     )
-      (true, false)
-    else (true, true)
+      Some(false)
+    else Some(true)
   }
 
-  private def acquireLock(lock: MoleculeValueLock): Boolean = moleculesPresent.synchronized {
-    /*
-     If the present molecule counts are zero for any molecule in the requested lock, return `false`.
-     Otherwise:
-     If the present molecule counts minus the counts in the countLockUnion are >= the requested count map,
-     and if the moleculeLockUnion has empty intersection with the requested lock's `usedMolecules`,
-       add lock info to the unions
-       return `true`
-     Otherwise:
-      add the requested lock to the waiting locks set
-      acquire semaphore (block with no timeout)
-      return semaphore's acquireStatus
-    */
-    val (haveMolecules, haveLock) = tryAcquireLock(lock)
-    if (haveMolecules) {
-      if (haveLock) {
-        addLockInfoToUnions(lock)
-        true
-      } else {
-        waitingLocks.add(lock)
-        lock.acquireSemaphore()
-        lock.acquireStatus
+  private def acquireLock(lock: MoleculeValueLock): Boolean = {
+    val status: Option[Boolean] = moleculesPresent.synchronized {
+      /*
+       If the present molecule counts are zero for any molecule in the requested lock, return `false`.
+       Otherwise:
+       If the present molecule counts minus the counts in the countLockUnion are >= the requested count map,
+       and if the moleculeLockUnion has empty intersection with the requested lock's `usedMolecules`,
+         add lock info to the unions
+         return `true`
+       Otherwise:
+        add the requested lock to the waiting locks set
+        acquire semaphore (block with no timeout)
+        return semaphore's acquireStatus
+      */
+      val status = canAcquireLock(lock)
+      status.foreach { haveLock ⇒
+        if (haveLock)
+          addLockInfoToUnions(lock)
+        else
+          waitingLocks.add(lock)
       }
-    } else false
+      status
+    }
+    status match {
+      case None ⇒
+        false
+      case Some(true) ⇒
+        true
+      case Some(false) ⇒
+        lock.acquireSemaphore() // This should be done outside of `synchronized`.
+        lock.acquireStatus
+    }
   }
 
   private def releaseLock(oldLock: MoleculeValueLock): Unit = moleculesPresent.synchronized {
@@ -171,14 +180,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     removeLockInfoFromUnions(oldLock)
     val candidateLocks = waitingLocks.filter(_.usedMoleculesSet.exists(oldLock.usedMoleculesSet.contains))
     candidateLocks.foreach { lock ⇒
-      val (haveMolecules, haveLock) = tryAcquireLock(lock)
-      if (haveMolecules) {
-        if (haveLock) {
+      canAcquireLock(lock) match {
+        case None ⇒
+          lock.grantSemaphore(false)
+        case Some(true) ⇒
           waitingLocks.remove(lock)
           removeLockInfoFromUnions(lock)
           lock.grantSemaphore(true)
-        }
-      } else lock.grantSemaphore(false)
+        case _ ⇒
+      }
     }
   }
 
@@ -197,8 +207,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   @tailrec
   private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
     // TODO: optimize: precompute all related molecules in ReactionSite?
-    lazy val decidingMoleculeMessage = s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(moleculesPresent)}]"
-    if (logLevel > 3) println(decidingMoleculeMessage)
     needToSchedule(mol)
     val foundReactionAndInputs = {
       // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
@@ -228,7 +236,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           // In this case, we do not attempt to schedule a reaction. However, input molecules were consumed and not emitted again.
         } else {
           if (!Thread.currentThread().isInterrupted) {
-            if (logLevel > 1) println(s"Debug: In $this: starting reaction {${thisReaction.info}} with inputs [${Core.moleculeBagToString(thisReaction, usedInputs)}] on reaction pool $poolForReaction while on site pool $sitePool")
+            if (logLevel > 1) logMessage(s"Debug: In $this: starting reaction {${thisReaction.info}} with inputs [${Core.moleculeBagToString(thisReaction, usedInputs)}] on reaction pool $poolForReaction while on site pool $sitePool")
           }
           if (logLevel > 2) {
             val moleculesRemainingMessage =
@@ -236,7 +244,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
                 noMoleculesRemainingMessage
               else
                 s"Debug: In $this: remaining molecules [${moleculeBagToString(moleculesPresent)}]"
-            println(moleculesRemainingMessage)
+            logMessage(moleculesRemainingMessage)
           }
           // Schedule the reaction now. Provide reaction info to the thread.
           scheduleReaction(thisReaction, usedInputs, poolForReaction)
@@ -245,7 +253,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         }
       case None =>
         if (logLevel > 2)
-          println(noReactionsStartedMessage)
+          logMessage(noReactionsStartedMessage)
     }
   }
 
@@ -263,12 +271,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // The mutating shuffle is thread-safe because it is inside a `synchronized` block.
         arrayShuffleInPlace(reactions)
       }
+      lazy val decidingMoleculeMessage = s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(moleculesPresent)}]"
+      if (logLevel > 3) logMessage(decidingMoleculeMessage)
       decideReactionsForNewMolecule(mol)
     }
   }
 
   private def reportError(message: String): Unit = {
-    if (logLevel >= 0) println(message)
+    if (logLevel >= 0) logMessage(message)
     Core.reportError(message)
   }
 
@@ -298,7 +308,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def runReaction(thisReaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit = {
     lazy val reactionStartMessage = s"Debug: In $this: reaction {${thisReaction.info}} started on thread pool $reactionPool with thread id ${Thread.currentThread().getId}"
 
-    if (logLevel > 1) println(reactionStartMessage)
+    if (logLevel > 1) logMessage(reactionStartMessage)
     lazy val reactionInputs = Core.moleculeBagToString(thisReaction, usedInputs)
     val exitStatus: ReactionExitStatus = try {
       // Here we actually apply the reaction body to its input molecules.
@@ -607,10 +617,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           addToBag(mol, molValue)
 
           lazy val emitMoleculeMessage = s"Debug: In $this: emitting $mol($molValue), now have molecules [${moleculeBagToString(moleculesPresent)}]"
-          if (logLevel > 0) println(emitMoleculeMessage)
+          if (logLevel > 0) logMessage(emitMoleculeMessage)
           if (schedulingNeeded(mol))
             sitePool.runRunnable(emissionRunnable(mol))
-          //          else if (logLevel > 1) println(s"Debug: In $this: not scheduling emissionRunnable") // This is too verbose.
+          //          else if (logLevel > 1) logMessage(s"Debug: In $this: not scheduling emissionRunnable") // This is too verbose.
         } else {
           reportError(s"In $this: Refusing to emit${if (mol.isStatic) " static" else ""} pipelined molecule $mol($molValue) since its value fails the relevant conditions")
         }
@@ -656,7 +666,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def removeBlockingMolecule[T, R](bm: B[T, R], blockingMolValue: BlockingMolValue[T, R]): Unit = {
     removeFromBag(bm, blockingMolValue)
     lazy val removeBlockingMolMessage = s"Debug: $this removed $bm($blockingMolValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]"
-    if (logLevel > 0) println(removeBlockingMolMessage)
+    if (logLevel > 0) logMessage(removeBlockingMolMessage)
   }
 
   /** Common code for [[emitAndAwaitReply]] and [[emitAndAwaitReplyWithTimeout]].
@@ -878,7 +888,7 @@ final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], r
   def noErrors: Boolean = errors.isEmpty
 
   def checkWarningsAndErrors(): WarningsAndErrors = {
-    if (warnings.nonEmpty) println(s"In $reactionSite: ${warnings.mkString("; ")}")
+    if (warnings.nonEmpty) logMessage(s"In $reactionSite: ${warnings.mkString("; ")}")
     if (errors.nonEmpty) throw new Exception(s"In $reactionSite: ${errors.mkString("; ")}")
     this
   }
