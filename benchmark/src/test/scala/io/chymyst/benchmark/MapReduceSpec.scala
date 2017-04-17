@@ -24,7 +24,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     site(tp)(
       go { case d(n) => r(n * 2) },
       go { case res(list) + r(s) => res(s :: list) },
-      go { case get(_, reply) + res(list) if list.size == count => reply(list) } // expect warning: "non-variable type argument Int in type pattern List[Int] eliminated by erasure"
+      go { case get(_, reply) + res(list) if list.size == count => reply(list) } // ignore warning: "non-variable type argument Int"
     )
 
     (1 to count).foreach(d(_))

@@ -723,7 +723,7 @@ final case class Reaction(
   private[jc] val inputMoleculesSet = inputMoleculesSortedAlphabetically.toSet
 
   // Compute the initial molecule value lock. This requires site-wide indices.
-  private[jc] def initialMoleculeValueLock = {
+  private[jc] def getMoleculeValueLock = {
     val counts: Map[Int, Int] = info.inputsSortedIndependentIrrefutableGrouped
       .map { case (i, a) ⇒ (i, a.length) }(scala.collection.breakOut)
     val molecules: Set[Int] = info.inputs

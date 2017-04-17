@@ -157,6 +157,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         else
           waitingLocks.add(lock)
       }
+//      if (logLevel > -1) println(s"debug: acquireLock(${lock.counts.map { case (i, c) ⇒ moleculeAtIndex(i).toString + " * " + c }.mkString(",") + "|" + lock.molecules.map(i ⇒ moleculeAtIndex(i).toString).mkString(",")}) has status $status, moleculesPresent: ${moleculeBagToString(moleculesPresent)}, count union $countLockUnion, molecule union $moleculeLockUnion")
       status
     }
     status match {
@@ -190,6 +191,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         case _ ⇒
       }
     }
+//    if (logLevel > -1) println(s"debug: releaseLock(${oldLock.counts.map { case (i, c) ⇒ moleculeAtIndex(i).toString + " * " + c }.mkString(",") + "|" + oldLock.molecules.map(i ⇒ moleculeAtIndex(i).toString).mkString(",")}), moleculesPresent: ${moleculeBagToString(moleculesPresent)}, count union $countLockUnion, molecule union $moleculeLockUnion")
   }
 
   private lazy val needScheduling: AtomicIntegerArray = new AtomicIntegerArray(knownMolecules.size)
@@ -204,29 +206,39 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   private def schedulingNeeded(mol: Molecule): Boolean = needScheduling.compareAndSet(mol.siteIndex, NEED_TO_SCHEDULE, NO_NEED_TO_SCHEDULE)
 
+  /** We only need to find one reaction whose input molecules are available.
+    * For this, we use the special method [[ArrayWithExtraFoldOps.findAfterMap]].
+    * `foundReactionsAndInputs` will indicate the selected reaction and its input molecule values as well as the synchronization lock for this molecule set.
+    */
   @tailrec
   private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
     // TODO: optimize: precompute all related molecules in ReactionSite?
     needToSchedule(mol)
-    val foundReactionAndInputs = {
-      // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
-      val found: Option[(Reaction, InputMoleculeList)] =
-        findReaction(consumingReactions(mol.siteIndex))
-      // If we have found a reaction that can be run, remove its input molecule values from their bags.
-      found.foreach { case (thisReaction, thisInputList) ⇒
-        thisInputList.indices.foreach { i ⇒
-          val molValue = thisInputList(i)
-          val mol = thisReaction.info.inputs(i).molecule
-          // This error (molecule value was not in bag) indicates a bug in this code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
-          if (!removeFromBag(mol, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $mol($molValue) from its bag; molecule index ${mol.siteIndex}, bag ${moleculesPresent(mol.siteIndex)}")
+    val foundReactionAndInputs =
+    // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
+      consumingReactions(mol.siteIndex)
+        .filter(_.info.guardPresence.staticGuardHolds())
+        .findAfterMap { thisReaction ⇒
+          val valueLock = thisReaction.getMoleculeValueLock
+          if (acquireLock(valueLock)) {
+            val result = findInputMolecules(thisReaction, moleculesPresent)
+            // If we have found a reaction that can be run, we have acquired a lock; need to remove its input molecule values from their bags.
+            result.foreach { thisInputList ⇒
+              thisInputList.indices.foreach { i ⇒
+                val molValue = thisInputList(i)
+                val mol = thisReaction.info.inputs(i).molecule
+                // This error (molecule value was found for a reaction but is now not present) indicates a bug in this code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
+                if (!removeFromBag(mol, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $mol($molValue) from its bag; molecule index ${mol.siteIndex}, bag ${moleculesPresent(mol.siteIndex)}")
+              }
+              noNeedToSchedule(mol)
+            }
+            releaseLock(valueLock)
+            result.map( thisInputList => (thisReaction, thisInputList))
+          } else
+            None
         }
-        noNeedToSchedule(mol)
-      }
-      found
-    }
     // End of synchronized block.
     // We already decided on starting a reaction, so we don't hold the `synchronized` lock on the molecule bag any more.
-
     foundReactionAndInputs match {
       case Some((thisReaction, usedInputs)) =>
         // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
@@ -394,28 +406,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
   }
 
-  /** We only need to find one reaction whose input molecules are available.
-    * For this, we use the special method [[ArrayWithExtraFoldOps.findAfterMap]].
-    * We return `Option[(Reaction, InputMoleculeList)]` indicating both the selected reaction and its input molecule values.
-    *
-    * @param reactions Array of reactions that need to be checked for possibly starting them.
-    * @return `None` if no reaction can be started. Otherwise, the tuple contains the selected reaction
-    *         and its input molecule values.
-    */
-  private def findReaction(reactions: Array[Reaction]): Option[(Reaction, InputMoleculeList)] =
-    reactions
-      .filter(_.info.guardPresence.staticGuardHolds())
-      .findAfterMap { r ⇒
-        if (acquireLock(r.initialMoleculeValueLock)) {
-          val result = findInputMolecules(r, moleculesPresent)
-          releaseLock(r.initialMoleculeValueLock)
-          result
-        } else
-          None
-      }
-
   /** Find a set of input molecule values for a reaction. */
-  private def findInputMolecules(r: Reaction, moleculesPresent: MoleculeBagArray): Option[(Reaction, InputMoleculeList)] = {
+  private def findInputMolecules(r: Reaction, moleculesPresent: MoleculeBagArray): Option[InputMoleculeList] = {
     val info = r.info
     // This array will be mutated in place as we search for molecule values.
     val foundValues = new Array[AbsMolValue[_]](info.inputs.length)
@@ -527,7 +519,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       }
     // Returning the final result now.
     if (foundResult)
-      Some((r, foundValues))
+      Some(foundValues)
     else
       None
   }
@@ -645,12 +637,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     moleculesPresent(mol.siteIndex).add(molValue)
 
   private def removeFromBag(mol: Molecule, molValue: AbsMolValue[_]): Boolean = {
-    val lockForRemovingOneMolecule = MoleculeValueLock(counts = Map(mol.siteIndex → 1), molecules = Set())
-    acquireLock(lockForRemovingOneMolecule) && {
-      val status = moleculesPresent(mol.siteIndex).remove(molValue)
-      releaseLock(lockForRemovingOneMolecule)
-      status
-    }
+    moleculesPresent(mol.siteIndex).remove(molValue)
   }
 
   private[jc] def moleculeBagToString(bags: Array[MutableBag[AbsMolValue[_]]]): String =
@@ -664,9 +651,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   // Remove a blocking molecule if it is present.
   private def removeBlockingMolecule[T, R](bm: B[T, R], blockingMolValue: BlockingMolValue[T, R]): Unit = {
-    removeFromBag(bm, blockingMolValue)
-    lazy val removeBlockingMolMessage = s"Debug: $this removed $bm($blockingMolValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]"
-    if (logLevel > 0) logMessage(removeBlockingMolMessage)
+    val lockForRemovingOneMolecule = MoleculeValueLock(counts = Map(bm.siteIndex → 1), molecules = Set())
+    if (acquireLock(lockForRemovingOneMolecule)) {
+      if (removeFromBag(bm, blockingMolValue)) {
+        lazy val removeBlockingMolMessage = s"Debug: $this removed $bm($blockingMolValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]"
+        if (logLevel > 0) logMessage(removeBlockingMolMessage)
+      }
+      releaseLock(lockForRemovingOneMolecule)
+    }
   }
 
   /** Common code for [[emitAndAwaitReply]] and [[emitAndAwaitReplyWithTimeout]].
