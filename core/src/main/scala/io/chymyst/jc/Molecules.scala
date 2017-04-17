@@ -218,7 +218,7 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
   private[jc] def assignStaticMolVolatileValue(molValue: AbsMolValue[_]) =
     volatileValueRef.set(molValue.asInstanceOf[MolValue[T]].moleculeValue)
 
-  private var volatileValueRef: AtomicReference[T] = new AtomicReference[T]()
+  private val volatileValueRef: AtomicReference[T] = new AtomicReference[T]()
 
   override lazy val isStatic: Boolean = reactionSiteWrapper.isStatic()
 
