@@ -1,7 +1,5 @@
 package io.chymyst.jc
 
-import java.security.MessageDigest
-
 import Core._
 
 import scala.{Symbol => ScalaSymbol}
@@ -674,6 +672,7 @@ final class ReactionInfo(
 
 /** Represents a reaction body. This class is immutable.
   *
+  * @param info       A value of type [[ReactionInfo]] describing input and output molecules for this reaction.
   * @param body       Partial function of type `InputMoleculeList => Any`
   * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
   * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is false.
@@ -681,8 +680,8 @@ final class ReactionInfo(
 final case class Reaction(
   private[jc] val info: ReactionInfo,
   private[jc] val body: ReactionBody,
-  private[jc] val threadPool: Option[Pool],
-  private[jc] val retry: Boolean
+  threadPool: Option[Pool],
+  retry: Boolean
 ) {
   private[jc] def newChymystThreadInfo = new ChymystThreadInfo(info.staticMols.map(_.siteIndex), info.toString)
 
@@ -715,24 +714,13 @@ final case class Reaction(
       .sortBy(_.toString)
 
   // java.security.MessageDigest is not thread safe, so we use a new MessageDigest for each reaction.
-  private lazy val md: MessageDigest = getMessageDigest
+  private lazy val messageDigest = getMessageDigest
 
   private[jc] lazy val inputInfoSha1: String =
-    getSha1(inputMoleculesSortedAlphabetically.map(_.hashCode()).mkString(","), md) + info.sha1
+    getSha1(inputMoleculesSortedAlphabetically.map(_.hashCode()).mkString(","), messageDigest) + info.sha1
 
   // Optimization: this is used often.
-  private[jc] val inputMoleculesSet: Set[Molecule] = inputMoleculesSortedAlphabetically.toSet
-
-  // Compute the initial molecule value lock. This requires site-wide indices.
-  private[jc] lazy val initialMoleculeValueLock = {
-    val counts: Map[Int, Int] = info.inputsSortedIndependentIrrefutableGrouped
-      .map { case (i, a) ⇒ (i, a.length) }(scala.collection.breakOut)
-    val molecules: Set[Int] = info.inputs
-      .map(_.molecule.siteIndex)
-      .toSet
-      .diff(counts.keySet)
-    MoleculeValueLock(counts, molecules)
-  }
+  private[jc] val inputMoleculesSet = inputMoleculesSortedAlphabetically.toSet
 
   /** A table of required molecule counts for each input molecule in this reaction.
     * This is an optimization used when searching for independent molecule values.

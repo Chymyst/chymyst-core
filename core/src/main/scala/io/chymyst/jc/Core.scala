@@ -1,6 +1,7 @@
 package io.chymyst.jc
 
 import java.security.MessageDigest
+import java.time.LocalDateTime
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
 
@@ -160,6 +161,14 @@ object Core {
       if (success) Some(result) else None
     }
 
+    /** A `find` that will return the first value for which `f` returns `Some(...)`.
+      *
+      * This is an optimization over `find`: it does not compute the found value `f(r)` twice.
+      *
+      * @param f Mapping function.
+      * @tparam R Type of the return value `r` under `Option`.
+      * @return `Some(r)` if `f` returned a non-empty option value; `None` otherwise.
+      */
     def findAfterMap[R](f: T => Option[R]): Option[R] = {
       var result: R = null.asInstanceOf[R]
       var found = false
@@ -339,7 +348,7 @@ object Core {
   }
 
   def streamDiff[T](s: Iterator[T], skipBag: MutableMultiset[T]): Iterator[T] = {
-    s.filter{ t ⇒
+    s.filter { t ⇒
       if (skipBag contains t) {
         skipBag.remove(t)
         false
@@ -352,4 +361,7 @@ object Core {
 
   private[jc] def unboundOutputMoleculesString(nonStaticReactions: Seq[Reaction]): String = unboundOutputMolecules(nonStaticReactions).map(_.toString).toList.sorted.mkString(", ")
 
+  private[jc] def logMessage(s: String): Unit = {
+    println(s"${LocalDateTime.now}: $s")
+  }
 }

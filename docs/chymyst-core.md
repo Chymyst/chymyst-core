@@ -131,7 +131,12 @@ The status value will be `true` only if the caller has actually received the rep
 ## Debugging
 
 Molecule emitters have the method `setLogLevel`, which is by default set to `-1`.
-Nonnegative values will lead to more debugging output.
+Nonnegative values will lead to more debugging output:
+
+- level 0 will print all internal error messages and exceptions occurring within reactions
+- level 1 will print messages about emitting molecules and removing blocking molecules after timeout
+- level 2 will print messages about scheduling and starting reactions 
+- level 3 will print messages about molecules remaining after starting a reaction, as well as messages about no reactions started 
 
 The log level will affect the entire reaction site to which the molecule is bound.
 
@@ -186,9 +191,70 @@ Here is an example with pattern-matching on non-blocking molecules `c` and `d` t
 val c = m[Option[Int]] // non-blocking molecule
 val d = m[(Int, String, Boolean)] // non-blocking molecule
 
-val reaction = go { case c(Some(x)) + d((y, "hello", true)) if x == y => c(Some(y)) }
+val reaction = go { case c(Some(x)) + d((y, "hello", true)) if x == y ⇒ c(Some(y)) }
 
 ```
+
+Pattern-matching is a particular case of a guard condition that constrains the values of a reaction's input molecules.
+A reaction can have guard conditions of three types:
+
+1. Molecule predicates
+2. Cross-molecule guards
+3. Static guards
+
+The chemical machine will run a reaction only if it can find suitable input molecules such that all the guard conditions hold.
+
+#### Molecule predicates
+
+Molecule predicates are conditions that constrain the value carried by a single input molecule.
+For example,
+
+```scala
+go { case a(x) + c(y) if x > 0 ⇒ ??? }
+
+```
+
+declares a guard condition that constrains the input molecule value `x`.
+We call this a **molecule predicate** for the input molecule `a(x)`.
+
+Another example of a molecule predicate is
+
+```scala
+go { case a(Some(x)) + c(y) ⇒ ??? }
+
+```
+
+The requirement that the value of the molecule `a()` should be of the form `Some(x)` is a molecule predicate
+because it constrains only the value of one molecule.
+
+#### Cross-molecule guards
+
+Cross-molecule guards are conditions that constrain _several_ molecule values at once.
+An example is
+
+```scala
+go { case a(x) + c(y) if x > y ⇒ ??? }
+
+```
+
+As a rule, the chemical machine will schedule such reactions more slowly because it must find a pair of molecule copies `a(x)` and `c(y)` such that the condition holds.
+If many copies of `a()` and `c()` are present in the soup, the search for a suitable pair can take a long time.
+
+#### Static guards
+
+Static guards are conditions that are independent of input molecule values.
+For example,
+
+```scala
+go { case a(x) if someCond(n) > 0 ⇒ ??? }
+
+```
+
+declares a static guard `someCond(n) > 0` that depends on an externally defined function `someCond()` and an externally defined value `n`.
+Neither `someCond` nor `n` are input molecule values; they must be defined in an outer scope. 
+
+Note that the chemical machine may need to evaluate the static guard multiple times even if the reaction will not be started due to failure of other conditions.
+For this reason, static guards must be pure functions without side effects. 
 
 ### Pattern-matching of blocking molecules
 

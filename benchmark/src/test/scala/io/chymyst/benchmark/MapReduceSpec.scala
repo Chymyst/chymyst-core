@@ -24,7 +24,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     site(tp)(
       go { case d(n) => r(n * 2) },
       go { case res(list) + r(s) => res(s :: list) },
-      go { case get(_, reply) + res(list) if list.size == count => reply(list) } // expect warning: "non-variable type argument Int in type pattern List[Int] eliminated by erasure"
+      go { case get(_, reply) + res(list) if list.size == count => reply(list) } // ignore warning: "non-variable type argument Int"
     )
 
     (1 to count).foreach(d(_))
@@ -265,7 +265,8 @@ class MapReduceSpec extends FlatSpec with Matchers {
     (if (failures > 0) s"Detected $failures failures out of $n tries" else "OK") shouldEqual "OK"
   }
 
-  /** A binary operation on integers that is associative but not commutative.
+  /** A simple binary operation on integers that is associative but not commutative.
+    * op(x,y) = x + y if x is even, and x - y if x is odd.
     * See: F. J. Budden. A Non-Commutative, Associative Operation on the Reals. The Mathematical Gazette, Vol. 54, No. 390 (Dec., 1970), pp. 368-372
     * http://www.jstor.org/stable/3613855
     *
@@ -273,7 +274,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     * @param y Second integer.
     * @return Integer result.
     */
-  def assocNonCommut(x: Int, y: Int): Int = {
+  def assocNonCommutOperation(x: Int, y: Int): Int = {
     val s = 1 - math.abs(x % 2) * 2 // s = 1 if x is even, s = -1 if x is odd; math.abs is needed to fix the bug where (-1) % 2 == -1
     x + s * y
   }
@@ -297,7 +298,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
       go { case c((l1, r1, x)) + c((l2, r2, y)) if r2 == l1 || l2 == r1 =>
         val l3 = math.min(l1, l2)
         val r3 = math.max(r1, r2)
-        val z = if (l2 == r1) assocNonCommut(x, y) else assocNonCommut(y, x)
+        val z = if (l2 == r1) assocNonCommutOperation(x, y) else assocNonCommutOperation(y, x)
         if (r3 - l3 == count)
           done(z)
         else
@@ -306,7 +307,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     )
 
     (1 to count).foreach(i => c((i, i + 1, i * i)))
-    f() shouldEqual (1 to count).map(i => i * i).reduce(assocNonCommut)
+    f() shouldEqual (1 to count).map(i => i * i).reduce(assocNonCommutOperation)
     println(s"associative but non-commutative reduceB() on $count numbers with nonlinear input patterns and $nThreadsSite-thread site pool took ${elapsed(initTime)} ms")
 
   }
@@ -345,7 +346,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
       val mol1 = emitters((i, j))
       val mol2 = emitters((j, k))
       val mol3 = emitters((i, k))
-      go { case mol1(x) + mol2(y) ⇒ mol3(assocNonCommut(x, y)) }
+      go { case mol1(x) + mol2(y) ⇒ mol3(assocNonCommutOperation(x, y)) }
     })) :+ go { case lastMol(x) ⇒ done(x) }
 
     println(s"created emitters and reactions: at ${elapsed(initTime)} ms")
@@ -355,7 +356,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
     println(s"defined reactions: at ${elapsed(initTime)} ms")
 
     (1 to count).foreach(i ⇒ emitters((i - 1, i))(i * i))
-    f() shouldEqual (1 to count).map(i => i * i).reduce(assocNonCommut)
+    f() shouldEqual (1 to count).map(i => i * i).reduce(assocNonCommutOperation)
     println(s"associative but non-commutative reduceB() on $count numbers with ${emitters.size} unique molecules, ${reactions.size} unique reactions, and $nThreadsSite-thread site pool took ${elapsed(initTime)} ms")
   }
 

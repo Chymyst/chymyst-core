@@ -2,6 +2,8 @@ package io.chymyst.jc
 
 import java.util.concurrent._
 
+import io.chymyst.jc.Core.logMessage
+
 /** This is similar to scala.concurrent.blocking and is used to annotate expressions that should lead to a possible increase of thread count.
   * Multiple nested calls to `BlockingIdle` are equivalent to one call.
   */
@@ -33,7 +35,7 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
       executor.setMaximumPoolSize(newPoolSize)
       executor.setCorePoolSize(newPoolSize)
     } else {
-      println(s"Chymyst Core warning: In $this: It is dangerous to increase the pool size, which is now $currentPoolSize. Memory is ${Runtime.getRuntime.maxMemory}")
+      logMessage(s"Chymyst Core warning: In $this: It is dangerous to increase the pool size, which is now $currentPoolSize. Memory is ${Runtime.getRuntime.maxMemory}")
     }
   }
 
