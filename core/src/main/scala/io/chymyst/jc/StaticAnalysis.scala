@@ -69,9 +69,9 @@ private[jc] object StaticAnalysis {
 
   // There should not be any two reactions whose source code is identical to each other.
   private def findIdenticalReactions(reactions: Seq[Reaction]): Option[String] = {
-    val reactionsSha1 = reactions.map(_.info.sha1)
+    val reactionsSha1 = reactions.map(_.inputInfoSha1)
     val repeatedReactionSha1 = (reactionsSha1 difff reactionsSha1.distinct).distinct
-    val repeatedReactions = repeatedReactionSha1.flatMap(sha1 => reactions.find(_.info.sha1 == sha1))
+    val repeatedReactions = repeatedReactionSha1.flatMap(sha1 ⇒ reactions.filter(_.inputInfoSha1 === sha1))
 
     if (repeatedReactions.nonEmpty) {
       val errorList = repeatedReactions.map { r => s"{${r.info}}" }.mkString(", ")
@@ -93,9 +93,16 @@ private[jc] object StaticAnalysis {
     None
   }
 
-  private def checkSingleReactionLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
+  private def unboundMoleculeWarning(reactions: Seq[Reaction]): Option[String] = {
+    val warningList = unboundOutputMoleculesString(reactions)
+    if (warningList.nonEmpty)
+      Some(s"Output molecules ($warningList) are still not bound when this reaction site is created")
+    else None
+  }
+
+  private def singleReactionLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
     val warningList = reactions
-      .filter { r => inputMatchersAreSimilarToOutput(r.info.inputsSortedByConstraintStrength, r.info.outputs) }
+      .filter { r => inputMatchersAreSimilarToOutput(r.info.inputsSortedByConstraintStrength, r.info.shrunkOutputs) }
       .map(r => s"{${r.info.toString}}")
     if (warningList.nonEmpty)
       Some(s"Possible livelock: reaction${if (warningList.size == 1) "" else "s"} ${warningList.mkString(", ")}")
@@ -173,45 +180,52 @@ private[jc] object StaticAnalysis {
 
   private[jc] def findGeneralErrors(reactions: Seq[Reaction]) = {
     Seq(
+      findIdenticalReactions _,
       checkReactionShadowing _,
       checkSingleReactionLivelock _,
       checkMultiReactionLivelock _
     ).flatMap(_ (reactions))
   }
 
-  private[jc] def findStaticWarnings(reactions: Seq[Reaction]) = {
+  private[jc] def findGeneralWarnings(reactions: Seq[Reaction]) = {
     Seq(
-      findIdenticalReactions _,
       checkOutputsForDeadlockWarning _,
       checkInputsForDeadlockWarning _,
-      checkSingleReactionLivelockWarning _
+      unboundMoleculeWarning _,
+      singleReactionLivelockWarning _
     ).flatMap(_ (reactions))
   }
 
-  // Each static molecule should occur in some reaction as an input. No static molecule should be consumed twice by a reaction.
+  // Each static molecule must occur in some reaction as an input.
+  // No static molecule should be consumed twice by a reaction.
   // Each static molecule that is consumed by a reaction should also be emitted by the same reaction.
   private def checkInputsForStaticMols(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
-    val staticMolsConsumedMaxTimes: Map[Molecule, (Reaction, Int)] =
-      if (reactions.isEmpty)
-        Map()
-      else
-        staticMols.map { case (m, _) => m -> reactions.map(r => (r, r.inputMoleculesSortedAlphabetically.count(_ === m))).maxBy(_._2) }
+    val staticMolsConsumedMaxTimes: Map[Molecule, Option[(Reaction, Int)]] =
+      staticMols.map { case (m, _) ⇒
+        val reactionsWithCounts = if (reactions.isEmpty)
+          None
+        else
+          Some(reactions.map(r => (r, r.inputMoleculesSortedAlphabetically.count(_ === m))).maxBy(_._2))
+        m → reactionsWithCounts
+      }
 
     val wrongConsumed = staticMolsConsumedMaxTimes
       .flatMap {
-        case (mol, (reaction, 0)) =>
+        case (mol, None) ⇒
           Some(s"static molecule ($mol) not consumed by any reactions")
-        case (mol, (reaction, 1)) =>
+        case (mol, Some((_, 0))) ⇒
+          Some(s"static molecule ($mol) not consumed by any reactions")
+        case (mol, Some((_, 1))) ⇒
           None
-        case (mol, (reaction, countConsumed)) =>
-          Some(s"static molecule ($mol) consumed $countConsumed times by reaction ${reaction.info}")
+        case (mol, Some((reaction, countConsumed))) =>
+          Some(s"static molecule ($mol) consumed $countConsumed times by reaction {${reaction.info}}")
       }
 
     val wrongOutput = staticMols.map {
       case (m, _) => m -> reactions.find(r => r.inputMoleculesSortedAlphabetically.count(_ === m) == 1 && !r.info.outputs.exists(_.molecule === m))
     }.flatMap {
       case (mol, Some(r)) =>
-        Some(s"static molecule ($mol) consumed but not emitted by reaction ${r.info}")
+        Some(s"static molecule ($mol) consumed but not emitted by reaction {${r.info}}")
       case _ => None
     }
 
@@ -230,9 +244,9 @@ private[jc] object StaticAnalysis {
         reactions.flatMap { r =>
           val outputTimes = r.info.outputs.count(_.molecule === m)
           if (outputTimes > 1)
-            Some(s"static molecule ($m) emitted more than once by reaction ${r.info}")
+            Some(s"static molecule ($m) emitted more than once by reaction {${r.info}}")
           else if (outputTimes == 1 && !r.inputMoleculesSet.contains(m))
-            Some(s"static molecule ($m) emitted but not consumed by reaction ${r.info}")
+            Some(s"static molecule ($m) emitted but not consumed by reaction {${r.info}}")
           else None
         }
     }

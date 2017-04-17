@@ -1,5 +1,7 @@
 package io.chymyst.jc
 
+import java.security.MessageDigest
+
 import Core._
 import io.chymyst.jc.ConjunctiveNormalForm.CNF
 
@@ -45,7 +47,7 @@ class CommonMacros(val c: blackbox.Context) {
     * [[OtherInputPatternF]]: none of the above (could be a case class or a general `unapply` expression)
     */
   sealed trait InputPatternFlag {
-    def patternSha1(showCode: Tree => String): String = ""
+    def patternSha1(showCode: Tree => String, md: MessageDigest): String = ""
 
     def notReplyValue: Boolean = true
 
@@ -77,7 +79,8 @@ class CommonMacros(val c: blackbox.Context) {
   final case class SimpleVarF(v: Ident, binder: Tree, cond: Option[Tree]) extends InputPatternFlag { // ignore warning about "outer reference in this type test"
     override def varNames: List[Ident] = List(v)
 
-    override def patternSha1(showCode: Tree => String): String = cond.map(c => getSha1String(showCode(c))).getOrElse("")
+    override def patternSha1(showCode: Tree => String, md: MessageDigest): String =
+      cond.map(c => getSha1(showCode(c), md)).getOrElse("")
   }
 
   /** Represents an error situation.
@@ -90,7 +93,7 @@ class CommonMacros(val c: blackbox.Context) {
     * The value `v` represents a value of the `[T]` type of [[M]]`[T]` or [[B]]`[T,R]`.
     */
   final case class ConstantPatternF(v: Tree) extends InputPatternFlag { // ignore warning about "outer reference in this type test"
-    override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(v))
+    override def patternSha1(showCode: Tree => String, md: MessageDigest): String = getSha1(showCode(v), md)
   }
 
   /** Nontrivial pattern matching expression that could contain `unapply`, destructuring, and pattern `@` variables.
@@ -107,7 +110,8 @@ class CommonMacros(val c: blackbox.Context) {
 
     override def varNames: List[Ident] = vars
 
-    override def patternSha1(showCode: Tree => String): String = getSha1String(showCode(matcher) + showCode(guard.getOrElse(EmptyTree)))
+    override def patternSha1(showCode: Tree => String, md: MessageDigest): String =
+      getSha1(showCode(matcher) + showCode(guard.getOrElse(EmptyTree)), md)
   }
 
   /** Describes the pattern matcher for output molecules. This flag is used only within the macro code and is not exported to compiled code.
@@ -171,6 +175,8 @@ final class MoleculeMacros(override val c: blackbox.Context) extends CommonMacro
 final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMacros(c) {
 
   import c.universe._
+
+  private val md = getMessageDigest
 
   // This is the main method that gathers the reaction info and performs some preliminary static analysis.
   def buildReactionImpl(reactionBody: c.Expr[ReactionBody]): c.Expr[Reaction] = GetReactionCases.from(reactionBody.tree) match {
@@ -385,7 +391,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     val inputMolecules = patternInWithMergedGuardsAndIndex
       .map { case (s, i, p, _) =>
         val valType = s.typeSignature.typeArgs.headOption.map(_.dealias.finalResultType.toString).getOrElse("<unknown>").toScalaSymbol
-        q"InputMoleculeInfo(${s.asTerm}, $i, $p, ${p.patternSha1(t => showCode(t))}, $valType)"
+        q"InputMoleculeInfo(${s.asTerm}, $i, $p, ${p.patternSha1(t => showCode(t), md)}, $valType)"
       }
       .toArray
 
@@ -418,11 +424,12 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
     // Compute reaction sha1 from simplified input list.
     val reactionBodyCode = showCode(body)
-    val reactionSha1 = getSha1String(
-      patternInWithMergedGuardsAndIndex.map(_._3.patternSha1(t => showCode(t))).sorted.mkString(",") +
+    val reactionSha1 = getSha1(
+      patternInWithMergedGuardsAndIndex.map(_._3.patternSha1(t => showCode(t), md)).sorted.mkString(",") +
         patternInWithMergedGuardsAndIndex.map(_._1.name.decodedName.toString).sorted.mkString(",") +
         crossGuardsSourceCodes.sorted.mkString(",") +
-        reactionBodyCode
+        reactionBodyCode,
+      md
     )
 
     // Prepare the ReactionInfo structure.

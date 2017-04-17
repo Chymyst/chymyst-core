@@ -2,11 +2,13 @@ package io.chymyst.jc
 
 
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicInteger
 
 import scala.collection.JavaConverters.{asScalaIteratorConverter, asScalaSetConverter}
 import com.google.common.collect.ConcurrentHashMultiset
 
 import scala.collection.mutable
+import scala.util.Try
 
 /** Abstract container with multiset functionality. Concrete implementations may optimize for specific access patterns.
   *
@@ -23,26 +25,28 @@ sealed trait MutableBag[T] {
 
   def find(predicate: T => Boolean): Option[T]
 
-  def takeOne: Option[T]
+  def takeOne: Option[T] = Try(iterator.next).toOption
 
-  def takeAny(count: Int): Seq[T]
+  def takeAny(count: Int): Seq[T] = iterator.take(count).toSeq
+
+  protected def iterator: Iterator[T]
 
   def getCountMap: Map[T, Int]
 
   /** List all values, perhaps with repetitions.
     * It is not guaranteed that the values will be repeated the correct number of times.
     *
-    * @return A stream of values.
+    * @return An iterator of values.
     */
-  def allValues: Stream[T]
+  def allValues: Iterator[T]
 
   /** List all values, with repetitions, excluding values from a given sequence (which can also contain repeated values).
     * It is guaranteed that the values will be repeated the correct number of times.
     *
     * @param skipping A sequence of values that should be skipped while running the iterator.
-    * @return A stream of values.
+    * @return An iterator of values.
     */
-  def allValuesSkipping(skipping: MutableMultiset[T]): Stream[T]
+  def allValuesSkipping(skipping: MutableMultiset[T]): Iterator[T]
 }
 
 /** Implementation using guava's `com.google.common.collect.ConcurrentHashMultiset`.
@@ -52,6 +56,8 @@ sealed trait MutableBag[T] {
   */
 final class MutableMapBag[T] extends MutableBag[T] {
   private val bag = ConcurrentHashMultiset.create[T]()
+
+  override protected def iterator: Iterator[T] = bag.iterator.asScala
 
   override def isEmpty: Boolean = bag.isEmpty
 
@@ -65,21 +71,9 @@ final class MutableMapBag[T] extends MutableBag[T] {
   override def remove(v: T): Boolean = bag.removeExactly(v, 1)
 
   override def find(predicate: (T) => Boolean): Option[T] =
-    bag.createEntrySet().asScala
+    bag.createEntrySet().asScala.view
       .map(_.getElement)
       .find(predicate)
-
-  override def takeAny(count: Int): Seq[T] = bag.iterator().asScala
-    .take(count)
-    .toSeq
-
-  override def takeOne: Option[T] = {
-    val iterator = bag.iterator
-    if (iterator.hasNext)
-      Some(iterator.next)
-    else
-      None
-  }
 
   override def getCountMap: Map[T, Int] = bag
     .createEntrySet()
@@ -87,14 +81,14 @@ final class MutableMapBag[T] extends MutableBag[T] {
     .map(entry => (entry.getElement, entry.getCount))
     .toMap
 
-  override def allValues: Stream[T] = bag
+  override def allValues: Iterator[T] = bag
     .createEntrySet()
     .asScala
+    .toIterator
     .map(_.getElement)
-    .toStream
 
-  override def allValuesSkipping(skipping: MutableMultiset[T]): Stream[T] =
-    Core.streamDiff(bag.iterator().asScala.toStream, skipping)
+  override def allValuesSkipping(skipping: MutableMultiset[T]): Iterator[T] =
+    Core.streamDiff(iterator, skipping)
 }
 
 /** Implementation using `java.util.concurrent.ConcurrentLinkedQueue`.
@@ -105,39 +99,46 @@ final class MutableMapBag[T] extends MutableBag[T] {
 final class MutableQueueBag[T] extends MutableBag[T] {
   private val bag = new ConcurrentLinkedQueue[T]()
 
+  override protected def iterator: Iterator[T] = bag.iterator.asScala
+
+  // Attempting to optimize the size computations, at risk of race conditions, which is mitigated by ordering of operations below.
+  private val sizeValue = new AtomicInteger(0)
+
   override def isEmpty: Boolean = bag.isEmpty
 
-  override def size: Int = bag.size
+  override def size: Int = sizeValue.get
 
   override def add(v: T): Unit = {
     bag.add(v)
+    sizeValue.incrementAndGet() // Incrementing the size only after adding to the bag.
     ()
   }
 
-  override def remove(v: T): Boolean = bag.remove(v)
-
-  override def find(predicate: (T) => Boolean): Option[T] = bag.iterator.asScala.find(predicate)
-
-  override def takeAny(count: Int): Seq[T] = bag.iterator.asScala.take(count).toSeq
-
-  override def takeOne: Option[T] = {
-    val iterator = bag.iterator
-    if (iterator.hasNext)
-      Some(iterator.next)
-    else
-      None
-
+  /** Remove value from the bag. This is expected to succeed.
+    * If the value was not present in the bag, the removal fails.
+    *
+    * @param v Value to remove.
+    * @return `true` if removal was successful, `false` otherwise.
+    */
+  override def remove(v: T): Boolean = {
+    sizeValue.decrementAndGet() // Decrementing the size before removing from the bag.
+    val status = bag.remove(v)
+    if (!status) sizeValue.incrementAndGet()
+    status
   }
 
+  override def find(predicate: (T) => Boolean): Option[T] =
+    iterator.find(predicate)
+
   // Very inefficient! O(n) operations. Used only for debug output.
-  override def getCountMap: Map[T, Int] = bag.iterator.asScala
-    .toSeq
-    .groupBy(identity)
-    .mapValues(_.size)
+  override def getCountMap: Map[T, Int] =
+    iterator.toSeq
+      .groupBy(identity)
+      .mapValues(_.size)
 
-  override def allValues: Stream[T] = bag.iterator.asScala.toStream
+  override def allValues: Iterator[T] = iterator
 
-  override def allValuesSkipping(skipping: MutableMultiset[T]): Stream[T] =
+  override def allValuesSkipping(skipping: MutableMultiset[T]): Iterator[T] =
     Core.streamDiff(allValues, skipping)
 }
 
@@ -148,6 +149,11 @@ final class MutableQueueBag[T] extends MutableBag[T] {
   * @tparam T Type of values held by the multiset.
   */
 class MutableMultiset[T](bag: mutable.Map[T, Int] = mutable.Map[T, Int]()) {
+  def this(values: List[T]) = {
+    this()
+    add(values)
+  }
+
   def getCountMap: Map[T, Int] = bag.toMap
 
   def isEmpty: Boolean = bag.isEmpty
@@ -156,17 +162,15 @@ class MutableMultiset[T](bag: mutable.Map[T, Int] = mutable.Map[T, Int]()) {
 
   def copyBag: MutableMultiset[T] = new MutableMultiset[T](bag.clone)
 
-  def add(v: T): MutableMultiset[T] = {
+  def add(v: T): Unit = {
     bag.update(v, getCount(v) + 1)
-    this
   }
 
-  def add(vs: Seq[T]): MutableMultiset[T] = {
+  def add(vs: Seq[T]): Unit = {
     vs.foreach(add)
-    this
   }
 
-  def remove(v: T): MutableMultiset[T] = {
+  def remove(v: T): Unit = {
     bag.get(v).foreach { count ⇒
       if (count <= 1) {
         bag.remove(v)
@@ -174,7 +178,6 @@ class MutableMultiset[T](bag: mutable.Map[T, Int] = mutable.Map[T, Int]()) {
         bag.update(v, count - 1)
       }
     }
-    this
   }
 
   def getCount(v: T): Int = bag.getOrElse(v, 0)

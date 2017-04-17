@@ -265,15 +265,15 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
         go { case a(x) if x > 0 => if (x > 0) a(1) else a(1) }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a → ...}: Unavoidable livelock: reaction {a(x if ?) → a(1) + a(1)}"
+    thrown.getMessage shouldEqual "In Site{a → ...}: Unavoidable livelock: reaction {a(x if ?) → a(1)}"
   }
 
-  it should "detect livelock warning in a simple reaction due to if-then-else" in {
+  it should "not detect livelock warning in a simple reaction due to if-then-else" in {
     val a = m[Int]
     val result = site(
       go { case a(1) => if (true) a(1) }
     )
-    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(1)}"), List(), "Site{a → ...}")
+    result shouldEqual WarningsAndErrors(List(), List(), "Site{a → ...}")
   }
 
   it should "detect livelock error in a simple reaction due to constant output values and perfect if-then-else shrinkage" in {
@@ -284,7 +284,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       ) // If this test fails because of no exception, it means this `shouldEqual` passes, so a warning was generated instead of an error.
       result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(?x) → a((1,2)) + a((1,2))}"), List(), "Site{a → ...}")
     }
-    thrown.getMessage shouldEqual "In Site{a → ...}: Unavoidable livelock: reaction {a(?x) → a((1,2)) + a((1,2))}"
+    thrown.getMessage shouldEqual "In Site{a → ...}: Unavoidable livelock: reaction {a(?x) → a((1,2))}"
   }
 
   it should "detect livelock warning in a simple reaction due to constant output values despite if-then-else shrinkage" in {
@@ -292,7 +292,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val result = site(
       go { case a((1, x)) => if (x > 0) a((1, 2)) else a((1, 3)) }
     )
-    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(?x) → a((1,2)) + a((1,3))}"), List(), "Site{a → ...}")
+    result shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(?x) → a(?)}"), List(), "Site{a → ...}")
   }
 
   it should "detect livelock in a single reaction due to constant output values without value assigning" in {
@@ -304,6 +304,24 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
       )
     }
     thrown.getMessage shouldEqual "In Site{a + b → ...}: Unavoidable livelock: reaction {a(1) + b(_) → b(1) + b(2) + a(1)}"
+  }
+
+  // TODO: possibly, implement checking the cross-condition for constant output values
+  it should "detect livelock warning in a single reaction due to constant output values with cross-condition that does not hold" in {
+    val a = m[Int]
+    val b = m[Int]
+    val warnings = site(
+      go { case a(x) + b(y) if x > y => b(1) + b(1) + a(1) }
+    )
+    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(x) + b(y) if(x,y) → b(1) + b(1) + a(1)}"), List(), "Site{a + b → ...}")
+  }
+
+  it should "detect no livelock warning when output is conditionally emitted" in {
+    val a = m[Int]
+    val warnings = site(
+      go { case a(x) => if (x > 0) a(1) }
+    )
+    warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a → ...}")
   }
 
   it should "detect livelock in a single reaction due to one constant output value with simple guard" in {
@@ -381,12 +399,22 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
   behavior of "livelock with repeated inputs" // see issue https://github.com/Chymyst/chymyst-core/issues/102
 
   it should "be detected in a reaction with repeated output" in {
-    val a = m[Unit]
+    val a = m[Int]
 
+    the[Exception] thrownBy {
+      val warnings = site(
+        go { case a(x) + a(_) if x > 0 ⇒ if (true) a(1) + a(2) else a(1) + a(2) }
+      )
+      warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a + a → ...}")
+    } should have message "In Site{a + a → ...}: Unavoidable livelock: reaction {a(x if ?) + a(_) → a(1) + a(2)}"
+  }
+
+  it should "not be detected in a reaction with conditionally repeated output" in {
+    val a = m[Int]
     val warnings = site(
-      go { case a(_) + a(_) ⇒ if (true) a() + a() }
+      go { case a(x) + a(_) if x > 0 ⇒ if (true) a(1) + a(2) else a(1) }
     )
-    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(_) + a(_) → a() + a()}"), List(), "Site{a + a → ...}")
+    warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a + a → ...}")
   }
 
   it should "be detected as compile-time error in a reaction with repeated output and static guard" in {
@@ -456,14 +484,14 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
   }
 
   // TODO: rewrite this test when static molecules are property analyzed for emitting code environment
-  it should "in a reaction with static molecule emitted conditionally" in {
+  it should "give no warning in a reaction with static molecule emitted conditionally" in {
     withPool(new FixedPool(2)) { tp ⇒
       val a = m[Int]
       val warnings = site(tp)(
         go { case _ ⇒ a(1) },
         go { case a(1) ⇒ val x = 1; if (x > 0) a(x) }
       )
-      warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
+      warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a → ...}")
     }.get
   }
 
@@ -477,8 +505,23 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
           go { case a(1) ⇒ val x = 1; if (x > 0) a(x) else a(-x) }
         )
         warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
-      } should have message "In Site{a → ...}: Incorrect static molecule declaration: static molecule (a) emitted more than once by reaction a(1) → a(?) + a(?)"
+      } should have message "In Site{a → ...}: Incorrect static molecule declaration: static molecule (a) emitted more than once by reaction {a(1) → a(?)}"
     }.get
+  }
+
+  behavior of "unbound molecule detection"
+
+  it should "correctly identify molecules that are still unbound" in {
+    val a = m[Unit]
+    val c = m[Unit]
+    val d = m[Unit]
+    val e = m[Unit]
+    val f = m[Unit]
+
+    val warnings1 = site(go { case a(_) + e(_) ⇒ c() })
+    warnings1 shouldEqual WarningsAndErrors(List("Output molecules (c) are still not bound when this reaction site is created"), List(), "Site{a + e → ...}")
+    val warnings2 = site(go { case c(_) ⇒ a() + d() + e(); f() })
+    warnings2 shouldEqual WarningsAndErrors(List("Output molecules (d, f) are still not bound when this reaction site is created"), List(), "Site{c → ...}")
   }
 
   behavior of "deadlock detection"
@@ -528,27 +571,29 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     val c = m[Unit]
     val f = b[Unit, Int]
 
-    val thrown = intercept[Exception] {
+    the[Exception] thrownBy {
       val warnings = site(
         go { case c(_) + a(x) => a(x) },
         go { case c(_) + a(x) => a(x) },
         go { case a(x) + f(_, r) => r(x) },
         go { case a(x) + f(_, r) => r(x) }
       )
-      warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a(x) + c(_) → a(?)}, {a(x) + f/B(_) → }"), List(), "Site{a + c → ...; a + c → ...; a + f/B → ...; a + f/B → ...}") // this is probably unreachable; later we could rewrite this test when logging is better handled
-    }
-    thrown.getMessage shouldEqual "In Site{a + c → ...; a + c → ...; a + f/B → ...; a + f/B → ...}: Unavoidable nondeterminism: reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + f/B(_) → } is shadowed by {a(x) + f/B(_) → }, reaction {a(x) + f/B(_) → } is shadowed by {a(x) + f/B(_) → }"
+      warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a + c → ...; a + c → ...; a + f/B → ...; a + f/B → ...}") // this is unreachable if test passes; later we could rewrite this test when error logging is handled better
+    } should have message
+      "In Site{a + c → ...; a + c → ...; a + f/B → ...; a + f/B → ...}: Identical repeated reactions: {a(x) + c(_) → a(?)}, {a(x) + c(_) → a(?)}, {a(x) + f/B(_) → }, {a(x) + f/B(_) → }; Unavoidable nondeterminism: reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + f/B(_) → } is shadowed by {a(x) + f/B(_) → }, reaction {a(x) + f/B(_) → } is shadowed by {a(x) + f/B(_) → }"
   }
 
   it should "detect a repeated reaction with identical conditions" in {
     val a = m[Int]
 
-    val warnings = site(
-      go { case a(x) if x > 0 => },
-      go { case a(x) if x > 0 => },
-      go { case a(x) + a(_) => }
-    )
-    warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a(x if ?) → }"), List(), "Site{a + a → ...; a → ...; a → ...}")
+    the[Exception] thrownBy {
+      val warnings = site(
+        go { case a(x) if x > 0 => },
+        go { case a(x) if x > 0 => },
+        go { case a(x) + a(_) => }
+      )
+      warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a + a → ...; a → ...; a → ...}")
+    } should have message "In Site{a + a → ...; a → ...; a → ...}: Identical repeated reactions: {a(x if ?) → }, {a(x if ?) → }"
   }
 
   it should "detect a repeated reaction with different conditions" in {
@@ -573,7 +618,7 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     warnings.warnings shouldEqual Nil
   }
 
-  it should "detect several repeated reactions" in {
+  it should "not detect several repeated reactions when different molecules are given" in {
 
     val a1 = m[Int]
     val a2 = m[Int]
@@ -613,7 +658,40 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
 
     val warnings = site(reaction1, reaction2, reaction3, reaction4, reaction5)
 
-    warnings shouldEqual WarningsAndErrors(List("Identical repeated reactions: {a1(x) + c1(_) → a1(?)}, {c1(_) + f/B(_) → }"), List(), "Site{a1 + c1 → ...; a2 + c2 → ...; a3 + c3 → ...; c1 + f/B → ...; c2 + f/B → ...}")
+    warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a1 + c1 → ...; a2 + c2 → ...; a3 + c3 → ...; c1 + f/B → ...; c2 + f/B → ...}")
+  }
+
+  it should "detect several repeated reactions when same molecules are given" in {
+
+    val a = m[Int]
+    val c = m[Unit]
+    val f = b[Unit, Int]
+
+    val reaction1 = {
+      go { case a(x) + c(_) => a(x) }
+    }
+
+    val reaction2 = {
+      go { case a(x) + c(_) => a(x) }
+    }
+
+    val reaction3 = {
+      go { case a(x) + c(_) => a(x) }
+    }
+
+    val reaction4 = {
+      go { case f(_, r) + c(_) => r(0) }
+    }
+
+    val reaction5 = {
+      go { case f(_, r) + c(_) => r(0) }
+    }
+    the[Exception] thrownBy {
+      val warnings = site(reaction1, reaction2, reaction3, reaction4, reaction5)
+
+      warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a1 + c1 → ...; a2 + c2 → ...; a3 + c3 → ...; c1 + f/B → ...; c2 + f/B → ...}")
+    } should have message
+      "In Site{a + c → ...; a + c → ...; a + c → ...; c + f/B → ...; c + f/B → ...}: Identical repeated reactions: {a(x) + c(_) → a(?)}, {a(x) + c(_) → a(?)}, {a(x) + c(_) → a(?)}, {c(_) + f/B(_) → }, {c(_) + f/B(_) → }; Unavoidable nondeterminism: reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {a(x) + c(_) → a(?)} is shadowed by {a(x) + c(_) → a(?)}, reaction {c(_) + f/B(_) → } is shadowed by {c(_) + f/B(_) → }, reaction {c(_) + f/B(_) → } is shadowed by {c(_) + f/B(_) → }"
   }
 
 }

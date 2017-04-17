@@ -15,7 +15,7 @@ class FixedPool(threads: Int) extends PoolExecutor(threads, { t =>
   * Tasks submitted for execution can have an optional name (useful for debugging).
   * The pool can be shut down, in which case all further tasks will be refused.
   */
-trait Pool {
+trait Pool extends AutoCloseable {
   def shutdownNow(): Unit
 
   def runClosure(closure: => Unit, info: ChymystThreadInfo): Unit
@@ -23,6 +23,8 @@ trait Pool {
   def runRunnable(runnable: Runnable): Unit
 
   def isInactive: Boolean
+
+  override def close(): Unit = shutdownNow()
 }
 
 /** Basic implementation of a thread pool.

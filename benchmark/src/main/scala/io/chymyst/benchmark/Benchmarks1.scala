@@ -35,7 +35,7 @@ object Benchmarks1 {
     }.get
   }
 
-  def make_counter2a(init: Int): (AsyName[Unit],AsyName[Unit],SynName[LocalDateTime, Long],SynName[Unit,Int]) = {
+  def make_counterJoinScala(init: Int): (AsyName[Unit],AsyName[Unit],SynName[LocalDateTime, Long],SynName[Unit,Int]) = {
     object j2 extends Join {
       object c extends AsyName[Int]
       object g extends SynName[Unit, Int]
@@ -57,7 +57,7 @@ object Benchmarks1 {
     (j2.d,j2.i,j2.f,j2.g)
   }
 
-  def make_counter(init: Int, tp: Pool) = {
+  def make_counterChymyst(init: Int, tp: Pool) = {
     val c = m[Int]
     val g = b[Unit,Int]
     val i = m[Unit]
@@ -66,9 +66,9 @@ object Benchmarks1 {
 
     site(tp)(
       go { case c(0) + f(tInit, r) => r(elapsed(tInit)) },
-      go { case g(_,reply) + c(n) => c(n); reply(n) },
-      go { case c(n) + i(_) => c(n+1) },
-      go { case c(n) + d(_) if n > 0 => c(n-1) }
+      go { case g(_, reply) + c(n) => c(n); reply(n) },
+      go { case c(n) + i(_) => c(n + 1) },
+      go { case c(n) + d(_) if n > 0 => c(n - 1) }
     )
 
     c(init)
@@ -104,7 +104,7 @@ object Benchmarks1 {
 
     val initialTime = LocalDateTime.now
 
-    val (d,_,f,_) = make_counter2a(count)
+    val (d,_,f,_) = make_counterJoinScala(count)
     (1 to count).foreach{ _ => d(()) }
     f(initialTime)
   }
@@ -113,7 +113,7 @@ object Benchmarks1 {
 
     val initialTime = LocalDateTime.now
 
-    val (d,_,f,_) = make_counter(count, tp)
+    val (d,_,f,_) = make_counterChymyst(count, tp)
     (1 to count).foreach{ _ => d() }
 
     f(initialTime)

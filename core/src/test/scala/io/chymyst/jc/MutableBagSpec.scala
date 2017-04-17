@@ -48,7 +48,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "retrieve all elements with repetitions and with skipping" in {
     val bag = new MutableMapBag[Int]()
     val data = (1 to 10) ++ (1 to 10)
-    val skip = new MutableMultiset[Int]().add(List(1, 1, 2, 2, 3, 4))
+    val skip = new MutableMultiset[Int](List(1, 1, 2, 2, 3, 4))
     data.foreach(bag.add)
     val expectedValues = List(3, 4) ++ (5 to 10).flatMap(x ⇒ List(x, x)).toList
     bag.allValuesSkipping(skip).toList shouldEqual expectedValues
@@ -77,8 +77,8 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
       b.add(i)
       b.add(i)
     }
-    val skip = new MutableMultiset[Int]().add(1 to n)
-    val skipped = b.allValuesSkipping(skip)
+    val skip = new MutableMultiset[Int]((1 to n).toList)
+    val skipped = b.allValuesSkipping(skip).toList
     skipped.size shouldEqual n
     skipped.sum shouldEqual (1 to n).sum
     ()
@@ -129,7 +129,7 @@ class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
   it should "retrieve all elements with repetitions and with skipping" in {
     val bag = new MutableQueueBag[Int]()
     val data = (1 to 10) ++ (1 to 10)
-    val skip = new MutableMultiset[Int]().add(List(1, 1, 2, 2, 3, 4))
+    val skip = new MutableMultiset[Int](List(1, 1, 2, 2, 3, 4))
     data.foreach(bag.add)
     val expectedValues = ((5 to 10) ++ (3 to 10)).toList
     bag.allValuesSkipping(skip).toList shouldEqual expectedValues

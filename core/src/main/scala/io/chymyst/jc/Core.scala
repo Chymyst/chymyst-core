@@ -1,5 +1,6 @@
 package io.chymyst.jc
 
+import java.security.MessageDigest
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
 
@@ -24,15 +25,13 @@ object TypeMustBeUnitValue extends TypeMustBeUnit[Unit] {
 }
 
 object Core {
-  private lazy val sha1Digest = java.security.MessageDigest.getInstance("SHA-1")
-
   private val longId: AtomicLong = new AtomicLong(0L)
 
   private[jc] def getNextId: Long = longId.incrementAndGet()
 
-  def getSha1String(c: String): String = sha1Digest.digest(c.getBytes("UTF-8")).map("%02X".format(_)).mkString
+  def getMessageDigest: MessageDigest = MessageDigest.getInstance("SHA-1")
 
-  def getSha1(c: Any): String = getSha1String(c.toString)
+  def getSha1(c: String, md: MessageDigest): String = md.digest(c.getBytes("UTF-8")).map("%02X".format(_)).mkString
 
   //  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 
@@ -324,27 +323,33 @@ object Core {
 
   def arrayShuffleInPlace[T](arr: Array[T]): Unit = {
     val s = arr.length
+    //    java.util.Collections.shuffle(java.util.Arrays.asList(arr: _*))
     // Do nothing when the array has length 1 or less.
     if (s >= 2) {
-      (0 to s - 2).foreach { index ⇒
+      var index = 0
+      while (index < s - 1) {
         val randomIndex = s - 1 - scala.util.Random.nextInt(s - 1 - index)
         // randomIndex is between index + 1 and s - 1 inclusive.
         val tempElement = arr(randomIndex)
         arr(randomIndex) = arr(index)
         arr(index) = tempElement
+        index += 1
       }
-
     }
   }
 
-  def streamDiff[T](s: Stream[T], skipBag: MutableMultiset[T]): Stream[T] = {
-    s.scanLeft[Option[T], Stream[Option[T]]](None) { (b, t) ⇒
+  def streamDiff[T](s: Iterator[T], skipBag: MutableMultiset[T]): Iterator[T] = {
+    s.filter{ t ⇒
       if (skipBag contains t) {
         skipBag.remove(t)
-        None
+        false
       }
-      else Some(t)
-    }.flatten
+      else true
+    }
   }
+
+  private[jc] def unboundOutputMolecules(nonStaticReactions: Seq[Reaction]): Set[Molecule] = nonStaticReactions.flatMap(_.info.outputs.map(_.molecule)).toSet.filterNot(_.isBound)
+
+  private[jc] def unboundOutputMoleculesString(nonStaticReactions: Seq[Reaction]): String = unboundOutputMolecules(nonStaticReactions).map(_.toString).toList.sorted.mkString(", ")
 
 }

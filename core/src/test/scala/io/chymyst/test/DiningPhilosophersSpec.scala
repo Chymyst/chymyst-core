@@ -6,7 +6,7 @@ import org.scalatest.{FlatSpec, Matchers}
 class DiningPhilosophersSpec extends FlatSpec with Matchers {
 
   def randomWait(message: String): Unit = {
-    println(message)
+//    println(message)
     Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
   }
 

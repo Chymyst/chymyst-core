@@ -1,7 +1,8 @@
 package io.chymyst.jc
 
+import java.security.MessageDigest
+
 import Core._
-import io.chymyst.jc.CrossMoleculeSorting.Coll
 
 import scala.{Symbol => ScalaSymbol}
 import scala.collection.mutable
@@ -399,6 +400,8 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
   private[jc] def matcherIsSimilarToOutput(info: OutputMoleculeInfo): Option[Boolean] = {
     if (molecule =!= info.molecule)
       Some(false)
+    else if (!info.atLeastOnce)
+      None
     else flag match {
       case WildcardInput |
            SimpleVarInput(_, None) |
@@ -480,18 +483,24 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType,
   * @param reactionString String representation of the reaction, used for error messages.
   */
 final class ChymystThreadInfo(
-  statics: Set[Molecule] = Set(),
+  statics: Set[Int] = Set(),
   reactionString: String = "<no reaction>"
 ) {
   override val toString: String = reactionString
 
-  private[jc] val maybeEmit: Molecule => Boolean = {
-    val allowedToEmit: mutable.Set[Molecule] = mutable.Set() ++ statics
+  /** This closure will contain a mutable set and will update it whenever a static molecule is emitted.
+    * If the static molecule has been already emitted, we disallow further `emit()` because a reaction can only consume one and emit one static molecule.
+    */
+  private[jc] val maybeEmit: Int => Boolean = {
+    val allowedToEmit: mutable.Set[Int] = if (statics.isEmpty)
+      mutable.Set()
+    else
+      mutable.Set() ++ statics
 
-    { m: Molecule => allowedToEmit.remove(m) }
+    { molSiteIndex: Int => allowedToEmit.remove(molSiteIndex) }
   }
 
-  private[jc] def couldEmit(m: Molecule): Boolean = statics.contains(m)
+  private[jc] def couldEmit(molSiteIndex: Int): Boolean = statics.contains(molSiteIndex)
 }
 
 // This class is immutable.
@@ -502,6 +511,8 @@ final class ReactionInfo(
   private[jc] val guardPresence: GuardPresenceFlag,
   private[jc] val sha1: String
 ) {
+  private[jc] val hasBlockingInputs: Boolean = inputs.exists(_.molecule.isBlocking)
+
   // This should be lazy because molecule.isStatic is known late.
   private[jc] lazy val staticMols: Set[Molecule] = inputs.map(_.molecule).filter(_.isStatic).toSet
 
@@ -565,15 +576,19 @@ final class ReactionInfo(
   }
 
   /** The sequence of [[SearchDSL]] instructions for selecting the molecule values under cross-molecule constraints.
-    * Independent molecules are not included in this DSL program; their values are to be selected separately.
+    * Independent molecules (including molecules with constant values) are not included in this DSL program;
+    * their values are to be selected separately.
     *
-    * This [[SearchDSL]] program is already optimized by including the constraint guards as early as possible.
+    * This [[SearchDSL]] program is optimized by including the constraint guards as early as possible.
     */
   private[jc] val searchDSLProgram = CrossMoleculeSorting.getDSLProgram(
     crossGuards.map(_.indices.toSet),
     repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet),
     moleculeWeights
-  )
+  ).filter { // Optimize `searchDSLProgram` by removing molecules having constant value matchers.
+    case ChooseMol(i) => !inputs(i).isConstantValue
+    case _ => true
+  }
 
   // The input pattern sequence is pre-sorted by descending strength of constraint -- for pretty-printing as well as for use in static analysis.
   private[jc] val inputsSortedByConstraintStrength: List[InputMoleculeInfo] = {
@@ -619,10 +634,10 @@ final class ReactionInfo(
     val inputsSortedIrrefutableGrouped =
       inputsSortedIrrefutable
         .filter(info ⇒ independentInputMolecules contains info.index)
-        .orderedMapGroupBy(_.molecule.index, _.index)
+        .orderedMapGroupBy(_.molecule.siteIndex, _.index)
         .map { case (i, is) ⇒ (i, is.toArray) }
         .toArray
-    (inputsSortedIrrefutableGrouped, inputsSortedConditional.filter(info ⇒ independentInputMolecules contains info.index))
+    (inputsSortedIrrefutableGrouped, inputsSortedConditional.filter(info ⇒ independentInputMolecules contains info.index).toArray)
   }
 
   /* Not sure if this is still useful.
@@ -637,8 +652,11 @@ final class ReactionInfo(
     }
   */
 
+  val isStatic: Boolean = inputsSortedByConstraintStrength.isEmpty
+
   override val toString: String = {
     val inputsInfo = inputsSortedByConstraintStrength.map(_.toString).mkString(" + ")
+    val staticPrefix = if (isStatic) "_" else ""
     val guardInfo = guardPresence match {
       case _
         if guardPresence.noCrossGuards =>
@@ -649,8 +667,8 @@ final class ReactionInfo(
         val crossGuardsInfo = guards.flatMap(_.symbols).map(_.name).distinct.mkString(",")
         s" if($crossGuardsInfo)"
     }
-    val outputsInfo = outputs.map(_.toString).mkString(" + ")
-    s"$inputsInfo$guardInfo → $outputsInfo"
+    val outputsInfo = shrunkOutputs.map(_.toString).mkString(" + ")
+    s"$inputsInfo$staticPrefix$guardInfo → $outputsInfo"
   }
 }
 
@@ -663,10 +681,10 @@ final class ReactionInfo(
 final case class Reaction(
   private[jc] val info: ReactionInfo,
   private[jc] val body: ReactionBody,
-  threadPool: Option[Pool],
+  private[jc] val threadPool: Option[Pool],
   private[jc] val retry: Boolean
 ) {
-  private[jc] def newChymystThreadInfo = new ChymystThreadInfo(info.staticMols, info.toString)
+  private[jc] def newChymystThreadInfo = new ChymystThreadInfo(info.staticMols.map(_.siteIndex), info.toString)
 
   /** Convenience method to specify thread pools per reaction.
     *
@@ -696,23 +714,35 @@ final case class Reaction(
       .map(_.molecule)
       .sortBy(_.toString)
 
+  // java.security.MessageDigest is not thread safe, so we use a new MessageDigest for each reaction.
+  private lazy val md: MessageDigest = getMessageDigest
+
+  private[jc] lazy val inputInfoSha1: String =
+    getSha1(inputMoleculesSortedAlphabetically.map(_.hashCode()).mkString(","), md) + info.sha1
+
   // Optimization: this is used often.
   private[jc] val inputMoleculesSet: Set[Molecule] = inputMoleculesSortedAlphabetically.toSet
 
-  /** The final SearchDSL program for finding values of molecules affected by cross-molecule constraints.
-    *
-    * This computation optimizes `info.searchDSLProgram` by removing molecules that have constant value matchers.
-    *
-    */
-  private val searchDSLProgram: Coll[SearchDSL] = info.searchDSLProgram
-    .filter {
-      case ChooseMol(i) => !info.inputs(i).isConstantValue
-      case _ => true
-    }
+  // Compute the initial molecule value lock. This requires site-wide indices.
+  private[jc] lazy val initialMoleculeValueLock = {
+    val counts: Map[Int, Int] = info.inputsSortedIndependentIrrefutableGrouped
+      .map { case (i, a) ⇒ (i, a.length) }(scala.collection.breakOut)
+    val molecules: Set[Int] = info.inputs
+      .map(_.molecule.siteIndex)
+      .toSet
+      .diff(counts.keySet)
+    MoleculeValueLock(counts, molecules)
+  }
 
-  // This must be lazy because molecule indices are not known at `Reaction` construction time.
+  /** A table of required molecule counts for each input molecule in this reaction.
+    * This is an optimization used when searching for independent molecule values.
+    *
+    * This value must be `lazy` because molecule site-wide indices are not known at `Reaction` construction time.
+    */
   private[jc] lazy val moleculeIndexRequiredCounts: Map[Int, Int] =
-    inputMoleculesSet.map { mol ⇒ (mol.index, inputMoleculesSortedAlphabetically.count(_ === mol)) }(scala.collection.breakOut)
+    inputMoleculesSet.map { mol ⇒
+      (mol.siteIndex, inputMoleculesSortedAlphabetically.count(_ === mol))
+    }(scala.collection.breakOut)
 
   /** Convenience method for debugging.
     *
@@ -723,114 +753,6 @@ final case class Reaction(
       "/R"
     else ""
     s"${inputMoleculesSortedAlphabetically.map(_.toString).mkString(" + ")} → ...$suffix"
-  }
-
-  /** Find a set of input molecule values for this reaction. */
-  private[jc] def findInputMolecules(moleculesPresent: MoleculeBagArray): Option[(Reaction, InputMoleculeList)] = {
-    // A simpler, non-flatMap algorithm for the case when there are no cross-dependencies of molecule values.
-    // For each single (non-repeated) input molecule, select a molecule value that satisfies the conditional.
-    // For each group of repeated input molecules of the same sort, check whether the bag contains enough molecule values.
-    // Begin checking with molecules that have more stringent constraints (and thus, are not repeated).
-
-    // This array will be mutated in place as we search for molecule values.
-    val foundValues = new Array[AbsMolValue[_]](info.inputs.length)
-
-    val foundResult: Boolean =
-    // `foundResult` will be `true` (and then `foundValues` has the molecule values) or `false` (we found no values that match).
-
-    // First, consider independent molecules with conditionals. If we fail to find their values, `foundResult` will be `false`.
-      info.inputsSortedIndependentConditional.forall { inputInfo ⇒
-        val molBag = moleculesPresent(inputInfo.molecule.index)
-        val newValueOpt =
-          if (inputInfo.molecule.isPipelined)
-            molBag.takeOne.filter(inputInfo.admitsValue) // For pipelined molecules, we take the first one; if condition fails, we treat that case as if no molecule is available.
-          // It is probably useless to try optimizing the selection of a constant value, because 1) values are wrapped and 2) values that are not "simple types" are most likely to be stored in a queue-based molecule bag rather than in a hash map-based molecule bag.
-          else
-            molBag.find(inputInfo.admitsValue)
-
-        newValueOpt.foreach { newMolValue ⇒
-          foundValues(inputInfo.index) = newMolValue
-        }
-        newValueOpt.nonEmpty
-      } && {
-        // Here we don't need to check any conditions because we already know that the molecule counts are sufficient for all molecules.
-        // However, it is important to assign these molecule values here before we embark on the SearchDSL program for cross-molecule groups,
-        // because the SearchDSL program does not include molecules with constant value matchers, so they have to be assigned now.
-        info.inputsSortedIndependentIrrefutableGrouped
-          .foreach { case (siteMolIndex, infos) ⇒
-            val molValues = moleculesPresent(siteMolIndex).takeAny(moleculeIndexRequiredCounts(siteMolIndex))
-            infos.indices.foreach { idx ⇒ foundValues(infos(idx)) = molValues(idx) }
-          }
-        // If we have no cross-conditionals, we do not need to use the SearchDSL sequence and we are finished.
-        if (info.crossGuards.isEmpty && info.crossConditionalsForRepeatedMols.isEmpty)
-          true
-        else {
-          // Map from site-wide molecule index to the multiset of values that have been selected for repeated copies of this molecule.
-          // This is used only for selecting repeated input molecules.
-          type MolVals = Map[Int, List[AbsMolValue[_]]]
-
-          val initStream = Stream[MolVals](Map())
-
-          val found: Option[Stream[MolVals]] = searchDSLProgram
-            // The `flatFoldLeft` accumulates the value `repeatedMolValues`, representing the stream of value maps for repeated input molecules (only).
-            // This is used to build a "skipping iterator" over molecule values that correctly handles repeated input molecules.
-
-            // This is a "flat fold" because should be able to stop early even though we can't examine the stream value.
-            .flatFoldLeft[Stream[MolVals]](initStream) { (repeatedMolValuesStream, searchDslCommand) ⇒
-            // We need to return Option[Stream[MolVals]].
-            searchDslCommand match {
-              case ChooseMol(i) ⇒
-                // Note that this molecule cannot be pipelined since it is part of a cross-molecule constraint.
-                val inputInfo = info.inputs(i)
-
-                Some(// The stream contains repetitions of the immutable values `repeatedVals` of type `MolVals`, which represents the value map for repeated input molecules.
-                  // If there are no repeated input molecules, this will be an empty map.
-                  // However, each item in the stream will mutate `foundValues` in place, so that we always have the last chosen molecule values.
-                  // The search DSL program is guaranteed to check cross-molecule conditions only for molecules whose values we already chose.
-                  repeatedMolValuesStream.flatMap { repeatedVals ⇒
-                    val siteMolIndex = inputInfo.molecule.index
-                    if (info.crossConditionalsForRepeatedMols contains i) {
-                      val prevValMap = repeatedVals.getOrElse(siteMolIndex, List[AbsMolValue[_]]())
-                      moleculesPresent(siteMolIndex)
-                        // TODO: move this to the skipping interface, restore Seq[T] as its argument
-                        .allValuesSkipping(new MutableMultiset[AbsMolValue[_]]().add(prevValMap))
-                        .filter(inputInfo.admitsValue)
-
-                        .map { v ⇒
-                          foundValues(i) = v
-                          repeatedVals.updated(siteMolIndex, v :: prevValMap)
-                        }
-                    } else {
-                      // This is not a repeated molecule.
-                      moleculesPresent(siteMolIndex)
-                        .allValues
-                        .filter(inputInfo.admitsValue)
-                        .map { v ⇒
-                          foundValues(i) = v
-                          repeatedVals
-                        }
-                    }
-                  }
-                )
-
-              case ConstrainGuard(i) ⇒
-                val guard = info.crossGuards(i)
-                Some(repeatedMolValuesStream.filter { _ ⇒
-                  guard.cond.isDefinedAt(guard.indices.map(i ⇒ foundValues(i).moleculeValue).toList)
-                })
-
-              case CloseGroup ⇒
-                // If the stream is empty, we will return `None` here and terminate the "flat fold".
-                repeatedMolValuesStream.headOption.map(_ ⇒ initStream)
-            }
-          }
-          found.nonEmpty
-        }
-      }
-    if (foundResult)
-      Some((this, foundValues))
-    else
-      None
   }
 
 }

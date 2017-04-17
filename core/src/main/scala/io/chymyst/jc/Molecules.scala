@@ -2,7 +2,7 @@ package io.chymyst.jc
 
 import Core._
 import java.util.concurrent.{Semaphore, TimeUnit}
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
@@ -92,17 +92,17 @@ sealed trait Molecule extends PersistentHashCode {
 
   def typeSymbol: Symbol = valTypeSymbol
 
-  def index: Int = inputIndex
+  def siteIndex: Int = siteIndexValue
 
   /** This is called by a [[ReactionSite]] when a molecule becomes bound to that reaction site.
     *
-    * @param rs    Reaction site to which the molecule is now bound.
-    * @param index Zero-based index of the input molecule at that reaction site.
+    * @param rs        Reaction site to which the molecule is now bound.
+    * @param siteIndex Zero-based index of the input molecule at that reaction site.
     */
-  private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean): Unit = {
+  private[jc] def setReactionSiteInfo(rs: ReactionSite, siteIndex: Int, typeSymbol: Symbol, pipelined: Boolean): Unit = {
     hasReactionSite = true
-    inputIndex = index
-    valTypeSymbol = valType
+    siteIndexValue = siteIndex
+    valTypeSymbol = typeSymbol
     valIsPipelined = pipelined
   }
 
@@ -133,7 +133,7 @@ sealed trait Molecule extends PersistentHashCode {
 
   protected var valTypeSymbol: Symbol = _
 
-  protected var inputIndex: Int = -1
+  protected var siteIndexValue: Int = -1
 
   protected var hasReactionSite: Boolean = false
 
@@ -210,17 +210,17 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
     */
   def volatileValue: T = if (isBound) {
     if (isStatic)
-      volatileValueContainer
+      volatileValueRef.get
     else throw new Exception(s"In $reactionSiteWrapper: volatile reader requested for non-static molecule ($this)")
   }
-  else throw new Exception("Molecule c is not bound to any reaction site")
+  else throw new Exception(s"Molecule $name is not bound to any reaction site, cannot read volatile value")
 
   private[jc] def assignStaticMolVolatileValue(molValue: AbsMolValue[_]) =
-    volatileValueContainer = molValue.asInstanceOf[MolValue[T]].moleculeValue
+    volatileValueRef.set(molValue.asInstanceOf[MolValue[T]].moleculeValue)
 
-  @volatile private var volatileValueContainer: T = _
+  private var volatileValueRef: AtomicReference[T] = new AtomicReference[T]()
 
-  override lazy val isStatic: Boolean = reactionSiteWrapper.staticMolsDeclared.contains(this)
+  override lazy val isStatic: Boolean = reactionSiteWrapper.isStatic()
 
   override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean) = {
     super.setReactionSiteInfo(rs, index, valType, pipelined)
