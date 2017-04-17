@@ -348,4 +348,8 @@ object Core {
     }
   }
 
+  private[jc] def unboundOutputMolecules(nonStaticReactions: Seq[Reaction]): Set[Molecule] = nonStaticReactions.flatMap(_.info.outputs.map(_.molecule)).toSet.filterNot(_.isBound)
+
+  private[jc] def unboundOutputMoleculesString(nonStaticReactions: Seq[Reaction]): String = unboundOutputMolecules(nonStaticReactions).map(_.toString).toList.sorted.mkString(", ")
+
 }

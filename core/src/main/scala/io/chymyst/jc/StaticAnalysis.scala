@@ -93,7 +93,14 @@ private[jc] object StaticAnalysis {
     None
   }
 
-  private def checkSingleReactionLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
+  private def unboundMoleculeWarning(reactions: Seq[Reaction]): Option[String] = {
+    val warningList = unboundOutputMoleculesString(reactions)
+    if (warningList.nonEmpty)
+      Some(s"Output molecules ($warningList) are still not bound when this reaction site is created")
+    else None
+  }
+
+  private def singleReactionLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
     val warningList = reactions
       .filter { r => inputMatchersAreSimilarToOutput(r.info.inputsSortedByConstraintStrength, r.info.shrunkOutputs) }
       .map(r => s"{${r.info.toString}}")
@@ -180,11 +187,12 @@ private[jc] object StaticAnalysis {
     ).flatMap(_ (reactions))
   }
 
-  private[jc] def findStaticWarnings(reactions: Seq[Reaction]) = {
+  private[jc] def findGeneralWarnings(reactions: Seq[Reaction]) = {
     Seq(
       checkOutputsForDeadlockWarning _,
       checkInputsForDeadlockWarning _,
-      checkSingleReactionLivelockWarning _
+      unboundMoleculeWarning _,
+      singleReactionLivelockWarning _
     ).flatMap(_ (reactions))
   }
 

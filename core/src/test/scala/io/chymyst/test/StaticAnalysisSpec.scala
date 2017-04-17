@@ -509,6 +509,21 @@ class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
     }.get
   }
 
+  behavior of "unbound molecule detection"
+
+  it should "correctly identify molecules that are still unbound" in {
+    val a = m[Unit]
+    val c = m[Unit]
+    val d = m[Unit]
+    val e = m[Unit]
+    val f = m[Unit]
+
+    val warnings1 = site(go { case a(_) + e(_) ⇒ c() })
+    warnings1 shouldEqual WarningsAndErrors(List("Output molecules (c) are still not bound when this reaction site is created"), List(), "Site{a + e → ...}")
+    val warnings2 = site(go { case c(_) ⇒ a() + d() + e(); f() })
+    warnings2 shouldEqual WarningsAndErrors(List("Output molecules (d, f) are still not bound when this reaction site is created"), List(), "Site{c → ...}")
+  }
+
   behavior of "deadlock detection"
 
   it should "not warn about likely deadlock for a reaction that emits molecules for itself in the right order" in {

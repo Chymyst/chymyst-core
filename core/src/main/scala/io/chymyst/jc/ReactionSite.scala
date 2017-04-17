@@ -48,8 +48,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   private val (staticReactions, nonStaticReactions) = reactions.toArray.partition(_.info.isStatic)
 
-  private var unboundOutputMolecules: Set[Molecule] = _
-
   /** The table of statically declared static molecules and their multiplicities.
     * Only non-blocking molecules can be static.
     * Static molecules are emitted by "static reactions" (i.e. { case _ => ...}), which are run only once at the reaction site activation time.
@@ -472,13 +470,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   /** This is computed only once, when the first molecule is emitted into this reaction site.
     * If, at that time, there are any molecules that are still unbound but used as output by this reaction site, we report an error.
-    * This value does not need to be recomputed because this error is permanent (would be a compile-time error in JoCaml).
+    * In this way, errors can be signalled as early as possible.
+    *
+    * This `val` does not need to be recomputed because this error is permanent (would be a compile-time error in JoCaml).
     */
-  private lazy val findUnboundOutputMolecules: Boolean = unboundOutputMolecules.nonEmpty && {
-    val stillUnbound = unboundOutputMolecules.filterNot(_.isBound)
-    unboundOutputMolecules = stillUnbound
-    stillUnbound.nonEmpty
-  }
+  private lazy val findUnboundOutputMolecules: Boolean = unboundOutputMolecules(nonStaticReactions).nonEmpty
 
   /** Emit a molecule with a value into the soup.
     *
@@ -490,7 +486,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private def emit[T](mol: Molecule, molValue: AbsMolValue[T]): Unit = {
     if (findUnboundOutputMolecules) {
-      val noReactionMessage = s"In $this: As $mol($molValue) is emitted, some reactions may emit molecules (${unboundOutputMolecules.map(_.toString).toList.sorted.mkString(", ")}) that are not bound to any reaction site"
+      val moleculesString = unboundOutputMoleculesString(nonStaticReactions)
+      val noReactionMessage = s"In $this: As $mol($molValue) is emitted, some reactions may emit molecules ($moleculesString) that are not bound to any reaction site"
       throw new ExceptionNoReactionSite(noReactionMessage)
     }
     else if (sitePool.isInactive) {
@@ -533,7 +530,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           if (logLevel > 0) println(emitMoleculeMessage)
           if (schedulingNeeded(mol))
             sitePool.runRunnable(emissionRunnable(mol))
-//          else if (logLevel > 1) println(s"Debug: In $this: not scheduling emissionRunnable") // This is too verbose.
+          //          else if (logLevel > 1) println(s"Debug: In $this: not scheduling emissionRunnable") // This is too verbose.
         } else {
           reportError(s"In $this: Refusing to emit${if (mol.isStatic) " static" else ""} pipelined molecule $mol($molValue) since its value fails the relevant conditions")
         }
@@ -660,11 +657,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       r.info.outputs.foreach(_.molecule.addEmittingReaction(r))
     }
 
-    // This set will be examined again when any molecule bound to this site is emitted, so that errors can be signalled as early as possible.
-    unboundOutputMolecules = nonStaticReactions.flatMap(_.info.outputs.map(_.molecule)).toSet.filterNot(_.isBound)
-
     // Perform static analysis.
-    val foundWarnings = findStaticMolWarnings(staticMolDeclared, nonStaticReactions) ++ findStaticWarnings(nonStaticReactions)
+    val foundWarnings = findStaticMolWarnings(staticMolDeclared, nonStaticReactions) ++ findGeneralWarnings(nonStaticReactions)
 
     val foundErrors = findStaticMolDeclarationErrors(staticReactions) ++
       findStaticMolErrors(staticMolDeclared, nonStaticReactions) ++
