@@ -1,13 +1,12 @@
 package io.chymyst.jc
 
-import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicIntegerArray
 
 import Core._
 import StaticAnalysis._
 
 import scala.annotation.tailrec
-import scala.collection.{breakOut, mutable}
+import scala.collection.breakOut
 
 /** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
   * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
@@ -90,110 +89,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     s"$toString\n$moleculesPrettyPrinted"
   }
 
-  private def addLockInfoToUnions(lock: MoleculeValueLock): Unit = {
-    moleculeLockUnion ++= lock.molecules
-    lock.counts.foreach { case (siteIndex, count) ⇒
-      countLockUnion.update(siteIndex, countLockUnion.getOrElse(siteIndex, 0) + count)
-    }
-  }
-
-  private def removeLockInfoFromUnions(lock: MoleculeValueLock): Unit = {
-    moleculeLockUnion --= lock.molecules
-    lock.counts.foreach { case (siteIndex, count) ⇒
-      val newCount = countLockUnion.getOrElse(siteIndex, 0) - count
-      if (newCount <= 0)
-        countLockUnion.remove(siteIndex)
-      else
-        countLockUnion.update(siteIndex, newCount)
-    }
-  }
-
-  private val countLockUnion = mutable.Map[Int, Int]()
-
-  private val moleculeLockUnion = mutable.Set[Int]()
-
-  private val waitingLocks = mutable.Set[MoleculeValueLock]()
-
-  /** Determine whether the lock can be granted. This function is called only in the synchronized context.
-    *
-    * @param lock A requested lock.
-    * @return `None` if we do not have some molecules for the requested lock.
-    *         `Some(true)` if the requested lock can be actually granted now.
-    *         `Some(false)` if the requested lock cannot be granted now and we need to wait for other locks to be released.
-    */
-  private def canAcquireLock(lock: MoleculeValueLock): Option[Boolean] = {
-    val sizes: Map[Int, Int] = lock.usedMoleculesSeq.map(i ⇒ i → moleculesPresent(i).size)(breakOut)
-    if (lock.usedMoleculesSeq.exists(i ⇒ sizes(i) == 0)) // We fail if we require some molecule that is not present at all.
-      None
-    else if (lock.molecules.exists { i ⇒ moleculeLockUnion.contains(i) || countLockUnion.contains(i) } ||
-      lock.counts.exists {
-        case (i, count) ⇒
-          moleculeLockUnion.contains(i) ||
-            countLockUnion.getOrElse(i, 0) + count > sizes(i)
-      }
-    )
-      Some(false)
-    else Some(true)
-  }
-
-  private def acquireLock(lock: MoleculeValueLock): Boolean = {
-    val status: Option[Boolean] = moleculesPresent.synchronized {
-      /*
-       If the present molecule counts are zero for any molecule in the requested lock, return `false`.
-       Otherwise:
-       If the present molecule counts minus the counts in the countLockUnion are >= the requested count map,
-       and if the moleculeLockUnion has empty intersection with the requested lock's `usedMolecules`,
-         add lock info to the unions
-         return `true`
-       Otherwise:
-        add the requested lock to the waiting locks set
-        acquire semaphore (block with no timeout)
-        return semaphore's acquireStatus
-      */
-      val status = canAcquireLock(lock)
-      status.foreach { haveLock ⇒
-        if (haveLock)
-          addLockInfoToUnions(lock)
-        else
-          waitingLocks.add(lock)
-      }
-//      if (logLevel > -1) println(s"debug: acquireLock(${lock.counts.map { case (i, c) ⇒ moleculeAtIndex(i).toString + " * " + c }.mkString(",") + "|" + lock.molecules.map(i ⇒ moleculeAtIndex(i).toString).mkString(",")}) has status $status, moleculesPresent: ${moleculeBagToString(moleculesPresent)}, count union $countLockUnion, molecule union $moleculeLockUnion")
-      status
-    }
-    status match {
-      case None ⇒
-        false
-      case Some(true) ⇒
-        true
-      case Some(false) ⇒
-        lock.acquireSemaphore() // This should be done outside of `synchronized`.
-        lock.acquireStatus
-    }
-  }
-
-  private def releaseLock(oldLock: MoleculeValueLock): Unit = moleculesPresent.synchronized {
-    /*
-    Remove oldLock info from the unions.
-    For each waiting lock that has an intersection with this oldLock:
-      Check whether that lock can be granted.
-      If so, add lock info to the unions, remove lock from waiting locks set, and grant the semaphore for that lock.
-     */
-    removeLockInfoFromUnions(oldLock)
-    val candidateLocks = waitingLocks.filter(_.usedMoleculesSet.exists(oldLock.usedMoleculesSet.contains))
-    candidateLocks.foreach { lock ⇒
-      canAcquireLock(lock) match {
-        case None ⇒
-          lock.grantSemaphore(false)
-        case Some(true) ⇒
-          waitingLocks.remove(lock)
-          removeLockInfoFromUnions(lock)
-          lock.grantSemaphore(true)
-        case _ ⇒
-      }
-    }
-//    if (logLevel > -1) println(s"debug: releaseLock(${oldLock.counts.map { case (i, c) ⇒ moleculeAtIndex(i).toString + " * " + c }.mkString(",") + "|" + oldLock.molecules.map(i ⇒ moleculeAtIndex(i).toString).mkString(",")}), moleculesPresent: ${moleculeBagToString(moleculesPresent)}, count union $countLockUnion, molecule union $moleculeLockUnion")
-  }
-
   private lazy val needScheduling: AtomicIntegerArray = new AtomicIntegerArray(knownMolecules.size)
 
   private val NEED_TO_SCHEDULE = 0
@@ -219,8 +114,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       consumingReactions(mol.siteIndex)
         .filter(_.info.guardPresence.staticGuardHolds())
         .findAfterMap { thisReaction ⇒
-          val valueLock = thisReaction.getMoleculeValueLock
-          if (acquireLock(valueLock)) {
+          moleculesPresent.synchronized {
             val result = findInputMolecules(thisReaction, moleculesPresent)
             // If we have found a reaction that can be run, we have acquired a lock; need to remove its input molecule values from their bags.
             result.foreach { thisInputList ⇒
@@ -232,10 +126,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
               }
               noNeedToSchedule(mol)
             }
-            releaseLock(valueLock)
-            result.map( thisInputList => (thisReaction, thisInputList))
-          } else
-            None
+            result.map(thisInputList => (thisReaction, thisInputList))
+          }
         }
     // End of synchronized block.
     // We already decided on starting a reaction, so we don't hold the `synchronized` lock on the molecule bag any more.
@@ -650,14 +542,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     )
 
   // Remove a blocking molecule if it is present.
-  private def removeBlockingMolecule[T, R](bm: B[T, R], blockingMolValue: BlockingMolValue[T, R]): Unit = {
-    val lockForRemovingOneMolecule = MoleculeValueLock(counts = Map(bm.siteIndex → 1), molecules = Set())
-    if (acquireLock(lockForRemovingOneMolecule)) {
-      if (removeFromBag(bm, blockingMolValue)) {
-        lazy val removeBlockingMolMessage = s"Debug: $this removed $bm($blockingMolValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]"
-        if (logLevel > 0) logMessage(removeBlockingMolMessage)
-      }
-      releaseLock(lockForRemovingOneMolecule)
+  private def removeBlockingMolecule[T, R](bm: B[T, R], blockingMolValue: BlockingMolValue[T, R]): Unit = moleculesPresent.synchronized {
+    if (removeFromBag(bm, blockingMolValue)) {
+      lazy val removeBlockingMolMessage = s"Debug: $this removed $bm($blockingMolValue) on thread pool $sitePool, now have molecules [${moleculeBagToString(moleculesPresent)}]"
+      if (logLevel > 0) logMessage(removeBlockingMolMessage)
     }
   }
 
@@ -948,22 +836,4 @@ private[jc] object ReactionSiteWrapper {
       sameReactionSite = _ => exception
     )
   }
-}
-
-private[jc] final case class MoleculeValueLock(
-  counts: Map[Int, Int] = Map(),
-  molecules: Set[Int] = Set(),
-  semaphore: Semaphore = new Semaphore(0, false)
-) {
-  val usedMoleculesSet: Set[Int] = counts.keySet ++ molecules
-  val usedMoleculesSeq: IndexedSeq[Int] = usedMoleculesSet.toIndexedSeq.sorted
-
-  @volatile var acquireStatus: Boolean = false
-
-  def grantSemaphore(status: Boolean): Unit = {
-    acquireStatus = status
-    semaphore.release(1)
-  }
-
-  def acquireSemaphore(): Unit = semaphore.acquire(1)
 }

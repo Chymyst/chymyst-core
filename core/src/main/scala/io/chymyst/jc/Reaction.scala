@@ -722,17 +722,6 @@ final case class Reaction(
   // Optimization: this is used often.
   private[jc] val inputMoleculesSet = inputMoleculesSortedAlphabetically.toSet
 
-  // Compute the initial molecule value lock. This requires site-wide indices.
-  private[jc] def getMoleculeValueLock = {
-    val counts: Map[Int, Int] = info.inputsSortedIndependentIrrefutableGrouped
-      .map { case (i, a) ⇒ (i, a.length) }(scala.collection.breakOut)
-    val molecules: Set[Int] = info.inputs
-      .map(_.molecule.siteIndex)
-      .toSet
-      .diff(counts.keySet)
-    MoleculeValueLock(counts, molecules)
-  }
-
   /** A table of required molecule counts for each input molecule in this reaction.
     * This is an optimization used when searching for independent molecule values.
     *
