@@ -253,6 +253,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         status
     }
 
+    // Make this non-lazy to improve coverage. If the code is correct, the no-reply error cannot happen with `ReactionExitSuccess`.
+    // The missing coverage is the evaluation of `.getMessage` on the status value `ReactionExitSuccess`.
+    val errorMessageFromStatus = exitStatus.getMessage.map(message ⇒ s". Reported error: $message").getOrElse("")
+
     // The reaction is finished. If it had any blocking input molecules, we check if any of them got no reply.
     if (thisReaction.info.hasBlockingInputs && usedInputs.exists(_.reactionSentNoReply)) {
       // For any blocking input molecules that have no reply, put an error message into them and reply with empty value to unblock the threads.
@@ -263,9 +267,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         .map { case (_, i) ⇒ thisReaction.info.inputs(i).molecule }
         .toSeq.toOptionSeq
         .map(_.map(_.toString).sorted.mkString(", "))
-
-      // Make this non-lazy to improve coverage.
-      val errorMessageFromStatus = exitStatus.getMessage.map(message => s". Reported error: $message").getOrElse("")
 
       lazy val messageNoReply = blockingMoleculesWithNoReply.map { s =>
         s"Error: In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] finished without replying to $s$errorMessageFromStatus"
