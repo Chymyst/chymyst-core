@@ -206,7 +206,8 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     )
     g2() shouldEqual 1 // this should initially work
     d() // do not emit c(). Now the first reaction is blocked because second reaction cannot start.
-    g2.timeout()(300 millis) shouldEqual None // this should be blocked now
+    Thread.sleep(300)
+    g2.timeout()(500 millis) shouldEqual None // this should be blocked now
     tp.shutdownNow()
     tp1.shutdownNow()
   }
