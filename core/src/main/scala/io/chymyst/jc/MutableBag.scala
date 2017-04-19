@@ -2,7 +2,6 @@ package io.chymyst.jc
 
 
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.atomic.AtomicInteger
 
 import scala.collection.JavaConverters.{asScalaIteratorConverter, asScalaSetConverter}
 import com.google.common.collect.ConcurrentHashMultiset
@@ -101,16 +100,17 @@ final class MutableQueueBag[T] extends MutableBag[T] {
 
   override protected def iterator: Iterator[T] = bag.iterator.asScala
 
-  // Attempting to optimize the size computations, at risk of race conditions, which is mitigated by ordering of operations below.
-  private val sizeValue = new AtomicInteger(0)
-
   override def isEmpty: Boolean = bag.isEmpty
 
-  override def size: Int = sizeValue.get
+  /** This method is very slow due to _O_(_n_) queue traversal. Do not use in performance-critical places.
+    *
+    * @return Total number of elements in the bag.
+    */
+  override def size: Int =
+    bag.size
 
   override def add(v: T): Unit = {
     bag.add(v)
-    sizeValue.incrementAndGet() // Incrementing the size only after adding to the bag.
     ()
   }
 
@@ -120,12 +120,8 @@ final class MutableQueueBag[T] extends MutableBag[T] {
     * @param v Value to remove.
     * @return `true` if removal was successful, `false` otherwise.
     */
-  override def remove(v: T): Boolean = {
-    sizeValue.decrementAndGet() // Decrementing the size before removing from the bag.
-    val status = bag.remove(v)
-    if (!status) sizeValue.incrementAndGet()
-    status
-  }
+  override def remove(v: T): Boolean =
+    bag.remove(v)
 
   override def find(predicate: (T) => Boolean): Option[T] =
     iterator.find(predicate)

@@ -545,9 +545,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     * @return For each molecule present in the soup, the map shows the number of copies present.
     */
-  private def getMoleculeCountsAfterInitialStaticEmission: Map[Molecule, Int]
-
-  =
+  private def getMoleculeCountsAfterInitialStaticEmission: Map[Molecule, Int] =
     moleculesPresent.indices
       .flatMap(i => if (moleculesPresent(i).isEmpty)
         None
