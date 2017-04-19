@@ -1,6 +1,7 @@
 package io.chymyst.benchmark
 
 import io.chymyst.jc._
+import Common._
 import org.scalatest.{FlatSpec, Matchers}
 import scala.concurrent.duration.DurationInt
 
@@ -224,11 +225,11 @@ class EightQueensSpec extends FlatSpec with Matchers {
     println(s"sample solutions:\n${res.filter(_.length == nQueens).take(3).map(s ⇒ printPosition(boardSize, s)).mkString("\n")}")
   }
 
-  behavior of "eight queens problem"
+  behavior of "eight queens problem - n-queens scheme with reset on backtracking"
 
   it should "obtain solutions for 3 queens on 4x4 board using n-queens scheme" in {
     // 3 queens exist when board size is at least a 4x4, and require no backtracking
-    withPool(new FixedPool(2)) { tp ⇒ runNQueens(nQueens = 3, supply = 10, boardSize = 4, iterations = 100000, timeout = 200, tp) }
+    withPool(new FixedPool(2)) { tp ⇒ runNQueens(nQueens = 3, supply = 10, boardSize = 4, iterations = 20000, timeout = 200, tp) }
   }
 
   it should "obtain solutions for 8 queens on 12x12 board using n-queens scheme" in {
@@ -239,29 +240,32 @@ class EightQueensSpec extends FlatSpec with Matchers {
     withPool(new FixedPool(2)) { tp ⇒ runNQueens(nQueens = 8, supply = 10, boardSize = 8, iterations = 100, timeout = 200, tp) }
   }
 
-  it should "obtain 1000 solutions for 3 queens on 4x4 board using rigid scheme" in {
+  behavior of "eight queens problem - hard-coded number of queens, one RS"
+
+  it should "obtain 1000 solutions for 3 queens on 4x4 board using 1 RS" in {
     val iterations = 1000
-    val b = 4
+    val boardSize = 4
     val initTime = System.currentTimeMillis()
     // 3 queens exist when board size is at least a 4x4
-    run3Queens(supply = 10, boardSize = b, iterations)
-    println(s"using rigid scheme, obtained $iterations solutions for 3-queens problem on $b*$b board in ${System.currentTimeMillis() - initTime} ms")
+    run3Queens(supply = 10, boardSize, iterations)
+    println(s"using rigid scheme, obtained $iterations solutions for 3-queens problem on $boardSize*$boardSize board in ${elapsed(initTime)} ms")
   }
 
-  it should "obtain 1000 solutions for 5 queens on 5x5 board using rigid scheme" in {
+  it should "obtain 1000 solutions for 5 queens on 5x5 board using 1 RS" in {
     val iterations = 1000
-    val b = 5
+    val boardSize = 5
     val initTime = System.currentTimeMillis()
     // 5 queens exist when board size is at least a 5x5
-    run5Queens(supply = 10, boardSize = b, iterations)
-    println(s"using rigid scheme, obtained $iterations solutions for 5-queens problem on $b*$b board in ${System.currentTimeMillis() - initTime} ms")
+    run5Queens(supply = 10, boardSize, iterations)
+    println(s"using rigid scheme, obtained $iterations solutions for 5-queens problem on $boardSize*$boardSize board in ${elapsed(initTime)} ms")
   }
 
-  it should "obtain 1 solution for 8 queens on 12x12 board using rigid scheme (very slow)" in {
+  it should "obtain 1 solution for 8 queens on 12x12 board using 1 RS (very slow)" in {
     val iterations = 1
-    val b = 12
+    val boardSize = 12
     val initTime = System.currentTimeMillis()
-    run8Queens(supply = 1, boardSize = b, iterations)
-    println(s"using rigid scheme, obtained $iterations solution(s) for 8-queens problem on $b*$b board in ${System.currentTimeMillis() - initTime} ms")
+    run8Queens(supply = 1, boardSize, iterations)
+    println(s"using rigid scheme, obtained $iterations solution(s) for 8-queens problem on $boardSize*$boardSize board in ${elapsed(initTime)} ms")
   }
+
 }
