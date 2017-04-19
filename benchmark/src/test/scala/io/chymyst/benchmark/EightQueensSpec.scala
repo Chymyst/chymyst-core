@@ -44,10 +44,12 @@ class EightQueensSpec extends FlatSpec with Matchers {
         )
         done(found)
         found.foreach(pos) // emit all molecules back
-    },
+    }
+    )
+    site(tp)(
       go { case done(s) + counter(c) =>
         if (c < 5) println(printPosition(boardSize, s))
-        if (c == iterations) all_done() else counter(c + 1)
+        if (c >= iterations) all_done() else counter(c + 1)
       },
       go { case all_done(_) + finished(_, r) => r() }
     )
@@ -93,11 +95,11 @@ class EightQueensSpec extends FlatSpec with Matchers {
         )
         done(found)
         found.foreach(pos) // emit all molecules back
+    })
+    site(tp)(go { case done(s) + counter(c) =>
+      if (c < 5) println(printPosition(boardSize, s))
+      if (c >= iterations) all_done() else counter(c + 1)
     },
-      go { case done(s) + counter(c) =>
-        if (c < 5) println(printPosition(boardSize, s))
-        if (c == iterations) all_done() else counter(c + 1)
-      },
       go { case all_done(_) + finished(_, r) => r() }
     )
     (1 to supply).foreach(_ =>
@@ -108,14 +110,14 @@ class EightQueensSpec extends FlatSpec with Matchers {
     tp.shutdownNow()
   }
 
-  def run8Queens(supply: Int, boardSize: Int, iterations: Int): Unit = {
-    val tp = new FixedPool(2)
+  def run8Queens(supply: Int, boardSize: Int): Seq[(Int, Int)] = {
+    val tp = new FixedPool(1)
+    val tp1 = new FixedPool(1)
+    val tp2 = new FixedPool(2)
     val pos = m[(Int, Int)]
     val done = m[Seq[(Int, Int)]]
-    val all_done = m[Unit]
-    val counter = m[Int]
-    val finished = b[Unit, Unit]
-    site(tp)(go {
+    val finished = b[Unit, Seq[(Int, Int)]]
+    site(tp, tp1)(go {
       case pos((x1, y1)) +
         pos((x2, y2)) +
         pos((x3, y3)) +
@@ -156,7 +158,7 @@ class EightQueensSpec extends FlatSpec with Matchers {
           safe(x6, y6, x8, y8) &&
           safe(x7, y7, x8, y8)
       =>
-        val found = Seq(
+        val result = Seq(
           (x1, y1),
           (x2, y2),
           (x3, y3),
@@ -166,21 +168,19 @@ class EightQueensSpec extends FlatSpec with Matchers {
           (x7, y7),
           (x8, y8)
         )
-        done(found)
-        found.foreach(pos) // emit all molecules back
-    },
-      go { case done(s) + counter(c) =>
-        if (c < 5) println(printPosition(boardSize, s))
-        if (c == iterations) all_done() else counter(c + 1)
-      },
-      go { case all_done(_) + finished(_, r) => r() }
+//        println(printPosition(boardSize, result))
+        done(result)
+    })
+
+    site(tp2)(
+      go { case done(s) + finished(_, r) => r(s) }
     )
     (1 to supply).foreach(_ =>
       (0 until boardSize).foreach(i => (0 until boardSize).foreach(j => pos((i, j))))
     )
-    counter(1)
-    finished()
-    tp.shutdownNow()
+    val found = finished()
+    Seq(tp, tp1, tp2).foreach(_.shutdownNow())
+    found
   }
 
   /** This algorithm does not perform backtracking and may stall if a configuration of queens is selected that
@@ -264,7 +264,8 @@ class EightQueensSpec extends FlatSpec with Matchers {
     val iterations = 1
     val boardSize = 12
     val initTime = System.currentTimeMillis()
-    run8Queens(supply = 1, boardSize, iterations)
+    val result = run8Queens(supply = 1, boardSize)
+    println(printPosition(boardSize, result))
     println(s"using rigid scheme, obtained $iterations solution(s) for 8-queens problem on $boardSize*$boardSize board in ${elapsed(initTime)} ms")
   }
 

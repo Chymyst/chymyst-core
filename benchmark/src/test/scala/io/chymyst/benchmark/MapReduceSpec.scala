@@ -265,6 +265,8 @@ class MapReduceSpec extends FlatSpec with Matchers {
     (if (failures > 0) s"Detected $failures failures out of $n tries" else "OK") shouldEqual "OK"
   }
 
+  behavior of "ordered map/reduce"
+
   /** A simple binary operation on integers that is associative but not commutative.
     * op(x,y) = x + y if x is even, and x - y if x is odd.
     * See: F. J. Budden. A Non-Commutative, Associative Operation on the Reals. The Mathematical Gazette, Vol. 54, No. 390 (Dec., 1970), pp. 368-372
@@ -278,7 +280,6 @@ class MapReduceSpec extends FlatSpec with Matchers {
     val s = 1 - math.abs(x % 2) * 2 // s = 1 if x is even, s = -1 if x is odd; math.abs is needed to fix the bug where (-1) % 2 == -1
     x + s * y
   }
-
 
   def orderedMapReduce(count: Int, nThreadsSite: Int): Unit = {
     // c((l, r, x)) represents the left-closed, right-open interval (l, r) over which we already performed the reduce operation, and the result value x.
@@ -359,5 +360,8 @@ class MapReduceSpec extends FlatSpec with Matchers {
     f() shouldEqual (1 to count).map(i => i * i).reduce(assocNonCommutOperation)
     println(s"associative but non-commutative reduceB() on $count numbers with ${emitters.size} unique molecules, ${reactions.size} unique reactions, and $nThreadsSite-thread site pool took ${elapsed(initTime)} ms")
   }
+
+  behavior of "hierarchical ordered map/reduce"
+
 
 }
