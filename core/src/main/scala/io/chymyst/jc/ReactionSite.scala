@@ -122,20 +122,24 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val foundReactionAndInputs: Option[(Reaction, InputMoleculeList)] = consumingReactions(mol.siteIndex)
       .filter(_.info.guardPresence.staticGuardHolds())
       .findAfterMap { thisReaction ⇒
-        moleculesPresent.synchronized {
-          val result = findInputMolecules(thisReaction, moleculesPresent)
-          // If we have found a reaction that can be run, we have acquired a lock; need to remove its input molecule values from their bags.
-          result.map { thisInputList ⇒
-            thisInputList.indices.foreach { i ⇒
-              val molValue = thisInputList(i)
-              val mol = thisReaction.info.inputs(i).molecule
-              // This error (molecule value was found for a reaction but is now not present) indicates a bug in this code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
-              if (!removeFromBag(mol, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $mol($molValue) from its bag; molecule index ${mol.siteIndex}, bag ${moleculesPresent(mol.siteIndex)}")
+        // Optimization: do not check reactions that do not have all required molecules.
+        if (thisReaction.inputMoleculesSet.exists(mol ⇒ moleculesPresent(mol.siteIndex).isEmpty))
+          None
+        else
+          moleculesPresent.synchronized {
+            val result = findInputMolecules(thisReaction, moleculesPresent)
+            // If we have found a reaction that can be run, we have acquired a lock; need to remove its input molecule values from their bags.
+            result.map { thisInputList ⇒
+              thisInputList.indices.foreach { i ⇒
+                val molValue = thisInputList(i)
+                val mol = thisReaction.info.inputs(i).molecule
+                // This error (molecule value was found for a reaction but is now not present) indicates a bug in this code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
+                if (!removeFromBag(mol, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $mol($molValue) from its bag; molecule index ${mol.siteIndex}, bag ${moleculesPresent(mol.siteIndex)}")
+              }
+              setNoNeedToSchedule(mol)
+              (thisReaction, thisInputList)
             }
-            setNoNeedToSchedule(mol)
-            (thisReaction, thisInputList)
           }
-        }
       }
     // End of synchronized block.
     // We already decided on starting a reaction, so we don't hold the `synchronized` lock on the molecule bag any more.
