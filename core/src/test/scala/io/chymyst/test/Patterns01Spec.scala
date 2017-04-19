@@ -228,8 +228,6 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     }.get
   }
 
-  // This test will fail and will need to be rewritten when automatic pipelining is implemented,
-  // because `manL`, `womanL`, and `beginDancing` will then be pipelined and consumed in strict order.
   it should "implement dance pairing without queue labels" in {
     val man = m[Unit]
     val manL = m[Int]
@@ -239,15 +237,15 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val queueWomen = m[Int]
     val beginDancing = b[Int, Unit]
 
-    val danceCounter = m[List[Int]]
-    val done = b[Unit, List[Int]]
+    val danceCounter = m[Vector[Int]]
+    val done = b[Unit, Vector[Int]]
 
-    val total = 5000
+    val total = 50000
 
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
       go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() },
-      go { case _ => danceCounter(Nil) }
+      go { case _ => danceCounter(Vector()) }
     )
 
     site(tp)(
@@ -267,7 +265,56 @@ class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
     val ordering = done()
     val outOfOrder = ordering.zip(ordering.drop(1)).filterNot { case (x, y) => x + 1 == y }.map(_._1)
     println(s"Dance pairing for $total pairs without queue labels took ${initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)} ms, yields ${outOfOrder.length} out-of-order instances")
-    outOfOrder should not equal List() // Dancing queue order cannot be observed.
+    outOfOrder should not equal Vector() // Dancing queue order cannot be observed.
+  }
+
+  it should "implement dance pairing without queue labels with 1-thread pipelining" in {
+    val man = m[Unit]
+    val manL = m[Int]
+    val queueMen = m[Int]
+    val woman = m[Unit]
+    val womanL = m[Int]
+    val queueWomen = m[Int]
+    val beginDancing = b[Int, Unit]
+
+    val danceCounter = m[Vector[Int]]
+    val done = b[Unit, Vector[Int]]
+
+    val total = 50000
+
+    val tp1a = new FixedPool(1)
+    val tp1b = new FixedPool(1)
+    val tp1c = new FixedPool(1)
+    val tp1d = new FixedPool(1)
+    val tp1e = new FixedPool(1)
+    val tp1f = new FixedPool(1)
+
+    site(tp, tp1e)(
+      go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
+      go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() } onThreads tp1d,
+      go { case _ => danceCounter(Vector()) }
+    )
+    site(tp, tp1f)(
+      go { case man(_) + queueMen(n) => queueMen(n + 1) + manL(n) } onThreads tp1a,
+      go { case woman(_) + queueWomen(n) => queueWomen(n + 1) + womanL(n) } onThreads tp1b,
+      go { case manL(xy) + womanL(xx) => beginDancing(Math.min(xx, xy)) } onThreads tp1c,
+      go { case _ => queueMen(0) + queueWomen(0) }
+    )
+    checkExpectedPipelined(Map(man -> true, woman -> true, queueMen -> true, queueWomen -> true, manL -> true, womanL -> true)) shouldEqual ""
+
+    (0 until total / 2).foreach(_ => man())
+    danceCounter.volatileValue shouldEqual Nil
+    (0 until total / 2).foreach(_ => man() + woman())
+    (0 until total / 2).foreach(_ => woman())
+
+    val initTime = System.currentTimeMillis()
+    val ordering = done()
+
+    Seq(tp1a, tp1b, tp1c, tp1d, tp1e, tp1f).foreach(_.shutdownNow())
+
+    val outOfOrder = ordering.zip(ordering.drop(1)).filterNot { case (x, y) => x + 1 == y }.map(_._1)
+    println(s"Dance pairing for $total pairs without queue labels with 1-thread pools took ${System.currentTimeMillis() - initTime} ms, yields ${outOfOrder.length} out-of-order instances")
+    outOfOrder shouldEqual Vector() // Dancing queue order is observed.
   }
 
   it should "implement dance pairing with queue labels" in {
