@@ -589,7 +589,7 @@ site(
 ```
 
 This will work correctly if we initially emit `interm((1, x))`, indicating that the value `x` is a result of a partial reduce of a single number.
-Here is the complete code:
+Here is the complete sample code:
 
 ```scala
 import io.chymyst.jc._
@@ -709,9 +709,184 @@ This optimization is completely mechanical: it consists of permuting the order o
 The chemical machine could perform this code transformation automatically for all such reactions.
 As of version 0.1.8, `Chymyst Core` does not implement this optimization.
 
+### Improving performance
+
+The solution we derived in the previous subsection uses a single reaction with repeated input molecules and guard conditions.
+It is these kinds of reactions that typically cause very slow performance of the chemical machine.
+Contention on the repeated input molecules will in effect reduce concurrency, while guard conditions will cause the chemical machine to enumerate many possible combinations of input molecules and to schedule reactions very slowly. 
+To improve the performance, we need to avoid such reactions.
+
+For simplicity, we will now focus only on the "reduce" part of "map/reduce".
+We will assume that the data consists of an array of initial values to which the `reduceB()` operation must be applied.
+The operation is assumed to be associative but non-commutative.
+
+Consider the order in which the `reduceB` operation is to be applied to the elements of the initial array. 
+In the previous solutions, we allowed _any_ two consecutive values to be reduced at any time.
+This required a complicated chemistry and, as a consequence, yielded slow performance.
+Let us instead restrict the set of possible `reduceB()` operations:
+We will only permit the merging of elements 0 with 1, then 2 with 3, and so on;
+then we will repeat the same merging procedure recursively, effectively building a binary tree of `reduceB` operations.
+
+To make this construction easier, let us begin with a hard-coded binary tree of reactions for the special case where we have exactly 8 intermediate results.
+All initial values need to be carried by molecules that we will denote by `a0()`, `a1()` and so on.
+At the first step, we would like to permit merging `a0` with `a1`, `a2` with `a3`, `a4` with `a5`, and `a6` with `a7` (but no other pairs).
+After this merging, we expect to obtain four intermediate results `a01`, `a23`, `a45`, and `a67`.
+
+This is represented by the following chemistry:
+
+```scala
+site(
+  go { case a0(x) + a1(y) => a01(reduceB(x,y)) }, 
+  go { case a2(x) + a3(y) => a23(reduceB(x,y)) }, 
+  go { case a4(x) + a5(y) => a45(reduceB(x,y)) }, 
+  go { case a6(x) + a7(y) => a67(reduceB(x,y)) } 
+)
+
+```
+
+We will now permit merging of `a01` with `a23` and `a45` with `a67` (but no other `reduceB` operations).
+That will yield the two intermediate results `a03` and `a47`:
+
+```scala
+site(
+  go { case a01(x) + a23(y) => a03(reduceB(x,y)) }, 
+  go { case a45(x) + a67(y) => a47(reduceB(x,y)) } 
+)
+
+```
+
+We then merge them and obtain the final result `a07`.
+
+```scala
+site(
+  go { case a03(x) + a67(y) => a07(reduceB(x,y)) } 
+)
+
+```
+
+Note that we could define all these reactions in separate reaction sites:
+there is no contention on the input molecules, and thus _all_ `reduceB()` reactions can run concurrently.
+The performance of this reaction structure will be much better than that of the reactions with repeated molecules and guard conditions. 
+
+What remains is for us to be able to define this kind of reaction structure dynamically, at run time.
+
+Note that all necessary reactions are almost identical and differ only in the molecules they consume and produce.
+We begin by defining an auxiliary function that creates one such reaction and new molecule emitters for it:
+
+```scala
+def reduceOne[B](res: M[B]): (M[B], M[B]) = {
+  val a0 = m[B]
+  val a1 = m[B]
+  site( go { case a0(x) + a1(x) => res(reduceB(x,y)) } )
+  (a0, a1)
+}
+
+```
+
+The argument of this function is the result molecule emitter `res` that needs to be defined in advance.
+
+We can now refactor our example 8-value chemistry by using this function.
+We have to start from the top result molecule `a07()` and descend towards the bottom:
+
+```scala
+val a07 = m[B]
+val (a03, a47) = reduceOne(a07)
+
+val (a01, a23) = reduceOne(a03)
+val (a45, a67) = reduceOne(a47)
+
+val (a0, a1) = reduceOne(a01)
+val (a2, a3) = reduceOne(a23)
+val (a4, a5) = reduceOne(a45)
+val (a6, a7) = reduceOne(a67)
+
+a0(...) + a1(...) + ... // emit all initial values on these molecules
+
+```
+
+Once we emit `a0()`, `a1()`, etc., the code will eventually emit `a07()` with the final result.
+
+```scala
+def reduceAll[B](arr: Array[B], res: M[B]) =
+  if (arr.length == 1) res(arr(0))
+  else  {
+    val (arr0, arr1) = arr.splitAt(arr.length / 2)
+    val (a0, a1) = reduceOne(res)
+    reduceAll(arr0, a0)
+    reduceAll(arr1, a1)
+ }
+
+```
+
+So far, this is entirely equivalent to hand-coded reactions for 8 initial values.
+It remains to transform the code to allow us to specify the number of initial values (8) to become a run-time parameter. 
+Recursion is the obvious solution here.
+Let us refactor the above code using an auxiliary recursive function that takes an array `arr` of initial values as argument.
+The auxiliary function will also inject the initial values once we reach the bottom level of the tree: 
+
+What we have done is a simple refactoring of code in terms of a recursive function.
+This refactoring would be the same in any programming language and is not specific to chemical machine programming.
+As the chemical machine is embedded in Scala,
+we are allowed to inline the call to `reduceOne()` and to rewrite the code like this:
+
+```
+def reduceAll[B](arr: Array[B], res: M[B]) =
+  if (arr.length == 1) res(arr(0))
+  else  {
+    val (arr0, arr1) = arr.splitAt(arr.length / 2)
+    val a0 = m[B]
+    val a1 = m[B]
+
+    site( go { case a0(x) + a1(x) => res(reduceB(x,y)) } )
+
+    reduceAll(arr0, a0)
+    reduceAll(arr1, a1)
+ }
+
+```
+
+This solution works but has a defect: the function `reduceAll()` is not tail-recursive.
+To remedy this, we can refactor the body of the function `reduceAll()` into a _reaction_.
+In other words, we declare `reduceAll` as a molecule emitter with type `(Array[B], M[B])` rather than a function.
+The result is a "recursive chemistry":
+
+```
+val reduceAll = m[(Array[B], M[B])]
+site(
+ go { case reduceAll(arr, res) =>
+  if (arr.length == 1) res(arr(0))
+  else  {
+    val (arr0, arr1) = arr.splitAt(arr.length / 2)
+    val a0 = m[B]
+    val a1 = m[B]
+    site( go { case a0(x) + a1(x) => res(reduceB(x,y)) } )
+    reduceAll(arr0, a0) + reduceAll(arr1, a1)
+  }
+ }
+)
+// start the computation:
+val res = m[B]
+val arr: Array[B] = ... // create the initial array
+reduceAll((arr, res))
+// res() will be emitted with the final result
+
+```
+
+What exactly happens when a new reaction is defined within the scope of an existing reaction?
+Each time the reaction is run, a _new_ pair of molecule emitters `a0` and `a1` is created.
+Calling the `site()` function with a reaction that consumes `a0` and `a1` will create a new reaction site
+and bind the new molecules `a0()` and `a1()` to that reaction site.
+In this way, the chemical machine works seamlessly with Scala's mechanism of local scopes. 
+
+Since the `reduceAll()` reaction emits its own input molecules until the array is fully split into individual elements,
+it will run many times to define the new reactions we previously denoted by `r01`, `r23`, `r45`, `r67`, `r03`, `r47`, and `r07`.
+Thus, emitting the initial molecule `reduceAll((arr, res))` will create a recursive structure of reactions at run time
+equivalent to what we previously hard-coded.
+
 ## Example: Concurrent merge-sort
 
-Chemical laws can be recursive: a molecule can start a reaction whose reaction body defines further reactions and emits the same molecule.
+As we have just seen in the previous section, chemical laws can be recursive:
+A molecule can start a reaction whose reaction body defines further reactions and emits the same molecule.
 Since each reaction body will have a fresh scope, new molecules and new reactions will be defined every time.
 This will create a recursive configuration of reactions, such as a linked list or a tree.
 
