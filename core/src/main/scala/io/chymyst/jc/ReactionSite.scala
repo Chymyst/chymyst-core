@@ -122,11 +122,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val foundReactionAndInputs: Option[(Reaction, InputMoleculeList)] = consumingReactions(mol.siteIndex)
       .filter(_.info.guardPresence.staticGuardHolds())
       .findAfterMap { thisReaction ⇒
-        // Optimization: do not check reactions that do not have all required molecules.
-        if (thisReaction.inputMoleculesSet.exists(mol ⇒ moleculesPresent(mol.siteIndex).isEmpty))
-          None
-        else
-          moleculesPresent.synchronized {
+        moleculesPresent.synchronized {
+          // Optimization: ignore reactions that do not have all the required molecules.
+          if (thisReaction.inputMoleculesSet.exists(mol ⇒ moleculesPresent(mol.siteIndex).isEmpty))
+            None
+          else {
             val result = findInputMolecules(thisReaction, moleculesPresent)
             // If we have found a reaction that can be run, we have acquired a lock; need to remove its input molecule values from their bags.
             result.map { thisInputList ⇒
@@ -140,6 +140,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
               (thisReaction, thisInputList)
             }
           }
+        }
       }
     // End of synchronized block.
     // We already decided on starting a reaction, so we don't hold the `synchronized` lock on the molecule bag any more.
@@ -455,7 +456,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * when static reactions are run (on the same thread as the `site()` call) in order to emit the initial static molecules.
     */
   private var nowEmittingStaticMols =
-    false
+  false
 
   /** This is computed only once, when the first molecule is emitted into this reaction site.
     * If, at that time, there are any molecules that are still unbound but used as output by this reaction site, we report an error.
@@ -464,7 +465,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * This `val` does not need to be recomputed because this error is permanent (would be a compile-time error in JoCaml).
     */
   private lazy val findUnboundOutputMolecules: Boolean =
-    unboundOutputMolecules(nonStaticReactions).nonEmpty
+  unboundOutputMolecules(nonStaticReactions).nonEmpty
 
   /** Emit a molecule with a value into the soup.
     *
@@ -534,12 +535,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @return For each molecule present in the soup, the map shows the number of copies present.
     */
   private def getMoleculeCountsAfterInitialStaticEmission: Map[Molecule, Int] =
-    moleculesPresent.indices
-      .flatMap(i => if (moleculesPresent(i).isEmpty)
-        None
-      else
-        Some((moleculeAtIndex(i), moleculesPresent(i).size))
-      )(breakOut)
+  moleculesPresent.indices
+    .flatMap(i => if (moleculesPresent(i).isEmpty)
+      None
+    else
+      Some((moleculeAtIndex(i), moleculesPresent(i).size))
+    )(breakOut)
 
   private def addToBag(mol: Molecule, molValue: AbsMolValue[_]): Unit =
     moleculesPresent(mol.siteIndex).add(molValue)
@@ -747,13 +748,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     */
   private val moleculeAtIndex: Map[Int, Molecule] =
-    knownMolecules.map { case (mol, (i, _)) ⇒ (i, mol) }(breakOut)
+  knownMolecules.map { case (mol, (i, _)) ⇒ (i, mol) }(breakOut)
 
   /** For each site-wide molecule index, this array holds the array of reactions consuming that molecule.
     *
     */
   private val consumingReactions: Array[Array[Reaction]] =
-    Array.tabulate(knownMolecules.size)(i ⇒ getConsumingReactions(moleculeAtIndex(i)))
+  Array.tabulate(knownMolecules.size)(i ⇒ getConsumingReactions(moleculeAtIndex(i)))
 
   // This must be lazy because it depends on site-wide molecule indices, which are known late.
   // The inner array contains site-wide indices for reaction input molecules; the outer array is also indexed by site-wide molecule indices.
@@ -763,9 +764,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * This is used to assign the pipelined status of a molecules and also to obtain the conditional for that molecule's value.
     */
   private val pipelinedMolecules: Map[Int, Set[InputMoleculeInfo]] =
-    moleculeAtIndex.flatMap { case (index, _) ⇒
-      infosIfPipelined(index).map(c ⇒ (index, c))
-    }
+  moleculeAtIndex.flatMap { case (index, _) ⇒
+    infosIfPipelined(index).map(c ⇒ (index, c))
+  }
 
   /** For each (site-wide) molecule index, the corresponding array element represents the container for
     * that molecule's present values.
@@ -774,7 +775,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * - will be chosen separately for each molecule when this array is initialized.
     */
   private val moleculesPresent: MoleculeBagArray =
-    new Array(knownMolecules.size)
+  new Array(knownMolecules.size)
 
   /** Print warning messages and throw exception if the initialization of this reaction site caused errors.
     *
@@ -784,7 +785,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   // This call should be done at the very end, after all other values are computed, because it depends on `pipelinedMolecules`, `consumingReactions`, `knownMolecules`, and other computed values.
   private val diagnostics: WarningsAndErrors =
-    initializeReactionSite()
+  initializeReactionSite()
 }
 
 final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], reactionSite: String) {
