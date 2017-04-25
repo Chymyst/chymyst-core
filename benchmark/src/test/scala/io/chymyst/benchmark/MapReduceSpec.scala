@@ -84,7 +84,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     val initTime = System.currentTimeMillis()
 
-    val arr = 1 to 10000
+    val arr = 1 to 30000
 
     // declare molecule types
     val carrier = m[Int]
@@ -93,10 +93,6 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     val tp = new FixedPool(8)
 
-    // declare the reaction for "map"
-    site(tp)(
-      go { case carrier(x) => val res = f(x); interm((1, res)) }
-    )
     // reactions for "reduce" must be together since they share "accum"
     site(tp)(
       go { case interm((n1, x1)) + interm((n2, x2)) ⇒
@@ -104,12 +100,17 @@ class MapReduceSpec extends FlatSpec with Matchers {
       },
       go { case interm((n, x)) + fetch(_, reply) if n == arr.size ⇒ reply(x) }
     )
+    // declare the reaction for "map"
+    site(tp)(
+      go { case carrier(x) => val res = f(x); interm((1, res)) }
+    )
     // emit molecules
     arr.foreach(i => carrier(i))
     val result = fetch()
     result shouldEqual arr.map(f).reduce(reduceB) // 338350
     println(s"map-reduce as in tutorial object C2 with arr.size=${arr.size}: took ${elapsed(initTime)} ms")
     tp.shutdownNow()
+    globalErrorLog.foreach(println)
   }
 
   it should "compute the sum of numbers on molecules using nonlinear input pattern" in {

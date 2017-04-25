@@ -116,13 +116,18 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   @tailrec
   private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
+
+    // timings
+    val decideInitTime = System.nanoTime()
+
     // TODO: optimize: precompute all related molecules in ReactionSite?
     setNeedToSchedule(mol)
     // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
     val foundReactionAndInputs: Option[(Reaction, InputMoleculeList)] = consumingReactions(mol.siteIndex)
       .filter(_.info.guardPresence.staticGuardHolds())
       .findAfterMap { thisReaction ⇒
-        moleculesPresent.synchronized {
+        val beginSyncTime = System.nanoTime()
+        val res = moleculesPresent.synchronized {
           // Optimization: ignore reactions that do not have all the required molecules.
           if (thisReaction.inputMoleculesSet.exists(mol ⇒ moleculesPresent(mol.siteIndex).isEmpty))
             None
@@ -141,8 +146,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             }
           }
         }
+        reportError(s"Finished sync block for molecule $mol, reaction $thisReaction, result found = $res, thread ${Thread.currentThread().getName}, in ${System.nanoTime() - beginSyncTime} ns")
+        res
       }
     // End of synchronized block.
+    val beginAfterSyncTime = System.nanoTime()
     // We already decided on starting a reaction, so we don't hold the `synchronized` lock on the molecule bag any more.
     foundReactionAndInputs match {
       case Some((thisReaction, usedInputs)) =>
@@ -166,11 +174,19 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           // Schedule the reaction now. Provide reaction info to the thread.
           scheduleReaction(thisReaction, usedInputs, poolForReaction)
           // The scheduler loops, trying to run another reaction with the same molecule, if possible. This is required for correct operation.
+
+            val t = System.nanoTime()
+            reportError(s"Finished deciding molecule $mol, found reaction $thisReaction, thread ${Thread.currentThread().getName}, time after sync ${t - beginAfterSyncTime} ns, total ${t - decideInitTime} ns")
+
           decideReactionsForNewMolecule(mol)
         }
       case None =>
         if (logLevel > 2)
           logMessage(noReactionsStartedMessage)
+
+          val t = System.nanoTime()
+          reportError(s"Finished deciding molecule $mol, no reaction found, thread ${Thread.currentThread().getName}, time after sync ${t - beginAfterSyncTime} ns, total ${t - decideInitTime} ns")
+
     }
   }
 
