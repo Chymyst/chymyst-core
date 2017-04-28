@@ -204,4 +204,23 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     result.toList shouldEqual expected.toList
   }
 
+  behavior of "reactionInfo"
+
+  it should "give no info when running outside reactions" in {
+    reactionInfo shouldEqual None
+  }
+
+  it should "give reaction info inside reaction" in {
+    withPool(new FixedPool(2)) { tp =>
+      val a = m[Int]
+      val f = b[Unit, String]
+      site(tp)(
+        go { case a(x) + a(y) + f(_, r) if x > 0 => val z = x + y; r(s"Reaction {${reactionInfo.get}} yields $z") }
+      )
+      a(1)
+      a(2)
+      f() shouldEqual "Reaction {a(x if ?) + a(y) + f/B(_) → } yields 3"
+    }.get
+
+  }
 }
