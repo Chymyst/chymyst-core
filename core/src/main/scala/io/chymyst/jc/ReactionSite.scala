@@ -146,7 +146,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             }
           }
         }
-        reportError(s"Finished sync block for molecule $mol, reaction $thisReaction, result found = $res, thread ${Thread.currentThread().getName}, in ${System.nanoTime() - beginSyncTime} ns")
+        reportError(s"Finished sync block for molecule $mol, reaction ${thisReaction.info}, result found = $res, thread ${Thread.currentThread().getName}, in ${System.nanoTime() - beginSyncTime} ns")
         res
       }
     // End of synchronized block.
@@ -176,7 +176,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           // The scheduler loops, trying to run another reaction with the same molecule, if possible. This is required for correct operation.
 
             val t = System.nanoTime()
-            reportError(s"Finished deciding molecule $mol, found reaction $thisReaction, thread ${Thread.currentThread().getName}, time after sync ${t - beginAfterSyncTime} ns, total ${t - decideInitTime} ns")
+            reportError(s"Finished deciding molecule $mol, found reaction ${thisReaction.info}, thread ${Thread.currentThread().getName}, time after sync ${t - beginAfterSyncTime} ns, total ${t - decideInitTime} ns")
 
           decideReactionsForNewMolecule(mol)
         }
