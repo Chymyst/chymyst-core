@@ -833,14 +833,6 @@ private[jc] final class ExceptionNoSitePool(message: String) extends ExceptionIn
 
 private[jc] final class ExceptionEmittingStaticMol(message: String) extends ExceptionInChymyst(message)
 
-private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInChymyst(message)
-
-private[jc] final class ExceptionNoWrapper(message: String) extends ExceptionInChymyst(message)
-
-private[jc] final class ExceptionWrongInputs(message: String) extends ExceptionInChymyst(message)
-
-private[jc] final class ExceptionNoStaticMol(message: String) extends ExceptionInChymyst(message)
-
 /** Molecules do not have direct access to the reaction site object.
   * Molecules will call only functions from this wrapper.
   * This is intended to make it impossible to access the reaction site object via reflection on private fields in the Molecule class.
