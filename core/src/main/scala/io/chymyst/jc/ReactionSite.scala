@@ -118,7 +118,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
 
     // timings
-    val decideInitTime = System.nanoTime()
+//    val decideInitTime = System.nanoTime()
 
     // TODO: optimize: precompute all related molecules in ReactionSite?
     setNeedToSchedule(mol)
@@ -126,8 +126,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val foundReactionAndInputs: Option[(Reaction, InputMoleculeList)] = consumingReactions(mol.siteIndex)
       .filter(_.info.guardPresence.staticGuardHolds())
       .findAfterMap { thisReaction ⇒
-        val beginSyncTime = System.nanoTime()
-        val res = moleculesPresent.synchronized {
+//        val beginSyncTime = System.nanoTime()
+        moleculesPresent.synchronized {
           // Optimization: ignore reactions that do not have all the required molecules.
           if (thisReaction.inputMoleculesSet.exists(mol ⇒ moleculesPresent(mol.siteIndex).isEmpty))
             None
@@ -146,11 +146,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             }
           }
         }
-        reportError(s"Finished sync block for molecule $mol, reaction ${thisReaction.info}, result found = $res, thread ${Thread.currentThread().getName}, in ${System.nanoTime() - beginSyncTime} ns")
-        res
+//        reportError(s"Finished sync block for molecule $mol, reaction ${thisReaction.info}, result found = $res, thread ${Thread.currentThread().getName}, in ${System.nanoTime() - beginSyncTime} ns")
+//        res
       }
     // End of synchronized block.
-    val beginAfterSyncTime = System.nanoTime()
+//    val beginAfterSyncTime = System.nanoTime()
     // We already decided on starting a reaction, so we don't hold the `synchronized` lock on the molecule bag any more.
     foundReactionAndInputs match {
       case Some((thisReaction, usedInputs)) =>
@@ -175,17 +175,17 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           scheduleReaction(thisReaction, usedInputs, poolForReaction)
           // The scheduler loops, trying to run another reaction with the same molecule, if possible. This is required for correct operation.
 
-            val t = System.nanoTime()
-            reportError(s"Finished deciding molecule $mol, found reaction ${thisReaction.info}, thread ${Thread.currentThread().getName}, time after sync ${t - beginAfterSyncTime} ns, total ${t - decideInitTime} ns")
-
+//            val t = System.nanoTime()
+//            reportError(s"Finished deciding molecule $mol, found reaction ${thisReaction.info}, thread ${Thread.currentThread().getName}, time after sync ${t - beginAfterSyncTime} ns, total ${t - decideInitTime} ns")
+//
           decideReactionsForNewMolecule(mol)
         }
       case None =>
         if (logLevel > 2)
           logMessage(noReactionsStartedMessage)
 
-          val t = System.nanoTime()
-          reportError(s"Finished deciding molecule $mol, no reaction found, thread ${Thread.currentThread().getName}, time after sync ${t - beginAfterSyncTime} ns, total ${t - decideInitTime} ns")
+//          val t = System.nanoTime()
+//          reportError(s"Finished deciding molecule $mol, no reaction found, thread ${Thread.currentThread().getName}, time after sync ${t - beginAfterSyncTime} ns, total ${t - decideInitTime} ns")
 
     }
   }
