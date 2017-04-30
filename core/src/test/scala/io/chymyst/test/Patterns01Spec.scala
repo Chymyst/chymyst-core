@@ -4,15 +4,15 @@ import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentLinkedQueue
 
-import Common._
 import io.chymyst.jc._
-import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import io.chymyst.test.Common._
+import org.scalatest.{BeforeAndAfterEach, Matchers}
 
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class Patterns01Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
+class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
 
   var tp: Pool = _
 

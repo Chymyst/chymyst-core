@@ -1,12 +1,12 @@
 package io.chymyst.benchmark
 
+import code.jiansen.scalajoin._
+import io.chymyst.test.LogSpec
+import org.scalatest.Matchers
 import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.time.{Millis, Span}
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.time.{Millis, Span} // Use precompiled classes from Jiansen's Join.scala, which are in that package.
 
-import code.jiansen.scalajoin._ // Use precompiled classes from Jiansen's Join.scala, which are in that package.
-
-class JiansenFairnessSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class JiansenFairnessSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(2000, Millis)
 
