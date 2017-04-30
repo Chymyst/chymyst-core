@@ -1,9 +1,9 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
-import org.scalatest.{FlatSpec, Matchers, BeforeAndAfterEach, Args, Status}
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
+import org.scalatest.{BeforeAndAfterEach, Matchers}
 
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
@@ -11,16 +11,7 @@ import scala.language.postfixOps
 /** More unit tests for blocking molecule functionality.
   *
   */
-class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
-
-  var testNumber = 0
-
-  override def runTest(testName: String, args: Args): Status = {
-    testNumber += 1
-    println(s"Starting blocking molecules test $testNumber: $testName")
-    super.runTest(testName, args)
-    //(1 to 100).map {i => println(s"Iteration $i"); super.runTest(testName, args)}.reduce{ (s1, s2) => if (s1.succeeds) s2 else s1 }
-  }
+class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
 
   var tp0: Pool = _
 
@@ -206,7 +197,8 @@ class BlockingMoleculesSpec extends FlatSpec with Matchers with TimeLimitedTests
     )
     g2() shouldEqual 1 // this should initially work
     d() // do not emit c(). Now the first reaction is blocked because second reaction cannot start.
-    g2.timeout()(300 millis) shouldEqual None // this should be blocked now
+    Thread.sleep(300)
+    g2.timeout()(500 millis) shouldEqual None // this should be blocked now
     tp.shutdownNow()
     tp1.shutdownNow()
   }

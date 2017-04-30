@@ -1,13 +1,13 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.Matchers
 
 /** This test will shutdown the default thread pools and check that no reactions can occur afterwards.
   *
   * This test suite is run last, after all other tests, and hopefully will be able to shutdown the test suites in CI.
   */
-class ShutdownSpec extends FlatSpec with Matchers {
+class ShutdownSpec extends LogSpec with Matchers {
 
   it should "fail to schedule reactions after shutdown of custom site pool" in {
 

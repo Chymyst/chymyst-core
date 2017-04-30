@@ -1,10 +1,11 @@
 package io.chymyst.jc
 
-import org.scalatest.{FlatSpec, Matchers}
+import io.chymyst.test.LogSpec
+import org.scalatest.Matchers
 
 // Note: Compilation of this test suite will generate warnings such as "crushing into 2-tuple". This is expected and cannot be avoided.
 
-class MacroErrorSpec extends FlatSpec with Matchers {
+class MacroErrorSpec extends LogSpec with Matchers {
 
   it should "support concise syntax for Unit-typed molecules" in {
     val a = new M[Unit]("a")

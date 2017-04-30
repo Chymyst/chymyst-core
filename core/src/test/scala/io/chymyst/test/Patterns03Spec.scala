@@ -4,12 +4,12 @@ import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import io.chymyst.jc._
-import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
+import org.scalatest.{BeforeAndAfterEach, Matchers}
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters.asScalaIteratorConverter
 
-class Patterns03Spec extends FlatSpec with Matchers with BeforeAndAfterEach {
+class Patterns03Spec extends LogSpec with Matchers with BeforeAndAfterEach {
 
   var tp: Pool = _
 

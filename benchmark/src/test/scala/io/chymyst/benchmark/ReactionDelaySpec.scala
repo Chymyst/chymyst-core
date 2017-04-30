@@ -4,12 +4,13 @@ import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
 import io.chymyst.jc._
-import org.scalatest.{FlatSpec, Matchers}
+import io.chymyst.test.LogSpec
+import org.scalatest.Matchers
 
 import scala.concurrent.duration._
 import scala.util.Random.nextInt
 
-class ReactionDelaySpec extends FlatSpec with Matchers {
+class ReactionDelaySpec extends LogSpec with Matchers {
 
   val safeSize: Int => Double = x => if (x==0) 1.0f else x.toDouble
 

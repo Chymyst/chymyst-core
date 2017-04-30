@@ -1,12 +1,12 @@
 package io.chymyst.jc
 
-import Core._
-
+import io.chymyst.jc.Core._
+import io.chymyst.test.LogSpec
+import org.scalatest.Matchers
 import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.time.{Millis, Span}
 
-class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class CoreSpec extends LogSpec with Matchers with TimeLimitedTests {
   private lazy val sha1Digest = getMessageDigest
 
   def getSha1Any(c: Any): String = getSha1(c.toString, sha1Digest)
@@ -204,4 +204,23 @@ class CoreSpec extends FlatSpec with Matchers with TimeLimitedTests {
     result.toList shouldEqual expected.toList
   }
 
+  behavior of "reactionInfo"
+
+  it should "give no info when running outside reactions" in {
+    reactionInfo shouldEqual None
+  }
+
+  it should "give reaction info inside reaction" in {
+    withPool(new FixedPool(2)) { tp =>
+      val a = m[Int]
+      val f = b[Unit, String]
+      site(tp)(
+        go { case a(x) + a(y) + f(_, r) if x > 0 => val z = x + y; r(s"Reaction {${reactionInfo.get}} yields $z") }
+      )
+      a(1)
+      a(2)
+      f() shouldEqual "Reaction {a(x if ?) + a(y) + f/B(_) → } yields 3"
+    }.get
+
+  }
 }

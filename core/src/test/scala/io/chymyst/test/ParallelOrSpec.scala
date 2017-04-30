@@ -1,13 +1,13 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.Matchers
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class ParallelOrSpec extends FlatSpec with Matchers {
+class ParallelOrSpec extends LogSpec with Matchers {
 
   behavior of "test"
 

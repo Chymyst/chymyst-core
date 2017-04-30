@@ -1,11 +1,11 @@
 package io.chymyst.benchmark
 
-import org.scalatest.{FlatSpec, Matchers}
-import MergeSort._
+import io.chymyst.benchmark.Common._
+import io.chymyst.benchmark.MergeSort._
+import io.chymyst.test.LogSpec
+import org.scalatest.Matchers
 
-import Common._
-
-class MergesortSpec extends FlatSpec with Matchers {
+class MergesortSpec extends LogSpec with Matchers {
 
   // auxiliary functions for merge-sort tests
 

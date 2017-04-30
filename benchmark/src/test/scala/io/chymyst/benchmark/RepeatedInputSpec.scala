@@ -1,11 +1,13 @@
 package io.chymyst.benchmark
 
 import io.chymyst.jc._
-import org.scalatest.{FlatSpec, Matchers}
 import io.chymyst.test.Common.{elapsedTimeMs, litmus}
+import io.chymyst.test.LogSpec
+import org.scalatest.Matchers
+
 import scala.util.Random.nextInt
 
-class RepeatedInputSpec extends FlatSpec with Matchers {
+class RepeatedInputSpec extends LogSpec with Matchers {
 
   behavior of "reactions with repeated input"
 

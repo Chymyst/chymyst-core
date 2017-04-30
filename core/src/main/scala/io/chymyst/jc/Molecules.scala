@@ -173,8 +173,10 @@ sealed trait Molecule extends PersistentHashCode {
 
   val isBlocking: Boolean = false
 
-  /** This is `lazy` because we will only know whether this molecule is static after this molecule is bound to a reaction site, at run time. */
-  lazy val isStatic: Boolean = false
+  /** This is a `def` because we will only know whether this molecule is static after this molecule is bound to a reaction site, at run time.
+    * This will be overridden by the [[M]] class (only non-blocking molecules can be static).
+    */
+  def isStatic: Boolean = false
 
   /** Prints a molecule's displayed name and a `/B` suffix for blocking molecules.
     *
@@ -220,7 +222,7 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
 
   private val volatileValueRef: AtomicReference[T] = new AtomicReference[T]()
 
-  override lazy val isStatic: Boolean = reactionSiteWrapper.isStatic()
+  override def isStatic: Boolean = reactionSiteWrapper.isStatic
 
   override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean) = {
     super.setReactionSiteInfo(rs, index, valType, pipelined)

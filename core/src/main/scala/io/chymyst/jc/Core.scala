@@ -364,4 +364,11 @@ object Core {
   private[jc] def logMessage(s: String): Unit = {
     println(s"${LocalDateTime.now}: $s")
   }
+
+  def reactionInfo: Option[String] = Thread.currentThread() match {
+    case t: ThreadWithInfo ⇒
+      t.chymystInfo.map(_.toString)
+    case _ ⇒
+      None
+  }
 }

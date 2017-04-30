@@ -134,8 +134,8 @@ Molecule emitters have the method `setLogLevel`, which is by default set to `-1`
 Nonnegative values will lead to more debugging output:
 
 - level 0 will print all internal error messages and exceptions occurring within reactions
-- level 1 will print messages about emitting molecules and removing blocking molecules after timeout
-- level 2 will print messages about scheduling and starting reactions 
+- level 1 will print messages about scheduling and starting reactions 
+- level 2 will print messages about emitting molecules and removing blocking molecules after timeout
 - level 3 will print messages about molecules remaining after starting a reaction, as well as messages about no reactions started 
 
 The log level will affect the entire reaction site to which the molecule is bound.
@@ -416,14 +416,14 @@ decr() + decr() + decr()
 /* This prints:
 Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(5), decr()
 Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules decr()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: starting reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(5)
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(5)
 Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules decr() * 2
 Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started on thread pool io.chymyst.jc.SitePool@36ce2e5d with thread id 547
 Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(4) on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(4), decr() * 2
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: starting reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(4)
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(4)
 Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started on thread pool io.chymyst.jc.SitePool@36ce2e5d with thread id 548
 Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(3) on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(3), decr()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: starting reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(3)
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(3)
 Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started on thread pool io.chymyst.jc.SitePool@36ce2e5d with thread id 549
 Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(2) on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(2)
 
@@ -436,12 +436,12 @@ println(counter.logSoup)
 decr() + decr() + decr()
 /* This prints:
 Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(2), decr()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: starting reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(2)
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(2)
 Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules decr()
 Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules decr() * 2
 Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started on thread pool io.chymyst.jc.SitePool@36ce2e5d with thread id 613
 Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(1) on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(1), decr() * 2
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: starting reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(1)
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(1)
 Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started on thread pool io.chymyst.jc.SitePool@36ce2e5d with thread id 548
 Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(0) on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(0), decr()
 */
@@ -454,7 +454,7 @@ println(counter.logSoup)
 val x = get()
 /* This results in setting x = 0 and also prints:
 Debug: Site{counter + decr → ...; counter + get/S → ...} emitting get/S() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(0), decr(), get/S()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: starting reaction {counter + get/S → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs counter(0), get/S()
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + get/S → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs counter(0), get/S()
 Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + get/S → ...} started on thread pool io.chymyst.jc.SitePool@36ce2e5d with thread id 549
 Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(0) on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(0), decr()
 */

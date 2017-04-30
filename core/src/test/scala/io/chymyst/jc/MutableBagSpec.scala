@@ -1,11 +1,12 @@
 package io.chymyst.jc
 
-import org.scalatest.{FlatSpec, Matchers}
+import io.chymyst.test.Common.elapsedTimeMs
+import io.chymyst.test.LogSpec
+import org.scalatest.Matchers
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
-import io.chymyst.test.Common.elapsedTimeMs
 
-class MutableBagSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class MutableBagSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(3000, Millis)
 

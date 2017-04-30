@@ -1,9 +1,11 @@
 package io.chymyst.jc
 
-import org.scalatest.{FlatSpec, Matchers}
+import io.chymyst.test.LogSpec
+import org.scalatest.Matchers
+
 import scala.concurrent.duration._
 
-class GuardsSpec extends FlatSpec with Matchers {
+class GuardsSpec extends LogSpec with Matchers {
 
   behavior of "miscellaneous"
 

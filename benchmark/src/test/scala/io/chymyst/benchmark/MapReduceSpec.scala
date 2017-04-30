@@ -1,10 +1,12 @@
 package io.chymyst.benchmark
 
 import io.chymyst.jc._
-import org.scalatest.{FlatSpec, Matchers}
+import io.chymyst.test.LogSpec
+import org.scalatest.Matchers
+
 import scala.concurrent.duration._
 
-class MapReduceSpec extends FlatSpec with Matchers {
+class MapReduceSpec extends LogSpec with Matchers {
 
   def elapsed(initTime: Long): Long = System.currentTimeMillis() - initTime
 
@@ -84,7 +86,7 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     val initTime = System.currentTimeMillis()
 
-    val arr = 1 to 10000
+    val arr = 1 to 30000
 
     // declare molecule types
     val carrier = m[Int]
@@ -93,10 +95,6 @@ class MapReduceSpec extends FlatSpec with Matchers {
 
     val tp = new FixedPool(8)
 
-    // declare the reaction for "map"
-    site(tp)(
-      go { case carrier(x) => val res = f(x); interm((1, res)) }
-    )
     // reactions for "reduce" must be together since they share "accum"
     site(tp)(
       go { case interm((n1, x1)) + interm((n2, x2)) ⇒
@@ -104,12 +102,17 @@ class MapReduceSpec extends FlatSpec with Matchers {
       },
       go { case interm((n, x)) + fetch(_, reply) if n == arr.size ⇒ reply(x) }
     )
+    // declare the reaction for "map"
+    site(tp)(
+      go { case carrier(x) => val res = f(x); interm((1, res)) }
+    )
     // emit molecules
     arr.foreach(i => carrier(i))
     val result = fetch()
     result shouldEqual arr.map(f).reduce(reduceB) // 338350
     println(s"map-reduce as in tutorial object C2 with arr.size=${arr.size}: took ${elapsed(initTime)} ms")
     tp.shutdownNow()
+    globalErrorLog.foreach(println)
   }
 
   it should "compute the sum of numbers on molecules using nonlinear input pattern" in {
@@ -265,6 +268,8 @@ class MapReduceSpec extends FlatSpec with Matchers {
     (if (failures > 0) s"Detected $failures failures out of $n tries" else "OK") shouldEqual "OK"
   }
 
+  behavior of "ordered map/reduce"
+
   /** A simple binary operation on integers that is associative but not commutative.
     * op(x,y) = x + y if x is even, and x - y if x is odd.
     * See: F. J. Budden. A Non-Commutative, Associative Operation on the Reals. The Mathematical Gazette, Vol. 54, No. 390 (Dec., 1970), pp. 368-372
@@ -278,7 +283,6 @@ class MapReduceSpec extends FlatSpec with Matchers {
     val s = 1 - math.abs(x % 2) * 2 // s = 1 if x is even, s = -1 if x is odd; math.abs is needed to fix the bug where (-1) % 2 == -1
     x + s * y
   }
-
 
   def orderedMapReduce(count: Int, nThreadsSite: Int): Unit = {
     // c((l, r, x)) represents the left-closed, right-open interval (l, r) over which we already performed the reduce operation, and the result value x.
@@ -359,5 +363,8 @@ class MapReduceSpec extends FlatSpec with Matchers {
     f() shouldEqual (1 to count).map(i => i * i).reduce(assocNonCommutOperation)
     println(s"associative but non-commutative reduceB() on $count numbers with ${emitters.size} unique molecules, ${reactions.size} unique reactions, and $nThreadsSite-thread site pool took ${elapsed(initTime)} ms")
   }
+
+  behavior of "hierarchical ordered map/reduce"
+
 
 }

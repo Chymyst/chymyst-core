@@ -1,12 +1,13 @@
 package io.chymyst.jc
 
+import io.chymyst.test.LogSpec
+import org.scalactic.source.Position
+import org.scalatest.Matchers
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{FlatSpec, Matchers}
-import org.scalactic.source.Position
 
-class PoolSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   val emptyReactionInfo = new ChymystThreadInfo()
 

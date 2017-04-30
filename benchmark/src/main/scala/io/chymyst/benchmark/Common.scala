@@ -8,6 +8,8 @@ object Common {
 
   def elapsed(initTime: LocalDateTime): Long = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
 
+  def elapsed(initTime: Long): Long = System.currentTimeMillis() - initTime
+
   def timeThis(task: => Unit): Long = {
     val initTime = LocalDateTime.now
     task

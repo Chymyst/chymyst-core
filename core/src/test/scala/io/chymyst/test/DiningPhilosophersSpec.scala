@@ -1,9 +1,9 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.Matchers
 
-class DiningPhilosophersSpec extends FlatSpec with Matchers {
+class DiningPhilosophersSpec extends LogSpec with Matchers {
 
   def randomWait(message: String): Unit = {
 //    println(message)

@@ -1,11 +1,11 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
+import org.scalatest.Matchers
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{FlatSpec, Matchers}
 
-class StaticAnalysisSpec extends FlatSpec with Matchers with TimeLimitedTests {
+class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   val timeLimit = Span(1000, Millis)
 

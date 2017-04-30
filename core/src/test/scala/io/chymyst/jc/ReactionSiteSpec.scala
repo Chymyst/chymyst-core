@@ -1,10 +1,12 @@
 package io.chymyst.jc
 
-import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers, Succeeded}
 import io.chymyst.test.Common._
+import io.chymyst.test.LogSpec
+import org.scalatest.{BeforeAndAfterEach, Matchers, Succeeded}
+
 import scala.concurrent.duration._
 
-class ReactionSiteSpec extends FlatSpec with Matchers with BeforeAndAfterEach {
+class ReactionSiteSpec extends LogSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "MolValue hash codes"
 

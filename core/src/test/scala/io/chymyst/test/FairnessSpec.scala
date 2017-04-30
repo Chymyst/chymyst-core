@@ -1,10 +1,10 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
-import Common._
-import org.scalatest.{FlatSpec, Matchers}
+import io.chymyst.test.Common._
+import org.scalatest.Matchers
 
-class FairnessSpec extends FlatSpec with Matchers {
+class FairnessSpec extends LogSpec with Matchers {
 
   behavior of "reaction site"
 
