@@ -435,7 +435,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   @tailrec
   private def molValuesForGuardRec(indices: Array[Int], foundValues: Array[AbsMolValue[_]], i: Int, acc: List[Any]): List[Any] = {
     val newAcc = foundValues(indices(i)).moleculeValue :: acc
-    if (i == 0) newAcc
+    if (i === 0) newAcc
     else molValuesForGuardRec(indices, foundValues, i - 1, newAcc)
   }
 
