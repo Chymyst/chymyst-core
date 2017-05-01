@@ -413,7 +413,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
               case ConstrainGuard(i) ⇒
                 val guard = info.crossGuards(i)
                 Some(repeatedMolValuesStream.filter { _ ⇒
-                  guard.cond.isDefinedAt(guard.indices.map(i ⇒ foundValues(i).moleculeValue).toList)
+                  guard.cond.isDefinedAt(molValuesForGuard(guard.indices, foundValues))
                 })
 
               case CloseGroup ⇒
@@ -431,6 +431,18 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     else
       None
   }
+
+  @tailrec
+  private def molValuesForGuardRec(indices: Array[Int], foundValues: Array[AbsMolValue[_]], i: Int, acc: List[Any]): List[Any] = {
+    val newAcc = foundValues(indices(i)).moleculeValue :: acc
+    if (i == 0) newAcc
+    else molValuesForGuardRec(indices, foundValues, i - 1, newAcc)
+  }
+
+  private def molValuesForGuard(indices: Array[Int], foundValues: Array[AbsMolValue[_]]): List[Any] = {
+    molValuesForGuardRec(indices, foundValues, indices.length - 1, Nil)
+  }
+
 
   /** Check if the current reaction is allowed to emit a static molecule.
     * If so, remove the emitter from the mutable set.
@@ -480,10 +492,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       val noReactionMessage = s"In $this: As $mol($molValue) is emitted, some reactions may emit molecules ($moleculesString) that are not bound to any reaction site"
       throw new ExceptionNoReactionSite(noReactionMessage)
     }
-        else if (reactionPool.isInactive) {
-          val noPoolMessage = s"In $this: Cannot emit molecule $mol($molValue) because reaction pool is not active"
-          throw new ExceptionNoReactionPool(noPoolMessage)
-        }
+    else if (reactionPool.isInactive) {
+      val noPoolMessage = s"In $this: Cannot emit molecule $mol($molValue) because reaction pool is not active"
+      throw new ExceptionNoReactionPool(noPoolMessage)
+    }
     else if (!Thread.currentThread().isInterrupted) {
       if (nowEmittingStaticMols) {
         // Emit them on the same thread, and do not start any reactions.
