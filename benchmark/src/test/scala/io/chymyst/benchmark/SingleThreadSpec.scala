@@ -57,7 +57,7 @@ class SingleThreadSpec extends LogSpec with Matchers {
     counter.get() shouldEqual 0
     (1 to n).foreach { _ => timer.schedule(incrementTask, 0) }
     val done = Promise[Unit]()
-    timer.schedule(doneTask(done), 0)
+    timer.schedule(doneTask(done), 10)
     Await.result(done.future, Duration.Inf)
     counter.get() shouldEqual n
   }
