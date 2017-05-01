@@ -22,23 +22,19 @@ package object jc {
     *
     * @param reactions    One or more reactions of type [[Reaction]]
     * @param reactionPool Thread pool for running new reactions.
-    * @param sitePool     Thread pool for use when making decisions to schedule reactions.
     * @return List of warning messages.
     */
-  def site(reactionPool: Pool, sitePool: Pool)(reactions: Reaction*): WarningsAndErrors = {
+  def site(reactionPool: Pool)(reactions: Reaction*): WarningsAndErrors = {
 
     // Create a reaction site object holding the given local chemistry.
     // The constructor of ReactionSite will perform static analysis of all given reactions.
-    val reactionSite = new ReactionSite(reactions, reactionPool, sitePool)
+    val reactionSite = new ReactionSite(reactions, reactionPool)
 
     reactionSite.checkWarningsAndErrors()
   }
 
-  /** `site()` call with a default reaction pool and site pool. */
-  def site(reactions: Reaction*): WarningsAndErrors = site(defaultReactionPool, defaultSitePool)(reactions: _*)
-
-  /** `site()` call with the specified pool serving as both the site pool and the reaction pool. */
-  def site(pool: Pool)(reactions: Reaction*): WarningsAndErrors = site(pool, pool)(reactions: _*)
+  /** `site()` call with a default reaction pool. */
+  def site(reactions: Reaction*): WarningsAndErrors = site(defaultReactionPool)(reactions: _*)
 
   /**
     * This is the main method for defining reactions.
@@ -83,7 +79,6 @@ package object jc {
     */
   def b[T, R]: B[T, R] = macro MoleculeMacros.bImpl[T, R]
 
-  val defaultSitePool = new FixedPool(2)
   val defaultReactionPool = new FixedPool(4)
 
   /** Access the global error log used by all reaction sites to report runtime errors.

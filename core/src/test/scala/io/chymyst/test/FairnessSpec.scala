@@ -29,9 +29,8 @@ class FairnessSpec extends LogSpec with Matchers {
       //n = 4
 
       val tp = new FixedPool(4)
-      val tp1 = new FixedPool(1)
 
-      site(tp, tp1)(
+      site(tp)(
         go { case getC(_, r) + done(arr) => r(arr) },
         go {
           case a0(_) + c((n, arr)) => if (n > 0) {
@@ -73,7 +72,6 @@ class FairnessSpec extends LogSpec with Matchers {
 
       val result = getC()
       tp.shutdownNow()
-      tp1.shutdownNow()
 
       val average = N / reactions
       val max_deviation = math.max(math.abs(result.min - average).toDouble, math.abs(result.max - average).toDouble) / average
@@ -101,7 +99,7 @@ class FairnessSpec extends LogSpec with Matchers {
 
     val tp = new FixedPool(8)
 
-    site(tp, tp)(
+    site(tp)(
       go { case done(arr) + getC(_, r) => r(arr) },
       go { case c(n) + a(i) if n > 0 => a(i + 1) + c(n - 1) },
       go { case c(0) + a(i) => a(i) + gather(List()) },
@@ -140,28 +138,36 @@ class FairnessSpec extends LogSpec with Matchers {
 
     val tp = new FixedPool(8)
 
-    site(tp, tp)(
-      go { case a(x) + bb(y) => d() },
-      go { case bb(x) + c(y) => e() },
+    site(tp)(
+      go { case a(x) + bb(y) if x == y => d() },
+      go { case bb(x) + c(y) if x == y => e() },
       go { case d(_) + f((x, y, t)) => f((x + 1, y, t - 1)) },
       go { case e(_) + f((x, y, t)) => f((x, y + 1, t - 1)) },
       go { case g(_, r) + f((x, y, 0)) => r((x, y)) }
     )
-    (1 to 20).map { i ⇒
-      val n = 500
+    val total = 200
+    val results = (1 to total).map { _ ⇒
+      val n = 50
 
       f((0, 0, n))
-
-      repeat(n) {
-        a() + bb() + c()
+      (1 to n).foreach { _ =>
+        if (scala.util.Random.nextInt(2) == 0)
+          a() + c() + bb()
+        else c() + a() + bb()
       }
 
       val (ab, bc) = g()
       ab + bc shouldEqual n
       val discrepancy = math.abs(ab - bc + 0.0) / n
-      println(s"Reaction a + bb occurred $ab times. Reaction bb + c occurred $bc times. Total $n. Discrepancy $discrepancy")
-      discrepancy
-    }.min should be < 0.3
+//      println(s"Reaction a + bb occurred $ab times. Reaction bb + c occurred $bc times. Discrepancy $discrepancy")
+      (ab.toDouble / n, discrepancy)
+    }
+    val averageAB = results.map(_._1).sum / total
+    val minDiscrepancy = results.map(_._2).min
+    println(s"Average occurrence of a + bb is $averageAB. Min. discrepancy = $minDiscrepancy")
+    averageAB should be > 0.3
+    averageAB should be < 0.7
+
     tp.shutdownNow()
   }
 
@@ -175,7 +181,7 @@ class FairnessSpec extends LogSpec with Matchers {
       val b = m[Unit]
       val c = m[Unit]
 
-      site(tp, tp)(
+      site(tp)(
         go { case a(_) + b(_) => d1() },
         go { case b(_) + c(_) => d2() }
       )
@@ -187,7 +193,7 @@ class FairnessSpec extends LogSpec with Matchers {
     val f = m[(Int, Int, Int)]
     val g = b[Unit, (Int, Int)]
 
-    site(tp, tp)(
+    site(tp)(
       go { case d(_) + f((x, y, t)) => f((x + 1, y, t - 1)) },
       go { case e(_) + f((x, y, t)) => f((x, y + 1, t - 1)) },
       go { case g(_, r) + f((x, y, 0)) => r((x, y)) }

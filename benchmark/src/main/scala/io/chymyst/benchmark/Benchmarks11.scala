@@ -8,7 +8,6 @@ object Benchmarks11 {
   val counterMultiplier = 5
 
   def benchmark11(count: Int, tp: Pool): Long = timeThis {
-    val tp1 = new FixedPool(5)
     (1 to counterMultiplier).foreach { _ ⇒
       val c = m[(Int, Int)]
       val done = m[Int]
@@ -16,7 +15,7 @@ object Benchmarks11 {
 
       val total = count
 
-      site(tp, tp1)(
+      site(tp)(
         go { case f(_, r) + done(x) => r(x) },
         go { case c((n, x)) + c((m, y)) if x <= y =>
           val p = n + m
@@ -31,7 +30,6 @@ object Benchmarks11 {
       (1 to total).foreach(i => c((1, i * i)))
       f()
     }
-    tp1.shutdownNow()
   }
 
   val mergeSortSize = 1000

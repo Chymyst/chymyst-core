@@ -23,8 +23,7 @@ class MultithreadSpec extends LogSpec with Matchers {
       val counter = m[Int]
       val allFinished = b[Unit, Unit]
       val tp = new FixedPool(threads)
-      val tp2 = new FixedPool(2)
-      site(tp,tp2)(
+      site(tp)(
         go { case work(_) => performWork(); finished() },
         go { case counter(n) + finished(_) => counter(n-1) },
         go { case allFinished(_, r) + counter(0) => r() }
@@ -34,7 +33,6 @@ class MultithreadSpec extends LogSpec with Matchers {
       counter(total)
       allFinished()
       tp.shutdownNow()
-      tp2.shutdownNow()
     }
 
     val result1 = timeWithPriming{runWork(1)}

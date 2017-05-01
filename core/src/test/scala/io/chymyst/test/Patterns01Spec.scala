@@ -286,15 +286,13 @@ class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
     val tp1b = new FixedPool(1)
     val tp1c = new FixedPool(1)
     val tp1d = new FixedPool(1)
-    val tp1e = new FixedPool(1)
-    val tp1f = new FixedPool(1)
 
-    site(tp, tp1e)(
+    site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
       go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() } onThreads tp1d,
       go { case _ => danceCounter(Vector()) }
     )
-    site(tp, tp1f)(
+    site(tp)(
       go { case man(_) + queueMen(n) => queueMen(n + 1) + manL(n) } onThreads tp1a,
       go { case woman(_) + queueWomen(n) => queueWomen(n + 1) + womanL(n) } onThreads tp1b,
       go { case manL(xy) + womanL(xx) => beginDancing(Math.min(xx, xy)) } onThreads tp1c,
@@ -310,7 +308,7 @@ class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
     val initTime = System.currentTimeMillis()
     val ordering = done()
 
-    Seq(tp1a, tp1b, tp1c, tp1d, tp1e, tp1f).foreach(_.shutdownNow())
+    Seq(tp1a, tp1b, tp1c, tp1d).foreach(_.shutdownNow())
 
     val outOfOrder = ordering.zip(ordering.drop(1)).filterNot { case (x, y) => x + 1 == y }.map(_._1)
     println(s"Dance pairing for $total pairs without queue labels with 1-thread pools took ${System.currentTimeMillis() - initTime} ms, yields ${outOfOrder.length} out-of-order instances")

@@ -129,6 +129,7 @@ class MoreBlockingSpec extends LogSpec with Matchers with TimeLimitedTests {
     a.setLogLevel(4)
     a.logSoup shouldEqual "Site{a + f/B → ...}\nNo molecules"
     f.timeout()(100 millis) shouldEqual None
+    Thread.sleep(300)
     // TODO: this test sometimes fails because f is not withdrawn and reacts with a(123) - even though logSoup prints "No molecules"!
     // there should be no a(0) now, because the reaction has not yet run ("f" timed out and was withdrawn, so no molecules)
     a.logSoup shouldEqual "Site{a + f/B → ...}\nNo molecules"

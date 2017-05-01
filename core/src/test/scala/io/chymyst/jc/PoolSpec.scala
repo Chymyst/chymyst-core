@@ -38,7 +38,7 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(2)
 
-    tp.runClosure({
+    tp.runReaction({
       waiter.dismiss()
 
       try {
@@ -59,7 +59,7 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(2)
 
-    tp.runClosure({
+    tp.runReaction({
       try {
         Thread.sleep(10000000)  // this should not time out
 

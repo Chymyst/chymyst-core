@@ -5,8 +5,6 @@ import io.chymyst.test.Common.{elapsedTimeMs, litmus}
 import io.chymyst.test.LogSpec
 import org.scalatest.Matchers
 
-import scala.util.Random.nextInt
-
 class RepeatedInputSpec extends LogSpec with Matchers {
 
   behavior of "reactions with repeated input"
@@ -152,6 +150,13 @@ class RepeatedInputSpec extends LogSpec with Matchers {
     val total = 5
     val repetitions = 10
 
+    // Use a simple deterministic generator so that timings are more consistent
+    var seed = 654321L
+    def getRandomNumber: Long = {
+      seed = (seed * 67867979L + 982451653L) % 472882049L
+      seed
+    }
+
     def getHash(xs: Seq[Long]): Long = {
       xs.fold(0L)(_ * k + _)
     }
@@ -170,7 +175,7 @@ class RepeatedInputSpec extends LogSpec with Matchers {
             go { case done(x) + done(y) => if (x + y < total) done(x + y) else all_done(true) }
           )
           (1 to total).foreach { i =>
-            val data = (1 to k).map(i => nextInt.toLong)
+            val data = (1 to k).map(i => getRandomNumber)
             val y = getHash(data)
             a(y)
             data.foreach(a)

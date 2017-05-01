@@ -189,8 +189,7 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
     val g = b[Unit, Int]
     val g2 = b[Unit, Int]
     val tp = new FixedPool(1)
-    val tp1 = new FixedPool(1)
-    site(tp, tp1)(
+    site(tp)(
       go { case d(_) => g() }, // this will be used to emit g() and block one thread
       go { case c(_) + g(_, r) => r(0) }, // this will not start because we have no c()
       go { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
@@ -200,7 +199,6 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
     Thread.sleep(300)
     g2.timeout()(500 millis) shouldEqual None // this should be blocked now
     tp.shutdownNow()
-    tp1.shutdownNow()
   }
 
   def makeBlockingCheck(sleeping: => Unit, tp1: Pool): (B[Unit, Unit], B[Unit, Int]) = {
@@ -211,7 +209,7 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
 
     site(tp0)(go { case c(_) + g(_, r) => r() }) // we will use this to monitor the d() reaction
 
-    site(tp1, tp0)(
+    site(tp1)(
       go { case d(_) => c(); sleeping; c() }, // this thread is blocked by sleeping
       go { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
     )
@@ -275,7 +273,7 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
     val g = b[Unit, Unit]
     val started = b[Unit, Unit]
 
-    site(tp1, tp0)(
+    site(tp1)(
       go { case g(_, r) => r() }, // and so this reaction will be blocked forever
       go { case c(_) => cStarted(); val res = f(); println(res) }, // this reaction is blocked forever because f() does not reply
       go { case cStarted(_) + started(_, r) => r(); val res = f2(); println(res) }, // this reaction is blocked forever because f2() does not reply

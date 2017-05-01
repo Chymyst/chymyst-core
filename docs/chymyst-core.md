@@ -414,18 +414,18 @@ counter.toString // returns the string "counter"
 
 decr() + decr() + decr()
 /* This prints:
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(5), decr()
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules decr()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(5)
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules decr() * 2
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started on thread pool io.chymyst.jc.SitePool@36ce2e5d with thread id 547
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(4) on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(4), decr() * 2
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(4)
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started on thread pool io.chymyst.jc.SitePool@36ce2e5d with thread id 548
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(3) on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(3), decr()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(3)
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started on thread pool io.chymyst.jc.SitePool@36ce2e5d with thread id 549
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(2) on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(2)
+Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr(), now have molecules counter(5), decr()
+Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr(), now have molecules decr()
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while with inputs decr(), counter(5)
+Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr(), now have molecules decr() * 2
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started with thread id 547
+Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(4), now have molecules counter(4), decr() * 2
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while with inputs decr(), counter(4)
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started with thread id 548
+Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(3), now have molecules counter(3), decr()
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while with inputs decr(), counter(3)
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started with thread id 549
+Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(2), now have molecules counter(2)
 
 */
 println(counter.logSoup)
@@ -435,15 +435,15 @@ println(counter.logSoup)
  */
 decr() + decr() + decr()
 /* This prints:
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(2), decr()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(2)
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules decr()
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules decr() * 2
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started on thread pool io.chymyst.jc.SitePool@36ce2e5d with thread id 613
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(1) on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(1), decr() * 2
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs decr(), counter(1)
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started on thread pool io.chymyst.jc.SitePool@36ce2e5d with thread id 548
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(0) on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(0), decr()
+Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr(), now have molecules counter(2), decr()
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while with inputs decr(), counter(2)
+Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr(), now have molecules decr()
+Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr(), now have molecules decr() * 2
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started with thread id 613
+Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(1), now have molecules counter(1), decr() * 2
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while with inputs decr(), counter(1)
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started with thread id 548
+Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(0), now have molecules counter(0), decr()
 */
 println(counter.logSoup)
 /* This prints:
@@ -453,10 +453,10 @@ println(counter.logSoup)
 
 val x = get()
 /* This results in setting x = 0 and also prints:
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting get/S() on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(0), decr(), get/S()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + get/S → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while on thread pool io.chymyst.jc.SitePool@36ce2e5d with inputs counter(0), get/S()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + get/S → ...} started on thread pool io.chymyst.jc.SitePool@36ce2e5d with thread id 549
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(0) on thread pool io.chymyst.jc.SitePool@36ce2e5d, now have molecules counter(0), decr()
+Debug: Site{counter + decr → ...; counter + get/S → ...} emitting get/S(), now have molecules counter(0), decr(), get/S()
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + get/S → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while with inputs counter(0), get/S()
+Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + get/S → ...} started with thread id 549
+Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(0), now have molecules counter(0), decr()
 */
 ```
 
@@ -478,14 +478,21 @@ In particular, all screen updates (as well as all user event callbacks) must be 
 
 To facilitate this control, `Chymyst Core` implements the thread pool feature.
 
-Each RS uses two thread pools: a thread pool for running reactions (`reactionPool`) and a thread pool for emitting molecules and deciding new reactions (`sitePool`).
+Each RS uses a special thread pool (the `reactionPool`).
+The reaction pool contains two sets of threads:
 
-By default, these two thread pools are statically allocated and shared by all RSs.
+1. A common thread executor for running reactions. This thread executor can have one or more threads.
+2. A single, dedicated scheduler thread for deciding new reactions (called the `schedulerExecutor` in the code).
 
-Users can create custom thread pools and specify, for any given RS,
+By default, the reaction sites use a statically allocated reaction pool that is shared by all RSs.
 
-- on which thread pool the decisions will run;
-- on which thread pool each reaction will run.
+Users can create custom reaction pools and specify, for any given RS, on which pool each reaction will run.
+
+The dedicated scheduler thread is part of a reaction pool, although it is separate and free of contention with reaction tasks.
+If two reaction sites share their reaction pool, they also share the scheduler thread.
+
+Also note that the total number of threads in the JVM is limited to about 2,000.
+Thus, creating many thousands of new reaction pools is impossible.
 
 ## Creating a custom thread pool
 
@@ -496,7 +503,7 @@ val tp = new SmartPool(8)
 
 ```
 
-This initializes a thread pool with 8 threads.
+This initializes a thread pool with 8 initial threads.
 
 As a convenience, the method `cpuCores` can be used to determine the number of available CPU cores.
 This value is used by `SmartPool`'s default constructor.
@@ -506,9 +513,57 @@ val tp1 = new SmartPool() // same as new SmartPool(cpuCores)
 
 ```
 
-## Specifying thread pools for reactions
+Another available reaction pool is `FixedPool`.
+This pool holds a fixed, never changing number of reaction threads (and a single, dedicated scheduler thread).
 
-## Specifying thread pools for decisions
+```scala
+val tp1 = new FixedPool(4) // 4 threads for reactions, one thread for scheduler
+
+```
+
+## Specifying thread pools for sites and reactions
+
+The `site()` call can take an additional argument that specifies a thread pool for all reactions at this RS.
+
+```scala
+val tp = new SmartPool(8)
+
+val a = m[Unit]
+val c = m[Unit]
+// etc.
+
+site(tp)(
+ go { case a(_) => ... },
+ go { case c(_) => ... },
+)
+
+```
+
+When it is desired that a particular reaction should be scheduled on a particular thread pool, the `onThreads()` method can be used.
+
+```scala
+val tp = new SmartPool(8)
+
+val tp2 = new SmartPool(2)
+
+val a = m[Unit]
+val c = m[Unit]
+// etc.
+
+site(tp)(
+ go { case a(_) => ... } onThreads tp2,
+ go { case c(_) => ... }, // this reaction will run on `tp`
+)
+
+// Wait until all done.
+tp.shutdownNow()
+tp2.shutdownNow()
+
+```
+
+By default, all sites will use the `defaultReactionPool`.
+
+If the reaction pool is specified for a particular RS, all reactions in that RS will use that thread pool, unless a reaction has its own `onTreads()` specification.
 
 ## Stopping a thread pool
 
@@ -521,7 +576,9 @@ val tp = new SmartPool(8)
 
 site(tp)(...)
 
-// Emit molecules and wait until all tasks are finished.
+// Emit molecules
+  ...
+// Now wait until all tasks are finished.
 
 tp.shutdownNow()
 
@@ -552,26 +609,24 @@ val a = m[Url]
 val b = m[Client]
 val c = m[Result] // whatever
 
-site(pool, defaultSitePool)(
-  go { case a(url) + b(client) =>
+site(pool)(
+  go { case a(url) + b(client) ⇒
       val result = BlockingIdle { client.callSyncHttpApi(url) }
       c(result)
     }
 )
 ```
 
-Another case when `BlockingIdle` might be useful is when a reaction contains a complicated condition that will block the RS decision thread.
-In that case, `BlockingIdle` should be used, together with a `SmartPool` for join decisions.
- 
-Example:
+The reaction scheduler (i.e. the code that decides which reaction will start next) is running on a single dedicated thread (the `schedulerExecutor`).
+User programs should avoid defining reactions with complicated conditions that could block the RS scheduler.
+For example, code like this should be avoided:
 
 ```scala
-val pool = new SmartPool(2)
-
 ... // define molecule emitters
 
-site(defaultReactionPool, pool)(
-  go { case a(url) + b(client) if BlockingIdle { client.callSyncHttpApi(url).isSuccessful } => ...}
+site()(
+// Guard condition executes a blocking HTTP call. Not recommended!
+  go { case a(url) + b(client) if client.callSyncHttpApi(url).isSuccessful ⇒ ...}
 )
 
 ```

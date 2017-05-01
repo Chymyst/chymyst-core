@@ -12,19 +12,27 @@ class FixedPool(threads: Int) extends PoolExecutor(threads, { t =>
 })
 
 /** A pool of execution threads, or another way of running tasks (could use actors or whatever else).
-  * Tasks submitted for execution can have an optional name (useful for debugging).
+  * Tasks submitted for execution can have Chymyst-specific info (useful for debugging) when scheduled using `runReaction`.
   * The pool can be shut down, in which case all further tasks will be refused.
   */
 trait Pool extends AutoCloseable {
   def shutdownNow(): Unit
 
-  def runClosure(closure: => Unit, info: ChymystThreadInfo): Unit
-
-  def runRunnable(runnable: Runnable): Unit
+  /** Run a reaction closure on the thread pool.
+    * The reaction closure will be created by [[ReactionSite.buildReactionClosure]].
+    *
+    * @param closure A reaction closure to run.
+    * @param info    The reaction info for debugging and run-time sanity checking purposes.
+    */
+  def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit
 
   def isInactive: Boolean
 
   override def close(): Unit = shutdownNow()
+
+  private val schedulerExecutor: ThreadPoolExecutor = Core.newSingleThreadedExecutor
+
+  def runScheduler(runnable: Runnable): Unit = schedulerExecutor.execute(runnable)
 }
 
 /** Basic implementation of a thread pool.
@@ -50,10 +58,8 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => (ExecutorSe
     }
   }.start()
 
-  def runClosure(closure: => Unit, info: ChymystThreadInfo): Unit =
+  def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit =
     execService.execute(new RunnableWithInfo(closure, info))
 
   override def isInactive: Boolean = execService.isShutdown || execService.isTerminated
-
-  override def runRunnable(runnable: Runnable): Unit = execService.execute(runnable)
 }

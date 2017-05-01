@@ -86,7 +86,7 @@ class MapReduceSpec extends LogSpec with Matchers {
 
     val initTime = System.currentTimeMillis()
 
-    val arr = 1 to 30000
+    val arr = 1 to 3000
 
     // declare molecule types
     val carrier = m[Int]
@@ -94,8 +94,9 @@ class MapReduceSpec extends LogSpec with Matchers {
     val fetch = b[Unit, Int]
 
     val tp = new FixedPool(8)
+    val tp2 = new FixedPool(1)
 
-    // reactions for "reduce" must be together since they share "accum"
+    // reactions for "reduce" must be together since they share "interm"
     site(tp)(
       go { case interm((n1, x1)) + interm((n2, x2)) ⇒
         interm((n1 + n2, reduceB(x1, x2)))
@@ -103,7 +104,7 @@ class MapReduceSpec extends LogSpec with Matchers {
       go { case interm((n, x)) + fetch(_, reply) if n == arr.size ⇒ reply(x) }
     )
     // declare the reaction for "map"
-    site(tp)(
+    site(tp2)(
       go { case carrier(x) => val res = f(x); interm((1, res)) }
     )
     // emit molecules
@@ -112,7 +113,49 @@ class MapReduceSpec extends LogSpec with Matchers {
     result shouldEqual arr.map(f).reduce(reduceB) // 338350
     println(s"map-reduce as in tutorial object C2 with arr.size=${arr.size}: took ${elapsed(initTime)} ms")
     tp.shutdownNow()
-    globalErrorLog.foreach(println)
+    tp2.shutdownNow()
+  }
+
+  it should "perform map-reduce as in object C2 but without reaction guard" in {
+    // declare the "map" and the "reduce" functions
+    def f(x: Int): Int = x * x
+
+    def reduceB(acc: Int, x: Int): Int = acc + x
+
+    val initTime = System.currentTimeMillis()
+
+    val arr = 1 to 30000
+
+    // declare molecule types
+    val carrier = m[Int]
+    val interm = m[(Int, Int)]
+    val fetch = b[Unit, Int]
+    val done = m[Int]
+
+    val tp = new FixedPool(8)
+    val tp2 = new FixedPool(1)
+
+    // reactions for "reduce" must be together since they share "interm"
+    site(tp)(
+      go { case interm((n1, x1)) + interm((n2, x2)) ⇒
+        val n = n1 + n2
+        val x = reduceB(x1, x2)
+        if (n == arr.size) done(x)
+        else interm((n, x))
+      }
+    )
+    // declare the reaction for "map"
+    site(tp2)(
+      go { case done(x) + fetch(_, reply) ⇒ reply(x) },
+      go { case carrier(x) => val res = f(x); interm((1, res)) }
+    )
+    // emit molecules
+    arr.foreach(i => carrier(i))
+    val result = fetch()
+    result shouldEqual arr.map(f).reduce(reduceB) // 338350
+    println(s"map-reduce as in tutorial object C2 but without guard, with arr.size=${arr.size}: took ${elapsed(initTime)} ms")
+    tp.shutdownNow()
+    tp2.shutdownNow()
   }
 
   it should "compute the sum of numbers on molecules using nonlinear input pattern" in {
@@ -123,10 +166,9 @@ class MapReduceSpec extends LogSpec with Matchers {
     val count = 10000
 
     val tp = new FixedPool(cpuCores + 1)
-    val tp1 = new FixedPool(1)
     val initTime = System.currentTimeMillis()
 
-    site(tp, tp1)(
+    site(tp)(
       go { case f(_, r) + done(x) => r(x) },
       go { case c((n, x)) + c((m, y)) =>
         val p = n + m
@@ -142,8 +184,7 @@ class MapReduceSpec extends LogSpec with Matchers {
     f() shouldEqual (1 to count).map(i => i * i).sum
 
     tp.shutdownNow()
-    tp1.shutdownNow()
-    println(s"sum of $count numbers with nonlinear input patterns and 1-thread site pool took ${elapsed(initTime)} ms")
+    println(s"sum of $count numbers with nonlinear input patterns took ${elapsed(initTime)} ms")
   }
 
   it should "compute the sum of numbers on molecules using nonlinear input pattern and cross-molecule conditionals" in {
@@ -154,10 +195,10 @@ class MapReduceSpec extends LogSpec with Matchers {
     val count = 10000
 
     val tp = new FixedPool(cpuCores + 1)
-    val tp1 = new FixedPool(1)
+    val tp2 = new FixedPool(1)
     val initTime = System.currentTimeMillis()
 
-    site(tp, tp1)(
+    site(tp)(
       go { case f(_, r) + done(x) => r(x) },
       go { case c((n, x)) + c((m, y)) if x <= y =>
         val p = n + m
@@ -173,8 +214,8 @@ class MapReduceSpec extends LogSpec with Matchers {
     f() shouldEqual (1 to count).map(i => i * i).sum
 
     tp.shutdownNow()
-    tp1.shutdownNow()
-    println(s"sum of $count numbers with nonlinear input patterns and cross-molecule conditionals and 1-thread site pool took ${elapsed(initTime)} ms")
+    tp2.shutdownNow()
+    println(s"sum of $count numbers with nonlinear input patterns and cross-molecule conditionals took ${elapsed(initTime)} ms")
   }
 
   it should "compute the sum of numbers on molecules using nonlinear input pattern and branching emitters" in {
@@ -186,20 +227,15 @@ class MapReduceSpec extends LogSpec with Matchers {
     val count = 100000
 
     val tp = new FixedPool(cpuCores + 1)
-    val tp1 = new FixedPool(1)
+    val tp2 = new FixedPool(1)
+    val tp3 = new FixedPool(1)
     val initTime = System.currentTimeMillis()
 
-    site(tp, tp1)(
-      go {
-        case a(x) if x <= count ⇒
-          c((1, x * x))
-          // When these IF conditions are restored, performance improves slightly.
-          //          if (x * 2 <= count)
-          a(x * 2)
-          //          if (x * 2 + 1 <= count)
-          a(x * 2 + 1)
-      },
-      go { case f(_, r) + done(x) => r(x) },
+    site(tp2)(
+      go { case f(_, r) + done(x) => r(x) }
+    )
+
+    site(tp3)(
       go { case c((n, x)) + c((m, y)) =>
         val p = n + m
         val z = x + y
@@ -210,21 +246,32 @@ class MapReduceSpec extends LogSpec with Matchers {
       }
     )
 
+    site(tp)(
+      go {
+        case a(x) if x <= count ⇒
+          c((1, x * x))
+          // When these IF conditions are restored, performance improves slightly.
+          //          if (x * 2 <= count)
+          a(x * 2)
+          //          if (x * 2 + 1 <= count)
+          a(x * 2 + 1)
+      }
+    )
+
     a(1)
     f() shouldEqual (1 to count).map(i => i * i).sum
 
-    tp.shutdownNow()
-    tp1.shutdownNow()
-    println(s"sum of $count numbers with nonlinear input patterns, branching emitters, and 1-thread site pool took ${elapsed(initTime)} ms")
+    Seq(tp, tp2, tp3).foreach(_.shutdownNow())
+    println(s"sum of $count numbers with nonlinear input patterns, branching emitters, took ${elapsed(initTime)} ms")
   }
 
   it should "correctly process concurrent counters" in {
     // Same logic as Benchmark 1 but designed to catch race conditions more quickly.
-    def make_counter_1(done: M[Unit], counters: Int, init: Int, reactionPool: Pool, sitePool: Pool): B[Unit, Unit] = {
+    def make_counter_1(done: M[Unit], counters: Int, init: Int, reactionPool: Pool): B[Unit, Unit] = {
       val c = m[Int]
       val d = b[Unit, Unit]
 
-      site(reactionPool, sitePool)(
+      site(reactionPool)(
         go { case c(0) ⇒ done() },
         go { case c(x) + d(_, r) if x > 0 ⇒ c(x - 1); r() }
       )
@@ -240,8 +287,7 @@ class MapReduceSpec extends LogSpec with Matchers {
     val count = 2
 
     (1 to n).foreach { _ ⇒
-      val tp = new FixedPool(8)
-      val tp1 = new FixedPool(1)
+      val tp = new FixedPool(numberOfCounters)
 
       val done = m[Unit]
       val all_done = m[Int]
@@ -253,14 +299,13 @@ class MapReduceSpec extends LogSpec with Matchers {
       )
       val initialTime = System.currentTimeMillis()
       all_done(numberOfCounters)
-      val d = make_counter_1(done, numberOfCounters, count, tp, tp1)
+      val d = make_counter_1(done, numberOfCounters, count, tp)
       // emit a blocking molecule `d` many times
       (1 to (count * numberOfCounters)).foreach(_ ⇒ d())
       val result = f.timeout(initialTime)(1.second)
       if (result.isEmpty) {
         failures += 1
       }
-      tp1.shutdownNow()
       tp.shutdownNow()
     }
     println(s"concurrent counters correctness check: $numberOfCounters counters, count = $count, $n numbers, took ${elapsed(initTime)} ms")
@@ -284,21 +329,21 @@ class MapReduceSpec extends LogSpec with Matchers {
     x + s * y
   }
 
-  def orderedMapReduce(count: Int, nThreadsSite: Int): Unit = {
+  def orderedMapReduce(count: Int): Unit = {
     // c((l, r, x)) represents the left-closed, right-open interval (l, r) over which we already performed the reduce operation, and the result value x.
     val c = m[(Int, Int, Int)]
     val done = m[Int]
     val f = b[Unit, Int]
 
     val tp = new FixedPool(cpuCores)
-    val tp1 = new FixedPool(nThreadsSite)
+    val tp2 = new FixedPool(1)
     val initTime = System.currentTimeMillis()
 
-    site(tp, tp1)(
+    site(tp2)(
       go { case f(_, r) + done(x) => r(x) }
     )
 
-    site(tp, tp1)(
+    site(tp)(
       go { case c((l1, r1, x)) + c((l2, r2, y)) if r2 == l1 || l2 == r1 =>
         val l3 = math.min(l1, l2)
         val r3 = math.max(r1, r2)
@@ -312,37 +357,32 @@ class MapReduceSpec extends LogSpec with Matchers {
 
     (1 to count).foreach(i => c((i, i + 1, i * i)))
     f() shouldEqual (1 to count).map(i => i * i).reduce(assocNonCommutOperation)
-    println(s"associative but non-commutative reduceB() on $count numbers with nonlinear input patterns and $nThreadsSite-thread site pool took ${elapsed(initTime)} ms")
-
-  }
-
-  it should "perform ordered map-reduce using conditional reactions with 2-thread site pool" in {
-    orderedMapReduce(count = 50000, nThreadsSite = 2)
+    println(s"associative but non-commutative reduceB() on $count numbers with nonlinear input patterns took ${elapsed(initTime)} ms")
+    tp.shutdownNow()
+    tp2.shutdownNow()
   }
 
   it should "perform ordered map-reduce using conditional reactions" in {
-    orderedMapReduce(count = 50000, nThreadsSite = 1)
+    orderedMapReduce(count = 50000)
   }
 
-  it should "perform ordered map-reduce using unique reactions (very slow)" in {
+  it should "perform ordered map-reduce using unique reactions (very slow due to thousands of RSs defined)" in {
     // c((l, r, x)) represents the left-closed, right-open interval (l, r) over which we already performed the reduce operation, and the result value x.
     val done = m[Int]
     val f = b[Unit, Int]
 
     val count = 30
-    val nThreadsSite = 1
 
     val tp = new FixedPool(cpuCores)
-    val tp1 = new FixedPool(nThreadsSite)
     val initTime = System.currentTimeMillis()
 
-    site(tp, tp1)(
+    site(tp)(
       go { case f(_, r) + done(x) => r(x) }
     )
 
     // Define all molecule emitters as a 2-indexed map
     val emitters: Map[(Int, Int), M[Int]] =
-      (0 until count).flatMap(i ⇒ (i + 1 to count).map(j ⇒ (i, j) → new M[Int](s"c[$i,$j]")))(scala.collection.breakOut)
+    (0 until count).flatMap(i ⇒ (i + 1 to count).map(j ⇒ (i, j) → new M[Int](s"c[$i,$j]")))(scala.collection.breakOut)
 
     val lastMol = emitters((0, count))
 
@@ -355,13 +395,13 @@ class MapReduceSpec extends LogSpec with Matchers {
 
     println(s"created emitters and reactions: at ${elapsed(initTime)} ms")
 
-    site(tp, tp1)(reactions: _*)
+    site(tp)(reactions: _*)
 
     println(s"defined reactions: at ${elapsed(initTime)} ms")
 
     (1 to count).foreach(i ⇒ emitters((i - 1, i))(i * i))
     f() shouldEqual (1 to count).map(i => i * i).reduce(assocNonCommutOperation)
-    println(s"associative but non-commutative reduceB() on $count numbers with ${emitters.size} unique molecules, ${reactions.size} unique reactions, and $nThreadsSite-thread site pool took ${elapsed(initTime)} ms")
+    println(s"associative but non-commutative reduceB() on $count numbers with ${emitters.size} unique molecules, ${reactions.size} unique reactions took ${elapsed(initTime)} ms")
   }
 
   behavior of "hierarchical ordered map/reduce"

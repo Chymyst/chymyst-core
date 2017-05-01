@@ -70,10 +70,8 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
     }
   }.start()
 
-  override def runClosure(closure: => Unit, info: ChymystThreadInfo): Unit =
+  override def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit =
     executor.execute(new RunnableWithInfo(closure, info))
-
-  override def runRunnable(runnable: Runnable): Unit = executor.execute(runnable)
 
   override def isInactive: Boolean = executor.isShutdown || executor.isTerminated
 }

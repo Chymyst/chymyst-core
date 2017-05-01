@@ -437,6 +437,8 @@ behavior of "reaction sha1"
     waitSome()
     a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a/P(Some(1))"
     f.timeout()(2.second) shouldEqual None
+    waitSome() // Removal of blocking molecule upon timeout is now asynchronous.
+    waitSome()
     a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a/P(Some(1))"
   }
 
@@ -453,6 +455,8 @@ behavior of "reaction sha1"
     waitSome()
     a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a(Some(10))"
     f.timeout(0)(2.second) shouldEqual None
+    waitSome()
+    waitSome()
     a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a(Some(10))"
   }
 
