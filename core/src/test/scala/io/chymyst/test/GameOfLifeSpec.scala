@@ -40,11 +40,20 @@ class GameOfLifeSpec extends LogSpec with Matchers {
 
     val tp = new FixedPool(4)
 
+    val tp2 = new FixedPool(2)
+
     // Toroidal board of size m * n
-    val boardSize = BoardSize(2, 2)
+    val boardSize = BoardSize(5, 5)
     val emptyBoard: Array[Array[Int]] = Array.fill(boardSize.y)(Array.fill(boardSize.x)(0))
 
-    val maxTimeStep = 1
+    val maxTimeStep = 39 // the initial configuration has period 20
+
+    site(tp2)(
+      // These reactions are needed to fetch the state of the board at the final time.
+      go { case fc((x, y, state)) + f((count, board)) => board(y)(x) = state; f((count - 1, board)) },
+      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case _ => f((boardSize.x * boardSize.y, emptyBoard)) }
+    )
 
     site(tp)(
       // One reaction with one molecule `c` implements the entire Game of Life computation.
@@ -65,17 +74,13 @@ class GameOfLifeSpec extends LogSpec with Matchers {
         val newState = getNewState(state0, state1, state2, state3, state4, state5, state6, state7, state8)
         (-1 to 1).foreach(i => (-1 to 1).foreach(j => c(Cell((x0 + i + boardSize.x) % boardSize.x, (y0 + j + boardSize.y) % boardSize.y, t0 + 1, newState, (i, j)))))
         if (t0 + 1 == maxTimeStep) fc((x0, y0, newState))
-      },
-      // These reactions are needed to fetch the state of the board at the final time.
-      go { case fc((x, y, state)) + f((count, board)) => board(y)(x) = state; f((count - 1, board)) },
-      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
-      go { case _ => f((boardSize.x * boardSize.y, emptyBoard)) }
+      }
     )
 
     val initBoard = Array(
-      Array(1, 1, 1, 1, 1),
-      Array(0, 0, 0, 0, 0),
-      Array(0, 0, 0, 0, 0),
+      Array(1, 0, 1, 0, 0),
+      Array(1, 1, 0, 0, 0),
+      Array(0, 1, 0, 0, 0),
       Array(0, 0, 0, 0, 0),
       Array(0, 0, 0, 0, 0)
     )
@@ -95,8 +100,15 @@ class GameOfLifeSpec extends LogSpec with Matchers {
     val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
     println(s"Test (1 reaction, 1 molecule) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     println("|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|")
-    finalBoard shouldEqual Array(Array(1, 1), Array(0, 0))
+    finalBoard shouldEqual Array(
+      Array(1, 0, 0, 0, 0),
+      Array(1, 1, 1, 0, 0),
+      Array(0, 0, 0, 0, 0),
+      Array(0, 0, 0, 0, 0),
+      Array(0, 1, 0, 0, 0)
+    )
     tp.shutdownNow()
+    tp2.shutdownNow()
   }
 
   // Test 2: an improvement on test 1 but still slow
@@ -123,12 +135,20 @@ class GameOfLifeSpec extends LogSpec with Matchers {
     val g = b[Unit, Array[Array[Int]]]
 
     val tp = new FixedPool(16)
+    val tp2 = new FixedPool(2)
 
     // Toroidal board of size m * n
-    val boardSize = BoardSize(2, 2)
+    val boardSize = BoardSize(5, 5)
     val emptyBoard: Array[Array[Int]] = Array.fill(boardSize.y)(Array.fill(boardSize.x)(0))
 
-    val maxTimeStep = 1
+    val maxTimeStep = 39
+
+    site(tp2)(
+      // These reactions are needed to fetch the state of the board at the final time.
+      go { case fc((x, y, state)) + f((count, board)) => board(y)(x) = state; f((count - 1, board)) },
+      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case _ => f((boardSize.x * boardSize.y, emptyBoard)) }
+    )
 
     site(tp)(
       // One reaction implements the entire Game of Life computation. Different molecules are used for shifted positions.
@@ -158,17 +178,13 @@ class GameOfLifeSpec extends LogSpec with Matchers {
         c8(Cell((x0 - 1 + boardSize.x) % boardSize.x, (y0 - 1 + boardSize.y) % boardSize.y, t0 + 1, newState))
 
         if (t0 + 1 == maxTimeStep) fc((x0, y0, newState))
-      },
-      // These reactions are needed to fetch the state of the board at the final time.
-      go { case fc((x, y, state)) + f((count, board)) => board(y)(x) = state; f((count - 1, board)) },
-      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
-      go { case _ => f((boardSize.x * boardSize.y, emptyBoard)) }
+      }
     )
 
     val initBoard = Array(
-      Array(1, 1, 1, 1, 1),
-      Array(0, 0, 0, 0, 0),
-      Array(0, 0, 0, 0, 0),
+      Array(1, 0, 1, 0, 0),
+      Array(1, 1, 0, 0, 0),
+      Array(0, 1, 0, 0, 0),
       Array(0, 0, 0, 0, 0),
       Array(0, 0, 0, 0, 0)
     )
@@ -193,11 +209,18 @@ class GameOfLifeSpec extends LogSpec with Matchers {
     val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
     println(s"Test (1 reaction, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     println("|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|")
-    finalBoard shouldEqual Array(Array(1, 1), Array(0, 0))
+    finalBoard shouldEqual Array(
+      Array(1, 0, 0, 0, 0),
+      Array(1, 1, 1, 0, 0),
+      Array(0, 0, 0, 0, 0),
+      Array(0, 0, 0, 0, 0),
+      Array(0, 1, 0, 0, 0)
+    )
     tp.shutdownNow()
+    tp2.shutdownNow()
   }
 
-  // Test 3: significant improvement - can do 10x10x10 now in about the same time as Test 2 did 2x2x1.
+  // Test 3: significant improvement - can do 10x10x10 now.
   it should "3. run correctly using 9-molecule single-timeslice implementation" in {
     case class Cell(t: Int, state: Int)
 
@@ -211,6 +234,7 @@ class GameOfLifeSpec extends LogSpec with Matchers {
     val g = b[Unit, Array[Array[Int]]]
 
     val tp = new FixedPool(16)
+    val tp2 = new FixedPool(2)
 
     // Toroidal board of size m * n
     val boardSize = BoardSize(10, 10)
@@ -276,7 +300,7 @@ class GameOfLifeSpec extends LogSpec with Matchers {
     }
 
     // These reactions are needed to fetch the state of the board at the final time.
-    site(tp)(
+    site(tp2)(
       go { case fc((x, y, state)) + f((count, board)) => board(x)(y) = state; f((count - 1, board)) },
       go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
       go { case _ => f((total, emptyBoard)) }
@@ -328,6 +352,7 @@ class GameOfLifeSpec extends LogSpec with Matchers {
          || | | |*|*| | | | | |
          || | |*| |*| | | | | |""".stripMargin
     tp.shutdownNow()
+    tp2.shutdownNow()
   }
 
   // Test 3a: per-cell reaction sites, but still using the same reaction for all time slices.
@@ -345,6 +370,7 @@ class GameOfLifeSpec extends LogSpec with Matchers {
     val g = b[Unit, Array[Array[Int]]]
 
     val tp = new FixedPool(16)
+    val tp2 = new FixedPool(2)
 
     // Toroidal board of size m * n
     val boardSize = BoardSize(10, 10)
@@ -411,7 +437,7 @@ class GameOfLifeSpec extends LogSpec with Matchers {
     }
 
     // These reactions are needed to fetch the state of the board at the final time.
-    site(tp)(
+    site(tp2)(
       go { case fc((x, y, state)) + f((count, board)) => board(x)(y) = state; f((count - 1, board)) },
       go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
       go { case _ => f((total, emptyBoard)) }
@@ -463,6 +489,7 @@ class GameOfLifeSpec extends LogSpec with Matchers {
          || | | |*|*| | | | | |
          || | |*| |*| | | | | |""".stripMargin
     tp.shutdownNow()
+    tp2.shutdownNow()
   }
 
   // Tests 4, 5, and 6 are all based on the implementation with per-cell reactions.
@@ -481,6 +508,7 @@ class GameOfLifeSpec extends LogSpec with Matchers {
     val g = b[Unit, Array[Array[Int]]]
 
     val tp = new FixedPool(16) // maximum parallelism
+    val tp2 = new FixedPool(2)
 
     val emptyBoard: Array[Array[Int]] = Array.fill(boardSize.x, boardSize.y)(0)
 
@@ -534,7 +562,7 @@ class GameOfLifeSpec extends LogSpec with Matchers {
     }
 
     // These reactions are needed to fetch the state of the board at the final time.
-    site(tp)(
+    site(tp2)(
       go { case fc((x, y, state)) + f((count, board)) => board(x)(y) = state; f((count - 1, board)) },
       go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
       go { case _ => f((boardSize.area, emptyBoard)) }
@@ -560,6 +588,7 @@ class GameOfLifeSpec extends LogSpec with Matchers {
 
     val finalBoard = g()
     tp.shutdownNow()
+    tp2.shutdownNow()
 
     finalBoard
   }
