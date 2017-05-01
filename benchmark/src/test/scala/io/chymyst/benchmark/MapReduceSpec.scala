@@ -94,8 +94,9 @@ class MapReduceSpec extends LogSpec with Matchers {
     val fetch = b[Unit, Int]
 
     val tp = new FixedPool(8)
+    val tp2 = new FixedPool(1)
 
-    // reactions for "reduce" must be together since they share "accum"
+    // reactions for "reduce" must be together since they share "interm"
     site(tp)(
       go { case interm((n1, x1)) + interm((n2, x2)) ⇒
         interm((n1 + n2, reduceB(x1, x2)))
@@ -103,7 +104,7 @@ class MapReduceSpec extends LogSpec with Matchers {
       go { case interm((n, x)) + fetch(_, reply) if n == arr.size ⇒ reply(x) }
     )
     // declare the reaction for "map"
-    site(tp)(
+    site(tp2)(
       go { case carrier(x) => val res = f(x); interm((1, res)) }
     )
     // emit molecules
@@ -112,6 +113,7 @@ class MapReduceSpec extends LogSpec with Matchers {
     result shouldEqual arr.map(f).reduce(reduceB) // 338350
     println(s"map-reduce as in tutorial object C2 with arr.size=${arr.size}: took ${elapsed(initTime)} ms")
     tp.shutdownNow()
+    tp2.shutdownNow()
     globalErrorLog.foreach(println)
   }
 
@@ -152,6 +154,7 @@ class MapReduceSpec extends LogSpec with Matchers {
     val count = 10000
 
     val tp = new FixedPool(cpuCores + 1)
+    val tp2 = new FixedPool(1)
     val initTime = System.currentTimeMillis()
 
     site(tp)(
@@ -170,6 +173,7 @@ class MapReduceSpec extends LogSpec with Matchers {
     f() shouldEqual (1 to count).map(i => i * i).sum
 
     tp.shutdownNow()
+    tp2.shutdownNow()
     println(s"sum of $count numbers with nonlinear input patterns and cross-molecule conditionals and 1-thread site pool took ${elapsed(initTime)} ms")
   }
 
@@ -234,8 +238,7 @@ class MapReduceSpec extends LogSpec with Matchers {
     val count = 2
 
     (1 to n).foreach { _ ⇒
-      val tp = new FixedPool(8)
-      val tp1 = new FixedPool(1)
+      val tp = new FixedPool(numberOfCounters)
 
       val done = m[Unit]
       val all_done = m[Int]
@@ -254,7 +257,6 @@ class MapReduceSpec extends LogSpec with Matchers {
       if (result.isEmpty) {
         failures += 1
       }
-      tp1.shutdownNow()
       tp.shutdownNow()
     }
     println(s"concurrent counters correctness check: $numberOfCounters counters, count = $count, $n numbers, took ${elapsed(initTime)} ms")
@@ -285,9 +287,10 @@ class MapReduceSpec extends LogSpec with Matchers {
     val f = b[Unit, Int]
 
     val tp = new FixedPool(cpuCores)
+    val tp2 = new FixedPool(1)
     val initTime = System.currentTimeMillis()
 
-    site(tp)(
+    site(tp2)(
       go { case f(_, r) + done(x) => r(x) }
     )
 

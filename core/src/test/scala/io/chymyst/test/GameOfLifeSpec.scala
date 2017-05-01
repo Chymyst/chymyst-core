@@ -593,8 +593,11 @@ class GameOfLifeSpec extends LogSpec with Matchers {
     finalBoard
   }
 
+  def printBoard(board: Array[Array[Int]]): String =
+    "|" + board.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|"
+
   def checkResult(finalBoard: Array[Array[Int]]): Unit = {
-    val finalPicture = "|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|"
+    val finalPicture = printBoard(finalBoard)
     println(finalPicture)
     // The "glider" should move, wrapping around the toroidal board.
     finalPicture shouldEqual
@@ -624,12 +627,21 @@ class GameOfLifeSpec extends LogSpec with Matchers {
 
   // Test 4
   it should "4. run correctly using 3D reaction implementation with single reaction site" in {
+    val boardSize = BoardSize(5, 5)
     val initTime = LocalDateTime.now
     // Define one reaction site for all reactions.
     val finalBoard = run3D(boardSize, maxTimeStep, initBoard, (tp, reactionMatrix) => site(tp)(reactionMatrix.flatten.flatten: _*))
     val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
     println(s"Test (${boardSize.area * maxTimeStep} reactions, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
-    checkResult(finalBoard)
+    val finalPicture = printBoard(finalBoard)
+    println(finalPicture)
+    // The "glider" should move, wrapping around the toroidal board.
+    finalPicture shouldEqual
+      """|| | | | | |
+        || | | | | |
+        || | | |*| |
+        || | | |*|*|
+        || | |*| |*|""".stripMargin
   }
 
   // Test 5
