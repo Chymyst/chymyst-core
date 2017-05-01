@@ -41,13 +41,13 @@ class MergesortSpec extends LogSpec with Matchers {
     val count = 5
     (1 to 2000).foreach { i ⇒
       val arr = Array.fill[Int](count)(scala.util.Random.nextInt(count))
-      performMergeSort(arr, 8)
+      performMergeSort(arr, 4)
     }
   }
 
   it should "sort an array using concurrent merge-sort more quickly with many threads than with one thread" in {
 
-    val count = 20000
+    val count = 10000
     // 1000000
     val threads = 8 // typical thread utilization at 600%
 
