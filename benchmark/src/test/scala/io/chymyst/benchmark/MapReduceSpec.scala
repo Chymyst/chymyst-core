@@ -329,7 +329,7 @@ class MapReduceSpec extends LogSpec with Matchers {
     x + s * y
   }
 
-  def orderedMapReduce(count: Int, nThreadsSite: Int): Unit = {
+  def orderedMapReduce(count: Int): Unit = {
     // c((l, r, x)) represents the left-closed, right-open interval (l, r) over which we already performed the reduce operation, and the result value x.
     val c = m[(Int, Int, Int)]
     val done = m[Int]
@@ -357,19 +357,16 @@ class MapReduceSpec extends LogSpec with Matchers {
 
     (1 to count).foreach(i => c((i, i + 1, i * i)))
     f() shouldEqual (1 to count).map(i => i * i).reduce(assocNonCommutOperation)
-    println(s"associative but non-commutative reduceB() on $count numbers with nonlinear input patterns and $nThreadsSite-thread site pool took ${elapsed(initTime)} ms")
-
-  }
-
-  it should "perform ordered map-reduce using conditional reactions with 2-thread site pool" in {
-    orderedMapReduce(count = 50000, nThreadsSite = 2)
+    println(s"associative but non-commutative reduceB() on $count numbers with nonlinear input patterns took ${elapsed(initTime)} ms")
+    tp.shutdownNow()
+    tp2.shutdownNow()
   }
 
   it should "perform ordered map-reduce using conditional reactions" in {
-    orderedMapReduce(count = 50000, nThreadsSite = 1)
+    orderedMapReduce(count = 50000)
   }
 
-  it should "perform ordered map-reduce using unique reactions (very slow)" in {
+  it should "perform ordered map-reduce using unique reactions (very slow due to thousands of RSs defined)" in {
     // c((l, r, x)) represents the left-closed, right-open interval (l, r) over which we already performed the reduce operation, and the result value x.
     val done = m[Int]
     val f = b[Unit, Int]
