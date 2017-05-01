@@ -1,10 +1,9 @@
 package io.chymyst.jc
 
-import java.util.concurrent.{LinkedBlockingQueue, ThreadPoolExecutor, TimeUnit}
 import java.util.concurrent.atomic.AtomicIntegerArray
 
-import Core._
-import StaticAnalysis._
+import io.chymyst.jc.Core._
+import io.chymyst.jc.StaticAnalysis._
 
 import scala.annotation.tailrec
 import scala.collection.breakOut
@@ -17,15 +16,7 @@ import scala.collection.breakOut
   * @param reactionPool The thread pool on which reactions will be scheduled.
   */
 private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool) {
-  private val schedulerExecutor = newSingleThreadedExecutor
 
-  private def newSingleThreadedExecutor: ThreadPoolExecutor = {
-    val queue = new LinkedBlockingQueue[Runnable]
-    val secondsToRecycleThread = 1L
-    val executor = new ThreadPoolExecutor(1, 1, secondsToRecycleThread, TimeUnit.SECONDS, queue)
-    executor.allowCoreThreadTimeOut(true)
-    executor
-  }
   /** Create a wrapper class instance, to be given to each molecule bound to this reaction site.
     *
     * @param molecule The calling molecule.
@@ -201,8 +192,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     override def run(): Unit = {
       val reactions = consumingReactions(mol.siteIndex)
       arrayShuffleInPlace(reactions)
-      lazy val decidingMoleculeMessage = s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(moleculesPresent)}]"
-      if (logLevel > 3) logMessage(decidingMoleculeMessage)
+      if (logLevel > 3) logMessage(s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(moleculesPresent)}]")
       decideReactionsForNewMolecule(mol)
     }
   }
@@ -529,7 +519,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           lazy val emitMoleculeMessage = s"Debug: In $this: emitting $mol($molValue), now have molecules [${moleculeBagToString(moleculesPresent)}]"
           if (logLevel > 1) logMessage(emitMoleculeMessage)
           if (isSchedulingNeeded(mol))
-            schedulerExecutor.execute(emissionRunnable(mol))
+            reactionPool.runScheduler(emissionRunnable(mol))
           //          else if (logLevel > 1) logMessage(s"Debug: In $this: not scheduling emissionRunnable") // This is too verbose.
         } else {
           reportError(s"In $this: Refusing to emit${if (mol.isStatic) " static" else ""} pipelined molecule $mol($molValue) since its value fails the relevant conditions")
@@ -575,7 +565,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   // Remove a blocking molecule if it is present.
   private def removeBlockingMolecule[T, R](bm: B[T, R], blockingMolValue: BlockingMolValue[T, R]): Unit = {
-    schedulerExecutor.execute(removeBlockingMolRunnable(bm, blockingMolValue))
+    reactionPool.runScheduler(removeBlockingMolRunnable(bm, blockingMolValue))
   }
 
   /** Common code for [[emitAndAwaitReply]] and [[emitAndAwaitReplyWithTimeout]].

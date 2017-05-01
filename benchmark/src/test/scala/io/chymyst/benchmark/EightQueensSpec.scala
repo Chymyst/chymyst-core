@@ -25,12 +25,22 @@ class EightQueensSpec extends LogSpec with Matchers {
 
   def run3Queens(supply: Int, boardSize: Int, iterations: Int): Unit = {
     val tp = new FixedPool(2)
+    val tp2 = new FixedPool(2)
     val pos = m[(Int, Int)]
     val done = m[Seq[(Int, Int)]]
     val all_done = m[Unit]
     val counter = m[Int]
     val finished = b[Unit, Unit]
-    site(tp)(go {
+
+    site(tp)(
+      go { case done(s) + counter(c) =>
+        if (c < 5) println(printPosition(boardSize, s))
+        if (c >= iterations) all_done() else counter(c + 1)
+      },
+      go { case all_done(_) + finished(_, r) => r() }
+    )
+
+    site(tp2)(go {
       case pos((x1, y1)) +
         pos((x2, y2)) +
         pos((x3, y3))
@@ -48,29 +58,33 @@ class EightQueensSpec extends LogSpec with Matchers {
         found.foreach(pos) // emit all molecules back
     }
     )
-    site(tp)(
-      go { case done(s) + counter(c) =>
-        if (c < 5) println(printPosition(boardSize, s))
-        if (c >= iterations) all_done() else counter(c + 1)
-      },
-      go { case all_done(_) + finished(_, r) => r() }
-    )
+
     (1 to supply).foreach(_ =>
       (0 until boardSize).foreach(i => (0 until boardSize).foreach(j => pos((i, j))))
     )
     counter(1)
     finished()
     tp.shutdownNow()
+    tp2.shutdownNow()
   }
 
   def run5Queens(supply: Int, boardSize: Int, iterations: Int): Unit = {
     val tp = new FixedPool(2)
+    val tp2 = new FixedPool(2)
     val pos = m[(Int, Int)]
     val done = m[Seq[(Int, Int)]]
     val all_done = m[Unit]
     val counter = m[Int]
     val finished = b[Unit, Unit]
-    site(tp)(go {
+
+    site(tp)(go { case done(s) + counter(c) =>
+      if (c < 5) println(printPosition(boardSize, s))
+      if (c >= iterations) all_done() else counter(c + 1)
+    },
+      go { case all_done(_) + finished(_, r) => r() }
+    )
+
+    site(tp2)(go {
       case pos((x1, y1)) +
         pos((x2, y2)) +
         pos((x3, y3)) +
@@ -98,18 +112,13 @@ class EightQueensSpec extends LogSpec with Matchers {
         done(found)
         found.foreach(pos) // emit all molecules back
     })
-    site(tp)(go { case done(s) + counter(c) =>
-      if (c < 5) println(printPosition(boardSize, s))
-      if (c >= iterations) all_done() else counter(c + 1)
-    },
-      go { case all_done(_) + finished(_, r) => r() }
-    )
     (1 to supply).foreach(_ =>
       (0 until boardSize).foreach(i => (0 until boardSize).foreach(j => pos((i, j))))
     )
     counter(1)
     finished()
     tp.shutdownNow()
+    tp2.shutdownNow()
   }
 
   def run8Queens(supply: Int, boardSize: Int): Seq[(Int, Int)] = {
@@ -118,6 +127,11 @@ class EightQueensSpec extends LogSpec with Matchers {
     val pos = m[(Int, Int)]
     val done = m[Seq[(Int, Int)]]
     val finished = b[Unit, Seq[(Int, Int)]]
+
+    site(tp2)(
+      go { case done(s) + finished(_, r) => r(s) }
+    )
+
     site(tp)(go {
       case pos((x1, y1)) +
         pos((x2, y2)) +
@@ -169,13 +183,10 @@ class EightQueensSpec extends LogSpec with Matchers {
           (x7, y7),
           (x8, y8)
         )
-//        println(printPosition(boardSize, result))
+        //        println(printPosition(boardSize, result))
         done(result)
     })
 
-    site(tp2)(
-      go { case done(s) + finished(_, r) => r(s) }
-    )
     (1 to supply).foreach(_ =>
       (0 until boardSize).foreach(i => (0 until boardSize).foreach(j => pos((i, j))))
     )
@@ -187,14 +198,14 @@ class EightQueensSpec extends LogSpec with Matchers {
   /** This algorithm does not perform backtracking and may stall if a configuration of queens is selected that
     * precludes any other queens. Therefore, we give a larger board size and time out, fetching the questionable configuration.
     */
-  def runNQueens(nQueens: Int, supply: Int, boardSize: Int, iterations: Int, timeout: Int, tp: Pool): Unit = {
+  def runNQueens(nQueens: Int, supply: Int, boardSize: Int, iterations: Int, timeout: Int, tp: Pool, tp2: Pool): Unit = {
     val acc = m[Seq[(Int, Int)]]
     val done = m[Seq[(Int, Int)]]
     val pos = m[(Int, Int)]
     val fetch = b[Unit, Seq[(Int, Int)]]
     val finished = b[Unit, Seq[(Int, Int)]]
 
-    site(tp)(
+    site(tp2)(
       go { case done(s) + finished(_, r) => r(s) }
     )
 
@@ -226,19 +237,19 @@ class EightQueensSpec extends LogSpec with Matchers {
     println(s"sample solutions:\n${res.filter(_.length == nQueens).take(3).map(s ⇒ printPosition(boardSize, s)).mkString("\n")}")
   }
 
-  behavior of "eight queens problem - n-queens scheme with reset on backtracking"
+  behavior of "eight queens problem - n-queens scheme with no backtracking"
 
   it should "obtain solutions for 3 queens on 4x4 board using n-queens scheme" in {
     // 3 queens exist when board size is at least a 4x4, and require no backtracking
-    withPool(new FixedPool(2)) { tp ⇒ runNQueens(nQueens = 3, supply = 10, boardSize = 4, iterations = 20000, timeout = 200, tp) }
+    withPool(new FixedPool(2))(tp2 => withPool(new FixedPool(2)) { tp ⇒ runNQueens(nQueens = 3, supply = 10, boardSize = 4, iterations = 20000, timeout = 200, tp, tp2) })
   }
 
   it should "obtain solutions for 8 queens on 12x12 board using n-queens scheme" in {
-    withPool(new FixedPool(2)) { tp ⇒ runNQueens(nQueens = 8, supply = 10, boardSize = 10, iterations = 1000, timeout = 200, tp) }
+    withPool(new FixedPool(2))(tp2 => withPool(new FixedPool(2)) { tp ⇒ runNQueens(nQueens = 8, supply = 10, boardSize = 10, iterations = 1000, timeout = 200, tp, tp2) })
   }
 
   it should "obtain solutions for 8 queens on 8x8 board using n-queens scheme" in {
-    withPool(new FixedPool(2)) { tp ⇒ runNQueens(nQueens = 8, supply = 10, boardSize = 8, iterations = 100, timeout = 200, tp) }
+    withPool(new FixedPool(2))(tp2 => withPool(new FixedPool(2)) { tp ⇒ runNQueens(nQueens = 8, supply = 10, boardSize = 8, iterations = 100, timeout = 200, tp, tp2) })
   }
 
   behavior of "eight queens problem - hard-coded number of queens, one RS"

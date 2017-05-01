@@ -28,8 +28,9 @@ class ShutdownSpec extends LogSpec with Matchers {
 
     val x = m[Unit]
     site(pool)(go { case x(()) => })
-
-    x()
+    the[Exception] thrownBy (
+      x()
+      ) should have message "In Site{x → ...}: Cannot emit molecule x() because reaction pool is not active"
   }
 
   it should "fail to schedule reactions after shutdown of default thread pools" in {
@@ -39,9 +40,8 @@ class ShutdownSpec extends LogSpec with Matchers {
     val x = m[Unit]
     site(go { case x(_) => })
 
-    val thrown = intercept[Exception] {
+    the[Exception] thrownBy {
       x()
-    }
-    thrown.getMessage shouldEqual "In Site{x → ...}: Cannot emit molecule x() because reaction pool is not active"
+    } should have message "In Site{x → ...}: Cannot emit molecule x() because reaction pool is not active"
   }
 }

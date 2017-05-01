@@ -478,11 +478,21 @@ In particular, all screen updates (as well as all user event callbacks) must be 
 
 To facilitate this control, `Chymyst Core` implements the thread pool feature.
 
-Each RS uses a thread pool for running reactions (the `reactionPool`) and a single, dedicated thread for deciding new reactions (the `schedulerExecutor`).
+Each RS uses a special thread pool (the `reactionPool`).
+The reaction pool contains two sets of threads:
 
-By default, the reaction pools is statically allocated and shared by all RSs.
+1. A common thread executor for running reactions. This thread executor can have one or more threads.
+2. A single, dedicated scheduler thread for deciding new reactions (called the `schedulerExecutor` in the code).
 
-Users can create custom thread pools and specify, for any given RS, on which thread pool each reaction will run.
+By default, the reaction sites use a statically allocated reaction pool that is shared by all RSs.
+
+Users can create custom reaction pools and specify, for any given RS, on which pool each reaction will run.
+
+The dedicated scheduler thread is part of a reaction pool, although it is separate and free of contention with reaction tasks.
+If two reaction sites share their reaction pool, they also share the scheduler thread.
+
+Also note that the total number of threads in the JVM is limited to about 2,000.
+Thus, creating many thousands of new reaction pools is impossible.
 
 ## Creating a custom thread pool
 
@@ -503,9 +513,17 @@ val tp1 = new SmartPool() // same as new SmartPool(cpuCores)
 
 ```
 
+Another available reaction pool is `FixedPool`.
+This pool holds a fixed, never changing number of reaction threads (and a single, dedicated scheduler thread).
+
+```scala
+val tp1 = new FixedPool(4) // 4 threads for reactions, one thread for scheduler
+
+```
+
 ## Specifying thread pools for sites and reactions
 
-The `site()` call can take an additional argument that specifies a default thread pool for all reactions at this RS.
+The `site()` call can take an additional argument that specifies a thread pool for all reactions at this RS.
 
 ```scala
 val tp = new SmartPool(8)

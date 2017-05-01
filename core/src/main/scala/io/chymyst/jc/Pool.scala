@@ -26,15 +26,13 @@ trait Pool extends AutoCloseable {
     */
   def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit
 
-  /** Run a plain Java [[Runnable]] on the thread pool.
-    *
-    * @param runnable An instance of [[Runnable]].
-    */
-  def runRunnable(runnable: Runnable): Unit
-
   def isInactive: Boolean
 
   override def close(): Unit = shutdownNow()
+
+  private val schedulerExecutor: ThreadPoolExecutor = Core.newSingleThreadedExecutor
+
+  def runScheduler(runnable: Runnable): Unit = schedulerExecutor.execute(runnable)
 }
 
 /** Basic implementation of a thread pool.
@@ -64,6 +62,4 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => (ExecutorSe
     execService.execute(new RunnableWithInfo(closure, info))
 
   override def isInactive: Boolean = execService.isShutdown || execService.isTerminated
-
-  override def runRunnable(runnable: Runnable): Unit = execService.execute(runnable)
 }
