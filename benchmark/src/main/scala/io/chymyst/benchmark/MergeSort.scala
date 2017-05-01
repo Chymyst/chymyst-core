@@ -34,9 +34,9 @@ object MergeSort {
     val finalResult = m[Coll[T]]
     val getFinalResult = b[Unit, Coll[T]]
     val reactionPool = new FixedPool(threads)
-    val sitePool = new FixedPool(threads)
+    val pool2 = new FixedPool(threads)
 
-    site(sitePool, sitePool)(
+    site(pool2)(
       go { case finalResult(arr) + getFinalResult(_, r) => r(arr) }
     )
 
@@ -44,7 +44,7 @@ object MergeSort {
 
     val mergesort = m[(Coll[T], M[Coll[T]])]
 
-    site(reactionPool, sitePool)(
+    site(reactionPool)(
       go { case mergesort((arr, resultToYield)) =>
         if (arr.length <= 1) resultToYield(arr)
         else {
@@ -52,7 +52,7 @@ object MergeSort {
           // "sorted1" and "sorted2" will be the sorted results from the lower level
           val sorted1 = m[Coll[T]]
           val sorted2 = m[Coll[T]]
-          site(reactionPool, sitePool)(
+          site(reactionPool)(
             go { case sorted1(x) + sorted2(y) =>
               resultToYield(arrayMerge(x, y))
             }
@@ -68,7 +68,7 @@ object MergeSort {
 
     val result = getFinalResult()
     reactionPool.shutdownNow()
-    sitePool.shutdownNow()
+    pool2.shutdownNow()
     result
   }
 

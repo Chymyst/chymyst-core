@@ -114,12 +114,11 @@ class EightQueensSpec extends LogSpec with Matchers {
 
   def run8Queens(supply: Int, boardSize: Int): Seq[(Int, Int)] = {
     val tp = new FixedPool(1)
-    val tp1 = new FixedPool(1)
     val tp2 = new FixedPool(2)
     val pos = m[(Int, Int)]
     val done = m[Seq[(Int, Int)]]
     val finished = b[Unit, Seq[(Int, Int)]]
-    site(tp, tp1)(go {
+    site(tp)(go {
       case pos((x1, y1)) +
         pos((x2, y2)) +
         pos((x3, y3)) +
@@ -181,7 +180,7 @@ class EightQueensSpec extends LogSpec with Matchers {
       (0 until boardSize).foreach(i => (0 until boardSize).foreach(j => pos((i, j))))
     )
     val found = finished()
-    Seq(tp, tp1, tp2).foreach(_.shutdownNow())
+    Seq(tp, tp2).foreach(_.shutdownNow())
     found
   }
 

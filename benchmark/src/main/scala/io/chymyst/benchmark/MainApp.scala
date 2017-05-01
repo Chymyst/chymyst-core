@@ -72,7 +72,5 @@ object MainApp extends App {
     } ms ($message)")
   }
 
-  defaultSitePool.shutdownNow()
   defaultReactionPool.shutdownNow()
-
 }

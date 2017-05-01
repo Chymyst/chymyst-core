@@ -1,10 +1,10 @@
 package io.chymyst.benchmark
 
-import java.util.concurrent.{LinkedBlockingQueue, ThreadPoolExecutor, TimeUnit}
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.{LinkedBlockingQueue, ThreadPoolExecutor, TimeUnit}
 import java.util.{Timer, TimerTask}
 
-import io.chymyst.jc.{ChymystThreadInfo, FixedPool, ThreadFactoryWithInfo, withPool}
+import io.chymyst.jc.{ChymystThreadInfo, FixedPool, withPool}
 import io.chymyst.test.LogSpec
 import org.scalatest.Matchers
 
@@ -17,7 +17,10 @@ class SingleThreadSpec extends LogSpec with Matchers {
 
   val counter = new AtomicInteger()
 
-  def increment(): Unit = counter.incrementAndGet()
+  def increment(): Unit = {
+    counter.incrementAndGet()
+    ()
+  }
 
   val emptyInfo = new ChymystThreadInfo()
 
@@ -27,9 +30,9 @@ class SingleThreadSpec extends LogSpec with Matchers {
 
     counter.set(0)
     withPool(new FixedPool(1)) { tp =>
-      (1 to n).foreach { _ => tp.runClosure(incrementTask.run(), emptyInfo) }
+      (1 to n).foreach { _ => tp.runReaction(incrementTask.run(), emptyInfo) }
       val done = Promise[Unit]()
-      tp.runClosure(doneTask(done).run(), emptyInfo)
+      tp.runReaction(doneTask(done).run(), emptyInfo)
       Await.result(done.future, Duration.Inf)
       counter.get() shouldEqual n
     }.get
@@ -40,7 +43,10 @@ class SingleThreadSpec extends LogSpec with Matchers {
   }
 
   def doneTask(done: Promise[Unit]) = new TimerTask {
-    override def run(): Unit = done.success(())
+    override def run(): Unit = {
+      done.success(())
+      ()
+    }
   }
 
   behavior of "timer"
@@ -73,7 +79,10 @@ class SingleThreadSpec extends LogSpec with Matchers {
     (1 to n).foreach { _ => executor.execute(incrementRunnable) }
     val done = Promise[Unit]()
     executor.execute(new Runnable {
-      override def run(): Unit = done.success(())
+      override def run(): Unit = {
+        done.success(())
+        ()
+      }
     })
     Await.result(done.future, Duration.Inf)
     counter.get() shouldEqual n

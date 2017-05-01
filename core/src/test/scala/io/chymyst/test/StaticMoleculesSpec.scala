@@ -28,7 +28,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
 
     val tp1 = new FixedPool(1) // This test works only with single threads.
 
-    site(tp1, tp1)(
+    site(tp1)(
       go { case f(_, r) + d(text) => r(text); d(text) },
       go { case _ => d("ok") } // static reaction
     )
@@ -52,7 +52,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
       val f = b[Unit, String]
       val d = m[String]
 
-      site(tp1, tp1)(
+      site(tp1)(
         go { case f(_, r) + d(text) => r(text); d(text) },
         go { case _ => d("ok") } // static reaction
       )

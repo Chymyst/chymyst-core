@@ -29,9 +29,8 @@ class FairnessSpec extends LogSpec with Matchers {
       //n = 4
 
       val tp = new FixedPool(4)
-      val tp1 = new FixedPool(1)
 
-      site(tp, tp1)(
+      site(tp)(
         go { case getC(_, r) + done(arr) => r(arr) },
         go {
           case a0(_) + c((n, arr)) => if (n > 0) {
@@ -73,7 +72,6 @@ class FairnessSpec extends LogSpec with Matchers {
 
       val result = getC()
       tp.shutdownNow()
-      tp1.shutdownNow()
 
       val average = N / reactions
       val max_deviation = math.max(math.abs(result.min - average).toDouble, math.abs(result.max - average).toDouble) / average
@@ -101,7 +99,7 @@ class FairnessSpec extends LogSpec with Matchers {
 
     val tp = new FixedPool(8)
 
-    site(tp, tp)(
+    site(tp)(
       go { case done(arr) + getC(_, r) => r(arr) },
       go { case c(n) + a(i) if n > 0 => a(i + 1) + c(n - 1) },
       go { case c(0) + a(i) => a(i) + gather(List()) },
@@ -140,7 +138,7 @@ class FairnessSpec extends LogSpec with Matchers {
 
     val tp = new FixedPool(8)
 
-    site(tp, tp)(
+    site(tp)(
       go { case a(x) + bb(y) => d() },
       go { case bb(x) + c(y) => e() },
       go { case d(_) + f((x, y, t)) => f((x + 1, y, t - 1)) },
@@ -175,7 +173,7 @@ class FairnessSpec extends LogSpec with Matchers {
       val b = m[Unit]
       val c = m[Unit]
 
-      site(tp, tp)(
+      site(tp)(
         go { case a(_) + b(_) => d1() },
         go { case b(_) + c(_) => d2() }
       )
@@ -187,7 +185,7 @@ class FairnessSpec extends LogSpec with Matchers {
     val f = m[(Int, Int, Int)]
     val g = b[Unit, (Int, Int)]
 
-    site(tp, tp)(
+    site(tp)(
       go { case d(_) + f((x, y, t)) => f((x + 1, y, t - 1)) },
       go { case e(_) + f((x, y, t)) => f((x, y + 1, t - 1)) },
       go { case g(_, r) + f((x, y, 0)) => r((x, y)) }
