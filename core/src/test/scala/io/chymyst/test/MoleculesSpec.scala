@@ -300,9 +300,10 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
   // The way to avoid this problem is to define nested reaction sites *before* the new emitters are used.
   // This test intentionally defines the reaction site defining the {e -> } reaction *after* the `e` emitter is passed to the `a` reaction.
   it should "start reactions and throw exception when molecule emitters are passed to nested reactions slightly before they are bound" in {
+    val tp1 = new FixedPool(2)
     val results = (1 to 100).map { i =>
       val a = m[M[Int]]
-      site(tp0)(
+      site(tp1)(
         go { case a(s) => s(123) }
       )
 
@@ -334,6 +335,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
     results should contain(246)
     globalErrorLog.toList should contain("In Site{a → ...}: Reaction {a(s) → } with inputs [a/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site")
     results should contain(0)
+    tp1.shutdownNow()
   }
 
   it should "start reactions without errors when molecule emitters are passed to nested reactions after they are bound" in {
