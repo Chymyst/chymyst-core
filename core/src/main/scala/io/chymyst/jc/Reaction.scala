@@ -511,8 +511,13 @@ final class ReactionInfo(
 ) {
   private[jc] val hasBlockingInputs: Boolean = inputs.exists(_.molecule.isBlocking)
 
+  // TODO: this is used only in ChymystThreadInfo - eliminate this, in favor of static checking of emission of static molecules.
   // This should be lazy because molecule.isStatic is known late.
-  private[jc] lazy val staticMols: Set[Molecule] = inputs.map(_.molecule).filter(_.isStatic).toSet
+  private[jc] lazy val staticMols: Set[Int] = inputs
+    .map(_.molecule)
+    .filter(_.isStatic)
+    .map(_.siteIndex)
+    .toSet
 
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
@@ -524,37 +529,24 @@ final class ReactionInfo(
 
   // TODO: write a test that fixes this functionality?
   /** This array is either empty or contains several arrays, each of length at least 2. */
-  private val repeatedCrossConstrainedMolecules: Array[Array[InputMoleculeInfo]] = {
-    inputs
-      .groupBy(_.molecule)
-      .filter(_._2.length >= 2)
-      .values
-      .filter { repeatedInput ⇒
-        crossGuards.exists { guard ⇒
-          (guard.indices intersect repeatedInput.map(_.index)).nonEmpty
-        } ||
-          repeatedInput.exists { info ⇒ !info.flag.isIrrefutable }
-      }
-      .toArray
-  }
+  private val repeatedCrossConstrainedMolecules: Array[Set[Int]] =
+  inputs
+    .groupBy(_.molecule)
+    .filter(_._2.length >= 2)
+    .values
+    .filter { repeatedInput ⇒
+      crossGuards.exists { guard ⇒
+        (guard.indices intersect repeatedInput.map(_.index)).nonEmpty
+      } ||
+        repeatedInput.exists { info ⇒ !info.flag.isIrrefutable }
+    }
+    .toArray
+    .map(_.map(_.index).toSet)
 
   /** "Cross-conditionals" are repeated input molecules, such that one of them has a conditional or participates in a cross-molecule guard.
     * This value holds the set of input indices for all such molecules, for quick access.
     */
-  private[jc] val crossConditionalsForRepeatedMols: Set[Int] = repeatedCrossConstrainedMolecules
-    .flatMap(_.map(_.index))
-    .toSet
-
-  /** The array of sets of cross-molecule dependency groups. Each molecule is represented by its input index.
-    * The cross-molecule dependency groups include both the molecules that are constrained by cross-molecule guards and also
-    * repeated molecules whose copies participate in a cross-molecule guard or a per-molecule conditional.
-    */
-  private val allCrossGroups: Array[Set[Int]] = crossGuards.map(_.indices.toSet) ++
-    repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet)
-
-  /** The first integer is the number of cross-conditionals in which the molecule participates. The second is `true` when the molecule has its own conditional. */
-  private val moleculeWeights: Array[(Int, Boolean)] =
-    inputs.map(info ⇒ (-allCrossGroups.map(_ intersect Set(info.index)).map(_.size).sum, info.flag.isIrrefutable))
+  private[jc] val crossConditionalsForRepeatedMols: Set[Int] = repeatedCrossConstrainedMolecules.flatten.toSet
 
   /** The input molecule indices for all molecules that have no cross-dependencies and also no cross-conditionals.
     * Note that cross-conditionals are created by a repeated input molecule that has a conditional or participates in a cross-molecule guard.
@@ -579,13 +571,26 @@ final class ReactionInfo(
     *
     * This [[SearchDSL]] program is optimized by including the constraint guards as early as possible.
     */
-  private[jc] val searchDSLProgram = CrossMoleculeSorting.getDSLProgram(
-    crossGuards.map(_.indices.toSet),
-    repeatedCrossConstrainedMolecules.map(_.map(_.index).toSet),
-    moleculeWeights
-  ).filter { // Optimize `searchDSLProgram` by removing molecules having constant value matchers.
-    case ChooseMol(i) => !inputs(i).isConstantValue
-    case _ => true
+  private[jc] val searchDSLProgram = {
+    /** The array of sets of cross-molecule dependency groups. Each molecule is represented by its input index.
+      * The cross-molecule dependency groups include both the molecules that are constrained by cross-molecule guards and also
+      * repeated molecules whose copies participate in a cross-molecule guard or a per-molecule conditional.
+      */
+    val allCrossGroups: Array[Set[Int]] = crossGuards.map(_.indices.toSet) ++ repeatedCrossConstrainedMolecules
+
+    /** The first integer is the number of cross-conditionals in which the molecule participates. The second is `true` when the molecule has its own conditional. */
+    val moleculeWeights: Array[(Int, Boolean)] = inputs
+      .map(info ⇒ (-allCrossGroups.map(_ intersect Set(info.index)).map(_.size).sum, info.flag.isIrrefutable))
+
+    CrossMoleculeSorting.getDSLProgram(
+      crossGuards.map(_.indices.toSet),
+      repeatedCrossConstrainedMolecules,
+      moleculeWeights
+    ).filter {
+      // Optimize `searchDSLProgram` by removing molecules having constant value matchers.
+      case ChooseMol(i) => !inputs(i).isConstantValue
+      case _ => true
+    }
   }
 
   // The input pattern sequence is pre-sorted by descending strength of constraint -- for pretty-printing as well as for use in static analysis.
@@ -622,7 +627,7 @@ final class ReactionInfo(
     *
     * [[inputsSortedIndependentConditional]] is the list of [[InputMoleculeInfo]] values for all independent molecules whose matchers are not irrefutable (including repeated molecules).
     *
-    * Both these lists must be lazy because `molecule.index` is known late.
+    * Both these lists must be lazy because `molecule.siteIndex` is known late.
     */
   private[jc] lazy val (
     inputsSortedIndependentIrrefutableGrouped,
@@ -670,7 +675,7 @@ final class ReactionInfo(
   }
 }
 
-/** Represents a reaction body. This class is immutable.
+/** Represents a reaction. This class is immutable.
   *
   * @param info       A value of type [[ReactionInfo]] describing input and output molecules for this reaction.
   * @param body       Partial function of type `InputMoleculeList => Any`
@@ -683,7 +688,7 @@ final case class Reaction(
   threadPool: Option[Pool],
   retry: Boolean
 ) {
-  private[jc] def newChymystThreadInfo = new ChymystThreadInfo(info.staticMols.map(_.siteIndex), info.toString)
+  private[jc] def newChymystThreadInfo = new ChymystThreadInfo(info.staticMols, info.toString)
 
   /** Convenience method to specify thread pools per reaction.
     *
