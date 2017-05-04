@@ -716,7 +716,7 @@ It is these kinds of reactions that typically cause very slow performance of the
 Contention on the repeated input molecules will in effect reduce concurrency, while guard conditions will cause the chemical machine to enumerate many possible combinations of input molecules and to schedule reactions very slowly. 
 To improve the performance, we need to avoid such reactions.
 
-For simplicity, we will now focus only on the "reduce" part of "map/reduce".
+For simplicity, we will now focus only on the “reduce” part of “map/reduce”.
 We will assume that the data consists of an array of initial values to which the `reduceB()` operation must be applied.
 The operation is assumed to be associative but non-commutative.
 
@@ -826,8 +826,8 @@ The auxiliary function will also inject the initial values once we reach the bot
 
 What we have done is a simple refactoring of code in terms of a recursive function.
 This refactoring would be the same in any programming language and is not specific to chemical machine programming.
-As the chemical machine is embedded in Scala,
-we are allowed to inline the call to `reduceOne()` and to rewrite the code like this:
+
+Let us now inline the call to `reduceOne()` and rewrite the code as a self-contained function:
 
 ```
 def reduceAll[B](arr: Array[B], res: M[B]) =
@@ -837,7 +837,7 @@ def reduceAll[B](arr: Array[B], res: M[B]) =
     val a0 = m[B]
     val a1 = m[B]
 
-    site( go { case a0(x) + a1(x) => res(reduceB(x,y)) } )
+    site( go { case a0(x) + a1(y) => res(reduceB(x, y)) } )
 
     reduceAll(arr0, a0)
     reduceAll(arr1, a1)
@@ -845,38 +845,47 @@ def reduceAll[B](arr: Array[B], res: M[B]) =
 
 ```
 
+Note that the chemistry involving new molecules `a0()` and `a1()` is encapsulated within the scope of the function `reduceAll()`.
+The new molecules cannot be emitted outside that scope.
+
 This solution works but has a defect: the function `reduceAll()` is not tail-recursive.
 To remedy this, we can refactor the body of the function `reduceAll()` into a _reaction_.
-In other words, we declare `reduceAll` as a molecule emitter with type `(Array[B], M[B])` rather than a function.
+In other words, we declare `reduceAll` as a molecule emitter with tupled type `(Array[B], M[B])` rather than a function.
 The result is a "recursive chemistry":
 
 ```
 val reduceAll = m[(Array[B], M[B])]
 site(
- go { case reduceAll(arr, res) =>
+ go { case reduceAll((arr, res)) =>
   if (arr.length == 1) res(arr(0))
   else  {
     val (arr0, arr1) = arr.splitAt(arr.length / 2)
     val a0 = m[B]
     val a1 = m[B]
-    site( go { case a0(x) + a1(x) => res(reduceB(x,y)) } )
-    reduceAll(arr0, a0) + reduceAll(arr1, a1)
+    site( go { case a0(x) + a1(y) => res(reduceB(x, y)) } )
+    reduceAll((arr0, a0)) + reduceAll((arr1, a1))
   }
  }
 )
 // start the computation:
-val res = m[B]
-val arr: Array[B] = ... // create the initial array
-reduceAll((arr, res))
-// res() will be emitted with the final result
+val result = m[B]
+val array: Array[B] = ... // create the initial array
+reduceAll((array, result)) // start the computation
+// The result() molecule will be emitted with the final result.
 
 ```
 
+### Nested reactions
+
 What exactly happens when a new reaction is defined within the scope of an existing reaction?
-Each time the reaction is run, a _new_ pair of molecule emitters `a0` and `a1` is created.
-Calling the `site()` function with a reaction that consumes `a0` and `a1` will create a new reaction site
+Each time the "parent" reaction `reduceAll() => ... ` is run, a _new_ pair of molecule emitters `a0` and `a1` is created.
+Then we call the `site()` function with a reaction that consumes the molecules `a0()` and `a1()`.
+The `site()` call will create a _new_ reaction site
 and bind the new molecules `a0()` and `a1()` to that reaction site.
-In this way, the chemical machine works seamlessly with Scala's mechanism of local scopes. 
+
+The new reaction site and the new molecule emitters `a0` and `a1` will be visible only within the scope of the parent reaction's body.
+In this way, the chemical machine works seamlessly with Scala's mechanism of local scopes.
+It guarantees that no other code could disturb the intended functionality of the reactions encapsulated within the scope of `reduceAll()`. 
 
 Since the `reduceAll()` reaction emits its own input molecules until the array is fully split into individual elements,
 it will run many times to define the new reactions we previously denoted by `r01`, `r23`, `r45`, `r67`, `r03`, `r47`, and `r07`.
@@ -890,7 +899,7 @@ A molecule can start a reaction whose reaction body defines further reactions an
 Since each reaction body will have a fresh scope, new molecules and new reactions will be defined every time.
 This will create a recursive configuration of reactions, such as a linked list or a tree.
 
-We will now figure out how to use recursive chemistry for implementing the merge-sort algorithm in `Chymyst`.
+We will now figure out how to use recursive chemistry for implementing the well-known “merge sort” algorithm in `Chymyst`.
 
 The initial data will be an array of type `T`, and we will therefore need a molecule to carry that array.
 We will also need another molecule, `sorted()`, to carry the sorted result.

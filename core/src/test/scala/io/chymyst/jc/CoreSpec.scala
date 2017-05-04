@@ -1,5 +1,7 @@
 package io.chymyst.jc
 
+import javax.xml.bind.DatatypeConverter
+
 import io.chymyst.jc.Core._
 import io.chymyst.test.LogSpec
 import org.scalatest.Matchers
@@ -18,6 +20,20 @@ class CoreSpec extends LogSpec with Matchers with TimeLimitedTests {
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
   behavior of "getSha1"
+
+  val total = 200
+
+  it should "compute hex string of byte array using DatatypeConverter" in {
+    val md = getMessageDigest
+    val bytes = md.digest("abcde".getBytes("UTF-8"))
+    (1 to total).foreach { _ ⇒ DatatypeConverter.printHexBinary(bytes) }
+  }
+
+  it should "compute hex string of byte array using String.format" in {
+    val md = getMessageDigest
+    val bytes = md.digest("abcde".getBytes("UTF-8"))
+    (1 to total).foreach { _ ⇒ bytes.map("%02X".format(_)).mkString }
+  }
 
   it should "compute sha1 of integer value" in {
     getSha1Any(123) shouldEqual "40BD001563085FC35165329EA1FF5C5ECBDBBEEF"

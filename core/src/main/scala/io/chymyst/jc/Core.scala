@@ -4,6 +4,7 @@ import java.security.MessageDigest
 import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.{ConcurrentLinkedQueue, LinkedBlockingQueue, ThreadPoolExecutor, TimeUnit}
+import javax.xml.bind.DatatypeConverter
 
 import scala.annotation.tailrec
 import scala.util.{Left, Right}
@@ -32,7 +33,7 @@ object Core {
 
   def getMessageDigest: MessageDigest = MessageDigest.getInstance("SHA-1")
 
-  def getSha1(c: String, md: MessageDigest): String = md.digest(c.getBytes("UTF-8")).map("%02X".format(_)).mkString
+  def getSha1(c: String, md: MessageDigest): String = DatatypeConverter.printHexBinary(md.digest(c.getBytes("UTF-8")))
 
   //  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 

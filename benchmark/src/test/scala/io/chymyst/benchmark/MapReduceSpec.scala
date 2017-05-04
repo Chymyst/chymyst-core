@@ -382,7 +382,7 @@ class MapReduceSpec extends LogSpec with Matchers {
 
     // Define all molecule emitters as a 2-indexed map
     val emitters: Map[(Int, Int), M[Int]] =
-    (0 until count).flatMap(i ⇒ (i + 1 to count).map(j ⇒ (i, j) → new M[Int](s"c[$i,$j]")))(scala.collection.breakOut)
+      (0 until count).flatMap(i ⇒ (i + 1 to count).map(j ⇒ (i, j) → new M[Int](s"c[$i,$j]")))(scala.collection.breakOut)
 
     val lastMol = emitters((0, count))
 
@@ -406,5 +406,91 @@ class MapReduceSpec extends LogSpec with Matchers {
 
   behavior of "hierarchical ordered map/reduce"
 
+  def hierarchicalMapReduce[T](array: Array[T], result: M[T], reduceB: (T, T) ⇒ T, tp: Pool): Unit = {
+    val reduceAll = m[(Array[T], M[T])]
+    site(tp)(
+      go { case reduceAll((arr, res)) ⇒
+        if (arr.length == 1) res(arr(0))
+        else {
+          val (arr0, arr1) = arr.splitAt(arr.length / 2)
+          val a0 = m[T]
+          val a1 = m[T]
+          site(tp)(go { case a0(x) + a1(y) ⇒ res(reduceB(x, y)) })
+          reduceAll((arr0, a0)) + reduceAll((arr1, a1))
+        }
+      }
+    )
+    reduceAll((array, result))
+    // The result() molecule will be emitted with the final result.
+  }
 
+  def hierarchicalMapReduce2[T](array: Array[T], result: M[T], reduceB: (T, T) ⇒ T, tp: Pool): Unit = {
+    val reduceAll = m[(Int, Int, M[T])]
+    site(tp)(
+      go { case reduceAll((p, q, res)) ⇒
+        if (q - p == 1) res(array(p))
+        else if (q - p == 2) res(reduceB(array(p), array(p + 1)))
+        else {
+          val middle = (p + q) / 2
+          val a0 = m[T]
+          val a1 = m[T]
+          site(tp)(go { case a0(x) + a1(y) ⇒ res(reduceB(x, y)) })
+          reduceAll((p, middle, a0)) + reduceAll((middle, q, a1))
+        }
+      }
+    )
+    reduceAll((0, array.length, result))
+    // The result() molecule will be emitted with the final result.
+  }
+
+  def hierarchicalMapReduce3[T](array: Array[T], result: M[T], reduceB: (T, T) ⇒ T, tp: Pool): Unit = {
+    val reduceAll = m[(Int, Int, M[T])]
+    site(tp)(
+      go { case reduceAll((p, q, res)) ⇒
+        if (q - p == 1) res(array(p))
+        else if (q - p == 2) res(reduceB(array(p), array(p + 1)))
+        else {
+          val middle1 = (2 * p + q) / 3
+          val middle2 = (p + 2 * q) / 3
+          val a0 = m[T]
+          val a1 = m[T]
+          val a2 = m[T]
+          val a01 = m[T]
+          val a12 = m[T]
+          site(tp)(
+            go { case a0(x) + a1(y) ⇒ a01(reduceB(x, y)) },
+            go { case a0(x) + a12(y) ⇒ res(reduceB(x, y)) },
+            go { case a1(x) + a2(y) ⇒ a12(reduceB(x, y)) },
+            go { case a01(x) + a2(y) ⇒ res(reduceB(x, y)) }
+          )
+          reduceAll((p, middle1, a0)) + reduceAll((middle1, middle2, a1)) + reduceAll((middle2, q, a2))
+        }
+      }
+    )
+    reduceAll((0, array.length, result))
+    // The result() molecule will be emitted with the final result.
+  }
+
+  it should "perform hierarchical ordered map-reduce" in {
+    val tp = new FixedPool(cpuCores + 2)
+    val tp1 = new FixedPool(1)
+    val count = 50000
+
+    val result = m[Int]
+    val f = b[Unit, Int]
+
+    site(tp1)(
+      go { case result(x) + f(_, r) => r(x) }
+    )
+    val data = (1 to count).map(i ⇒ i * i)
+
+    val initTime = System.currentTimeMillis()
+    hierarchicalMapReduce2(data.toArray, result, assocNonCommutOperation, tp)
+    val res = f()
+    println(s"associative but non-commutative hierarchical reduceB() on $count numbers took ${elapsed(initTime)} ms")
+    res shouldEqual data.reduce(assocNonCommutOperation)
+
+    tp.shutdownNow()
+    tp1.shutdownNow()
+  }
 }

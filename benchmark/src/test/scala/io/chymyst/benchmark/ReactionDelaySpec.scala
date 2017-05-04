@@ -135,7 +135,8 @@ class ReactionDelaySpec extends LogSpec with Matchers {
         done((t1, t2, timeElapsed, res))
       },
       go { case all_done(_, r) + counter((0, results)) => r(results) },
-      go { case counter( (n, results) ) + done(res) if n > 0 => counter( (n-1, res :: results) ) },
+      go { case counter( (n, results) ) + done(res) if n > 0 ⇒ // ignore warning "class M expects 4 patterns"
+        counter( (n-1, res :: results) ) },
       go { case f(timeOut, r) => BlockingIdle{Thread.sleep(timeOut)}; r() }
     )
 
