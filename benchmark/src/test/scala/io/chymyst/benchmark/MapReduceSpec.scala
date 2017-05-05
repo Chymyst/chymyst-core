@@ -512,7 +512,7 @@ class MapReduceSpec extends LogSpec with Matchers {
         val a1 = as(1)._1
         go { case a0(x) + a1(y) ⇒ a(reduceB(x, y)) }
       }
-      val previousMols = results.filter{ case (_, p, q) ⇒ q - p < 3}
+      val previousMols = results.filter { case (_, p, q) ⇒ q - p < 3 } // previousMols must be replaced by newMols
       (rs :+ newReactions, newMols.values.toIndexedSeq.flatten ++ previousMols)
     } else {
       // recursive case
