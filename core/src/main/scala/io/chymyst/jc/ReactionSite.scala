@@ -476,7 +476,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     * This `val` does not need to be recomputed because this error is permanent (would be a compile-time error in JoCaml).
     */
-  private lazy val findUnboundOutputMolecules: Boolean = unboundOutputMolecules(nonStaticReactions).nonEmpty
+  private lazy val findUnboundOutputMolecules: Boolean = haveUnboundOutputMolecules(nonStaticReactions)
 
   /** Emit a molecule with a value into the soup.
     *

@@ -358,14 +358,29 @@ object Core {
     }
   }
 
-  private[jc] def unboundOutputMolecules(nonStaticReactions: Seq[Reaction]): Set[Molecule] = nonStaticReactions.flatMap(_.info.outputs.map(_.molecule)).toSet.filterNot(_.isBound)
+  private[jc] def haveUnboundOutputMolecules(nonStaticReactions: Seq[Reaction]): Boolean =
+    nonStaticReactions.exists(_.info.outputs.exists(!_.molecule.isBound))
 
-  private[jc] def unboundOutputMoleculesString(nonStaticReactions: Seq[Reaction]): String = unboundOutputMolecules(nonStaticReactions).map(_.toString).toList.sorted.mkString(", ")
+  private[jc] def unboundOutputMoleculesString(nonStaticReactions: Seq[Reaction]): String =
+    nonStaticReactions
+      .flatMap(_.info.outputs.filter(!_.molecule.isBound).map(_.molecule.toString))
+      .toSet
+      .toList
+      .sorted.mkString(", ")
 
+  /** Log messages used by reaction site's logLevel setting.
+    *
+    * @param s Message to log.
+    */
   private[jc] def logMessage(s: String): Unit = {
     println(s"${LocalDateTime.now}: $s")
   }
 
+  /** Obtain the reaction info string from the current thread.
+    *
+    * @return `None` if the current thread is not running a reaction.
+    *         Otherwise, returns the string that describes the reaction most recently run by this thread.
+    */
   def reactionInfo: Option[String] = Thread.currentThread() match {
     case t: ThreadWithInfo ⇒
       t.chymystInfo.map(_.toString)
