@@ -593,7 +593,7 @@ final class ReactionInfo(
     }
   }
 
-  // The input pattern sequence is pre-sorted by descending strength of constraint -- for pretty-printing as well as for use in static analysis.
+  // The input pattern sequence is pre-sorted by descending strength of constraint — for pretty-printing as well as for use in static analysis.
   private[jc] val inputsSortedByConstraintStrength: List[InputMoleculeInfo] = {
     inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha, _) =>
       // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers.

@@ -1,26 +1,31 @@
 <link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
 
-# Chemical machine programming: first examples
+# Chemical machine programming
 
 The chemical machine can be programmed to perform arbitrary concurrent computations.
 However, it is not immediately obvious what molecules and reactions must be defined, say, to implement a concurrent buffered queue or a concurrent merge-sort algorithm.
 Another interesting application would be a concurrent GUI interaction together with some jobs in the background.
 
 Solving these problems via chemistry requires a certain paradigm shift.
-In order to build up our chemical intuition, let us go through some more examples.
+In order to build up our chemical intuition, let us go through some more examples, from simple to more complex.
 
 ## Example: “Readers/Writers”
 
-Suppose there is a shared resource that can be accessed by a number of **Readers** and a number of **Writers**.
-We require that either one Writer or up to three Readers be able to access the resource concurrently.
+Suppose there is a single shared resource that can be accessed by a number of **Readers** and a number of **Writers**.
+The resource behavior is such that while a Writer is accessing the resource, no readers can have access; and vice versa.
+Additionally, either at most _one_ Writer or at most _three_ Readers should be able to access the resource concurrently.
 
-To simplify our example, we assume that “accessing a resource” means calling `readResource()` for Readers and `writeResource()` for Writers.
-The task is to create a chemical machine program that allows any number of concurrent Readers and Writers to call their respective functions but restricts the number of concurrent calls to at most three `readResource()` calls or at most one `writeResource()` call, but not both. 
+To make our example concrete, we assume that “accessing a resource” means calling the function `readResource()` for Readers and the function `writeResource()` for Writers.
+So, we consider that the resource is being accessed while these function calls are running.
+
+The task is to create a chemical machine program that allows any number of concurrent Readers and Writers to call their respective functions
+but restricts the number of concurrent calls to at most three `readResource()` calls or at most one `writeResource()` call.
+The program should also prevent a `readResource()` and a `writeResource()` to be called at the same time. 
 
 Let us begin reasoning about this problem in the chemical machine paradigm, deriving the solution in a systematic way.
 
-We need to have control over code that calls certain functions.
-The only way a chemical machine can run any code is though running some reactions.
+We need to restrict code that calls certain functions.
+The only way a chemical machine can run any code is though running some _reactions_.
 Therefore, we need a reaction whose body calls `readResource()` and another reaction that calls `writeResource()`.
 
 We also need to define some input molecules that will start these reactions.
@@ -39,11 +44,11 @@ site(
 Processes will emit `read()` or `write()` molecules when they need to access the resource as readers or as writers.
 
 The reactions as written so far will always start whenever `read()` or `write()` are emitted.
-Actually, we need to _prevent_ these reactions from starting in certain circumstances (to prevent too many concurrent accesses).
+Actually, we need to _prevent_ these reactions from starting in certain circumstances (when there are too many concurrent accesses).
 
 The only way to prevent a reaction from starting is to withhold some of its input molecules.
 Therefore, the two reactions we just discussed need to have _another_ input molecule.
-Let us call this additional molecule `access()` and revise the reactions:
+Let us call this additional molecule `access()` and revise the reactions accordingly:
 
 ```scala
 val read = m[Unit]
@@ -57,7 +62,7 @@ access() // Emit at the beginning.
 
 ```
 
-In this chemistry, a single `access()` molecule will allow one Reader or one Writer to proceed with its work.
+In this chemistry, a single `access()` molecule will allow one Reader or one Writer to proceed with work.
 However, after the work is done, the `access()` molecule will be gone, and no reactions will start.
 To remedy this, we need to emit `access()` at the end of both reactions:
 
@@ -73,14 +78,14 @@ access() // Emit at the beginning.
 
 ```
 
-This implements Readers/Writers with single access for both.
+This implements Readers/Writers with _single_ exclusive access for both.
 How can we enable 3 Readers to access the resource simultaneously?
 
 We could emit 3 copies of `access()` at the beginning of the program run.
 However, this will also allow up to 3 Writers to access the resource.
 We would like to make it so that three Reader's accesses are equivalent to one Writer's access.
 
-One way of doing this is literally to replace the single `access` molecule with three copies of `access` in Writer's reaction: 
+One way of doing this is simply to replace the single `access` molecule with three copies of `access` in Writer's reaction: 
 
 ```scala
 val read = m[Unit]
@@ -92,7 +97,7 @@ site(
     writeResource(); access() + access() + access()
   }
 )
-access() + access() + access() // Emit at the beginning.
+access() + access() + access() // Emit three copies at the beginning.
 
 ```
 
@@ -104,18 +109,18 @@ Any number of `read()` and `write()` molecules can be emitted, but the reactions
 Our solution works but has a drawback: it cannot be generalized from 3 to `n` concurrent Readers, where `n` is a run-time parameter.
 This is because our solution uses one `write()` molecule and 3 `access()` molecules as inputs for the second reaction.
 In order to generalize this to `n` concurrent Readers, we would need to write a reaction with `n + 1` input molecules.
-However, the sets of input molecules for all reactions must be known at compile time.
+However, the sets of input molecules for all reactions must be known _at compile time_.
 So we cannot write a reaction with `n` input molecules, where `n` is a run-time parameter.
 
 The only way to overcome this drawback is to count explicitly how many Readers have been granted access at the present time.
 The current count value must be updated every time we grant access to a Reader and every time a Reader finishes accessing the resource.
 
-In the chemical machine, the only way to keep and update a value is to put that value on some molecule.
+In the chemical machine, reactions are stateless, and the only way to keep and update a value is to put that value on some molecule, and to consume and emit this molecule in some reactions.
 Therefore, we need a molecule that carries the current reader count.
 
 The easiest solution is to make `access()` carry an integer `k`, representing the current number of Readers that have been granted access.
 Initially we will have `k == 0`.
-We will allow a `Writer` to have access only when `k == 0`, and a `Reader` to have access only when `k < 3`.
+We will allow a new `Writer` to have access only when `k == 0`, and a new `Reader` to have access only when `k < 3`.
 
 As a first try, our reactions might look like this:
 
@@ -125,7 +130,9 @@ val write = m[Unit]
 val access = m[Int]
 val n = 3 // can be a run-time parameter
 site(
-  go { case read(_) + access(k) if k < n ⇒ readResource(); access(k + 1) },
+  go { case read(_) + access(k) if k < n ⇒
+    readResource(); access(k + 1)
+  },
   go { case write(_) + access(0) ⇒ writeResource(); access(0) }
 )
 access(0) // Emit at the beginning.
@@ -140,21 +147,23 @@ The Reader reaction, however, does not work correctly for two reasons:
 - It consumes the `access()` molecule for the entire duration of the `readResource()` call, preventing any other Readers from accessing the resource.
 - After `readResource()` is finished, the reaction emits `access(k + 1)`, which incorrectly signals that now one more Reader is accessing the resource.
 
-The first problem can be fixed by emitting `access(k + 1)` at the beginning of the reaction, before `readResource()` is called:
+The first problem can be fixed by emitting `access(k + 1)` at the _beginning_ of the reaction, before `readResource()` is called:
 
 ```scala
-go { case read(_) + access(k) if k < n ⇒ access(k + 1); readResource() }
+go { case read(_) + access(k) if k < n ⇒
+  access(k + 1); readResource()
+}
 
 ```
 
-However, the second problem remains.
+However, the second problem still remains.
 After `readResource()` is finished, we need to decrement the current value of `k` carried by `access(k)` at that time.
 
 Since the values on molecules are immutable, the only way of doing this in the chemical machine is to _add another reaction_ that will consume `access(k)` and emit `access(k - 1)`.
-To start this reaction, we clearly need another molecule, say `readerFinished()`:
+To start this reaction, we obviously need another input molecule; let us call it `readerFinished()`:
  
 ```scala
-go { case finished(_) + access(k) ⇒ access(k - 1) }
+go { case readerFinished(_) + access(k) ⇒ access(k - 1) }
  
 ```
 
@@ -163,6 +172,8 @@ The new `readerFinished()` molecule will be emitted at the end of the Reader rea
 The complete working code now looks like this:
 
 ```scala
+import io.chymyst.jc._
+
 val read = m[Unit]
 val write = m[Unit]
 val access = m[Int]
@@ -181,13 +192,16 @@ access(0) // Emit at the beginning.
 
 ```
 
-Exercise: Modify this program to allow `n` simultaneous Readers and `m` simultaneous Writers to access the resource.
+### Exercise
+
+Modify this program to allow `n` simultaneous Readers and `m` simultaneous Writers to access the resource.
 One easy way of doing this would be to use negative integer values to count Writers who have been granted access. 
 
 ### Passing values between reactions
 
 The reactions written so far don't do much useful work besides synchronizing some function calls.
-We would like to modify the program so that Readers and Writers exchange values with the resource.
+How could we modify the program so that Readers and Writers exchange values with the resource?
+
 Let us assume that the resource contains an integer value, so that `readResource()` returns an `Int` while `writeResource()` takes an `Int` argument.
 
 Since the only way to pass values is to use molecules, let us introduce a `readResult()` molecule with an `Int` value.
@@ -199,6 +213,8 @@ When the `writeResource()` operation has been run (perhaps after some waiting fo
 The revised code looks like this:
 
 ```scala
+import io.chymyst.jc._
+
 val read = m[Unit]
 val readResult = m[Int]
 val write = m[Int]
@@ -233,23 +249,25 @@ site(
 
 ```
 
-We see a certain inconvenience in this implementation.
-Instead of writing a single reaction body for a Reader client,
+We see a certain awkwardness in this implementation.
+Instead of writing a single reaction body for a Reader client, such as
 
 ```scala
 // Single reaction for Reader: not working!
 go { case startReader(_) ⇒
   val a = ???
   val b = ???
-  val x = read() // This won't work since `read()` doesn't return `x`
+  val x = read() // This won't work since `read()` doesn't return `x`.
   continueReader(a, b, x)
 }
 
 ```
 
 we must break the code at the place of the `read()` call into two reactions:
-the first reaction will contain all code preceding the `read()` call,
-and the second reaction will contain all code after the `read()` call, where the value `x` must be obtained by consuming the additional molecule `readResult(x)`.
+
+- the first reaction will contain all code preceding the `read()` call,
+- and the second reaction will contain all code after the `read()` call, where the value `x` must be obtained by consuming the additional molecule `readResult(x)`.
+
 Since the second reaction opens a new local scope, any local values (such as `a`, `b`) computed by the first reaction will be inaccessible.
 For this reason, we cannot rewrite the code shown above as two reactions like this:
 
@@ -272,7 +290,7 @@ The values of `a` and `b` would need to be passed to the second reaction somehow
 Since the chemical machine does not support mutable global state, we could try to pass `a` and `b` as additional values along with `read()` and `readResult()`. 
 However, this is a cumbersome workaround that mixes unrelated concerns.
 The `read()` and `readResult()` molecules should be concerned only with the correct implementation of the concurrent access to the `readResource()` operation.
-These molecules should not be carrying some arbitrary additional values that are used by other parts of the program and are completely unrelated to the `readResource()` operation.
+These molecules should not be carrying any additional values that are used by other parts of the program and are completely unrelated to the `readResource()` operation.
 
 This problem — breaking the code into parts at risk of losing access to local variables — is sometimes called ["stack ripping"](https://www.microsoft.com/en-us/research/publication/cooperative-task-management-without-manual-stack-management/).
 
@@ -343,8 +361,9 @@ access(0) // Emit at the beginning.
 
 ```
 
+Here is some skeleton code for Reader client reactions:
+
 ```scala
-// Working skeleton code for Reader client reactions.
 site(
   go { case startReader(_) ⇒
     val a = ???
@@ -356,7 +375,7 @@ site(
         continueReader(a, b, x) // Now `a` and `b` are obtained from outer scope.
       }
     )
-    // Only now, after `readResult` is bound, we may emit `read()`.
+// Only now, after `readResult` is bound to an RS, we can safely emit `read()`.
     read(readResult)
   }
 )
@@ -486,7 +505,7 @@ However, there is a serious problem with this implementation: We will not actual
 Our idea was that the processing will stop when there are no `interm()` molecules left.
 However, the `interm()` molecules are produced by previous reactions, which may take time.
 We do not know when each `interm()` molecule will be emitted: there may be prolonged periods of absence of any `interm()` molecules in the soup (while some reactions are still busy evaluating `f`).
-The second reaction can start at any time - even when some `interm()` molecules are going to be emitted very soon. 
+The second reaction can start at any time — even when some `interm()` molecules are going to be emitted very soon. 
 The runtime engine cannot know whether any reaction is going to eventually emit some more `interm()` molecules, and so the present program is unable to determine whether the entire map/reduce job is finished.
 
 It is the programmer's responsibility to organize the chemistry such that the “end-of-job” situation can be detected.
@@ -500,7 +519,7 @@ Reactions with `accum()` will increment the counter; the reaction with `fetch()`
 val accum = m[(Int, B)]
 
 go { case accum((n, b)) + interm(res) ⇒ accum( (n + 1, reduceB(b, res)) ) },
-go { case accum((n, b)) if n == arr.size ⇒ println(b) }
+go { case accum((n, b)) if n == arr.length ⇒ println(b) }
 
 ```
 
@@ -539,7 +558,7 @@ object C1 extends App {
   // The two reactions for the "reduce" step must be together since they both consume `accum`.
   site(
       go { case accum((n, b)) + interm(res) ⇒ accum( (n + 1, reduceB(b, res)) ) },
-      go { case accum((n, b)) if n == arr.size ⇒ println(b) }
+      go { case accum((n, b)) if n == arr.length ⇒ println(b) }
   )
 
   // emit molecules
@@ -550,12 +569,12 @@ object C1 extends App {
 
 ```
 
-### Increasing the parallelism
+### Achieving parallelism
 
 The code in the previous subsection works correctly but has an important drawback:
 Since there is always at most one copy of the `accum()` molecule present, the reaction `accum + interm → ... reduceB() ...` cannot run concurrently with other instances of itself.
-In other words, at most one call to `reduceB()` will run at any time.
-We would like to increase the parallelism level, so that multiple calls to `reduceB()` may run at once.
+In other words, at most one call to `reduceB()` will run at any given time!
+We would like to have some parallelism, so that multiple calls to `reduceB()` may run at once.
 
 Since the `reduceB()` operation is commutative and associative, we may reduce intermediate results in any order.
 The easiest way of implementing this in the chemical machine would be to write a reaction such as
@@ -566,15 +585,15 @@ go { case interm(x) + interm(y) ⇒ interm(reduceB(x, y)) }
 ```
 
 As `interm()` molecules are emitted, this reaction will run at random between any available pairs of `interm()` molecules.
-When running on a multi-core CPU, the chemical machine will be able to schedule several such reactions concurrently.
+When running on a multi-core CPU, the chemical machine should be able to schedule as many such reactions concurrently as needed to optimize the CPU load.
 
-This code, however, is not yet fully working.
+This code, however, is not yet correct.
 When all `interm()` molecule pairs have reacted, the single `interm()` molecule will remain inert in the soup, since no other molecules can react with it.
-We need a means of tracking progress and detecting when the entire computation is finished. 
+To fix this problem, we need a means of tracking progress and detecting when the entire computation is finished. 
 
 In our previous solution, we kept track of progress by using a counter `n` on the `accum()` molecule.
 Let us therefore add a counter to the `interm()` molecule.
-The presence of an `interm((n, x))` molecule indicates that the partial reduce of `n` numbers was already completed, with the result value `x`.
+The presence of an `interm((n, x))` molecule indicates that the partial reduce of a set of `n` numbers was already completed, with the result value `x`.
 
 The reaction is rewritten like this:
 
@@ -583,12 +602,12 @@ site(
   go { case interm((n1, x1)) + interm((n2, x2)) ⇒
     interm((n1 + n2, reduceB(x1, x2))) 
   },
-  go { case interm((n, x)) if n == arr.size ⇒ println(x) }
+  go { case interm((n, x)) if n == arr.length ⇒ println(x) }
 )
 
 ```
 
-This will work correctly if we initially emit `interm((1, x))`, indicating that the value `x` is a result of a partial reduce of a single number.
+This will work correctly if we initially emit `interm((1, x))`, indicating that the value `x` is a result of a partial reduce of a single-number set.
 Here is the complete sample code:
 
 ```scala
@@ -616,32 +635,60 @@ object C2 extends App {
     go { case interm((n1, x1)) + interm((n2, x2)) ⇒
       val x = reduceB(x1, x2)
       val n = n1 + n2
-      if (n == arr.size) println(x) else interm((n, x))
+      if (n == arr.length) println(x) else interm((n, x))
     }
   )
 
-  // emit molecules
+  // emit initial molecules
   arr.foreach(i ⇒ carrier(i))
  // prints 338350
 }
 
 ```
 
+### Exercise
+
+Modify the concurrent map/reduce program for the case when the `reduceB()` computation is itself asynchronous.
+
+Assume that the computation of `reduceB` is already defined as a reaction at another reaction site, with code such as
+
+```scala
+val inputsB = m[(Int, Int)]
+val resultB = m[Int]
+
+site(
+  go { case inputsB((x, y)) ⇒
+  val z = reduceB(x, y) // long computation
+  resultB(z) 
+  }
+)
+
+```
+
+Adapt the code in `object C2` from the previous section to use the molecules `inputsB()` and `resultB()`, instead of calling `reduceB()` directly.
+
 ### Ordered map/reduce
 
-If the `reduceB()` operation is not commutative, we may not apply the reduce operation to any pair of partial results.
-The map/reduce example in the previous subsection will fail to compute the correct final value for non-commutative operations.
+Typically, the reduce operation is associative, but it may or may not be commutative.
+A simple example of an associative but non-commutative operation on integers is [Budden's function](http://www.jstor.org/stable/3613855),
+
+_r_(_x_, _y_) = if (_x_ mod 2 == 0) _x_ + _y_ else _x_ - _y_  
+
+If the `reduceB()` operation is not commutative, we may not apply the reduce operation to just _any_ pair of partial results.
+The map/reduce code in the previous subsection selects pairs at random and will fail to compute the correct final value for non-commutative reduce operations.
 
 For instance, suppose we have an array `x1, x2, ..., x10` of intermediate results that we need to reduce with a `reduceB()` operation that is not commutative.
 We may now reduce `x4` with `x3` or with `x5`, but not with `x6` or any other element.
-Also, we need to reduce in the correct order, e.g. `reduceB(x3, x4)` but not `reduceB(x4, x3)`.
-Once we have computed the new intermediate result `reduceB(x3, x4)`, we may reduce that with `x5`, with `x2`, or with the result of `reduceB(x1, x2)` or `reduceB(x5, x6, x7)` -- but not with anything else.
+Also, we need to reduce elements in the correct order, e.g. `reduceB(x3, x4)` but not `reduceB(x4, x3)`.
+
+Once we have computed the new intermediate result `reduceB(x3, x4)`, we may reduce that with `x5`, with `x2`, or with the result of `reduceB(x1, x2)` or `reduceB(x5, x6, x7)` — but not with, say, `x6` or with `reduceB(x6, x7)`.
 
 What we need to do is to restrict the `reduceB()` operation so that it runs only on _consecutive_ partial results.
 How can we modify the chemistry to support these restrictions?
 
-We need to assure that the reaction `interm + interm → interm` only consumes molecules that represent consecutive intermediate results.
-The chemical machine has two ways of preventing reactions from starting:
+We need to assure that the reaction `interm + interm → interm` only consumes molecules that represent consecutive intermediate results, but does not start for any other pairs of input molecules.
+
+The chemical machine has only two ways of preventing reactions from starting:
 
 1. to control the presence of input molecules, e.g. withholding some input molecules so that reactions do not run, or configuring reactions only between certain molecules;
 2. to specify guard conditions on input molecule values, so that reactions run only when these conditions hold.
@@ -654,7 +701,7 @@ This means a very large number of possible molecules and reactions for the sched
 we will need _O_(_n_<sub>3</sub>) operations just to define the chemistry for this code, which will then run only _O_(_n_) reduce steps.
 For this reason, the code will run unacceptably slowly if implemented in this way.
 
-The solution with the second method is to put a condition on the reaction `interm + interm → interm` so that it will only run between consecutive intermediate results.
+The solution with the second method is to add a guard condition to the reaction `interm + interm → interm`, so that it will only run between consecutive intermediate results.
 To identify such intermediate results, we need to put an ordering label on the `interm()` molecule values, which will allow us to write a reaction like this:
 
 ```scala
@@ -806,9 +853,15 @@ a0(...) + a1(...) + ... // emit all initial values on these molecules
 
 Once we emit `a0()`, `a1()`, etc., the code will eventually emit `a07()` with the final result.
 
+So far, this is entirely equivalent to hand-coded reactions for 8 initial values.
+It remains to transform the code to allow us to specify the number of initial values (8) to become a run-time parameter. 
+Recursion is the obvious solution here.
+Let us refactor the above code using an auxiliary recursive function that takes an array `arr` of initial values as argument.
+The auxiliary function will also emit the initial values once we reach the bottom level of the tree where the required emitter will be available as the parameter `res`:
+
 ```scala
 def reduceAll[B](arr: Array[B], res: M[B]) =
-  if (arr.length == 1) res(arr(0))
+  if (arr.length == 1) res(arr(0)) // Emit initial values.
   else  {
     val (arr0, arr1) = arr.splitAt(arr.length / 2)
     val (a0, a1) = reduceOne(res)
@@ -817,12 +870,6 @@ def reduceAll[B](arr: Array[B], res: M[B]) =
  }
 
 ```
-
-So far, this is entirely equivalent to hand-coded reactions for 8 initial values.
-It remains to transform the code to allow us to specify the number of initial values (8) to become a run-time parameter. 
-Recursion is the obvious solution here.
-Let us refactor the above code using an auxiliary recursive function that takes an array `arr` of initial values as argument.
-The auxiliary function will also inject the initial values once we reach the bottom level of the tree: 
 
 What we have done is a simple refactoring of code in terms of a recursive function.
 This refactoring would be the same in any programming language and is not specific to chemical machine programming.

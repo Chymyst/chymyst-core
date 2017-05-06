@@ -86,7 +86,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 
  3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is emitted from a thread T and the corresponding reaction site runs on the same thread T, do not schedule a task but simply run the reaction site synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a reaction site that runs on thread T and the reaction is configured to run on the same thread, do not schedule a task but simply run the reaction synchronously.
 
- 3 * 5 - implement automatic thread fusion for static molecules? -- not sure how that would work.
+ 3 * 5 - implement automatic thread fusion for static molecules? — not sure how that would work.
  
  2 * 3 - when attaching molecules to futures or futures to molecules, we can perhaps schedule the new futures on the same thread pool as the reaction site to which the molecule is bound? This requires having access to that thread pool. Maybe that access would be handy to users anyway?
  
@@ -111,7 +111,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  3 * 5 - consider whether we would like to prohibit emitting molecules from non-reaction code. Maybe with a construct such as `withMolecule{ ... }` where the special molecule will be emitted by the system? Can we rewrite tests so that everything happens only inside reactions?
 
  3 * 3 - perhaps prohibit using explicit thread pools? It's error-prone because the user can forget to stop a pool. Perhaps only expose an API such as `withFixedPool(4){ implicit tp => ...}`? Investigate using implicit values for pools.
- Maybe remove default pools altogether? It seems that every pool needs to be stopped. -- However, this would prevent sharing thread pools across scopes. Maybe that is not particularly useful?
+ Maybe remove default pools altogether? It seems that every pool needs to be stopped. — However, this would prevent sharing thread pools across scopes. Maybe that is not particularly useful?
   
  3 * 3 - implement "one-off" or "perishable" molecules that are emitted once (like static, from the reaction site itself) and may be emitted only if first consumed (but not necessarily emitted at start of the reaction site)
   
@@ -141,5 +141,5 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  
  3 * 3 - Can we use macros to rewrite f() into f(_) inside reactions for Unit types? Otherwise it seems impossible to implement short syntax `case a() + b() => ` in the input patterns. — No, we can't because { case a() => } doesn't get past the Scala typer, and so macros don't see it at all.
  
- 3 * 5 - Can we implement Chymyst Core using Future / Promise and remove all blocking and all semaphores? -- No. Automatic concurrent execution of reactions when multiple molecules are available cannot be implemented using promises / futures.
+ 3 * 5 - Can we implement Chymyst Core using Future / Promise and remove all blocking and all semaphores? — No. Automatic concurrent execution of reactions when multiple molecules are available cannot be implemented using promises / futures.
 

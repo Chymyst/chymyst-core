@@ -253,8 +253,8 @@ val (begin1, label1) = makeLabeledReaction() // first call
 val (begin2, label2) = makeLabeledReaction() // second call
 val (x, y, p, q) = (begin1, label1, begin2, label2) // make aliases
 
-y("abc") + p() // Same as label1("abc") + begin2() - no reaction started!
-q("abc") // Same as label2("abc") - reaction starts and prints "abc"
+y("abc") + p() // Same as label1("abc") + begin2() — no reaction started!
+q("abc") // Same as label2("abc") — reaction starts and prints "abc"
 
 ```
 

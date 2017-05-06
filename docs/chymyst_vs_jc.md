@@ -45,14 +45,15 @@ def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
 `Chymyst` implements significantly fewer restrictions than usually present in academic versions of Join Calculus:
 
 - reactions can have arbitrary guard conditions on molecule values
-- reactions can consume several molecules of the same sort ("nonlinear input pattern")
+- reactions can consume several molecules of the same sort ("nonlinear input patterns")
 - reactions can consume an arbitrary number of blocking and non-blocking input molecules, and each blocking input molecule can receive its own reply ("nonlinear reply")
+- reactions are values — user's code can construct and define chemical laws incrementally at run time 
 
-`Chymyst` also implements some additional features that are important for practical applications but not included by the academic Join Calculus:
+`Chymyst` also implements some additional features that are important for practical applications but not supported by academic versions of Join Calculus:
 
 - timeouts on blocking calls
 - being able to terminate a reaction site, in order to make the program stop
-
+- explicit thread pools for controlling latency and throughput of concurrent computations
 
 ## Comparison: chemical machine vs. Actor model
 
@@ -60,7 +61,7 @@ Chemical machine programming is similar in some aspects to the well-known Actor 
 
 | Chemical machine | Actor model |
 |---|---|
-| molecules carry values | messages carry values | 
+| molecules carry values | messages carry values |
 | reactions wait to receive certain molecules | actors wait to receive certain messages | 
 | synchronization is implicit in molecule emission | synchronization is implicit in message-passing | 
 | reactions start when molecules are available | actors start running when a message is received |
@@ -72,7 +73,7 @@ Main differences between the chemical machine and the Actor model:
 | several concurrent reactions start automatically whenever several input molecules are available | a desired number of concurrent actors must be created and managed manually |
 | the user's code only manipulates molecules | the user's code must manipulate explicit references to actors as well as messages |
 | reactions typically wait for (and consume) several input molecules at once | actors wait for (and consume) only one input message at a time |
-| reactions are immutable and stateless, all data is stored on molecules (which are also immutable) | actors can mutate (“become another actor”); actors can hold mutable state |
+| reactions are immutable and stateless, all data is stored on molecules | actors can mutate (“become another actor”); actors can hold mutable state |
 | molecules are held in an unordered bag and processed in random order | messages are held in an ordered queue (mailbox) and processed in the order received |
 | molecule data is statically typed | message data is untyped |
 
