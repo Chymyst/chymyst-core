@@ -24,7 +24,7 @@ The current implementation is tested under Oracle JDK 8 with Scala `2.11.8` and 
 
 ### [Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
 
-#### [A complete minimal "Hello, world" project](https://github.com/Chymyst/helloworld)
+#### [A "Hello, world" project](https://github.com/Chymyst/helloworld)
 
 #### [Video presentation of early version of `Chymyst Core`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
 
@@ -156,7 +156,7 @@ libraryDependencies += "io.chymyst" %% "chymyst-core" % "latest.integration"
 
 To use the chemical machine DSL, add `import io.chymyst.jc._` in your Scala sources.
 
-See the ["hello, world" project](https://github.com/Chymyst/helloworld) for a complete minimal example.
+See the ["hello, world" project](https://github.com/Chymyst/helloworld) for an example.
 
 ## Build the library JARs
 

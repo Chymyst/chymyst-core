@@ -939,6 +939,19 @@ it will run many times to define the new reactions we previously denoted by `r01
 Thus, emitting the initial molecule `reduceAll((arr, res))` will create a recursive structure of reactions at run time
 equivalent to what we previously hard-coded.
 
+### Exercise<sup>*</sup>: concurrent ternary search 
+
+The task is to search through a sorted array `arr: Array[Int]` for a given value `x`.
+The result must be of type `Option[Int]`, indicating the index at which `x` is present in the array, or `None` if not found.
+
+The usual binary search will divide the array in two parts, determine in which part `x` might be present, and run the search recursively in that part.
+This algorithm cannot be parallelized.
+However, if we divide the array into _three_ parts, we can check concurrently whether `x` is below the first or the second division point.
+This is the "ternary search" algorithm.
+
+Implement the chemistry that performs the ternary search, first as a recursive function that generates the necessary tree of computations,
+and then as a recursive reaction.
+
 ## Example: Concurrent merge-sort
 
 As we have just seen in the previous section, chemical laws can be recursive:

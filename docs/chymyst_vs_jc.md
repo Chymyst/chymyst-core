@@ -7,12 +7,12 @@ Here is a dictionary:
 
 | Chemical machine  | Academic Join Calculus | `Chymyst` code |
 |---|---|---|
-| input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
+| input molecule | message on a channel | `case a(123) => ...` _// pattern-matching_ |
 | molecule emitter | channel name | `val a :  M[Int]` |
 | blocking emitter | synchronous channel | `val q :  B[Unit, Int]` |
 | reaction | process | `val r1 = go { case a(x) + ... => ... }` |
 | emitting an output molecule | sending a message | `a(123)` _// side effect_ |
-| emitting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
+| emitting a blocking molecule | sending a synchronous message | `q()` _// returns_ `Int` |
 | reaction site | join definition | `site(r1, r2, ...)` |
 
 As another comparison, here is some code in academic Join Calculus, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
@@ -64,7 +64,8 @@ Chemical machine programming is similar in some aspects to the well-known Actor 
 | molecules carry values | messages carry values |
 | reactions wait to receive certain molecules | actors wait to receive certain messages | 
 | synchronization is implicit in molecule emission | synchronization is implicit in message-passing | 
-| reactions start when molecules are available | actors start running when a message is received |
+| reactions start when input molecules are available | actors start running when a message is received |
+| reactions can define new reactions and emit new input molecules for them | actors can create and run new actors, and send messages to them |
 
 Main differences between the chemical machine and the Actor model:
 
@@ -79,7 +80,7 @@ Main differences between the chemical machine and the Actor model:
 
 ## Comparison: chemical machine vs. CSP
 
-CSP (Communicating Sequential Processes) is another approach to declarative concurrency, used today in the Go programming language.
+CSP (Communicating Sequential Processes) is another approach to declarative concurrency, used today in the [Go programming language](https://golang.org/).
 
 Similarities:
 
@@ -94,4 +95,3 @@ In CSP, the user needs to create and manage new threads manually.
 
 JC has non-blocking channels as a primitive construct.
 In CSP, non-blocking channels need to be simulated by [additional user code](https://gobyexample.com/non-blocking-channel-operations).
-
