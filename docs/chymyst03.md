@@ -711,10 +711,10 @@ Errors of this type are caught at compile time:
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-site( go { case f(_,r) + c(n) => c(n + 1) } ) // forgot to reply!
+site( go { case f(_, r) + c(n) => c(n + 1) } ) // forgot to reply!
 // compile-time error: "blocking input molecules should receive a reply but no unconditional reply found"
 
-site( go { case f(_,r) + c(n) => c(n + 1) + r(n) + r(n) } ) // replied twice!
+site( go { case f(_, r) + c(n) => c(n + 1) + r(n) + r(n) } ) // replied twice!
 // compile-time error: "blocking input molecules should receive one reply but possibly multiple replies found"
 
 ```
@@ -726,7 +726,7 @@ It is an error if a reply is emitted in only one of the `if` branches:
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-site( go { case f(_,r) + c(n) => c(n + 1); if (n != 0) r(n) } )
+site( go { case f(_, r) + c(n) => c(n + 1); if (n != 0) r(n) } )
 // compile-time error: "blocking input molecules should receive a reply but no unconditional reply found"
 
 ```
@@ -736,8 +736,12 @@ A correct reaction could look like this:
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-site( go { case f(_,r) + c(n) => c(n + 1); if (n != 0) r(n) else r(0) } )
-// reply is always sent, regardless of the value of `n`
+site(
+  go { case f(_, r) + c(n) =>
+    // reply is always sent, regardless of the value of `n`
+    c(n + 1); if (n != 0) r(n) else r(0)
+  }
+)
 
 ```
 
@@ -751,7 +755,7 @@ Here is an example of code that emits `f()` and waits for reply, while a reactio
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-site( go { case f(_,r) + c(n) => c(n + 1); if (n == 0) throw new Exception("Bad value of n!"); r(n) } )
+site( go { case f(_, r) + c(n) => c(n + 1); if (n == 0) throw new Exception("Bad value of n!"); r(n) } )
 c(0)
 f()
 
@@ -759,7 +763,8 @@ f()
 
 `java.lang.Exception: Error: In Site{c + f/B → ...}: Reaction {c + f/B → ...} finished without replying to f/B. Reported error: Bad value of n!`
 
-In general, there can be one or more blocked threads still waiting for replies when this kind of situation occurs.
+In general, a reaction can consume one or more blocking molecules and fail to reply to them due to an exception.
+Thus, there can be one or more blocked threads still waiting for replies when this kind of situation occurs.
 The chemical machine will throw an exception in all threads that are still waiting for replies, unblocking all those threads (and possibly killing their calculations, unless exceptions are caught).
 This feature is intended to reduce deadlocks due to missing replies.
 
@@ -770,6 +775,6 @@ Also, if the blocking molecules are emitted from some reactions, exceptions occu
 
 For these reasons, it is not easy to catch errors of this type, either at compile time or at run time.
 
-To avoid these problems, it is advisable to design the chemistry such that each reply is guaranteed to be emitted exactly once,
-and that no exceptions can be thrown before emitting the reply.
+To avoid these problems, it is advisable to design reactions such that each reply is guaranteed to be sent exactly once,
+and that no exceptions can be thrown before sending the reply.
 If a condition needs to be checked before sending a reply, it should be a simple condition that is guaranteed not to throw an exception.
