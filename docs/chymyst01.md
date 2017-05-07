@@ -267,7 +267,9 @@ decr() + decr() // prints “new value is 99” and then “new value is 98”
 
 ## Exercises
 
-1. Implement a chemical program that simulates a simple “producer-consumer” arrangement.
+### Producer-consumer
+
+Implement a chemical program that simulates a simple “producer-consumer” arrangement.
 
 There exist one or more items that can be consumed. Each item is labeled by an integer value.
 Any process can issue an (asynchronous, concurrent) request to consume an item.
@@ -282,15 +284,21 @@ The program should define a molecule `item()` carrying an integer value, a molec
 
 (At this point, your chemical program does not need to be able to stop. It is sufficient that the correct values are printed to the console.)
 
-2. Modify the previous program, adding a request to produce a new set of `n` items, again labeled with values 1 to `n`.
+### Batch producer
+
+Modify the previous program, adding a request to produce a new set of `n` items, again labeled with values 1 to `n`.
 
 This request should be modeled by a new molecule `produce()` with unit value, and by adding appropriate new reaction(s).
 
-3. Modify the previous program, allowing the produce request to specify a list of label values to be put on new items.
+### Producer with given labels
+
+Modify the previous program, allowing the produce request to specify a list of label values to be put on new items.
 
 This should be modeled by the molecule `produce()` carrying a value of type `List[Int]`, and by adding appropriate new reaction(s).
 
-4. Modify the previous program, allowing for a new request to consume `k` items where `k` is an integer parameter.
+### Batch consumer
+
+Modify the previous program, allowing for a new request to consume `k` items where `k` is an integer parameter.
 
 This request should be modeled by a new molecule `consumeK()` carrying an integer value, and by adding appropriate new reaction(s).
 
