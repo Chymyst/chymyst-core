@@ -4,6 +4,7 @@ import io.chymyst.jc._
 import io.chymyst.test.LogSpec
 import org.scalatest.Matchers
 
+import scala.annotation.tailrec
 import scala.concurrent.duration._
 
 class MapReduceSpec extends LogSpec with Matchers {
@@ -315,6 +316,8 @@ class MapReduceSpec extends LogSpec with Matchers {
 
   behavior of "ordered map/reduce"
 
+  val countHierarchical = 10000
+
   /** A simple binary operation on integers that is associative but not commutative.
     * op(x,y) = x + y if x is even, and x - y if x is odd.
     * See: F. J. Budden. A Non-Commutative, Associative Operation on the Reals. The Mathematical Gazette, Vol. 54, No. 390 (Dec., 1970), pp. 368-372
@@ -326,7 +329,16 @@ class MapReduceSpec extends LogSpec with Matchers {
     */
   def assocNonCommutOperation(x: Int, y: Int): Int = {
     val s = 1 - math.abs(x % 2) * 2 // s = 1 if x is even, s = -1 if x is odd; math.abs is needed to fix the bug where (-1) % 2 == -1
+    //    Thread.sleep(1) // imitate longer computations
     x + s * y
+  }
+
+  it should "compute associative, noncommutative operation" in {
+    assocNonCommutOperation(1, 13) shouldEqual -12
+    assocNonCommutOperation(13, 1) shouldEqual 12
+    assocNonCommutOperation(2, 13) shouldEqual 15
+    assocNonCommutOperation(13, 2) shouldEqual 11
+    assocNonCommutOperation(23, assocNonCommutOperation(57, 98)) shouldEqual assocNonCommutOperation(assocNonCommutOperation(23, 57), 98)
   }
 
   def orderedMapReduce(count: Int): Unit = {
@@ -363,10 +375,10 @@ class MapReduceSpec extends LogSpec with Matchers {
   }
 
   it should "perform ordered map-reduce using conditional reactions" in {
-    orderedMapReduce(count = 50000)
+    orderedMapReduce(count = countHierarchical)
   }
 
-  it should "perform ordered map-reduce using unique reactions (very slow due to thousands of RSs defined)" in {
+  it should "perform ordered map-reduce using unique reactions (very slow due to thousands of reactions defined)" in {
     // c((l, r, x)) represents the left-closed, right-open interval (l, r) over which we already performed the reduce operation, and the result value x.
     val done = m[Int]
     val f = b[Unit, Int]
@@ -382,7 +394,7 @@ class MapReduceSpec extends LogSpec with Matchers {
 
     // Define all molecule emitters as a 2-indexed map
     val emitters: Map[(Int, Int), M[Int]] =
-    (0 until count).flatMap(i ⇒ (i + 1 to count).map(j ⇒ (i, j) → new M[Int](s"c[$i,$j]")))(scala.collection.breakOut)
+      (0 until count).flatMap(i ⇒ (i + 1 to count).map(j ⇒ (i, j) → new M[Int](s"c[$i,$j]")))(scala.collection.breakOut)
 
     val lastMol = emitters((0, count))
 
@@ -406,5 +418,221 @@ class MapReduceSpec extends LogSpec with Matchers {
 
   behavior of "hierarchical ordered map/reduce"
 
+  def hierarchicalMapReduce[T](array: Array[T], result: M[T], reduceB: (T, T) ⇒ T, tp: Pool): Unit = {
+    val reduceAll = m[(Array[T], M[T])]
+    site(tp)(
+      go { case reduceAll((arr, res)) ⇒
+        if (arr.length == 1) res(arr(0))
+        else {
+          val (arr0, arr1) = arr.splitAt(arr.length / 2)
+          val a0 = m[T]
+          val a1 = m[T]
+          site(tp)(go { case a0(x) + a1(y) ⇒ res(reduceB(x, y)) })
+          reduceAll((arr0, a0)) + reduceAll((arr1, a1))
+        }
+      }
+    )
+    reduceAll((array, result))
+    // The result() molecule will be emitted with the final result.
+  }
 
+  def hierarchicalMapReduce2[T](array: Array[T], result: M[T], reduceB: (T, T) ⇒ T, tp: Pool): Unit = {
+    val reduceAll = m[(Int, Int, M[T])]
+    site(tp)(
+      go { case reduceAll((p, q, res)) ⇒
+        if (q - p == 1) res(array(p))
+        else if (q - p == 2) res(reduceB(array(p), array(p + 1)))
+        else {
+          val middle = (p + q) / 2
+          val a0 = m[T]
+          val a1 = m[T]
+          site(tp)(go { case a0(x) + a1(y) ⇒ res(reduceB(x, y)) })
+          reduceAll((p, middle, a0)) + reduceAll((middle, q, a1))
+        }
+      }
+    )
+    reduceAll((0, array.length, result))
+    // The result() molecule will be emitted with the final result.
+  }
+
+  def hierarchicalMapReduce3[T](array: Array[T], result: M[T], reduceB: (T, T) ⇒ T, tp: Pool): Unit = {
+    val reduceAll = m[(Int, Int, M[T])]
+    site(tp)(
+      go { case reduceAll((p, q, res)) ⇒
+        if (q - p == 1) res(array(p))
+        else if (q - p == 2) res(reduceB(array(p), array(p + 1)))
+        else {
+          val middle1 = (2 * p + q) / 3
+          val middle2 = (p + 2 * q) / 3
+          val a0 = m[T]
+          val a1 = m[T]
+          val a2 = m[T]
+          val a01 = m[T]
+          val a12 = m[T]
+          site(tp)(
+            go { case a0(x) + a1(y) ⇒ a01(reduceB(x, y)) },
+            go { case a0(x) + a12(y) ⇒ res(reduceB(x, y)) },
+            go { case a1(x) + a2(y) ⇒ a12(reduceB(x, y)) },
+            go { case a01(x) + a2(y) ⇒ res(reduceB(x, y)) }
+          )
+          reduceAll((p, middle1, a0)) + reduceAll((middle1, middle2, a1)) + reduceAll((middle2, q, a2))
+        }
+      }
+    )
+    reduceAll((0, array.length, result))
+    // The result() molecule will be emitted with the final result.
+  }
+
+  @tailrec
+  final def makeReactionPlanLogN[T](
+    nmax: Int,
+    ns: IndexedSeq[Int],
+    results: IndexedSeq[(M[T], Int, Int)],
+    reduceB: (T, T) ⇒ T,
+    rs: IndexedSeq[IndexedSeq[Reaction]] = IndexedSeq()
+  ): (IndexedSeq[IndexedSeq[Reaction]], IndexedSeq[(M[T], Int, Int)]) = {
+    if (nmax <= 2) {
+      // homogeneous case
+      (rs, results)
+    } else if (nmax == 3) {
+      // inhomogeneous case: need to add molecules and reactions for the 3-groups
+      val above3 = ns.zipWithIndex.filter { case (n, _) ⇒ n == 3 }.map(_._2)
+      val sums = ns.scanLeft(0)(_ + _).take(ns.length)
+
+      val newMols: Map[Int, IndexedSeq[(M[T], Int, Int)]] = above3.map { i ⇒
+        i → IndexedSeq(
+          (new M[T](s"a$nmax-$i"), sums(i), sums(i) + 1),
+          (new M[T](s"a$nmax-$i-"), sums(i) + 1, sums(i) + 3)
+        )
+      }(scala.collection.breakOut)
+      val newReactions = above3.map { i ⇒
+        val a = results(i)._1
+        val as = newMols(i)
+        val a0 = as(0)._1
+        val a1 = as(1)._1
+        go { case a0(x) + a1(y) ⇒ a(reduceB(x, y)) }
+      }
+      val previousMols = results.filter { case (_, p, q) ⇒ q - p < 3 } // previousMols must be replaced by newMols
+      (rs :+ newReactions, newMols.values.toIndexedSeq.flatten ++ previousMols)
+    } else {
+      // recursive case
+      val nmaxNew = (nmax + 1) / 2
+      val nsNew = ns.flatMap(n ⇒ IndexedSeq(n / 2, (n + 1) / 2))
+      val sums = nsNew.scanLeft(0)(_ + _).take(nsNew.length)
+      val resultsNew = nsNew.indices.map(i ⇒ (new M[T](s"a$nmax-$i"), sums(i), sums(i) + nsNew(i)))
+      val newReactions: IndexedSeq[Reaction] = {
+        results.indices.map { i ⇒
+          val a = results(i)._1
+          val a0 = resultsNew(i * 2)._1
+          val a1 = resultsNew(i * 2 + 1)._1
+          go { case a0(x) + a1(y) ⇒ a(reduceB(x, y)) }
+        }
+      }
+      makeReactionPlanLogN(nmaxNew, nsNew, resultsNew, reduceB, rs :+ newReactions)
+    }
+  }
+
+  it should "use algorithm with binary split" in {
+    val tp = new FixedPool(cpuCores + 2)
+    val tp1 = new FixedPool(1)
+
+    val result = m[Int]
+    val f = b[Unit, Int]
+
+    site(tp1)(
+      go { case result(x) + f(_, r) => r(x) }
+    )
+    val data = (1 to countHierarchical).map(i ⇒ i * i)
+
+    val initTime = System.currentTimeMillis()
+    hierarchicalMapReduce(data.toArray, result, assocNonCommutOperation, tp)
+    val res = f()
+    println(s"associative but non-commutative hierarchical reduceB() on $countHierarchical numbers took ${elapsed(initTime)} ms")
+    res shouldEqual data.reduce(assocNonCommutOperation)
+
+    tp.shutdownNow()
+    tp1.shutdownNow()
+  }
+
+  it should "use algorithm with optimizations in binary split" in {
+    val tp = new FixedPool(cpuCores + 2)
+    val tp1 = new FixedPool(1)
+
+    val result = m[Int]
+    val f = b[Unit, Int]
+
+    site(tp1)(
+      go { case result(x) + f(_, r) => r(x) }
+    )
+    val data = (1 to countHierarchical).map(i ⇒ i * i)
+
+    val initTime = System.currentTimeMillis()
+    hierarchicalMapReduce2(data.toArray, result, assocNonCommutOperation, tp)
+    val res = f()
+    println(s"associative but non-commutative hierarchical reduceB() on $countHierarchical numbers with optimization took ${elapsed(initTime)} ms")
+    res shouldEqual data.reduce(assocNonCommutOperation)
+
+    tp.shutdownNow()
+    tp1.shutdownNow()
+  }
+
+  it should "use algorithm with ternary split" in {
+    val tp = new FixedPool(cpuCores + 2)
+    val tp1 = new FixedPool(1)
+
+    val result = m[Int]
+    val f = b[Unit, Int]
+
+    site(tp1)(
+      go { case result(x) + f(_, r) => r(x) }
+    )
+    val data = (1 to countHierarchical).map(i ⇒ i * i)
+
+    val initTime = System.currentTimeMillis()
+    hierarchicalMapReduce3(data.toArray, result, assocNonCommutOperation, tp)
+    val res = f()
+    println(s"associative but non-commutative hierarchical reduceB() on $countHierarchical numbers with ternary split took ${elapsed(initTime)} ms")
+    res shouldEqual data.reduce(assocNonCommutOperation)
+
+    tp.shutdownNow()
+    tp1.shutdownNow()
+  }
+
+  it should "use algorithm with log(n) reaction sites" in {
+    val tp = new FixedPool(cpuCores + 2)
+    val tp1 = new FixedPool(1)
+
+    val count = countHierarchical
+
+    val result = m[Int]
+    val f = b[Unit, Int]
+
+    site(tp1)(
+      go { case result(x) + f(_, r) => r(x) }
+    )
+    val data = (1 to count).map(i ⇒ i * i)
+
+    val initTime = System.currentTimeMillis()
+    val len = data.length
+    val (reactions, emitterList) = makeReactionPlanLogN(len, IndexedSeq(len), IndexedSeq((result, 0, len)), assocNonCommutOperation)
+
+    println(s"computed reaction plan at ${elapsed(initTime)}")
+
+    // Declare reaction sites.
+    reactions.foreach(rs ⇒ site(tp)(rs: _*))
+    println(s"declared reaction sites at ${elapsed(initTime)}")
+    // Emit initial molecules. The distance between p and q can be at most 2.
+    emitterList.foreach { case (mol, p, q) ⇒
+      if (q - p == 1) mol(data(p)) else mol(assocNonCommutOperation(data(p), data(p + 1)))
+    }
+    println(s"emitted initial molecules at ${elapsed(initTime)}")
+
+    // The result() molecule will be emitted with the final result.
+    val res = f()
+    println(s"associative but non-commutative hierarchical reduceB() on n=$count numbers with log(n) reaction sites took ${elapsed(initTime)} ms")
+    res shouldEqual data.reduce(assocNonCommutOperation)
+
+    tp.shutdownNow()
+    tp1.shutdownNow()
+  }
 }

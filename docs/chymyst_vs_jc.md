@@ -7,12 +7,12 @@ Here is a dictionary:
 
 | Chemical machine  | Academic Join Calculus | `Chymyst` code |
 |---|---|---|
-| input molecule | message on channel | `case a(123) => ...` _// pattern-matching_ |
+| input molecule | message on a channel | `case a(123) => ...` _// pattern-matching_ |
 | molecule emitter | channel name | `val a :  M[Int]` |
 | blocking emitter | synchronous channel | `val q :  B[Unit, Int]` |
 | reaction | process | `val r1 = go { case a(x) + ... => ... }` |
 | emitting an output molecule | sending a message | `a(123)` _// side effect_ |
-| emitting a blocking molecule | sending a synchronous message | `q()` _// returns Int_ |
+| emitting a blocking molecule | sending a synchronous message | `q()` _// returns_ `Int` |
 | reaction site | join definition | `site(r1, r2, ...)` |
 
 As another comparison, here is some code in academic Join Calculus, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
@@ -45,14 +45,15 @@ def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
 `Chymyst` implements significantly fewer restrictions than usually present in academic versions of Join Calculus:
 
 - reactions can have arbitrary guard conditions on molecule values
-- reactions can consume several molecules of the same sort ("nonlinear input pattern")
+- reactions can consume several molecules of the same sort ("nonlinear input patterns")
 - reactions can consume an arbitrary number of blocking and non-blocking input molecules, and each blocking input molecule can receive its own reply ("nonlinear reply")
+- reactions are values — user's code can construct and define chemical laws incrementally at run time 
 
-`Chymyst` also implements some additional features that are important for practical applications but not included by the academic Join Calculus:
+`Chymyst` also implements some additional features that are important for practical applications but not supported by academic versions of Join Calculus:
 
 - timeouts on blocking calls
 - being able to terminate a reaction site, in order to make the program stop
-
+- explicit thread pools for controlling latency and throughput of concurrent computations
 
 ## Comparison: chemical machine vs. Actor model
 
@@ -60,10 +61,11 @@ Chemical machine programming is similar in some aspects to the well-known Actor 
 
 | Chemical machine | Actor model |
 |---|---|
-| molecules carry values | messages carry values | 
+| molecules carry values | messages carry values |
 | reactions wait to receive certain molecules | actors wait to receive certain messages | 
 | synchronization is implicit in molecule emission | synchronization is implicit in message-passing | 
-| reactions start when molecules are available | actors start running when a message is received |
+| reactions start when input molecules are available | actors start running when a message is received |
+| reactions can define new reactions and emit new input molecules for them | actors can create and run new actors, and send messages to them |
 
 Main differences between the chemical machine and the Actor model:
 
@@ -72,13 +74,13 @@ Main differences between the chemical machine and the Actor model:
 | several concurrent reactions start automatically whenever several input molecules are available | a desired number of concurrent actors must be created and managed manually |
 | the user's code only manipulates molecules | the user's code must manipulate explicit references to actors as well as messages |
 | reactions typically wait for (and consume) several input molecules at once | actors wait for (and consume) only one input message at a time |
-| reactions are immutable and stateless, all data is stored on molecules (which are also immutable) | actors can mutate (“become another actor”); actors can hold mutable state |
+| reactions are immutable and stateless, all data is stored on molecules | actors can mutate (“become another actor”); actors can hold mutable state |
 | molecules are held in an unordered bag and processed in random order | messages are held in an ordered queue (mailbox) and processed in the order received |
 | molecule data is statically typed | message data is untyped |
 
 ## Comparison: chemical machine vs. CSP
 
-CSP (Communicating Sequential Processes) is another approach to declarative concurrency, used today in the Go programming language.
+CSP (Communicating Sequential Processes) is another approach to declarative concurrency, used today in the [Go programming language](https://golang.org/).
 
 Similarities:
 
@@ -93,4 +95,3 @@ In CSP, the user needs to create and manage new threads manually.
 
 JC has non-blocking channels as a primitive construct.
 In CSP, non-blocking channels need to be simulated by [additional user code](https://gobyexample.com/non-blocking-channel-operations).
-

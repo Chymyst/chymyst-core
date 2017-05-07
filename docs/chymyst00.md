@@ -4,7 +4,9 @@
 
 [Preface](chymyst-preface.md)
 
-[Chapter 1: The chemical machine](chymyst01.md)
+[Chapter 0: Quick start](chymyst-quick.md)
+
+[Chapter 1: The chemical machine paradigm](chymyst01.md)
 
 [Chapter 2: Readers/Writers, Map/Reduce, and Merge-Sort](chymyst02.md)
 
@@ -22,5 +24,7 @@
 
 [Chapter 9: Game of Life](chymyst_game_of_life.md)
 
-[Previous work and other tutorials on Join Calculus](other_work.md)
+[Appendix A: From actors to reactions: The chemical machine explained through the Actor model](chymyst-actor.md)
+
+[Other work on Join Calculus](other_work.md)
 

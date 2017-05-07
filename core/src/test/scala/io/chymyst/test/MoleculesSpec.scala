@@ -275,6 +275,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
   }
 
   it should "start reactions when molecule emitters are passed on input molecules slightly before they are bound" in {
+    clearErrorLog()
     val results = (1 to 100).map { i =>
       val p = m[M[Int]]
       val c = m[Int]
@@ -301,6 +302,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
   // This test intentionally defines the reaction site defining the {e -> } reaction *after* the `e` emitter is passed to the `a` reaction.
   it should "start reactions and throw exception when molecule emitters are passed to nested reactions slightly before they are bound" in {
     val tp1 = new FixedPool(2)
+    clearErrorLog()
     val results = (1 to 100).map { i =>
       val a = m[M[Int]]
       site(tp1)(
@@ -315,10 +317,10 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
           val e = m[Int]
           if (i % 2 == 0) {
             a(e) // The reaction for `a` will emit `e(123)`, unless it crashes due to `e` being unbound.
+            Thread.sleep(10)
             site(tp0)(
               go { case e(y) => r = x + y }
             )
-
           } else {
             site(tp0)(
               go { case e(y) => r = x + y }
@@ -331,14 +333,15 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
       Thread.sleep(scala.util.Random.nextInt(40).toLong)
       r
     }
+    tp1.shutdownNow()
     println(s"results for test 2: ${results.groupBy(identity).mapValues(_.size)}")
     results should contain(246)
     globalErrorLog.toList should contain("In Site{a → ...}: Reaction {a(s) → } with inputs [a/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site")
     results should contain(0)
-    tp1.shutdownNow()
   }
 
   it should "start reactions without errors when molecule emitters are passed to nested reactions after they are bound" in {
+    clearErrorLog()
     val results = (1 to 100).map { _ =>
       val q = m[M[Int]]
       val p = m[Int]

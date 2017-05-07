@@ -593,7 +593,7 @@ final class ReactionInfo(
     }
   }
 
-  // The input pattern sequence is pre-sorted by descending strength of constraint -- for pretty-printing as well as for use in static analysis.
+  // The input pattern sequence is pre-sorted by descending strength of constraint — for pretty-printing as well as for use in static analysis.
   private[jc] val inputsSortedByConstraintStrength: List[InputMoleculeInfo] = {
     inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha, _) =>
       // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers.
@@ -719,10 +719,8 @@ final case class Reaction(
       .sortBy(_.toString)
 
   // java.security.MessageDigest is not thread safe, so we use a new MessageDigest for each reaction.
-  private lazy val messageDigest = getMessageDigest
-
-  private[jc] lazy val inputInfoSha1: String =
-    getSha1(inputMoleculesSortedAlphabetically.map(_.hashCode()).mkString(","), messageDigest) + info.sha1
+  private[jc] val inputInfoSha1: String =
+    getSha1(inputMoleculesSortedAlphabetically.map(_.hashCode()).mkString(","), getMessageDigest) + info.sha1
 
   // Optimization: this is used often.
   private[jc] val inputMoleculesSet = inputMoleculesSortedAlphabetically.toSet

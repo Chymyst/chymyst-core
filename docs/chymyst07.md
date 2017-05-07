@@ -1322,16 +1322,20 @@ def doForkJoin[R, T](init: T, fork: T ⇒ Either[List[T], R], done: M[R]): Unit 
 
 ### Exercises
 
-1. In the "fork/join" chemistry just described, partial results are aggregated in an arbitrary order.
-Implement the chemistry using recursive reactions instead of counters,
-so that the partial results are always aggregated first within the recursive split that generated them.
+#### Bug fixing
 
-2. The code as shown in the previous section will fail in certain corner cases:
+The code as shown in the previous section will fail in certain corner cases:
 
 - when any task is split into an empty list of subtasks, the code will divide `c` by `ts.length`, which will be equal to zero
 - when there is only one `res()` molecule ever emitted, the reaction `res + res → res` will never run; this will happen, for instance, if the initial task is split into exactly one sub-task, which then immediately returns its result
 
 Fix the chemistry so that the procedure works correctly in these corner cases.
+
+#### Ordered fork/join
+
+In the "fork/join" chemistry just described, partial results are aggregated in an arbitrary order.
+Implement the chemistry using recursive reactions instead of counters,
+so that the partial results are always aggregated first within the recursive split that generated them.
 
 ## Producer-consumer, or `java.util.concurrent.ConcurrentLinkedQueue`
 

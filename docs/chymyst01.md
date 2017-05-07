@@ -54,23 +54,29 @@ Once a reaction starts, the input molecules instantaneously disappear from the s
 The simulator will start many reactions concurrently whenever their input molecules are available.
 As reactions emit new molecules into the soup, the simulator will continue starting new reactions whenever possible.
 
-## Concurrent computations on the chemical machine
+## Concurrent computations using the chemical machine
 
-The chemical machine is implemented by the runtime engine of `Chymyst`.
-Rather than merely watch as reactions happen, we are going to use the chemical machine for running actual concurrent programs.
+The simulator described in the previous section is at the core of the runtime engine of `Chymyst`.
+In addition, the following three key features are implemented in order to be able to perform actual computations, rather than merely watch as reactions happen.
 
-To this end, we add three features to the chemical machine:
-
-1. Each molecule in the soup is now required to _carry a value_.
+1. Each molecule in the soup is required to _carry a value_.
 Molecule values are strongly typed: a molecule of a given sort (such as `a` or `b`) can only carry values of some fixed type (such as `Boolean` or `String`).
+The programmer is completely free to specify what kinds of molecules are defined and what types they carry.
 
-2. Since molecules must carry values, we now need to specify a value of the correct type whenever we emit a new molecule into the soup.
+2. Since molecules must carry values, we need to produce a value of the correct type whenever we emit a new molecule into the soup.
 
-3. For the same reason, reactions that produce new molecules will now need to put values on each of the output molecules.
+3. For the same reason, reactions that emit new molecules will need to put values on each of the output molecules.
 These output values must be _functions of the input values_, — that is, of the values carried by the input molecules consumed by this reaction.
-Therefore, each chemical reaction will now carry a Scala expression (called the **reaction body**) that will compute the new output values and emit the output molecules.
+Therefore, each chemical reaction must carry a Scala expression (called the **reaction body**) that will compute the new output values and emit the output molecules.
 
-Let us see how the chemical machine can be programmed to run computations.
+With these three additional features, the simple chemical simulator becomes what is called in the academic literature a [“reflexive chemical abstract machine”](http://dl.acm.org/citation.cfm?id=237805).
+We will call it, for short, the **chemical machine**.
+
+These three features are essentially a complete description of the chemical machine paradigm.
+The rest of this book is a guide to programming the chemical machine to run concurrent computations.
+We will use simple logical reasoning to figure out what reactions are necessary for what tasks. 
+
+## Reactions in pseudocode
 
 We will use syntax such as `b(123)` to denote molecule values.
 In a chemical reaction, the syntax `b(123)` means that the molecule `b` carries an integer value `123`.
@@ -80,7 +86,7 @@ A typical reaction, equipped with molecule values and a reaction body, looks lik
 
 ```
 a(x) + b(y) → a(z)
-  where z = computeZ(x,y)
+  where z = computeZ(x, y)
 
 ```
 
@@ -119,7 +125,7 @@ So far, we have been writing chemical laws in a kind of chemistry-resembling pse
 The actual syntax of `Chymyst` is only a little more verbose.
 Reactions are defined using `case` expressions that specify the input molecules by pattern-matching.
 
-Here is the translation of the example reaction shown above:
+Here is the translation of the example reaction shown above into the syntax of `Chymyst`:
 
 ```scala
 import io.chymyst.jc._
@@ -259,6 +265,44 @@ decr() + decr() // prints “new value is 99” and then “new value is 98”
 
 ```
 
+## Exercises
+
+### Producer-consumer
+
+Implement a chemical program that simulates a simple “producer-consumer” arrangement.
+
+There exist one or more items that can be consumed. Each item is labeled by an integer value.
+Any process can issue an (asynchronous, concurrent) request to consume an item.
+If there is an item available, it should be consumed and its label value printed to the console.
+If no items are available, the consume request should wait until items become available.
+
+Initially, there should be `n` items present, labeled by integer values 1 to `n`.
+
+Implement a timer-based process (using `Thread.sleep()` or `java.util.Timer`) that will attempt to consume one item every second.
+
+The program should define a molecule `item()` carrying an integer value, a molecule `consume()` carrying a unit value, and an appropriate reaction.
+
+(At this point, your chemical program does not need to be able to stop. It is sufficient that the correct values are printed to the console.)
+
+### Batch producer
+
+Modify the previous program, adding a request to produce a new set of `n` items, again labeled with values 1 to `n`.
+
+This request should be modeled by a new molecule `produce()` with unit value, and by adding appropriate new reaction(s).
+
+### Producer with given labels
+
+Modify the previous program, allowing the produce request to specify a list of label values to be put on new items.
+
+This should be modeled by the molecule `produce()` carrying a value of type `List[Int]`, and by adding appropriate new reaction(s).
+
+### Batch consumer
+
+Modify the previous program, allowing for a new request to consume `k` items where `k` is an integer parameter.
+
+This request should be modeled by a new molecule `consumeK()` carrying an integer value, and by adding appropriate new reaction(s).
+
+
 ## Debugging
 
 `Chymyst` has some debugging facilities to help the programmer verify that the chemistry works as intended.
@@ -304,7 +348,7 @@ The same effect can be achieved without macros at the cost of more boilerplate:
 
 ```scala
 val counter = new M[Int]("counter")
-// completely equivalent to `val counter = m[Int]`
+// This is completely equivalent to `val counter = m[Int]`.
 
 ```
 
@@ -336,7 +380,8 @@ It is an error to emit a molecule that is not yet defined as input molecule at a
 
 ```scala
 val x = m[Int]
-x(100) // java.lang.Exception: Molecule x is not bound to any reaction site
+x(100)
+// java.lang.Exception: Molecule x is not bound to any reaction site
 
 ```
 
@@ -387,7 +432,7 @@ val b = m[Unit]
 site(
   go { case x(n) + a(_) ⇒ println(s"have x($n) + a") },
   go { case x(n) + b(_) ⇒ println(s"have x($n) + b") }
-) // OK
+) // OK, this works.
 
 ``` 
 
@@ -437,22 +482,23 @@ At the next step, another one of the `incr()` molecules will be chosen to start 
 
 ![Reaction diagram counter + incr, counter + decr after reaction](https://chymyst.github.io/chymyst-core/counter-multiple-molecules-after-reaction.svg)
 
-Currently, `Chymyst` will _not_ fully randomize the input molecules but make an implementation-dependent choice, designed to optimize the performance of the reaction scheduler.
+Currently, `Chymyst` will _not_ randomize the input molecules but make an implementation-dependent choice, designed to optimize the performance of the reaction scheduler.
 
-Importantly, it is _not possible_ to assign priorities to reactions or to molecules.
+It is important to keep in mind that we _cannot_ assign priorities to reactions or to input molecules.
 The chemical machine ignores the order in which reactions are listed in the `site(...)` call, as well as the order of molecules in the input list of each reaction.
-Just for the purposes of debugging, molecules will be printed in alphabetical order of names, and reactions will be printed in an unspecified but fixed order.
+Within debugging messages, input molecules will be printed in alphabetical order of names, output molecules will be printed in the order emitted,
+and reactions will be printed in an unspecified but fixed order.
 
 To summarize: When there are sufficiently many waiting molecules so that several different reactions could start, the order in which reactions will start is non-deterministic and unknown.
 
-If the priority of certain reactions is important for a particular application, it is the programmer's task to design the chemistry in such a way that those reactions start in the desired order.
+If the priority order of certain reactions is important for a particular application, it is the programmer's task to design the chemistry in such a way that those reactions start in the desired order.
 This is always possible by using auxiliary molecules and/or guard conditions.
 
-In fact, a facility for assigning priority to molecules or reactions would be counterproductive.
+In fact, a facility for assigning explicit priority ordering to molecules or reactions would be counterproductive!
 It will only give the programmer _an illusion of control_ over the order of reactions, while actually introducing subtle nondeterministic behavior.
 
-To illustrate this on an example, suppose we would like to compute the sum of a bunch of numbers in a concurrent way.
-We expect to receive many molecules `data(x)` with integer values `x`,
+To illustrate this on an example, suppose we would like to compute the sum of a bunch of numbers, where the numbers arrive concurrently at unknown times.
+In other words, we expect to receive many molecules `data(x)` with integer values `x`,
 and we need to compute and print the final sum value when no more `data(...)` molecules are present.
 
 Here is an (incorrect) attempt to design the chemistry for this program:
@@ -462,9 +508,9 @@ Here is an (incorrect) attempt to design the chemistry for this program:
 val data = m[Int]
 val sum = m[Int]
 site (
-  go { case data(x) + sum(y) ⇒ sum(x + y) }, // We really want the first reaction to be high priority
+  go { case data(x) + sum(y) ⇒ sum(x + y) }, // We really want the first reaction to be high priority...
    
-  go { case sum(x) ⇒ println(s"sum = $x") }  // and run the second one only after all `data` molecules are gone.
+  go { case sum(x) ⇒ println(s"sum = $x") }  // ...and run the second one only after all `data` molecules are gone.
 )
 data(5) + data(10) + data(150)
 sum(0) // expect "sum = 165"
@@ -475,7 +521,7 @@ Our intention was to run only the first reaction and to ignore the second reacti
 The chemical machine does not actually allow us to assign a higher priority to the first reaction.
 But, if we were able to do that, what would be the result?
 
-In reality, the `data(...)` molecules are going to be emitted concurrently at unpredictable times.
+In reality, the `data(...)` molecules are going to be emitted at unpredictable times.
 For instance, they could be emitted by several other reactions that are running concurrently.
 Then it will sometimes happen that the `data(...)` molecules are emitted more slowly than we are consuming them at our reaction site.
 When that happens, there will be a brief interval of time when no `data(...)` molecules are in the soup (although other reactions are perhaps about to emit some more of them).
@@ -497,11 +543,12 @@ site (
 `Exception: In Site{data + sum → ...; sum → ...}: Unavoidable nondeterminism:`
 `reaction {data + sum → } is shadowed by {sum → }`
 
-The error message means that the reaction `sum → ...` will sometimes prevent `data + sum → ...` from running,
+The error message means that the reaction `sum → ...` will _sometimes_ prevent `data + sum → ...` from running,
 and that the programmer _has no control_ over this nondeterminism.
 
-The correct implementation needs to keep track of how many `data(...)` molecules we already consumed,
+A correct implementation needs to keep track of how many `data(...)` molecules we already consumed,
 and to print the final result only when we reach the total expected number of the `data(...)` molecules.
+
 Since reactions do not have mutable state, the information about the remaining `data(...)` molecules has to be carried on the `sum(...)` molecule.
 So, we will define the `sum(...)` molecule with type `(Int, Int)`, where the second integer will be the number of `data(...)` molecules that remain to be consumed.
 
@@ -522,10 +569,10 @@ sum((0, 3)) // "sum = 165" printed
 
 Now the chemistry is fully deterministic, without the need to assign priorities to reactions.
 
-The chemical machine forces the programmer to design the chemistry in such a way that
+The chemical machine paradigm forces the programmer to design the chemistry in such a way that
 the order of running reactions is completely determined by the data on the available molecules.
 
-Another way of maintaining determinism is to avoid writing reactions that might shadow each other.
+Another way of maintaining determinism is to avoid writing reactions that might shadow each other's input molecules.
 Here is equivalent code with just one reaction:
 
 ```scala
@@ -543,15 +590,19 @@ sum((0, 3)) // expect "sum = 165" printed
 
 ```
 
-The drawback of this approach is that the reaction became less declarative due to complicated branching code inside the reaction body.
-However, this chemistry will run somewhat faster because no guard conditions need to be checked before scheduling a reaction.
+The drawback of this approach is that the chemistry became less declarative due to complicated branching code inside the reaction body.
+However, the program will run somewhat faster because no guard conditions need to be checked before scheduling a reaction,
+and thus the scheduler does not need to search for molecule values that satisfy the guard conditions.
+
+If the run-time overhead of scheduling a reaction is insignificant compared with the computations inside reactions, the programmer may prefer to use a more declarative and composable chemical program.
 
 ## Summary so far
 
-The chemical machine requires for its description:
+A chemical program consists of the following descriptions:
 
-- a list of defined molecules, together with their types;
-- a list of reactions involving these molecules as inputs, together with reaction bodies.
+- the defined molecules, together with their value types;
+- the reactions involving these molecules as inputs, together with reaction bodies;
+- code that emits some molecules at the initial time.
 
 These definitions comprise the chemistry of a concurrent program.
 
@@ -592,7 +643,8 @@ Each philosopher needs two forks to start eating, and every pair of neighbor phi
 
 <img alt="Five dining philosophers" src="An_illustration_of_the_dining_philosophers_problem.png" width="400" />
 
-The simplest solution of the “dining philosophers” problem is achieved using a molecule for each fork and two molecules per philosopher: one representing a thinking philosopher and the other representing a hungry philosopher.
+The simplest solution of the “dining philosophers” problem in the chemical machine paradigm
+is achieved using a molecule for each fork and two molecules per philosopher: one representing a thinking philosopher and the other representing a hungry philosopher.
 
 - Each of the five “thinking philosopher” molecules (`thinking1`, `thinking2`, ..., `thinking5`) starts a reaction in which the process is paused for a random time and then the “hungry philosopher” molecule is emitted.
 - Each of the five “hungry philosopher” molecules (`hungry1`, ..., `hungry5`) needs to react with _two_ neighbor “fork” molecules.
@@ -601,6 +653,8 @@ The reaction process is paused for a random time, and then the “thinking philo
 The complete code is shown here:
 
 ```scala
+import io.chymyst.jc._
+
  /** Print message and wait for a random time interval. */
 def wait(message: String): Unit = {
   println(message)

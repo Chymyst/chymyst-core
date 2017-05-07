@@ -7,20 +7,25 @@ import io.chymyst.jc._
 import io.chymyst.test.LogSpec
 import org.scalatest.Matchers
 
+import scala.concurrent.{Await, Promise}
 import scala.concurrent.duration._
 import scala.util.Random.nextInt
 
 class ReactionDelaySpec extends LogSpec with Matchers {
 
-  val safeSize: Int => Double = x => if (x==0) 1.0f else x.toDouble
+  val safeSize: Int => Double = x => if (x == 0) 1.0f else x.toDouble
 
   behavior of "reaction overhead and delay times"
 
   it should "measure simple statistics on reaction delay" in {
-    val f = b[Unit,Unit]
+    val f = b[Unit, Unit]
     val tp = new SmartPool(4)
     site(tp)(
-      go { case f(_, r) => BlockingIdle{Thread.sleep(1)}; r() } // reply immediately
+      go { case f(_, r) => BlockingIdle {
+        Thread.sleep(1)
+      };
+        r()
+      } // reply immediately
     )
     val trials = 200
     val timeInit = LocalDateTime.now
@@ -39,11 +44,11 @@ class ReactionDelaySpec extends LogSpec with Matchers {
   def getStats(d: Seq[Double]): (Double, Double) = {
     val size = safeSize(d.size)
     val mean = d.sum / size
-    val std = math.sqrt( d.map(x => x - mean).map(x => x * x).sum / size )
+    val std = math.sqrt(d.map(x => x - mean).map(x => x * x).sum / size)
     (mean, std)
   }
 
-  def formatNanos(x: Double): String = f"${x/1000000}%1.3f"
+  def formatNanos(x: Double): String = f"${x / 1000000}%1.3f"
 
   it should "measure statistics on reaction scheduling for non-blocking molecules" in {
     val a = m[Long]
@@ -69,7 +74,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
     }
     val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
 
-    val results = resultsRaw.drop(resultsRaw.size/2) // Drop first half of values due to warm-up of JVM.
+    val results = resultsRaw.drop(resultsRaw.size / 2) // Drop first half of values due to warm-up of JVM.
 
     val (meanReactionStartDelay, stdevReactionStartDelay) = getStats(results.map(_._1.toDouble))
     val (meanEmitDelay, stdevEmitDelay) = getStats(results.map(_._2.toDouble))
@@ -98,8 +103,12 @@ class ReactionDelaySpec extends LogSpec with Matchers {
         done(timeElapsed)
       },
       go { case all_done(_, r) + counter((0, results)) => r(results) },
-      go { case counter( (n, results) ) + done(res) if n > 0 => counter( (n-1, res :: results) ) },
-      go { case f(timeOut, r) => BlockingIdle{Thread.sleep(1)}; r() }
+      go { case counter((n, results)) + done(res) if n > 0 => counter((n - 1, res :: results)) },
+      go { case f(timeOut, r) => BlockingIdle {
+        Thread.sleep(1)
+      };
+        r()
+      }
     )
 
     counter((trials, Nil))
@@ -135,8 +144,14 @@ class ReactionDelaySpec extends LogSpec with Matchers {
         done((t1, t2, timeElapsed, res))
       },
       go { case all_done(_, r) + counter((0, results)) => r(results) },
-      go { case counter( (n, results) ) + done(res) if n > 0 => counter( (n-1, res :: results) ) },
-      go { case f(timeOut, r) => BlockingIdle{Thread.sleep(timeOut)}; r() }
+      go { case counter((n, results)) + done(res) if n > 0 ⇒ // ignore warning "class M expects 4 patterns"
+        counter((n - 1, res :: results))
+      },
+      go { case f(timeOut, r) => BlockingIdle {
+        Thread.sleep(timeOut)
+      };
+        r()
+      }
     )
 
     counter((trials, Nil))
@@ -151,21 +166,22 @@ class ReactionDelaySpec extends LogSpec with Matchers {
     val resultFalseSize = resultFalse.size
     val resultTrueSize = resultTrue.size
 
-    val timeoutDelayArray = resultTrue.map{ case (t1, t2, timeElapsed, _) => timeElapsed - t2 }.filter(_ > 0)
+    val timeoutDelayArray = resultTrue.map { case (t1, t2, timeElapsed, _) => timeElapsed - t2 }.filter(_ > 0)
     val timeoutDelay = timeoutDelayArray.sum / safeSize(timeoutDelayArray.size)
-    val noTimeoutDelay = resultFalse.map{ case (t1, t2, timeElapsed, _) => timeElapsed - t2 }.sum / safeSize(resultFalse.size)
-    val timeoutMeanShift = resultTrue.map{ case (t1, t2, timeElapsed, _) => timeElapsed - t1 }.sum / safeSize(resultTrue.size)
-    val noTimeoutMeanShiftArray = resultFalse.map{ case (t1, t2, timeElapsed, _) => timeElapsed - t1 }.filter(_ > 0)
+    val noTimeoutDelay = resultFalse.map { case (t1, t2, timeElapsed, _) => timeElapsed - t2 }.sum / safeSize(resultFalse.size)
+    val timeoutMeanShift = resultTrue.map { case (t1, t2, timeElapsed, _) => timeElapsed - t1 }.sum / safeSize(resultTrue.size)
+    val noTimeoutMeanShiftArray = resultFalse.map { case (t1, t2, timeElapsed, _) => timeElapsed - t1 }.filter(_ > 0)
     val noTimeoutMeanShift = noTimeoutMeanShiftArray.sum / safeSize(noTimeoutMeanShiftArray.size)
 
     val timeoutDelayArraySize = timeoutDelayArray.size
     val noTimeoutMeanShiftArraySize = noTimeoutMeanShiftArray.size
 
-    val printout = s"""Results:   # samples      | delay     | mean shift
-                      |----------------------------------------------------
-                      | timeout     $resultTrueSize ($timeoutDelayArraySize items) | $timeoutDelay | $timeoutMeanShift
-                      |----------------------------------------------------
-                      | no timeout  $resultFalseSize ($noTimeoutMeanShiftArraySize items) | $noTimeoutDelay | $noTimeoutMeanShift
+    val printout =
+      s"""Results:   # samples      | delay     | mean shift
+         |----------------------------------------------------
+         | timeout     $resultTrueSize ($timeoutDelayArraySize items) | $timeoutDelay| $timeoutMeanShift
+         |----------------------------------------------------
+         | no timeout  $resultFalseSize ($noTimeoutMeanShiftArraySize items) | $noTimeoutDelay| $noTimeoutMeanShift
        """.stripMargin
 
     MeasurementResult(resultTrueSize, resultFalseSize, timeoutDelayArraySize, noTimeoutMeanShiftArraySize, timeoutDelay, noTimeoutDelay, timeoutMeanShift, noTimeoutMeanShift, printout)
@@ -201,4 +217,57 @@ class ReactionDelaySpec extends LogSpec with Matchers {
     tp.shutdownNow()
   }
 
+  behavior of "blocking reply via promise"
+
+  val total = 10000
+
+  it should "measure the reply delay using blocking molecules" in {
+    val tp = new FixedPool(1)
+
+    val f = b[Unit, Long]
+
+    site(tp)(go { case f(_, r) ⇒ r(System.nanoTime()) })
+
+    val res = (1 to 10).map { _ ⇒
+      val results = (1 to total).map { _ ⇒
+        val t = System.nanoTime()
+        val r = f()
+        (System.nanoTime() - r, r - t)
+      }
+      val resDelay = results.map(_._1)
+      val resLaunch = results.map(_._2)
+      val aveDelay = resDelay.sum / resDelay.length
+      val aveLaunch = resLaunch.sum / resLaunch.length
+      println(s"Average reply delay with blocking molecules: $aveDelay ns; average launch time: $aveLaunch ns")
+      (aveDelay, aveLaunch)
+    }.drop(2)
+    println(s"Reply delay with blocking molecules: after ${res.length} tries, average is ${res.map(_._1).sum / res.length}, average launch time is ${res.map(_._2).sum / res.length}")
+    tp.shutdownNow()
+  }
+
+  it should "measure the reply delay using promises" in {
+    val tp = new FixedPool(1)
+
+    val f = m[Promise[Long]]
+
+    site(tp)(go { case f(promise) ⇒ promise.success(System.nanoTime()) })
+
+    val res = (1 to 10).map { _ ⇒
+      val results = (1 to total).map { _ ⇒
+        val t = System.nanoTime()
+        val p = Promise[Long]()
+        f(p)
+        val r = Await.result(p.future, Duration.Inf)
+        (System.nanoTime() - r, r - t)
+      }
+      val resDelay = results.map(_._1)
+      val resLaunch = results.map(_._2)
+      val aveDelay = resDelay.sum / resDelay.length
+      val aveLaunch = resLaunch.sum / resLaunch.length
+      println(s"Average reply delay with blocking molecules: $aveDelay ns; average launch time: $aveLaunch ns")
+      (aveDelay, aveLaunch)
+    }.drop(2)
+    println(s"Reply delay with promises: after ${res.length} tries, average is ${res.map(_._1).sum / res.length}, average launch time is ${res.map(_._2).sum / res.length}")
+    tp.shutdownNow()
+  }
 }

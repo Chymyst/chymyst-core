@@ -199,7 +199,7 @@ In our code, the cross-molecule guard constrains the values of all 9 input molec
 
 Because of the presence of the cross-molecule guard, many combinations of molecule values must be examined before a reaction can be started.
 Let us make a rough estimate.
-For an `n * n` board, we initially inject `n * n` copies of molecules for each of the nine sorts `c0`, ..., `c8`.
+For an `n * n` board, we initially emit `n * n` copies of molecules for each of the nine sorts `c0`, ..., `c8`.
 The reaction site needs to find one copy of `c0()`, one copy of `c1()`, etc., such that the guard returns`true` for values carried by these copies.
 In the worst case, the reaction site will examine `(n * n) ^ 9` possible combinations of molecule values before scheduling a single reaction.
 There are `n * n` reactions to be scheduled at each time step.
@@ -344,11 +344,11 @@ However, molecules corresponding to different time steps are the same.
 The reaction still needs a cross-molecule guard condition to match up input molecules at the same time step.
 Using different molecules for different cells speeds up the simulation enormously.
 
-Tests 4 - 6 use a different molecule sort for each cell on the board and for each time step.
+Tests 4—6 use a different molecule sort for each cell on the board and for each time step.
 This is the solution discussed in the later sections of this chapter.
 The reactions need no guard conditions, which results in a significant speedup.
 
-The difference between tests 4 - 6 is in the granularity of reaction sites.
+The difference between tests 4—6 is in the granularity of reaction sites.
 Test 4 has all reactions in one reaction site; test 5 declares a new reaction site for each time step; test 6 declares a new reaction site for each cell and for each time step.
 The speedup between tests 4 and 6 is about 20x.
 

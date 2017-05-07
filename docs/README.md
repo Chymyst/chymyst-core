@@ -15,7 +15,7 @@ The code of `Chymyst Core` is based on previous Join Calculus implementations by
 
 ### [Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
 
-#### [A complete minimal "Hello, world" project](https://github.com/Chymyst/helloworld)
+#### [A "Hello, world" project](https://github.com/Chymyst/helloworld)
 
 #### [Video presentation of early version of `Chymyst Core`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
 
