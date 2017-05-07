@@ -241,7 +241,7 @@ class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
     val done = b[Unit, Vector[Int]]
 
     val total = 50000
-
+    val tp = new SmartPool(8)
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
       go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() },
@@ -263,9 +263,11 @@ class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
 
     val initTime = LocalDateTime.now
     val ordering = done()
+    tp.shutdownNow()
     val outOfOrder = ordering.zip(ordering.drop(1)).filterNot { case (x, y) => x + 1 == y }.map(_._1)
     println(s"Dance pairing for $total pairs without queue labels took ${initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)} ms, yields ${outOfOrder.length} out-of-order instances")
     outOfOrder should not equal Vector() // Dancing queue order cannot be observed.
+
   }
 
   it should "implement dance pairing without queue labels with 1-thread pipelining" in {
