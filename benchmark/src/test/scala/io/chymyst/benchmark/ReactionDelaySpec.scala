@@ -228,16 +228,20 @@ class ReactionDelaySpec extends LogSpec with Matchers {
 
     site(tp)(go { case f(_, r) ⇒ r(System.nanoTime()) })
 
-    (1 to 10).foreach { _ ⇒
+    val res = (1 to 10).map { _ ⇒
       val results = (1 to total).map { _ ⇒
         val t = System.nanoTime()
         val r = f()
         (System.nanoTime() - r, r - t)
       }
-      val aveDelay = results.map(_._1)
-      val aveLaunch = results.map(_._2)
-      println(s"Average reply delay with blocking molecules: ${aveDelay.sum / aveDelay.length.toFloat} ns; average launch time: ${aveLaunch.sum / aveLaunch.length.toFloat} ns")
-    }
+      val resDelay = results.map(_._1)
+      val resLaunch = results.map(_._2)
+      val aveDelay = resDelay.sum / resDelay.length
+      val aveLaunch = resLaunch.sum / resLaunch.length
+      println(s"Average reply delay with blocking molecules: $aveDelay ns; average launch time: $aveLaunch ns")
+      (aveDelay, aveLaunch)
+    }.drop(2)
+    println(s"Reply delay with blocking molecules: after ${res.length} tries, average is ${res.map(_._1).sum / res.length}, average launch time is ${res.map(_._2).sum / res.length}")
     tp.shutdownNow()
   }
 
@@ -248,7 +252,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
 
     site(tp)(go { case f(promise) ⇒ promise.success(System.nanoTime()) })
 
-    (1 to 10).foreach { _ ⇒
+    val res = (1 to 10).map { _ ⇒
       val results = (1 to total).map { _ ⇒
         val t = System.nanoTime()
         val p = Promise[Long]()
@@ -256,10 +260,14 @@ class ReactionDelaySpec extends LogSpec with Matchers {
         val r = Await.result(p.future, Duration.Inf)
         (System.nanoTime() - r, r - t)
       }
-      val aveDelay = results.map(_._1)
-      val aveLaunch = results.map(_._2)
-      println(s"Average reply delay with promises: ${aveDelay.sum / aveDelay.length.toFloat} ns; average launch time: ${aveLaunch.sum / aveLaunch.length.toFloat} ns")
-    }
+      val resDelay = results.map(_._1)
+      val resLaunch = results.map(_._2)
+      val aveDelay = resDelay.sum / resDelay.length
+      val aveLaunch = resLaunch.sum / resLaunch.length
+      println(s"Average reply delay with blocking molecules: $aveDelay ns; average launch time: $aveLaunch ns")
+      (aveDelay, aveLaunch)
+    }.drop(2)
+    println(s"Reply delay with promises: after ${res.length} tries, average is ${res.map(_._1).sum / res.length}, average launch time is ${res.map(_._2).sum / res.length}")
     tp.shutdownNow()
   }
 }

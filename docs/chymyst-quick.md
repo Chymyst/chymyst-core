@@ -113,7 +113,10 @@ cont(i ⇒ println(s"computed result = $i")) // emit the second async value for 
 
 ```
 
-## Concurrent counter
+New async processes and async values can be defined anywhere in the code,
+including within function scope or within scope of an async process.
+
+## Example: Concurrent counter
 
 ### Non-blocking read access
 
@@ -189,7 +192,7 @@ next { x ⇒
 
 ```
 
-## Blocking wait until done
+## Blocking channels
 
 In the previous example, we used a continuation in order to wait until some condition is satisfied.
 `Chymyst` implements this often-used pattern a special language feature, so that the previous code can be rewritten like this:
@@ -229,7 +232,7 @@ println(s"counter = $x")
 
 ```
 
-### Concurrent counter: blocking access
+### Concurrent counter: blocking read access
 
 We can use the blocking channel feature to implement blocking access to the counter's current value.
 
