@@ -13,6 +13,25 @@ When a reaction emits a non-blocking molecule, that molecule could later cause a
 However, the emitting reaction continues to run concurrently and therefore has no direct access to the result computed by another reaction.
 It is sometimes convenient to be able to wait until the other reaction starts and computes the result, and then to obtain the result value in the first reaction.
 
+Here is some skeleton code that illustrates the problem.
+
+```scala
+val a = m[Int]
+val result = m[Int]
+
+site(
+  go { case a(x) ⇒
+    val y = f(x) // some computation
+    result(y)
+  }
+)
+a(123)
+// Waiting for `result()` to be emitted.
+// We would like to obtain `y` here
+// and continue computations with it.
+
+```
+
 This feature is realized in the chemical machine with help of **blocking molecules**.
 
 ## How blocking molecules work
@@ -288,43 +307,47 @@ A side benefit is that emitting `read()` and `write()` will get unblocked only _
 The price for this convenience is that the Reader thread will remain blocked until access is granted.
 The non-blocking version of the code never blocks any threads, which improves parallelism.
 
-## The "Unblocking Transformation"
+## The unblocking transformation
 
 By comparing two versions of the Readers/Writers code, we notice that there is a certain correspondence between blocking and non-blocking code.
-A reaction that emits a blocking molecule is equivalent to two reactions with a new auxiliary reply molecule defined in the scope of the first reaction.
+A reaction that emits a blocking molecule is equivalent to two reactions with a new auxiliary non-blocking molecule defined in the scope of the first reaction.
 
-The following two code snippets illustrate the correspondence:
+The following two code snippets illustrate the correspondence.
+
+The initial code snippet:
 
 ```scala
 // Reaction that emits a blocking molecule.
 val blockingMol = b[T, R]
 go { case ... ⇒
-  /* start of reaction body, defines `a`, `b`, ... */
+  /* start of reaction body 1, defines `a`, `b`, ... */
   val t: T = ???
   val x: R = blockingMol(t)
-  /* continuation of reaction body, can use `x`, `a`, `b`, `t`, ... */
+  /* continuation of reaction body 1, can use `x`, `a`, `b`, `t`, ... */
 }
 
 // Reaction that consumes the blocking molecule.
 go { case blockingMol(t, reply) + ... ⇒
-  /* part 1 of reaction body, uses `t`, defines `x` */
+  /* start of reaction body 2, uses `t`, defines `x` */
   val x: R = ???
   reply(x)
-  /* rest of reaction body */
+  /* rest of reaction body 2 */
 }
 
 ```
+
+The same code after the unblocking transformation:
 
 ```scala
 // Reaction that emits a non-blocking molecule.
 val nonBlockingMol = m[(T, M[R])]
 go { case ... ⇒
-  /* stat of reaction body, defines `a`, `b`, ... */
+  /* start of reaction body 1, defines `a`, `b`, ... */
   val t: T = ???
   val auxReply = m[T] // auxiliary reply emitter
   site(
     go { case auxReply(x) ⇒
-    /* continuation of reaction body, can use `x`, `a`, `b`, `t`, ... */
+    /* continuation of reaction body 1, can use `x`, `a`, `b`, `t`, ... */
     }
   )
   nonBlockingMol((t, auxReply))
@@ -332,10 +355,10 @@ go { case ... ⇒
 
 // Reaction that consumes the non-blocking molecule.
 go { case nonBlockingMol((t, reply)) + ... ⇒
-  /* part 1 of reaction body, uses `t`, defines `x` */
+  /* start of reaction body 2, uses `t`, defines `x` */
   val x: R = ???
   reply(x)
-  /* rest of reaction body */
+  /* rest of reaction body 2 */
 }
 
 ```
@@ -367,6 +390,63 @@ go { case c(_) => while (true) f() }
 `    go { case c(_) => while (true) f() }`
 
 In a future version of `Chymyst Core`, the unblocking transformation may be performed by macros as an automatic optimization when possible.
+
+## The unblocking transformation and continuations
+
+The unblocking transformation is closely related to programming in the continuation-passing style (CPS).
+
+Let us convert the same code snippet we used to illustrate the unblocking transformation, and convert it to CPS.
+
+The initial code snippet:
+
+```scala
+// Reaction that emits a blocking molecule.
+val blockingMol = b[T, R]
+go { case ... ⇒
+  /* start of reaction body 1, defines `a`, `b`, ... */
+  val t: T = ???
+  val x: R = blockingMol(t)
+  /* continuation of reaction body 1, can use `x`, `a`, `b`, `t`, ... */
+}
+
+// Reaction that consumes the blocking molecule.
+go { case blockingMol(t, reply) + ... ⇒
+  /* start of reaction body 2, uses `t`, defines `x` */
+  val x: R = ???
+  reply(x)
+  /* rest of reaction body 2 */
+}
+
+```
+
+The same code after CPS transformation:
+
+```scala
+// Reaction that emits a non-blocking molecule.
+// The molecule now carries a continuation.
+val nonBlockingMol = m[(T, R ⇒ Unit)]
+go { case ... ⇒
+  /* start of reaction body 1, defines `a`, `b`, ... */
+  val t: T = ???
+  val cont = { x : R ⇒
+    /* continuation of reaction body 1, can use `x`, `a`, `b`, `t`, ... */
+    }
+  nonBlockingMol((t, cont))
+}
+
+// Reaction that consumes the non-blocking molecule.
+go { case nonBlockingMol((t, cont)) + ... ⇒
+  /* start of reaction body 2, uses `t`, defines `x` */
+  val x: R = ???
+  cont(x) // invoke continuation
+  /* rest of reaction body 2 */
+}
+
+```
+
+An important difference is that the continuation is invoked in the same process as reaction body 2.
+In other words, the continuation is not executing concurrently with the rest of reaction body 2.
+This loss of concurrency does not happen when using the unblocking transformation or with the original code that uses blocking molecules.
 
 # Molecules and reactions in local scopes
 
