@@ -668,7 +668,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     val foundErrors = findStaticMolDeclarationErrors(staticReactions) ++
       findStaticMolErrors(staticMolDeclared, nonStaticReactions) ++
-      findGeneralErrors(nonStaticReactions)
+      findGeneralErrors(nonStaticReactions.filter(contendedReactions.contains))
 
     val staticDiagnostics = WarningsAndErrors(foundWarnings, foundErrors, s"$this")
 
@@ -764,6 +764,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private val consumingReactions: Array[Array[Reaction]] =
   Array.tabulate(knownMolecules.size)(i ⇒ getConsumingReactions(moleculeAtIndex(i)))
+
+  private val contendedReactions = consumingReactions.filter(_.length > 1).flatten.toSet
 
   // This must be lazy because it depends on site-wide molecule indices, which are known late.
   // The inner array contains site-wide indices for reaction input molecules; the outer array is also indexed by site-wide molecule indices.
