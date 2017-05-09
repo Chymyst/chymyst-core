@@ -122,10 +122,14 @@ object Core {
   /** Global log of all error and warning messages ever emitted by any reaction site. */
   private[jc] val errorLog = new ConcurrentLinkedQueue[String]
 
-  private[jc] def reportError(message: String): Unit = {
+  private[jc] def logError(message: String, print: Boolean): Unit = {
     errorLog.add(message)
-    ()
+    if (print) println(message)
   }
+
+  private[jc] def messageWithTime(message: String): String = s"${LocalDateTime.now}: $message"
+
+  private[jc] def logMessage(message: String): Unit = println(messageWithTime(message))
 
   /** List of molecules used as inputs by a reaction. The molecules are ordered the same as in the reaction input list. */
   private[jc] type InputMoleculeList = Array[AbsMolValue[_]]
@@ -367,14 +371,6 @@ object Core {
       .toSet
       .toList
       .sorted.mkString(", ")
-
-  /** Log messages used by reaction site's logLevel setting.
-    *
-    * @param s Message to log.
-    */
-  private[jc] def logMessage(s: String): Unit = {
-    println(s"${LocalDateTime.now}: $s")
-  }
 
   /** Obtain the reaction info string from the current thread.
     *

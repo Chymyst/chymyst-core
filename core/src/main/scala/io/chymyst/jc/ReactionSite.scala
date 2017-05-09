@@ -197,10 +197,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
   }
 
-  private def reportError(message: String): Unit = {
-    if (logLevel >= 0) logMessage(message)
-    Core.reportError(message)
-  }
+  private def reportError(message: String): Unit =
+    logError(messageWithTime(message), print = logLevel >= 0)
 
   private sealed trait ReactionExitStatus {
     def getMessage: Option[String] = None
