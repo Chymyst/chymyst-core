@@ -41,25 +41,27 @@ trait Pool extends AutoCloseable {
   * @param execFactory Dependency injection closure.
   */
 private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => (ExecutorService, BlockingQueue[Runnable])) extends Pool {
-  protected val (execService: ExecutorService, queue: BlockingQueue[Runnable]) = execFactory(threads)
+  protected val (executor: ThreadPoolExecutor, queue: BlockingQueue[Runnable]) = execFactory(threads)
 
   val sleepTime = 200L
 
   def shutdownNow(): Unit = new Thread {
     try {
       queue.clear()
-      execService.shutdown()
-      execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
+      executor.shutdown()
+      executor.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
     } finally {
-      execService.shutdownNow()
-      execService.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
-      execService.shutdownNow()
+      executor.shutdownNow()
+      executor.awaitTermination(sleepTime, TimeUnit.MILLISECONDS)
+      executor.shutdownNow()
       ()
     }
   }.start()
 
-  def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit =
-    execService.execute(new RunnableWithInfo(closure, info))
+  def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit = {
+//    println(s"Running reaction $info, queue length ${queue.size}, active count ${executor.getActiveCount}")
+    executor.execute(new RunnableWithInfo(closure, info))
+  }
 
-  override def isInactive: Boolean = execService.isShutdown || execService.isTerminated
+  override def isInactive: Boolean = executor.isShutdown || executor.isTerminated
 }
