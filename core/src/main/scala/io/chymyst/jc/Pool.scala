@@ -34,7 +34,7 @@ trait Pool extends AutoCloseable {
     * @param closure A reaction closure to run.
     * @param info    The reaction info for debugging and run-time sanity checking purposes.
     */
-  private[jc] def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit
+  private[chymyst] def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit
 
   def isInactive: Boolean
 
@@ -81,7 +81,7 @@ private[jc] abstract class PoolExecutor(threads: Int = 8) extends Pool {
     }
   }
 
-  private[jc] def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit = {
+  private[chymyst] def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit = {
     deadlockCheck(Some(info))
     executor.execute(new RunnableWithInfo(closure, info))
   }

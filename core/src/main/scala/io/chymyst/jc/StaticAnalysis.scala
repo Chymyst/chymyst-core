@@ -178,6 +178,11 @@ private[jc] object StaticAnalysis {
     else None
   }
 
+  private[jc] def findShadowingErrors(reactions: Seq[Reaction]) =
+    Seq(
+      checkReactionShadowing _
+    ).flatMap(_ (reactions))
+
   private[jc] def findGeneralErrors(reactions: Seq[Reaction]) = {
     Seq(
       findIdenticalReactions _,

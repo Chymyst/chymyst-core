@@ -41,8 +41,6 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
     executor.setMaximumPoolSize(newPoolSize)
   }
 
-  private val queue = new LinkedBlockingQueue[Runnable]
-
   val initialThreads: Int = parallelism
   val secondsToRecycleThread = 1L
   val shutdownWaitTimeMs = 200L
@@ -51,6 +49,7 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
     val newThreadFactory = new ThreadFactory {
       override def newThread(r: Runnable): Thread = new SmartThread(r, SmartPool.this)
     }
+    val queue = new LinkedBlockingQueue[Runnable]
     val executor = new ThreadPoolExecutor(initialThreads, parallelism, secondsToRecycleThread, TimeUnit.SECONDS, queue, newThreadFactory)
     executor.allowCoreThreadTimeOut(true)
     executor
@@ -58,7 +57,7 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
 
   override def shutdownNow(): Unit = new Thread {
     try {
-      queue.clear()
+      executor.getQueue.clear()
       executor.shutdown()
       executor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
     } finally {
@@ -69,7 +68,7 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
     }
   }.start()
 
-  override def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit =
+  private[chymyst] override def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit =
     executor.execute(new RunnableWithInfo(closure, info))
 
   override def isInactive: Boolean = executor.isShutdown || executor.isTerminated

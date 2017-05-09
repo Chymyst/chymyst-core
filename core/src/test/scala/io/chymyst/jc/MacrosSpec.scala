@@ -858,7 +858,7 @@ behavior of "reaction sha1"
       site(
         go { case a(1) => a(1) }
       )
-      a.consumingReactions.map(_.info.outputs) shouldEqual Set(List(OutputMoleculeInfo(a, ConstOutputPattern(1), List())))
+      a.consumingReactions.map(_.info.outputs) shouldEqual Array(Array(OutputMoleculeInfo(a, ConstOutputPattern(1), List())))
     }
     thrown.getMessage shouldEqual "In Site{a → ...}: Unavoidable livelock: reaction {a(1) → a(1)}"
   }

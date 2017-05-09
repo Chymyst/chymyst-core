@@ -666,7 +666,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     val foundErrors = findStaticMolDeclarationErrors(staticReactions) ++
       findStaticMolErrors(staticMolDeclared, nonStaticReactions) ++
-      findGeneralErrors(nonStaticReactions.filter(contendedReactions.contains))
+      findGeneralErrors(nonStaticReactions) ++
+      findShadowingErrors(nonStaticReactions.filter(contendedReactions.contains))
 
     val staticDiagnostics = WarningsAndErrors(foundWarnings, foundErrors, s"$this")
 
