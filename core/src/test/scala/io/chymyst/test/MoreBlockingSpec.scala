@@ -216,7 +216,8 @@ class MoreBlockingSpec extends LogSpec with Matchers with TimeLimitedTests {
     val incr = b[Unit, Unit]
     val get_f = b[Unit, Int]
 
-    val tp = new FixedPool(6)
+    clearErrorLog()
+    val tp = new FixedPool(2)
 
     site(tp)(
       go { case get_f(_, r) + f(x) => r(x) },
@@ -227,8 +228,8 @@ class MoreBlockingSpec extends LogSpec with Matchers with TimeLimitedTests {
     d.setLogLevel(4)
     d(100)
     c() // update started and is waiting for e(), which should come after incr() gets its reply
-    get_f.timeout()(400 millis) shouldEqual None
-
+    get_f.timeout()(1000 millis) shouldEqual None // deadlock
+    globalErrorLog.toIndexedSeq should contain("Error: deadlock occurred in fixed pool (2 threads) due to 2 concurrent blocking calls, reaction: d(x) + incr/B(_) → wait/B() + f(?)")
     tp.shutdownNow()
   }
 

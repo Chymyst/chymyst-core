@@ -240,7 +240,7 @@ class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
     val danceCounter = m[Vector[Int]]
     val done = b[Unit, Vector[Int]]
 
-    val total = 50000
+    val total = 10000
     val tp = new SmartPool(4) // Use SmartPool because using a FixedPool gives a deadlock.
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"

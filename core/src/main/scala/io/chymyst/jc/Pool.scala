@@ -76,7 +76,7 @@ private[jc] abstract class PoolExecutor(threads: Int = 8) extends Pool {
   private[jc] def deadlockCheck(infoOpt: Option[ChymystThreadInfo]): Unit = {
     val deadlock = blockingCalls.get >= executor.getMaximumPoolSize
     if (deadlock) {
-      val message = s"Error: In $this: deadlock occurred due to ${blockingCalls.get} concurrent blocking calls, reaction info: ${infoOpt.getOrElse("<none>").toString}"
+      val message = s"Error: deadlock occurred in fixed pool (${executor.getMaximumPoolSize} threads) due to ${blockingCalls.get} concurrent blocking calls, reaction: ${infoOpt.getOrElse("<none>").toString}"
       Core.logError(message, print = true)
     }
   }
