@@ -1,8 +1,6 @@
 package io.chymyst.jc
 
-import java.util.concurrent.ThreadFactory
-
-private[jc] final class SmartThread(runnable: Runnable, pool: SmartPool) extends ThreadWithInfo(runnable) {
+private[jc] final class SmartThread(runnable: Runnable, pool: Pool) extends ThreadWithInfo(runnable) {
   private var inBlockingCall: Boolean = false
 
   /** Given that the expression `expr` is "idle blocking", the thread pool will increase the parallelism.
@@ -14,9 +12,9 @@ private[jc] final class SmartThread(runnable: Runnable, pool: SmartPool) extends
     */
   private[jc] def blockingCall[T](expr: => T): T = if (inBlockingCall) expr else {
     inBlockingCall = true
-    pool.startedBlockingCall()
+    pool.startedBlockingCall(chymystInfo)
     val result = expr
-    pool.finishedBlockingCall()
+    pool.finishedBlockingCall(chymystInfo)
     inBlockingCall = false
     result
   }
@@ -44,8 +42,3 @@ private[jc] final class RunnableWithInfo(closure: => Unit, info: ChymystThreadIn
   }
 }
 
-private[jc] final class ThreadFactoryWithInfo extends ThreadFactory {
-  override def newThread(r: Runnable): Thread = {
-    new ThreadWithInfo(r)
-  }
-}

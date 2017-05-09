@@ -2,14 +2,20 @@ package io.chymyst.jc
 
 
 import java.util.concurrent._
+import java.util.concurrent.atomic.AtomicInteger
 
-class FixedPool(threads: Int) extends PoolExecutor(threads, { t =>
-  val queue = new LinkedBlockingQueue[Runnable]
-  val secondsToRecycleThread = 1L
-  val executor = new ThreadPoolExecutor(t, t, secondsToRecycleThread, TimeUnit.SECONDS, queue, new ThreadFactoryWithInfo)
-  executor.allowCoreThreadTimeOut(true)
-  (executor, queue)
-})
+class FixedPool(threads: Int) extends PoolExecutor(threads) {
+  protected override def execFactory(threads: Int): (ExecutorService, BlockingQueue[Runnable]) = {
+    val queue = new LinkedBlockingQueue[Runnable]
+    val newThreadFactory = new ThreadFactory {
+      override def newThread(r: Runnable): Thread = new SmartThread(r, FixedPool.this)
+    }
+    val secondsToRecycleThread = 1L
+    val executor = new ThreadPoolExecutor(threads, threads, secondsToRecycleThread, TimeUnit.SECONDS, queue, newThreadFactory)
+    executor.allowCoreThreadTimeOut(true)
+    (executor, queue)
+  }
+}
 
 /** A pool of execution threads, or another way of running tasks (could use actors or whatever else).
   * Tasks submitted for execution can have Chymyst-specific info (useful for debugging) when scheduled using `runReaction`.
@@ -18,13 +24,17 @@ class FixedPool(threads: Int) extends PoolExecutor(threads, { t =>
 trait Pool extends AutoCloseable {
   def shutdownNow(): Unit
 
+  private[jc] def startedBlockingCall(infoOpt: Option[ChymystThreadInfo]): Unit
+
+  private[jc] def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo]): Unit
+
   /** Run a reaction closure on the thread pool.
     * The reaction closure will be created by [[ReactionSite.buildReactionClosure]].
     *
     * @param closure A reaction closure to run.
     * @param info    The reaction info for debugging and run-time sanity checking purposes.
     */
-  def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit
+  private[jc] def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit
 
   def isInactive: Boolean
 
@@ -35,13 +45,18 @@ trait Pool extends AutoCloseable {
   def runScheduler(runnable: Runnable): Unit = schedulerExecutor.execute(runnable)
 }
 
-/** Basic implementation of a thread pool.
+/** Basic implementation of a thread pool, typically with a fixed number of threads.
+  * This class has an abstract method that produces a [[ThreadPoolExecutor]] and a [[BlockingQueue]].
   *
-  * @param threads     Initial number of threads.
-  * @param execFactory Dependency injection closure.
+  * @param threads Initial number of threads.
   */
-private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => (ExecutorService, BlockingQueue[Runnable])) extends Pool {
+private[jc] abstract class PoolExecutor(threads: Int = 8) extends Pool {
+
+  protected def execFactory(threads: Int): (ExecutorService, BlockingQueue[Runnable])
+
   protected val (executor: ThreadPoolExecutor, queue: BlockingQueue[Runnable]) = execFactory(threads)
+
+  val blockingCalls = new AtomicInteger(0)
 
   val sleepTime = 200L
 
@@ -58,10 +73,28 @@ private[jc] class PoolExecutor(threads: Int = 8, execFactory: Int => (ExecutorSe
     }
   }.start()
 
-  def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit = {
-//    println(s"Running reaction $info, queue length ${queue.size}, active count ${executor.getActiveCount}")
+  private[jc] def deadlockCheck(infoOpt: Option[ChymystThreadInfo]): Unit = {
+    val deadlock = blockingCalls.get >= executor.getMaximumPoolSize
+    if (deadlock) {
+      val message = s"Error: In $this: deadlock occurred due to ${blockingCalls.get} concurrent blocking calls, reaction info: ${infoOpt.getOrElse("<none>").toString}"
+      Core.logError(message, print = true)
+    }
+  }
+
+  private[jc] def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit = {
+    deadlockCheck(Some(info))
     executor.execute(new RunnableWithInfo(closure, info))
   }
 
   override def isInactive: Boolean = executor.isShutdown || executor.isTerminated
+
+  private[jc] override def startedBlockingCall(infoOpt: Option[ChymystThreadInfo]) = {
+    blockingCalls.getAndIncrement()
+    deadlockCheck(infoOpt)
+  }
+
+  private[jc] override def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo]) = {
+    blockingCalls.getAndDecrement()
+    deadlockCheck(infoOpt)
+  }
 }

@@ -20,16 +20,12 @@ object BlockingIdle {
   */
 class SmartPool(parallelism: Int = cpuCores) extends Pool {
 
-  private def newThreadFactory: ThreadFactory = new ThreadFactory {
-    override def newThread(r: Runnable): Thread = new SmartThread(r, SmartPool.this)
-  }
-
   // Looks like we will die hard at about 2021 threads...
   val maxPoolSize: Int = 1000 + 2 * parallelism
 
   def currentPoolSize: Int = executor.getCorePoolSize
 
-  private[jc] def startedBlockingCall() = synchronized {
+  private[jc] override def startedBlockingCall(infoOpt: Option[ChymystThreadInfo]) = synchronized {
     val newPoolSize = math.min(currentPoolSize + 1, maxPoolSize)
     if (newPoolSize > currentPoolSize) {
       executor.setMaximumPoolSize(newPoolSize)
@@ -39,7 +35,7 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
     }
   }
 
-  private[jc] def finishedBlockingCall() = synchronized {
+  private[jc] override def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo]) = synchronized {
     val newPoolSize = math.max(parallelism, currentPoolSize - 1)
     executor.setCorePoolSize(newPoolSize) // Must set them in this order, so that the core pool size is never larger than the maximum pool size.
     executor.setMaximumPoolSize(newPoolSize)
@@ -52,6 +48,9 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
   val shutdownWaitTimeMs = 200L
 
   private val executor = {
+    val newThreadFactory = new ThreadFactory {
+      override def newThread(r: Runnable): Thread = new SmartThread(r, SmartPool.this)
+    }
     val executor = new ThreadPoolExecutor(initialThreads, parallelism, secondsToRecycleThread, TimeUnit.SECONDS, queue, newThreadFactory)
     executor.allowCoreThreadTimeOut(true)
     executor

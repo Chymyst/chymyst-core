@@ -24,7 +24,7 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
     tp.maxPoolSize should be < n
     tp.currentPoolSize shouldEqual 2
 
-    (1 to tp.maxPoolSize + 2).foreach (_ => tp.startedBlockingCall())
+    (1 to tp.maxPoolSize + 2).foreach (_ => tp.startedBlockingCall(None))
 
     tp.currentPoolSize shouldEqual tp.maxPoolSize
 
