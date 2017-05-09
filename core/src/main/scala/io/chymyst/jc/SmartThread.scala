@@ -10,11 +10,11 @@ private[jc] final class SmartThread(runnable: Runnable, pool: Pool) extends Thre
     * @tparam T Type of value of this expression.
     * @return The same result as the expression would return.
     */
-  private[jc] def blockingCall[T](expr: => T): T = if (inBlockingCall) expr else {
+  private[jc] def blockingCall[T](expr: => T, selfBlocking: Boolean = false): T = if (inBlockingCall) expr else {
     inBlockingCall = true
-    pool.startedBlockingCall(chymystInfo)
+    pool.startedBlockingCall(chymystInfo, selfBlocking)
     val result = expr
-    pool.finishedBlockingCall(chymystInfo)
+    pool.finishedBlockingCall(chymystInfo, selfBlocking)
     inBlockingCall = false
     result
   }

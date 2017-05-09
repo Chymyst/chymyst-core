@@ -24,9 +24,9 @@ class FixedPool(threads: Int) extends PoolExecutor(threads) {
 trait Pool extends AutoCloseable {
   def shutdownNow(): Unit
 
-  private[jc] def startedBlockingCall(infoOpt: Option[ChymystThreadInfo]): Unit
+  private[jc] def startedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean): Unit
 
-  private[jc] def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo]): Unit
+  private[jc] def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean): Unit
 
   /** Run a reaction closure on the thread pool.
     * The reaction closure will be created by [[ReactionSite.buildReactionClosure]].
@@ -88,12 +88,12 @@ private[jc] abstract class PoolExecutor(threads: Int = 8) extends Pool {
 
   override def isInactive: Boolean = executor.isShutdown || executor.isTerminated
 
-  private[jc] override def startedBlockingCall(infoOpt: Option[ChymystThreadInfo]) = {
+  private[jc] override def startedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean) = if (selfBlocking) {
     blockingCalls.getAndIncrement()
     deadlockCheck(infoOpt)
   }
 
-  private[jc] override def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo]) = {
+  private[jc] override def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean) = if (selfBlocking) {
     blockingCalls.getAndDecrement()
     deadlockCheck(infoOpt)
   }

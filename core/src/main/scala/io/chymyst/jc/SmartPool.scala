@@ -8,9 +8,11 @@ import io.chymyst.jc.Core.logMessage
   * Multiple nested calls to `BlockingIdle` are equivalent to one call.
   */
 object BlockingIdle {
-  def apply[T](expr: => T): T =
+  def apply[T](expr: => T): T = apply(selfBlocking = false)(expr)
+
+  private[jc] def apply[T](selfBlocking: Boolean)(expr: => T): T =
     Thread.currentThread() match {
-      case t: SmartThread => t.blockingCall(expr)
+      case t: SmartThread => t.blockingCall(expr, selfBlocking)
       case _ => expr // BlockingIdle{...} has no effect if we are not running on a SmartThread
     }
 }
@@ -25,7 +27,7 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
 
   def currentPoolSize: Int = executor.getCorePoolSize
 
-  private[jc] override def startedBlockingCall(infoOpt: Option[ChymystThreadInfo]) = synchronized {
+  private[jc] override def startedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean) = synchronized {
     val newPoolSize = math.min(currentPoolSize + 1, maxPoolSize)
     if (newPoolSize > currentPoolSize) {
       executor.setMaximumPoolSize(newPoolSize)
@@ -35,7 +37,7 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
     }
   }
 
-  private[jc] override def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo]) = synchronized {
+  private[jc] override def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean) = synchronized {
     val newPoolSize = math.max(parallelism, currentPoolSize - 1)
     executor.setCorePoolSize(newPoolSize) // Must set them in this order, so that the core pool size is never larger than the maximum pool size.
     executor.setMaximumPoolSize(newPoolSize)
