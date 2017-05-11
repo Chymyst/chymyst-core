@@ -186,7 +186,6 @@ private[jc] object StaticAnalysis {
   private[jc] def findGeneralErrors(reactions: Seq[Reaction]) = {
     Seq(
       findIdenticalReactions _,
-      checkReactionShadowing _,
       checkSingleReactionLivelock _,
       checkMultiReactionLivelock _
     ).flatMap(_ (reactions))

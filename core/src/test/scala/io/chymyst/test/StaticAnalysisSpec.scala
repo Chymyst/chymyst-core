@@ -393,7 +393,7 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
         go { case a(2) + b(3) => }
       )
     }
-    thrown.getMessage shouldEqual "In Site{a + b → ...; a + b → ...; a → ...}: Unavoidable nondeterminism: reaction {a(2) + b(3) → } is shadowed by {a(?x) → a(2)}; Unavoidable livelock: reactions {a(1) + b(_) → b(1) + b(2) + a(1)}, {a(?x) → a(2)}"
+    thrown.getMessage shouldEqual "In Site{a + b → ...; a + b → ...; a → ...}: Unavoidable livelock: reactions {a(1) + b(_) → b(1) + b(2) + a(1)}, {a(?x) → a(2)}; Unavoidable nondeterminism: reaction {a(2) + b(3) → } is shadowed by {a(?x) → a(2)}"
   }
 
   behavior of "livelock with repeated inputs" // see issue https://github.com/Chymyst/chymyst-core/issues/102

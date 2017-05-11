@@ -15,6 +15,10 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
 
   implicit val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
+  def logShouldHave(message: String): Unit = {
+    globalErrorLog.exists(_ endsWith message) should be(true)
+  }
+
   override def beforeEach(): Unit = {
     clearErrorLog()
     tp0 = new FixedPool(4)
@@ -292,7 +296,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
       r
     }
     println(s"results for test 1: ${results.groupBy(identity).mapValues(_.size)}")
-    globalErrorLog.toList should contain("In Site{p → ...}: Reaction {p(s) → } with inputs [p/P(c)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
+    logShouldHave("In Site{p → ...}: Reaction {p(s) → } with inputs [p/P(c)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
     results should contain(123)
     results should contain(0)
   }
@@ -336,7 +340,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
     tp1.shutdownNow()
     println(s"results for test 2: ${results.groupBy(identity).mapValues(_.size)}")
     results should contain(246)
-    globalErrorLog.toList should contain("In Site{a → ...}: Reaction {a(s) → } with inputs [a/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site")
+    logShouldHave("In Site{a → ...}: Reaction {a(s) → } with inputs [a/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site")
     results should contain(0)
   }
 
@@ -365,7 +369,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
       f()
     }
     println(s"results for test 3: ${results.groupBy(identity).mapValues(_.size)}")
-    globalErrorLog.toList should not contain "In Site{q → ...}: Reaction {q(s) → } with inputs [q/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site"
+    globalErrorLog.exists(_ contains "In Site{q → ...}: Reaction {q(s) → } with inputs [q/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site") should be(false)
     results should contain(246)
     results should not contain 0
   }
@@ -508,7 +512,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
     val result = g.timeout()(1500 millis)
     tp.shutdownNow()
     result shouldEqual Some(())
-    globalErrorLog.toList should contain("In Site{counter + decrement → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement(_) → counter(?)} with inputs [counter(5) + decrement/P()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
+    logShouldHave("In Site{counter + decrement → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement(_) → counter(?)} with inputs [counter(5) + decrement/P()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
   }
 
   it should "finish job by retrying reactions with static molecules even if 1 out of 2 processes crash" in {
@@ -534,7 +538,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
     val result = g.timeout()(1500 millis)
     tp.shutdownNow()
     result shouldEqual Some(())
-    globalErrorLog.toList should contain("In Site{counter + decrement → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement(_) → counter(?)} with inputs [counter(5) + decrement/P()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
+    logShouldHave("In Site{counter + decrement → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement(_) → counter(?)} with inputs [counter(5) + decrement/P()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
   }
 
   it should "retry reactions that contain blocking molecules" in {
@@ -564,7 +568,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
     val result = g.timeout()(1500 millis)
     tp.shutdownNow()
     result shouldEqual Some(())
-    globalErrorLog.toList should contain("In Site{counter + decrement/B → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement/B(_) → counter(?)} with inputs [counter(5) + decrement/B/P()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
+    logShouldHave("In Site{counter + decrement/B → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement/B(_) → counter(?)} with inputs [counter(5) + decrement/B/P()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
   }
 
 }
