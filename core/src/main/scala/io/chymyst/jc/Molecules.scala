@@ -94,19 +94,26 @@ sealed trait Molecule extends PersistentHashCode {
 
   def siteIndex: Int = siteIndexValue
 
-  def isSelfBlocking: Boolean = valIsSelfBlocking
+  def isSelfBlocking: Boolean = valSelfBlockingPool.exists {
+    pool ⇒
+      Thread.currentThread match {
+        case t: SmartThread ⇒
+          t.pool === pool
+        case _ ⇒ false
+      }
+  }
 
   /** This is called by a [[ReactionSite]] when a molecule becomes bound to that reaction site.
     *
     * @param rs        Reaction site to which the molecule is now bound.
     * @param siteIndex Zero-based index of the input molecule at that reaction site.
     */
-  private[jc] def setReactionSiteInfo(rs: ReactionSite, siteIndex: Int, typeSymbol: Symbol, pipelined: Boolean, selfBlocking: Boolean): Unit = {
+  private[jc] def setReactionSiteInfo(rs: ReactionSite, siteIndex: Int, typeSymbol: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]): Unit = {
     hasReactionSite = true
     siteIndexValue = siteIndex
     valTypeSymbol = typeSymbol
     valIsPipelined = pipelined
-    valIsSelfBlocking = selfBlocking
+    valSelfBlockingPool = selfBlocking
   }
 
   /** Check whether the molecule is already bound to a reaction site.
@@ -136,7 +143,7 @@ sealed trait Molecule extends PersistentHashCode {
 
   protected var valTypeSymbol: Symbol = _
 
-  protected var valIsSelfBlocking: Boolean = _
+  protected var valSelfBlockingPool: Option[Pool] = None
 
   protected var siteIndexValue: Int = -1
 
@@ -229,7 +236,7 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
 
   override def isStatic: Boolean = reactionSiteWrapper.isStatic
 
-  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean, selfBlocking: Boolean) = {
+  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]) = {
     super.setReactionSiteInfo(rs, index, valType, pipelined, selfBlocking)
     reactionSiteWrapper = rs.makeWrapper[T, Unit](this) // need to specify types for `makeWrapper`; set `Unit` instead of `R` for non-blocking molecules
   }
@@ -440,7 +447,7 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
   /** This enables the short syntax `b()` instead of `b(())`, and will only work when `T == Unit`. */
   def apply()(implicit arg: TypeMustBeUnit[T]): R = apply(arg.getUnit)
 
-  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean, selfBlocking: Boolean) = {
+  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]) = {
     super.setReactionSiteInfo(rs, index, valType, pipelined, selfBlocking)
     reactionSiteWrapper = rs.makeWrapper[T, R](this) // need to specify types for `makeWrapper`
   }

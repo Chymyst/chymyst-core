@@ -637,15 +637,19 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @return A tuple containing the molecule value bags, and a list of warning and error messages.
     */
   private def initializeReactionSite() = {
-    /** Find blocking molecules that are emitted by reactions in this reaction site. These emissions are potential deadlock threats for [[FixedPool]]. */
-    val knownSelfBlockingMols = knownInputMolecules.keySet.filter(mol ⇒ mol.isBlocking && nonStaticReactions.exists(_.info.outputs.map(_.molecule).contains(mol)))
+    /** Find blocking molecules whose emitting reactions are all in a single thread pool. These emissions are potential deadlock threats for that pool, especially for a [[FixedPool]]. */
+    val selfBlockingMols: Map[Molecule, Pool] =
+      knownInputMolecules
+        .map { case (mol, (i, _)) ⇒ (mol, (consumingReactions(i).map(_.threadPool.getOrElse(reactionPool)).toSet, mol.isBlocking)) }
+        .filter { case (_, (pools, isBlocking)) ⇒ isBlocking && pools.size === 1 }
+        .map { case (mol, (pools, _)) ⇒ (mol, pools.head) }(breakOut)
 
     // Set the RS info on all input molecules in this reaction site.
     knownInputMolecules.foreach { case (mol, (index, valType)) ⇒
       // Assign the value bag.
       val pipelined = pipelinedMolecules contains index
       val simpleType = simpleTypes contains valType
-      val selfBlocking = knownSelfBlockingMols contains mol
+      val selfBlocking = selfBlockingMols.get(mol)
       moleculesPresent(index) = if (simpleType && !pipelined)
         new MutableMapBag[AbsMolValue[_]]()
       else
@@ -667,6 +671,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // Perform static analysis.
     val foundWarnings = findStaticMolWarnings(staticMolDeclared, nonStaticReactions) ++ findGeneralWarnings(nonStaticReactions)
+
+    val contendedReactions = consumingReactions.filter(_.length > 1).flatten.toSet
 
     val foundErrors = findStaticMolDeclarationErrors(staticReactions) ++
       findStaticMolErrors(staticMolDeclared, nonStaticReactions) ++
@@ -761,17 +767,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   /** Map the site-wide index to molecule emitter. This is used often.
-    *
     */
   private val moleculeAtIndex: Map[Int, Molecule] = knownInputMolecules.map { case (mol, (i, _)) ⇒ (i, mol) }(breakOut)
 
   /** For each site-wide molecule index, this array holds the array of reactions consuming that molecule.
-    *
     */
   private val consumingReactions: Array[Array[Reaction]] =
     Array.tabulate(knownInputMolecules.size)(i ⇒ getConsumingReactions(moleculeAtIndex(i)))
-
-  private val contendedReactions = consumingReactions.filter(_.length > 1).flatten.toSet
 
   // This must be lazy because it depends on site-wide molecule indices, which are known late.
   // The inner array contains site-wide indices for reaction input molecules; the outer array is also indexed by site-wide molecule indices.

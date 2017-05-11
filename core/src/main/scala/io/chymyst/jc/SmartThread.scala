@@ -1,6 +1,6 @@
 package io.chymyst.jc
 
-private[jc] final class SmartThread(runnable: Runnable, pool: Pool) extends ThreadWithInfo(runnable) {
+private[jc] final class SmartThread(runnable: Runnable, val pool: Pool) extends ThreadWithInfo(runnable) {
   private var inBlockingCall: Boolean = false
 
   /** Given that the expression `expr` is "idle blocking", the thread pool will increase the parallelism.
