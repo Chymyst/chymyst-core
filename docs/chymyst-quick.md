@@ -3,7 +3,7 @@
 # Quick start
 
 `Chymyst Core` implements a declarative DSL for purely functional concurrency in Scala.
-The DSL is based on concepts that are unfamiliar to most readers. 
+The DSL is based on the "chemical machine" paradigm, which is unfamiliar to most readers. 
 
 This chapter is for the impatient readers who want to dive straight into the code, with very few explanations.
 
@@ -29,16 +29,19 @@ This imports all the necessary symbols such as `m`, `b`, `site`, `go` and so on.
 
 ## Async processes and async values
 
-An asynchronous process is implemented as a computation that works with a special kind of data, called **async values**.
+In the chemical machine, an asynchronous concurrent process (for short, an **async process**) is implemented as a computation that works with a special kind of data called **async values**.
 An async process can consume one or more input async values and may emit (zero or more) output async values.
 
-An async process must be declared using the `site()` call and the `go { }` syntax.
-Input and output async values for the async process need to be declared separately using the special syntax `m[T]` where `T` is the type of the value:
+An async process must be declared using the `go { }` syntax.
+In order to activate one or more async processes, use the `site()` call.
+
+Async values are created out of ordinary values by calling special **emitters**.
+Input and output async value emitters need to be declared separately using the special syntax `m[T]` where `T` is the type of the value:
 
 ```scala
 import io.chymyst.jc._
 
-val in = m[Int] // async value of type `Int`
+val in = m[Int] // async value emitter of type `Int`
 
 val result = m[String] // async value of type `String`
 
@@ -56,7 +59,8 @@ in(123) // emit an async value for input
 
 ```
 
-Async processes can depend on _several_ async input values at once, and may emit several async values as output:
+An async process can depend on _several_ async input values at once, and may emit several async values as output.
+The process will start when all its input async values are available (have been emitted but not yet consumed).
 
 ```scala
 import io.chymyst.jc._
@@ -85,9 +89,9 @@ in2(200) // emit async values for input
 ```
 
 Emitting an async value is a non-blocking operation; execution continues immediately.
-Async processes that consume async data will start later, _concurrently_ with the processes that emitted their async input values.
+Async processes that consume the async input data will start later, _concurrently_ with the processes that emitted their async input data.
 
-Async values can be of any type.
+Async data can be of any type (but the type is fixed).
 For example, an async value can be of function type, which allows us to implement asynchronous _continuations_:
 
 ```scala
@@ -114,7 +118,7 @@ cont(i ⇒ println(s"computed result = $i")) // emit the second async value for 
 ```
 
 New async processes and async values can be defined anywhere in the code,
-including within function scope or within scope of an async process.
+including within a function scope, or within the scope of an async process.
 
 ## Example: Concurrent counter
 
@@ -164,7 +168,7 @@ val done = m[Int] // signal the end of counting
 val next = m[Int ⇒ Unit] // continuation
 val incr = m[Unit] // `increment` operation
 
- // the condition we are waiting for, for example:
+ // The condition we are waiting for, for example:
 def areWeDone(x: Int): Boolean = x > 10
 
 site(
@@ -180,14 +184,14 @@ site(
 
 counter(0) // set initial value of `counter` to 0
 
-incr() // emit a unit async value
-incr() // this can be called from any concurrent process
+incr() // Emit a unit async value.
+incr() // This can be called from any concurrent process.
 
 next { x ⇒
 // Continue the computation, having obtained `x`.
   println(s"counter = $x")
   // more code...
-  // which has to be all within this closed scope
+  // which has to be all within this function scope
 }
 
 ```
@@ -195,7 +199,8 @@ next { x ⇒
 ## Blocking channels
 
 In the previous example, we used a continuation in order to wait until some condition is satisfied.
-`Chymyst` implements this often-used pattern a special language feature, so that the previous code can be rewritten like this:
+`Chymyst` implements this often-used pattern as a special language feature called a **blocking channel**.
+Using this feature, the previous code can be rewritten more concisely:
 
 ```scala
 import io.chymyst.jc._
