@@ -55,8 +55,8 @@ private[jc] object StaticAnalysis {
       r1 <- reactions
       if r1.info.guardPresence.noCrossGuards
       r2 <- reactions
-      if r2 =!= r1
-      if allMatchersAreWeakerThan(r1.info.inputsSortedByConstraintStrength, r2.info.inputsSortedByConstraintStrength)
+      if r2 =!= r1 && r1.inputMoleculesSet.subsetOf(r2.inputMoleculesSet) &&
+        allMatchersAreWeakerThan(r1.info.inputsSortedByConstraintStrength, r2.info.inputsSortedByConstraintStrength)
     } yield (r1, r2)
 
     if (suspiciousReactions.nonEmpty) {
