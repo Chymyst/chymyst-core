@@ -642,7 +642,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       knownInputMolecules
         .map { case (mol, (i, _)) ⇒ (mol, (consumingReactions(i).map(_.threadPool.getOrElse(reactionPool)).toSet, mol.isBlocking)) }
         .filter { case (_, (pools, isBlocking)) ⇒ isBlocking && pools.size === 1 }
-        .map { case (mol, (pools, _)) ⇒ (mol, pools.head) }(breakOut)
+        .flatMap { case (mol, (pools, _)) ⇒ pools.headOption.map(pool ⇒ (mol, pool)) }(breakOut)
 
     // Set the RS info on all input molecules in this reaction site.
     knownInputMolecules.foreach { case (mol, (index, valType)) ⇒
