@@ -65,11 +65,9 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     )
 )
 
-enablePlugins(TutPlugin)
-
 lazy val errorsForWartRemover = Seq(Wart.EitherProjectionPartial, Wart.Enumeration, Wart.Equals, Wart.ExplicitImplicitTypes, Wart.FinalCaseClass, Wart.FinalVal, Wart.LeakingSealed, Wart.Return, Wart.StringPlusAny, Wart.TraversableOps, Wart.TryPartial)
 
-lazy val warningsForWartRemover = Seq(Wart.JavaConversions, Wart.IsInstanceOf, Wart.JavaConversions, Wart.OptionPartial, Wart.Nothing) //Seq(Wart.Any, Wart.AsInstanceOf, Wart.ImplicitConversion, Wart.IsInstanceOf, Wart.JavaConversions, Wart.Option2Iterable, Wart.OptionPartial, Wart.NoNeedForMonad, Wart.Nothing, Wart.Product, Wart.Serializable, Wart.ToString, Wart.While)
+lazy val warningsForWartRemover = Seq(Wart.JavaConversions, Wart.IsInstanceOf, Wart.OptionPartial) //Seq(Wart.Any, Wart.AsInstanceOf, Wart.ImplicitConversion, Wart.Option2Iterable, Wart.NoNeedForMonad, Wart.Nothing, Wart.Product, Wart.Serializable, Wart.ToString, Wart.While)
 
 val flightRecorderJVMFlags = Seq(
   "-Xmx1G",
@@ -80,12 +78,20 @@ val flightRecorderJVMFlags = Seq(
   "-XX:StartFlightRecording=delay=10s,duration=600s,name=Recording,filename=benchmark.jfr"
 )
 
+enablePlugins(TutPlugin)
+
+lazy val disableWarningsForTut = Set("-Ywarn-unused", "-Xlint")
+
 lazy val buildAll = (project in file("."))
   .settings(commonSettings: _*)
   .settings(
     //    aggregate in assembly := false, // This would disable assembly in aggregated tasks - not what we want.
-    name := "buildAll"
+    name := "buildAll",
+    tutSourceDirectory := (sourceDirectory in core in Compile).value / "tut",
+    tutTargetDirectory := (crossTarget in core).value / "tut",
+    scalacOptions in Tut := scalacOptions.value.filterNot(disableWarningsForTut.contains)
   )
+  .dependsOn(core % "compile->compile;test->test")
   .aggregate(core, benchmark)
   .disablePlugins(sbtassembly.AssemblyPlugin) // do not create an assembly JAR for `buildAll`, but do create it for aggregate subprojects
 
