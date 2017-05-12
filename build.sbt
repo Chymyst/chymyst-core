@@ -16,9 +16,9 @@ $ sbt
 
 val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   organization := "io.chymyst",
-  version := "0.1.9-SNAPSHOT",
+  version := "0.1.9",
   scalaVersion := "2.11.8",
-  crossScalaVersions := Seq("2.11.8", "2.12.1"),
+  crossScalaVersions := Seq("2.11.8", "2.12.1", "2.12.2"),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases"),
@@ -47,7 +47,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     "-Xfuture",
     "-Ywarn-unused"
   ) ++ (//target:jvm-1.8 supported from 2.11.5, warn-unused-import deprecated in 2.12
-    if (scalaVersion.value startsWith "2.11") {
+    if (scalaBinaryVersion.value == "2.11") {
       val revision = scalaVersion.value.split('.').last.toInt
       Seq("-Ywarn-unused-import") ++ (
         if (revision >= 5) {
@@ -60,7 +60,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     else Nil
     )
     ++ (
-    if (scalaVersion.value startsWith "2.12") Seq("-target:jvm-1.8", "-Ypartial-unification") // (SI-2712 pertains to partial-unification)
+    if (scalaBinaryVersion.value == "2.12") Seq("-target:jvm-1.8", "-Ypartial-unification") // (SI-2712 pertains to partial-unification)
     else Nil
     )
 )
