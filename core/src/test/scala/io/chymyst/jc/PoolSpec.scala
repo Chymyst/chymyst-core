@@ -45,7 +45,7 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
         Thread.sleep(10000000)  // this should not time out
 
       } catch {
-        case e: InterruptedException => ()
+        case _: InterruptedException => ()
       }
     }, emptyReactionInfo)
 
@@ -64,7 +64,7 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
         Thread.sleep(10000000)  // this should not time out
 
       } catch {
-        case e: InterruptedException => waiter.dismiss()
+        case _: InterruptedException => waiter.dismiss()
         case other: Exception =>
           other.printStackTrace()
           waiter { false shouldEqual true ; () }

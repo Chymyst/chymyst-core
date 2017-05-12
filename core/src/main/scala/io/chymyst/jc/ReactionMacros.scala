@@ -22,7 +22,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   }
 
   def getSimpleVar(binderTerm: Tree): Ident = binderTerm match {
-    case Bind(t@TermName(n), Ident(termNames.WILDCARD)) => Ident(t)
+    case Bind(t@TermName(_), Ident(termNames.WILDCARD)) => Ident(t)
   }
 
   private val constantExtractorCodes = Map(
@@ -221,7 +221,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     val freshName = c.freshName(TypeName("Probe$"))
     val probe = c.typecheck(q""" {class $freshName; ()} """)
     probe match {
-      case Block(List(t), r) => t.symbol.owner
+      case Block(List(t), _) => t.symbol.owner
     }
   }
 
@@ -255,7 +255,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         // PartialFunction automatically adds a default case; we ignore that CaseDef.
         case CaseDef(Bind(TermName("defaultCase$"), Ident(termNames.WILDCARD)), EmptyTree, _) => false
         case _ => true
-      }.map { case c@CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody) }
+      }.map { case CaseDef(aPattern, aGuard, aBody) => (aPattern, aGuard, aBody) }
     }
   }
 

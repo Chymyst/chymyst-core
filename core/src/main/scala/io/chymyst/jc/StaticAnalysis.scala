@@ -219,7 +219,7 @@ private[jc] object StaticAnalysis {
           Some(s"static molecule ($mol) not consumed by any reactions")
         case (mol, Some((_, 0))) ⇒
           Some(s"static molecule ($mol) not consumed by any reactions")
-        case (mol, Some((_, 1))) ⇒
+        case (_, Some((_, 1))) ⇒
           None
         case (mol, Some((reaction, countConsumed))) =>
           Some(s"static molecule ($mol) consumed $countConsumed times by reaction {${reaction.info}}")

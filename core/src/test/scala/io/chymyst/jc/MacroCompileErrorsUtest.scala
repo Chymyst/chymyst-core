@@ -753,7 +753,7 @@ case c(_) + a(y) => c()
           go { case f(_, r) => try {
             throw new Exception("")
           } catch {
-            case e: Exception =>
+            case _: Exception =>
           } finally {
             r()
           }

@@ -169,7 +169,7 @@ private[jc] object OutputEnvironment {
         } else {
           // First approximation to the full shrinkage algorithm: Only process one level of `ChooserBlock`.
           outputInfo._3.headOption match {
-            case Some(ChooserBlock(id, clause, total)) if outputInfo._3.size === 1 =>
+            case Some(ChooserBlock(id, _, total)) if outputInfo._3.size === 1 =>
               // Find all other output molecules with the same id of ChooserBlock. Include this molecule too (so we use `remaining` here, instead of `newRemaining`).
               val others = remaining.filter { case (t, _, envs) =>
                 t === outputInfo._1 &&
@@ -182,14 +182,14 @@ private[jc] object OutputEnvironment {
               val res = (0 until total).flatFoldLeft[(OutputList[T], OutputPatternType)]((others, outputInfo._2)) { (acc, newClause) =>
                 val (othersRemaining, newFlag) = acc
                 val found = othersRemaining.find {
-                  case (t, _, List(ChooserBlock(_, `newClause`, `total`))) =>
+                  case (_, _, List(ChooserBlock(_, `newClause`, `total`))) =>
                     true
                   case _ =>
                     false
                 }
                 // If `found` == None, we stop. Otherwise, we remove it from `othersRemaining` and merge the obtained flag into `newFlag`.
                 found map {
-                  case item@(t, outputPattern, _) => (othersRemaining difff List(item), newFlag.merge(outputPattern)(equals))
+                  case item@(_, outputPattern, _) => (othersRemaining difff List(item), newFlag.merge(outputPattern)(equals))
                 }
               }
               res match {
@@ -304,7 +304,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
   private[jc] def admitsValue(molValue: AbsMolValue[_]): Boolean = flag match {
     case WildcardInput | SimpleVarInput(_, None) =>
       true
-    case SimpleVarInput(v, Some(cond)) =>
+    case SimpleVarInput(_, Some(cond)) =>
       cond.isDefinedAt(molValue.moleculeValue)
     case ConstInputPattern(v) =>
       v === molValue.moleculeValue

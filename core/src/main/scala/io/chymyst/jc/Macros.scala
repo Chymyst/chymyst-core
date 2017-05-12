@@ -279,7 +279,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       .map {
       case ((mol, flag, replyFlag), i) =>
         val mergedGuardOpt = mergeGuards(moleculeGuardVarsSeq
-          .filter { case (g, vars) => guardVarsConstrainOnlyThisMolecule(vars, flag) }
+          .filter { case (_, vars) => guardVarsConstrainOnlyThisMolecule(vars, flag) }
         ).map(t => replaceVarsInGuardTree(t))
 
         val mergedFlag = flag match {

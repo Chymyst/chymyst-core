@@ -107,7 +107,7 @@ site(
     println(s"got x=$x")
     // compute output value and continue
     val z : Int = x * x // whatever
-    k(x) // invoke continuation
+    k(z) // invoke continuation
   }
 )
 
