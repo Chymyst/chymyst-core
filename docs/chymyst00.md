@@ -26,5 +26,4 @@
 
 [Appendix A: From actors to reactions: The chemical machine explained through the Actor model](chymyst-actor.md)
 
-[Other work on Join Calculus](other_work.md)
-
+[Appendix B: Other work on Join Calculus](other_work.md)

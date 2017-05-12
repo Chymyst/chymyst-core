@@ -55,8 +55,8 @@ private[jc] object StaticAnalysis {
       r1 <- reactions
       if r1.info.guardPresence.noCrossGuards
       r2 <- reactions
-      if r2 =!= r1
-      if allMatchersAreWeakerThan(r1.info.inputsSortedByConstraintStrength, r2.info.inputsSortedByConstraintStrength)
+      if r2 =!= r1 && r1.inputMoleculesSet.subsetOf(r2.inputMoleculesSet) &&
+        allMatchersAreWeakerThan(r1.info.inputsSortedByConstraintStrength, r2.info.inputsSortedByConstraintStrength)
     } yield (r1, r2)
 
     if (suspiciousReactions.nonEmpty) {
@@ -178,10 +178,14 @@ private[jc] object StaticAnalysis {
     else None
   }
 
+  private[jc] def findShadowingErrors(reactions: Seq[Reaction]) =
+    Seq(
+      checkReactionShadowing _
+    ).flatMap(_ (reactions))
+
   private[jc] def findGeneralErrors(reactions: Seq[Reaction]) = {
     Seq(
       findIdenticalReactions _,
-      checkReactionShadowing _,
       checkSingleReactionLivelock _,
       checkMultiReactionLivelock _
     ).flatMap(_ (reactions))

@@ -207,7 +207,7 @@ class MoreBlockingSpec extends LogSpec with Matchers with TimeLimitedTests {
     tp.shutdownNow()
   }
 
-  it should "deadlock since another reaction is blocked until molecule is emitted" in {
+  it should "deadlock without warning, since another reaction is blocked until molecule is emitted" in {
     val c = m[Unit]
     val d = m[Int]
     val e = m[Unit]
@@ -216,20 +216,48 @@ class MoreBlockingSpec extends LogSpec with Matchers with TimeLimitedTests {
     val incr = b[Unit, Unit]
     val get_f = b[Unit, Int]
 
-    val tp = new FixedPool(6)
+    clearErrorLog()
+    val tp = new FixedPool(4)
 
     site(tp)(
       go { case get_f(_, r) + f(x) => r(x) },
       go { case c(_) => incr(); e() },
       go { case wait(_, r) + e(_) => r() },
-      go { case d(x) + incr(_, r) => wait(); r() + f(x+1) }
+      go { case d(x) + incr(_, r) => wait(); r() + f(x) }
     )
     d.setLogLevel(4)
     d(100)
     c() // update started and is waiting for e(), which should come after incr() gets its reply
-    get_f.timeout()(400 millis) shouldEqual None
-
+    get_f.timeout()(1000 millis) shouldEqual None // deadlock: get_f() waits for f(), which will be emitted only after wait() returns; the reply to wait() is blocked by missing e(), which is emitted only after incr() returns, which also happens only after wait().
+    // This deadlock cannot be detected by static analysis, unless we know that no other e() will be emitted.
+    // All we know is that one thread is blocked by wait(), another by incr(), and that the reply to wait() requires a reaction wait + e -> ..., which is currently not running.
+    globalErrorLog.toIndexedSeq should not contain "Error: deadlock occurred in fixed pool (4 threads) due to 2 concurrent blocking calls, reaction: d(x) + incr/B(_) → wait/B() + f(?)"
     tp.shutdownNow()
   }
 
+  it should "deadlock warning since another reaction is blocked until molecule is emitted" in {
+    val c = m[Unit]
+    val d = m[Int]
+    val e = m[Unit]
+    val f = m[Int]
+    val wait = b[Unit, Unit]
+    val incr = b[Unit, Unit]
+    val get_f = b[Unit, Int]
+
+    clearErrorLog()
+    val tp = new FixedPool(2)
+
+    site(tp)(
+      go { case get_f(_, r) + f(x) => r(x) },
+      go { case c(_) => incr(); e() },
+      go { case wait(_, r) + e(_) => r() },
+      go { case d(x) + incr(_, r) => wait(); r() + f(x) }
+    )
+    d.setLogLevel(4)
+    d(100)
+    c() // update started and is waiting for e(), which should come after incr() gets its reply
+    get_f.timeout()(1000 millis) shouldEqual None // deadlock
+    globalErrorLog.toIndexedSeq should contain("Error: deadlock occurred in fixed pool (2 threads) due to 2 concurrent blocking calls, reaction: d(x) + incr/B(_) → wait/B() + f(?)")
+    tp.shutdownNow()
+  }
 }

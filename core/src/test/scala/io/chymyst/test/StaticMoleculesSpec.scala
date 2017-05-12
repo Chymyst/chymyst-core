@@ -305,7 +305,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
     g() // now we have attempted to emit d123(123) but we should have failed
     c(0)
     f.timeout()(1.second) shouldEqual None // if this is Some(1), reaction ran, which means the test failed
-    globalErrorLog.find(_.contains("Refusing to emit static pipelined molecule")) shouldEqual Some("In Site{c + d123 → ...; d123 + g/B → ...}: Refusing to emit static pipelined molecule d123(123) since its value fails the relevant conditions")
+    globalErrorLog.find(_.contains("Refusing to emit static pipelined molecule")).get should endWith("In Site{c + d123 → ...; d123 + g/B → ...}: Refusing to emit static pipelined molecule d123(123) since its value fails the relevant conditions")
   }
 
   it should "handle static molecules with cross-molecule guards" in {

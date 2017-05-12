@@ -468,7 +468,6 @@ class ReactionSiteSpec extends LogSpec with Matchers with BeforeAndAfterEach {
     checkExpectedPipelined(Map(c -> true)) shouldEqual ""
   }
 
-
   it should "detect pipelining while also detecting livelock, with condition" in {
     val a = m[Unit]
     val c = m[Int]

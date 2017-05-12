@@ -60,11 +60,13 @@ A convenient implementation is to define a function that will return an emitter 
 
 ```scala
 /**
-* Prepare reactions that will run a closure and emit a result upon its completion.
+* Prepare reactions that will run a closure
+* and emit a result upon its completion.
 *
 * @tparam R The type of result value
-* @param closure The closure to be run
-* @param finished A previously bound non-blocking molecule to be emitted when the computation is done
+* @param closure  The closure to be run
+* @param finished A previously bound non-blocking molecule
+*                 to be emitted when the computation is done
 * @return A new non-blocking molecule that will start the job
 */
 def submitJob[R](closure: () => R, finished: M[R]): M[R] = {
@@ -797,8 +799,9 @@ We need a molecule, say `counter()`, to carry the integer value that shows the n
 Therefore, we need a reaction like this:
 
 ```scala
-go { case barrier(_, reply) + counter(k) => 
-  ???; if (k + 1 < n) counter(k + 1); ???; reply()
+go { case barrier(_, reply) + counter(k) ⇒ 
+  ???
+  if (k + 1 < n) counter(k + 1); ???; reply()
 }
 
 ```
@@ -812,7 +815,10 @@ Therefore, some blocking molecule must be emitted in this reaction before replyi
 Let us make `counter()` a blocking molecule:
 
 ```scala
-go { case barrier(_, reply) + counter(k, replyCounter) => ???; if (k + 1 < n) counter(k + 1); ???; reply() }
+go { case barrier(_, reply) + counter(k, replyCounter) ⇒
+  ???
+  if (k + 1 < n) counter(k + 1); ???; reply() 
+}
 
 ```
 
@@ -1116,7 +1122,9 @@ we can enforce the requirement that `manL(0)` and `womanL(0)` should begin danci
 Now it is clear that the `mayBegin` molecule must carry the most recently used position label, and increment this label every time a new pair goes off to dance:
 
 ```scala
-go { case manL(m) + womanL(w) + mayBegin(l) if m == w && w == l => beginDancing(); mayBegin(l + 1) }
+go { case manL(m) + womanL(w) + mayBegin(l) if m == w && w == l ⇒
+  beginDancing(); mayBegin(l + 1)
+}
 
 ```
 
@@ -1154,7 +1162,7 @@ Readers and Writers have ratio `n` : `n`.
 However, a new rule involving wait times is introduced:
 If more Readers than Writers are waiting to access the resource, no more Writers can be granted access, and vice versa.
 
-## Choose and reply to one of many blocking calls (Unix `select`, Actor Model's `receive`)
+## Choose and reply to one of many blocking calls (Unix `select`, Actor model's `receive`)
 
 The task is to organize the processing of several blocking calls emitted by different concurrent reactions.
 One receiver is available to process one of these calls at a time.
