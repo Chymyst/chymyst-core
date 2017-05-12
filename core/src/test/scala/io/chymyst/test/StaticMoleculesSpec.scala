@@ -126,6 +126,35 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
     thrown.getMessage shouldEqual "Error: In Site{c/B + d → ...}: Reaction {c/B(_) + d(_) → d()} with inputs [c/B/P() + d/P()] finished without replying to c/B. Reported error: In Site{c/B + d → ...}: Reaction {c/B(_) + d(_) → d()} with inputs [c/B/P() + d/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: In Site{c/B + d → ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + d(_) → d()} already emitted it"
   }
 
+  it should "signal error when a static molecule is emitted by another reaction to trick static analysis" in {
+    the[Exception] thrownBy {
+      val a = m[Unit]
+      val c = b[Unit, Unit]
+      val d = m[Unit]
+      val carrier = m[M[Unit]]
+
+      site(tp)(
+        go { case c(_, r) + carrier(q) ⇒ q(); r() },
+        go { case a(_) + d(_) => d() + carrier(d) },
+        go { case _ => d() } // static reaction
+      )
+      a()
+      c()
+    } should have message "Error: In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] finished without replying to c/B. Reported error: In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: In Site{a + d → ...; c/B + carrier → ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + carrier(q) → } does not consume it"
+  }
+
+  it should "signal error when a static molecule is emitted inside an if-then block" in {
+    val c = b[Unit, Unit]
+    val d = m[Unit]
+    clearErrorLog()
+    site(tp)(
+      go { case c(_, r) + d(_) => if (1 == 1) d(); r() },
+      go { case _ => d() } // static reaction
+    )
+    c()
+    globalErrorLog.foreach(println)
+  }
+
   it should "signal error when a static molecule is consumed multiple times by reaction" in {
     val thrown = intercept[Exception] {
       val d = m[Unit]

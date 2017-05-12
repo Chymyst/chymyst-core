@@ -241,16 +241,21 @@ private[jc] object StaticAnalysis {
   }
 
   // No static molecule should be output by a reaction that does not consume it.
-  // No static molecule should be output more than once by a reaction.
+  // Every static molecule should be output exactly once and in a once-only output environment.
   private def checkOutputsForStaticMols(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
     val errorList = staticMols.flatMap {
       case (m, _) =>
         reactions.flatMap { r =>
-          val outputTimes = r.info.outputs.count(_.molecule === m)
+          val outputTimes = r.info.shrunkOutputs.count(i ⇒ i.molecule === m && i.environments.exists(!_.linear))
+          val containsAsInput = r.inputMoleculesSet.contains(m)
           if (outputTimes > 1)
             Some(s"static molecule ($m) emitted more than once by reaction {${r.info}}")
-          else if (outputTimes == 1 && !r.inputMoleculesSet.contains(m))
-            Some(s"static molecule ($m) emitted but not consumed by reaction {${r.info}}")
+          else if (outputTimes === 1) {
+            if (!containsAsInput)
+              Some(s"static molecule ($m) emitted but not consumed by reaction {${r.info}}")
+            else None
+          } else if (containsAsInput) // outputTimes == 0
+            Some(s"static molecule ($m) consumed but not emitted by reaction {${r.info}}")
           else None
         }
     }
