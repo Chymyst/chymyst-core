@@ -210,7 +210,7 @@ class EightQueensSpec extends LogSpec with Matchers {
     )
 
     site(tp)(
-      go { case acc(s) + fetch(_, r) ⇒ r(s) },
+      go { case acc(s) + fetch(_, r) ⇒ r(s) } onThreads tp2,
       go { case pos((x, y)) + acc(s) // ignore warning "non-variable type argument"
         if s.size < nQueens && s.forall { case (xx, yy) => safe(x, y, xx, yy) } =>
         val newS = s :+ ((x, y))
@@ -228,7 +228,7 @@ class EightQueensSpec extends LogSpec with Matchers {
     // compute results
     val res = (1 to iterations).map { _ ⇒
       acc(Seq())
-      finished.timeout()(timeout.milliseconds).getOrElse(fetch())
+      finished.timeout()(timeout.milliseconds).orElse(fetch.timeout()(timeout.milliseconds)).getOrElse(Nil)
     }
     val badValuesCount = res.count(_.length < nQueens)
     val goodCount = res.length - badValuesCount
