@@ -226,7 +226,7 @@ private[jc] object StaticAnalysis {
       }
 
     val wrongOutput = staticMols.map {
-      case (mol, _) => mol -> reactions.find(r => r.inputMoleculesSortedAlphabetically.count(_ === mol) == 1 && !r.info.outputs.exists(_.molecule === mol))
+      case (mol, _) => mol -> reactions.find(r => r.inputMoleculesSortedAlphabetically.count(_ === mol) === 1 && !r.info.outputs.exists(_.molecule === mol))
     }.flatMap {
       case (mol, Some(r)) =>
         Some(s"static molecule ($mol) consumed but not emitted by reaction {${r.info}}")
@@ -255,7 +255,7 @@ private[jc] object StaticAnalysis {
             if (!containsAsInput)
               Some(s"static molecule ($mol) emitted but not consumed by reaction {${r.info}}")
             else None
-          } else if (outputTimes != 0 && containsAsInput) // outputTimes == 0 was already handled by checkInputsForStaticMols
+          } else if (outputTimes =!= 0 && containsAsInput) // outputTimes == 0 was already handled by checkInputsForStaticMols
             Some(s"static molecule ($mol) consumed but not guaranteed to be emitted by reaction {${r.info}}")
           else None
         }
