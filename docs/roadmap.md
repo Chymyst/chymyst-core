@@ -42,11 +42,11 @@ Version 0.2: Rewrite the reaction scheduler, optimizing for performance and flex
 In particular, do not lock the entire molecule bag - only lock some groups of molecules that have contention on certain molecule inputs (decide this using static analysis information).
 This will allow us to implement interesting features such as:
 
-- start many reactions at once when possible, even at one and the same reaction site
+- start many reactions at once when possible, even at one and the same reaction site (will not do)
 - allow nonlinear input patterns and arbitrary guards (done in 0.1.5, optimized in 0.1.8)
 - automatic pipelining (i.e. strict ordering of consumed molecules) should give a speedup (done in 0.1.8)
 
-Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka Streaming, Kafka, Heron. Define and use "pipelined" molecules that are optimized for streaming usage.
+Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka Streaming, Kafka, Heron. Use "pipelined" molecules that are optimized for streaming usage.
 
 Version 0.4: Enterprise readiness: fault tolerance, monitoring, flexible logging, assertions on static molecules and perhaps on some other situations, thread fusing for static or pipelined molecule reactions.
 
