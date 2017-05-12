@@ -205,12 +205,12 @@ private[jc] object StaticAnalysis {
   // Each static molecule that is consumed by a reaction should also be emitted by the same reaction.
   private def checkInputsForStaticMols(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
     val staticMolsConsumedMaxTimes: Map[Molecule, Option[(Reaction, Int)]] =
-      staticMols.map { case (m, _) ⇒
+      staticMols.map { case (mol, _) ⇒
         val reactionsWithCounts = if (reactions.isEmpty)
           None
         else
-          Some(reactions.map(r => (r, r.inputMoleculesSortedAlphabetically.count(_ === m))).maxBy(_._2))
-        m → reactionsWithCounts
+          Some(reactions.map(r => (r, r.inputMoleculesSortedAlphabetically.count(_ === mol))).maxBy(_._2))
+        mol → reactionsWithCounts
       }
 
     val wrongConsumed = staticMolsConsumedMaxTimes
@@ -226,7 +226,7 @@ private[jc] object StaticAnalysis {
       }
 
     val wrongOutput = staticMols.map {
-      case (m, _) => m -> reactions.find(r => r.inputMoleculesSortedAlphabetically.count(_ === m) == 1 && !r.info.outputs.exists(_.molecule === m))
+      case (mol, _) => mol -> reactions.find(r => r.inputMoleculesSortedAlphabetically.count(_ === mol) == 1 && !r.info.outputs.exists(_.molecule === mol))
     }.flatMap {
       case (mol, Some(r)) =>
         Some(s"static molecule ($mol) consumed but not emitted by reaction {${r.info}}")
@@ -236,27 +236,33 @@ private[jc] object StaticAnalysis {
     val errorList = wrongConsumed ++ wrongOutput
 
     if (errorList.nonEmpty)
-      Some(s"Incorrect static molecule declaration: ${errorList.mkString("; ")}")
+      Some(s"Incorrect static molecule usage: ${errorList.mkString("; ")}")
     else None
   }
 
-  // No static molecule should be output by a reaction that does not consume it.
-  // No static molecule should be output more than once by a reaction.
+  // If a static molecule is output by a reaction, the same reaction must consume that molecule.
+  // Every static molecule should be output exactly once and in a once-only output environment.
   private def checkOutputsForStaticMols(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
     val errorList = staticMols.flatMap {
-      case (m, _) =>
+      case (mol, _) =>
         reactions.flatMap { r =>
-          val outputTimes = r.info.outputs.count(_.molecule === m)
+          val outputs = r.info.shrunkOutputs.filter(_.molecule === mol)
+          val outputTimes = outputs.length
+          val containsAsInput = r.inputMoleculesSet.contains(mol)
           if (outputTimes > 1)
-            Some(s"static molecule ($m) emitted more than once by reaction {${r.info}}")
-          else if (outputTimes == 1 && !r.inputMoleculesSet.contains(m))
-            Some(s"static molecule ($m) emitted but not consumed by reaction {${r.info}}")
+            Some(s"static molecule ($mol) emitted more than once by reaction {${r.info}}")
+          else if (outputs.count(_.environments.forall(_.linear)) === 1) {
+            if (!containsAsInput)
+              Some(s"static molecule ($mol) emitted but not consumed by reaction {${r.info}}")
+            else None
+          } else if (outputTimes != 0 && containsAsInput) // outputTimes == 0 was already handled by checkInputsForStaticMols
+            Some(s"static molecule ($mol) consumed but not guaranteed to be emitted by reaction {${r.info}}")
           else None
         }
     }
 
     if (errorList.nonEmpty)
-      Some(s"Incorrect static molecule declaration: ${errorList.mkString("; ")}")
+      Some(s"Incorrect static molecule usage: ${errorList.mkString("; ")}")
     else None
   }
 

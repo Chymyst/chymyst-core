@@ -188,7 +188,6 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
       )
       result.hasErrorsOrWarnings shouldEqual false
     }
-
     thrown.getMessage shouldEqual "In Site{a + a + a + b + b + b + b → ...; a + a + a + b + b + b → ...}: Unavoidable nondeterminism: reaction {a(Some(1)) + a(Some(2)) + a(Some(3)) + b(1) + b(1) + b(2) + b(_) → } is shadowed by {a(Some(2)) + a(_) + a(x) + b(1) + b(1) + b(_) → }"
   }
 
@@ -201,7 +200,6 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
         go { case a(Some(1)) + b(2) + a(Some(2)) + a(Some(3)) + b(1) + b(_) + b(1) + a(x) => }
       )
     }
-
     thrown.getMessage shouldEqual "In Site{a + a + a + a + b + b + b + b → ...; a + a + a + a + b → ...}: Unavoidable nondeterminism: reaction {a(Some(1)) + a(Some(2)) + a(Some(3)) + a(x) + b(1) + b(1) + b(2) + b(_) → } is shadowed by {a(Some(2)) + a(_) + a(_) + a(x) + b(1) → }"
   }
 
@@ -259,11 +257,9 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
       val a = m[Option[Int]]
       val b = m[Int]
       val c = m[Int]
-
       site(
         go { case b(IsEven(x)) + b(_) + a(_) + c(1) => c(1) + b(1) + b(2) + a(Some(1)) + c(2) }
       )
-
     }
     thrown.getMessage shouldEqual "In Site{a + b + b + c → ...}: Unavoidable livelock: reaction {a(_) + b(?x) + b(_) + c(1) → c(1) + b(1) + b(2) + a(Some(1)) + c(2)}"
   }
@@ -388,7 +384,6 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
     val warnings = site(
       go { case p(x) + q(1) => q(x) + q(2) + p(1) } // Will have livelock when x == 1, but not otherwise, thus it is a warning and not an error.
     )
-
     warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {p(x) + q(1) → q(?) + q(2) + p(1)}"), List(), "Site{p + q → ...}")
   }
 
@@ -398,7 +393,6 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
     val warnings = site(
       go { case p(x) + q(1) if x > 0 => q(x) + q(2) + p(1) } // The condition x > 0 is true when x = 1.
     )
-
     warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {p(x if ?) + q(1) → q(?) + q(2) + p(1)}"), List(), "Site{p + q → ...}")
   }
 
@@ -406,7 +400,6 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
     val thrown = intercept[Exception] {
       val a = m[Int]
       val b = m[Int]
-
       site(
         go { case a(1) + b(_) => b(1) + b(2) + a(1) },
         go { case a(IsEven(x)) => a(2) },
@@ -445,7 +438,6 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   it should "not be detected in a reaction with non-repeated output" in {
     val a = m[Unit]
-
     val warnings = site(
       go { case a(_) + a(_) ⇒ a() }
     )
@@ -454,7 +446,6 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   it should "throw error in a reaction with unconditional repeated output with constants" in {
     val a = m[Int]
-
     intercept[Exception] {
       site(
         go { case a(1) + a(_) ⇒ a(1) + a(2) }
@@ -464,7 +455,6 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   it should "throw error in a reaction with unconditional repeated output with constants and true guard" in {
     val a = m[Int]
-
     intercept[Exception] {
       site(
         go { case a(1) + a(_) if (true) ⇒ a(1) + a(2) }
@@ -474,7 +464,6 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   it should "give warning in a reaction with unconditional repeated output with constants and a cross-guard" in {
     val a = m[Int]
-
     val warnings = site(
       go { case a(x) + a(y) if x > y ⇒ a(1) + a(2) }
     )
@@ -483,7 +472,6 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   it should "give no warning in a reaction with unconditional non-repeated output with constants and a cross-guard" in {
     val a = m[Int]
-
     val warnings = site(
       go { case a(x) + a(y) if x > y ⇒ a(1) }
     )
@@ -519,13 +507,11 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
   it should "in a reaction with static molecule emitted conditionally with two branches" in {
     withPool(new FixedPool(2)) { tp ⇒
       val a = m[Int]
-      the[Exception] thrownBy {
-        val warnings = site(tp)(
-          go { case _ ⇒ a(1) },
-          go { case a(1) ⇒ val x = 1; if (x > 0) a(x) else a(-x) }
-        )
-        warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
-      } should have message "In Site{a → ...}: Incorrect static molecule declaration: static molecule (a) emitted more than once by reaction {a(1) → a(?)}"
+      val warnings = site(tp)(
+        go { case _ ⇒ a(1) },
+        go { case a(1) ⇒ val x = 1; if (x > 0) a(x) else a(-x) }
+      )
+      warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
     }.get
   }
 

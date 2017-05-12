@@ -81,7 +81,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Incorrect static molecule declaration: static molecule (d) consumed but not emitted by reaction {c/B(_) + d(_) → }"
+    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Incorrect static molecule usage: static molecule (d) consumed but not emitted by reaction {c/B(_) + d(_) → }"
   }
 
   it should "signal error when a static molecule is consumed by reaction and emitted twice" in {
@@ -94,7 +94,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Incorrect static molecule declaration: static molecule (d) emitted more than once by reaction {c/B(_) + d(_) → d() + d()}"
+    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Incorrect static molecule usage: static molecule (d) emitted more than once by reaction {c/B(_) + d(_) → d() + d()}"
   }
 
   it should "signal error when a static molecule is emitted but not consumed by reaction" in {
@@ -109,7 +109,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B → ...; e → ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction {c/B(_) → d()}; static molecule (d) emitted but not consumed by reaction {e(_) → d()}; Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B → ...; e → ...}: Incorrect static molecule usage: static molecule (d) emitted but not consumed by reaction {c/B(_) → d()}; static molecule (d) emitted but not consumed by reaction {e(_) → d()}; Incorrect static molecule usage: static molecule (d) not consumed by any reactions"
   }
 
   it should "signal error when a static molecule is emitted by reaction inside a loop to trick static analysis" in {
@@ -123,7 +123,65 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
       )
       c()
     }
-    thrown.getMessage shouldEqual "Error: In Site{c/B + d → ...}: Reaction {c/B(_) + d(_) → d()} with inputs [c/B/P() + d/P()] finished without replying to c/B. Reported error: In Site{c/B + d → ...}: Reaction {c/B(_) + d(_) → d()} with inputs [c/B/P() + d/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: In Site{c/B + d → ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + d(_) → d()} already emitted it"
+    thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Incorrect static molecule usage: static molecule (d) consumed but not guaranteed to be emitted by reaction {c/B(_) + d(_) → d()}"
+  }
+
+  it should "signal error when a static molecule is emitted by another reaction to trick static analysis" in {
+    the[Exception] thrownBy {
+      val a = m[Unit]
+      val c = b[Unit, Unit]
+      val d = m[Unit]
+      val carrier = m[M[Unit]]
+
+      site(tp)(
+        go { case c(_, r) + carrier(q) ⇒ q(); r() },
+        go { case a(_) + d(_) => d() + carrier(d) },
+        go { case _ => d() } // static reaction
+      )
+      a()
+      c()
+    } should have message "Error: In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] finished without replying to c/B. Reported error: In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: In Site{a + d → ...; c/B + carrier → ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + carrier(q) → } does not consume it"
+  }
+
+  it should "signal error when a static molecule is emitted twice by another reaction to trick static analysis" in {
+    the[Exception] thrownBy {
+      val a = m[Unit]
+      val c = b[Unit, Unit]
+      val d = m[Unit]
+      val carrier = m[M[Unit]]
+
+      site(tp)(
+        go { case c(_, r) + carrier(q) + d(_) ⇒ q(); d(); r() },
+        go { case a(_) + d(_) => d() + carrier(d) },
+        go { case _ => d() } // static reaction
+      )
+      a()
+      c()
+    } should have message "Error: In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/B/P() + carrier/P(d) + d/P()] finished without replying to c/B. Reported error: In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/B/P() + carrier/P(d) + d/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: In Site{a + d → ...; c/B + carrier + d → ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + carrier(q) + d(_) → d()} already emitted it"
+  }
+
+  it should "signal error when a static molecule is emitted inside an if-then block" in {
+    val c = b[Unit, Unit]
+    val d = m[Unit]
+    clearErrorLog()
+    site(tp)(
+      go { case c(_, r) + d(_) => if (1 == 1) d(); r() },
+      go { case _ => d() } // static reaction
+    )
+    c()
+    globalErrorLog.foreach(println)
+  }
+
+  it should "find no error when a static molecule is emitted inside an if-then block with perfect shrinkage" in {
+    val c = b[Unit, Unit]
+    val d = m[Unit]
+    clearErrorLog()
+    site(tp)(
+      go { case c(_, r) + d(_) => if (1 == 1) d() else d(); r() },
+      go { case _ => d() } // static reaction
+    )
+    c()
+    globalErrorLog.foreach(println)
   }
 
   it should "signal error when a static molecule is consumed multiple times by reaction" in {
@@ -136,7 +194,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{d + d + e → ...}: Incorrect static molecule declaration: static molecule (d) consumed 2 times by reaction {d(_) + d(_) + e(_) → d()}"
+    thrown.getMessage shouldEqual "In Site{d + d + e → ...}: Incorrect static molecule usage: static molecule (d) consumed 2 times by reaction {d(_) + d(_) + e(_) → d()}"
   }
 
   it should "signal error when a static molecule is emitted but has no reactions" in {
@@ -147,7 +205,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{}: Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{}: Incorrect static molecule usage: static molecule (d) not consumed by any reactions"
   }
 
   it should "signal error when a static molecule is emitted but bound to another reaction site" in {
@@ -162,7 +220,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{}: Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{}: Incorrect static molecule usage: static molecule (d) not consumed by any reactions"
   }
 
   it should "signal error when a static molecule is emitted but incorrectly bound to another reaction site" in {
@@ -195,7 +253,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B → ...}: Incorrect static molecule declaration: static molecule (d) emitted but not consumed by reaction {c/B(_) → d()}; Incorrect static molecule declaration: static molecule (d) not consumed by any reactions"
+    thrown.getMessage shouldEqual "In Site{c/B → ...}: Incorrect static molecule usage: static molecule (d) emitted but not consumed by reaction {c/B(_) → d()}; Incorrect static molecule usage: static molecule (d) not consumed by any reactions"
   }
 
   it should "signal error when a static molecule is defined by a static reaction with guard" in {
