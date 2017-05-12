@@ -251,7 +251,7 @@ private[jc] object StaticAnalysis {
           val containsAsInput = r.inputMoleculesSet.contains(mol)
           if (outputTimes > 1)
             Some(s"static molecule ($mol) emitted more than once by reaction {${r.info}}")
-          else if (outputs.count(_.environments.forall(_.linear)) === 1) {
+          else if (outputs.count(_.environments.forall(env ⇒ env.linear && env.atLeastOne)) === 1) {
             if (!containsAsInput)
               Some(s"static molecule ($mol) emitted but not consumed by reaction {${r.info}}")
             else None

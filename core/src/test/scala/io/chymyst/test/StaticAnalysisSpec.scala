@@ -491,28 +491,28 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
     }.get
   }
 
-  // TODO: rewrite this test when static molecules are property analyzed for emitting code environment
-  it should "give no warning in a reaction with static molecule emitted conditionally" in {
-    withPool(new FixedPool(2)) { tp ⇒
-      val a = m[Int]
+  it should "give an error in a reaction with static molecule emitted conditionally" in {
+    val tp = new FixedPool(2)
+    val a = m[Int]
+    the[Exception] thrownBy {
       val warnings = site(tp)(
         go { case _ ⇒ a(1) },
         go { case a(1) ⇒ val x = 1; if (x > 0) a(x) }
       )
       warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a → ...}")
-    }.get
+    } should have message "In Site{a → ...}: Incorrect static molecule usage: static molecule (a) consumed but not guaranteed to be emitted by reaction {a(1) → a(?)}"
+    tp.shutdownNow()
   }
 
-  // TODO: rewrite this test when static molecules are property analyzed for emitting code environment
-  it should "in a reaction with static molecule emitted conditionally with two branches" in {
-    withPool(new FixedPool(2)) { tp ⇒
-      val a = m[Int]
-      val warnings = site(tp)(
-        go { case _ ⇒ a(1) },
-        go { case a(1) ⇒ val x = 1; if (x > 0) a(x) else a(-x) }
-      )
-      warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
-    }.get
+  it should "give warning in a reaction with static molecule emitted conditionally with two branches" in {
+    val tp = new FixedPool(2)
+    val a = m[Int]
+    val warnings = site(tp)(
+      go { case _ ⇒ a(1) },
+      go { case a(1) ⇒ val x = 1; if (x > 0) a(x) else a(-x) }
+    )
+    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
+    tp.shutdownNow()
   }
 
   behavior of "unbound molecule detection"

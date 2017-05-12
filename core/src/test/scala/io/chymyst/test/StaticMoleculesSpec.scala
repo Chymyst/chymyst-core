@@ -163,25 +163,24 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
   it should "signal error when a static molecule is emitted inside an if-then block" in {
     val c = b[Unit, Unit]
     val d = m[Unit]
-    clearErrorLog()
-    site(tp)(
-      go { case c(_, r) + d(_) => if (1 == 1) d(); r() },
-      go { case _ => d() } // static reaction
-    )
-    c()
-    globalErrorLog.foreach(println)
+    the[Exception] thrownBy {
+      site(tp)(
+        go { case c(_, r) + d(_) => if (1 == 1) d(); r() },
+        go { case _ => d() } // static reaction
+      )
+      c()
+    } should have message "In Site{c/B + d → ...}: Incorrect static molecule usage: static molecule (d) consumed but not guaranteed to be emitted by reaction {c/B(_) + d(_) → d()}"
   }
 
   it should "find no error when a static molecule is emitted inside an if-then block with perfect shrinkage" in {
-    val c = b[Unit, Unit]
+    val c = b[Int, Int]
     val d = m[Unit]
-    clearErrorLog()
     site(tp)(
-      go { case c(_, r) + d(_) => if (1 == 1) d() else d(); r() },
+      go { case c(x, r) + d(_) => if (x == 1) { d(); r(0) } else { d(); r(1) } },
       go { case _ => d() } // static reaction
     )
-    c()
-    globalErrorLog.foreach(println)
+    c(0) shouldEqual 1
+    c(1) shouldEqual 0
   }
 
   it should "signal error when a static molecule is consumed multiple times by reaction" in {
