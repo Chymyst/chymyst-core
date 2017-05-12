@@ -16,9 +16,9 @@ $ sbt
 
 val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   organization := "io.chymyst",
-  version := "0.1.9",
-  scalaVersion := "2.11.8",
-  crossScalaVersions := Seq("2.11.8", "2.12.1", "2.12.2"),
+  version := "0.2.0-SNAPSHOT",
+  scalaVersion := "2.12.2",
+  crossScalaVersions := Seq("2.11.8", "2.12.2"),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases"),
@@ -65,11 +65,11 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     )
 )
 
-tutSettings
+enablePlugins(TutPlugin)
 
 lazy val errorsForWartRemover = Seq(Wart.EitherProjectionPartial, Wart.Enumeration, Wart.Equals, Wart.ExplicitImplicitTypes, Wart.FinalCaseClass, Wart.FinalVal, Wart.LeakingSealed, Wart.Return, Wart.StringPlusAny, Wart.TraversableOps, Wart.TryPartial)
 
-lazy val warningsForWartRemover = Seq(Wart.JavaConversions) //Seq(Wart.Any, Wart.AsInstanceOf, Wart.ImplicitConversion, Wart.IsInstanceOf, Wart.JavaConversions, Wart.Option2Iterable, Wart.OptionPartial, Wart.NoNeedForMonad, Wart.Nothing, Wart.Product, Wart.Serializable, Wart.ToString, Wart.While)
+lazy val warningsForWartRemover = Seq(Wart.JavaConversions, Wart.IsInstanceOf, Wart.JavaConversions, Wart.OptionPartial, Wart.Nothing) //Seq(Wart.Any, Wart.AsInstanceOf, Wart.ImplicitConversion, Wart.IsInstanceOf, Wart.JavaConversions, Wart.Option2Iterable, Wart.OptionPartial, Wart.NoNeedForMonad, Wart.Nothing, Wart.Product, Wart.Serializable, Wart.ToString, Wart.While)
 
 val flightRecorderJVMFlags = Seq(
   "-Xmx1G",
