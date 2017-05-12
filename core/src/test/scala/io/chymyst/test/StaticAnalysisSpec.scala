@@ -507,13 +507,11 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
   it should "in a reaction with static molecule emitted conditionally with two branches" in {
     withPool(new FixedPool(2)) { tp ⇒
       val a = m[Int]
-      the[Exception] thrownBy {
-        val warnings = site(tp)(
-          go { case _ ⇒ a(1) },
-          go { case a(1) ⇒ val x = 1; if (x > 0) a(x) else a(-x) }
-        )
-        warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
-      } should have message "In Site{a → ...}: Incorrect static molecule declaration: static molecule (a) emitted more than once by reaction {a(1) → a(?)}"
+      val warnings = site(tp)(
+        go { case _ ⇒ a(1) },
+        go { case a(1) ⇒ val x = 1; if (x > 0) a(x) else a(-x) }
+      )
+      warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
     }.get
   }
 
