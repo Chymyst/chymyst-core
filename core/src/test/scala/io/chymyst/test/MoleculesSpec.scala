@@ -15,7 +15,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
 
   implicit val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
-  def logShouldHave(message: String): Unit = {
+  def logShouldHave(message: String) = {
     globalErrorLog.exists(_ endsWith message) should be(true)
   }
 
