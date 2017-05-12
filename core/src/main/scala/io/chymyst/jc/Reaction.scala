@@ -347,7 +347,8 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
           case ConstInputPattern(c) =>
             Some(matcher1.isDefinedAt(c))
           case OtherInputPattern(_, _, false) =>
-            if (sha1 === info.sha1) Some(true)
+            if (sha1 === info.sha1)
+              Some(true)
             else None // We can reliably determine identical matchers.
           case _ =>
             Some(false) // Here we can reliably determine that this matcher is not weaker.

@@ -93,7 +93,7 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
     thrown.getMessage shouldEqual "In Site{a + b → ...; a → ...}: Unavoidable nondeterminism: reaction {a(1) + b(2) → } is shadowed by {a(1) → }"
   }
 
-  it should "detect shadowing of reactions with identical non-constant matchers" in {
+  it should "detect shadowing of reactions with identical non-trivial constant matchers" in {
     val thrown = intercept[Exception] {
       val a = m[Option[Int]]
       val b = m[Int]
@@ -102,8 +102,28 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
         go { case a(Some(1)) + b(2) => }
       )
     }
-
     thrown.getMessage shouldEqual "In Site{a + b → ...; a → ...}: Unavoidable nondeterminism: reaction {a(Some(1)) + b(2) → } is shadowed by {a(Some(1)) → }"
+  }
+
+  it should "detect shadowing of reactions with identical non-constant matchers" in {
+    val thrown = intercept[Exception] {
+      val a = m[Option[Int]]
+      val b = m[Int]
+      site(
+        go { case a(Some(_)) => },
+        go { case a(Some(_)) + b(2) => }
+      )
+    }
+    thrown.getMessage shouldEqual "In Site{a + b → ...; a → ...}: Unavoidable nondeterminism: reaction {a(?) + b(2) → } is shadowed by {a(?) → }"
+  }
+
+  it should "fail to detect shadowing of reactions with non-identical non-constant matchers" in {
+    val a = m[Option[Int]]
+    val b = m[Int]
+    site(
+      go { case a(Some(x)) => },
+      go { case a(Some(_)) + b(2) => }
+    ) shouldEqual WarningsAndErrors(List(), List(), "Site{a + b → ...; a → ...}")
   }
 
   it should "detect shadowing of reactions with non-identical complicated constant matchers" in {
