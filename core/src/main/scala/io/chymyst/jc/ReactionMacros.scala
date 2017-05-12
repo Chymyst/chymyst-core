@@ -73,7 +73,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       if exprs.size >= 2 =>
       exprs.forall(t => isIrrefutablePattern(t.asInstanceOf[Tree]))
     case pq"$extr(..$args)" => // Case class with exactly one case?
-      val typeSymbolOfExtr: Symbol = extr.tpe.resultType.typeSymbol // Note: extr.tpe.symbol is NoSymbol since it's a pattern matcher tree.
+      val typeSymbolOfExtr: Symbol = extr.tpe.asInstanceOf[Type].finalResultType.typeSymbol // Note: extr.tpe.symbol is NoSymbol since it's a pattern matcher tree.
       typeSymbolOfExtr.isClass && {
         val classSymbolOfExtr = typeSymbolOfExtr.asClass
         classSymbolOfExtr.isCaseClass && {
