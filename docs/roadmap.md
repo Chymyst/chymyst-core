@@ -2,6 +2,8 @@
 
 # Version history
 
+- 0.1.9 Static molecules are now restricted to a linear output context, in a similar way to blocking replies. Reaction schedulers now run on a single dedicated thread; site pools are eliminated. New examples: 8 queens and hierarchical map/reduce. Added a simple facility for deadlock warning, used for `FixedPool`. Tutorial updated with a new "quick start" guide that avoids requiring too many new concepts. Miscellaneous bug fixes and performance improvements.
+
 - 0.1.8 "Singleton" molecules and reactions are now called "static", which is more accurate. Added more tutorial examples, including fork/join and a fully concurrent Game of Life. Some code cleanups and optimizations in the reaction scheduler, especially for reactions with repeated input molecules and cross-molecule conditions. Support for pipelined molecules (an automatic optimization) makes molecule selection faster.
 
 - 0.1.7 New compile-time restrictions, towards guaranteeing single reply for blocking molecules. It is now not allowed to call blocking molecules inside loops, or to emit replies in any non-linear code context (such as, under a closure or in a loop). Change of artifact package from `code.chymyst` to `io.chymyst`. This version is the first one published on Sonatype Maven repository. 
@@ -58,13 +60,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 
  value * difficulty - description
   
- 2 * 3 - detect static molecule emission in not-exactly-once code environments (see tests with TODO in StaticAnalysisSpec.scala)
- 
  1 * 1 - static molecules cannot have reactions with only one input (?)
-
- 3 * 2 - figure out why pipelining does not enforce pairing order in the "pair up to dance" example
-
- 4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same reaction site, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on reaction site information gleaned using a macro.
 
  4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
 
@@ -74,11 +70,9 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
  Also define a "shut down" molecule which will enforce quiescence and then shut down the site pool and the reaction pool.
 
- 2 * 2 - perhaps use separate molecule bags for molecules with unit value and with non-unit value? for Booleans? for blocking and non-blocking? for constants? for statics / pipelined?
-
  3 * 3 - add logging of reactions currently in progress at a given RS. (Need a custom thread class, or a registry of reactions?)
  
- 3 * 4 - use `java.monitoring` to get statistics over how much time is spent running reactions, waiting while BlockingIdle(), etc. 
+ 3 * 4 - use `java.management` to get statistics over how much time is spent running reactions, waiting while BlockingIdle(), etc. 
 
  2 * 3 - implement `Perishable()` static molecules that can be eventually consumed (but not repeatedly emitted)
 
@@ -115,9 +109,11 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
   
  3 * 3 - implement "one-off" or "perishable" molecules that are emitted once (like static, from the reaction site itself) and may be emitted only if first consumed (but not necessarily emitted at start of the reaction site)
   
- 2 * 2 - If a blocking molecule was emitted without a timeout, we don't need the second semaphore, and checkTimeout() should return `true`
+ 2 * 2 - If a blocking molecule was emitted without a timeout, we don't need the second semaphore, and checkTimeout() should return `true` without any checking
  
  5 * 5 - How to rewrite reaction sites so that blocking molecules are transparently replaced by a pair of non-blocking molecules? Can this be done even if blocking emitters are used inside functions? (Perhaps with extra molecules emitted at the end of the function call?) Is it useful to emit an auxiliary molecule at the end of an "if" expression, to avoid code duplication? How can we continue to support real blocking emitters when used outside of macro code? 
+ 
+ 5 * 5 - Can we perform the unblocking transformation using delimited continuations?
  
  2 * 2 - Revisit Philippe's error reporting branch, perhaps salvage some code
   
@@ -142,4 +138,6 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  3 * 3 - Can we use macros to rewrite f() into f(_) inside reactions for Unit types? Otherwise it seems impossible to implement short syntax `case a() + b() => ` in the input patterns. — No, we can't because { case a() => } doesn't get past the Scala typer, and so macros don't see it at all.
  
  3 * 5 - Can we implement Chymyst Core using Future / Promise and remove all blocking and all semaphores? — No. Automatic concurrent execution of reactions when multiple molecules are available cannot be implemented using promises / futures.
+
+ 4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same reaction site, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on reaction site information gleaned using a macro. — This was attempted, but yields a very complex algorithm and does not give a significant performance boost.
 
