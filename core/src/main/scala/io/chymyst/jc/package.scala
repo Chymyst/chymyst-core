@@ -83,7 +83,7 @@ package object jc {
   def b[T, R]: B[T, R] = macro MoleculeMacros.bImpl[T, R] // IDEA cannot resolve symbol `MoleculeMacros`, but compilation works.
 
   /** This pool is used for sites that do not specify a thread pool. */
-  val defaultPool = new SmartPool(4)
+  lazy val defaultPool = new SmartPool()
 
   /** Access the global error log used by all reaction sites to report runtime errors.
     *
