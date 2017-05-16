@@ -820,6 +820,13 @@ final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], r
 
   def ++(other: WarningsAndErrors): WarningsAndErrors =
     copy(warnings = warnings ++ other.warnings, errors = errors ++ other.errors)
+
+  override val toString: String = {
+    if (hasErrorsOrWarnings)
+      s"In $reactionSite: ${(warnings ++ errors).mkString(". ")}"
+    else
+      s"In $reactionSite: no warnings or errors"
+  }
 }
 
 /** Exceptions of this class are thrown on error conditions due to incorrect usage of `Chymyst Core`.
