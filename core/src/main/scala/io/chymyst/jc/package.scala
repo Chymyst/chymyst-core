@@ -133,6 +133,6 @@ package object jc {
   }
 
   /** We need to have a single implicit instance of [[TypeMustBeUnit]]`[Unit]`. */
-  implicit val _: TypeMustBeUnit[Unit] = TypeMustBeUnitValue
+  implicit val UnitTypeMustBeUnit: TypeMustBeUnit[Unit] = TypeMustBeUnitValue
 
 }
