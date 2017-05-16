@@ -88,7 +88,7 @@ lazy val buildAll = (project in file("."))
     //    aggregate in assembly := false, // This would disable assembly in aggregated tasks - not what we want.
     name := "buildAll",
     tutSourceDirectory := (sourceDirectory in core in Compile).value / "tut",
-    tutTargetDirectory := (crossTarget in core).value / "tut",
+    tutTargetDirectory := baseDirectory.value / "docs", //(crossTarget in core).value / "tut",
     scalacOptions in Tut := scalacOptions.value.filterNot(disableWarningsForTut.contains)
   )
   .dependsOn(core % "compile->compile;test->test")
