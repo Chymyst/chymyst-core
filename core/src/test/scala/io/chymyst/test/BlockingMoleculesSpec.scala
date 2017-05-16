@@ -221,7 +221,7 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
 
   it should "block the fixed threadpool when one thread is sleeping with Thread.sleep" in {
     val tp = new FixedPool(1)
-    val res = makeBlockingCheck(Thread.sleep(500), tp)
+    val res = makeBlockingCheck(Thread.sleep(1000), tp)
     res._2.timeout()(150 millis) shouldEqual None // this should be blocked
     tp.shutdownNow()
   }
