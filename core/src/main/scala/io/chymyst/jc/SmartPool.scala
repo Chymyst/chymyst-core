@@ -47,7 +47,7 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
   val secondsToRecycleThread = 1L
   val shutdownWaitTimeMs = 200L
 
-  private val executor = {
+  protected val executor = {
     val newThreadFactory = new ThreadFactory {
       override def newThread(r: Runnable): Thread = new SmartThread(r, SmartPool.this)
     }

@@ -15,6 +15,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
 
   implicit val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
+  // Note: log messages have a timestamp prepended to them, so we use `endsWith` when matching a log message.
   def logShouldHave(message: String) = {
     globalErrorLog.exists(_ endsWith message) should be(true)
   }
@@ -46,6 +47,16 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
     a.typeSymbol shouldEqual 'Unit
   }
 
+  it should "define a reaction using pool syntax" in {
+    val a = m[Unit]
+    val b = m[Unit]
+    val c = m[Unit]
+
+    tp0(go { case a(_) + b(_) + c(_) => })
+    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.typeSymbol shouldEqual 'Unit
+  }
+
   it should "correctly list molecules present in soup" in {
     val a = m[Unit]
     val bb = m[Unit]
@@ -61,7 +72,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
       go { case a(_) + bb(_) + c(_) + f(_, r) => r() }
     )
     val molecules = Seq(a, bb, c, d, f, g)
-    molecules.map(_.siteIndex) shouldEqual (0 until molecules.size)
+    molecules.map(_.siteIndex) shouldEqual molecules.indices
     molecules.map(_.typeSymbol) shouldEqual Seq.fill(molecules.size)('Unit)
 
     a.logSoup shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nNo molecules"

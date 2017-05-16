@@ -561,7 +561,7 @@ tp2.shutdownNow()
 
 ```
 
-By default, all sites will use the `defaultReactionPool`.
+By default, all sites will use the `defaultPool`.
 
 If the reaction pool is specified for a particular RS, all reactions in that RS will use that thread pool, unless a reaction has its own `onTreads()` specification.
 

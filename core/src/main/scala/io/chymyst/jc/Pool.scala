@@ -44,7 +44,9 @@ trait Pool extends AutoCloseable {
 
   private val schedulerExecutor: ThreadPoolExecutor = Core.newSingleThreadedExecutor
 
-  val executionContext: ExecutionContext = ExecutionContext.fromExecutor(schedulerExecutor)
+  protected def executor: ThreadPoolExecutor
+
+  val executionContext: ExecutionContext = ExecutionContext.fromExecutor(executor)
 
   def runScheduler(runnable: Runnable): Unit = schedulerExecutor.execute(runnable)
 }
@@ -101,4 +103,5 @@ private[jc] abstract class PoolExecutor(threads: Int = 8) extends Pool {
     blockingCalls.getAndDecrement()
     deadlockCheck(infoOpt)
   }
+
 }
