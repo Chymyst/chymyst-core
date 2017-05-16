@@ -79,7 +79,7 @@ package object jc {
     */
   def b[T, R]: B[T, R] = macro MoleculeMacros.bImpl[T, R]
 
-  val defaultReactionPool = new FixedPool(4)
+  val defaultReactionPool = new SmartPool(4)
 
   /** Access the global error log used by all reaction sites to report runtime errors.
     *
