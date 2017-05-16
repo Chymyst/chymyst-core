@@ -29,3 +29,5 @@ local.*
 
 logs/
 *.log.txt.xz
+
+*.jfr
