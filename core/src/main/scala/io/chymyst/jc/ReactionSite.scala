@@ -82,7 +82,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** Value 0 means to log warnings and errors to the console.
     * Values greater than 0 will result in progressively more debug output.
     */
-  private var logLevel = -1
+  private var logLevel = 0
 
   private def printBag: String = {
     val moleculesPrettyPrinted = if (moleculesPresent.exists(!_.isEmpty))
