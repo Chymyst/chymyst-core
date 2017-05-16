@@ -15,14 +15,14 @@ import scala.annotation.tailrec
   * @tparam A Type of the molecule value. If this is `Unit`, we will have an implicit value of type `TypeIsUnit[A]`, which will define `getUnit` to return `()`.
   */
 sealed trait TypeMustBeUnit[A] {
-  def getUnit: A
+  val getUnit: A
 }
 
 /** Syntax helper for molecules with unit values.
   * An implicit value of [[TypeMustBeUnit]]`[A]` is available only if `A == Unit`.
   */
-object TypeMustBeUnitValue extends TypeMustBeUnit[Unit] {
-  override def getUnit: Unit = ()
+object UnitTypeMustBeUnit extends TypeMustBeUnit[Unit] {
+  override final val getUnit: Unit = ()
 }
 
 object Core {

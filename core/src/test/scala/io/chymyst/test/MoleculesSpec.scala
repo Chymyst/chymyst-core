@@ -21,7 +21,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
   }
 
   override def beforeEach(): Unit = {
-    clearErrorLog()
+    clearGlobalErrorLog()
     tp0 = new FixedPool(4)
   }
 
@@ -290,7 +290,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
   }
 
   it should "start reactions when molecule emitters are passed on input molecules slightly before they are bound" in {
-    clearErrorLog()
+    clearGlobalErrorLog()
     val results = (1 to 100).map { i =>
       val p = m[M[Int]]
       val c = m[Int]
@@ -317,7 +317,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
   // This test intentionally defines the reaction site defining the {e -> } reaction *after* the `e` emitter is passed to the `a` reaction.
   it should "start reactions and throw exception when molecule emitters are passed to nested reactions slightly before they are bound" in {
     val tp1 = new FixedPool(2)
-    clearErrorLog()
+    clearGlobalErrorLog()
     val results = (1 to 100).map { i =>
       val a = m[M[Int]]
       site(tp1)(
@@ -356,7 +356,7 @@ class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with Bef
   }
 
   it should "start reactions without errors when molecule emitters are passed to nested reactions after they are bound" in {
-    clearErrorLog()
+    clearGlobalErrorLog()
     val results = (1 to 100).map { _ =>
       val q = m[M[Int]]
       val p = m[Int]

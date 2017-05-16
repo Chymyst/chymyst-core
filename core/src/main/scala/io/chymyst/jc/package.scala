@@ -94,7 +94,7 @@ package object jc {
   /** Clear the global error log used by all reaction sites to report runtime errors.
     *
     */
-  def clearErrorLog(): Unit = Core.errorLog.clear()
+  def clearGlobalErrorLog(): Unit = Core.errorLog.clear()
 
   /** A helper method to run a closure that uses a thread pool, safely closing the pool after use.
     *
@@ -133,6 +133,6 @@ package object jc {
   }
 
   /** We need to have a single implicit instance of [[TypeMustBeUnit]]`[Unit]`. */
-  implicit val UnitTypeMustBeUnit: TypeMustBeUnit[Unit] = TypeMustBeUnitValue
+  implicit val UnitArgImplicit: TypeMustBeUnit[Unit] = UnitTypeMustBeUnit
 
 }
