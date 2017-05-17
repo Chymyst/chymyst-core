@@ -227,7 +227,7 @@ To use the `Chymyst` standard library, add `"io.chymyst" %% "chymyst-lab" % "lat
 ## Attaching molecules to futures
 
 The first situation is when the external library produces a future value `fut : Future[T]`, and we would like to automatically emit a certain molecule `f` when this `Future` is successfully resolved.
-This is as easy as doing a `fut.map(x => f(123) )` on the future.
+This is as easy as doing a `fut.map{x ⇒ f(123)}` on the future.
 The library has helper functions that add syntactic sugar to `Future` in order to reduce boilerplate in the two typical cases:
 
 - the molecule needs to carry the same value as the result value of the future: `fut & f`
@@ -252,7 +252,7 @@ val a = m[Int]
 val (result: M[String], fut: Future[String]) = moleculeFuture[String]
 // emitting the molecule result(...) will resolve "fut"
 
-site( go { case a(x) => result(s"finished: $x") } ) // we define our reaction that will eventually emit "result(...)"
+site( go { case a(x) ⇒ result(s"finished: $x") } ) // we define our reaction that will eventually emit "result(...)"
 
 ExternalLibrary.consumeUserFuture(fut) // the external library takes our value "fut" and does something with it
 
