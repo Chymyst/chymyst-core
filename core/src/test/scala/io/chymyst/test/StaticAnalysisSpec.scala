@@ -7,7 +7,7 @@ import org.scalatest.time.{Millis, Span}
 
 class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
 
-  val timeLimit = Span(1000, Millis)
+  val timeLimit = Span(5000, Millis)
 
   val warmupTimeMs = 50L
 

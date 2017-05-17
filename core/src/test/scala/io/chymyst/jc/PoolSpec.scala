@@ -13,7 +13,7 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   val emptyReactionInfo = new ChymystThreadInfo()
 
-  val timeLimit = Span(1500, Millis)
+  val timeLimit = Span(3000, Millis)
 
   val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 

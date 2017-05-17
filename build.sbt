@@ -104,15 +104,18 @@ lazy val core = (project in file("core"))
     wartremoverWarnings in(Compile, compile) ++= warningsForWartRemover,
     wartremoverErrors in(Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
+      // We need guava only because we use its concurrent hash map.
       "com.google.guava" % "guava" % "21.0",
-      //      "com.google.code.findbugs" % "jsr305" % "3.0.1", // Include this if there are weird compiler bugs due to Guava. See http://stackoverflow.com/questions/10007994/why-do-i-need-jsr305-to-use-guava-in-scala
+      //      "com.google.code.findbugs" % "jsr305" % "3.0.1", // Include this if there are weird compiler bugs due to guava. See http://stackoverflow.com/questions/10007994/why-do-i-need-jsr305-to-use-guava-in-scala
+
+      // We need scala-reflect because we use macros.
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
       "org.scalatest" %% "scalatest" % "3.0.1" % Test,
       "org.scalacheck" %% "scalacheck" % "1.13.4" % Test,
       "com.lihaoyi" %% "utest" % "0.4.5" % Test,
 
-      // the "scala-compiler" is a necessary dependency only if we want to debug macros;
-      // the project does not actually depend on scala-compiler.
+      // We need the "scala-compiler" only in order to debug macros;
+      // the project or its tests do not actually depend on scala-compiler.
       "org.scala-lang" % "scala-compiler" % scalaVersion.value % Test
     )
     , testFrameworks += new TestFramework("utest.runner.Framework")
@@ -127,8 +130,10 @@ lazy val benchmark = (project in file("benchmark"))
     //    fork in run := true,
     test in assembly := {},
     //    unmanagedJars in Compile += file("lib/JiansenJoin-0.3.6-JoinRun-0.1.0.jar"),// they say it's no longer needed
+    // Benchmarks shouldl not run concurrently.
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
     parallelExecution in Test := false,
+    // Benchmarks can run under FlightRecorder for profiling.
     runFR := {
       // see http://jkinkead.blogspot.com/2015/04/running-with-alternate-jvm-args-in-sbt.html
       // Parse the arguments typed on the sbt console.
@@ -149,7 +154,7 @@ lazy val benchmark = (project in file("benchmark"))
     )
   ).dependsOn(core % "compile->compile;test->test")
 
-// Running benchmarks with Flight Recorder
+// Running benchmarks with Flight Recorder.
 lazy val runFR = InputKey[Unit]("runFR", "run the project with activated FlightRecorder")
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
