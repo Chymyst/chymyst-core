@@ -34,7 +34,7 @@ package object jc {
   }
 
   /** `site()` call with a default reaction pool. */
-  def site(reactions: Reaction*): WarningsAndErrors = site(defaultReactionPool)(reactions: _*)
+  def site(reactions: Reaction*): WarningsAndErrors = site(defaultPool)(reactions: _*)
 
   /**
     * This is the main method for defining reactions.
@@ -46,8 +46,7 @@ package object jc {
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
     * @return A [[Reaction]] value, containing the reaction body as well as static information about input and output molecules.
     */
-  // IDEA cannot resolve symbol `BlackboxMacros`, but compilation works.
-  def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl
+  def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl // IDEA cannot resolve symbol `BlackboxMacros`, but compilation works.
 
   /**
     * Convenience syntax: users can write `a(x) + b(y)` to emit several molecules at once.
@@ -62,13 +61,17 @@ package object jc {
     def +(n: Unit): Unit = ()
   }
 
+  implicit final class SiteWithPool(val pool: Pool) extends AnyVal {
+    def apply(reactions: Reaction*): WarningsAndErrors = site(pool)(reactions: _*)
+  }
+
   /** Declare a new non-blocking molecule emitter.
     * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
     *
     * @tparam T Type of the value carried by the molecule.
     * @return A new instance of class [[io.chymyst.jc.M]]`[T]`.
     */
-  def m[T]: M[T] = macro MoleculeMacros.mImpl[T]
+  def m[T]: M[T] = macro MoleculeMacros.mImpl[T] // IDEA cannot resolve symbol `MoleculeMacros`, but compilation works.
 
   /** Declare a new blocking molecule emitter.
     * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
@@ -77,9 +80,10 @@ package object jc {
     * @tparam R Type of the reply value.
     * @return A new instance of class [[io.chymyst.jc.B]]`[T,R]`.
     */
-  def b[T, R]: B[T, R] = macro MoleculeMacros.bImpl[T, R]
+  def b[T, R]: B[T, R] = macro MoleculeMacros.bImpl[T, R] // IDEA cannot resolve symbol `MoleculeMacros`, but compilation works.
 
-  val defaultReactionPool = new FixedPool(4)
+  /** This pool is used for sites that do not specify a thread pool. */
+  lazy val defaultPool = new SmartPool()
 
   /** Access the global error log used by all reaction sites to report runtime errors.
     *
@@ -90,7 +94,7 @@ package object jc {
   /** Clear the global error log used by all reaction sites to report runtime errors.
     *
     */
-  def clearErrorLog(): Unit = Core.errorLog.clear()
+  def clearGlobalErrorLog(): Unit = Core.errorLog.clear()
 
   /** A helper method to run a closure that uses a thread pool, safely closing the pool after use.
     *
@@ -128,7 +132,7 @@ package object jc {
     }
   }
 
-  /** We need to have a single implicit instance of [[TypeMustBeUnit]]. */
-  implicit val _: TypeMustBeUnit[Unit] = TypeMustBeUnitValue
+  /** We need to have a single implicit instance of [[TypeMustBeUnit]]`[Unit]`. */
+  implicit val UnitArgImplicit: TypeMustBeUnit[Unit] = UnitTypeMustBeUnit
 
 }

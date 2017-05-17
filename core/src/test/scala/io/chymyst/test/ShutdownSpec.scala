@@ -35,7 +35,7 @@ class ShutdownSpec extends LogSpec with Matchers {
 
   it should "fail to schedule reactions after shutdown of default thread pools" in {
 
-    defaultReactionPool.shutdownNow()
+    defaultPool.shutdownNow()
 
     val x = m[Unit]
     site(go { case x(_) => })

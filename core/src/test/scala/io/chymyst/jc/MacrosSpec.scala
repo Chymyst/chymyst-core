@@ -221,7 +221,7 @@ behavior of "reaction sha1"
     result.info.sha1 shouldEqual "C10342E86F1AEB8992D97883B15773F4A2DBCF1F"
   }
 
-  val ax_qq_reaction_sha1 = "0EE06E8EE3BCFF28E9E4AC8A4445B3771196094E"
+  val ax_qq_reaction_sha1 = "E2D62113017684CECF8542301354A82BF5BB5EC3"
 
   it should "inspect a two-molecule reaction body" in {
     val a = m[Int]

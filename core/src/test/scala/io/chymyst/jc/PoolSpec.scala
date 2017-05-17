@@ -7,11 +7,13 @@ import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
 
+import scala.concurrent.ExecutionContext
+
 class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   val emptyReactionInfo = new ChymystThreadInfo()
 
-  val timeLimit = Span(1500, Millis)
+  val timeLimit = Span(3000, Millis)
 
   val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
@@ -38,6 +40,8 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
 
     val tp = new FixedPool(2)
 
+    tp.executionContext.isInstanceOf[ExecutionContext] shouldEqual true
+
     tp.runReaction({
       waiter.dismiss()
 
@@ -45,7 +49,7 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
         Thread.sleep(10000000)  // this should not time out
 
       } catch {
-        case e: InterruptedException => ()
+        case _: InterruptedException => ()
       }
     }, emptyReactionInfo)
 
@@ -64,7 +68,7 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
         Thread.sleep(10000000)  // this should not time out
 
       } catch {
-        case e: InterruptedException => waiter.dismiss()
+        case _: InterruptedException => waiter.dismiss()
         case other: Exception =>
           other.printStackTrace()
           waiter { false shouldEqual true ; () }
@@ -113,7 +117,7 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
     val tp = new SmartPool()
 
     tp.currentPoolSize shouldEqual cpuCores
-
+    tp.executionContext.isInstanceOf[ExecutionContext] shouldEqual true
     tp.close()
   }
 

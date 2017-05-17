@@ -109,6 +109,7 @@ sealed trait Molecule extends PersistentHashCode {
     * @param siteIndex Zero-based index of the input molecule at that reaction site.
     */
   private[jc] def setReactionSiteInfo(rs: ReactionSite, siteIndex: Int, typeSymbol: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]): Unit = {
+    reactionSiteString = rs.toString
     hasReactionSite = true
     siteIndexValue = siteIndex
     valTypeSymbol = typeSymbol
@@ -148,6 +149,8 @@ sealed trait Molecule extends PersistentHashCode {
   protected var siteIndexValue: Int = -1
 
   protected var hasReactionSite: Boolean = false
+
+  protected var reactionSiteString: String = _
 
   /** The list of reactions that can consume this molecule.
     *

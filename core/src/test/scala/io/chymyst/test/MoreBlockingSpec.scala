@@ -216,7 +216,7 @@ class MoreBlockingSpec extends LogSpec with Matchers with TimeLimitedTests {
     val incr = b[Unit, Unit]
     val get_f = b[Unit, Int]
 
-    clearErrorLog()
+    clearGlobalErrorLog()
     val tp = new FixedPool(4)
 
     site(tp)(
@@ -244,7 +244,7 @@ class MoreBlockingSpec extends LogSpec with Matchers with TimeLimitedTests {
     val incr = b[Unit, Unit]
     val get_f = b[Unit, Int]
 
-    clearErrorLog()
+    clearGlobalErrorLog()
     val tp = new FixedPool(2)
 
     site(tp)(

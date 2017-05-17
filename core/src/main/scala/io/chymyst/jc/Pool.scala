@@ -4,6 +4,8 @@ package io.chymyst.jc
 import java.util.concurrent._
 import java.util.concurrent.atomic.AtomicInteger
 
+import scala.concurrent.ExecutionContext
+
 class FixedPool(threads: Int) extends PoolExecutor(threads) {
   protected override def execFactory(threads: Int): (ExecutorService, BlockingQueue[Runnable]) = {
     val queue = new LinkedBlockingQueue[Runnable]
@@ -41,6 +43,10 @@ trait Pool extends AutoCloseable {
   override def close(): Unit = shutdownNow()
 
   private val schedulerExecutor: ThreadPoolExecutor = Core.newSingleThreadedExecutor
+
+  protected def executor: ThreadPoolExecutor
+
+  val executionContext: ExecutionContext = ExecutionContext.fromExecutor(executor)
 
   def runScheduler(runnable: Runnable): Unit = schedulerExecutor.execute(runnable)
 }
@@ -97,4 +103,5 @@ private[jc] abstract class PoolExecutor(threads: Int = 8) extends Pool {
     blockingCalls.getAndDecrement()
     deadlockCheck(infoOpt)
   }
+
 }

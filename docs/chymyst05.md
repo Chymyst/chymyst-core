@@ -220,12 +220,14 @@ The same techniques will work equally well if the chemical machine were embedded
 
 Suppose we are working with an external library, such as an HTTP or database client, that has an asynchronous API via Scala's `Future`s.
 In order to use such libraries together with `Chymyst`, we need to be able to pass freely between `Future`s and molecules.
-The `Chymyst` library provides a basic implementation of this functionality.
+The `Chymyst` standard library provides a basic implementation of this functionality.
+
+To use the `Chymyst` standard library, add `"io.chymyst" %% "chymyst-lab" % "latest.integration"` to your project dependencies and import `io.chymyst.lab._`
 
 ## Attaching molecules to futures
 
 The first situation is when the external library produces a future value `fut : Future[T]`, and we would like to automatically emit a certain molecule `f` when this `Future` is successfully resolved.
-This is as easy as doing a `fut.map( f(123) )` on the future.
+This is as easy as doing a `fut.map{x ⇒ f(123)}` on the future.
 The library has helper functions that add syntactic sugar to `Future` in order to reduce boilerplate in the two typical cases:
 
 - the molecule needs to carry the same value as the result value of the future: `fut & f`
@@ -243,16 +245,17 @@ The new molecule will be already bound to a reaction site.
 We can then use the new molecule as output in our reactions.
 
 ```scala
+import io.chymyst.lab._
+
 val a = m[Int]
 
 val (result: M[String], fut: Future[String]) = moleculeFuture[String]
 // emitting the molecule result(...) will resolve "fut"
 
-site( go { case a(x) => result(s"finished: $x") } ) // we define our reaction that will eventually emit "result(...)"
+site( go { case a(x) ⇒ result(s"finished: $x") } ) // we define our reaction that will eventually emit "result(...)"
 
 ExternalLibrary.consumeUserFuture(fut) // the external library takes our value "fut" and does something with it
 
 // Here should be some chemistry code that eventually emits `a` to start the reaction above.
 
 ```
-

@@ -7,7 +7,6 @@ import java.util.concurrent.{ConcurrentLinkedQueue, LinkedBlockingQueue, ThreadP
 import javax.xml.bind.DatatypeConverter
 
 import scala.annotation.tailrec
-import scala.util.{Left, Right}
 
 
 /** Syntax helper for zero-argument molecule emitters.
@@ -16,14 +15,14 @@ import scala.util.{Left, Right}
   * @tparam A Type of the molecule value. If this is `Unit`, we will have an implicit value of type `TypeIsUnit[A]`, which will define `getUnit` to return `()`.
   */
 sealed trait TypeMustBeUnit[A] {
-  def getUnit: A
+  val getUnit: A
 }
 
 /** Syntax helper for molecules with unit values.
   * An implicit value of [[TypeMustBeUnit]]`[A]` is available only if `A == Unit`.
   */
-object TypeMustBeUnitValue extends TypeMustBeUnit[Unit] {
-  override def getUnit: Unit = ()
+object UnitTypeMustBeUnit extends TypeMustBeUnit[Unit] {
+  override final val getUnit: Unit = ()
 }
 
 object Core {
@@ -136,7 +135,7 @@ object Core {
 
   /** Type used as argument for [[ReactionBody]]. The `Int` value is the index into the [[InputMoleculeList]] array. */
   private[jc] type ReactionBodyInput = (Int, InputMoleculeList)
-
+/*
   implicit final class EitherMonad[L, R](val e: Either[L, R]) extends AnyVal {
     def map[S](f: R => S): Either[L, S] = e match {
       case Right(r) => Right(f(r))
@@ -148,7 +147,7 @@ object Core {
       case Left(l) => Left(l)
     }
   }
-
+*/
   implicit final class ArrayWithExtraFoldOps[T](val s: Array[T]) extends AnyVal {
     def flatFoldLeft[R](z: R)(op: (R, T) => Option[R]): Option[R] = {
       var result = z

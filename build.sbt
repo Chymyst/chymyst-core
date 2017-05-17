@@ -16,9 +16,9 @@ $ sbt
 
 val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   organization := "io.chymyst",
-  version := "0.1.9",
-  scalaVersion := "2.11.8",
-  crossScalaVersions := Seq("2.11.8", "2.12.1", "2.12.2"),
+  version := "0.2.0-SNAPSHOT",
+  scalaVersion := "2.12.2",
+  crossScalaVersions := Seq("2.11.11", "2.12.2"),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases"),
@@ -65,11 +65,9 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     )
 )
 
-tutSettings
-
 lazy val errorsForWartRemover = Seq(Wart.EitherProjectionPartial, Wart.Enumeration, Wart.Equals, Wart.ExplicitImplicitTypes, Wart.FinalCaseClass, Wart.FinalVal, Wart.LeakingSealed, Wart.Return, Wart.StringPlusAny, Wart.TraversableOps, Wart.TryPartial)
 
-lazy val warningsForWartRemover = Seq(Wart.JavaConversions) //Seq(Wart.Any, Wart.AsInstanceOf, Wart.ImplicitConversion, Wart.IsInstanceOf, Wart.JavaConversions, Wart.Option2Iterable, Wart.OptionPartial, Wart.NoNeedForMonad, Wart.Nothing, Wart.Product, Wart.Serializable, Wart.ToString, Wart.While)
+lazy val warningsForWartRemover = Seq(Wart.JavaConversions, Wart.IsInstanceOf, Wart.OptionPartial) //Seq(Wart.Any, Wart.AsInstanceOf, Wart.ImplicitConversion, Wart.Option2Iterable, Wart.NoNeedForMonad, Wart.Nothing, Wart.Product, Wart.Serializable, Wart.ToString, Wart.While)
 
 val flightRecorderJVMFlags = Seq(
   "-Xmx1G",
@@ -80,12 +78,20 @@ val flightRecorderJVMFlags = Seq(
   "-XX:StartFlightRecording=delay=10s,duration=600s,name=Recording,filename=benchmark.jfr"
 )
 
+enablePlugins(TutPlugin)
+
+lazy val disableWarningsForTut = Set("-Ywarn-unused", "-Xlint")
+
 lazy val buildAll = (project in file("."))
   .settings(commonSettings: _*)
   .settings(
     //    aggregate in assembly := false, // This would disable assembly in aggregated tasks - not what we want.
-    name := "buildAll"
+    name := "buildAll",
+    tutSourceDirectory := (sourceDirectory in core in Compile).value / "tut",
+    tutTargetDirectory := baseDirectory.value / "docs", //(crossTarget in core).value / "tut",
+    scalacOptions in Tut := scalacOptions.value.filterNot(disableWarningsForTut.contains)
   )
+  .dependsOn(core % "compile->compile;test->test")
   .aggregate(core, benchmark)
   .disablePlugins(sbtassembly.AssemblyPlugin) // do not create an assembly JAR for `buildAll`, but do create it for aggregate subprojects
 
@@ -98,15 +104,18 @@ lazy val core = (project in file("core"))
     wartremoverWarnings in(Compile, compile) ++= warningsForWartRemover,
     wartremoverErrors in(Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
+      // We need guava only because we use its concurrent hash map.
       "com.google.guava" % "guava" % "21.0",
-      //      "com.google.code.findbugs" % "jsr305" % "3.0.1", // Include this if there are weird compiler bugs due to Guava. See http://stackoverflow.com/questions/10007994/why-do-i-need-jsr305-to-use-guava-in-scala
+      //      "com.google.code.findbugs" % "jsr305" % "3.0.1", // Include this if there are weird compiler bugs due to guava. See http://stackoverflow.com/questions/10007994/why-do-i-need-jsr305-to-use-guava-in-scala
+
+      // We need scala-reflect because we use macros.
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
       "org.scalatest" %% "scalatest" % "3.0.1" % Test,
       "org.scalacheck" %% "scalacheck" % "1.13.4" % Test,
       "com.lihaoyi" %% "utest" % "0.4.5" % Test,
 
-      // the "scala-compiler" is a necessary dependency only if we want to debug macros;
-      // the project does not actually depend on scala-compiler.
+      // We need the "scala-compiler" only in order to debug macros;
+      // the project or its tests do not actually depend on scala-compiler.
       "org.scala-lang" % "scala-compiler" % scalaVersion.value % Test
     )
     , testFrameworks += new TestFramework("utest.runner.Framework")
@@ -121,8 +130,10 @@ lazy val benchmark = (project in file("benchmark"))
     //    fork in run := true,
     test in assembly := {},
     //    unmanagedJars in Compile += file("lib/JiansenJoin-0.3.6-JoinRun-0.1.0.jar"),// they say it's no longer needed
+    // Benchmarks shouldl not run concurrently.
     concurrentRestrictions in Global += Tags.limit(Tags.Test, 1),
     parallelExecution in Test := false,
+    // Benchmarks can run under FlightRecorder for profiling.
     runFR := {
       // see http://jkinkead.blogspot.com/2015/04/running-with-alternate-jvm-args-in-sbt.html
       // Parse the arguments typed on the sbt console.
@@ -143,7 +154,7 @@ lazy val benchmark = (project in file("benchmark"))
     )
   ).dependsOn(core % "compile->compile;test->test")
 
-// Running benchmarks with Flight Recorder
+// Running benchmarks with Flight Recorder.
 lazy val runFR = InputKey[Unit]("runFR", "run the project with activated FlightRecorder")
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

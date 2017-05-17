@@ -13,7 +13,7 @@ class CoreSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   def getSha1Any(c: Any): String = getSha1(c.toString, sha1Digest)
 
-  val timeLimit = Span(500, Millis)
+  val timeLimit = Span(3000, Millis)
 
   val warmupTimeMs = 50L
 

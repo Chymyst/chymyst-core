@@ -279,7 +279,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       .map {
       case ((mol, flag, replyFlag), i) =>
         val mergedGuardOpt = mergeGuards(moleculeGuardVarsSeq
-          .filter { case (g, vars) => guardVarsConstrainOnlyThisMolecule(vars, flag) }
+          .filter { case (_, vars) => guardVarsConstrainOnlyThisMolecule(vars, flag) }
         ).map(t => replaceVarsInGuardTree(t))
 
         val mergedFlag = flag match {
@@ -362,7 +362,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
     // It is an error to have blocking molecules that do not match on a simple variable.
-    val wrongBlockingMolecules = blockingMolecules.filter(_._3.get.notReplyValue).map(_._1)
+    val wrongBlockingMolecules = blockingMolecules.filter(_._3.exists(_.notReplyValue)).map(_._1)
     maybeError("Blocking input molecules", "matches a reply emitter with a simple variable", wrongBlockingMolecules.map(ms ⇒ s"molecule ${ms.name}"), "contain a pattern that")
 
     // If we are here, all reply emitters have correct pattern variables. Now we check that each blocking molecule has one and only one reply.
