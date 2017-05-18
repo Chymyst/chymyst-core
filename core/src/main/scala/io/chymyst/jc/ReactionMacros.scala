@@ -595,6 +595,9 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
          *
          * For example, if `c` is a molecule then `c(123)` is matched as `c.apply(List(123))`.
          * Then `t` will be `c` and `f` will be `apply`.
+         *
+         * When calling emitters with implicit unit arguments, we get Apply((Apply((Select(t@Ident(TermName(_)), TermName(f))), List(jc.UnitArgImplicit)))
+         * Note that variables defined inside a reaction have the owner "method applyOrElse", which in turn has the owner the partial function of type "ReactionBody". We don't have a good way of detecting them.
          */
         case Apply(Select(t@Ident(TermName(_)), TermName(f)), argumentList)
           if f === "apply" || f === "checkTimeout" || f === "timeout" =>

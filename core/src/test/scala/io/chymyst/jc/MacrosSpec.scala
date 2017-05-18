@@ -838,6 +838,24 @@ behavior of "reaction sha1"
     r.info.outputs(0).environments should matchPattern { case List(FuncLambda(_)) => }
   }
 
+  it should "detect molecules emitted via assignment" in {
+    val a = m[Int]
+    val c = m[Unit]
+    val r = go { case a(x) =>
+      val c2 = c
+      c2()
+    }
+    r.info.outputs(0) shouldEqual OutputMoleculeInfo(c, ConstOutputPattern(()), List())
+  }
+
+  it should "detect molecules emitted via argument of emitter type" in {
+    val a = m[M[Unit]]
+    val r = go { case a(c) =>
+      c()
+    }
+    r.info.outputs(0) shouldEqual OutputMoleculeInfo(a, ConstOutputPattern(()), List())
+  }
+
   it should "detect molecules emitted in partial functions" in {
     val a = m[Int]
     val c = m[Unit]
