@@ -55,12 +55,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     .groupBy(identity)
     .mapValues(_.length)
 
-  /** Complete information about reactions declared in this reaction site.
-    * Static reactions are not included here.
-    */
-  private val reactionInfos: Map[Reaction, Array[InputMoleculeInfo]] = nonStaticReactions
-    .map { r => (r, r.info.inputs) }(breakOut)
-
   private val toStringLimit = 1024
 
   override val toString: String = {
@@ -119,15 +113,17 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // TODO: optimize: precompute all related molecules in ReactionSite?
     setNeedToSchedule(mol)
     // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
-    val foundReactionAndInputs: Option[(Reaction, InputMoleculeList)] = consumingReactions(mol.siteIndex)
-      .findAfterMap { thisReaction ⇒
+    val candidateReactions = consumingReactions(mol.siteIndex)
+    val foundReactionAndInputs: Option[(Reaction, InputMoleculeList)] = candidateReactions.indices
+      .findAfterMap { ind ⇒
+        val thisReaction = candidateReactions(ind)
         // Optimization: ignore reactions that do not have all the required molecules.
         if (thisReaction.inputMoleculesSet.exists(mol ⇒ moleculesPresent(mol.siteIndex).isEmpty) ||
           !thisReaction.info.guardPresence.staticGuardHolds())
           None
         else {
           val result = findInputMolecules(thisReaction, moleculesPresent)
-          // If we have found a reaction that can be run, we have acquired a lock; need to remove its input molecule values from their bags.
+          // If we have found a reaction that can be run; need to remove its input molecule values from their bags.
           result.map { thisInputList ⇒
             thisInputList.indices.foreach { i ⇒
               val molValue = thisInputList(i)
@@ -136,6 +132,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
               if (!removeFromBag(mol, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $mol($molValue) from its bag; molecule index ${mol.siteIndex}, bag ${moleculesPresent(mol.siteIndex)}")
             }
             setNoNeedToSchedule(mol)
+
+            // Shuffle this reaction to the beginning of consumingReactions.
+            if (ind > 0) {
+              val r = candidateReactions(0)
+              candidateReactions(0) = thisReaction
+              candidateReactions(ind) = r
+            }
+
             (thisReaction, thisInputList)
           }
         }
@@ -185,13 +189,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @param mol A molecule that was recently emitted.
     * @return A new [[Runnable]] that will looking for reactions that consume the molecule `mol`.
     */
-  private def emissionRunnable(mol: Molecule): Runnable = new Runnable {
-    override def run(): Unit = {
-      val reactions = consumingReactions(mol.siteIndex)
-      arrayShuffleInPlace(reactions)
-      if (logLevel > 3) logMessage(s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(moleculesPresent)}]")
-      decideReactionsForNewMolecule(mol)
-    }
+  private def emissionRunnable(mol: Molecule): Runnable = { () ⇒
+    if (logLevel > 3) logMessage(s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(moleculesPresent)}]")
+    decideReactionsForNewMolecule(mol)
   }
 
   private def reportError(message: String): Unit =

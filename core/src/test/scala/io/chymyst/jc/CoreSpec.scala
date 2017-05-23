@@ -188,7 +188,6 @@ class CoreSpec extends LogSpec with Matchers with TimeLimitedTests {
       retrieved.toList shouldEqual arr.toList
       retrieved.toList should not equal (0 until n).toList
     }
-  */
 
   it should "shuffle an array in place" in {
     val n = 100
@@ -196,7 +195,7 @@ class CoreSpec extends LogSpec with Matchers with TimeLimitedTests {
     arrayShuffleInPlace(arr)
     arr.toList should not equal (0 until n).toList
   }
-
+  */
   it should "use shuffle on a sequence" in {
     val n = 100
     val s = (0 until n).shuffle

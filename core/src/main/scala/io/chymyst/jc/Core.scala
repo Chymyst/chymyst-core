@@ -332,7 +332,6 @@ object Core {
     arr(index) = tempElement
     tempElement
   }
-*/
 
   def arrayShuffleInPlace[T](arr: Array[T]): Unit = {
     val s = arr.length
@@ -350,7 +349,7 @@ object Core {
       }
     }
   }
-
+*/
   def streamDiff[T](s: Iterator[T], skipBag: MutableMultiset[T]): Iterator[T] = {
     s.filter { t ⇒
       if (skipBag contains t) {
