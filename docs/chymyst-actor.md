@@ -21,11 +21,11 @@ These actors will automatically disappear when their computations are finished.
 
 The last two features - the joint consumption of messages and the implicit creation/annihilation of chemical actors - make for a radical departure from the Actor model:
 
-- Whenever there are sufficiently many input messages available for processing without contention, the runtime engine will automatically instantiate several concurrent copies of the same actor.
+- Whenever there are sufficiently many input messages available for processing without contention, the runtime engine will automatically instantiate several concurrent copies of the same actor
 and process all these messages concurrently.
 This is the main mechanism for achieving parallelism in the chemical paradigm.
 The users do not need to concern themselves with the details of how many concurrent actors to instantiate at any given time.
-Since chemical actors are not persistent but are instantiated automatically on demand, users do not need to implement actor lifecycle management or supervision mechanisms. 
+Since chemical actors are not persistent but are instantiated automatically on demand, users do not need to implement actor lifecycle management or supervision mechanisms, and there is no need for special "dead letter" actors. 
 - Whenever two or more chemical actors consume the same type of message, "input message contention" is created.
 If only one copy of this message has been emitted, the runtime engine will automatically instantiate and run _one_ of the appropriate actors to process the message, while the other actors will not be instantiated.
 Input contention is used in the chemical machine paradigm as a mechanism for synchronization and mutual exclusion.
