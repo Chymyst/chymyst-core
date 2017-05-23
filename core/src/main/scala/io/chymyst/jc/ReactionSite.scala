@@ -37,9 +37,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       sameReactionSite = _.id === this.id
     )
 
-  private def getConsumingReactions(m: Molecule): Array[Reaction] =
-    reactionInfos.keys.filter(_.inputMoleculesSet contains m).toArray
-
   /** Each reaction site has a permanent unique ID number.
     *
     */
@@ -772,8 +769,23 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   /** For each site-wide molecule index, this array holds the array of reactions consuming that molecule.
     */
-  private val consumingReactions: Array[Array[Reaction]] =
-    Array.tabulate(knownInputMolecules.size)(i ⇒ getConsumingReactions(moleculeAtIndex(i)))
+  //  private val consumingReactions: Array[Array[Reaction]] =
+  //    Array.tabulate(knownInputMolecules.size)(i ⇒ reactionInfos.keys.filter(_.inputMoleculesSet contains moleculeAtIndex(i)).toArray)
+  // Instead of traversing all molecules, traverse all reactions and accumulate results. This is faster.
+
+  private val consumingReactions: Array[Array[Reaction]] = {
+    val table = scala.collection.mutable.Map[Molecule, scala.collection.mutable.Set[Reaction]]()
+    reactions.foreach { r ⇒
+      r.info.inputs.foreach { info ⇒
+        table.update(info.molecule, {
+          val newSet = table.getOrElse(info.molecule, scala.collection.mutable.Set())
+          newSet.add(r)
+          newSet
+        })
+      }
+    }
+    Array.tabulate(knownInputMolecules.size)(i ⇒ table(moleculeAtIndex(i)).toArray)
+  }
 
   // This must be lazy because it depends on site-wide molecule indices, which are known late.
   // The inner array contains site-wide indices for reaction input molecules; the outer array is also indexed by site-wide molecule indices.
