@@ -64,9 +64,7 @@ class SingleThreadSpec extends LogSpec with Matchers {
 
   behavior of "thread executor"
 
-  def incrementRunnable = new Runnable {
-    override def run(): Unit = increment()
-  }
+  def incrementRunnable: Runnable = { () ⇒ increment() }
 
   it should "schedule tasks" in {
     val queue = new LinkedBlockingQueue[Runnable]
@@ -78,11 +76,9 @@ class SingleThreadSpec extends LogSpec with Matchers {
     counter.get() shouldEqual 0
     (1 to n).foreach { _ => executor.execute(incrementRunnable) }
     val done = Promise[Unit]()
-    executor.execute(new Runnable {
-      override def run(): Unit = {
-        done.success(())
-        ()
-      }
+    executor.execute({ () ⇒
+      done.success(())
+      ()
     })
     Await.result(done.future, Duration.Inf)
     counter.get() shouldEqual n
