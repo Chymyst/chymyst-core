@@ -432,8 +432,11 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       md
     )
 
+    // Replace static emissions in body.
+    val rbReplacedStatic = c.Expr[ReactionBody](ReplaceStaticEmits.transform(reactionBody.tree))
+
     // Prepare the ReactionInfo structure.
-    val result = q"Reaction(new ReactionInfo($inputMolecules, $outputMoleculesReactionInfo, $shrunkOutputReactionInfo, $guardPresenceFlag, $reactionSha1), $reactionBody, None, false)"
+    val result = q"Reaction(new ReactionInfo($inputMolecules, $outputMoleculesReactionInfo, $shrunkOutputReactionInfo, $guardPresenceFlag, $reactionSha1), $rbReplacedStatic, None, false)"
     //    println(s"debug: ${showCode(result)}")
     //    println(s"debug raw: ${showRaw(result)}")
     //    c.untypecheck(result) // this fails

@@ -597,7 +597,9 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
          * Then `t` will be `c` and `f` will be `apply`.
          *
          * When calling emitters with implicit unit arguments, we get Apply((Apply((Select(t@Ident(TermName(_)), TermName(f))), List(jc.UnitArgImplicit)))
-         * Note that variables defined inside a reaction have the owner "method applyOrElse", which in turn has the owner the partial function of type "ReactionBody". We don't have a good way of detecting them.
+         * Note that variables defined inside a reaction have the owner "method applyOrElse", which in turn has the owner the partial function of type "ReactionBody". We don't have a good way of distinguishing them from local variables that copy one of the input emitters!
+         * E.g. {case a(x) => val c = a; c() } has the symbol "c" whose owner is the partial function;
+         *  but { case a(x) => val c = m[Unit]; site(...); c() } also has a symbol "c" with the same owner.
          */
         case Apply(Select(t@Ident(TermName(_)), TermName(f)), argumentList)
           if f === "apply" || f === "checkTimeout" || f === "timeout" =>
@@ -739,9 +741,18 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   def reportError(message: String): Unit = c.error(c.enclosingPosition, message)
 
+  // This method helps move `shrink` out of the macro namespace, by making the type `Any` available.
+  // But it will be always called on a pair of Trees.
   def equalsInMacro(a: Any, b: Any): Boolean = a match {
     case x: Tree => x.equalsStructure(b.asInstanceOf[Tree])
-    //    case _ => a === b  // this is never used
+  }
+
+  object ReplaceStaticEmits extends Transformer {
+    override def transform(tree: Tree): Tree = tree match {
+      case q"$f.apply[..$t](...$arg)" if arg.nonEmpty && f.tpe <:< typeOf[M[_]] =>
+        c.typecheck(q"$f.applyStatic[..$t](...$arg)")
+      case _ => super.transform(tree)
+    }
   }
 
   /* This code has been commented out after a lengthy but fruitless exploration of valid ways of modifying the reaction body.

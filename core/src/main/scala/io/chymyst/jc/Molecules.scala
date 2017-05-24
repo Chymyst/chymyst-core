@@ -220,6 +220,10 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
 
   def apply()(implicit arg: TypeMustBeUnit[T]): Unit = apply(arg.getUnit)
 
+  def applyStatic(v: T): Unit = apply(v)
+
+  def applyStatic()(implicit arg: TypeMustBeUnit[T]): Unit = apply(arg.getUnit)
+
   /** Volatile reader for a molecule.
     * The molecule must be declared as static.
     *
