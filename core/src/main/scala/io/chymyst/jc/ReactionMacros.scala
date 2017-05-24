@@ -749,7 +749,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   object ReplaceStaticEmits extends Transformer {
     override def transform(tree: Tree): Tree = tree match {
-      case q"$f.apply[..$t](...$arg)" if arg.nonEmpty && f.tpe <:< typeOf[M[_]] =>
+      case q"$f.apply[..$t](...$arg)" if arg.nonEmpty && f.tpe <:< typeOf[M[_]] => // TODO: check owner of $f !!
+        // TODO: skip traversing embedded Reaction() values!
         c.typecheck(q"$f.applyStatic[..$t](...$arg)")
       case _ => super.transform(tree)
     }

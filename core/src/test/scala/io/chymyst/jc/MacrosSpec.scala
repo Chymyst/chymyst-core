@@ -24,7 +24,7 @@ class MacrosSpec extends LogSpec with Matchers with BeforeAndAfterEach {
     tp0.shutdownNow()
   }
 
-behavior of "reaction sha1"
+  behavior of "reaction sha1"
 
   it should "compute different reaction sha1 for different conditions" in {
     val a = m[Int]
@@ -784,7 +784,9 @@ behavior of "reaction sha1"
     val c = m[Int]
 
     val r = go { case a(x) => if (x > 0)
-      while ({c(x); true }) {
+      while ( {
+        c(x); true
+      }) {
         c(x)
       }
     }
@@ -838,7 +840,7 @@ behavior of "reaction sha1"
     r.info.outputs(0).environments should matchPattern { case List(FuncLambda(_)) => }
   }
 
-  it should "detect molecules emitted via assignment" in {
+  it should "not detect molecules emitted via assignment" in {
     val a = m[Int]
     val c = m[Unit]
     val r = go { case a(x) =>
@@ -846,16 +848,29 @@ behavior of "reaction sha1"
       c2()
     }
     r.info.outputs.length shouldEqual 0
-//    r.info.outputs(0) shouldEqual OutputMoleculeInfo(c, ConstOutputPattern(()), List())
   }
 
-  it should "detect molecules emitted via argument of emitter type" in {
+  it should "not detect molecules emitted via argument of emitter type" in {
     val a = m[M[Unit]]
     val r = go { case a(c) =>
       c()
     }
     r.info.outputs.length shouldEqual 0
-//    r.info.outputs(0) shouldEqual OutputMoleculeInfo(a, ConstOutputPattern(()), List())
+  }
+
+  it should "detect molecules emitted in val blockcs" in {
+    val a = m[Unit]
+    val c = m[Unit]
+    val r = go { case a(_) =>
+      val x = {
+        println("abc")
+        c()
+        0
+      }
+      x + 1
+    }
+    r.info.outputs.length shouldEqual 1
+    r.info.outputs(0) shouldEqual OutputMoleculeInfo(c, ConstOutputPattern(()), List())
   }
 
   it should "detect molecules emitted in partial functions" in {
@@ -1002,6 +1017,12 @@ behavior of "reaction sha1"
     r.info.shrunkOutputs shouldEqual Array(OutputMoleculeInfo(a, ConstOutputPattern(1), Nil))
   }
 
+  it should "detect simple constant due to perfect if-then-else shrinkage within val block" in {
+    val a = m[Int]
+    val r = go { case a(1) => val x = { if (true) a(1) else a(1) }; x } // This livelock cannot be detected at compile time because it can't evaluate constants.
+    r.info.shrunkOutputs shouldEqual Array(OutputMoleculeInfo(a, ConstOutputPattern(1), Nil))
+  }
+
   it should "detect other pattern due to non-perfect if-then-else shrinkage" in {
     val a = m[Int]
     val r = go { case a(1) => if (true) a(1) else a(2) }
@@ -1057,11 +1078,9 @@ behavior of "reaction sha1"
     val inputs = new InputMoleculeList(2)
     inputs(0) = MolValue(())
     inputs(1) = MolValue(())
-    val thrown = intercept[Exception] {
+    the[Exception] thrownBy {
       r1.body.apply((inputs.length - 1, inputs)) shouldEqual 123 // Reaction ran on a non-reaction thread (i.e. on this thread) and attempted to emit the static molecule.
-    }
-    val expectedMessage = s"In Site{${dIncorrectStaticMol.name} + e → ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this thread does not run a chemical reaction"
-    thrown.getMessage shouldEqual expectedMessage
+    } should have message s"In Site{${dIncorrectStaticMol.name} + e → ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this thread does not run a chemical reaction"
     waitSome()
     e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
   }
@@ -1070,7 +1089,7 @@ behavior of "reaction sha1"
     val c = new M[Unit]("c")
     val dIncorrectStaticMol = m[Unit]
     val e = new M[M[Unit]]("e")
-
+    clearGlobalErrorLog()
     site(tp0)(
       go { case e(s) => s() },
       go { case dIncorrectStaticMol(_) + c(_) => dIncorrectStaticMol() },

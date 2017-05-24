@@ -214,15 +214,20 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
 
   /** Emit a non-blocking molecule.
     *
+    * Note that static molecules can be emitted only by a reaction that consumed them, and not by other code.
+    *
     * @param v Value to be put onto the emitted molecule.
     */
-  def apply(v: T): Unit = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, Unit]].emit(this, MolValue(v))
+  def apply(v: T): Unit =
+    if (isStatic)
+      throw new ExceptionEmittingStaticMol(s"Error: static molecule $this cannot be emitted non-statically")
+    else applyStatic(v)
 
   def apply()(implicit arg: TypeMustBeUnit[T]): Unit = apply(arg.getUnit)
 
-  def applyStatic(v: T): Unit = apply(v)
+  def applyStatic(v: T): Unit = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, Unit]].emit(this, MolValue(v))
 
-  def applyStatic()(implicit arg: TypeMustBeUnit[T]): Unit = apply(arg.getUnit)
+  def applyStatic()(implicit arg: TypeMustBeUnit[T]): Unit = applyStatic(arg.getUnit)
 
   /** Volatile reader for a molecule.
     * The molecule must be declared as static.
