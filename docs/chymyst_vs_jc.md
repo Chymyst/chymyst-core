@@ -11,7 +11,7 @@ Here is a dictionary:
 | molecule emitter | channel name | `val a :  M[Int]` |
 | blocking emitter | synchronous channel | `val q :  B[Unit, Int]` |
 | reaction | process | `val r1 = go { case a(x) + ... => ... }` |
-| emitting an output molecule | sending a message | `a(123)` _// side effect_ |
+| emitting a molecule | sending a message | `a(123)` _// side effect_ |
 | emitting a blocking molecule | sending a synchronous message | `q()` _// returns_ `Int` |
 | reaction site | join definition | `site(r1, r2, ...)` |
 
@@ -27,13 +27,13 @@ The equivalent `Chymyst` code looks like this:
 def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
   val put = b[T, Unit] 
   val get = b[Unit, T]
-  val _val = m[T] // Will use the name `_val` since `val` is a Scala keyword.
+  val vl = m[T] // Will use the name `vl` since `val` is a Scala keyword.
   
   site(
-    go { case put(w, ret) + _val(v) => _val(w); ret() },
-    go { case get(_, ret) + _val(v) => _val(v); ret(v) }
+    go { case put(w, ret) + _val(v) => vl(w); ret() },
+    go { case get(_, ret) + _val(v) => vl(v); ret(v) }
   )
-  _val(v0)
+  vl(v0)
   
   (put, get)
 }
