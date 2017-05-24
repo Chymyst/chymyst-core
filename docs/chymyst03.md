@@ -221,7 +221,7 @@ If the relevant reaction never starts, — for instance, because some input mole
 The runtime engine cannot prevent this situation, because it cannot determine that the missing input molecules will never become available in the future.
 - The correct function of a program may depend on the order in which blocking molecules are emitted.
 With non-blocking molecules, the emission order is irrelevant since emission is concurrent, and so the programmer cannot control the actual order in which emitted molecules will become available in the soup.
-- If several reactions can consume a blocking molecule, one of these reactions will be selected at random.
+- If several reactions can consume a blocking molecule, one of these reactions will be selected arbitrarily.
 - Blocking molecule names are printed with the suffix `"/B"` in the debugging output.
 - Molecules with unit values can be emitted simply by calling `decr()` and `fetch()` without arguments, but they still require a pattern variable when used in the `case` construction.
 For this reason, we need to write `decr(_)` and `fetch(_, reply)` in the match patterns.

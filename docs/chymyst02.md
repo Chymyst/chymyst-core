@@ -584,8 +584,8 @@ go { case interm(x) + interm(y) ⇒ interm(reduceB(x, y)) }
 
 ```
 
-As `interm()` molecules are emitted, this reaction will run at random between any available pairs of `interm()` molecules.
-When running on a multi-core CPU, the chemical machine should be able to schedule as many such reactions concurrently as needed to optimize the CPU load.
+As `interm()` molecules are emitted, this reaction could run between any available pairs of `interm()` molecules.
+When running on a multi-core CPU, the chemical machine should be able to schedule many such reactions concurrently and optimize the CPU load.
 
 This code, however, is not yet correct.
 When all `interm()` molecule pairs have reacted, the single `interm()` molecule will remain inert in the soup, since no other molecules can react with it.
@@ -675,7 +675,7 @@ A simple example of an associative but non-commutative operation on integers is 
 _r_(_x_, _y_) = if (_x_ mod 2 == 0) _x_ + _y_ else _x_ - _y_  
 
 If the `reduceB()` operation is not commutative, we may not apply the reduce operation to just _any_ pair of partial results.
-The map/reduce code in the previous subsection selects pairs at random and will fail to compute the correct final value for non-commutative reduce operations.
+The map/reduce code in the previous subsection will select pairs in arbitrary order and will most likely fail to compute the correct final value for non-commutative reduce operations.
 
 For instance, suppose we have an array `x1, x2, ..., x10` of intermediate results that we need to reduce with a `reduceB()` operation that is not commutative.
 We may now reduce `x4` with `x3` or with `x5`, but not with `x6` or any other element.

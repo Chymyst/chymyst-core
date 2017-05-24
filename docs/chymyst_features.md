@@ -214,9 +214,11 @@ tp.shutdownNow() // all reactions running on `tp` will stop
 
 ```
 
-## Fair nondeterminism
+## Nondeterministic choice
 
-Whenever a molecule can start several reactions, the reaction is chosen at random.
+Whenever a molecule can start several reactions, the reaction is chosen arbitrarily.
+
+Whenever a reaction can consume several different copies of input molecules, the actually consumed copies are chosen arbitrarily. 
 
 ## Fault tolerance
 

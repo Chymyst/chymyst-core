@@ -57,7 +57,6 @@ Performance benchmarks indicate that `Chymyst Core` can schedule about 10,000 re
 Known limitations:
 
 - `Chymyst Core` is about 2x slower than Jiansen He's `ScalaJoin` on the blocking molecule benchmark, and about 1.2x slower on some non-blocking molecule benchmarks.
-- `Chymyst Core` has no fairness with respect to the choice of molecules: If a reaction could proceed with many alternative sets of input molecules, the input molecules are not chosen at random.
 - `Chymyst Core` has no distributed execution (Jiansen He's `Disjoin.scala` is not ported to `Chymyst`, and probably will not be).
 Distributed computation should be implemented in a better way than posting channel names on an HTTP server.
 (However, `Chymyst Core` will use all cores on a single machine.)

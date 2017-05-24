@@ -457,8 +457,7 @@ site(
 
 ## Order of reactions and nondeterminism
 
-When a reaction site has so many waiting molecules that several different reactions could start, the runtime engine will choose at random the reaction that will actually be scheduled to start.
-Each candidate reaction has an equal chance of starting.
+When a reaction site has so many waiting molecules that several different reactions could start, the runtime engine will make a choice as to which reaction will actually be scheduled to start.
 
 The next figure shows a possibility of different reactions starting at a reaction site.
 In this example, the soup contains one copy of the `counter()` molecule, one copy of `incr()`, and one copy of `decr()`.
@@ -482,7 +481,7 @@ At the next step, another one of the `incr()` molecules will be chosen to start 
 
 ![Reaction diagram counter + incr, counter + decr after reaction](https://chymyst.github.io/chymyst-core/counter-multiple-molecules-after-reaction.svg)
 
-Currently, `Chymyst` will _not_ randomize the input molecules but make an implementation-dependent choice, designed to optimize the performance of the reaction scheduler.
+`Chymyst` does _not_ randomize the order of input molecules or the order of reactions but makes an implementation-dependent choice, designed to optimize the performance of the reaction scheduler.
 
 It is important to keep in mind that we _cannot_ assign priorities to reactions or to input molecules.
 The chemical machine ignores the order in which reactions are listed in the `site(...)` call, as well as the order of molecules in the input list of each reaction.
