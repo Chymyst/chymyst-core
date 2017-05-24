@@ -1064,7 +1064,7 @@ class MacrosSpec extends LogSpec with Matchers with BeforeAndAfterEach {
 
   behavior of "errors while emitting static molecules"
 
-  it should "refuse to emit static molecule from non-reaction thread" in {
+  it should "refuse to emit static molecule if reaction runs on a non-reaction thread" in {
     val dIncorrectStaticMol = m[Unit]
     val e = m[Unit]
 
@@ -1081,6 +1081,24 @@ class MacrosSpec extends LogSpec with Matchers with BeforeAndAfterEach {
     the[Exception] thrownBy {
       r1.body.apply((inputs.length - 1, inputs)) shouldEqual 123 // Reaction ran on a non-reaction thread (i.e. on this thread) and attempted to emit the static molecule.
     } should have message s"In Site{${dIncorrectStaticMol.name} + e → ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this thread does not run a chemical reaction"
+    waitSome()
+    e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
+  }
+
+  it should "refuse to emit static molecule manually from non-reaction thread" in {
+    val dIncorrectStaticMol = m[Unit]
+    val e = m[Unit]
+
+    val r1 = go { case dIncorrectStaticMol(_) + e(_) => dIncorrectStaticMol(); 123 }
+
+    site(tp0)(
+      r1,
+      go { case _ => dIncorrectStaticMol() }
+    )
+
+    the[Exception] thrownBy {
+      dIncorrectStaticMol() shouldEqual (()) // User code attempted to emit the static molecule.
+    } should have message s"Error: static molecule ${dIncorrectStaticMol.name} cannot be emitted non-statically"
     waitSome()
     e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
   }
