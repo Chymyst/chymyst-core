@@ -78,7 +78,8 @@ val flightRecorderJVMFlags = Seq(
   "-XX:StartFlightRecording=delay=10s,duration=600s,name=Recording,filename=benchmark.jfr"
 )
 
-enablePlugins(TutPlugin)
+// Uncomment this and the tut dependency in plugin.sbt in order to build the tutorial.
+//enablePlugins(TutPlugin)
 
 lazy val disableWarningsForTut = Set("-Ywarn-unused", "-Xlint")
 
@@ -86,10 +87,14 @@ lazy val buildAll = (project in file("."))
   .settings(commonSettings: _*)
   .settings(
     //    aggregate in assembly := false, // This would disable assembly in aggregated tasks - not what we want.
-    name := "buildAll",
+
+    // Uncomment this and the tut dependency in plugin.sbt in order to build the tutorial.
+    /*
     tutSourceDirectory := (sourceDirectory in core in Compile).value / "tut",
     tutTargetDirectory := baseDirectory.value / "docs", //(crossTarget in core).value / "tut",
-    scalacOptions in Tut := scalacOptions.value.filterNot(disableWarningsForTut.contains)
+    scalacOptions in Tut := scalacOptions.value.filterNot(disableWarningsForTut.contains),
+    */
+    name := "buildAll"
   )
   .dependsOn(core % "compile->compile;test->test")
   .aggregate(core, benchmark)
