@@ -225,6 +225,23 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     }
   }
 
+  /** Detect whether the symbol `s` is defined inside the scope of the symbol `owner`.
+    * Will return true for code like ` val owner = .... { val s = ... }  `
+    *
+    * @param s     Symbol to be examined.
+    * @param owner Owner symbol of the scope to be examined.
+    * @return True if `s` is defined inside the scope of `owner`.
+    */
+  @tailrec
+  final def isOwnedBy(s: MacroSymbol, owner: MacroSymbol): Boolean = s.owner match {
+    case `owner` =>
+      owner =!= NoSymbol
+    case `NoSymbol` =>
+      false
+    case o@_ =>
+      isOwnedBy(o, owner)
+  }
+
   /** Obtain the list of `case` expressions in a reaction.
     * There should be only one `case` expression.
     */
@@ -403,23 +420,6 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     private def pushEnv(env: OutputEnvironment) =
       outputEnv = env :: outputEnv
-
-    /** Detect whether the symbol `s` is defined inside the scope of the symbol `owner`.
-      * Will return true for code like ` val owner = .... { val s = ... }  `
-      *
-      * @param s     Symbol to be examined.
-      * @param owner Owner symbol of the scope to be examined.
-      * @return True if `s` is defined inside the scope of `owner`.
-      */
-    @tailrec
-    private def isOwnedBy(s: MacroSymbol, owner: MacroSymbol): Boolean = s.owner match {
-      case `owner` =>
-        owner =!= NoSymbol
-      case `NoSymbol` =>
-        false
-      case o@_ =>
-        isOwnedBy(o, owner)
-    }
 
     private def getInputFlag(binderTerm: Tree): InputPatternFlag = binderTerm match {
       case Ident(termNames.WILDCARD) =>
@@ -747,9 +747,12 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     case x: Tree => x.equalsStructure(b.asInstanceOf[Tree])
   }
 
-  object ReplaceStaticEmits extends Transformer {
+  class ReplaceStaticEmits(reactionBodyOwner: MacroSymbol) extends Transformer {
     override def transform(tree: Tree): Tree = tree match {
-      case q"$f.apply[..$t](...$arg)" if arg.nonEmpty && f.tpe <:< typeOf[M[_]] => // TODO: check owner of $f !!
+      case q"$f.apply[..$t](...$arg)" if arg.nonEmpty &&
+        f.tpe <:< typeOf[M[_]] &&
+        !isOwnedBy(f.asInstanceOf[Tree].symbol.owner, reactionBodyOwner)
+      =>
         // TODO: skip traversing embedded Reaction() values!
         c.typecheck(q"$f.applyStatic[..$t](...$arg)")
       case _ => super.transform(tree)
