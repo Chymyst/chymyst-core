@@ -27,7 +27,7 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
 
   def currentPoolSize: Int = executor.getCorePoolSize
 
-  private[jc] override def startedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean) = {
+  private[jc] override def startedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean) = synchronized {
     val newPoolSize = math.min(currentPoolSize + 1, maxPoolSize)
     if (newPoolSize > currentPoolSize) {
       executor.setMaximumPoolSize(newPoolSize)
@@ -37,7 +37,7 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
     }
   }
 
-  private[jc] override def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean) = {
+  private[jc] override def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean) = synchronized {
     val newPoolSize = math.max(parallelism, currentPoolSize - 1)
     executor.setCorePoolSize(newPoolSize) // Must set them in this order, so that the core pool size is never larger than the maximum pool size.
     executor.setMaximumPoolSize(newPoolSize)
@@ -47,7 +47,7 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
   val secondsToRecycleThread = 1L
   val shutdownWaitTimeMs = 200L
 
-  protected val executor: ThreadPoolExecutor = {
+  protected val executor = {
     val newThreadFactory = new ThreadFactory {
       override def newThread(r: Runnable): Thread = new SmartThread(r, SmartPool.this)
     }
