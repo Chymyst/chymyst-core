@@ -197,23 +197,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def reportError(message: String): Unit =
     logError(messageWithTime(message), print = logLevel >= 0)
 
-  private sealed trait ReactionExitStatus {
-    def getMessage: Option[String] = None
-
-    def reactionSucceededOrFailedWithoutRetry: Boolean = true
-  }
-
-  private case object ReactionExitSuccess extends ReactionExitStatus
-
-  private final case class ReactionExitFailure(message: String) extends ReactionExitStatus {
-    override def getMessage: Option[String] = Some(message)
-  }
-
-  private final case class ReactionExitRetryFailure(message: String) extends ReactionExitStatus {
-    override def getMessage: Option[String] = Some(message)
-
-    override def reactionSucceededOrFailedWithoutRetry: Boolean = false
-  }
 
   /** This closure will be run on the reaction thread pool to start a new reaction.
     *
@@ -255,10 +238,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         status
     }
 
-    // Make this non-lazy to improve coverage. If the code is correct, the no-reply error cannot happen with `ReactionExitSuccess`.
-    // The missing coverage is the evaluation of `.getMessage` on the status value `ReactionExitSuccess`.
-    val errorMessageFromStatus = exitStatus.getMessage.map(message ⇒ s". Reported error: $message").getOrElse("")
-
     // The reaction is finished. If it had any blocking input molecules, we check if any of them got no reply.
     if (thisReaction.info.hasBlockingInputs && usedInputs.exists(_.reactionSentNoReply)) {
       // For any blocking input molecules that have no reply, put an error message into them and reply with empty value to unblock the threads.
@@ -271,7 +250,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         .map(_.map(_.toString).sorted.mkString(", "))
 
       lazy val messageNoReply = blockingMoleculesWithNoReply.map { s =>
-        s"Error: In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] finished without replying to $s$errorMessageFromStatus"
+        s"Error: In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] finished without replying to $s${exitStatus.getMessage}"
       }
 
       // We will report all errors to each blocking molecule.
@@ -308,7 +287,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       case _ => None
     }
 
-
   /** Find a set of input molecule values for a reaction. */
   private def findInputMolecules(r: Reaction, moleculesPresent: MoleculeBagArray): Option[InputMoleculeList] = {
     val info = r.info
@@ -328,7 +306,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // It is probably useless to try optimizing the selection of a constant value, because 1) values are wrapped and 2) values that are not "simple types" are most likely to be stored in a queue-based molecule bag rather than in a hash map-based molecule bag.
         // So we handle pipelined and non-pipelined molecules here, without a special case for constant values.
           if (inputInfo.molecule.isPipelined)
-            molBag.takeOne.filter(inputInfo.admitsValue) // For pipelined molecules, we take the first one; if condition fails, we treat that case as if no molecule is available.
+            molBag.headOption.filter(inputInfo.admitsValue) // For pipelined molecules, we take the first one; if condition fails, we treat that case as if no molecule is available.
           else
             molBag.find(inputInfo.admitsValue)
 
@@ -344,7 +322,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // This value will be `true` if we could get sufficient counts for all required molecules from `inputsSortedIndependentIrrefutableGrouped`.
         info.inputsSortedIndependentIrrefutableGrouped
           .forall { case (molSiteIndex, molInputIndices) ⇒
-            val molValuesFound = moleculesPresent(molSiteIndex).takeAny(r.moleculeIndexRequiredCounts(molSiteIndex))
+            val molCount = r.moleculeIndexRequiredCounts(molSiteIndex)
+            val molValuesFound = moleculesPresent(molSiteIndex).takeAny(molCount)
             // This will give `false` if we failed to find a sufficient number of molecule values.
             (molValuesFound.length === molInputIndices.length) && {
               molInputIndices.indices.foreach(i ⇒ foundValues(molInputIndices(i)) = molValuesFound(i))
@@ -646,8 +625,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       // Assign the value bag.
       val pipelined = pipelinedMolecules contains index
       val simpleType = simpleTypes contains valType
+      val unitType = valType === 'Unit
       val selfBlocking = selfBlockingMols.get(mol)
-      moleculesPresent(index) = if (simpleType && !pipelined)
+      moleculesPresent(index) = if (unitType || (simpleType && !pipelined))
         new MutableMapBag[AbsMolValue[_]]()
       else
         new MutableQueueBag[AbsMolValue[_]]()
@@ -890,4 +870,24 @@ private[jc] object ReactionSiteWrapper {
       sameReactionSite = _ => exception
     )
   }
+}
+
+private[jc] sealed trait ReactionExitStatus {
+  val getMessage: String = ""
+
+  protected val header: String = ". Reported error: "
+
+  def reactionSucceededOrFailedWithoutRetry: Boolean = true
+}
+
+private[jc] case object ReactionExitSuccess extends ReactionExitStatus
+
+private[jc] final case class ReactionExitFailure(message: String) extends ReactionExitStatus {
+  override val getMessage: String = header + message
+}
+
+private[jc] final case class ReactionExitRetryFailure(message: String) extends ReactionExitStatus {
+  override val getMessage: String = header + message
+
+  override def reactionSucceededOrFailedWithoutRetry: Boolean = false
 }

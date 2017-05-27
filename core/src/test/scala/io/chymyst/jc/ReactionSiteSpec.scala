@@ -20,6 +20,13 @@ class ReactionSiteSpec extends LogSpec with Matchers with BeforeAndAfterEach {
     b.getCountMap.get(v1) shouldEqual Some(2)
   }
 
+  // This test is here only to ensure coverage.
+  it should "produce messages for reaction status" in {
+    ReactionExitFailure("abc").getMessage shouldEqual ""
+    ReactionExitSuccess.getMessage shouldEqual ""
+    ReactionExitRetryFailure("abc").getMessage shouldEqual "abc"
+  }
+
   behavior of "reaction"
 
   it should "admit values by simple constant matching" in {

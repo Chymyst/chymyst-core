@@ -75,7 +75,7 @@ val flightRecorderJVMFlags = Seq(
   "-XX:+FlightRecorder",
   "-XX:+UnlockDiagnosticVMOptions",
   "-XX:+DebugNonSafepoints",
-  "-XX:StartFlightRecording=delay=10s,duration=600s,name=Recording,filename=benchmark.jfr"
+  "-XX:StartFlightRecording=delay=20s,duration=600s,name=Recording,filename=benchmark.jfr"
 )
 
 // Uncomment this and the tut dependency in plugin.sbt in order to build the tutorial.

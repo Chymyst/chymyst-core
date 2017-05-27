@@ -1,6 +1,6 @@
 <link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
 
-# Concurrency in Reactions: Declarative concurrent programming in Scala
+# Concurrency in Reactions: Declarative Scala multithreading with `Chymyst`
 
 [Preface](chymyst-preface.md)
 
