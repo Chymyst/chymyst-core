@@ -156,6 +156,7 @@ lazy val benchmark = (project in file("benchmark"))
     },
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.1" % Test
+      , "org.sameersingh.scalaplot" % "scalaplot" % "0.0.4" % Test
     )
   ).dependsOn(core % "compile->compile;test->test")
 
