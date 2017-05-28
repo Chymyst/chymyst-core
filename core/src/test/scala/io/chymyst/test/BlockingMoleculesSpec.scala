@@ -235,7 +235,7 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
     tp.shutdownNow()
   }
 
-  it should "not block the smart threadpool with BlockingIdle(Thread.sleep)" in {
+  it should "not block the blocking threadpool with BlockingIdle(Thread.sleep)" in {
     val tp = new BlockingPool(1)
     val (g, g2) = makeBlockingCheck(BlockingIdle {
       Thread.sleep(500)
@@ -300,14 +300,14 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
     }
   }
 
-  it should "not block the smart threadpool when all threads are waiting for new reactions" in {
+  it should "not block the blocking threadpool when all threads are waiting for new reactions" in {
     val tp = new BlockingPool(2)
     val g = blockThreadsDueToBlockingMolecule(tp)
     g.timeout()(400 millis) shouldEqual Some(())
     tp.shutdownNow()
   }
 
-  it should "not block the smart threadpool when more threads are available" in {
+  it should "not block the blocking threadpool when more threads are available" in {
     val tp = new BlockingPool(3)
     val g = blockThreadsDueToBlockingMolecule(tp)
     g.timeout()(400 millis) shouldEqual Some(())

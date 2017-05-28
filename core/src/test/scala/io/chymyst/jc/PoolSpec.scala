@@ -15,7 +15,7 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
-  behavior of "smart pool"
+  behavior of "BlockingPool"
 
   it should "refuse to increase the thread pool beyond its limit" in {
     val n = 1065
@@ -83,8 +83,8 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   it should "return empty info by default" in {
     val tp = new BlockingPool()
-    val smartThread = new ChymystThread(() ⇒ (), tp)
-    smartThread.reactionInfo shouldEqual Core.NO_REACTION_INFO_STRING
+    val thread = new ChymystThread(() ⇒ (), tp)
+    thread.reactionInfo shouldEqual Core.NO_REACTION_INFO_STRING
   }
 
   behavior of "blocking pool"
