@@ -46,7 +46,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   private val seqConstantExtractorHeads = Set("scala.collection.generic.SeqFactory.unapplySeq")
 
-  private val onceOnlyFunctionCodes = constantApplierCodes ++ Set(
+  private val emitMultipleFunctionCodes = Set(
     "io.chymyst.jc.EmitMultiple",
     "io.chymyst.jc.EmitMultiple.$plus"
   )
@@ -645,15 +645,20 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         case q"$f[..$_](..$args)"
           if args.nonEmpty =>
           val fullName = f.asInstanceOf[Tree].symbol.fullName
-          if (onceOnlyFunctionCodes.contains(fullName)) {
+          if (constantApplierCodes.contains(fullName)) {
             // The function is one of the known once-only evaluating functions such as Some(), List(), etc.
             // In that case, we don't need to set a special environment, since a once-only environment is equivalent to no environment.
             // We just traverse the tree and harvest the molecules normally.
-            // However, NotLastBlock() must be set.
+            // However, NotLastBlock() must be set, because molecule emission is not the last computation.
             renewOutputEnvId()
             pushEnv(NotLastBlock(currentOutputEnvId))
             super.traverse(tree) // avoid infinite loop -- we are not destructuring this function application
             finishTraverseWithOutputEnv()
+          } else if (emitMultipleFunctionCodes.contains(fullName)) {
+            // We are under the a() + b() emission construct.
+            // In that case, we don't need to set NotLastBlock on any of the emitted molecules.
+            // We just traverse the tree and harvest the molecules normally.
+            super.traverse(tree) // avoid infinite loop -- we are not destructuring this function application
           } else {
             renewOutputEnvId()
             traverseWithOutputEnv(f, NotLastBlock(currentOutputEnvId))
