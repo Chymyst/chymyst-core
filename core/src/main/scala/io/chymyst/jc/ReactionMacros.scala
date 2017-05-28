@@ -758,8 +758,11 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
       // Replace `isDefinedAt` by `true` in the reaction body since the reaction scheduler
       // will check the molecule values before running a reaction.
+        // This fails due to `Error: scalac: Error: Position.point on NoPosition. UnsupportedOperationException. Position.scala:95`
+        /*
       case q"$mods def isDefinedAt(..$args) = $body" ⇒
         c.typecheck(q"$mods def isDefinedAt(..$args) = true")
+        */
       case _ => super.transform(tree)
     }
   }
