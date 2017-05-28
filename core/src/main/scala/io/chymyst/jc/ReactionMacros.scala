@@ -755,6 +755,11 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       =>
         // TODO: skip traversing embedded Reaction() values!
         c.typecheck(q"$f.applyStatic[..$t](...$arg)")
+
+      // Replace `isDefinedAt` by `true` in the reaction body since the reaction scheduler
+      // will check the molecule values before running a reaction.
+      case q"$mods def isDefinedAt(..$args) = $body" ⇒
+        c.typecheck(q"$mods def isDefinedAt(..$args) = true")
       case _ => super.transform(tree)
     }
   }
