@@ -2,6 +2,8 @@
 
 # Version history
 
+- 0.2.0 Renamed "SmartPool" to "BlockingPool" and simplified the thread info handling. More static checks for emission of static molecules.
+
 - 0.1.9 Static molecules are now restricted to a linear output context, in a similar way to blocking replies. Reaction schedulers now run on a single dedicated thread; site pools are eliminated. New examples: 8 queens and hierarchical map/reduce. Added a simple facility for deadlock warning, used for `FixedPool`. Tutorial updated with a new "quick start" guide that avoids requiring too many new concepts. Miscellaneous bug fixes and performance improvements.
 
 - 0.1.8 "Singleton" molecules and reactions are now called "static", which is more accurate. Added more tutorial examples, including fork/join and a fully concurrent Game of Life. Some code cleanups and optimizations in the reaction scheduler, especially for reactions with repeated input molecules and cross-molecule conditions. Support for pipelined molecules (an automatic optimization) makes molecule selection faster.

@@ -426,8 +426,16 @@ go { case c(x) + f(_, reply) => c(x) + reply(x) }
 ```
 
 Calling `f()` returns the current value carried by `c()`, just like the volatile reader does.
-However, the call `f()` may block for an unknown time if `c()` has been consumed by a long-running reaction.
+However, the call `f()` may block for an unknown time if `c()` has been consumed by a long-running reaction, or if the reaction scheduler happens to be busy.
 Even if `c()` is immediately available in the soup, running this reaction requires an extra scheduling operation.
 Volatile readers provide very fast read-only access to the values carried by static molecules.
 
 This feature is restricted to static molecules because it appears to be useless if we could get the last emitted value of a molecule that has many different copies emitted in the soup.
+
+
+## Exercise: concurrent divide-and-conquer with cancellation
+
+Implement a (blocking) function that finds the smallest element in an integer array, using a concurrent divide-and-conquer method.
+If the smallest element turns out to be negative, the computation should be aborted as early as possible, and `0` should be returned as the final result.
+
+Use a static molecule with a volatile reader to signal that the computation needs to be aborted early.

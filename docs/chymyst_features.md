@@ -198,7 +198,7 @@ site(tp8)( // reaction site runs on tp8
 
 ```
 
-Thread pools are "smart" because they will automatically adjust the number of active threads if blocking operations occur.
+The thread pools of class `BlockingPool` are called "blocking" because they will automatically adjust the number of active threads if blocking operations occur.
 So, blocking operations do not decrease the degree of parallelism.
 
 ## Graceful shutdown
