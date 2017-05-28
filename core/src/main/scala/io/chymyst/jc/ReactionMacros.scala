@@ -388,7 +388,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
       * @return A 4-tuple: List of input molecule patterns, list of output molecule patterns, list of reply action patterns, and list of molecules erroneously used inside pattern matching expressions.
       */
-    def from(reactionPart: Tree): (List[(MacroSymbol, InputPatternFlag, Option[InputPatternFlag])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[MacroSymbol]) = {
+    def from(reactionPart: Tree): (List[(MacroSymbol, InputPatternFlag, Option[InputPatternFlag])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[MacroSymbol]) = synchronized {
       inputMolecules = mutable.ArrayBuffer()
       outputMolecules = mutable.ArrayBuffer()
       replyActions = mutable.ArrayBuffer()
@@ -669,6 +669,15 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           // All use of reply emitters must be logged, including just copying an emitter itself.
           replyActions.append((tree.asInstanceOf[Tree].symbol, EmptyOutputPatternF, outputEnv))
 
+        // Statement block. We are interested in the last statement in the block.
+        case q"{..$statements}" if statements.length > 1 ⇒
+          // Set the output environment while traversing statements of the block, except for the last statement.
+          statements.init.foreach { s ⇒
+            renewOutputEnvId()
+            traverseWithOutputEnv(s, NotLastBlock(currentOutputEnvId))
+          }
+          traverse(statements.last.asInstanceOf[Tree])
+
         case _ => super.traverse(tree)
       }
     }
@@ -722,6 +731,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       q"_root_.io.chymyst.jc.FuncLambda($id)"
     case AtLeastOneEmitted(id, name) =>
       q"_root_.io.chymyst.jc.AtLeastOneEmitted($id, $name)"
+    case NotLastBlock(id) =>
+      q"_root_.io.chymyst.jc.NotLastBlock($id)"
   }
 
   /** Build an error message about incorrect usage of chemical notation.
@@ -758,11 +769,11 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
       // Replace `isDefinedAt` by `true` in the reaction body since the reaction scheduler
       // will check the molecule values before running a reaction.
-        // This fails due to `Error: scalac: Error: Position.point on NoPosition. UnsupportedOperationException. Position.scala:95`
-        /*
-      case q"$mods def isDefinedAt(..$args) = $body" ⇒
-        c.typecheck(q"$mods def isDefinedAt(..$args) = true")
-        */
+      // This fails due to `Error: scalac: Error: Position.point on NoPosition. UnsupportedOperationException. Position.scala:95`
+      /*
+    case q"$mods def isDefinedAt(..$args) = $body" ⇒
+      c.typecheck(q"$mods def isDefinedAt(..$args) = true")
+      */
       case _ => super.transform(tree)
     }
   }

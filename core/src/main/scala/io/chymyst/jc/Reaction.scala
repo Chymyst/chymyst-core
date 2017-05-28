@@ -122,6 +122,16 @@ final case class ChooserBlock(id: Int, clause: Int, total: Int) extends OutputEn
   override val shrinkable: Boolean = true
 }
 
+/** Describes a molecule that is _not_ emitted last in a statement block.
+  *
+  * @param id Id of the construct.
+  */
+final case class NotLastBlock(id: Int) extends OutputEnvironment {
+  override val atLeastOne: Boolean = true
+  override val linear: Boolean = true
+  override val shrinkable: Boolean = true
+}
+
 /** Describes a molecule emitted under a function call.
   *
   * @param id   Id of the function call construct.
@@ -496,18 +506,18 @@ final class ReactionInfo(
   // TODO: write a test that fixes this functionality?
   /** This array is either empty or contains several arrays, each of length at least 2. */
   private val repeatedCrossConstrainedMolecules: Array[Set[Int]] =
-  inputs
-    .groupBy(_.molecule)
-    .filter(_._2.length >= 2)
-    .values
-    .filter { repeatedInput ⇒
-      crossGuards.exists { guard ⇒
-        (guard.indices intersect repeatedInput.map(_.index)).nonEmpty
-      } ||
-        repeatedInput.exists { info ⇒ !info.flag.isIrrefutable }
-    }
-    .toArray
-    .map(_.map(_.index).toSet)
+    inputs
+      .groupBy(_.molecule)
+      .filter(_._2.length >= 2)
+      .values
+      .filter { repeatedInput ⇒
+        crossGuards.exists { guard ⇒
+          (guard.indices intersect repeatedInput.map(_.index)).nonEmpty
+        } ||
+          repeatedInput.exists { info ⇒ !info.flag.isIrrefutable }
+      }
+      .toArray
+      .map(_.map(_.index).toSet)
 
   /** "Cross-conditionals" are repeated input molecules, such that one of them has a conditional or participates in a cross-molecule guard.
     * This value holds the set of input indices for all such molecules, for quick access.

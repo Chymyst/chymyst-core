@@ -233,8 +233,12 @@ class CoreSpec extends LogSpec with Matchers with TimeLimitedTests {
     withPool(new FixedPool(2)) { tp =>
       val a = m[Int]
       val f = b[Unit, String]
+
       site(tp)(
-        go { case a(x) + a(y) + f(_, r) if x > 0 => val z = x + y; r(s"Reaction {$getReactionInfo} yields $z") }
+        go { case a(x) + a(y) + f(_, r) if x > 0 ⇒
+          val z = x + y
+          r(s"Reaction {$getReactionInfo} yields $z")
+        }
       )
       a(1)
       a(2)

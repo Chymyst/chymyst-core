@@ -237,7 +237,7 @@ class MacrosSpec extends LogSpec with Matchers with BeforeAndAfterEach {
         true
       case _ => false
     }) shouldEqual true
-    result.info.outputs shouldEqual List(OutputMoleculeInfo(qq, ConstOutputPattern(()), List()))
+    result.info.outputs shouldEqual List(OutputMoleculeInfo(qq, ConstOutputPattern(()), List(NotLastBlock(1))))
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
     result.info.sha1 shouldEqual ax_qq_reaction_sha1
   }
@@ -293,7 +293,7 @@ class MacrosSpec extends LogSpec with Matchers with BeforeAndAfterEach {
     result.info.outputs should matchPattern { case Array(
     OutputMoleculeInfo(`a`, OtherOutputPattern, List()),
     OutputMoleculeInfo(`a`, OtherOutputPattern, List(ChooserBlock(_, 0, 2))),
-    OutputMoleculeInfo(`qqq`, ConstOutputPattern(""), List())
+    OutputMoleculeInfo(`qqq`, ConstOutputPattern(""), List(NotLastBlock(_)))
     ) =>
     }
 
@@ -309,7 +309,7 @@ class MacrosSpec extends LogSpec with Matchers with BeforeAndAfterEach {
     result.info.inputs should matchPattern {
       case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, _)) =>
     }
-    result.info.outputs shouldEqual List(OutputMoleculeInfo(qq, ConstOutputPattern(()), List()))
+    result.info.outputs shouldEqual List(OutputMoleculeInfo(qq, ConstOutputPattern(()), List(NotLastBlock(1))))
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
   }
 
