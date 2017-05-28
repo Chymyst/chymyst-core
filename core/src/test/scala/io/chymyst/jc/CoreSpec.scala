@@ -222,7 +222,7 @@ class CoreSpec extends LogSpec with Matchers with TimeLimitedTests {
   behavior of "reactionInfo"
 
   it should "give no info when running outside reactions" in {
-    reactionInfo shouldEqual None
+    getReactionInfo shouldEqual NO_REACTION_INFO_STRING
   }
 
   it should "give reaction info inside reaction" in {
@@ -230,7 +230,7 @@ class CoreSpec extends LogSpec with Matchers with TimeLimitedTests {
       val a = m[Int]
       val f = b[Unit, String]
       site(tp)(
-        go { case a(x) + a(y) + f(_, r) if x > 0 => val z = x + y; r(s"Reaction {${reactionInfo.get}} yields $z") }
+        go { case a(x) + a(y) + f(_, r) if x > 0 => val z = x + y; r(s"Reaction {${getReactionInfo} yields $z") }
       )
       a(1)
       a(2)

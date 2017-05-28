@@ -83,7 +83,7 @@ package object jc {
   def b[T, R]: B[T, R] = macro MoleculeMacros.bImpl[T, R] // IDEA cannot resolve symbol `MoleculeMacros`, but compilation works.
 
   /** This pool is used for sites that do not specify a thread pool. */
-  lazy val defaultPool = new SmartPool()
+  lazy val defaultPool = new BlockingPool()
 
   /** Access the global error log used by all reaction sites to report runtime errors.
     *
@@ -98,7 +98,7 @@ package object jc {
 
   /** A helper method to run a closure that uses a thread pool, safely closing the pool after use.
     *
-    * @param pool   A thread pool value, evaluated lazily - typically `new SmartPool(...)`.
+    * @param pool   A thread pool value, evaluated lazily - typically `new BlockingPool(...)`.
     * @param doWork A closure, typically containing a `site(pool)(...)` call.
     * @tparam T Type of the value returned by the closure.
     * @return The value returned by the closure, wrapped in a `Try`.

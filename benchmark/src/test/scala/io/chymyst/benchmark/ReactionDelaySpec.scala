@@ -20,7 +20,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
 
   it should "measure simple statistics on reaction delay" in {
     val f = b[Unit, Unit]
-    val tp = new SmartPool(4)
+    val tp = new BlockingPool(4)
     site(tp)(
       go { case f(_, r) => r() }
     )
@@ -39,7 +39,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
   it should "measure simple statistics on reaction delay with extra delay" in {
     val extraDelay = 1L
     val f = b[Unit, Unit]
-    val tp = new SmartPool(4)
+    val tp = new BlockingPool(4)
     site(tp)(
       go { case f(_, r) =>
         BlockingIdle {
@@ -67,7 +67,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
     val all_done = b[Unit, List[Double]]
     val done = m[Double]
     val begin = m[Unit]
-    val tp = new SmartPool(4)
+    val tp = new BlockingPool(4)
 
     val trials = 800
 
@@ -115,7 +115,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
     val a = m[Long]
     val c = m[Long]
     val f = b[Unit, Long]
-    val tp = new SmartPool(4)
+    val tp = new BlockingPool(4)
     site(tp)(
       go { case c(x) + f(_, r) => r(x) },
       go { case a(d) =>
@@ -273,7 +273,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
     val trials = 500
     val maxTimeout = 500
 
-    val tp = new SmartPool(4)
+    val tp = new BlockingPool(4)
     val timeInit = LocalDateTime.now
 
     val result = processResults(measureTimeoutDelays(trials, maxTimeout, tp))

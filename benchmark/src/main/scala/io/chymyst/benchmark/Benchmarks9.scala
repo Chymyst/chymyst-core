@@ -84,7 +84,7 @@ object Benchmarks9 {
     val all_done = m[Int]
     val f = b[LocalDateTime,Long]
 
-    val tp = new SmartPool(MainAppConfig.threads) // this benchmark will not work with a fixed pool
+    val tp = new BlockingPool(MainAppConfig.threads) // this benchmark will not work with a fixed pool
 
     site(tp)(
       go { case all_done(0) + f(tInit, r) => r(elapsed(tInit)) },

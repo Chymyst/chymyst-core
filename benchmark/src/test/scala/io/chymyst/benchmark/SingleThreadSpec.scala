@@ -4,7 +4,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.{LinkedBlockingQueue, ThreadPoolExecutor, TimeUnit}
 import java.util.{Timer, TimerTask}
 
-import io.chymyst.jc.{ChymystThreadInfo, FixedPool, withPool}
+import io.chymyst.jc.{FixedPool, withPool}
 import io.chymyst.test.LogSpec
 import org.scalatest.Matchers
 
@@ -22,17 +22,15 @@ class SingleThreadSpec extends LogSpec with Matchers {
     ()
   }
 
-  val emptyInfo = new ChymystThreadInfo()
-
   val n = 1000000
 
   it should "schedule tasks" in {
 
     counter.set(0)
     withPool(new FixedPool(1)) { tp =>
-      (1 to n).foreach { _ => tp.runReaction(incrementTask.run(), emptyInfo) }
+      (1 to n).foreach { _ => tp.runReaction(incrementTask.run()) }
       val done = Promise[Unit]()
-      tp.runReaction(doneTask(done).run(), emptyInfo)
+      tp.runReaction(doneTask(done).run())
       Await.result(done.future, Duration.Inf)
       counter.get() shouldEqual n
     }.get

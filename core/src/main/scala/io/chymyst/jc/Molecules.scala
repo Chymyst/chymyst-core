@@ -464,7 +464,7 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
   def isSelfBlocking: Boolean = valSelfBlockingPool.exists {
     pool ⇒
       Thread.currentThread match {
-        case t: SmartThread ⇒
+        case t: ChymystThread ⇒
           t.pool === pool
         case _ ⇒ false
       }

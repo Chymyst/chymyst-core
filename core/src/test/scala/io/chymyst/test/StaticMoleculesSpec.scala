@@ -435,7 +435,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
     val stabilize_d = b[Unit, Unit]
 
     val tp1 = new FixedPool(1)
-    val tp3 = new SmartPool(5)
+    val tp3 = new BlockingPool(5)
 
     site(tp3)(
       go { case wait(_, r) + e(_) => r() } onThreads tp3,

@@ -182,7 +182,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     s"Debug: In $this: no reactions started"
 
   private def scheduleReaction(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit =
-    poolForReaction.runReaction(buildReactionClosure(reaction, usedInputs, poolForReaction: Pool), reaction.newChymystThreadInfo)
+    poolForReaction.runReaction(reactionClosure(reaction, usedInputs, poolForReaction: Pool))
 
   /** This [[Runnable]] will be run on a single-threaded reaction site pool, therefore we do not need to synchronize anything.
     *
@@ -203,14 +203,16 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @param thisReaction Reaction to run.
     * @param usedInputs   Molecules (with values) that are consumed by the reaction.
     */
-  private def buildReactionClosure(thisReaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit = {
+  private def reactionClosure(thisReaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit = {
     lazy val reactionStartMessage = s"Debug: In $this: reaction {${thisReaction.info}} started on thread pool $reactionPool with thread id ${Thread.currentThread().getId}"
 
     if (logLevel > 0) logMessage(reactionStartMessage)
     lazy val reactionInputs = Core.moleculeBagToString(thisReaction, usedInputs)
     val exitStatus: ReactionExitStatus = try {
+      setReactionInfo(thisReaction.info)
       // Here we actually apply the reaction body to its input molecules.
       thisReaction.body.apply((usedInputs.length - 1, usedInputs))
+      clearReactionInfo()
       // If we are here, we had no exceptions during evaluation of reaction body.
       ReactionExitSuccess
     } catch {
@@ -276,16 +278,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       if (haveErrorsWithBlockingMolecules) reportError(errorMessage)
     }
   }
-
-  /** Determine whether the current thread is running a reaction, and if so, fetch the reaction info.
-    *
-    * @return `None` if the current thread is not running a reaction.
-    */
-  private def currentReactionInfo: Option[ChymystThreadInfo] =
-    Thread.currentThread match {
-      case t: ThreadWithInfo => t.chymystInfo
-      case _ => None
-    }
 
   /** Find a set of input molecule values for a reaction. */
   private def findInputMolecules(r: Reaction, moleculesPresent: MoleculeBagArray): Option[InputMoleculeList] = {
@@ -417,28 +409,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     molValuesForGuardRec(indices, foundValues, indices.length - 1, Nil)
   }
 
-
-  /** Check if the current reaction is allowed to emit a static molecule.
-    * If so, remove the emitter from the mutable set.
-    * The information about the current reaction is kept in the thread info.
-    *
-    * @param m A static molecule emitter.
-    * @return `()` if the thread is allowed to emit that molecule. Otherwise, an exception is thrown with a refusal reason message.
-    */
-  private def allowEmittedStaticMolOrThrow(m: Molecule, throwError: String => Unit): Unit = {
-    currentReactionInfo.foreach { info ⇒ // TODO: avoid using mutable state, simplify chymystInfo
-      if (!info.maybeEmit(m.siteIndex)) {
-        val refusalReason =
-          if (!info.couldEmit(m.siteIndex))
-            s"because this reaction {$info} does not consume it"
-          else s"because this reaction {$info} already emitted it"
-        throwError(refusalReason)
-      } // otherwise we are ok
-    }
-    if (currentReactionInfo.isEmpty)
-      throwError("because this thread does not run a chemical reaction")
-  }
-
   /** This variable is true only at the initial stage of building the reaction site,
     * when static reactions are run (on the same thread as the `site()` call) in order to emit the initial static molecules.
     */
@@ -487,19 +457,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         val admitsValue = !mol.isPipelined ||
           // TODO: could optimize this, since `pipelinedMolecules` is only used to check `admitsValue`. (optimize how?)
           pipelinedMolecules.get(mol.siteIndex).forall(infos ⇒ infos.isEmpty || infos.exists(_.admitsValue(molValue)))
-        if (mol.isStatic) {
-          // Check permission and throw exceptions on errors, but do not add anything to moleculesPresent and do not yet set the volatile value.
-          // If successful, this will modify the thread's copy of `ChymystThreadInfo` to register the fact that we emitted that static molecule.
-          allowEmittedStaticMolOrThrow(mol, refusalReason =>
-            throw new ExceptionEmittingStaticMol(s"In $this: Refusing to emit static molecule $mol($molValue) $refusalReason")
-          )
-          // If we are here, we are allowed to emit this static molecule.
-          if (admitsValue)
-            mol.asInstanceOf[M[T]].assignStaticMolVolatileValue(molValue)
-        }
+
         // If we are here, we are allowed to emit.
         // But will not emit if the pipeline does not admit the value.
         if (admitsValue) {
+          if (mol.isStatic) {
+            mol.asInstanceOf[M[T]].assignStaticMolVolatileValue(molValue)
+          }
           addToBag(mol, molValue)
 
           lazy val emitMoleculeMessage = s"Debug: In $this: emitting $mol($molValue), now have molecules [${moleculeBagToString(moleculesPresent)}]"

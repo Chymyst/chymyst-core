@@ -189,7 +189,7 @@ The user can control the number of threads in thread pools.
 
 ```scala
 val tp1 = new FixedPool(1)
-val tp8 = new SmartPool(8)
+val tp8 = new BlockingPool(8)
 
 site(tp8)( // reaction site runs on tp8
   go { case a(x) => ... } onThreads tp1, // this reaction runs on tp1
@@ -206,7 +206,7 @@ So, blocking operations do not decrease the degree of parallelism.
 When a `Chymyst`-based program needs to exit, it can shut down the thread pools that run reactions.
 
 ```scala
-val tp = new SmartPool(8)
+val tp = new BlockingPool(8)
 
 // define reactions and run them
 

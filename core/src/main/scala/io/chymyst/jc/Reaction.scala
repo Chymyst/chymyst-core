@@ -3,7 +3,6 @@ package io.chymyst.jc
 import Core._
 
 import scala.{Symbol => ScalaSymbol}
-import scala.collection.mutable
 
 /** Represents compile-time information about the pattern matching for values carried by input molecules.
   * Possibilities:
@@ -476,32 +475,6 @@ final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType,
   }
 }
 
-/** Represents information carried by every Chymyst thread that runs a reaction.
-  *
-  * @param statics        List of static molecules that this reaction consumes.
-  * @param reactionString String representation of the reaction, used for error messages.
-  */
-final class ChymystThreadInfo(
-  statics: Set[Int] = Set(),
-  reactionString: String = "<no reaction>"
-) {
-  override val toString: String = reactionString
-
-  /** This closure will contain a mutable set and will update it whenever a static molecule is emitted.
-    * If the static molecule has been already emitted, we disallow further `emit()` because a reaction can only consume one and emit one static molecule.
-    */
-  private[jc] val maybeEmit: Int => Boolean = {
-    val allowedToEmit: mutable.Set[Int] = if (statics.isEmpty)
-      mutable.Set()
-    else
-      mutable.Set() ++ statics
-
-    { molSiteIndex: Int => allowedToEmit.remove(molSiteIndex) }
-  }
-
-  private[jc] def couldEmit(molSiteIndex: Int): Boolean = statics.contains(molSiteIndex)
-}
-
 // This class is immutable.
 final class ReactionInfo(
   private[jc] val inputs: Array[InputMoleculeInfo],
@@ -511,14 +484,6 @@ final class ReactionInfo(
   private[jc] val sha1: String
 ) {
   private[jc] val hasBlockingInputs: Boolean = inputs.exists(_.molecule.isBlocking)
-
-  // TODO: this is used only in ChymystThreadInfo - eliminate this, in favor of static checking of emission of static molecules.
-  // This should be lazy because molecule.isStatic is known late.
-  private[jc] lazy val staticMols: Set[Int] = inputs
-    .map(_.molecule)
-    .filter(_.isStatic)
-    .map(_.siteIndex)
-    .toSet
 
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
@@ -689,8 +654,6 @@ final case class Reaction(
   threadPool: Option[Pool],
   retry: Boolean
 ) {
-  private[jc] def newChymystThreadInfo = new ChymystThreadInfo(info.staticMols, info.toString)
-
   /** Convenience method to specify thread pools per reaction.
     *
     * Example: go { case a(x) => ... } onThreads threadPool24

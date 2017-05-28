@@ -499,17 +499,17 @@ Thus, creating many thousands of new reaction pools is impossible.
 A thread pool is created like this:
 
 ```scala
-val tp = new SmartPool(8)
+val tp = new BlockingPool(8)
 
 ```
 
 This initializes a thread pool with 8 initial threads.
 
 As a convenience, the method `cpuCores` can be used to determine the number of available CPU cores.
-This value is used by `SmartPool`'s default constructor.
+This value is used by `BlockingPool`'s default constructor.
 
 ```scala
-val tp1 = new SmartPool() // same as new SmartPool(cpuCores)
+val tp1 = new BlockingPool() // same as new BlockingPool(cpuCores)
 
 ```
 
@@ -526,7 +526,7 @@ val tp1 = new FixedPool(4) // 4 threads for reactions, one thread for scheduler
 The `site()` call can take an additional argument that specifies a thread pool for all reactions at this RS.
 
 ```scala
-val tp = new SmartPool(8)
+val tp = new BlockingPool(8)
 
 val a = m[Unit]
 val c = m[Unit]
@@ -542,9 +542,9 @@ site(tp)(
 When it is desired that a particular reaction should be scheduled on a particular thread pool, the `onThreads()` method can be used.
 
 ```scala
-val tp = new SmartPool(8)
+val tp = new BlockingPool(8)
 
-val tp2 = new SmartPool(2)
+val tp2 = new BlockingPool(2)
 
 val a = m[Unit]
 val c = m[Unit]
@@ -572,7 +572,7 @@ Since JVM will not quit when some threads are still active, the programmer needs
 The method `shutdownNow()` will stop the threads in the thread pool.
 
 ```scala
-val tp = new SmartPool(8)
+val tp = new BlockingPool(8)
 
 site(tp)(...)
 
@@ -589,7 +589,7 @@ The `close()` method is an alias to `shutdownNow()`.
 
 ## Blocking calls and thread pools
 
-The `SmartPool` class is used to create thread pools for reactions that may generate a lot of blocking molecules.
+The `BlockingPool` class is used to create thread pools for reactions that may generate a lot of blocking molecules.
 This thread pool will automatically increment the pool size when a blocking molecule is emitted, and decrement it when the blocking molecule receives a reply and unblocks the calling process.
 
 This functionality is available with the `BlockingIdle` function.
@@ -603,7 +603,7 @@ The user needs to employ `BlockingIdle` explicitly only when a reaction contains
 Example:
 
 ```scala
-val pool = new SmartPool(8)
+val pool = new BlockingPool(8)
 
 val a = m[Url]
 val b = m[Client]
