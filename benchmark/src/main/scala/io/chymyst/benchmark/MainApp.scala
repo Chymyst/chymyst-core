@@ -29,6 +29,7 @@ object MainApp extends App {
     val result2 = {
       task
     }
+    println(s"debug: run3times got $result1, $result2")
     (result1 + result2 + 1) / 2
   }
 

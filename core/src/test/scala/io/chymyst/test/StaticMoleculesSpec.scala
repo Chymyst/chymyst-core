@@ -37,7 +37,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
       val thrown = intercept[Exception] {
         d(s"bad $i") // this "d" should not be emitted, even though "d" is sometimes not in the soup due to reactions!
       }
-      thrown.getMessage shouldEqual s"In Site{d + f/B → ...}: Refusing to emit static molecule d(bad $i) because this thread does not run a chemical reaction"
+      thrown.getMessage shouldEqual s"Error: static molecule d cannot be emitted non-statically"
       f.timeout()(500 millis) shouldEqual Some("ok")
     })
 
@@ -63,7 +63,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
           d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
           // and even if the initial d() emission was done late
         }
-        thrown.getMessage shouldEqual s"In Site{d + f/B → ...}: Refusing to emit static molecule d(bad $i $j) because this thread does not run a chemical reaction"
+        thrown.getMessage shouldEqual s"Error: static molecule d cannot be emitted non-statically"
         f.timeout()(500 millis) shouldEqual Some("ok")
       })
     })
@@ -140,7 +140,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
       )
       a()
       c()
-    } should have message "Error: In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] finished without replying to c/B. Reported error: In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: In Site{a + d → ...; c/B + carrier → ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + carrier(q) → } does not consume it"
+    } should have message "Error: In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] finished without replying to c/B. Reported error: In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d cannot be emitted non-statically"
   }
 
   it should "signal error when a static molecule is emitted twice by another reaction to trick static analysis" in {
@@ -157,7 +157,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
       )
       a()
       c()
-    } should have message "Error: In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/B/P() + carrier/P(d) + d/P()] finished without replying to c/B. Reported error: In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/B/P() + carrier/P(d) + d/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: In Site{a + d → ...; c/B + carrier + d → ...}: Refusing to emit static molecule d() because this reaction {c/B(_) + carrier(q) + d(_) → d()} already emitted it"
+    } should have message "Error: In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/B/P() + carrier/P(d) + d/P()] finished without replying to c/B. Reported error: In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/B/P() + carrier/P(d) + d/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d cannot be emitted non-statically"
   }
 
   it should "signal error when a static molecule is emitted inside an if-then block" in {
@@ -435,7 +435,7 @@ class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests wi
     val stabilize_d = b[Unit, Unit]
 
     val tp1 = new FixedPool(1)
-    val tp3 = new SmartPool(5)
+    val tp3 = new BlockingPool(5)
 
     site(tp3)(
       go { case wait(_, r) + e(_) => r() } onThreads tp3,

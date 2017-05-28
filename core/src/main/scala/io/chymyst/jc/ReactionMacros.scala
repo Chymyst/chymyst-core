@@ -225,6 +225,23 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     }
   }
 
+  /** Detect whether the symbol `s` is defined inside the scope of the symbol `owner`.
+    * Will return true for code like ` val owner = .... { val s = ... }  `
+    *
+    * @param s     Symbol to be examined.
+    * @param owner Owner symbol of the scope to be examined.
+    * @return True if `s` is defined inside the scope of `owner`.
+    */
+  @tailrec
+  final def isOwnedBy(s: MacroSymbol, owner: MacroSymbol): Boolean = s.owner match {
+    case `owner` =>
+      owner =!= NoSymbol
+    case `NoSymbol` =>
+      false
+    case o@_ =>
+      isOwnedBy(o, owner)
+  }
+
   /** Obtain the list of `case` expressions in a reaction.
     * There should be only one `case` expression.
     */
@@ -404,23 +421,6 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     private def pushEnv(env: OutputEnvironment) =
       outputEnv = env :: outputEnv
 
-    /** Detect whether the symbol `s` is defined inside the scope of the symbol `owner`.
-      * Will return true for code like ` val owner = .... { val s = ... }  `
-      *
-      * @param s     Symbol to be examined.
-      * @param owner Owner symbol of the scope to be examined.
-      * @return True if `s` is defined inside the scope of `owner`.
-      */
-    @tailrec
-    private def isOwnedBy(s: MacroSymbol, owner: MacroSymbol): Boolean = s.owner match {
-      case `owner` =>
-        owner =!= NoSymbol
-      case `NoSymbol` =>
-        false
-      case o@_ =>
-        isOwnedBy(o, owner)
-    }
-
     private def getInputFlag(binderTerm: Tree): InputPatternFlag = binderTerm match {
       case Ident(termNames.WILDCARD) =>
         WildcardF
@@ -595,6 +595,11 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
          *
          * For example, if `c` is a molecule then `c(123)` is matched as `c.apply(List(123))`.
          * Then `t` will be `c` and `f` will be `apply`.
+         *
+         * When calling emitters with implicit unit arguments, we get Apply((Apply((Select(t@Ident(TermName(_)), TermName(f))), List(jc.UnitArgImplicit)))
+         * Note that variables defined inside a reaction have the owner "method applyOrElse", which in turn has the owner the partial function of type "ReactionBody". We don't have a good way of distinguishing them from local variables that copy one of the input emitters!
+         * E.g. {case a(x) => val c = a; c() } has the symbol "c" whose owner is the partial function;
+         *  but { case a(x) => val c = m[Unit]; site(...); c() } also has a symbol "c" with the same owner.
          */
         case Apply(Select(t@Ident(TermName(_)), TermName(f)), argumentList)
           if f === "apply" || f === "checkTimeout" || f === "timeout" =>
@@ -736,9 +741,30 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   def reportError(message: String): Unit = c.error(c.enclosingPosition, message)
 
+  // This method helps move `shrink` out of the macro namespace, by making the type `Any` available.
+  // But it will be always called on a pair of Trees.
   def equalsInMacro(a: Any, b: Any): Boolean = a match {
     case x: Tree => x.equalsStructure(b.asInstanceOf[Tree])
-    //    case _ => a === b  // this is never used
+  }
+
+  class ReplaceStaticEmits(reactionBodyOwner: MacroSymbol) extends Transformer {
+    override def transform(tree: Tree): Tree = tree match {
+      case q"$f.apply[..$t](...$arg)" if arg.nonEmpty &&
+        f.tpe <:< typeOf[M[_]] &&
+        !isOwnedBy(f.asInstanceOf[Tree].symbol.owner, reactionBodyOwner)
+      =>
+        // TODO: skip traversing embedded Reaction() values!
+        c.typecheck(q"$f.applyStatic[..$t](...$arg)")
+
+      // Replace `isDefinedAt` by `true` in the reaction body since the reaction scheduler
+      // will check the molecule values before running a reaction.
+        // This fails due to `Error: scalac: Error: Position.point on NoPosition. UnsupportedOperationException. Position.scala:95`
+        /*
+      case q"$mods def isDefinedAt(..$args) = $body" ⇒
+        c.typecheck(q"$mods def isDefinedAt(..$args) = true")
+        */
+      case _ => super.transform(tree)
+    }
   }
 
   /* This code has been commented out after a lengthy but fruitless exploration of valid ways of modifying the reaction body.

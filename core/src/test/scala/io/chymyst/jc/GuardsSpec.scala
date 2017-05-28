@@ -577,7 +577,7 @@ class GuardsSpec extends LogSpec with Matchers {
     withPool(new FixedPool(4)) { tp ⇒
       site(tp)(go { case a(1) + a(y) + a(z) + f(_, r) if y > z ⇒ r(true) })
 
-      (1 to 3).foreach{ i ⇒ a(i) }
+      (1 to 3).foreach { i ⇒ a(i) }
       f.timeout()(1.second)
     }.get shouldEqual Some(true)
   }
@@ -588,7 +588,7 @@ class GuardsSpec extends LogSpec with Matchers {
 
     withPool(new FixedPool(4)) { tp ⇒
       site(tp)(go { case a(Some(1)) + a(Some(y)) + a(Some(z)) + f(_, r) if y > z && z > 1 ⇒ r(true) })
-      (1 to 3).foreach(_ ⇒ (1 to 3).foreach{ i ⇒ a(Some(i)) })
+      (1 to 3).foreach(_ ⇒ (1 to 3).foreach { i ⇒ a(Some(i)) })
       (1 to 3).map(_ ⇒ f.timeout()(1.second)).map(_.get).reduce(_ && _)
     }.get shouldEqual true
   }
@@ -602,7 +602,7 @@ class GuardsSpec extends LogSpec with Matchers {
         if py.get >= z + px ⇒ r(true) })
       // TODO: fix type breakage if we write z + px.get instead of z + x: the reason is that `px` is inferred to be Some[Any] instead of Some[Int]
 
-      (1 to 3).foreach{ i ⇒ a(Some(i)) }
+      (1 to 3).foreach { i ⇒ a(Some(i)) }
       f.timeout()(1.second)
     }.get shouldEqual Some(true)
   }

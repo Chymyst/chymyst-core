@@ -16,7 +16,7 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
   var tp0: Pool = _
 
   override def beforeEach(): Unit = {
-    tp0 = new SmartPool(12)
+    tp0 = new BlockingPool(12)
   }
 
   override def afterEach(): Unit = {
@@ -235,8 +235,8 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
     tp.shutdownNow()
   }
 
-  it should "not block the smart threadpool with BlockingIdle(Thread.sleep)" in {
-    val tp = new SmartPool(1)
+  it should "not block the blocking threadpool with BlockingIdle(Thread.sleep)" in {
+    val tp = new BlockingPool(1)
     val (g, g2) = makeBlockingCheck(BlockingIdle {
       Thread.sleep(500)
     }, tp)
@@ -249,7 +249,7 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
   }
 
   it should "implement BlockingIdle(BlockingIdle()) as BlockingIdle()" in {
-    val tp = new SmartPool(1)
+    val tp = new BlockingPool(1)
     val (g, g2) = makeBlockingCheck(BlockingIdle {
       BlockingIdle {
         Thread.sleep(500)
@@ -300,15 +300,15 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
     }
   }
 
-  it should "not block the smart threadpool when all threads are waiting for new reactions" in {
-    val tp = new SmartPool(2)
+  it should "not block the blocking threadpool when all threads are waiting for new reactions" in {
+    val tp = new BlockingPool(2)
     val g = blockThreadsDueToBlockingMolecule(tp)
     g.timeout()(400 millis) shouldEqual Some(())
     tp.shutdownNow()
   }
 
-  it should "not block the smart threadpool when more threads are available" in {
-    val tp = new SmartPool(3)
+  it should "not block the blocking threadpool when more threads are available" in {
+    val tp = new BlockingPool(3)
     val g = blockThreadsDueToBlockingMolecule(tp)
     g.timeout()(400 millis) shouldEqual Some(())
     tp.shutdownNow()

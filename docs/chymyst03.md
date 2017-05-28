@@ -187,7 +187,7 @@ import io.chymyst.jc._
 import java.time.LocalDateTime.now
 import java.time.temporal.ChronoUnit.MILLIS
 
-object C extends App {
+object C3 extends App {
 
   // declare molecule types
   val fetch = b[Unit, Unit]
@@ -221,7 +221,7 @@ If the relevant reaction never starts, — for instance, because some input mole
 The runtime engine cannot prevent this situation, because it cannot determine that the missing input molecules will never become available in the future.
 - The correct function of a program may depend on the order in which blocking molecules are emitted.
 With non-blocking molecules, the emission order is irrelevant since emission is concurrent, and so the programmer cannot control the actual order in which emitted molecules will become available in the soup.
-- If several reactions can consume a blocking molecule, one of these reactions will be selected at random.
+- If several reactions can consume a blocking molecule, one of these reactions will be selected arbitrarily.
 - Blocking molecule names are printed with the suffix `"/B"` in the debugging output.
 - Molecules with unit values can be emitted simply by calling `decr()` and `fetch()` without arguments, but they still require a pattern variable when used in the `case` construction.
 For this reason, we need to write `decr(_)` and `fetch(_, reply)` in the match patterns.
@@ -858,3 +858,74 @@ For these reasons, it is not easy to catch errors of this type, either at compil
 To avoid these problems, it is advisable to design reactions such that each reply is guaranteed to be sent exactly once,
 and that no exceptions can be thrown before sending the reply.
 If a condition needs to be checked before sending a reply, it should be a simple condition that is guaranteed not to throw an exception.
+
+## Example: map/reduce with blocking wait
+
+In the previous chapter, we have seen the following code for the ordered map/reduce problem:
+
+```
+val reduceAll = m[(Array[T], M[T])]
+site(
+ go { case reduceAll((arr, res)) =>
+  if (arr.length == 1) res(arr(0))
+  else  {
+    val (arr0, arr1) = arr.splitAt(arr.length / 2)
+    val a0 = m[T]
+    val a1 = m[T]
+    site( go { case a0(x) + a1(y) => res(reduceB(x, y)) } )
+    reduceAll((arr0, a0)) + reduceAll((arr1, a1))
+  }
+ }
+)
+// start the computation:
+val result = m[T]
+val array: Array[T] = ... // create the initial array
+reduceAll((array, result)) // start the computation
+// The result() molecule will be emitted with the final result.
+
+```
+
+Let us now rewrite this code such that we can wait until the entire computation is finished.
+
+Presently, the molecule `result()` is emitted as the only indication that the computation is done.
+We can easily introduce a blocking molecule `waitResult()` with a reaction that requires a `result()` molecule as another input:
+
+```scala
+val waitResult = B[Unit, T]
+
+go { case waitResult(_, r) + result(x) ⇒ r(x) }
+
+```
+
+If we now emit `waitResult()`, it will block until its reaction can start, which will happen only at the end of the computation.
+The reaction will call the reply emitter `r()`, giving it the result value.
+In this way, the final result of the computation will be sent to the process that emitted `waitResult()`.
+
+We can now encapsulate the code as a (blocking) function call:
+
+```
+def doReduce[T](array: Array[T], reduceB: (T, T) => T): T = {
+val result = m[T]
+val waitResult = B[Unit, T]
+
+site( go { case waitResult(_, r) + result(x) ⇒ r(x) } )
+
+val reduceAll = m[(Array[T], M[T])]
+
+site(
+ go { case reduceAll((arr, res)) =>
+  if (arr.length == 1) res(arr(0))
+  else  {
+    val (arr0, arr1) = arr.splitAt(arr.length / 2)
+    val a0 = m[T]
+    val a1 = m[T]
+    site( go { case a0(x) + a1(y) => res(reduceB(x, y)) } )
+    reduceAll((arr0, a0)) + reduceAll((arr1, a1))
+  }
+ }
+)
+reduceAll((array, result)) // start the computation
+waitResult() // wait until finished and return the value.
+}
+
+```

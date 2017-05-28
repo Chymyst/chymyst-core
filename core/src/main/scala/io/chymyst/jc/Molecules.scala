@@ -88,20 +88,11 @@ sealed trait Molecule extends PersistentHashCode {
     */
   val name: String
 
-  def isPipelined: Boolean = valIsPipelined
+  @inline def isPipelined: Boolean = valIsPipelined
 
-  def typeSymbol: Symbol = valTypeSymbol
+  @inline def typeSymbol: Symbol = valTypeSymbol
 
-  def siteIndex: Int = siteIndexValue
-
-  def isSelfBlocking: Boolean = valSelfBlockingPool.exists {
-    pool ⇒
-      Thread.currentThread match {
-        case t: SmartThread ⇒
-          t.pool === pool
-        case _ ⇒ false
-      }
-  }
+  @inline def siteIndex: Int = siteIndexValue
 
   /** This is called by a [[ReactionSite]] when a molecule becomes bound to that reaction site.
     *
@@ -200,6 +191,12 @@ sealed trait Molecule extends PersistentHashCode {
   override def toString: String = (if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "") // This can't be a lazy val because `isBlocking` is overridden in derived classes.
 }
 
+final case class Wrap[T](x: T) extends AnyVal {
+  def isEmpty: Boolean = false
+
+  def get: T = x
+}
+
 /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
   *
   * @param name Name of the molecule, used for debugging only.
@@ -207,18 +204,28 @@ sealed trait Molecule extends PersistentHashCode {
   */
 final class M[T](val name: String) extends (T => Unit) with Molecule {
 
-  def unapply(arg: ReactionBodyInput): Option[T] = {
-    val (index, inputMoleculeList) = arg
-    inputMoleculeList.lift(index).map(_.asInstanceOf[MolValue[T]].moleculeValue)
+  def unapply(arg: ReactionBodyInput): Wrap[T] = {
+    //    val (index, inputMoleculeList) = arg
+    val v = arg._2(arg._1).asInstanceOf[MolValue[T]].moleculeValue
+    Wrap(v)
   }
 
   /** Emit a non-blocking molecule.
     *
+    * Note that static molecules can be emitted only by a reaction that consumed them, and not by other code.
+    *
     * @param v Value to be put onto the emitted molecule.
     */
-  def apply(v: T): Unit = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, Unit]].emit(this, MolValue(v))
+  def apply(v: T): Unit =
+    if (isStatic)
+      throw new ExceptionEmittingStaticMol(s"Error: static molecule $this cannot be emitted non-statically")
+    else applyStatic(v)
 
   def apply()(implicit arg: TypeMustBeUnit[T]): Unit = apply(arg.getUnit)
+
+  def applyStatic(v: T): Unit = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, Unit]].emit(this, MolValue(v))
+
+  def applyStatic()(implicit arg: TypeMustBeUnit[T]): Unit = applyStatic(arg.getUnit)
 
   /** Volatile reader for a molecule.
     * The molecule must be declared as static.
@@ -453,6 +460,15 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
   override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]) = {
     super.setReactionSiteInfo(rs, index, valType, pipelined, selfBlocking)
     reactionSiteWrapper = rs.makeWrapper[T, R](this) // need to specify types for `makeWrapper`
+  }
+
+  def isSelfBlocking: Boolean = valSelfBlockingPool.exists {
+    pool ⇒
+      Thread.currentThread match {
+        case t: ChymystThread ⇒
+          t.pool === pool
+        case _ ⇒ false
+      }
   }
 
 }

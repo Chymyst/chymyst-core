@@ -135,19 +135,20 @@ object Core {
 
   /** Type used as argument for [[ReactionBody]]. The `Int` value is the index into the [[InputMoleculeList]] array. */
   private[jc] type ReactionBodyInput = (Int, InputMoleculeList)
-/*
-  implicit final class EitherMonad[L, R](val e: Either[L, R]) extends AnyVal {
-    def map[S](f: R => S): Either[L, S] = e match {
-      case Right(r) => Right(f(r))
-      case Left(l) => Left(l)
-    }
 
-    def flatMap[S](f: R => Either[L, S]): Either[L, S] = e match {
-      case Right(r) => f(r)
-      case Left(l) => Left(l)
+  /*
+    implicit final class EitherMonad[L, R](val e: Either[L, R]) extends AnyVal {
+      def map[S](f: R => S): Either[L, S] = e match {
+        case Right(r) => Right(f(r))
+        case Left(l) => Left(l)
+      }
+
+      def flatMap[S](f: R => Either[L, S]): Either[L, S] = e match {
+        case Right(r) => f(r)
+        case Left(l) => Left(l)
+      }
     }
-  }
-*/
+  */
   implicit final class ArrayWithExtraFoldOps[T](val s: Array[T]) extends AnyVal {
     def flatFoldLeft[R](z: R)(op: (R, T) => Option[R]): Option[R] = {
       var result = z
@@ -332,7 +333,6 @@ object Core {
     arr(index) = tempElement
     tempElement
   }
-*/
 
   def arrayShuffleInPlace[T](arr: Array[T]): Unit = {
     val s = arr.length
@@ -350,7 +350,7 @@ object Core {
       }
     }
   }
-
+*/
   def streamDiff[T](s: Iterator[T], skipBag: MutableMultiset[T]): Iterator[T] = {
     s.filter { t ⇒
       if (skipBag contains t) {
@@ -371,17 +371,31 @@ object Core {
       .toList
       .sorted.mkString(", ")
 
-  /** Obtain the reaction info string from the current thread.
+  /** Obtain the Chymyst reaction info string from the current thread.
     *
-    * @return `None` if the current thread is not running a reaction.
-    *         Otherwise, returns the string that describes the reaction most recently run by this thread.
+    * @return `"<none>"` if the current thread is not currently running a reaction.
+    *         Otherwise, returns the string that describes the reaction now being run by this thread.
     */
-  def reactionInfo: Option[String] = Thread.currentThread() match {
-    case t: ThreadWithInfo ⇒
-      t.chymystInfo.map(_.toString)
+  def getReactionInfo: String = Thread.currentThread() match {
+    case t: ChymystThread ⇒
+      t.reactionInfo
     case _ ⇒
-      None
+      NO_REACTION_INFO_STRING
   }
+
+  private[jc] def setReactionInfo(info: ReactionInfo): Unit = Thread.currentThread() match {
+    case t: ChymystThread ⇒
+      t.reactionInfoString = info.toString
+    case _ ⇒
+  }
+
+  private[jc] def clearReactionInfo(): Unit = Thread.currentThread() match {
+    case t: ChymystThread ⇒
+      t.reactionInfoString = NO_REACTION_INFO_STRING
+    case _ ⇒
+  }
+
+  val NO_REACTION_INFO_STRING = "<none>"
 
   private[jc] def newSingleThreadedExecutor: ThreadPoolExecutor = {
     val queue = new LinkedBlockingQueue[Runnable]

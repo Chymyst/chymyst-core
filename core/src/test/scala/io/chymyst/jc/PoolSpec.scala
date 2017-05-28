@@ -11,22 +11,20 @@ import scala.concurrent.ExecutionContext
 
 class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
 
-  val emptyReactionInfo = new ChymystThreadInfo()
-
   val timeLimit = Span(3000, Millis)
 
   val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
-  behavior of "smart pool"
+  behavior of "BlockingPool"
 
   it should "refuse to increase the thread pool beyond its limit" in {
     val n = 1065
-    val tp = new SmartPool(2)
+    val tp = new BlockingPool(2)
 
     tp.maxPoolSize should be < n
     tp.currentPoolSize shouldEqual 2
 
-    (1 to tp.maxPoolSize + 2).foreach (_ => tp.startedBlockingCall(None, false))
+    (1 to tp.maxPoolSize + 2).foreach (_ => tp.startedBlockingCall(false))
 
     tp.currentPoolSize shouldEqual tp.maxPoolSize
 
@@ -51,7 +49,7 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
       } catch {
         case _: InterruptedException => ()
       }
-    }, emptyReactionInfo)
+    })
 
     waiter.await()(patienceConfig, implicitly[Position])
 
@@ -73,7 +71,7 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
           other.printStackTrace()
           waiter { false shouldEqual true ; () }
       }
-    }, emptyReactionInfo)
+    })
     Thread.sleep(20)
 
     tp.shutdownNow()
@@ -81,40 +79,18 @@ class PoolSpec extends LogSpec with Matchers with TimeLimitedTests {
     waiter.await()(patienceConfig, implicitly[Position])
   }
 
-  behavior of "smart thread"
+  behavior of "Chymyst thread"
 
-  it should "run tasks on ordinary threads" in {
-    var x = 0
-    new RunnableWithInfo({x = 1}, emptyReactionInfo).run()
-
-    x shouldEqual 1
-
+  it should "return empty info by default" in {
+    val tp = new BlockingPool()
+    val thread = new ChymystThread(() ⇒ (), tp)
+    thread.reactionInfo shouldEqual Core.NO_REACTION_INFO_STRING
   }
 
-  it should "run tasks on chymyst threads and store info" in {
-    val waiter = new Waiter
-
-    var x = 0
-    val runnable = new RunnableWithInfo({
-      x = 1; waiter.dismiss()
-    }, emptyReactionInfo)
-
-    runnable.toString shouldEqual emptyReactionInfo.toString
-
-    val smartThread = new ThreadWithInfo(runnable)
-    smartThread.chymystInfo shouldEqual None // too early now, the runnable has not yet started
-    smartThread.start()
-
-    waiter.await()(patienceConfig, implicitly[Position])
-
-    x shouldEqual 1
-    smartThread.chymystInfo shouldEqual Some(emptyReactionInfo)
-  }
-
-  behavior of "smart pool"
+  behavior of "blocking pool"
 
   it should "initialize with default CPU core parallelism" in {
-    val tp = new SmartPool()
+    val tp = new BlockingPool()
 
     tp.currentPoolSize shouldEqual cpuCores
     tp.executionContext.isInstanceOf[ExecutionContext] shouldEqual true

@@ -424,7 +424,7 @@ Thus it is guaranteed that the encapsulated reactions involving `c()` will run c
 
 Consider the problem of implementing a concurrent map/reduce operation.
 This operation first takes an array of type `Array[A]` and applies a function `f : A ⇒ B` to each element of the array.
-This yields an `Array[B]` of intermediate results.
+This yields an `Array[T]` of intermediate results.
 After that, a “reduce”-like operation `reduceB : (B, B) ⇒ B`  is applied to that array, and the final result of type `B` is computed.
 
 This can be implemented in sequential code like this:
@@ -469,7 +469,7 @@ arr.foreach(carrier)
 As we apply `f` to each element, we will carry the intermediate results on molecules of another sort:
 
 ```scala
-val interm = m[B]
+val interm = m[T]
 
 ```
 
@@ -484,8 +484,7 @@ Finally, we need to gather the intermediate results carried by `interm()` molecu
 For this, we define the “accumulator” molecule `accum()` that will carry the final result as we accumulate it by going over all the `interm()` molecules.
 
 ```scala
-val accum = m[B]
-val fetch = b[Unit, B]
+val accum = m[T]
 
 ```
 
@@ -584,8 +583,8 @@ go { case interm(x) + interm(y) ⇒ interm(reduceB(x, y)) }
 
 ```
 
-As `interm()` molecules are emitted, this reaction will run at random between any available pairs of `interm()` molecules.
-When running on a multi-core CPU, the chemical machine should be able to schedule as many such reactions concurrently as needed to optimize the CPU load.
+As `interm()` molecules are emitted, this reaction could run between any available pairs of `interm()` molecules.
+When running on a multi-core CPU, the chemical machine should be able to schedule many such reactions concurrently and optimize the CPU load.
 
 This code, however, is not yet correct.
 When all `interm()` molecule pairs have reacted, the single `interm()` molecule will remain inert in the soup, since no other molecules can react with it.
@@ -675,7 +674,7 @@ A simple example of an associative but non-commutative operation on integers is 
 _r_(_x_, _y_) = if (_x_ mod 2 == 0) _x_ + _y_ else _x_ - _y_  
 
 If the `reduceB()` operation is not commutative, we may not apply the reduce operation to just _any_ pair of partial results.
-The map/reduce code in the previous subsection selects pairs at random and will fail to compute the correct final value for non-commutative reduce operations.
+The map/reduce code in the previous subsection will select pairs in arbitrary order and will most likely fail to compute the correct final value for non-commutative reduce operations.
 
 For instance, suppose we have an array `x1, x2, ..., x10` of intermediate results that we need to reduce with a `reduceB()` operation that is not commutative.
 We may now reduce `x4` with `x3` or with `x5`, but not with `x6` or any other element.
@@ -821,9 +820,9 @@ Note that all necessary reactions are almost identical and differ only in the mo
 We begin by defining an auxiliary function that creates one such reaction and new molecule emitters for it:
 
 ```scala
-def reduceOne[B](res: M[B]): (M[B], M[B]) = {
-  val a0 = m[B]
-  val a1 = m[B]
+def reduceOne[T](res: M[T]): (M[T], M[T]) = {
+  val a0 = m[T]
+  val a1 = m[T]
   site( go { case a0(x) + a1(x) => res(reduceB(x,y)) } )
   (a0, a1)
 }
@@ -836,7 +835,7 @@ We can now refactor our example 8-value chemistry by using this function.
 We have to start from the top result molecule `a07()` and descend towards the bottom:
 
 ```scala
-val a07 = m[B]
+val a07 = m[T]
 val (a03, a47) = reduceOne(a07)
 
 val (a01, a23) = reduceOne(a03)
@@ -860,7 +859,7 @@ Let us refactor the above code using an auxiliary recursive function that takes 
 The auxiliary function will also emit the initial values once we reach the bottom level of the tree where the required emitter will be available as the parameter `res`:
 
 ```scala
-def reduceAll[B](arr: Array[B], res: M[B]) =
+def reduceAll[T](arr: Array[T], res: M[T]) =
   if (arr.length == 1) res(arr(0)) // Emit initial values.
   else  {
     val (arr0, arr1) = arr.splitAt(arr.length / 2)
@@ -877,12 +876,12 @@ This refactoring would be the same in any programming language and is not specif
 Let us now inline the call to `reduceOne()` and rewrite the code as a self-contained function:
 
 ```
-def reduceAll[B](arr: Array[B], res: M[B]) =
+def reduceAll[T](arr: Array[T], res: M[T]) =
   if (arr.length == 1) res(arr(0))
   else  {
     val (arr0, arr1) = arr.splitAt(arr.length / 2)
-    val a0 = m[B]
-    val a1 = m[B]
+    val a0 = m[T]
+    val a1 = m[T]
 
     site( go { case a0(x) + a1(y) => res(reduceB(x, y)) } )
 
@@ -897,26 +896,26 @@ The new molecules cannot be emitted outside that scope.
 
 This solution works but has a defect: the function `reduceAll()` is not tail-recursive.
 To remedy this, we can refactor the body of the function `reduceAll()` into a _reaction_.
-In other words, we declare `reduceAll` as a molecule emitter with tupled type `(Array[B], M[B])` rather than a function.
+In other words, we declare `reduceAll` as a molecule emitter with tupled type `(Array[T], M[T])` rather than a function.
 The result is a "recursive chemistry":
 
 ```
-val reduceAll = m[(Array[B], M[B])]
+val reduceAll = m[(Array[T], M[T])]
 site(
  go { case reduceAll((arr, res)) =>
   if (arr.length == 1) res(arr(0))
   else  {
     val (arr0, arr1) = arr.splitAt(arr.length / 2)
-    val a0 = m[B]
-    val a1 = m[B]
+    val a0 = m[T]
+    val a1 = m[T]
     site( go { case a0(x) + a1(y) => res(reduceB(x, y)) } )
     reduceAll((arr0, a0)) + reduceAll((arr1, a1))
   }
  }
 )
 // start the computation:
-val result = m[B]
-val array: Array[B] = ... // create the initial array
+val result = m[T]
+val array: Array[T] = ... // create the initial array
 reduceAll((array, result)) // start the computation
 // The result() molecule will be emitted with the final result.
 

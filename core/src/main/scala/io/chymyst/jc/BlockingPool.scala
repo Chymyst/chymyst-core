@@ -12,22 +12,22 @@ object BlockingIdle {
 
   private[jc] def apply[T](selfBlocking: Boolean)(expr: => T): T =
     Thread.currentThread() match {
-      case t: SmartThread => t.blockingCall(expr, selfBlocking)
-      case _ => expr // BlockingIdle{...} has no effect if we are not running on a SmartThread
+      case t: ChymystThread => t.blockingCall(expr, selfBlocking)
+      case _ => expr // BlockingIdle{...} has no effect if we are not running on a ChymystThread
     }
 }
 
 /** A cached pool that increases its thread count whenever a blocking molecule is emitted, and decreases afterwards.
   * The `BlockingIdle` function, similar to `scala.concurrent.blocking`, is used to annotate expressions that should lead to an increase of thread count, and to a decrease of thread count once the idle blocking call returns.
   */
-class SmartPool(parallelism: Int = cpuCores) extends Pool {
+class BlockingPool(parallelism: Int = cpuCores) extends Pool {
 
   // Looks like we will die hard at about 2021 threads...
   val maxPoolSize: Int = 1000 + 2 * parallelism
 
   def currentPoolSize: Int = executor.getCorePoolSize
 
-  private[jc] override def startedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean) = synchronized {
+  private[jc] override def startedBlockingCall(selfBlocking: Boolean) = synchronized {
     val newPoolSize = math.min(currentPoolSize + 1, maxPoolSize)
     if (newPoolSize > currentPoolSize) {
       executor.setMaximumPoolSize(newPoolSize)
@@ -37,7 +37,7 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
     }
   }
 
-  private[jc] override def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean) = synchronized {
+  private[jc] override def finishedBlockingCall(selfBlocking: Boolean) = synchronized {
     val newPoolSize = math.max(parallelism, currentPoolSize - 1)
     executor.setCorePoolSize(newPoolSize) // Must set them in this order, so that the core pool size is never larger than the maximum pool size.
     executor.setMaximumPoolSize(newPoolSize)
@@ -47,9 +47,9 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
   val secondsToRecycleThread = 1L
   val shutdownWaitTimeMs = 200L
 
-  protected val executor = {
+  protected val executor: ThreadPoolExecutor = {
     val newThreadFactory = new ThreadFactory {
-      override def newThread(r: Runnable): Thread = new SmartThread(r, SmartPool.this)
+      override def newThread(r: Runnable): Thread = new ChymystThread(r, BlockingPool.this)
     }
     val queue = new LinkedBlockingQueue[Runnable]
     val executor = new ThreadPoolExecutor(initialThreads, parallelism, secondsToRecycleThread, TimeUnit.SECONDS, queue, newThreadFactory)
@@ -70,8 +70,7 @@ class SmartPool(parallelism: Int = cpuCores) extends Pool {
     }
   }.start()
 
-  private[chymyst] override def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit =
-    executor.execute(new RunnableWithInfo(closure, info))
+  private[chymyst] override def runReaction(closure: => Unit): Unit = executor.execute { () => closure }
 
   override def isInactive: Boolean = executor.isShutdown || executor.isTerminated
 }

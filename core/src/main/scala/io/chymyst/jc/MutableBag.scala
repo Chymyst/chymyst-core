@@ -3,9 +3,9 @@ package io.chymyst.jc
 
 import java.util.concurrent.ConcurrentLinkedQueue
 
-import scala.collection.JavaConverters.{asScalaIteratorConverter, asScalaSetConverter}
 import com.google.common.collect.ConcurrentHashMultiset
 
+import scala.collection.JavaConverters.{asScalaIteratorConverter, asScalaSetConverter}
 import scala.collection.mutable
 import scala.util.Try
 
@@ -24,9 +24,15 @@ sealed trait MutableBag[T] {
 
   def find(predicate: T => Boolean): Option[T]
 
-  def takeOne: Option[T] = Try(iterator.next).toOption
+  def takeOne: Seq[T] = Try{IndexedSeq(iterator.next)}.getOrElse(IndexedSeq())
 
-  def takeAny(count: Int): Seq[T] = iterator.take(count).toSeq
+  def headOption: Option[T] = Try(iterator.next).toOption
+
+  def takeAny(count: Int): Seq[T] =
+    if (count > 1)
+      iterator.take(count).to[IndexedSeq]
+    else
+      Try{IndexedSeq(iterator.next)}.getOrElse(IndexedSeq())
 
   protected def iterator: Iterator[T]
 

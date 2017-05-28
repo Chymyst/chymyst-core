@@ -197,7 +197,8 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     if (DetectInvalidInputGrouping.in(pattern))
       reportError("Reaction's input molecules must be grouped to the left in chemical notation, and have no @-pattern variables")
 
-    val moleculeInfoMaker = new MoleculeInfo(getCurrentSymbolOwner)
+    val currentSymbolOwner = getCurrentSymbolOwner
+    val moleculeInfoMaker = new MoleculeInfo(currentSymbolOwner)
 
     val (patternIn, patternOut, patternReply, wrongMoleculesInInput) = moleculeInfoMaker.from(pattern) // patternOut and patternReply should be empty
     maybeError("Input molecule patterns", "emits output molecules", patternOut.map(_._1.name))
@@ -432,8 +433,11 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       md
     )
 
+    // Replace static emissions in body.
+    val rbReplacedStatic = c.Expr[ReactionBody](new ReplaceStaticEmits(currentSymbolOwner).transform(reactionBody.tree))
+
     // Prepare the ReactionInfo structure.
-    val result = q"Reaction(new ReactionInfo($inputMolecules, $outputMoleculesReactionInfo, $shrunkOutputReactionInfo, $guardPresenceFlag, $reactionSha1), $reactionBody, None, false)"
+    val result = q"Reaction(new ReactionInfo($inputMolecules, $outputMoleculesReactionInfo, $shrunkOutputReactionInfo, $guardPresenceFlag, $reactionSha1), $rbReplacedStatic, None, false)"
     //    println(s"debug: ${showCode(result)}")
     //    println(s"debug raw: ${showRaw(result)}")
     //    c.untypecheck(result) // this fails

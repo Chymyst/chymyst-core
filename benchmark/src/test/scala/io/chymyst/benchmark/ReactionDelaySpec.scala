@@ -1,14 +1,16 @@
 package io.chymyst.benchmark
 
+import java.io.File
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
 import io.chymyst.jc._
 import io.chymyst.test.LogSpec
+import org.sameersingh.scalaplot.jfreegraph.JFGraphPlotter
 import org.scalatest.Matchers
 
-import scala.concurrent.{Await, Promise}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Promise}
 import scala.util.Random.nextInt
 
 class ReactionDelaySpec extends LogSpec with Matchers {
@@ -19,25 +21,81 @@ class ReactionDelaySpec extends LogSpec with Matchers {
 
   it should "measure simple statistics on reaction delay" in {
     val f = b[Unit, Unit]
-    val tp = new SmartPool(4)
+    val tp = new BlockingPool(4)
     site(tp)(
-      go { case f(_, r) =>
-        BlockingIdle {
-          Thread.sleep(1)
-        }
-        r()
-      } // reply immediately
+      go { case f(_, r) => r() }
     )
-    val trials = 200
-    val timeInit = System.nanoTime()
+    val trials = 1000
     val results = (1 to trials).map { _ =>
       val timeInit = System.nanoTime()
       f()
-      System.nanoTime() - timeInit
-    }
-    val timeElapsed = (System.nanoTime() - timeInit) / 1000000L
-    val meanReplyDelay = results.sum / safeSize(results.size) / 1000000L - 1
-    println(s"Sequential test: Mean reply delay is $meanReplyDelay ms out of $trials trials; the test took $timeElapsed ms")
+      (System.nanoTime() - timeInit).toDouble
+    }.sortBy(-_).drop(trials / 2)
+    val (mean, std) = getStats(results)
+    val meanReplyDelay = mean
+    println(s"Sequential test without extra delay: Mean reply delay is ${formatNanosToMs(meanReplyDelay)} ms ± ${formatNanosToMs(std)} ms out of ${results.length} trials")
+    tp.shutdownNow()
+  }
+
+  it should "measure simple statistics on reaction delay with extra delay" in {
+    val extraDelay = 1L
+    val f = b[Unit, Unit]
+    val tp = new BlockingPool(4)
+    site(tp)(
+      go { case f(_, r) =>
+        BlockingIdle {
+          Thread.sleep(extraDelay)
+        }
+        r()
+      }
+    )
+    val trials = 1000
+    val results = (1 to trials).map { _ =>
+      val timeInit = System.nanoTime()
+      f()
+      (System.nanoTime() - timeInit).toDouble
+    }.sortBy(-_).drop(trials / 2)
+    val (mean, std) = getStats(results)
+    val meanReplyDelay = mean - 1000000L * extraDelay
+    println(s"Sequential test with extra delay: Mean reply delay is ${formatNanosToMs(meanReplyDelay)} ms ± ${formatNanosToMs(std)} ms out of ${results.length} trials")
+    tp.shutdownNow()
+  }
+
+  it should "measure simple statistics on reaction delay in parallel, with extra delay" in {
+    val extraDelay = 1L
+    val f = b[Unit, Unit]
+    val counter = m[(Int, List[Double])]
+    val all_done = b[Unit, List[Double]]
+    val done = m[Double]
+    val begin = m[Unit]
+    val tp = new BlockingPool(4)
+
+    val trials = 800
+
+    site(tp)(
+      go { case begin(_) =>
+        val timeInit = System.nanoTime()
+        f()
+        val timeElapsed = System.nanoTime() - timeInit
+        done(timeElapsed.toDouble)
+      },
+      go { case all_done(_, r) + counter((0, results)) => r(results) },
+      go { case counter((n, results)) + done(res) if n > 0 => counter((n - 1, res :: results)) },
+      go { case f(timeOut, r) =>
+        BlockingIdle {
+          Thread.sleep(extraDelay)
+        }
+        r()
+      }
+    )
+
+    counter((trials, Nil))
+
+    (1 to trials).foreach { _ => begin() }
+    val result = all_done().sortBy(-_).drop(trials / 2)
+    val (mean, std) = getStats(result)
+    val meanReplyDelay = mean - 1000000L * extraDelay
+    println(s"Parallel test with extra delay: Mean reply delay is ${formatNanosToMs(meanReplyDelay)} ms ± ${formatNanosToMs(std)} ms out of ${result.length} trials")
     tp.shutdownNow()
   }
 
@@ -48,13 +106,17 @@ class ReactionDelaySpec extends LogSpec with Matchers {
     (mean, std)
   }
 
-  def formatNanos(x: Double): String = f"${x / 1000000}%1.3f"
+  def formatNanosToMs(x: Double): String = f"${x / 1000000.0}%1.3f"
+
+  def formatNanosToMicros(x: Double): String = f"${x / 1000.0}%1.3f µs"
+
+  def formatMicros(x: Double): String = f"$x%1.3f µs"
 
   it should "measure statistics on reaction scheduling for non-blocking molecules" in {
     val a = m[Long]
     val c = m[Long]
     val f = b[Unit, Long]
-    val tp = new SmartPool(4)
+    val tp = new BlockingPool(4)
     site(tp)(
       go { case c(x) + f(_, r) => r(x) },
       go { case a(d) =>
@@ -63,8 +125,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
       }
     )
     val trials = 10000
-    val timeInit = System.nanoTime()
-    val resultsRaw = (1 to trials).map { _ =>
+    val results = (1 to trials).map { _ =>
       val timeInit = System.nanoTime()
       a(timeInit)
       val timeAfterA = System.nanoTime() - timeInit
@@ -72,56 +133,72 @@ class ReactionDelaySpec extends LogSpec with Matchers {
       val timeElapsed = System.nanoTime() - timeInit
       (res, timeAfterA, timeElapsed)
     }
-    val timeElapsed = (System.nanoTime() - timeInit) / 1000000L
-
-    val results = resultsRaw.drop(resultsRaw.size / 2) // Drop first half of values due to warm-up of JVM.
-
-    val (meanReactionStartDelay, stdevReactionStartDelay) = getStats(results.map(_._1.toDouble))
-    val (meanEmitDelay, stdevEmitDelay) = getStats(results.map(_._2.toDouble))
-    val (meanReplyDelay, stdevReplyDelay) = getStats(results.map(_._3.toDouble))
-
-    println(s"Sequential test of emission and reaction delay: trials = ${results.size}, meanReactionStartDelay = ${formatNanos(meanReactionStartDelay)} ms +- ${formatNanos(stdevReactionStartDelay)} ms, meanEmitDelay = ${formatNanos(meanEmitDelay)} ms +- ${formatNanos(stdevEmitDelay)} ms, meanReplyDelay = ${formatNanos(meanReplyDelay)} ms +- ${formatNanos(stdevReplyDelay)} ms; the test took $timeElapsed ms")
-
     tp.shutdownNow()
+
+    // Drop first half of values due to warm-up of JVM.
+    val resultsStartDelay = results.map(_._1.toDouble).sortBy(-_).drop(trials / 2)
+    val resultsEmitDelay = results.map(_._2.toDouble).sortBy(-_).drop(trials / 2)
+    val resultsReplyDelay = results.map(_._3.toDouble).sortBy(-_).drop(trials / 2)
+
+    val resultsStartDelay0 = results.map(_._1.toDouble).sortBy(-_).take(trials / 20)
+    val resultsEmitDelay0 = results.map(_._2.toDouble).sortBy(-_).take(trials / 20)
+    val resultsReplyDelay0 = results.map(_._3.toDouble).sortBy(-_).take(trials / 20)
+
+    val (meanReactionStartDelay, stdevReactionStartDelay) = getStats(resultsStartDelay)
+    val (meanEmitDelay, stdevEmitDelay) = getStats(resultsEmitDelay)
+    val (meanReplyDelay, stdevReplyDelay) = getStats(resultsReplyDelay)
+
+    val (meanReactionStartDelay0, stdevReactionStartDelay0) = getStats(resultsStartDelay0)
+    val (meanEmitDelay0, stdevEmitDelay0) = getStats(resultsEmitDelay0)
+    val (meanReplyDelay0, stdevReplyDelay0) = getStats(resultsReplyDelay0)
+
+    println(s"Sequential test of emission and reaction delay (before JVM warm-up): trials = ${resultsStartDelay0.length}, meanReactionStartDelay = ${formatNanosToMicros(meanReactionStartDelay0)} +- ${formatNanosToMicros(stdevReactionStartDelay0)}, meanEmitDelay = ${formatNanosToMicros(meanEmitDelay0)} ± ${formatNanosToMicros(stdevEmitDelay0)}, meanReplyDelay = ${formatNanosToMicros(meanReplyDelay0)} ± ${formatNanosToMicros(stdevReplyDelay0)}")
+    println(s"Sequential test of emission and reaction delay (after JVM warm-up): trials = ${resultsStartDelay.length}, meanReactionStartDelay = ${formatNanosToMicros(meanReactionStartDelay)} +- ${formatNanosToMicros(stdevReactionStartDelay)}, meanEmitDelay = ${formatNanosToMicros(meanEmitDelay)} ± ${formatNanosToMicros(stdevEmitDelay)}, meanReplyDelay = ${formatNanosToMicros(meanReplyDelay)} ± ${formatNanosToMicros(stdevReplyDelay)}")
+
+    val offset = 250.0
+    val power = -1.0
+    showRegression("reaction start delay", results.map(_._1 / 1000.0), x ⇒ math.pow(x + offset, power))
+    showRegression("emit delay", results.map(_._2 / 1000.0), x ⇒ math.pow(x + offset, power))
+    showRegression("reply delay", results.map(_._3 / 1000.0), x ⇒ math.pow(x + offset, power))
   }
 
-  it should "measure simple statistics on reaction delay in parallel" in {
-    val f = b[Unit, Unit]
-    val counter = m[(Int, List[Long])]
-    val all_done = b[Unit, List[Long]]
-    val done = m[Long]
-    val begin = m[Unit]
-    val tp = new SmartPool(4)
+  def showRegression(message: String, results: Seq[Double], funcX: Double => Double, funcY: Double => Double = identity): Unit = {
+    // Perform regression to determine the effect of JVM warm-up.
+    // Assume that the warm-up works as a0 + a1*x^(-c). Try linear regression with different values of c.
+    val dataX = results.indices.map(_.toDouble)
+    val dataY = results // pass with a min window
+      .zipAll(results.drop(1), Double.PositiveInfinity, Double.PositiveInfinity)
+      .zipAll(results.drop(2), (Double.PositiveInfinity, Double.PositiveInfinity), Double.PositiveInfinity)
+      .map { case ((x, y), z) ⇒ math.min(x, math.min(y, z)) }
+    val (a0, a1, a0stdev) = regressLSQ(dataX, dataY, funcX, funcY)
+    val speedup = f"${(a0 + a1 * funcX(dataX.head)) / (a0 + a1*funcX(dataX.last))}%1.2f"
+    println(s"Regression results for $message: constant = ${formatMicros(a0)} ± ${formatMicros(a0stdev)}, gain = ${formatMicros(a1)}*iteration, max. speedup = $speedup")
 
-    val trials = 200
+    import org.sameersingh.scalaplot.Implicits._
 
-    site(tp)(
-      go { case begin(_) =>
-        val timeInit = System.nanoTime()
-        f()
-        val timeElapsed = System.nanoTime() - timeInit
-        done(timeElapsed)
-      },
-      go { case all_done(_, r) + counter((0, results)) => r(results) },
-      go { case counter((n, results)) + done(res) if n > 0 => counter((n - 1, res :: results)) },
-      go { case f(timeOut, r) =>
-        BlockingIdle {
-          Thread.sleep(1)
-        }
-        r()
-      }
-    )
+    val dataTheoryY = dataX.map(i ⇒ a0 + a1 * funcX(i))
+    val chart = xyChart(dataX → ((dataTheoryY, dataY)))
+    val plotter = new JFGraphPlotter(chart)
+    val plotdir = "logs/"
+    new File(plotdir).mkdir()
+    val plotfile = "benchmark " + message.replaceAll(" ", "_")
+    plotter.pdf(plotdir, plotfile)
+    println(s"Plot file produced in $plotdir$plotfile.pdf")
+  }
 
-    counter((trials, Nil))
-    (1 to trials).foreach(_ => begin())
+  def det(a00: Double, a01: Double, a10: Double, a11: Double): Double = a00 * a11 - a01 * a10
 
-    val timeInit = System.nanoTime()
-    (1 to trials).foreach { _ => begin() }
-    val result = all_done()
-    val meanReplyDelay = result.sum / safeSize(result.size) / 1000000L - 1
-    val timeElapsed = (System.nanoTime() - timeInit) / 1000000L
-    println(s"Parallel test: Mean reply delay is $meanReplyDelay ms out of $trials trials; the test took $timeElapsed ms")
-    tp.shutdownNow()
+  def regressLSQ(xs: Seq[Double], ys: Seq[Double], funcX: Double ⇒ Double, funcY: Double ⇒ Double): (Double, Double, Double) = {
+    val n = xs.length
+    val sumX = xs.map(funcX).sum
+    val sumXX = xs.map(funcX).map(x ⇒ x * x).sum
+    val sumY = ys.map(funcY).sum
+    val sumXY = xs.zip(ys).map { case (x, y) ⇒ funcX(x) * funcY(y) }.sum
+    val detS = det(n.toDouble, sumX, sumX, sumXX)
+    val a0 = det(sumY, sumX, sumXY, sumXX) / detS
+    val a1 = det(n.toDouble, sumY, sumX, sumXY) / detS
+    val eps = math.sqrt(xs.zip(ys).map { case (x, y) ⇒ math.pow(a0 + a1 * funcX(x) - funcY(y), 2) }.sum) / n
+    (a0, a1, eps)
   }
 
   type Result = (Int, Int, Long, Boolean)
@@ -198,7 +275,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
     val trials = 500
     val maxTimeout = 500
 
-    val tp = new SmartPool(4)
+    val tp = new BlockingPool(4)
     val timeInit = LocalDateTime.now
 
     val result = processResults(measureTimeoutDelays(trials, maxTimeout, tp))
@@ -307,7 +384,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
     val resultWithoutPayload = (1 to drop + iterations).map { _ ⇒
       val initTime = System.nanoTime()
       (1 to total).foreach { _ ⇒
-//        c()
+        //        c()
         0
       }
       (System.nanoTime() - initTime) / 1000L
@@ -332,7 +409,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
         c()
         i += 1
       }
-      (System.nanoTime() - initTime)/ 1000L
+      (System.nanoTime() - initTime) / 1000L
     }.drop(drop)
     val overheadAverage = results.sum / results.size
     println(s"Emitting non-blocking molecules using one while loop: emission time is $overheadAverage µs per molecule")
@@ -375,7 +452,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
         var i = 0
         val initTime = System.nanoTime()
         while (i < total) {
-//          c()
+          //          c()
           i += 1
         }
 
@@ -386,7 +463,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
       }
       resultsSum / iterations
     }
-    println(s"Emitting non-blocking molecules using two while loops: emission time is ${(overheadAverage - overheadAverageWithoutPayload)/1000L} µs per molecule, overhead ${overheadAverageWithoutPayload/1000L} µs")
+    println(s"Emitting non-blocking molecules using two while loops: emission time is ${(overheadAverage - overheadAverageWithoutPayload) / 1000L} µs per molecule, overhead ${overheadAverageWithoutPayload / 1000L} µs")
     tp.shutdownNow()
   }
 
@@ -434,7 +511,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
       }
       resultsSum / iterations
     }
-    println(s"Creating a new reaction using two while loops: emission time is ${(overheadAverage - overheadAverageWithoutPayload)/1000L} µs per reaction, overhead ${overheadAverageWithoutPayload/1000L} µs")
+    println(s"Creating a new reaction using two while loops: emission time is ${(overheadAverage - overheadAverageWithoutPayload) / 1000L} µs per reaction, overhead ${overheadAverageWithoutPayload / 1000L} µs")
 
   }
 
@@ -483,7 +560,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
       }
       resultsSum / iterations
     }
-    println(s"Creating a new reaction site using two while loops: emission time is ${(overheadAverage - overheadAverageWithoutPayload)/1000L} µs per site, overhead ${overheadAverageWithoutPayload/1000L} µs")
+    println(s"Creating a new reaction site using two while loops: emission time is ${(overheadAverage - overheadAverageWithoutPayload) / 1000L} µs per site, overhead ${overheadAverageWithoutPayload / 1000L} µs")
     tp.shutdownNow()
   }
 

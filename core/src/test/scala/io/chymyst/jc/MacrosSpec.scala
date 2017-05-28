@@ -1,6 +1,5 @@
 package io.chymyst.jc
 
-import io.chymyst.jc.Core._
 import io.chymyst.jc.Macros.{getName, rawTree}
 import io.chymyst.test.LogSpec
 import org.scalatest.{BeforeAndAfterEach, Matchers}
@@ -24,7 +23,7 @@ class MacrosSpec extends LogSpec with Matchers with BeforeAndAfterEach {
     tp0.shutdownNow()
   }
 
-behavior of "reaction sha1"
+  behavior of "reaction sha1"
 
   it should "compute different reaction sha1 for different conditions" in {
     val a = m[Int]
@@ -784,7 +783,9 @@ behavior of "reaction sha1"
     val c = m[Int]
 
     val r = go { case a(x) => if (x > 0)
-      while ({c(x); true }) {
+      while ( {
+        c(x); true
+      }) {
         c(x)
       }
     }
@@ -836,6 +837,39 @@ behavior of "reaction sha1"
       pf(0)
     }
     r.info.outputs(0).environments should matchPattern { case List(FuncLambda(_)) => }
+  }
+
+  it should "not detect molecules emitted via assignment" in {
+    val a = m[Int]
+    val c = m[Unit]
+    val r = go { case a(x) =>
+      val c2 = c
+      c2()
+    }
+    r.info.outputs.length shouldEqual 0
+  }
+
+  it should "not detect molecules emitted via argument of emitter type" in {
+    val a = m[M[Unit]]
+    val r = go { case a(c) =>
+      c()
+    }
+    r.info.outputs.length shouldEqual 0
+  }
+
+  it should "detect molecules emitted in val blockcs" in {
+    val a = m[Unit]
+    val c = m[Unit]
+    val r = go { case a(_) =>
+      val x = {
+        println("abc")
+        c()
+        0
+      }
+      x + 1
+    }
+    r.info.outputs.length shouldEqual 1
+    r.info.outputs(0) shouldEqual OutputMoleculeInfo(c, ConstOutputPattern(()), List())
   }
 
   it should "detect molecules emitted in partial functions" in {
@@ -982,6 +1016,12 @@ behavior of "reaction sha1"
     r.info.shrunkOutputs shouldEqual Array(OutputMoleculeInfo(a, ConstOutputPattern(1), Nil))
   }
 
+  it should "detect simple constant due to perfect if-then-else shrinkage within val block" in {
+    val a = m[Int]
+    val r = go { case a(1) => val x = { if (true) a(1) else a(1) }; x } // This livelock cannot be detected at compile time because it can't evaluate constants.
+    r.info.shrunkOutputs shouldEqual Array(OutputMoleculeInfo(a, ConstOutputPattern(1), Nil))
+  }
+
   it should "detect other pattern due to non-perfect if-then-else shrinkage" in {
     val a = m[Int]
     val r = go { case a(1) => if (true) a(1) else a(2) }
@@ -1022,8 +1062,8 @@ behavior of "reaction sha1"
   }
 
   behavior of "errors while emitting static molecules"
-
-  it should "refuse to emit static molecule from non-reaction thread" in {
+/* This functionality is not useful: it's running a reaction body manually.
+  it should "refuse to emit static molecule if reaction runs on a non-reaction thread" in {
     val dIncorrectStaticMol = m[Unit]
     val e = m[Unit]
 
@@ -1037,11 +1077,27 @@ behavior of "reaction sha1"
     val inputs = new InputMoleculeList(2)
     inputs(0) = MolValue(())
     inputs(1) = MolValue(())
-    val thrown = intercept[Exception] {
+    the[Exception] thrownBy {
       r1.body.apply((inputs.length - 1, inputs)) shouldEqual 123 // Reaction ran on a non-reaction thread (i.e. on this thread) and attempted to emit the static molecule.
-    }
-    val expectedMessage = s"In Site{${dIncorrectStaticMol.name} + e → ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this thread does not run a chemical reaction"
-    thrown.getMessage shouldEqual expectedMessage
+    } should have message s"In Site{${dIncorrectStaticMol.name} + e → ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this thread does not run a chemical reaction"
+    waitSome()
+    e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
+  }
+*/
+  it should "refuse to emit static molecule manually from non-reaction thread" in {
+    val dIncorrectStaticMol = m[Unit]
+    val e = m[Unit]
+
+    val r1 = go { case dIncorrectStaticMol(_) + e(_) => dIncorrectStaticMol(); 123 }
+
+    site(tp0)(
+      r1,
+      go { case _ => dIncorrectStaticMol() }
+    )
+
+    the[Exception] thrownBy {
+      dIncorrectStaticMol() shouldEqual (()) // User code attempted to emit the static molecule.
+    } should have message s"Error: static molecule ${dIncorrectStaticMol.name} cannot be emitted non-statically"
     waitSome()
     e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
   }
@@ -1050,7 +1106,7 @@ behavior of "reaction sha1"
     val c = new M[Unit]("c")
     val dIncorrectStaticMol = m[Unit]
     val e = new M[M[Unit]]("e")
-
+    clearGlobalErrorLog()
     site(tp0)(
       go { case e(s) => s() },
       go { case dIncorrectStaticMol(_) + c(_) => dIncorrectStaticMol() },
@@ -1060,7 +1116,7 @@ behavior of "reaction sha1"
     e(dIncorrectStaticMol)
     waitSome()
     e.logSoup shouldEqual s"Site{c + ${dIncorrectStaticMol.name} → ...; e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
-    globalErrorLog.exists(_.contains(s"In Site{c + ${dIncorrectStaticMol.name} → ...; e → ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this reaction {e(s) → } does not consume it")) shouldEqual true
+    globalErrorLog.exists(_.contains(s"In Site{c + dIncorrectStaticMol → ...; e → ...}: Reaction {e(s) → } with inputs [e/P(dIncorrectStaticMol)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule dIncorrectStaticMol cannot be emitted non-statically")) shouldEqual true
   }
 
 }

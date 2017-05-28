@@ -12,7 +12,7 @@ class Patterns02Spec extends LogSpec with Matchers with BeforeAndAfterEach {
   var tp: Pool = _
 
   override def beforeEach(): Unit = {
-    tp = new SmartPool(4)
+    tp = new BlockingPool(6)
   }
 
   override def afterEach(): Unit = {
@@ -124,7 +124,7 @@ class Patterns02Spec extends LogSpec with Matchers with BeforeAndAfterEach {
 
     val (_, _, crossovers, _, _, errors) = checkLog(log, n)
     println(s"Nonblocking Readers/Writers: Changed $crossovers times between reading and writing (iter1=$iter1, iter2=$iter2)")
-    crossovers should be > iter1
+    crossovers should be > 0
     errors shouldEqual IndexedSeq()
   }
 
@@ -178,7 +178,7 @@ class Patterns02Spec extends LogSpec with Matchers with BeforeAndAfterEach {
     val toWrite = m[Int]
     site(tp)(
       go { case toRead(_) => read() },
-      go {case toWrite(x) => write(x) }
+      go { case toWrite(x) => write(x) }
     )
 
     // Emit read() and write() at staggered intervals, allowing some consumption to take place.
@@ -188,7 +188,7 @@ class Patterns02Spec extends LogSpec with Matchers with BeforeAndAfterEach {
 
     val (_, _, crossovers, _, _, errors) = checkLog(log, n)
     println(s"Nonblocking Readers/Writers: Changed $crossovers times between reading and writing (iter1=$iter1, iter2=$iter2)")
-    crossovers should be > iter1
+    crossovers should be > 0
     errors shouldEqual IndexedSeq()
   }
 

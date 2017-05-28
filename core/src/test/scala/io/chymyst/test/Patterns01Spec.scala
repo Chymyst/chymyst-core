@@ -17,7 +17,7 @@ class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
   var tp: Pool = _
 
   override def beforeEach(): Unit = {
-    tp = new SmartPool(8)
+    tp = new BlockingPool(8)
   }
 
   override def afterEach(): Unit = {
@@ -241,7 +241,7 @@ class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
     val done = b[Unit, Vector[Int]]
 
     val total = 10000
-    val tp = new SmartPool(4) // Use SmartPool because using a FixedPool gives a deadlock.
+    val tp = new BlockingPool(4) // Use BlockingPool because using a FixedPool gives a deadlock.
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
       go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() },

@@ -10,7 +10,7 @@ class FixedPool(threads: Int) extends PoolExecutor(threads) {
   protected override def execFactory(threads: Int): (ExecutorService, BlockingQueue[Runnable]) = {
     val queue = new LinkedBlockingQueue[Runnable]
     val newThreadFactory = new ThreadFactory {
-      override def newThread(r: Runnable): Thread = new SmartThread(r, FixedPool.this)
+      override def newThread(r: Runnable): Thread = new ChymystThread(r, FixedPool.this)
     }
     val secondsToRecycleThread = 1L
     val executor = new ThreadPoolExecutor(threads, threads, secondsToRecycleThread, TimeUnit.SECONDS, queue, newThreadFactory)
@@ -26,17 +26,16 @@ class FixedPool(threads: Int) extends PoolExecutor(threads) {
 trait Pool extends AutoCloseable {
   def shutdownNow(): Unit
 
-  private[jc] def startedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean): Unit
+  private[jc] def startedBlockingCall(selfBlocking: Boolean): Unit
 
-  private[jc] def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean): Unit
+  private[jc] def finishedBlockingCall(selfBlocking: Boolean): Unit
 
   /** Run a reaction closure on the thread pool.
-    * The reaction closure will be created by [[ReactionSite.buildReactionClosure]].
+    * The reaction closure will be created by [[ReactionSite.reactionClosure]].
     *
     * @param closure A reaction closure to run.
-    * @param info    The reaction info for debugging and run-time sanity checking purposes.
     */
-  private[chymyst] def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit
+  private[chymyst] def runReaction(closure: => Unit): Unit
 
   def isInactive: Boolean
 
@@ -79,29 +78,29 @@ private[jc] abstract class PoolExecutor(threads: Int = 8) extends Pool {
     }
   }.start()
 
-  private[jc] def deadlockCheck(infoOpt: Option[ChymystThreadInfo]): Unit = {
+  private[jc] def deadlockCheck(): Unit = {
     val deadlock = blockingCalls.get >= executor.getMaximumPoolSize
     if (deadlock) {
-      val message = s"Error: deadlock occurred in fixed pool (${executor.getMaximumPoolSize} threads) due to ${blockingCalls.get} concurrent blocking calls, reaction: ${infoOpt.getOrElse("<none>").toString}"
+      val message = s"Error: deadlock occurred in fixed pool (${executor.getMaximumPoolSize} threads) due to ${blockingCalls.get} concurrent blocking calls, reaction: ${Core.getReactionInfo}"
       Core.logError(message, print = true)
     }
   }
 
-  private[chymyst] def runReaction(closure: => Unit, info: ChymystThreadInfo): Unit = {
-    deadlockCheck(Some(info))
-    executor.execute(new RunnableWithInfo(closure, info))
+  private[chymyst] def runReaction(closure: => Unit): Unit = {
+    deadlockCheck()
+    executor.execute { () ⇒ closure }
   }
 
   override def isInactive: Boolean = executor.isShutdown || executor.isTerminated
 
-  private[jc] override def startedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean) = if (selfBlocking) {
+  private[jc] override def startedBlockingCall(selfBlocking: Boolean) = if (selfBlocking) {
     blockingCalls.getAndIncrement()
-    deadlockCheck(infoOpt)
+    deadlockCheck()
   }
 
-  private[jc] override def finishedBlockingCall(infoOpt: Option[ChymystThreadInfo], selfBlocking: Boolean) = if (selfBlocking) {
+  private[jc] override def finishedBlockingCall(selfBlocking: Boolean) = if (selfBlocking) {
     blockingCalls.getAndDecrement()
-    deadlockCheck(infoOpt)
+    deadlockCheck()
   }
 
 }

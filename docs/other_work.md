@@ -161,6 +161,6 @@ Here is a dictionary:
 | molecule emitter | channel name | `val a :  M[Int]` |
 | blocking emitter | synchronous channel | `val q :  B[Unit, Int]` |
 | reaction | process | `val r1 = go { case a(x) + ... => ... }` |
-| emitting an output molecule | sending a message | `a(123)` _// side effect_ |
+| emitting a molecule | sending a message | `a(123)` _// side effect_ |
 | emitting a blocking molecule | sending a synchronous message | `q()` _// returns_ `Int` |
 | reaction site | join definition | `site(r1, r2, ...)` |
