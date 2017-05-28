@@ -17,7 +17,7 @@ class MutableBagSpec extends LogSpec with Matchers with TimeLimitedTests {
   it should "retrieve None from empty bag" in {
     val bag = new MutableMapBag[Int]()
 
-    bag.takeOne shouldEqual None
+    bag.takeOne shouldEqual Seq()
     bag.takeAny(0) shouldEqual Seq()
     bag.takeAny(10) shouldEqual Seq()
   }
@@ -26,7 +26,7 @@ class MutableBagSpec extends LogSpec with Matchers with TimeLimitedTests {
     val bag = new MutableMapBag[Int]()
 
     bag.add(10)
-    bag.takeOne shouldEqual Some(10)
+    bag.takeOne shouldEqual Seq(10)
   }
 
   it should "retrieve elements in hash order" in {
@@ -98,7 +98,7 @@ class MutableBagSpec extends LogSpec with Matchers with TimeLimitedTests {
   it should "retrieve None from empty queue bag" in {
     val bag = new MutableQueueBag[Int]()
 
-    bag.takeOne shouldEqual None
+    bag.takeOne shouldEqual Seq()
     bag.takeAny(0) shouldEqual Seq()
     bag.takeAny(10) shouldEqual Seq()
   }
@@ -107,7 +107,8 @@ class MutableBagSpec extends LogSpec with Matchers with TimeLimitedTests {
     val bag = new MutableQueueBag[Int]()
 
     bag.add(10)
-    bag.takeOne shouldEqual Some(10)
+    bag.takeOne shouldEqual Seq(10)
+    bag.takeAny(1) shouldEqual Seq(10)
   }
 
   it should "retrieve elements in FIFO order" in {

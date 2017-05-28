@@ -1117,7 +1117,7 @@ class MacrosSpec extends LogSpec with Matchers with BeforeAndAfterEach {
     e(dIncorrectStaticMol)
     waitSome()
     e.logSoup shouldEqual s"Site{c + ${dIncorrectStaticMol.name} → ...; e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
-    globalErrorLog.exists(_.contains(s"In Site{c + ${dIncorrectStaticMol.name} → ...; e → ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this reaction {e(s) → } does not consume it")) shouldEqual true
+    globalErrorLog.exists(_.contains(s"In Site{c + dIncorrectStaticMol → ...; e → ...}: Reaction {e(s) → } with inputs [e/P(dIncorrectStaticMol)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule dIncorrectStaticMol cannot be emitted non-statically")) shouldEqual true
   }
 
 }

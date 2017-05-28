@@ -426,7 +426,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @return `()` if the thread is allowed to emit that molecule. Otherwise, an exception is thrown with a refusal reason message.
     */
   private def allowEmittedStaticMolOrThrow(m: Molecule, throwError: String => Unit): Unit = {
-    currentReactionInfo.foreach { info =>
+    currentReactionInfo.foreach { info ⇒ // TODO: avoid using mutable state, simplify chymystInfo
       if (!info.maybeEmit(m.siteIndex)) {
         val refusalReason =
           if (!info.couldEmit(m.siteIndex))

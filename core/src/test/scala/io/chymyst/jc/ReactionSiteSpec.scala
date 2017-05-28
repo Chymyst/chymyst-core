@@ -22,9 +22,9 @@ class ReactionSiteSpec extends LogSpec with Matchers with BeforeAndAfterEach {
 
   // This test is here only to ensure coverage.
   it should "produce messages for reaction status" in {
-    ReactionExitFailure("abc").getMessage shouldEqual ""
+    ReactionExitFailure("abc").getMessage shouldEqual ". Reported error: abc"
     ReactionExitSuccess.getMessage shouldEqual ""
-    ReactionExitRetryFailure("abc").getMessage shouldEqual "abc"
+    ReactionExitRetryFailure("abc").getMessage shouldEqual ". Reported error: abc"
   }
 
   behavior of "reaction"
