@@ -211,10 +211,9 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     maybeError("Input molecules", "uses other molecules inside molecule value patterns", wrongMoleculesInInput.map(_.name))
 
     val (guardIn, guardOut, guardReply, wrongMoleculesInGuard) = moleculeInfoMaker.from(guard) // guard in/out/reply lists should be all empty
-    maybeError("Input guard", "matches on additional input molecules", guardIn.map(_._1.name))
     maybeError("Input guard", "emit any output molecules", guardOut.map(_._1.name), "not")
     maybeError("Input guard", "perform any reply actions", guardReply.map(_._1.name), "not")
-    maybeError("Input guard", "matches on molecules", wrongMoleculesInGuard.map(_.name))
+    maybeError("Input guard", "matches on molecules", (guardIn.map(_._1) ++ wrongMoleculesInGuard).map(_.name))
 
     val (bodyIn, bodyOut, bodyReply, wrongMoleculesInBody) = moleculeInfoMaker.from(body) // bodyIn should be empty
     maybeError("Reaction body", "matches on additional input molecules", bodyIn.map(_._1.name))

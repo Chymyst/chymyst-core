@@ -419,12 +419,21 @@ case c(_) + a(y) => c()
       }
       * - {
         compileError(
+          "val r = go { case e(_) if (null match { case a(_, r) + c(_) => true }) => }"
+        ).check(
+          """
+            |          "val r = go { case e(_) if (null match { case a(_, r) + c(_) => true }) => }"
+            |                      ^
+            |""".stripMargin, "Input guard must not contain a pattern that matches on molecules (a, c)")
+      }
+      * - {
+        compileError(
           "val r = go { case e(_) if (null match { case e(_) => true }) => }"
         ).check(
           """
             |          "val r = go { case e(_) if (null match { case e(_) => true }) => }"
             |                      ^
-            |""".stripMargin, "Input guard must not contain a pattern that matches on additional input molecules (e)")
+            |""".stripMargin, "Input guard must not contain a pattern that matches on molecules (e)")
       }
     }
 
