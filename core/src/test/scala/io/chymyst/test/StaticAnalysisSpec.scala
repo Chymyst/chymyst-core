@@ -538,7 +538,7 @@ class StaticAnalysisSpec extends LogSpec with Matchers with TimeLimitedTests {
     val f = b[Unit, Int]
 
     val warnings = site(
-      go { case f(_, r) + a(_) + c(_) => r(0); a(1); f() }
+      go { case f(_, r) + a(_) + c(_) => r(0); f(); a(1) }
     )
     warnings shouldEqual WarningsAndErrors(Nil, Nil, "Site{a + c + f/B → ...}")
   }

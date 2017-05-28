@@ -177,8 +177,8 @@ class Patterns02Spec extends LogSpec with Matchers with BeforeAndAfterEach {
     val toRead = m[Unit]
     val toWrite = m[Int]
     site(tp)(
-      go { case toRead(_) => read() },
-      go { case toWrite(x) => write(x) }
+      go { case toRead(_) => val x = read(); x },
+      go { case toWrite(x) => write(x); 0 }
     )
 
     // Emit read() and write() at staggered intervals, allowing some consumption to take place.

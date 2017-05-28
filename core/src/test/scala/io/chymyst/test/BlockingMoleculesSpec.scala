@@ -173,7 +173,7 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
     val g2 = b[Unit, Int]
     val tp = new FixedPool(2)
     site(tp)(
-      go { case d(_) => g() }, // this will be used to emit g() and blocked
+      go { case d(_) => g(); () }, // this will be used to emit g() and block the thread
       go { case c(_) + g(_, r) => r(0) }, // this will not start because we have no c()
       go { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
     )
@@ -190,7 +190,7 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
     val g2 = b[Unit, Int]
     val tp = new FixedPool(1)
     site(tp)(
-      go { case d(_) => g() }, // this will be used to emit g() and block one thread
+      go { case d(_) => g(); () }, // this will be used to emit g() and block one thread
       go { case c(_) + g(_, r) => r(0) }, // this will not start because we have no c()
       go { case g2(_, r) => r(1) } // we will use this to test whether the entire thread pool is blocked
     )

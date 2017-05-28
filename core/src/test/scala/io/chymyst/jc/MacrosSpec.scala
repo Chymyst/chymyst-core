@@ -747,7 +747,7 @@ class MacrosSpec extends LogSpec with Matchers with BeforeAndAfterEach {
     val a = m[Int]
     val c = b[Int, Int]
 
-    val r = go { case a(x) => c(if (x > 0) c(x) else c(x + 1)) }
+    val r = go { case a(x) => a(if (x > 0) c(x) else c(x + 1)) }
 
     r.info.outputs(0).environments should matchPattern { case List(ChooserBlock(_, 0, 2)) ⇒ }
     r.info.outputs(1).environments should matchPattern { case List(ChooserBlock(_, 1, 2)) ⇒ }

@@ -115,7 +115,7 @@ class Patterns03Spec extends LogSpec with Matchers with BeforeAndAfterEach {
     }
 
     // 1) Number of locks being acquired is same as number being released (the other ones as there are only two types of events)
-    val acquiredLocks = events.collect { case (event: LockAcquisition) => 1 }.sum
+    val acquiredLocks = events.collect { case (event @ (_: LockAcquisition)) ⇒ 1 }.sum
     acquiredLocks * 2 shouldBe events.size
 
     val (writersByName, readersPart) = eventsWithIndices.partition(_._1.name == writerName) // binary split by predicate

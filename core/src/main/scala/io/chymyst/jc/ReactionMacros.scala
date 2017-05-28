@@ -616,14 +616,15 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           lazy val funcName = s"${t.symbol.fullName}.$f"
           if (flag1.needTraversal) {
             // Traverse the trees of the argument list elements (molecules should only have one argument anyway).
-            if (thisSymbolIsAMolecule || thisSymbolIsAReply) {
-              argumentList.foreach(traverse) // Molecules and replies are a once-only output environment, so no need to push another environment.
-            } else {
-              renewOutputEnvId()
-              pushEnv(FuncBlock(currentOutputEnvId, name = funcName))
-              argumentList.foreach(traverse)
-              finishTraverseWithOutputEnv()
-            }
+            renewOutputEnvId()
+            val newEnv = if (thisSymbolIsAMolecule || thisSymbolIsAReply)
+              NotLastBlock(currentOutputEnvId)
+            // Molecules and replies are a once-only output environment, so no need to push another environment. However, we need to mark this with NotLastBlock.
+            else FuncBlock(currentOutputEnvId, name = funcName)
+
+            pushEnv(newEnv)
+            argumentList.foreach(traverse)
+            finishTraverseWithOutputEnv()
           }
 
           if (includeThisSymbol) {
@@ -644,14 +645,18 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         case q"$f[..$_](..$args)"
           if args.nonEmpty =>
           val fullName = f.asInstanceOf[Tree].symbol.fullName
-          if (onceOnlyFunctionCodes.contains(fullName))
-          // The function is one of the known once-only evaluating functions such as Some(), List(), etc.
-          // In that case, we don't need to set a special environment, since a once-only environment is equivalent to no environment.
-          // We just traverse the tree and harvest the molecules normally.
-            super.traverse(tree)
-
-          else {
-            traverse(f.asInstanceOf[Tree])
+          if (onceOnlyFunctionCodes.contains(fullName)) {
+            // The function is one of the known once-only evaluating functions such as Some(), List(), etc.
+            // In that case, we don't need to set a special environment, since a once-only environment is equivalent to no environment.
+            // We just traverse the tree and harvest the molecules normally.
+            // However, NotLastBlock() must be set.
+            renewOutputEnvId()
+            pushEnv(NotLastBlock(currentOutputEnvId))
+            super.traverse(tree) // avoid infinite loop -- we are not destructuring this function application
+            finishTraverseWithOutputEnv()
+          } else {
+            renewOutputEnvId()
+            traverseWithOutputEnv(f, NotLastBlock(currentOutputEnvId))
             renewOutputEnvId()
             pushEnv(FuncBlock(currentOutputEnvId, name = fullName))
             val isIterating = iteratingFunctionCodes.contains(fullName)

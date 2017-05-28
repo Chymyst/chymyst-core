@@ -124,26 +124,24 @@ class CommonMacros(val c: blackbox.Context) {
     */
   sealed trait OutputPatternFlag {
     val needTraversal: Boolean = false
-    val patternType: OutputPatternType
+    val patternTypeWithTree: OutputPatternType = OtherOutputPattern
   }
 
   case object OtherOutputPatternF extends OutputPatternFlag {
     override val needTraversal: Boolean = true
-    override val patternType: OutputPatternType = OtherOutputPattern
 
     override val toString: String = "?"
   }
 
   case object EmptyOutputPatternF extends OutputPatternFlag {
     override val needTraversal: Boolean = true
-    override val patternType: OutputPatternType = OtherOutputPattern
 
     /** The pattern is empty, and most probably will be used with a value, so we print `f(?)` in error messages. */
     override val toString: String = "?"
   }
 
   final case class ConstOutputPatternF(v: Tree) extends OutputPatternFlag { // ignore warning about "outer reference in this type test"
-    override val patternType: OutputPatternType = ConstOutputPattern(v)
+    override val patternTypeWithTree: OutputPatternType = ConstOutputPattern(v)
 
     override val toString: String = showCode(v)
   }
@@ -190,6 +188,13 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     case _ =>
       reportError("Reactions must contain only one `case` clause")
       null
+  }
+
+  def printRawPatternType(p: OutputPatternType): String = {
+    p match {
+      case ConstOutputPattern(q"()") ⇒ ""
+      case _ ⇒ p.toString
+    }
   }
 
   def buildReactionValueImpl(reactionBody: c.Expr[ReactionBody], pattern: Tree, guard: Tree, body: Tree): c.Expr[Reaction] = {
@@ -366,12 +371,10 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     // However, the order of output molecules corresponds to the order in which they might be emitted.
     val allOutputInfo = bodyOut
     // Output molecule info comes only from the body since neither the pattern nor the guard can emit output molecules.
-    val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, ${p.patternType}, ${envs.reverse})" }.toArray
-
-    val outputMoleculeInfoMacro = allOutputInfo.map { case (m, p, envs) => (m, p.patternType, envs) }
+    val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, ${p.patternTypeWithTree}, ${envs.reverse})" }.toArray
 
     // Compute shrunk output info.
-    val shrunkOutputInfo = OutputEnvironment.shrink(outputMoleculeInfoMacro, equalsInMacro)
+    val shrunkOutputInfo = OutputEnvironment.shrink(allOutputInfo.map { case (m, p, envs) => (m, p.patternTypeWithTree, envs) }, equalsInMacro)
     val shrunkOutputReactionInfo = shrunkOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
 
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
@@ -380,8 +383,8 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     maybeError("Blocking input molecules", "matches a reply emitter with a simple variable", wrongBlockingMolecules.map(ms ⇒ s"molecule ${ms.name}"), "contain a pattern that")
 
     // If we are here, all reply emitters have correct pattern variables. Now we check that each blocking molecule has one and only one reply.
-    val bodyReplyInfoMacro = bodyReply.map { case (m, p, envs) => (m, p.patternType, envs) }
-    val shrunkReplyInfo: List[(MacroSymbol, OutputPatternType, List[OutputEnvironment])] = OutputEnvironment.shrink(bodyReplyInfoMacro, equalsInMacro)
+    val shrunkReplyInfo: List[(MacroSymbol, OutputPatternType, List[OutputEnvironment])] =
+      OutputEnvironment.shrink(bodyReply.map { case (m, p, envs) => (m, p.patternTypeWithTree, envs) }, equalsInMacro)
 
     val shrunkGuaranteedReplies = shrunkReplyInfo.filter(_._3.forall(_.atLeastOne)).map(_._1.asTerm.name.decodedName)
     val shrunkPossibleReplies = shrunkReplyInfo.map(_._1.asTerm.name.decodedName)
@@ -396,7 +399,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       .filter(_._1.typeSignature <:< weakTypeOf[B[_, _]])
       .filter(_._3.forall(!_.notLastBlock))
       .map { case (mol, flag, _) ⇒
-        s"molecule ${mol.name}($flag)"
+        s"molecule ${mol.name}(${printRawPatternType(flag)})"
       }
 
     maybeError("Blocking molecules", "but no unconditional reply found for", blockingMoleculesWithoutReply.map(ms ⇒ s"reply emitter $ms"), "receive a reply")
