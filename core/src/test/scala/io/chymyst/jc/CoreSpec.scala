@@ -223,6 +223,10 @@ class CoreSpec extends LogSpec with Matchers with TimeLimitedTests {
 
   it should "give no info when running outside reactions" in {
     getReactionInfo shouldEqual NO_REACTION_INFO_STRING
+    setReactionInfo(new ReactionInfo(Array(), Array(), Array(), GuardAbsent, "sha1"))
+    getReactionInfo shouldEqual NO_REACTION_INFO_STRING
+    clearReactionInfo()
+    getReactionInfo shouldEqual NO_REACTION_INFO_STRING
   }
 
   it should "give reaction info inside reaction" in {

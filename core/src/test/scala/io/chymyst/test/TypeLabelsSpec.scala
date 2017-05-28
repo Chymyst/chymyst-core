@@ -40,4 +40,5 @@ class TypeLabelsSpec extends LogSpec with Matchers {
     f(las) shouldEqual 3
     g(las) shouldEqual 3
   }
+
 }
