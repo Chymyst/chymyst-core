@@ -1,5 +1,6 @@
 package io.chymyst.benchmark
 
+import java.io.File
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
@@ -8,8 +9,8 @@ import io.chymyst.test.LogSpec
 import org.sameersingh.scalaplot.jfreegraph.JFGraphPlotter
 import org.scalatest.Matchers
 
-import scala.concurrent.{Await, Promise}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Promise}
 import scala.util.Random.nextInt
 
 class ReactionDelaySpec extends LogSpec with Matchers {
@@ -179,6 +180,7 @@ class ReactionDelaySpec extends LogSpec with Matchers {
     val chart = xyChart(dataX → ((dataTheoryY, dataY)))
     val plotter = new JFGraphPlotter(chart)
     val plotdir = "logs/"
+    new File(plotdir).mkdir()
     val plotfile = "benchmark " + message.replaceAll(" ", "_")
     plotter.pdf(plotdir, plotfile)
     println(s"Plot file produced in $plotdir$plotfile.pdf")
