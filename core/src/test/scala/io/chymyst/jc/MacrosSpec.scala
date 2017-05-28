@@ -673,6 +673,15 @@ class MacrosSpec extends LogSpec with Matchers with BeforeAndAfterEach {
     )
   }
 
+  it should "detect f().map()" in {
+    val a = m[Unit]
+    val f = b[Unit, List[Int]]
+    val r = go { case a(_) => f().foreach(_ => ()) }
+    r.info.outputs shouldEqual Array(
+      OutputMoleculeInfo(f, ConstOutputPattern(()), List(NotLastBlock(1)))
+    )
+  }
+
   it should "detect molecules emitted in if-then-else blocks" in {
     val a = m[Int]
     val c = m[Unit]
