@@ -8,7 +8,7 @@ package io.chymyst.jc
 private[jc] final class ChymystThread(runnable: Runnable, val pool: Pool) extends Thread(runnable) {
   private var inBlockingCall: Boolean = false
 
-  private[jc] var reactionInfoString: String = _
+  private[jc] var reactionInfoString: String = Core.NO_REACTION_INFO_STRING
 
   def reactionInfo: String = reactionInfoString
 

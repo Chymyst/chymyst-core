@@ -1,6 +1,5 @@
 package io.chymyst.jc
 
-import io.chymyst.jc.Core._
 import io.chymyst.jc.Macros.{getName, rawTree}
 import io.chymyst.test.LogSpec
 import org.scalatest.{BeforeAndAfterEach, Matchers}
@@ -1063,7 +1062,7 @@ class MacrosSpec extends LogSpec with Matchers with BeforeAndAfterEach {
   }
 
   behavior of "errors while emitting static molecules"
-
+/* This functionality is not useful: it's running a reaction body manually.
   it should "refuse to emit static molecule if reaction runs on a non-reaction thread" in {
     val dIncorrectStaticMol = m[Unit]
     val e = m[Unit]
@@ -1084,7 +1083,7 @@ class MacrosSpec extends LogSpec with Matchers with BeforeAndAfterEach {
     waitSome()
     e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
   }
-
+*/
   it should "refuse to emit static molecule manually from non-reaction thread" in {
     val dIncorrectStaticMol = m[Unit]
     val e = m[Unit]

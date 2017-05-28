@@ -193,6 +193,7 @@ sealed trait Molecule extends PersistentHashCode {
 
 final case class Wrap[T](x: T) extends AnyVal {
   def isEmpty: Boolean = false
+
   def get: T = x
 }
 
@@ -204,7 +205,7 @@ final case class Wrap[T](x: T) extends AnyVal {
 final class M[T](val name: String) extends (T => Unit) with Molecule {
 
   def unapply(arg: ReactionBodyInput): Wrap[T] = {
-//    val (index, inputMoleculeList) = arg
+    //    val (index, inputMoleculeList) = arg
     val v = arg._2(arg._1).asInstanceOf[MolValue[T]].moleculeValue
     Wrap(v)
   }
