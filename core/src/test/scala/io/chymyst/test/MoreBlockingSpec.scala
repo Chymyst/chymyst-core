@@ -3,9 +3,9 @@ package io.chymyst.test
 import io.chymyst.jc._
 import org.scalatest.Matchers
 import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.concurrent.Waiters.Waiter
 import org.scalatest.time.{Millis, Span}
 
+import scala.concurrent.{Await, Promise}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -75,16 +75,16 @@ class MoreBlockingSpec extends LogSpec with Matchers with TimeLimitedTests {
   it should "return true if blocking molecule had a successful reply" in {
     val f = b[Unit,Int]
 
-    val waiter = new Waiter
+    val waiter = Promise[Boolean]()
 
     val tp = new FixedPool(4)
 
     site(tp)(
-      go { case f(_, r) => val res = r.checkTimeout(123); waiter { res shouldEqual true; ()}; waiter.dismiss() }
+      go { case f(_, r) => val res = r.checkTimeout(123); waiter.success(res) }
     )
     f.timeout()(10.seconds) shouldEqual Some(123)
 
-    waiter.await()
+    Await.result(waiter.future, Duration.Inf) shouldEqual true
     tp.shutdownNow()
   }
 
