@@ -95,10 +95,15 @@ case object OtherOutputPattern extends OutputPatternType {
   * and `(x) => a(x)` is a [[FuncLambda]] environment.
   */
 sealed trait OutputEnvironment {
-  /** This is to `true` if the output environment is guaranteed to emit the molecule at least once.
+  /** This is `true` if the output environment is guaranteed to emit the molecule at least once.
     * This is `false` for most environments.
     */
   val atLeastOne: Boolean = false
+
+  /** This will be `true` only for [[NotLastBlock]] environment.
+    *
+    */
+  val notLastBlock: Boolean = false
 
   /** Each output environment is identified by an integer Id number.
     *
@@ -130,6 +135,7 @@ final case class NotLastBlock(id: Int) extends OutputEnvironment {
   override val atLeastOne: Boolean = true
   override val linear: Boolean = true
   override val shrinkable: Boolean = true
+  override val notLastBlock: Boolean = true
 }
 
 /** Describes a molecule emitted under a function call.
@@ -159,6 +165,7 @@ private[jc] object OutputEnvironment {
   private[jc] type OutputItem[T] = (T, OutputPatternType, List[OutputEnvironment])
   private[jc] type OutputList[T] = List[OutputItem[T]]
 
+  // Output info shrinkage: detect whether all branches of a conditional expression emit the same molecule.
   private[jc] final def shrink[T](outputs: OutputList[T], equals: (Any, Any) => Boolean = (a, b) => a === b): OutputList[T] = {
     outputs.foldLeft[(OutputList[T], OutputList[T])]((Nil, outputs)) { (accOutputs, outputInfo) =>
       val (outputList, remaining) = accOutputs
@@ -177,13 +184,16 @@ private[jc] object OutputEnvironment {
           (outputList :+ outputInfo, newRemaining)
         } else {
           // First approximation to the full shrinkage algorithm: Only process one level of `ChooserBlock`.
-          outputInfo._3.headOption match {
-            case Some(ChooserBlock(id, _, total)) if outputInfo._3.size === 1 =>
+          // Ignore all NotLastBlock() environments for the purposes of shrinkage; however, mark them and flatten to a single NotLastBlock() if at least one NotLastBlock() environment are present.
+          val outputInfoForPerfectShrinkage: List[OutputEnvironment] = List(outputInfo._3.find(_.notLastBlock)).flatten
+          val envsWithoutNotLastBlockMarker = outputInfo._3.filter(!_.notLastBlock)
+          envsWithoutNotLastBlockMarker.headOption match {
+            case Some(ChooserBlock(id, _, total)) if envsWithoutNotLastBlockMarker.size === 1 =>
               // Find all other output molecules with the same id of ChooserBlock. Include this molecule too (so we use `remaining` here, instead of `newRemaining`).
               val others = remaining.filter { case (t, _, envs) =>
                 t === outputInfo._1 &&
-                  envs.headOption.exists(_.id === id) &&
-                  envs.size === 1
+                  envs.find(!_.notLastBlock).exists(_.id === id) &&
+                  envs.count(!_.notLastBlock) === 1
               }.sortBy { case (_, outPattern, _) => outPattern.merge(outputInfo._2)(equals).specificity }
               // This will sort first by clause and then all other molecules that match us if they contain a constant, and then all others.
               // The molecules in this list are now sorted. We expect to find `total` molecules.
@@ -191,7 +201,11 @@ private[jc] object OutputEnvironment {
               val res = (0 until total).flatFoldLeft[(OutputList[T], OutputPatternType)]((others, outputInfo._2)) { (acc, newClause) =>
                 val (othersRemaining, newFlag) = acc
                 val found = othersRemaining.find {
-                  case (_, _, List(ChooserBlock(_, `newClause`, `total`))) =>
+                  case (_, _, envs)
+                    if (envs.filter(!_.notLastBlock) match {
+                      case List(ChooserBlock(_, `newClause`, `total`)) ⇒ true
+                      case _ ⇒ false
+                    }) ⇒
                     true
                   case _ =>
                     false
@@ -205,7 +219,7 @@ private[jc] object OutputEnvironment {
                 case None =>
                   (outputList :+ outputInfo, newRemaining)
                 case Some((newRemainingOut, newFlag)) => // New output info contains an empty env since we shrank everything.
-                  (outputList :+ ((outputInfo._1, newFlag, List())), newRemainingOut)
+                  (outputList :+ ((outputInfo._1, newFlag, outputInfoForPerfectShrinkage)), newRemainingOut)
               }
             case _ =>
               (outputList :+ outputInfo, newRemaining)
@@ -641,7 +655,7 @@ final class ReactionInfo(
         if guardPresence.noCrossGuards =>
         ""
       case GuardPresent(Some(_), Array()) =>
-        " if(?)" // There is a static guard but no cross-molecule guards.
+        " if(?)" // This indicates that there is a static guard but no cross-molecule guards.
       case GuardPresent(_, guards) =>
         val crossGuardsInfo = guards.flatMap(_.symbols).map(_.name).distinct.mkString(",")
         s" if($crossGuardsInfo)"

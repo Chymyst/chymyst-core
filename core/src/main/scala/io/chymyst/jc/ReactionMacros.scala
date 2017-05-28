@@ -551,24 +551,28 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
         // if-then-else
         case q"if($cond) $clause0 else $clause1" =>
-          traverse(cond.asInstanceOf[Tree])
+          renewOutputEnvId()
+          traverseWithOutputEnv(cond, NotLastBlock(currentOutputEnvId))
           renewOutputEnvId()
           traverseWithOutputEnv(clause0, ChooserBlock(currentOutputEnvId, 0, 2))
           traverseWithOutputEnv(clause1, ChooserBlock(currentOutputEnvId, 1, 2))
 
         // match-case
-        case q"$matchExpr match { case ..$cases }" if cases.size >= 2 =>
-          traverse(matchExpr.asInstanceOf[Tree])
+        case q"$matchExpr match { case ..$cases }" if cases.nonEmpty =>
           renewOutputEnvId()
-          val total = cases.size
+          traverseWithOutputEnv(matchExpr, NotLastBlock(currentOutputEnvId))
+          val total = cases.length
+          val haveChooser = total >= 2
+          if (haveChooser)
+            renewOutputEnvId()
           cases.zipWithIndex.foreach { case (cq"$pat if $guardExpr => $bodyExpr", index) =>
-            pushEnv(ChooserBlock(currentOutputEnvId, index, total))
+            if (haveChooser) pushEnv(ChooserBlock(currentOutputEnvId, index, total))
             traversingBinderNow = true
             traverse(pat.asInstanceOf[Tree])
             traverse(guardExpr.asInstanceOf[Tree])
             traversingBinderNow = false
             traverse(bodyExpr.asInstanceOf[Tree])
-            finishTraverseWithOutputEnv()
+            if (haveChooser) finishTraverseWithOutputEnv()
           }
 
         // Anonymous partial function
