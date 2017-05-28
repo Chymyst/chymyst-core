@@ -673,14 +673,17 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           // All use of reply emitters must be logged, including just copying an emitter itself.
           replyActions.append((tree.asInstanceOf[Tree].symbol, EmptyOutputPatternF, outputEnv))
 
-        // Statement block. We are interested in the last statement in the block.
+        // Statement block with several statements. We will mark all but the last statement in the block with a NotLastBlock() environment.
         case q"{..$statements}" if statements.length > 1 ⇒
           // Set the output environment while traversing statements of the block, except for the last statement.
-          statements.init.foreach { s ⇒
-            renewOutputEnvId()
-            traverseWithOutputEnv(s, NotLastBlock(currentOutputEnvId))
+          renewOutputEnvId()
+          pushEnv(NotLastBlock(currentOutputEnvId))
+          statements.indices.foreach { i ⇒
+            val s = statements(i)
+            if (i + 1 === statements.length)
+              finishTraverseWithOutputEnv()
+            traverse(s.asInstanceOf[Tree])
           }
-          traverse(statements.last.asInstanceOf[Tree])
 
         case _ => super.traverse(tree)
       }

@@ -68,6 +68,15 @@ sealed trait OutputPatternType {
   val specificity: Int
 
   def merge(other: OutputPatternType)(equals: (Any, Any) => Boolean = (a, b) => a === b): OutputPatternType = OtherOutputPattern
+
+  override val toString: String = this match {
+    case ConstOutputPattern(()) =>
+      ""
+    case ConstOutputPattern(c) =>
+      c.toString
+    case OtherOutputPattern =>
+      "?"
+  }
 }
 
 final case class ConstOutputPattern(v: Any) extends OutputPatternType {
@@ -485,18 +494,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
 final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType, environments: List[OutputEnvironment]) {
   val atLeastOnce: Boolean = environments.forall(_.atLeastOne)
 
-  override val toString: String = {
-    val printedPattern = flag match {
-      case ConstOutputPattern(()) =>
-        ""
-      case ConstOutputPattern(c) =>
-        c.toString
-      case OtherOutputPattern =>
-        "?"
-    }
-
-    s"$molecule($printedPattern)"
-  }
+  override val toString: String = s"$molecule($flag)"
 }
 
 // This class is immutable.
