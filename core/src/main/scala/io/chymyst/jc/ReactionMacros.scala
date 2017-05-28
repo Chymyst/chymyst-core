@@ -46,7 +46,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   private val seqConstantExtractorHeads = Set("scala.collection.generic.SeqFactory.unapplySeq")
 
-  private val onceOnlyFunctionCodes = constantApplierCodes ++ Set(
+  private val emitMultipleFunctionCodes = Set(
     "io.chymyst.jc.EmitMultiple",
     "io.chymyst.jc.EmitMultiple.$plus"
   )
@@ -388,7 +388,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
       * @return A 4-tuple: List of input molecule patterns, list of output molecule patterns, list of reply action patterns, and list of molecules erroneously used inside pattern matching expressions.
       */
-    def from(reactionPart: Tree): (List[(MacroSymbol, InputPatternFlag, Option[InputPatternFlag])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[MacroSymbol]) = {
+    def from(reactionPart: Tree): (List[(MacroSymbol, InputPatternFlag, Option[InputPatternFlag])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[MacroSymbol]) = synchronized {
       inputMolecules = mutable.ArrayBuffer()
       outputMolecules = mutable.ArrayBuffer()
       replyActions = mutable.ArrayBuffer()
@@ -551,24 +551,28 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
         // if-then-else
         case q"if($cond) $clause0 else $clause1" =>
-          traverse(cond.asInstanceOf[Tree])
+          renewOutputEnvId()
+          traverseWithOutputEnv(cond, NotLastBlock(currentOutputEnvId))
           renewOutputEnvId()
           traverseWithOutputEnv(clause0, ChooserBlock(currentOutputEnvId, 0, 2))
           traverseWithOutputEnv(clause1, ChooserBlock(currentOutputEnvId, 1, 2))
 
         // match-case
-        case q"$matchExpr match { case ..$cases }" if cases.size >= 2 =>
-          traverse(matchExpr.asInstanceOf[Tree])
+        case q"$matchExpr match { case ..$cases }" if cases.nonEmpty =>
           renewOutputEnvId()
-          val total = cases.size
+          traverseWithOutputEnv(matchExpr, NotLastBlock(currentOutputEnvId))
+          val total = cases.length
+          val haveChooser = total >= 2
+          if (haveChooser)
+            renewOutputEnvId()
           cases.zipWithIndex.foreach { case (cq"$pat if $guardExpr => $bodyExpr", index) =>
-            pushEnv(ChooserBlock(currentOutputEnvId, index, total))
+            if (haveChooser) pushEnv(ChooserBlock(currentOutputEnvId, index, total))
             traversingBinderNow = true
             traverse(pat.asInstanceOf[Tree])
             traverse(guardExpr.asInstanceOf[Tree])
             traversingBinderNow = false
             traverse(bodyExpr.asInstanceOf[Tree])
-            finishTraverseWithOutputEnv()
+            if (haveChooser) finishTraverseWithOutputEnv()
           }
 
         // Anonymous partial function
@@ -612,14 +616,15 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           lazy val funcName = s"${t.symbol.fullName}.$f"
           if (flag1.needTraversal) {
             // Traverse the trees of the argument list elements (molecules should only have one argument anyway).
-            if (thisSymbolIsAMolecule || thisSymbolIsAReply) {
-              argumentList.foreach(traverse) // Molecules and replies are a once-only output environment, so no need to push another environment.
-            } else {
-              renewOutputEnvId()
-              pushEnv(FuncBlock(currentOutputEnvId, name = funcName))
-              argumentList.foreach(traverse)
-              finishTraverseWithOutputEnv()
-            }
+            renewOutputEnvId()
+            val newEnv = if (thisSymbolIsAMolecule || thisSymbolIsAReply)
+              NotLastBlock(currentOutputEnvId)
+            // Molecules and replies are a once-only output environment, so no need to push another environment. However, we need to mark this with NotLastBlock.
+            else FuncBlock(currentOutputEnvId, name = funcName)
+
+            pushEnv(newEnv)
+            argumentList.foreach(traverse)
+            finishTraverseWithOutputEnv()
           }
 
           if (includeThisSymbol) {
@@ -640,14 +645,23 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         case q"$f[..$_](..$args)"
           if args.nonEmpty =>
           val fullName = f.asInstanceOf[Tree].symbol.fullName
-          if (onceOnlyFunctionCodes.contains(fullName))
-          // The function is one of the known once-only evaluating functions such as Some(), List(), etc.
-          // In that case, we don't need to set a special environment, since a once-only environment is equivalent to no environment.
-          // We just traverse the tree and harvest the molecules normally.
-            super.traverse(tree)
-
-          else {
-            traverse(f.asInstanceOf[Tree])
+          if (constantApplierCodes.contains(fullName)) {
+            // The function is one of the known once-only evaluating functions such as Some(), List(), etc.
+            // In that case, we don't need to set a special environment, since a once-only environment is equivalent to no environment.
+            // We just traverse the tree and harvest the molecules normally.
+            // However, NotLastBlock() must be set, because molecule emission is not the last computation.
+            renewOutputEnvId()
+            pushEnv(NotLastBlock(currentOutputEnvId))
+            super.traverse(tree) // avoid infinite loop -- we are not destructuring this function application
+            finishTraverseWithOutputEnv()
+          } else if (emitMultipleFunctionCodes.contains(fullName)) {
+            // We are under the a() + b() emission construct.
+            // In that case, we don't need to set NotLastBlock on any of the emitted molecules.
+            // We just traverse the tree and harvest the molecules normally.
+            super.traverse(tree) // avoid infinite loop -- we are not destructuring this function application
+          } else {
+            renewOutputEnvId()
+            traverseWithOutputEnv(f, NotLastBlock(currentOutputEnvId))
             renewOutputEnvId()
             pushEnv(FuncBlock(currentOutputEnvId, name = fullName))
             val isIterating = iteratingFunctionCodes.contains(fullName)
@@ -668,6 +682,18 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
         case Ident(TermName(_)) if isReplyEmitter(tree) =>
           // All use of reply emitters must be logged, including just copying an emitter itself.
           replyActions.append((tree.asInstanceOf[Tree].symbol, EmptyOutputPatternF, outputEnv))
+
+        // Statement block with several statements. We will mark all but the last statement in the block with a NotLastBlock() environment.
+        case q"{..$statements}" if statements.length > 1 ⇒
+          // Set the output environment while traversing statements of the block, except for the last statement.
+          renewOutputEnvId()
+          pushEnv(NotLastBlock(currentOutputEnvId))
+          statements.indices.foreach { i ⇒
+            val s = statements(i)
+            if (i + 1 === statements.length)
+              finishTraverseWithOutputEnv()
+            traverse(s.asInstanceOf[Tree])
+          }
 
         case _ => super.traverse(tree)
       }
@@ -722,6 +748,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       q"_root_.io.chymyst.jc.FuncLambda($id)"
     case AtLeastOneEmitted(id, name) =>
       q"_root_.io.chymyst.jc.AtLeastOneEmitted($id, $name)"
+    case NotLastBlock(id) =>
+      q"_root_.io.chymyst.jc.NotLastBlock($id)"
   }
 
   /** Build an error message about incorrect usage of chemical notation.
@@ -758,11 +786,11 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
       // Replace `isDefinedAt` by `true` in the reaction body since the reaction scheduler
       // will check the molecule values before running a reaction.
-        // This fails due to `Error: scalac: Error: Position.point on NoPosition. UnsupportedOperationException. Position.scala:95`
-        /*
-      case q"$mods def isDefinedAt(..$args) = $body" ⇒
-        c.typecheck(q"$mods def isDefinedAt(..$args) = true")
-        */
+      // This fails due to `Error: scalac: Error: Position.point on NoPosition. UnsupportedOperationException. Position.scala:95`
+      /*
+    case q"$mods def isDefinedAt(..$args) = $body" ⇒
+      c.typecheck(q"$mods def isDefinedAt(..$args) = true")
+      */
       case _ => super.transform(tree)
     }
   }

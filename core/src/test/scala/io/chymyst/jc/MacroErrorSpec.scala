@@ -86,8 +86,8 @@ class MacroErrorSpec extends LogSpec with Matchers {
       }) =>
     }
 
-    (result.info.inputs match {
-      case Array(
+    (result.info.inputs.toList match {
+      case List(
       InputMoleculeInfo(`bb`, 0, WildcardInput, _, Symbol("(Int, Option[Int])")),
       InputMoleculeInfo(`bb`, 1, SimpleVarInput('z, Some(cond)), _, _)
       ) =>

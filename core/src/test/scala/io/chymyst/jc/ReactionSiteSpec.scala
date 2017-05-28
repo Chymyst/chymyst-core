@@ -198,6 +198,22 @@ class ReactionSiteSpec extends LogSpec with Matchers with BeforeAndAfterEach {
     OutputEnvironment.shrink[Int](outputs) shouldEqual expectedShrunkOutputs
   }
 
+  it should "shrink if-then-else in the presence of NotLastBlock()" in {
+    val item1: OutputEnvironment.OutputItem[Int] = (100, ConstOutputPattern(123), List(NotLastBlock(0), ChooserBlock(1, 0, 2)))
+    val item2: OutputEnvironment.OutputItem[Int] = (100, ConstOutputPattern(123), List(NotLastBlock(0), ChooserBlock(1, 1, 2)))
+    val outputs: OutputEnvironment.OutputList[Int] = List(item1, item2)
+    val expectedShrunkOutputs = List((100, ConstOutputPattern(123), List(NotLastBlock(0))))
+    OutputEnvironment.shrink[Int](outputs) shouldEqual expectedShrunkOutputs
+  }
+
+  it should "shrink if-then-else in the presence of several copies of NotLastBlock()" in {
+    val item1: OutputEnvironment.OutputItem[Int] = (100, ConstOutputPattern(123), List(NotLastBlock(10), NotLastBlock(20), ChooserBlock(1, 0, 2)))
+    val item2: OutputEnvironment.OutputItem[Int] = (100, ConstOutputPattern(123), List(NotLastBlock(10), NotLastBlock(20), ChooserBlock(1, 1, 2)))
+    val outputs: OutputEnvironment.OutputList[Int] = List(item1, item2)
+    val expectedShrunkOutputs = List((100, ConstOutputPattern(123), List(NotLastBlock(10))))
+    OutputEnvironment.shrink[Int](outputs) shouldEqual expectedShrunkOutputs
+  }
+
   behavior of "error detection for blocking replies"
 
   it should "report errors when no reply received due to exception" in {

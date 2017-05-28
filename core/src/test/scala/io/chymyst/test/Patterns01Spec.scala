@@ -179,12 +179,12 @@ class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
 
       val logFile = new ConcurrentLinkedQueue[String]
 
-      def f(n: Int)(): Unit = {
+      def f(n: Int): () ⇒ Unit = { () ⇒
         logFile.add(s"f$n")
         ()
       }
 
-      def g(n: Int)(): Unit = {
+      def g(n: Int): () ⇒ Unit = { () ⇒
         logFile.add(s"g$n")
         ()
       }
@@ -235,7 +235,7 @@ class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
     val woman = m[Unit]
     val womanL = m[Int]
     val queueWomen = m[Int]
-    val beginDancing = b[Int, Unit]
+    val beginDancing = m[Int]
 
     val danceCounter = m[Vector[Int]]
     val done = b[Unit, Vector[Int]]
@@ -244,7 +244,7 @@ class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
     val tp = new BlockingPool(4) // Use BlockingPool because using a FixedPool gives a deadlock.
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
-      go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() },
+      go { case beginDancing(xy) + danceCounter(x) => danceCounter(x :+ xy) },
       go { case _ => danceCounter(Vector()) }
     )
 
@@ -277,7 +277,7 @@ class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
     val woman = m[Unit]
     val womanL = m[Int]
     val queueWomen = m[Int]
-    val beginDancing = b[Int, Unit]
+    val beginDancing = m[Int]
 
     val danceCounter = m[Vector[Int]]
     val done = b[Unit, Vector[Int]]
@@ -291,7 +291,7 @@ class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
 
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
-      go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() } onThreads tp1d,
+      go { case beginDancing(xy) + danceCounter(x) => danceCounter(x :+ xy) } onThreads tp1d,
       go { case _ => danceCounter(Vector()) }
     )
     site(tp)(

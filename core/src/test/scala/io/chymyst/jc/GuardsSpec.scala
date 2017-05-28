@@ -13,17 +13,23 @@ class GuardsSpec extends LogSpec with Matchers {
     val aaa = m[List[Int]]
     val bbb = m[List[Int]]
     val result = go { case aaa(Nil) + aaa(List()) => bbb(List()) + bbb(Nil) }
-    result.info.inputs should matchPattern {
-      case Array(
+    result.info.inputs.toList should matchPattern {
+      case List(
       InputMoleculeInfo(`aaa`, 0, ConstInputPattern(List()), _, Symbol("List[Int]")),
       InputMoleculeInfo(`aaa`, 1, ConstInputPattern(List()), _, _)
       ) =>
     }
-    result.info.outputs should matchPattern {
-      case Array(
-      OutputMoleculeInfo(`bbb`, ConstOutputPattern(List()), Nil),
-      OutputMoleculeInfo(`bbb`, ConstOutputPattern(List()), Nil)
-      ) =>
+    result.info.outputs.toList should matchPattern {
+      case List(
+      OutputMoleculeInfo(`bbb`, ConstOutputPattern(List()), _),
+      OutputMoleculeInfo(`bbb`, ConstOutputPattern(List()), _)
+      ) ⇒
+    }
+    result.info.outputs.toList.map(_.environments) should matchPattern {
+      case List(
+      List(),
+      List()
+      ) ⇒
     }
     result.info.toString shouldEqual "aaa(List()) + aaa(List()) → bbb(List()) + bbb(List())"
   }
@@ -37,8 +43,8 @@ class GuardsSpec extends LogSpec with Matchers {
       bb('output); ccc(Nil); ccc(List()); ccc(List(1)); ccc(List(1, 2, 3)); a(Right("output"))
     }
 
-    result.info.inputs should matchPattern {
-      case Array(
+    result.info.inputs.toList should matchPattern {
+      case List(
       InputMoleculeInfo(`ccc`, 0, ConstInputPattern(Nil), _, Symbol("List[Int]")),
       InputMoleculeInfo(`ccc`, 1, ConstInputPattern(List()), _, _),
       InputMoleculeInfo(`ccc`, 2, ConstInputPattern(List(1)), _, _),
@@ -62,8 +68,8 @@ class GuardsSpec extends LogSpec with Matchers {
 
     result.info.toString shouldEqual "a(Left(1)) + a(Right(input)) + bb((0,None)) + bb((2,Some(3))) → a(Right(output)) + bb((1,None))"
 
-    result.info.inputs should matchPattern {
-      case Array(
+    result.info.inputs.toList should matchPattern {
+      case List(
       InputMoleculeInfo(`a`, 0, ConstInputPattern(Left(1)), _, _),
       InputMoleculeInfo(`a`, 1, ConstInputPattern(Right("input")), _, _),
       InputMoleculeInfo(`bb`, 2, ConstInputPattern((2, Some(3))), _, _),
@@ -84,8 +90,8 @@ class GuardsSpec extends LogSpec with Matchers {
     result.info.guardPresence.noCrossGuards shouldEqual true
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
 
-    result.info.inputs should matchPattern {
-      case Array(
+    result.info.inputs.toList should matchPattern {
+      case List(
       InputMoleculeInfo(`a`, 0, SimpleVarInput('xOpt, Some(_)), _, _),
       InputMoleculeInfo(`bb`, 1, SimpleVarInput('y, Some(_)), _, _)
       ) =>
@@ -104,8 +110,8 @@ class GuardsSpec extends LogSpec with Matchers {
     result.info.guardPresence.noCrossGuards shouldEqual true
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => }
 
-    result.info.inputs should matchPattern {
-      case Array(
+    result.info.inputs.toList should matchPattern {
+      case List(
       InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x), false), _, _),
       InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y), false), _, _)
       ) =>
@@ -124,8 +130,8 @@ class GuardsSpec extends LogSpec with Matchers {
     result.info.guardPresence.noCrossGuards shouldEqual false
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('xOpt, 'y), _))) => }
 
-    result.info.inputs should matchPattern {
-      case Array(
+    result.info.inputs.toList should matchPattern {
+      case List(
       InputMoleculeInfo(`a`, 0, SimpleVarInput('xOpt, None), _, Symbol("Option[Int]")),
       InputMoleculeInfo(`bb`, 1, SimpleVarInput('y, None), _, Symbol("(Int, Option[String])"))
       ) =>
@@ -144,8 +150,8 @@ class GuardsSpec extends LogSpec with Matchers {
     result.info.guardPresence.noCrossGuards shouldEqual false
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array(CrossMoleculeGuard(Array(0, 1), Array('x, 'list, 'y), _))) => }
 
-    result.info.inputs should matchPattern {
-      case Array(
+    result.info.inputs.toList should matchPattern {
+      case List(
       InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x), false), _, Symbol("Option[Int]")),
       InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y), false), _, Symbol("(List[Int], Option[String])"))
       ) =>
@@ -160,7 +166,7 @@ class GuardsSpec extends LogSpec with Matchers {
 
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
 
-    result.info.inputs should matchPattern { case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, None), _, 'Int)) => }
+    result.info.inputs.toList should matchPattern { case List(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, None), _, 'Int)) => }
     result.info.toString shouldEqual "a(x) → "
   }
 
@@ -178,7 +184,7 @@ class GuardsSpec extends LogSpec with Matchers {
       case _ => false
     }) shouldEqual true
 
-    result.info.inputs should matchPattern { case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, None), _, _)) => }
+    result.info.inputs.toList should matchPattern { case List(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, None), _, _)) => }
     result.info.toString shouldEqual "a(x) if(?) → "
   }
 
@@ -290,8 +296,8 @@ class GuardsSpec extends LogSpec with Matchers {
     result.info.guardPresence should matchPattern { case GuardPresent(None, Array()) => // `n` should not be among the guard variables
     }
     result.info.toString shouldEqual "a(xyz if ?) → "
-    (result.info.inputs match {
-      case Array(InputMoleculeInfo(`a`, 0, SimpleVarInput('xyz, Some(cond)), _, _)) =>
+    (result.info.inputs.toList match {
+      case List(InputMoleculeInfo(`a`, 0, SimpleVarInput('xyz, Some(cond)), _, _)) =>
         cond.isDefinedAt(n + 1) shouldEqual true
         cond.isDefinedAt(n) shouldEqual false
         true

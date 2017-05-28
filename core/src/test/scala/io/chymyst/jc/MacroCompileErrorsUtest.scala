@@ -363,6 +363,16 @@ case c(_) + a(y) => c()
             |                      ^
             |""".stripMargin, "Blocking input molecules must contain a pattern that matches a reply emitter with a simple variable (molecule a, molecule c)")
       }
+      //    "val r = go { case a(_, r) => r(); c() }" shouldNot compile // blocking molecule should not be emitted last
+      * - {
+        compileError(
+          "val r = go { case a(_, r) => r(); c() }"
+        ).check(
+          """
+            |          "val r = go { case a(_, r) => r(); c() }"
+            |                      ^
+            |""".stripMargin, "Blocking molecules must not be emitted last in a reaction but so were emitted (molecule c()")
+      }
       //    "val r = go { case a(_, r) + a(_) + c(_) => r(); r() }" shouldNot compile // two replies are performed with r, and invalid patterns for "a" and "c"
       * - {
         compileError(
@@ -375,7 +385,7 @@ case c(_) + a(y) => c()
       }
       //    "val r = go { case e(_) if true => c() }" should compile // input guard does not emit molecules
       * - {
-        go { case e(_) if true => c() } // should compile without errors
+        go { case e(_) if true => c(); 0 } // should compile without errors
       }
       //    "val r = go { case e(_) if c() => }" shouldNot compile // input guard emits molecules
       * - {
@@ -409,12 +419,21 @@ case c(_) + a(y) => c()
       }
       * - {
         compileError(
+          "val r = go { case e(_) if (null match { case a(_, r) + c(_) => true }) => }"
+        ).check(
+          """
+            |          "val r = go { case e(_) if (null match { case a(_, r) + c(_) => true }) => }"
+            |                      ^
+            |""".stripMargin, "Input guard must not contain a pattern that matches on molecules (a, c)")
+      }
+      * - {
+        compileError(
           "val r = go { case e(_) if (null match { case e(_) => true }) => }"
         ).check(
           """
             |          "val r = go { case e(_) if (null match { case e(_) => true }) => }"
             |                      ^
-            |""".stripMargin, "Input guard must not contain a pattern that matches on additional input molecules (e)")
+            |""".stripMargin, "Input guard must not contain a pattern that matches on molecules (e)")
       }
     }
 
