@@ -211,7 +211,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val exitStatus: ReactionExitStatus = try {
       setReactionInfo(thisReaction.info)
       // Here we actually apply the reaction body to its input molecules.
-      thisReaction.body.apply((usedInputs.length - 1, usedInputs))
+      thisReaction.body.apply(ReactionBodyInput(index = usedInputs.length - 1, inputs = usedInputs))
       clearReactionInfo()
       // If we are here, we had no exceptions during evaluation of reaction body.
       ReactionExitSuccess
