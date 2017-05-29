@@ -57,18 +57,7 @@ class Budu[X] {
       }
     } else result
 
-  def is(x: X): Unit =
-    if (state === EmptyNoTimeout) {
-      synchronized {
-        if (notTimedOutYet) {
-          result = x
-          state = NonEmptyNoTimeout
-          notify()
-        }
-      }
-    } else ()
-
-  def isAwaited(x: X): Boolean =
+  def is(x: X): Boolean =
     if (state === EmptyNoTimeout) {
       synchronized {
         if (notTimedOutYet) {

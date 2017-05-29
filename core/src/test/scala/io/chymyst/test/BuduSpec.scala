@@ -34,11 +34,11 @@ class BuduSpec extends LogSpec {
     val x = Budu[Int]
     val y = Budu[Boolean]
     Future {
-      y.is(x.isAwaited(123))
+      y.is(x.is(123))
     }
     x.get shouldEqual 123
     y.get shouldEqual true
-    x.isAwaited(200) shouldEqual true
+    x.is(200) shouldEqual true
   }
 
   it should "wait for reply with time-out not reached" in {
@@ -57,7 +57,7 @@ class BuduSpec extends LogSpec {
       x.is(123)
     }
     x.await(100.millis) shouldEqual None
-    x.isAwaited(200) shouldEqual false
+    x.is(200) shouldEqual false
     x.await(100.millis) shouldEqual None
   }
 
@@ -66,7 +66,7 @@ class BuduSpec extends LogSpec {
     val y = Budu[Boolean]
     Future {
       Thread.sleep(100)
-      y.is(x.isAwaited(123))
+      y.is(x.is(123))
     }
     x.await(500.millis) shouldEqual Some(123)
     y.get shouldEqual true
@@ -77,7 +77,7 @@ class BuduSpec extends LogSpec {
     val y = Budu[Boolean]
     Future {
       Thread.sleep(500)
-      y.is(x.isAwaited(123))
+      y.is(x.is(123))
     }
     x.await(100.millis) shouldEqual None
     y.get shouldEqual false
