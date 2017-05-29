@@ -1,5 +1,6 @@
 package io.chymyst.jc
 
+import scala.annotation.tailrec
 import scala.concurrent.duration.Duration
 
 class Budu[X] {
@@ -7,20 +8,27 @@ class Budu[X] {
   @volatile var haveResult: Boolean = false
   @volatile var timedOut: Boolean = false
 
-  def await(duration: Duration): Option[X] = {
+  @tailrec
+  private def waitUntil(targetTime: Long, newDuration: Long): Unit = {
+    if (newDuration > 0) {
+      wait(newDuration)
+      if (!haveResult) {
+        waitUntil(targetTime, targetTime - System.currentTimeMillis())
+      }
+    }
+  }
+
+  def await(duration: Duration): Option[X] = if (timedOut || haveResult) Option(result) else {
     var newDuration = duration.toMillis
     val targetTime = newDuration + System.currentTimeMillis()
     synchronized {
-      while (!haveResult && newDuration > 0) {
-        wait(newDuration)
-        newDuration = targetTime - System.currentTimeMillis()
-      }
+      if (!haveResult) waitUntil(targetTime, newDuration)
       timedOut = !haveResult
       if (haveResult) Some(result) else None
     }
   }
 
-  def get: X = {
+  def get: X = if (timedOut || haveResult) result else {
     synchronized {
       while (!haveResult) {
         wait()
@@ -29,7 +37,7 @@ class Budu[X] {
     }
   }
 
-  def is(x: X): Unit = {
+  def is(x: X): Unit = if (timedOut || haveResult) () else {
     synchronized {
       if (!timedOut) {
         result = x
@@ -39,7 +47,7 @@ class Budu[X] {
     }
   }
 
-  def isAwaited(x: X): Boolean = {
+  def isAwaited(x: X): Boolean = if (timedOut || haveResult) !timedOut else {
     synchronized {
       if (!timedOut) {
         result = x

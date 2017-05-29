@@ -3,8 +3,9 @@ package io.chymyst.test
 import io.chymyst.jc.Budu
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, Future, Promise}
+import scala.concurrent.duration.{Duration, DurationInt}
+import io.chymyst.test.Common._
 
 class BuduSpec extends LogSpec {
   behavior of "Budu()"
@@ -65,6 +66,63 @@ class BuduSpec extends LogSpec {
     }
     x.await(100.millis) shouldEqual None
     y.get shouldEqual false
+  }
+
+  behavior of "performance benchmark"
+
+  val total = 2000
+  val best = 20
+
+  it should "measure reply speed for Budu" in {
+    val results = (1 to total).map { _ ⇒
+      val x = Budu[Long]
+      Future {
+        x.is(System.nanoTime())
+      }
+      val now = x.get
+      System.nanoTime - now
+    }.sortBy(-_).drop(total - best).map(_.toDouble)
+    val (average, stdev) = meanAndStdev(results)
+    println(s"Best amortized reply speed for Budu, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
+  }
+
+  it should "measure reply speed for Promise" in {
+    val results = (1 to total).map { _ ⇒
+      val x = Promise[Long]
+      Future {
+        x.success(System.nanoTime())
+      }
+      val now = Await.result(x.future, Duration.Inf)
+      System.nanoTime - now
+    }.sortBy(-_).drop(total - best).map(_.toDouble)
+    val (average, stdev) = meanAndStdev(results)
+    println(s"Best amortized reply speed for Promise, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
+  }
+
+  it should "measure time-out reply speed for Budu" in {
+    val results = (1 to total).map { _ ⇒
+      val x = Budu[Long]
+      Future {
+        x.is(System.nanoTime())
+      }
+      val now = x.await(10.seconds).get
+      System.nanoTime - now
+    }.sortBy(-_).drop(total - best).map(_.toDouble)
+    val (average, stdev) = meanAndStdev(results)
+    println(s"Best amortized time-out reply speed for Budu, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
+  }
+
+  it should "measure time-out reply speed for Promise" in {
+    val results = (1 to total).map { _ ⇒
+      val x = Promise[Long]
+      Future {
+        x.success(System.nanoTime())
+      }
+      val now = Await.result(x.future, 10.seconds)
+      System.nanoTime - now
+    }.sortBy(-_).drop(total - best).map(_.toDouble)
+    val (average, stdev) = meanAndStdev(results)
+    println(s"Best amortized time-out reply speed for Promise, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
   }
 
 }

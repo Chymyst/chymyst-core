@@ -7,14 +7,12 @@ import java.time.temporal.ChronoUnit
 import io.chymyst.jc._
 import io.chymyst.test.LogSpec
 import org.sameersingh.scalaplot.jfreegraph.JFGraphPlotter
-
+import io.chymyst.test.Common._
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Promise}
 import scala.util.Random.nextInt
 
 class ReactionDelaySpec extends LogSpec {
-
-  val safeSize: Int => Double = x => if (x == 0) 1.0f else x.toDouble
 
   behavior of "reaction overhead and delay times"
 
@@ -30,7 +28,7 @@ class ReactionDelaySpec extends LogSpec {
       f()
       (System.nanoTime() - timeInit).toDouble
     }.sortBy(-_).drop(trials / 2)
-    val (mean, std) = getStats(results)
+    val (mean, std) = meanAndStdev(results)
     val meanReplyDelay = mean
     println(s"Sequential test without extra delay: Mean reply delay is ${formatNanosToMs(meanReplyDelay)} ms ± ${formatNanosToMs(std)} ms out of ${results.length} trials")
     tp.shutdownNow()
@@ -54,7 +52,7 @@ class ReactionDelaySpec extends LogSpec {
       f()
       (System.nanoTime() - timeInit).toDouble
     }.sortBy(-_).drop(trials / 2)
-    val (mean, std) = getStats(results)
+    val (mean, std) = meanAndStdev(results)
     val meanReplyDelay = mean - 1000000L * extraDelay
     println(s"Sequential test with extra delay: Mean reply delay is ${formatNanosToMs(meanReplyDelay)} ms ± ${formatNanosToMs(std)} ms out of ${results.length} trials")
     tp.shutdownNow()
@@ -92,24 +90,11 @@ class ReactionDelaySpec extends LogSpec {
 
     (1 to trials).foreach { _ => begin() }
     val result = all_done().sortBy(-_).drop(trials / 2)
-    val (mean, std) = getStats(result)
+    val (mean, std) = meanAndStdev(result)
     val meanReplyDelay = mean - 1000000L * extraDelay
     println(s"Parallel test with extra delay: Mean reply delay is ${formatNanosToMs(meanReplyDelay)} ms ± ${formatNanosToMs(std)} ms out of ${result.length} trials")
     tp.shutdownNow()
   }
-
-  def getStats(d: Seq[Double]): (Double, Double) = {
-    val size = safeSize(d.size)
-    val mean = d.sum / size
-    val std = math.sqrt(d.map(x => x - mean).map(x => x * x).sum / size)
-    (mean, std)
-  }
-
-  def formatNanosToMs(x: Double): String = f"${x / 1000000.0}%1.3f"
-
-  def formatNanosToMicros(x: Double): String = f"${x / 1000.0}%1.3f µs"
-
-  def formatMicros(x: Double): String = f"$x%1.3f µs"
 
   it should "measure statistics on reaction scheduling for non-blocking molecules" in {
     val a = m[Long]
@@ -143,13 +128,13 @@ class ReactionDelaySpec extends LogSpec {
     val resultsEmitDelay0 = results.map(_._2.toDouble).sortBy(-_).take(trials / 20)
     val resultsReplyDelay0 = results.map(_._3.toDouble).sortBy(-_).take(trials / 20)
 
-    val (meanReactionStartDelay, stdevReactionStartDelay) = getStats(resultsStartDelay)
-    val (meanEmitDelay, stdevEmitDelay) = getStats(resultsEmitDelay)
-    val (meanReplyDelay, stdevReplyDelay) = getStats(resultsReplyDelay)
+    val (meanReactionStartDelay, stdevReactionStartDelay) = meanAndStdev(resultsStartDelay)
+    val (meanEmitDelay, stdevEmitDelay) = meanAndStdev(resultsEmitDelay)
+    val (meanReplyDelay, stdevReplyDelay) = meanAndStdev(resultsReplyDelay)
 
-    val (meanReactionStartDelay0, stdevReactionStartDelay0) = getStats(resultsStartDelay0)
-    val (meanEmitDelay0, stdevEmitDelay0) = getStats(resultsEmitDelay0)
-    val (meanReplyDelay0, stdevReplyDelay0) = getStats(resultsReplyDelay0)
+    val (meanReactionStartDelay0, stdevReactionStartDelay0) = meanAndStdev(resultsStartDelay0)
+    val (meanEmitDelay0, stdevEmitDelay0) = meanAndStdev(resultsEmitDelay0)
+    val (meanReplyDelay0, stdevReplyDelay0) = meanAndStdev(resultsReplyDelay0)
 
     println(s"Sequential test of emission and reaction delay (before JVM warm-up): trials = ${resultsStartDelay0.length}, meanReactionStartDelay = ${formatNanosToMicros(meanReactionStartDelay0)} +- ${formatNanosToMicros(stdevReactionStartDelay0)}, meanEmitDelay = ${formatNanosToMicros(meanEmitDelay0)} ± ${formatNanosToMicros(stdevEmitDelay0)}, meanReplyDelay = ${formatNanosToMicros(meanReplyDelay0)} ± ${formatNanosToMicros(stdevReplyDelay0)}")
     println(s"Sequential test of emission and reaction delay (after JVM warm-up): trials = ${resultsStartDelay.length}, meanReactionStartDelay = ${formatNanosToMicros(meanReactionStartDelay)} +- ${formatNanosToMicros(stdevReactionStartDelay)}, meanEmitDelay = ${formatNanosToMicros(meanEmitDelay)} ± ${formatNanosToMicros(stdevEmitDelay)}, meanReplyDelay = ${formatNanosToMicros(meanReplyDelay)} ± ${formatNanosToMicros(stdevReplyDelay)}")

@@ -30,4 +30,18 @@ object Common {
     (result, elapsedTime)
   }
 
+  def meanAndStdev(d: Seq[Double]): (Double, Double) = {
+    val size = safeSize(d.size)
+    val mean = d.sum / size
+    val std = math.sqrt(d.map(x => x - mean).map(x => x * x).sum / size)
+    (mean, std)
+  }
+
+  def formatNanosToMs(x: Double): String = f"${x / 1000000.0}%1.3f"
+
+  def formatNanosToMicros(x: Double): String = f"${x / 1000.0}%1.3f µs"
+
+  def formatMicros(x: Double): String = f"$x%1.3f µs"
+
+  val safeSize: Int => Double = x => if (x == 0) 1.0f else x.toDouble
 }
