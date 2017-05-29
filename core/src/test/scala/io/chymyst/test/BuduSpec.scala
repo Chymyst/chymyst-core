@@ -31,11 +31,16 @@ class BuduSpec extends LogSpec {
   }
 
   it should "wait for reply using Future" in {
-    val x = Budu[Int]
+    val x = Budu[Int](useFuture = true)
     Future {
       x.is(123)
     }
     Await.result(x.getFuture, Duration.Inf) shouldEqual 123
+  }
+
+  it should "produce error when using getFuture without correct initialization" in {
+    val x = Budu[Int]
+    the[Exception] thrownBy x.getFuture should have message "getFuture() is disabled, initialize as Budu(useFuture = true) to enable"
   }
 
   it should "wait for reply and report status" in {
@@ -107,7 +112,7 @@ class BuduSpec extends LogSpec {
     }.map(_.toDouble)
     val (average, stdev) = meanAndStdev(results.drop(total - best))
     println(s"Best amortized reply speed for Budu, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
-    showRegression("reply speed for Budu", results, x ⇒ math.pow(x + total/5, -1.0))
+    showRegression("reply speed for Budu", results, x ⇒ math.pow(x + total / 5, -1.0))
   }
 
   it should "measure reply speed for Promise" in {
@@ -121,7 +126,7 @@ class BuduSpec extends LogSpec {
     }.map(_.toDouble)
     val (average, stdev) = meanAndStdev(results.drop(total - best))
     println(s"Best amortized reply speed for Promise, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
-    showRegression("reply speed for Promise", results, x ⇒ math.pow(x + total/5, -1.0))
+    showRegression("reply speed for Promise", results, x ⇒ math.pow(x + total / 5, -1.0))
   }
 
   it should "measure time-out reply speed for Budu" in {
@@ -135,7 +140,7 @@ class BuduSpec extends LogSpec {
     }.map(_.toDouble)
     val (average, stdev) = meanAndStdev(results.drop(total - best))
     println(s"Best amortized time-out reply speed for Budu, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
-    showRegression("time-out reply speed for Budu", results, x ⇒ math.pow(x + total/5, -1.0))
+    showRegression("time-out reply speed for Budu", results, x ⇒ math.pow(x + total / 5, -1.0))
   }
 
   it should "measure time-out reply speed for Promise" in {
@@ -149,7 +154,7 @@ class BuduSpec extends LogSpec {
     }.map(_.toDouble)
     val (average, stdev) = meanAndStdev(results.drop(total - best))
     println(s"Best amortized time-out reply speed for Promise, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
-    showRegression("time-out reply speed for Promise", results, x ⇒ math.pow(x + total/5, -1.0))
+    showRegression("time-out reply speed for Promise", results, x ⇒ math.pow(x + total / 5, -1.0))
   }
 
 }

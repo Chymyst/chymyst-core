@@ -9,8 +9,11 @@ import scala.concurrent.duration.Duration
 
 // There are only three states: 2 is empty, no time-out yet. 3 is empty, have time-out. 1 not empty, no time-out.
 
-final class Budu[X] {
-  private var resultPromise: Promise[X] = Promise()
+final class Budu[X](useFuture: Boolean) {
+  private var resultPromise: Promise[X] =
+    if (useFuture)
+      Promise[X]()
+    else null.asInstanceOf[Promise[X]]
 
   @volatile var result: X = _
   //  @volatile var isEmpty: Boolean = true
@@ -58,16 +61,19 @@ final class Budu[X] {
       }
     } else result
 
-  def getFuture: Future[X] = resultPromise.future
+  def getFuture: Future[X] = if (useFuture)
+    resultPromise.future
+  else throw new Exception("getFuture() is disabled, initialize as Budu(useFuture = true) to enable")
 
   def is(x: X): Boolean =
     if (state === EmptyNoTimeout) {
       synchronized {
         if (notTimedOutYet) {
           result = x
-          resultPromise.success(x)
           state = NonEmptyNoTimeout
           notify()
+          if (useFuture)
+            resultPromise.success(x)
         }
         notTimedOutYet
       }
@@ -79,5 +85,7 @@ object Budu {
   private final val EmptyNoTimeout: Int = 2
   private final val EmptyAfterTimeout: Int = 3
 
-  def apply[X]: Budu[X] = new Budu[X]()
+  def apply[X](useFuture: Boolean): Budu[X] = new Budu[X](useFuture)
+
+  def apply[X]: Budu[X] = new Budu[X](useFuture = false)
 }
