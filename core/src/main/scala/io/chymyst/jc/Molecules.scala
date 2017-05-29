@@ -322,9 +322,9 @@ private[jc] sealed trait AbsReplyEmitter[T, R] {
     */
   private val semaphoreForReplyStatus = new Semaphore(1, false)
 
-  final private[jc] def acquireSemaphoreForEmitter(timeoutNanos: Option[Long]): Boolean =
-    timeoutNanos match {
-      case Some(nanos) => semaphoreForEmitter.tryAcquire(nanos, TimeUnit.NANOSECONDS)
+  final private[jc] def acquireSemaphoreForEmitter(timeoutMillis: Option[Long]): Boolean =
+    timeoutMillis match {
+      case Some(millis) => semaphoreForEmitter.tryAcquire(millis, TimeUnit.MILLISECONDS)
       case None => semaphoreForEmitter.acquire(); true
     }
 
@@ -427,7 +427,7 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     * @return Non-empty option if the reply was received; None on timeout.
     */
   def timeout(v: T)(duration: Duration): Option[R] = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, R]]
-    .emitAndAwaitReplyWithTimeout(duration.toNanos, this, v, new ReplyEmitter[T, R])
+    .emitAndAwaitReplyWithTimeout(duration.toMillis, this, v, new ReplyEmitter[T, R])
 
   /** Same but for molecules with type `T = Unit`; enables shorter syntax `b().timeout(1.second)`. */
   def timeout()(duration: Duration)(implicit arg: TypeMustBeUnit[T]): Option[R] = timeout(arg.getUnit)(duration)
