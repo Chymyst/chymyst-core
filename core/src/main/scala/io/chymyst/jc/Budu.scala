@@ -1,6 +1,5 @@
 package io.chymyst.jc
 
-import Core.AnyOpsEquals
 import scala.concurrent.duration.Duration
 
 class Budu[X] {
@@ -9,17 +8,21 @@ class Budu[X] {
   @volatile var timedOut: Boolean = false
 
   def await(duration: Duration): Option[X] = {
+    var newDuration = duration.toMillis
+    val targetTime = newDuration + System.currentTimeMillis()
     synchronized {
-      // TODO add a while loop with explicit timeout check - look up Doug Lea's java code
-      wait(duration.toMillis)
+      while (!haveResult && newDuration > 0) {
+        wait(newDuration)
+        newDuration = targetTime - System.currentTimeMillis()
+      }
       timedOut = !haveResult
       if (haveResult) Some(result) else None
     }
   }
 
   def get: X = {
-    synchronized{
-      while(!haveResult) {
+    synchronized {
+      while (!haveResult) {
         wait()
       }
       result
