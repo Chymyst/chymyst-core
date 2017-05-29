@@ -3,60 +3,72 @@ package io.chymyst.jc
 import scala.annotation.tailrec
 import scala.concurrent.duration.Duration
 
+// There are only three states: 3. No result yet, no time-out yet. 2. Have result, no time-out. 1. Have time-out, no result.
+
 class Budu[X] {
   @volatile var result: X = _
-  @volatile var haveResult: Boolean = false
-  @volatile var timedOut: Boolean = false
+  @volatile var isEmpty: Boolean = true
+  @volatile var notTimedOutYet: Boolean = true
 
   @tailrec
   private def waitUntil(targetTime: Long, newDuration: Long): Unit = {
     if (newDuration > 0) {
       wait(newDuration)
-      if (!haveResult) {
+      if (isEmpty) {
         waitUntil(targetTime, targetTime - System.currentTimeMillis())
       }
     }
   }
 
-  def await(duration: Duration): Option[X] = if (timedOut || haveResult) Option(result) else {
+  def await(duration: Duration): Option[X] =
+    if (notTimedOutYet && isEmpty) {
     var newDuration = duration.toMillis
     val targetTime = newDuration + System.currentTimeMillis()
     synchronized {
-      if (!haveResult) waitUntil(targetTime, newDuration)
-      timedOut = !haveResult
-      if (haveResult) Some(result) else None
+      if (isEmpty)
+        waitUntil(targetTime, newDuration)
+      notTimedOutYet = !isEmpty
+      if (isEmpty)
+        None
+      else
+        Some(result)
     }
-  }
+  } else
+      Option(result)
 
-  def get: X = if (timedOut || haveResult) result else {
+
+  def get: X =
+    if (notTimedOutYet && isEmpty) {
     synchronized {
-      while (!haveResult) {
+      while (isEmpty) {
         wait()
       }
       result
     }
-  }
+  } else result
 
-  def is(x: X): Unit = if (timedOut || haveResult) () else {
+  def is(x: X): Unit =
+    if (notTimedOutYet && isEmpty) {
     synchronized {
-      if (!timedOut) {
+      if (notTimedOutYet) {
         result = x
-        haveResult = true
+        isEmpty = false
         notify()
       }
     }
-  }
+  } else ()
 
-  def isAwaited(x: X): Boolean = if (timedOut || haveResult) !timedOut else {
+  def isAwaited(x: X): Boolean =
+    if (notTimedOutYet && isEmpty) {
     synchronized {
-      if (!timedOut) {
+      if (notTimedOutYet) {
         result = x
-        haveResult = true
+        isEmpty = false
         notify()
       }
-      !timedOut
+      notTimedOutYet
     }
-  }
+  } else notTimedOutYet
 }
 
 object Budu {
