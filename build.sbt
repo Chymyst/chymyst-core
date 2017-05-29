@@ -122,6 +122,7 @@ lazy val core = (project in file("core"))
       // We need the "scala-compiler" only in order to debug macros;
       // the project or its tests do not actually depend on scala-compiler.
       "org.scala-lang" % "scala-compiler" % scalaVersion.value % Test
+      , "org.sameersingh.scalaplot" % "scalaplot" % "0.0.4" % Test
     )
     , testFrameworks += new TestFramework("utest.runner.Framework")
   )
@@ -156,7 +157,6 @@ lazy val benchmark = (project in file("benchmark"))
     },
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.1" % Test
-      , "org.sameersingh.scalaplot" % "scalaplot" % "0.0.4" % Test
     )
   ).dependsOn(core % "compile->compile;test->test")
 

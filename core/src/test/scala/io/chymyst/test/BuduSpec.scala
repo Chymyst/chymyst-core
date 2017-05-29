@@ -86,7 +86,7 @@ class BuduSpec extends LogSpec {
   behavior of "performance benchmark"
 
   val total = 2000
-  val best = 20
+  val best = 50
 
   it should "measure reply speed for Budu" in {
     val results = (1 to total).map { _ ⇒
@@ -96,9 +96,10 @@ class BuduSpec extends LogSpec {
       }
       val now = x.get
       System.nanoTime - now
-    }.drop(total - best).map(_.toDouble)
-    val (average, stdev) = meanAndStdev(results)
+    }.map(_.toDouble)
+    val (average, stdev) = meanAndStdev(results.drop(total - best))
     println(s"Best amortized reply speed for Budu, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
+    showRegression("reply speed for Budu", results, x ⇒ math.pow(x + total/5, -1.0))
   }
 
   it should "measure reply speed for Promise" in {
@@ -109,9 +110,10 @@ class BuduSpec extends LogSpec {
       }
       val now = Await.result(x.future, Duration.Inf)
       System.nanoTime - now
-    }.drop(total - best).map(_.toDouble)
-    val (average, stdev) = meanAndStdev(results)
+    }.map(_.toDouble)
+    val (average, stdev) = meanAndStdev(results.drop(total - best))
     println(s"Best amortized reply speed for Promise, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
+    showRegression("reply speed for Promise", results, x ⇒ math.pow(x + total/5, -1.0))
   }
 
   it should "measure time-out reply speed for Budu" in {
@@ -122,9 +124,10 @@ class BuduSpec extends LogSpec {
       }
       val now = x.await(10.seconds).get
       System.nanoTime - now
-    }.drop(total - best).map(_.toDouble)
-    val (average, stdev) = meanAndStdev(results)
+    }.map(_.toDouble)
+    val (average, stdev) = meanAndStdev(results.drop(total - best))
     println(s"Best amortized time-out reply speed for Budu, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
+    showRegression("time-out reply speed for Budu", results, x ⇒ math.pow(x + total/5, -1.0))
   }
 
   it should "measure time-out reply speed for Promise" in {
@@ -135,9 +138,10 @@ class BuduSpec extends LogSpec {
       }
       val now = Await.result(x.future, 10.seconds)
       System.nanoTime - now
-    }.drop(total - best).map(_.toDouble)
-    val (average, stdev) = meanAndStdev(results)
+    }.map(_.toDouble)
+    val (average, stdev) = meanAndStdev(results.drop(total - best))
     println(s"Best amortized time-out reply speed for Promise, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
+    showRegression("time-out reply speed for Promise", results, x ⇒ math.pow(x + total/5, -1.0))
   }
 
 }
