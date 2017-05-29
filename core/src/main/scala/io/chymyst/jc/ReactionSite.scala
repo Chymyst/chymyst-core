@@ -211,7 +211,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val exitStatus: ReactionExitStatus = try {
       setReactionInfo(thisReaction.info)
       // Here we actually apply the reaction body to its input molecules.
-      thisReaction.body.apply((usedInputs.length - 1, usedInputs))
+      thisReaction.body.apply(ReactionBodyInput(index = usedInputs.length - 1, inputs = usedInputs))
       clearReactionInfo()
       // If we are here, we had no exceptions during evaluation of reaction body.
       ReactionExitSuccess
@@ -520,7 +520,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   /** Common code for [[emitAndAwaitReply]] and [[emitAndAwaitReplyWithTimeout]].
     *
-    * @param timeoutOpt        Timeout value in nanoseconds, or None if no timeout is requested.
+    * @param timeoutOpt        Timeout value in milliseconds, or None if no timeout is requested.
     * @param bm                A blocking molecule to be emitted.
     * @param v                 Value that the newly emitted molecule should carry.
     * @param replyValueWrapper The reply value wrapper for the blocking molecule.
@@ -534,7 +534,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     emit[T](bm, blockingMolValue)
 
     val timedOut: Boolean = !BlockingIdle(bm.isSelfBlocking) {
-      replyValueWrapper.acquireSemaphoreForEmitter(timeoutNanos = timeoutOpt)
+      replyValueWrapper.acquireSemaphoreForEmitter(timeoutMillis = timeoutOpt)
     }
     // We might have timed out, in which case we need to forcibly remove the blocking molecule from the soup.
     if (timedOut) {

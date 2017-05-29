@@ -1,17 +1,16 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
-import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfterEach, Matchers}
+import org.scalatest.BeforeAndAfterEach
 
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
+import io.chymyst.test.Common._
 
 /** More unit tests for blocking molecule functionality.
   *
   */
-class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
+class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
   var tp0: Pool = _
 
@@ -22,8 +21,6 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
   override def afterEach(): Unit = {
     tp0.shutdownNow()
   }
-
-  val timeLimit = Span(6000, Millis)
 
   behavior of "blocking molecule"
 
@@ -50,7 +47,7 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
     }.sum shouldEqual 0 // we used to have about 4% failure rate here!
   }
 
-  it should "timeout when a blocking molecule is not responding at all" in {
+  it should "timeout when no reply is sent at all" in {
 
     val a = m[Unit]
     val f = b[Unit, Int]
@@ -60,7 +57,27 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
     f.timeout()(500 millis) shouldEqual None
   }
 
-  it should "not timeout when a blocking molecule is responding quickly enough" in {
+  it should "timeout with correct duration when no reply is sent" in {
+
+    val a = m[Unit]
+    val f = b[Unit, Int]
+    site(tp0)(go { case a(_) + f(_, r) => r(3) })
+    a()
+    f() shouldEqual 3 // now the a() molecule is gone
+    val total = 100
+    val timeout = 34
+    val results = (1 to total).map { _ ⇒
+      val initTime = System.nanoTime()
+      f.timeout()(timeout millis)
+      (System.nanoTime() - initTime) / 1000000.0
+    }
+    val (mean, std) = meanAndStdev(results.drop(total / 2))
+    println(f"Timeout is late by ${mean - timeout}%1.3f ms ± $std%1.3f ms")
+    mean - timeout should be < 10.0 // typical shift is 1 ms ± 0.5 ms
+    mean - timeout should be > -1.0
+  }
+
+  it should "not timeout when a reply is sent quickly enough" in {
     val a = m[Unit]
     val f = b[Unit, Int]
     site(tp0)(go { case a(_) + f(_, r) => Thread.sleep(100); r(3) })
@@ -68,7 +85,7 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
     f.timeout()(500 millis) shouldEqual Some(3)
   }
 
-  it should "timeout when a blocking molecule is not responding quickly enough" in {
+  it should "timeout when a reply is not sent quickly enough" in {
     val a = m[Unit]
     val f = b[Unit, Int]
     site(tp0)(go { case a(_) + f(_, r) => Thread.sleep(500); r(3) })
@@ -240,7 +257,7 @@ class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests 
     val (g, g2) = makeBlockingCheck(BlockingIdle {
       Thread.sleep(500)
     }, tp)
-    
+
     g2.timeout()(300 millis) shouldEqual Some(1) // this should not be blocked
     tp.currentPoolSize shouldEqual 2
     g() // now we know that the first reaction has finished

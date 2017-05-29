@@ -1,8 +1,6 @@
 package io.chymyst.test
 
-import org.scalatest.Matchers
-
-class TypeLabelsSpec extends LogSpec with Matchers {
+class TypeLabelsSpec extends LogSpec {
 
   import io.chymyst.jc.TypeLabels.LabeledString._
 

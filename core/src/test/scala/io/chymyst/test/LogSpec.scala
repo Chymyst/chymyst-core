@@ -1,8 +1,8 @@
 package io.chymyst.test
 
-import org.scalatest.{Args, FlatSpec, Status}
+import org.scalatest.{Args, FlatSpec, Matchers, Status}
 
-class LogSpec extends FlatSpec {
+class LogSpec extends FlatSpec with Matchers {
 
   protected override def runTest(testName: String, args: Args): Status = {
     val initTime = System.currentTimeMillis()

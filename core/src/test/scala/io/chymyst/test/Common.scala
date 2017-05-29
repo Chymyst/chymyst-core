@@ -1,6 +1,9 @@
 package io.chymyst.test
 
+import java.io.File
+
 import io.chymyst.jc._
+import org.sameersingh.scalaplot.jfreegraph.JFGraphPlotter
 
 object Common {
   def repeat[A](n: Int)(x: => A): Unit = (1 to n).foreach(_ => x)
@@ -28,6 +31,59 @@ object Common {
     val result = x
     val elapsedTime = System.currentTimeMillis() - initTime
     (result, elapsedTime)
+  }
+
+  def meanAndStdev(d: Seq[Double]): (Double, Double) = {
+    val size = safeSize(d.size)
+    val mean = d.sum / size
+    val std = math.sqrt(d.map(x => x - mean).map(x => x * x).sum / size)
+    (mean, std)
+  }
+
+  def formatNanosToMs(x: Double): String = f"${x / 1000000.0}%1.3f"
+
+  def formatNanosToMicros(x: Double): String = f"${x / 1000.0}%1.3f µs"
+
+  def formatMicros(x: Double): String = f"$x%1.3f µs"
+
+  val safeSize: Int => Double = x => if (x == 0) 1.0f else x.toDouble
+
+  def det(a00: Double, a01: Double, a10: Double, a11: Double): Double = a00 * a11 - a01 * a10
+
+  def regressLSQ(xs: Seq[Double], ys: Seq[Double], funcX: Double ⇒ Double, funcY: Double ⇒ Double): (Double, Double, Double) = {
+    val n = xs.length
+    val sumX = xs.map(funcX).sum
+    val sumXX = xs.map(funcX).map(x ⇒ x * x).sum
+    val sumY = ys.map(funcY).sum
+    val sumXY = xs.zip(ys).map { case (x, y) ⇒ funcX(x) * funcY(y) }.sum
+    val detS = det(n.toDouble, sumX, sumX, sumXX)
+    val a0 = det(sumY, sumX, sumXY, sumXX) / detS
+    val a1 = det(n.toDouble, sumY, sumX, sumXY) / detS
+    val eps = math.sqrt(xs.zip(ys).map { case (x, y) ⇒ math.pow(a0 + a1 * funcX(x) - funcY(y), 2) }.sum) / n
+    (a0, a1, eps)
+  }
+  def showRegression(message: String, results: Seq[Double], funcX: Double => Double, funcY: Double => Double = identity): Unit = {
+    // Perform regression to determine the effect of JVM warm-up.
+    // Assume that the warm-up works as a0 + a1*x^(-c). Try linear regression with different values of c.
+    val dataX = results.indices.map(_.toDouble)
+    val dataY = results // pass with a min window
+      .zipAll(results.drop(1), Double.PositiveInfinity, Double.PositiveInfinity)
+      .zipAll(results.drop(2), (Double.PositiveInfinity, Double.PositiveInfinity), Double.PositiveInfinity)
+      .map { case ((x, y), z) ⇒ math.min(x, math.min(y, z)) }
+    val (a0, a1, a0stdev) = regressLSQ(dataX, dataY, funcX, funcY)
+    val speedup = f"${(a0 + a1 * funcX(dataX.head)) / (a0 + a1*funcX(dataX.last))}%1.2f"
+    println(s"Regression results for $message: constant = ${formatNanosToMicros(a0)} ± ${formatNanosToMicros(a0stdev)}, gain = ${formatNanosToMicros(a1)}*iteration, max. speedup = $speedup")
+
+    import org.sameersingh.scalaplot.Implicits._
+
+    val dataTheoryY = dataX.map(i ⇒ a0 + a1 * funcX(i))
+    val chart = xyChart(dataX → ((dataTheoryY, dataY)))
+    val plotter = new JFGraphPlotter(chart)
+    val plotdir = "logs/"
+    new File(plotdir).mkdir()
+    val plotfile = "benchmark " + message.replaceAll(" ", "_")
+    plotter.pdf(plotdir, plotfile)
+    println(s"Plot file produced in $plotdir$plotfile.pdf")
   }
 
 }

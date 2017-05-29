@@ -16,10 +16,7 @@ import scala.concurrent.duration.Duration
   * Input patterns with a right-associative grouping of the `+` operator, for example `a(x) + ( b(y) + c(z) )`, are rejected at compile time.
   */
 object + {
-  def unapply(inputs: ReactionBodyInput): Option[(ReactionBodyInput, ReactionBodyInput)] = {
-    val (index, inputMoleculeList) = inputs
-    Some(((index - 1, inputMoleculeList), (index, inputMoleculeList)))
-  }
+  def unapply(inputs: ReactionBodyInput): ReactionBodyInput = inputs
 }
 
 /** Abstract container for molecule values. This is a common wrapper for values of blocking and non-blocking molecules.
@@ -75,6 +72,14 @@ private[jc] final case class BlockingMolValue[T, R](
   replyValue: AbsReplyEmitter[T, R]
 ) extends AbsMolValue[T] {
   override private[jc] def reactionSentNoReply: Boolean = replyValue.noReplyAttemptedYet // `true` if no value, no error, and no timeout
+
+  def isEmpty: Boolean = false
+
+  def get: BlockingMolValue[T, R] = this
+
+  def _1: T = moleculeValue
+
+  def _2: ReplyEmitter[T, R] = replyValue.asInstanceOf[ReplyEmitter[T, R]]
 }
 
 /** Abstract trait representing a molecule emitter.
@@ -191,12 +196,6 @@ sealed trait Molecule extends PersistentHashCode {
   override def toString: String = (if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "") // This can't be a lazy val because `isBlocking` is overridden in derived classes.
 }
 
-final case class Wrap[T](x: T) extends AnyVal {
-  def isEmpty: Boolean = false
-
-  def get: T = x
-}
-
 /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
   *
   * @param name Name of the molecule, used for debugging only.
@@ -205,8 +204,7 @@ final case class Wrap[T](x: T) extends AnyVal {
 final class M[T](val name: String) extends (T => Unit) with Molecule {
 
   def unapply(arg: ReactionBodyInput): Wrap[T] = {
-    //    val (index, inputMoleculeList) = arg
-    val v = arg._2(arg._1).asInstanceOf[MolValue[T]].moleculeValue
+    val v = arg.inputs(arg.index).asInstanceOf[MolValue[T]].moleculeValue
     Wrap(v)
   }
 
@@ -324,9 +322,9 @@ private[jc] sealed trait AbsReplyEmitter[T, R] {
     */
   private val semaphoreForReplyStatus = new Semaphore(1, false)
 
-  final private[jc] def acquireSemaphoreForEmitter(timeoutNanos: Option[Long]): Boolean =
-    timeoutNanos match {
-      case Some(nanos) => semaphoreForEmitter.tryAcquire(nanos, TimeUnit.NANOSECONDS)
+  final private[jc] def acquireSemaphoreForEmitter(timeoutMillis: Option[Long]): Boolean =
+    timeoutMillis match {
+      case Some(millis) => semaphoreForEmitter.tryAcquire(millis, TimeUnit.MILLISECONDS)
       case None => semaphoreForEmitter.acquire(); true
     }
 
@@ -429,21 +427,18 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     * @return Non-empty option if the reply was received; None on timeout.
     */
   def timeout(v: T)(duration: Duration): Option[R] = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, R]]
-    .emitAndAwaitReplyWithTimeout(duration.toNanos, this, v, new ReplyEmitter[T, R])
+    .emitAndAwaitReplyWithTimeout(duration.toMillis, this, v, new ReplyEmitter[T, R])
 
   /** Same but for molecules with type `T = Unit`; enables shorter syntax `b().timeout(1.second)`. */
   def timeout()(duration: Duration)(implicit arg: TypeMustBeUnit[T]): Option[R] = timeout(arg.getUnit)(duration)
 
   /** Perform the unapply matching and return a wrapped ReplyValue on success.
     *
-    * @param arg The input molecule list, which should be a one-element list.
-    * @return None if there was no match; Some(...) if the reaction inputs matched.
+    * @param arg The input molecule list and the index into that list, indicating which molecule value we need.
+    * @return An instance of [[BlockingMolValue]] that plays the role of its own extractor.
     */
-  def unapply(arg: ReactionBodyInput): Option[(T, ReplyEmitter[T, R])] = {
-    val (index, inputMoleculeList) = arg
-    inputMoleculeList.lift(index)
-      .map(_.asInstanceOf[BlockingMolValue[T, R]])
-      .map { bmv => (bmv.moleculeValue, bmv.replyValue.asInstanceOf[ReplyEmitter[T, R]]) }
+  def unapply(arg: ReactionBodyInput): BlockingMolValue[T, R] = {
+    arg.inputs(arg.index).asInstanceOf[BlockingMolValue[T, R]]
   }
 
   /** Emit a blocking molecule and receive a value when the reply action is performed.
@@ -480,4 +475,34 @@ sealed trait PersistentHashCode {
   private lazy val hashCodeValue: Int = super.hashCode()
 
   override def hashCode(): Int = hashCodeValue
+}
+
+/** Wrapper for `unapply()`. According to https://github.com/scala/scala/pull/2848 the `unapply()` function can return any
+  * type that directly contains methods `isEmpty: Boolean` and `get: T` where `T` can be either a tuple type with extractors _1, _2 etc.,
+  * or another type.
+  *
+  * This wrapper is for wrapping a value that is unconditionally returned by `unapply()`, as molecule extractors must do.
+  *
+  * @param x Molecule value wrapped and to be returned by `unapply()`.
+  * @tparam T Type of the molecule value.
+  */
+final case class Wrap[T](x: T) extends AnyVal {
+  def isEmpty: Boolean = false
+
+  def get: T = x
+}
+
+/** This type is used as argument for [[ReactionBody]], and can serve as its own extractor because it implements the named extractors API.
+  *
+  * @param index Index into the [[InputMoleculeList]] array that indicates the molecule value for the current molecule.
+  * @param inputs An [[InputMoleculeList]] array.
+  */
+private[jc] final case class ReactionBodyInput(index: Int, inputs: InputMoleculeList) {
+  def isEmpty: Boolean = false
+
+  def get: ReactionBodyInput = this
+
+  def _1: ReactionBodyInput = this.copy(index = this.index - 1)
+
+  def _2: ReactionBodyInput = this
 }

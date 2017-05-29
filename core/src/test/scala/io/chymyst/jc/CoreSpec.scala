@@ -4,11 +4,10 @@ import javax.xml.bind.DatatypeConverter
 
 import io.chymyst.jc.Core._
 import io.chymyst.test.LogSpec
-import org.scalatest.Matchers
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 
-class CoreSpec extends LogSpec with Matchers with TimeLimitedTests {
+class CoreSpec extends LogSpec with TimeLimitedTests {
   private lazy val sha1Digest = getMessageDigest
 
   def getSha1Any(c: Any): String = getSha1(c.toString, sha1Digest)
@@ -195,13 +194,13 @@ class CoreSpec extends LogSpec with Matchers with TimeLimitedTests {
     arrayShuffleInPlace(arr)
     arr.toList should not equal (0 until n).toList
   }
-  */
+
   it should "use shuffle on a sequence" in {
     val n = 100
     val s = (0 until n).shuffle
     s should not equal (0 until n).toList
   }
-
+ */
   behavior of "streamDiff"
 
   it should "not exclude elements when skip is empty" in {

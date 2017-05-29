@@ -2,12 +2,11 @@ package io.chymyst.benchmark
 
 import io.chymyst.jc._
 import io.chymyst.test.LogSpec
-import org.scalatest.Matchers
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 
-class MapReduceSpec extends LogSpec with Matchers {
+class MapReduceSpec extends LogSpec {
 
   def elapsed(initTime: Long): Long = System.currentTimeMillis() - initTime
 

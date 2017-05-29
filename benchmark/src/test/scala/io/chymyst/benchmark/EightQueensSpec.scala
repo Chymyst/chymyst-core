@@ -3,11 +3,10 @@ package io.chymyst.benchmark
 import io.chymyst.benchmark.Common._
 import io.chymyst.jc._
 import io.chymyst.test.LogSpec
-import org.scalatest.Matchers
 
 import scala.concurrent.duration.DurationInt
 
-class EightQueensSpec extends LogSpec with Matchers {
+class EightQueensSpec extends LogSpec {
 
   def safe(x1: Int, y1: Int, x2: Int, y2: Int): Boolean =
     x1 != x2 && y1 != y2 && (x1 - y1 != x2 - y2) && (x1 + y1 != x2 + y2)

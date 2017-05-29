@@ -40,28 +40,15 @@ object Core {
     def toOptionSeq: Option[Seq[S]] = if (s.isEmpty) None else Some(s)
   }
 
-  /** Add a random shuffle method to sequences.
-    *
-    * @param a Sequence to be shuffled.
-    * @tparam T Type of sequence elements.
-    */
-  implicit final class ShufflableSeq[T](val a: Seq[T]) extends AnyVal {
-    /** Shuffle sequence elements randomly.
-      *
-      * @return A new sequence with randomly permuted elements.
-      */
-    def shuffle: Seq[T] = scala.util.Random.shuffle(a)
-  }
-
   @SuppressWarnings(Array("org.wartremover.warts.Equals"))
   implicit final class AnyOpsEquals[A](val self: A) extends AnyVal {
-    def ===(other: A): Boolean = self == other
+    @inline def ===(other: A): Boolean = self == other
   }
 
   @SuppressWarnings(Array("org.wartremover.warts.Equals"))
   implicit final class AnyOpsNotEquals[A](val self: A) extends AnyVal {
     // removing `[@specialized A]` to allow `extends AnyVal`
-    def =!=(other: A): Boolean = self != other
+    @inline def =!=(other: A): Boolean = self != other
   }
 
   /** Compute the difference between sequences, enforcing type equality.
@@ -71,16 +58,16 @@ object Core {
     * @tparam T Type of sequence elements.
     */
   implicit final class SafeSeqDiff[T](val s: Seq[T]) extends AnyVal {
-    def difff(t: Seq[T]): Seq[T] = s diff t
+    @inline def difff(t: Seq[T]): Seq[T] = s diff t
   }
 
   implicit final class SafeListDiff[T](val s: List[T]) extends AnyVal {
-    def difff(t: List[T]): List[T] = s diff t
+    @inline def difff(t: List[T]): List[T] = s diff t
   }
 
   /** Provide `.toScalaSymbol` method for `String` values. */
   implicit final class StringToSymbol(val s: String) extends AnyVal {
-    def toScalaSymbol: scala.Symbol = scala.Symbol(s)
+    @inline def toScalaSymbol: scala.Symbol = scala.Symbol(s)
   }
 
   /** Type alias for reaction body, which is used often. */
@@ -130,11 +117,9 @@ object Core {
 
   private[jc] def logMessage(message: String): Unit = println(messageWithTime(message))
 
+
   /** List of molecules used as inputs by a reaction. The molecules are ordered the same as in the reaction input list. */
   private[jc] type InputMoleculeList = Array[AbsMolValue[_]]
-
-  /** Type used as argument for [[ReactionBody]]. The `Int` value is the index into the [[InputMoleculeList]] array. */
-  private[jc] type ReactionBodyInput = (Int, InputMoleculeList)
 
   /*
     implicit final class EitherMonad[L, R](val e: Either[L, R]) extends AnyVal {
@@ -350,6 +335,20 @@ object Core {
       }
     }
   }
+
+  /** Add a random shuffle method to sequences.
+    *
+    * @param a Sequence to be shuffled.
+    * @tparam T Type of sequence elements.
+    */
+  implicit final class ShufflableSeq[T](val a: Seq[T]) extends AnyVal {
+    /** Shuffle sequence elements randomly.
+      *
+      * @return A new sequence with randomly permuted elements.
+      */
+    def shuffle: Seq[T] = scala.util.Random.shuffle(a)
+  }
+
 */
   def streamDiff[T](s: Iterator[T], skipBag: MutableMultiset[T]): Iterator[T] = {
     s.filter { t ⇒

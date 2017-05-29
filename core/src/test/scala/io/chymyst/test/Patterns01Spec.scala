@@ -6,13 +6,13 @@ import java.util.concurrent.ConcurrentLinkedQueue
 
 import io.chymyst.jc._
 import io.chymyst.test.Common._
-import org.scalatest.{BeforeAndAfterEach, Matchers}
+import org.scalatest.BeforeAndAfterEach
 
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class Patterns01Spec extends LogSpec with Matchers with BeforeAndAfterEach {
+class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
 
   var tp: Pool = _
 

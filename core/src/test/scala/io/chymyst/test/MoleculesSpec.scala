@@ -1,15 +1,15 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
+import org.scalatest.BeforeAndAfterEach
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfterEach, Matchers}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class MoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
+class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEach {
 
   var tp0: Pool = _
 

@@ -6,12 +6,11 @@ import java.util.{Timer, TimerTask}
 
 import io.chymyst.jc.{FixedPool, withPool}
 import io.chymyst.test.LogSpec
-import org.scalatest.Matchers
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Promise}
 
-class SingleThreadSpec extends LogSpec with Matchers {
+class SingleThreadSpec extends LogSpec {
 
   behavior of "single-thread pool"
 
