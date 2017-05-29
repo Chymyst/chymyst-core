@@ -30,6 +30,14 @@ class BuduSpec extends LogSpec {
     x.get shouldEqual 123
   }
 
+  it should "wait for reply using Future" in {
+    val x = Budu[Int]
+    Future {
+      x.is(123)
+    }
+    Await.result(x.getFuture, Duration.Inf) shouldEqual 123
+  }
+
   it should "wait for reply and report status" in {
     val x = Budu[Int]
     val y = Budu[Boolean]
