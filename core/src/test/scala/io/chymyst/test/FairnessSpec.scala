@@ -2,9 +2,8 @@ package io.chymyst.test
 
 import io.chymyst.jc._
 import io.chymyst.test.Common._
-import org.scalatest.Matchers
 
-class FairnessSpec extends LogSpec with Matchers {
+class FairnessSpec extends LogSpec {
 
   behavior of "reaction site"
 

@@ -2,12 +2,12 @@ package io.chymyst.jc
 
 import io.chymyst.jc.Macros.{getName, rawTree}
 import io.chymyst.test.LogSpec
-import org.scalatest.{BeforeAndAfterEach, Matchers}
+import org.scalatest.BeforeAndAfterEach
 
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
-class MacrosSpec extends LogSpec with Matchers with BeforeAndAfterEach {
+class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
   val warmupTimeMs = 200L
 

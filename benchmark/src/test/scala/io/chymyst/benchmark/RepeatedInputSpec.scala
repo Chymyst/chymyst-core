@@ -3,9 +3,8 @@ package io.chymyst.benchmark
 import io.chymyst.jc._
 import io.chymyst.test.Common.{elapsedTimeMs, litmus}
 import io.chymyst.test.LogSpec
-import org.scalatest.Matchers
 
-class RepeatedInputSpec extends LogSpec with Matchers {
+class RepeatedInputSpec extends LogSpec {
 
   behavior of "reactions with repeated input"
 

@@ -4,9 +4,8 @@ import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
 import io.chymyst.jc._
-import org.scalatest.Matchers
 
-class GameOfLifeSpec extends LogSpec with Matchers {
+class GameOfLifeSpec extends LogSpec {
 
   behavior of "Game of Life"
 

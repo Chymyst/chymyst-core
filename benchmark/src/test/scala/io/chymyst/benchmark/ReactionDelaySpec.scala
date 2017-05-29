@@ -7,13 +7,12 @@ import java.time.temporal.ChronoUnit
 import io.chymyst.jc._
 import io.chymyst.test.LogSpec
 import org.sameersingh.scalaplot.jfreegraph.JFGraphPlotter
-import org.scalatest.Matchers
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Promise}
 import scala.util.Random.nextInt
 
-class ReactionDelaySpec extends LogSpec with Matchers {
+class ReactionDelaySpec extends LogSpec {
 
   val safeSize: Int => Double = x => if (x == 0) 1.0f else x.toDouble
 

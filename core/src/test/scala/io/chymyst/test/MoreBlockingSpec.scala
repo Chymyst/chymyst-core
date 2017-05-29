@@ -1,15 +1,14 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
-import org.scalatest.Matchers
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 
-import scala.concurrent.{Await, Promise}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Promise}
 import scala.language.postfixOps
 
-class MoreBlockingSpec extends LogSpec with Matchers with TimeLimitedTests {
+class MoreBlockingSpec extends LogSpec with TimeLimitedTests {
 
   val timeLimit = Span(3000, Millis)
 

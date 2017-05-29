@@ -1,9 +1,9 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
+import org.scalatest.BeforeAndAfterEach
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfterEach, Matchers}
 
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
@@ -11,7 +11,7 @@ import scala.language.postfixOps
 /** More unit tests for blocking molecule functionality.
   *
   */
-class BlockingMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
+class BlockingMoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEach {
 
   var tp0: Pool = _
 

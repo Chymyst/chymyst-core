@@ -4,11 +4,10 @@ import javax.xml.bind.DatatypeConverter
 
 import io.chymyst.jc.Core._
 import io.chymyst.test.LogSpec
-import org.scalatest.Matchers
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
 
-class CoreSpec extends LogSpec with Matchers with TimeLimitedTests {
+class CoreSpec extends LogSpec with TimeLimitedTests {
   private lazy val sha1Digest = getMessageDigest
 
   def getSha1Any(c: Any): String = getSha1(c.toString, sha1Digest)

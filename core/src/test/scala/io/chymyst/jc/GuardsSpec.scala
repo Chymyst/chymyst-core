@@ -1,11 +1,10 @@
 package io.chymyst.jc
 
 import io.chymyst.test.LogSpec
-import org.scalatest.Matchers
 
 import scala.concurrent.duration._
 
-class GuardsSpec extends LogSpec with Matchers {
+class GuardsSpec extends LogSpec {
 
   behavior of "miscellaneous"
 

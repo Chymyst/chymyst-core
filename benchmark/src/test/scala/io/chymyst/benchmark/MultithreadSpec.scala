@@ -3,9 +3,8 @@ package io.chymyst.benchmark
 import io.chymyst.benchmark.Common._
 import io.chymyst.jc._
 import io.chymyst.test.LogSpec
-import org.scalatest.Matchers
 
-class MultithreadSpec extends LogSpec with Matchers {
+class MultithreadSpec extends LogSpec {
 
   it should "run time-consuming tasks on many threads much faster than on one thread" in {
 

@@ -2,14 +2,14 @@ package io.chymyst.test
 
 import io.chymyst.jc._
 import io.chymyst.test.Common._
+import org.scalatest.BeforeAndAfterEach
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Millis, Span}
-import org.scalatest.{BeforeAndAfterEach, Matchers}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class StaticMoleculesSpec extends LogSpec with Matchers with TimeLimitedTests with BeforeAndAfterEach {
+class StaticMoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEach {
 
   val timeLimit = Span(3000, Millis)
 
