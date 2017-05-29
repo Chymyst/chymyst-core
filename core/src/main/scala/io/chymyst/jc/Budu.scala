@@ -28,7 +28,7 @@ class Budu[X] {
 
   def await(duration: Duration): Option[X] =
     if (state === 2) {
-      var newDuration = duration.toMillis
+      val newDuration = duration.toMillis
       val targetTime = newDuration + System.currentTimeMillis()
       synchronized {
         if (isEmpty)

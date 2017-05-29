@@ -476,3 +476,33 @@ sealed trait PersistentHashCode {
 
   override def hashCode(): Int = hashCodeValue
 }
+
+/** Wrapper for `unapply()`. According to https://github.com/scala/scala/pull/2848 the `unapply()` function can return any
+  * type that directly contains methods `isEmpty: Boolean` and `get: T` where `T` can be either a tuple type with extractors _1, _2 etc.,
+  * or another type.
+  *
+  * This wrapper is for wrapping a value that is unconditionally returned by `unapply()`, as molecule extractors must do.
+  *
+  * @param x Molecule value wrapped and to be returned by `unapply()`.
+  * @tparam T Type of the molecule value.
+  */
+final case class Wrap[T](x: T) extends AnyVal {
+  def isEmpty: Boolean = false
+
+  def get: T = x
+}
+
+/** This type is used as argument for [[ReactionBody]], and can serve as its own extractor because it implements the named extractors API.
+  *
+  * @param index Index into the [[InputMoleculeList]] array that indicates the molecule value for the current molecule.
+  * @param inputs An [[InputMoleculeList]] array.
+  */
+private[jc] final case class ReactionBodyInput(index: Int, inputs: InputMoleculeList) {
+  def isEmpty: Boolean = false
+
+  def get: ReactionBodyInput = this
+
+  def _1: ReactionBodyInput = this.copy(index = this.index - 1)
+
+  def _2: ReactionBodyInput = this
+}

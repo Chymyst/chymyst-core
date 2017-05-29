@@ -117,34 +117,9 @@ object Core {
 
   private[jc] def logMessage(message: String): Unit = println(messageWithTime(message))
 
-  /** Wrapper for `unapply()`. According to https://github.com/scala/scala/pull/2848 the `unapply()` function can return any
-    * type that directly contains methods `isEmpty: Boolean` and `get: T` where T can be either a tuple type with extractors _1, _2 etc.,
-    * or another type.
-    *
-    * This wrapper is for wrapping a value that is unconditionally returned by `unapply()`, as molecule extractors must do.
-    *
-    * @param x Molecule value wrapped and to be returned by `unapply()`.
-    * @tparam T Type of the molecule value.
-    */
-  final case class Wrap[T](x: T) extends AnyVal {
-    def isEmpty: Boolean = false
-
-    def get: T = x
-  }
 
   /** List of molecules used as inputs by a reaction. The molecules are ordered the same as in the reaction input list. */
   private[jc] type InputMoleculeList = Array[AbsMolValue[_]]
-
-  /** Type used as argument for [[ReactionBody]]. The `Int` value is the index into the [[InputMoleculeList]] array. */
-  private[jc] case class ReactionBodyInput(index: Int, inputs: InputMoleculeList) {
-    def isEmpty: Boolean = false
-
-    def get: ReactionBodyInput = this
-
-    def _1: ReactionBodyInput = this.copy(index = this.index - 1)
-
-    def _2: ReactionBodyInput = this
-  }
 
   /*
     implicit final class EitherMonad[L, R](val e: Either[L, R]) extends AnyVal {
