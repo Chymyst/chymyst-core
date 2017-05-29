@@ -69,7 +69,7 @@ private[jc] final case class MolValue[T](private[jc] val moleculeValue: T) exten
   */
 private[jc] final case class BlockingMolValue[T, R](
   private[jc] val moleculeValue: T,
-  replyValue: AbsReplyEmitter[T, R]
+  replyValue: ReplyEmitter[T, R]
 ) extends AbsMolValue[T] {
   override private[jc] def reactionSentNoReply: Boolean = replyValue.noReplyAttemptedYet // `true` if no value, no error, and no timeout
 
@@ -250,45 +250,30 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
   }
 }
 
-/** Represents the different states of the reply process.
+// TODO: remove this comment
+/* ReplyStatus represents the different states of the reply process.
   * Initially, the status is [[HaveReply]] with a `null` value.
   * Reply is successful if the emitting call does not time out. In this case, we have a reply value.
   * This is represented by [[HaveReply]] with a non-null value.
-  * If the reply times out, there is still no reply value. This is represented by the AtomicBoolean flag [[AbsReplyEmitter.hasTimedOut]] set to `true`.
+  * If the reply times out, there is still no reply value. This is represented by the AtomicBoolean flag [[ReplyEmitter.hasTimedOut]] set to `true`.
   * If the reaction finished but did not reply, it is an error condition. If the reaction finished and replied more than once, it is also an error condition.
   * After a reaction fails to reply, the emitting closure will put an error message into the status for that molecule. This is represented by [[ErrorNoReply]].
   * When a reaction replies more than once, it is too late to put an error message into the status for that molecule. So we do not have a status value for this situation.
   */
-private[jc] sealed trait ReplyStatus
 
-/** Indicates that the reaction body finished running but did not reply to the blocking molecule.
-  *
-  * @param message Error message (showing which other molecules did not receive replies, or received multiple replies).
-  */
-private[jc] final case class ErrorNoReply(message: String) extends ReplyStatus
-
-/** If the value is not null, indicates that the reaction body correctly replied to the blocking molecule.
-  * If the value is null, indicates that the reaction body has not yet replied.
-  *
-  * @param result The reply value.
-  * @tparam R Type of the reply value.
-  */
-private[jc] final case class HaveReply[R](result: R) extends ReplyStatus
-
-/** This trait contains the implementations of most methods for [[ReplyEmitter]] class.
+/** Reply emitter for blocking molecules. This is a mutable class that holds the reply value and monitors time-out status.
   *
   * @tparam T Type of the value that the molecule carries.
   * @tparam R Type of the reply value.
   */
-private[jc] sealed trait AbsReplyEmitter[T, R] {
+private[jc] final class ReplyEmitter[T, R] extends (R => Unit) {
+  @volatile private var replyStatus: ReplyStatus[R] = Right(null.asInstanceOf[R]) // the `null` and the typecast will not be used because `replyStatus` will be either overwritten or ignored on timeout. This avoids a third case class in ReplyStatus, and the code can now be completely covered by tests.
 
-  @volatile private var replyStatus: ReplyStatus = HaveReply[R](null.asInstanceOf[R]) // the `null` and the typecast will not be used because `replyStatus` will be either overwritten or ignored on timeout. This avoids a third case class in ReplyStatus, and the code can now be completely covered by tests.
-
-  final private[jc] def getReplyStatus = replyStatus
+  private[jc] def getReplyStatus = replyStatus
 
   /** This is set by the reaction site in case there was a user error, such as not replying to a blocking molecule. */
-  final private[jc] def setErrorStatus(message: String) = {
-    replyStatus = ErrorNoReply(message)
+  private[jc] def setErrorStatus(message: String) = {
+    replyStatus = Left(message)
   }
 
   /** This atomic mutable value is read and written only by reactions that perform reply actions.
@@ -302,11 +287,11 @@ private[jc] sealed trait AbsReplyEmitter[T, R] {
     */
   private val hasTimedOut = new AtomicBoolean(false)
 
-  final private[jc] def setTimedOut() = hasTimedOut.set(true)
+  private[jc] def setTimedOut() = hasTimedOut.set(true)
 
-  final private[jc] def isTimedOut: Boolean = hasTimedOut.get
+  private[jc] def isTimedOut: Boolean = hasTimedOut.get
 
-  final private[jc] def noReplyAttemptedYet: Boolean = !hasReply.get
+  private[jc] def noReplyAttemptedYet: Boolean = !hasReply.get
 
   /** This semaphore blocks the emitter of a blocking molecule until a reply is received.
     * This semaphore is initialized only once when creating an instance of this
@@ -322,17 +307,17 @@ private[jc] sealed trait AbsReplyEmitter[T, R] {
     */
   private val semaphoreForReplyStatus = new Semaphore(1, false)
 
-  final private[jc] def acquireSemaphoreForEmitter(timeoutMillis: Option[Long]): Boolean =
+  private[jc] def acquireSemaphoreForEmitter(timeoutMillis: Option[Long]): Boolean =
     timeoutMillis match {
       case Some(millis) => semaphoreForEmitter.tryAcquire(millis, TimeUnit.MILLISECONDS)
       case None => semaphoreForEmitter.acquire(); true
     }
 
-  final private[jc] def releaseSemaphoreForEmitter(): Unit = semaphoreForEmitter.release()
+  private[jc] def releaseSemaphoreForEmitter(): Unit = semaphoreForEmitter.release()
 
-  final private[jc] def releaseSemaphoreForReply(): Unit = semaphoreForReplyStatus.release()
+  private[jc] def releaseSemaphoreForReply(): Unit = semaphoreForReplyStatus.release()
 
-  final private[jc] def acquireSemaphoreForReply() = semaphoreForReplyStatus.acquire()
+  private[jc] def acquireSemaphoreForReply() = semaphoreForReplyStatus.acquire()
 
   /** Perform the reply action for a blocking molecule.
     * This is called by a reaction that consumed the blocking molecule.
@@ -342,7 +327,7 @@ private[jc] sealed trait AbsReplyEmitter[T, R] {
     * @param r Value to reply with.
     * @return `true` if the reply was received normally, `false` if it was not received due to one of the above conditions.
     */
-  final protected def performReplyAction(r: R): Boolean = {
+  private def performReplyAction(r: R): Boolean = {
     // TODO: simplify this code under the assumption that repeated replies are impossible
     val replyWasNotRepeated = hasReply.compareAndSet(false, true)
 
@@ -355,7 +340,7 @@ private[jc] sealed trait AbsReplyEmitter[T, R] {
       // After acquiring this semaphore, it is safe to read and modify `replyStatus`.
       // The reply value will be assigned only if there was no timeout and no previous reply action.
 
-      replyStatus = HaveReply(r)
+      replyStatus = Right(r)
 
       releaseSemaphoreForEmitter() // Unblock the reaction that emitted this blocking molecule.
       // That reaction will now set reply status and release semaphoreForReplyStatus again.
@@ -367,22 +352,14 @@ private[jc] sealed trait AbsReplyEmitter[T, R] {
   }
 
   /** This is similar to [[performReplyAction]] except that user did not request the timeout checking, so we have fewer semaphores to deal with. */
-  final protected def performReplyActionWithoutTimeoutCheck(r: R): Unit = {
+  private def performReplyActionWithoutTimeoutCheck(r: R): Unit = {
     val replyWasNotRepeated = hasReply.compareAndSet(false, true)
     if (replyWasNotRepeated) {
       // We have not yet tried to reply.
-      replyStatus = HaveReply(r)
+      replyStatus = Right(r)
       releaseSemaphoreForEmitter() // Unblock the reaction that emitted this blocking molecule.
     }
   }
-}
-
-/** Reply emitter for blocking molecules. This is a mutable class (the mutable parts are inherited from [[AbsReplyEmitter]]).
-  *
-  * @tparam T Type of the value carried by the molecule.
-  * @tparam R Type of the value replied to the caller via the "reply" action.
-  */
-private[jc] final class ReplyEmitter[T, R] extends (R => Unit) with AbsReplyEmitter[T, R] {
 
   /** Perform a reply action for a blocking molecule without checking the timeout status (this is slightly faster).
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.

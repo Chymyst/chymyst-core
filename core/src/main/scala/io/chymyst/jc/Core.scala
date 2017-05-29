@@ -117,6 +117,7 @@ object Core {
 
   private[jc] def logMessage(message: String): Unit = println(messageWithTime(message))
 
+  private[jc] type ReplyStatus[R] = Either[String, R]
 
   /** List of molecules used as inputs by a reaction. The molecules are ordered the same as in the reaction input list. */
   private[jc] type InputMoleculeList = Array[AbsMolValue[_]]
