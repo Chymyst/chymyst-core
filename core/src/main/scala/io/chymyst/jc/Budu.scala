@@ -7,10 +7,14 @@ import Core.AnyOpsEquals
 // There are only three states: 2 is empty, no time-out yet. 3 is empty, have time-out. 1 not empty, no time-out.
 
 class Budu[X] {
+  private final val NonEmptyNoTimeout: Int = 1
+  private final val EmptyNoTimeout: Int = 2
+  private final val EmptyAfterTimeout: Int = 3
+
   @volatile var result: X = _
   //  @volatile var isEmpty: Boolean = true
   //  @volatile var notTimedOutYet: Boolean = true
-  @volatile var state: Int = 2
+  @volatile var state: Int = EmptyNoTimeout
 
   @inline def isEmpty: Boolean = state > 1
 
@@ -27,14 +31,14 @@ class Budu[X] {
   }
 
   def await(duration: Duration): Option[X] =
-    if (state === 2) {
+    if (state === EmptyNoTimeout) {
       val newDuration = duration.toMillis
       val targetTime = newDuration + System.currentTimeMillis()
       synchronized {
         if (isEmpty)
           waitUntil(targetTime, newDuration)
         if (isEmpty) {
-          state = 3
+          state = EmptyAfterTimeout
           None
         } else
           Some(result)
@@ -44,7 +48,7 @@ class Budu[X] {
 
 
   def get: X =
-    if (state === 2) {
+    if (state === EmptyNoTimeout) {
       synchronized {
         while (isEmpty) {
           wait()
@@ -54,22 +58,22 @@ class Budu[X] {
     } else result
 
   def is(x: X): Unit =
-    if (state === 2) {
+    if (state === EmptyNoTimeout) {
       synchronized {
         if (notTimedOutYet) {
           result = x
-          state = 1
+          state = NonEmptyNoTimeout
           notify()
         }
       }
     } else ()
 
   def isAwaited(x: X): Boolean =
-    if (state === 2) {
+    if (state === EmptyNoTimeout) {
       synchronized {
         if (notTimedOutYet) {
           result = x
-          state = 1
+          state = NonEmptyNoTimeout
           notify()
         }
         notTimedOutYet
