@@ -96,7 +96,7 @@ class BuduSpec extends LogSpec {
       }
       val now = x.get
       System.nanoTime - now
-    }.sortBy(-_).drop(total - best).map(_.toDouble)
+    }.drop(total - best).map(_.toDouble)
     val (average, stdev) = meanAndStdev(results)
     println(s"Best amortized reply speed for Budu, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
   }
@@ -109,7 +109,7 @@ class BuduSpec extends LogSpec {
       }
       val now = Await.result(x.future, Duration.Inf)
       System.nanoTime - now
-    }.sortBy(-_).drop(total - best).map(_.toDouble)
+    }.drop(total - best).map(_.toDouble)
     val (average, stdev) = meanAndStdev(results)
     println(s"Best amortized reply speed for Promise, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
   }
@@ -122,7 +122,7 @@ class BuduSpec extends LogSpec {
       }
       val now = x.await(10.seconds).get
       System.nanoTime - now
-    }.sortBy(-_).drop(total - best).map(_.toDouble)
+    }.drop(total - best).map(_.toDouble)
     val (average, stdev) = meanAndStdev(results)
     println(s"Best amortized time-out reply speed for Budu, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
   }
@@ -135,7 +135,7 @@ class BuduSpec extends LogSpec {
       }
       val now = Await.result(x.future, 10.seconds)
       System.nanoTime - now
-    }.sortBy(-_).drop(total - best).map(_.toDouble)
+    }.drop(total - best).map(_.toDouble)
     val (average, stdev) = meanAndStdev(results)
     println(s"Best amortized time-out reply speed for Promise, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
   }

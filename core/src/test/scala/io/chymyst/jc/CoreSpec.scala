@@ -194,13 +194,13 @@ class CoreSpec extends LogSpec with TimeLimitedTests {
     arrayShuffleInPlace(arr)
     arr.toList should not equal (0 until n).toList
   }
-  */
+
   it should "use shuffle on a sequence" in {
     val n = 100
     val s = (0 until n).shuffle
     s should not equal (0 until n).toList
   }
-
+ */
   behavior of "streamDiff"
 
   it should "not exclude elements when skip is empty" in {
