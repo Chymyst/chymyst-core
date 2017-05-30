@@ -4,8 +4,20 @@ import java.io.File
 
 import io.chymyst.jc._
 import org.sameersingh.scalaplot.jfreegraph.JFGraphPlotter
+import org.scalatest.Assertion
+import org.scalatest.Matchers._
 
 object Common {
+
+  def globalLogHas(part: String, message: String): Assertion = {
+    globalErrorLog.find(_.contains(part)).get should endWith (message)
+  }
+
+  // Note: log messages have a timestamp prepended to them, so we use `endsWith` when matching a log message.
+  def logShouldHave(message: String) = {
+    globalErrorLog.exists(_ endsWith message) should be(true)
+  }
+
   def repeat[A](n: Int)(x: => A): Unit = (1 to n).foreach(_ => x)
 
   def repeat[A](n: Int, f: Int => A): Unit = (1 to n).foreach(f)
@@ -33,6 +45,13 @@ object Common {
     (result, elapsedTime)
   }
 
+  def elapsedTimeNs[T](x: ⇒ T): (T, Long) = {
+    val initTime = System.nanoTime()
+    val result = x
+    val elapsedTime = System.nanoTime() - initTime
+    (result, elapsedTime)
+  }
+
   def meanAndStdev(d: Seq[Double]): (Double, Double) = {
     val size = safeSize(d.size)
     val mean = d.sum / size
@@ -45,6 +64,8 @@ object Common {
   def formatNanosToMicros(x: Double): String = f"${x / 1000.0}%1.3f µs"
 
   def formatMicros(x: Double): String = f"$x%1.3f µs"
+
+  def formatNanosToMicrosWithMeanStd(mean: Double, std: Double): String = s"${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}"
 
   val safeSize: Int => Double = x => if (x == 0) 1.0f else x.toDouble
 

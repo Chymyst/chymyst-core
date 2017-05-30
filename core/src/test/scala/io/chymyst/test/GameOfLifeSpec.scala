@@ -1,8 +1,5 @@
 package io.chymyst.test
 
-import java.time.LocalDateTime
-import java.time.temporal.ChronoUnit
-
 import io.chymyst.jc._
 
 class GameOfLifeSpec extends LogSpec {
@@ -50,7 +47,7 @@ class GameOfLifeSpec extends LogSpec {
     site(tp2)(
       // These reactions are needed to fetch the state of the board at the final time.
       go { case fc((x, y, state)) + f((count, board)) => board(y)(x) = state; f((count - 1, board)) },
-      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case g(_, r) + f((0, board)) => r(board); f((0, board)) },
       go { case _ => f((boardSize.x * boardSize.y, emptyBoard)) }
     )
 
@@ -83,7 +80,7 @@ class GameOfLifeSpec extends LogSpec {
       Array(0, 0, 0, 0, 0),
       Array(0, 0, 0, 0, 0)
     )
-    val initTime = LocalDateTime.now
+    val initTime = System.currentTimeMillis()
 
     (0 until boardSize.y).foreach(y0 =>
       (0 until boardSize.x).foreach(x0 =>
@@ -96,7 +93,7 @@ class GameOfLifeSpec extends LogSpec {
     )
 
     val finalBoard = g()
-    val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
+    val elapsed = System.currentTimeMillis() - initTime
     println(s"Test (1 reaction, 1 molecule) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     println("|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|")
     finalBoard shouldEqual Array(
@@ -145,7 +142,7 @@ class GameOfLifeSpec extends LogSpec {
     site(tp2)(
       // These reactions are needed to fetch the state of the board at the final time.
       go { case fc((x, y, state)) + f((count, board)) => board(y)(x) = state; f((count - 1, board)) },
-      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case g(_, r) + f((0, board)) => r(board); f((0, board)) },
       go { case _ => f((boardSize.x * boardSize.y, emptyBoard)) }
     )
 
@@ -187,7 +184,7 @@ class GameOfLifeSpec extends LogSpec {
       Array(0, 0, 0, 0, 0),
       Array(0, 0, 0, 0, 0)
     )
-    val initTime = LocalDateTime.now
+    val initTime = System.currentTimeMillis()
 
     (0 until boardSize.y).foreach { y0 =>
       (0 until boardSize.x).foreach { x0 =>
@@ -205,7 +202,7 @@ class GameOfLifeSpec extends LogSpec {
     }
 
     val finalBoard = g()
-    val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
+    val elapsed = System.currentTimeMillis() - initTime
     println(s"Test (1 reaction, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     println("|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|")
     finalBoard shouldEqual Array(
@@ -301,7 +298,7 @@ class GameOfLifeSpec extends LogSpec {
     // These reactions are needed to fetch the state of the board at the final time.
     site(tp2)(
       go { case fc((x, y, state)) + f((count, board)) => board(x)(y) = state; f((count - 1, board)) },
-      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case g(_, r) + f((0, board)) => r(board); f((0, board)) },
       go { case _ => f((total, emptyBoard)) }
     )
 
@@ -316,7 +313,7 @@ class GameOfLifeSpec extends LogSpec {
       Array(0, 0, 0, 0, 0),
       Array(0, 0, 0, 0, 0)
     )
-    val initTime = LocalDateTime.now
+    val initTime = System.currentTimeMillis()
 
     (0 until boardSize.y).foreach { y0 =>
       (0 until boardSize.x).foreach { x0 =>
@@ -334,7 +331,7 @@ class GameOfLifeSpec extends LogSpec {
     }
 
     val finalBoard = g()
-    val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
+    val elapsed = System.currentTimeMillis() - initTime
     println(s"Test ($total reactions, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     val finalPicture = "|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|"
     println(finalPicture)
@@ -438,7 +435,7 @@ class GameOfLifeSpec extends LogSpec {
     // These reactions are needed to fetch the state of the board at the final time.
     site(tp2)(
       go { case fc((x, y, state)) + f((count, board)) => board(x)(y) = state; f((count - 1, board)) },
-      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case g(_, r) + f((0, board)) => r(board); f((0, board)) },
       go { case _ => f((total, emptyBoard)) }
     )
 
@@ -453,7 +450,7 @@ class GameOfLifeSpec extends LogSpec {
       Array(0, 0, 0, 0, 0),
       Array(0, 0, 0, 0, 0)
     )
-    val initTime = LocalDateTime.now
+    val initTime = System.currentTimeMillis()
 
     (0 until boardSize.y).foreach { y0 =>
       (0 until boardSize.x).foreach { x0 =>
@@ -471,7 +468,7 @@ class GameOfLifeSpec extends LogSpec {
     }
 
     val finalBoard = g()
-    val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
+    val elapsed = System.currentTimeMillis() - initTime
     println(s"Test ($total reaction sites, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     val finalPicture = "|" + finalBoard.map(_.map(x => if (x == 0) " " else "*").mkString("|")).mkString("|\n|") + "|"
     println(finalPicture)
@@ -563,7 +560,7 @@ class GameOfLifeSpec extends LogSpec {
     // These reactions are needed to fetch the state of the board at the final time.
     site(tp2)(
       go { case fc((x, y, state)) + f((count, board)) => board(x)(y) = state; f((count - 1, board)) },
-      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case g(_, r) + f((0, board)) => r(board); f((0, board)) },
       go { case _ => f((boardSize.area, emptyBoard)) }
     )
 
@@ -627,10 +624,10 @@ class GameOfLifeSpec extends LogSpec {
   // Test 4
   it should "4. run correctly using 3D reaction implementation with single reaction site" in {
     val boardSize = BoardSize(5, 5)
-    val initTime = LocalDateTime.now
+    val initTime = System.currentTimeMillis()
     // Define one reaction site for all reactions.
     val finalBoard = run3D(boardSize, maxTimeStep, initBoard, (tp, reactionMatrix) => site(tp)(reactionMatrix.flatten.flatten: _*))
-    val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
+    val elapsed = System.currentTimeMillis() - initTime
     println(s"Test (${boardSize.area * maxTimeStep} reactions, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     val finalPicture = printBoard(finalBoard)
     println(finalPicture)
@@ -645,20 +642,20 @@ class GameOfLifeSpec extends LogSpec {
 
   // Test 5
   it should "5. run correctly using 3D reaction implementation with per-timeslice reaction sites" in {
-    val initTime = LocalDateTime.now
+    val initTime = System.currentTimeMillis()
     // Define one reaction site per time slice.
     val finalBoard = run3D(boardSize, maxTimeStep, initBoard, (tp, reactionMatrix) => reactionMatrix.foreach(timesliceReactionMatrix => site(tp)(timesliceReactionMatrix.flatten: _*)))
-    val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
+    val elapsed = System.currentTimeMillis() - initTime
     println(s"Test ($maxTimeStep reaction sites with ${boardSize.area} reactions each, 9 molecules) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     checkResult(finalBoard)
   }
 
   // Test 6
   it should "6. run correctly using 3D reaction implementation with per-cell reaction sites" in {
-    val initTime = LocalDateTime.now
+    val initTime = System.currentTimeMillis()
     // Each cell (x,y,t) has 1 reaction at 1 reaction site. Maximum concurrency.
     val finalBoard = run3D(boardSize, maxTimeStep, initBoard, (tp, reactionMatrix) => reactionMatrix.foreach(_.foreach(_.foreach(r => site(tp)(r)))))
-    val elapsed = initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)
+    val elapsed = System.currentTimeMillis() - initTime
     println(s"Test (${maxTimeStep * boardSize.area} reaction sites with 1 reaction each, 9 molecules each) with $boardSize and $maxTimeStep timesteps took $elapsed ms. Final board at t=$maxTimeStep:")
     checkResult(finalBoard)
   }

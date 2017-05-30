@@ -1,7 +1,5 @@
 package io.chymyst.test
 
-import java.time.LocalDateTime
-import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentLinkedQueue
 
 import io.chymyst.jc._
@@ -243,7 +241,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val total = 10000
     val tp = new BlockingPool(4) // Use BlockingPool because using a FixedPool gives a deadlock.
     site(tp)(
-      go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
+      go { case danceCounter(x) + done(_, r) if x.size == total => r(x); danceCounter(x) }, // ignore warning about "non-variable type argument Int"
       go { case beginDancing(xy) + danceCounter(x) => danceCounter(x :+ xy) },
       go { case _ => danceCounter(Vector()) }
     )
@@ -261,13 +259,12 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     (0 until total / 2).foreach(_ => man() + woman())
     (0 until total / 2).foreach(_ => woman())
 
-    val initTime = LocalDateTime.now
+    val initTime = System.currentTimeMillis()
     val ordering = done()
     tp.shutdownNow()
     val outOfOrder = ordering.zip(ordering.drop(1)).filterNot { case (x, y) => x + 1 == y }.map(_._1)
-    println(s"Dance pairing for $total pairs without queue labels took ${initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)} ms, yields ${outOfOrder.length} out-of-order instances")
+    println(s"Dance pairing for $total pairs without queue labels took ${System.currentTimeMillis() - initTime} ms, yields ${outOfOrder.length} out-of-order instances")
     outOfOrder should not equal Vector() // Dancing queue order cannot be observed.
-
   }
 
   it should "implement dance pairing without queue labels with 1-thread pipelining" in {
@@ -290,7 +287,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val tp1d = new FixedPool(1)
 
     site(tp)(
-      go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
+      go { case danceCounter(x) + done(_, r) if x.size == total => r(x); danceCounter(x) }, // ignore warning about "non-variable type argument Int"
       go { case beginDancing(xy) + danceCounter(x) => danceCounter(x :+ xy) } onThreads tp1d,
       go { case _ => danceCounter(Vector()) }
     )
@@ -333,7 +330,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val total = 100
 
     site(tp)(
-      go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
+      go { case danceCounter(x) + done(_, r) if x.size == total => r(x); danceCounter(x) }, // ignore warning about "non-variable type argument Int"
       go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() },
       go { case _ => danceCounter(Nil) }
     )
@@ -351,9 +348,9 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     danceCounter.volatileValue shouldEqual Nil
     (1 to total).foreach(_ => woman())
 
-    val initTime = LocalDateTime.now
+    val initTime = System.currentTimeMillis()
     val ordering = done()
-    println(s"Dance pairing for $total pairs with queue labels took ${initTime.until(LocalDateTime.now, ChronoUnit.MILLIS)} ms")
+    println(s"Dance pairing for $total pairs with queue labels took ${System.currentTimeMillis() - initTime} ms")
     val outOfOrder = ordering.zip(ordering.drop(1)).filterNot { case (x, y) => x + 1 == y }.map(_._1)
     outOfOrder shouldEqual List()
     ordering shouldEqual (0 until total).toList // Dancing queue order must be observed.

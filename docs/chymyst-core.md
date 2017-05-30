@@ -111,7 +111,7 @@ If a blocking molecule was emitted with a timeout, but no reaction has started w
 
 It can also happen that a reaction started but the timeout was reached before the reaction performed the reply.
 In that case, the reaction that replies to a blocking molecule can detect whether the reply was not received due to timeout.
-This is achieved with the `checkTimeout()` method of the reply emitter:
+This is achieved by checking the `Boolean` value returned by the reply emitter:
 
 ```scala
 import scala.concurrent.duration.DurationInt
@@ -119,14 +119,13 @@ val a = m[Unit]
 val b = m[Boolean]
 val f = b[Int, String]
 
-site ( go { case f(x, r) + a(_) => val status = r.checkTimeout(x); b(status) } )
+site ( go { case f(x, r) + a(_) => val status = r(x); b(status) } )
 
 val result: Option[String] = f.timeout(10)(100 millis)
 
 ```
 
-In this example, the call `r.checkTimeout(x)` performs the same reply action as `r(x)`, and additionally a `Boolean` status value is returned.
-The status value will be `true` only if the caller has actually received the reply and did not time out.
+In this example, the `status` value will be `true` only if the caller has actually received the reply and did not time out.
 
 ## Debugging
 

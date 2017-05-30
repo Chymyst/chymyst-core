@@ -113,7 +113,7 @@ object Benchmarks9 {
     val get = b[Unit, Int]
 
     site(tp)(
-      go { case f(_, reply) => a(reply.checkTimeout(123)) },
+      go { case f(_, reply) => a(reply(123)) },
       go { case a(x) + collect(n) => collect(n + (if (x) 0 else 1)) },
       go { case collect(n) + get(_, reply) => reply(n) }
     )

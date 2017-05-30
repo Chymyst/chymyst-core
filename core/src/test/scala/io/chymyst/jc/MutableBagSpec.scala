@@ -1,13 +1,9 @@
 package io.chymyst.jc
 
-import io.chymyst.test.Common.elapsedTimeMs
+import io.chymyst.test.Common._
 import io.chymyst.test.LogSpec
-import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.time.{Millis, Span}
 
-class MutableBagSpec extends LogSpec with TimeLimitedTests {
-
-  val timeLimit = Span(3000, Millis)
+class MutableBagSpec extends LogSpec {
 
   val n = 100000
 
@@ -162,6 +158,80 @@ class MutableBagSpec extends LogSpec with TimeLimitedTests {
     println(s"MolValueQueueBag: skipping with $n different values takes $t ms")
   }
 
+  behavior of "bag take() operation"
+
+  def measureBagOp(bag: MutCollection[Int], size: Int, op: MutCollection[Int] ⇒ Any, message: String): Unit = {
+    val total = 1000
+    val fillFirst = true
+
+    if (fillFirst) {
+      (1 to n).foreach { i => bag.add(i) }
+      (1 to n - size).foreach { i => bag.remove(i) }
+    } else {
+      (0 until size - 1).foreach { i => bag.add(i) }
+    }
+    val result = (1 to total).map { _ ⇒
+      elapsedTimeNs(op(bag))._2.toDouble
+    }
+    val (mean, std) = meanAndStdev(result.drop(4 * total / 5))
+    println(f"${bag.getClass.getSimpleName} with ${bag.size} elements: $message takes ${formatNanosToMicrosWithMeanStd(mean, std)}")
+  }
+
+  it should "quickly take one element from a MutableMapBag" in {
+    val take = 5
+    val total = 1000
+    val message = "takeOne()"
+    measureBagOp(new MutableMapBag[Int](), 0, _.takeOne, message)
+    measureBagOp(new MutableMapBag[Int](), n / 4, _.takeOne, message)
+    measureBagOp(new MutableMapBag[Int](), n / 2, _.takeOne, message)
+    measureBagOp(new MutableMapBag[Int](), 3 * n / 4, _.takeOne, message)
+    measureBagOp(new MutableMapBag[Int](), n, _.takeOne, message)
+  }
+
+  it should "quickly compute headOption() on a MutableMapBag" in {
+    val take = 5
+    val total = 1000
+    val message = "takeOne()"
+    measureBagOp(new MutableMapBag[Int](), 0, _.headOption, message)
+    measureBagOp(new MutableMapBag[Int](), n / 4, _.headOption, message)
+    measureBagOp(new MutableMapBag[Int](), n / 2, _.headOption, message)
+    measureBagOp(new MutableMapBag[Int](), 3 * n / 4, _.headOption, message)
+    measureBagOp(new MutableMapBag[Int](), n, _.headOption, message)
+  }
+
+  it should "quickly take several elements from a MutableMapBag" in {
+    val take = 5
+    val total = 1000
+    val message = s"takeAny($take)"
+    measureBagOp(new MutableMapBag[Int](), 0, _.takeAny(take), message)
+    measureBagOp(new MutableMapBag[Int](), n / 4, _.takeAny(take), message)
+    measureBagOp(new MutableMapBag[Int](), n / 2, _.takeAny(take), message)
+    measureBagOp(new MutableMapBag[Int](), 3 * n / 4, _.takeAny(take), message)
+    measureBagOp(new MutableMapBag[Int](), n, _.takeAny(take), message)
+  }
+
+  it should "quickly take one element from a MutableQueueBag" in {
+    val take = 5
+    val total = 1000
+    val message = "takeOne()"
+    measureBagOp(new MutableQueueBag[Int](), 0, _.takeOne, message)
+    measureBagOp(new MutableQueueBag[Int](), n / 4, _.takeOne, message)
+    measureBagOp(new MutableQueueBag[Int](), n / 2, _.takeOne, message)
+    measureBagOp(new MutableQueueBag[Int](), 3 * n / 4, _.takeOne, message)
+    measureBagOp(new MutableQueueBag[Int](), n, _.takeOne, message)
+  }
+
+  it should "quickly take several elements from a MutableQueueBag" in {
+    val take = 5
+    val total = 1000
+    val message = s"takeAny($take)"
+    measureBagOp(new MutableQueueBag[Int](), 0, _.takeAny(take), message)
+    measureBagOp(new MutableQueueBag[Int](), n / 4, _.takeAny(take), message)
+    measureBagOp(new MutableQueueBag[Int](), n / 2, _.takeAny(take), message)
+    measureBagOp(new MutableQueueBag[Int](), 3 * n / 4, _.takeAny(take), message)
+    measureBagOp(new MutableQueueBag[Int](), n, _.takeAny(take), message)
+  }
+
   behavior of "mutable multiset"
 
   it should "create empty bag" in {
@@ -241,6 +311,13 @@ class MutableBagSpec extends LogSpec with TimeLimitedTests {
     b.contains(2) shouldEqual false
   }
 
+  it should "fail to implement takeAny" in {
+    the[scala.NotImplementedError] thrownBy {
+      val b = new MutableMultiset[Int]
+      b.takeAny(1)
+    } should have message "an implementation is missing"
+  }
+
   it should "obtain an independent copy of the bag" in {
     val b = new MutableMultiset[Int]
     val c = b.copyBag
@@ -250,6 +327,28 @@ class MutableBagSpec extends LogSpec with TimeLimitedTests {
     b.contains(2) shouldEqual false
     c.contains(2) shouldEqual true
     c.contains(1) shouldEqual false
+  }
+
+  behavior of "MutableMultiset performance"
+
+  it should "quickly compute headOption() on a MutableMultiset" in {
+    val total = 1000
+    val message = "headOption()"
+    measureBagOp(new MutableMultiset[Int](), 0, _.headOption, message)
+    measureBagOp(new MutableMultiset[Int](), n / 4, _.headOption, message)
+    measureBagOp(new MutableMultiset[Int](), n / 2, _.headOption, message)
+    measureBagOp(new MutableMultiset[Int](), 3 * n / 4, _.headOption, message)
+    measureBagOp(new MutableMultiset[Int](), n, _.headOption, message)
+  }
+
+  it should "quickly compute takeOne() on a MutableMultiset" in {
+    val total = 1000
+    val message = "takeOne()"
+    measureBagOp(new MutableMultiset[Int](), 0, _.takeOne, message)
+    measureBagOp(new MutableMultiset[Int](), n / 4, _.takeOne, message)
+    measureBagOp(new MutableMultiset[Int](), n / 2, _.takeOne, message)
+    measureBagOp(new MutableMultiset[Int](), 3 * n / 4, _.takeOne, message)
+    measureBagOp(new MutableMultiset[Int](), n, _.takeOne, message)
   }
 
 }

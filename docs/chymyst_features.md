@@ -146,7 +146,7 @@ The reply action can check whether the timeout occurred:
 val f = b[Unit, Int]
 go { f(_, reply) =>
 // offer to reply 123 and return true if there was no timeout
-  val status = reply.checkTimeout(123)
+  val status = reply(123)
   if (status) ???
 }
 

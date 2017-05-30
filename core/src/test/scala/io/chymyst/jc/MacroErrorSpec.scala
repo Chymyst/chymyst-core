@@ -12,7 +12,7 @@ class MacroErrorSpec extends LogSpec {
     val h = b[Unit, Boolean]
     val g = b[Unit, Unit]
     // This should compile without any argument adaptation warnings:
-    go { case a(_) + f(_, r) + g(_, s) + h(_, q) => a() + s() + f(); val status = r.checkTimeout(); q(status) }
+    go { case a(_) + f(_, r) + g(_, s) + h(_, q) => a() + f(); s(); val status = r(); q(status) }
   }
 
   it should "compile a reaction within scalatest scope" in {

@@ -1,6 +1,7 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
+import io.chymyst.test.Common._
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
@@ -14,11 +15,6 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
   var tp0: Pool = _
 
   implicit val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
-
-  // Note: log messages have a timestamp prepended to them, so we use `endsWith` when matching a log message.
-  def logShouldHave(message: String) = {
-    globalErrorLog.exists(_ endsWith message) should be(true)
-  }
 
   override def beforeEach(): Unit = {
     clearGlobalErrorLog()
@@ -180,7 +176,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
 
   it should "accept nonlinear input patterns, with blocking molecule" in {
     val a = new B[Unit, Unit]("a")
-    site(go { case a(_, r) + a(_, s) => r() + s() })
+    site(go { case a(_, r) + a(_, s) => r(); s() })
   }
 
   it should "throw exception when join pattern attempts to redefine a blocking molecule" in {
@@ -202,7 +198,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
     thrown.getMessage shouldEqual "Molecule x cannot be used as input in Site{x → ...} since it is already bound to Site{x + y → ...}"
   }
 
-  it should "throw exception when trying to emit a blocking molecule that has no join" in {
+  it should "throw exception when trying to emit a blocking molecule that has no reaction site" in {
     val thrown = intercept[Exception] {
       val a = new B[Unit, Unit]("x")
       a()
@@ -210,15 +206,14 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
     thrown.getMessage shouldEqual "Molecule x/B is not bound to any reaction site"
   }
 
-  it should "throw exception when trying to emit a non-blocking molecule that has no join" in {
-    val thrown = intercept[Exception] {
-      val a = new M[Unit]("x")
+  it should "throw exception when trying to emit a non-blocking molecule that has no reaction site" in {
+    val a = new M[Unit]("x")
+    the[Exception] thrownBy {
       a()
-    }
-    thrown.getMessage shouldEqual "Molecule x is not bound to any reaction site"
+    } should have message "Molecule x is not bound to any reaction site"
   }
 
-  it should "throw exception when trying to log soup of a blocking molecule that has no join" in {
+  it should "throw exception when trying to log soup of a blocking molecule that has no reaction site" in {
     val thrown = intercept[Exception] {
       val a = new B[Unit, Unit]("x")
       a.logSoup
@@ -226,7 +221,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
     thrown.getMessage shouldEqual "Molecule x/B is not bound to any reaction site"
   }
 
-  it should "throw exception when trying to log soup a non-blocking molecule that has no join" in {
+  it should "throw exception when trying to log soup a non-blocking molecule that has no reaction site" in {
     val thrown = intercept[Exception] {
       val a = new M[Unit]("x")
       a.logSoup
@@ -307,7 +302,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
       r
     }
     println(s"results for test 1: ${results.groupBy(identity).mapValues(_.size)}")
-    logShouldHave("In Site{p → ...}: Reaction {p(s) → } with inputs [p/P(c)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
+    globalLogHas("xception", "In Site{p → ...}: Reaction {p(s) → } with inputs [p/P(c)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
     results should contain(123)
     results should contain(0)
   }
@@ -386,6 +381,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
   }
 
   it should "start reaction but throw exception when unbound molecule emitter is passed on input molecule" in {
+    clearGlobalErrorLog()
     val a = m[M[Int]]
     val c = m[Int]
     val f = b[Unit, Int]
@@ -394,10 +390,8 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
     )
     // `c` is unbound, emitting `a(c)` will cause the reaction to fail.
     a(c)
-    val thrown = intercept[Exception] {
-      f() shouldEqual 123 // This should not pass.
-    }
-    thrown.getMessage shouldEqual "Error: In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] finished without replying to f/B. Reported error: In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site"
+    f.timeout()(300.millis) shouldEqual None // This should not pass.
+    globalLogHas("finished without replying", "In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] finished without replying to f/B. Reported error: In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
   }
 
   behavior of "basic functionality"
@@ -541,7 +535,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
         if (chooser(x)) throw new Exception("crash! (it's OK, ignore this)")
         c(x - 1)
       }.withRetry onThreads tp,
-      go { case c(0) + g(_, r) => r() + c(0) },
+      go { case c(0) + g(_, r) => r(); c(0) },
       go { case _ => c(n) }
     )
     (1 to n).foreach { _ => d() }

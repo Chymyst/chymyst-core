@@ -3,7 +3,7 @@ package io.chymyst.jc
 import io.chymyst.jc.Macros.{getName, rawTree}
 import io.chymyst.test.LogSpec
 import org.scalatest.BeforeAndAfterEach
-
+import io.chymyst.test.Common._
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
@@ -1154,12 +1154,14 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     the[Exception] thrownBy {
       dIncorrectStaticMol() shouldEqual (()) // User code attempted to emit the static molecule.
-    } should have message s"Error: static molecule ${dIncorrectStaticMol.name} cannot be emitted non-statically"
+    } should have message s"Error: static molecule ${dIncorrectStaticMol.name}(()) cannot be emitted non-statically"
     waitSome()
     e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
   }
 
   it should "refuse to emit static molecule from a reaction that did not consume it when this cannot be determined statically" in {
+    clearGlobalErrorLog()
+
     val c = new M[Unit]("c")
     val dIncorrectStaticMol = m[Unit]
     val e = new M[M[Unit]]("e")
@@ -1173,7 +1175,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     e(dIncorrectStaticMol)
     waitSome()
     e.logSoup shouldEqual s"Site{c + ${dIncorrectStaticMol.name} → ...; e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
-    globalErrorLog.exists(_.contains(s"In Site{c + dIncorrectStaticMol → ...; e → ...}: Reaction {e(s) → } with inputs [e/P(dIncorrectStaticMol)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule dIncorrectStaticMol cannot be emitted non-statically")) shouldEqual true
+    globalLogHas("cannot be emitted", s"In Site{c + dIncorrectStaticMol → ...; e → ...}: Reaction {e(s) → } with inputs [e/P(dIncorrectStaticMol)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule dIncorrectStaticMol(()) cannot be emitted non-statically")
   }
 
 }

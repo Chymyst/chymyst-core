@@ -7,6 +7,7 @@ import io.chymyst.jc.StaticAnalysis._
 
 import scala.annotation.tailrec
 import scala.collection.breakOut
+import scala.concurrent.duration.Duration
 
 /** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
   * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
@@ -17,30 +18,10 @@ import scala.collection.breakOut
   */
 private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool) {
 
-  /** Create a wrapper class instance, to be given to each molecule bound to this reaction site.
-    *
-    * @param molecule The calling molecule.
-    * @tparam T The type of value carried by that molecule.
-    * @tparam R The type of reply value for that molecule. If the molecule is non-blocking, `R` is set to `Unit`.
-    * @return A new instance of [[ReactionSiteWrapper]] given to that molecule.
-    */
-  private[jc] def makeWrapper[T, R](molecule: Molecule): ReactionSiteWrapper[T, R] =
-    new ReactionSiteWrapper[T, R](
-      toString,
-      logSoup = () => printBag,
-      setLogLevel = level => logLevel = level,
-      isStatic = staticMolDeclared.contains(molecule),
-      emit = (mol, molValue) => emit[T](mol, molValue),
-      emitAndAwaitReply = (mol, molValue, replyValue) => emitAndAwaitReply[T, R](mol, molValue, replyValue),
-      emitAndAwaitReplyWithTimeout = (timeout, mol, molValue, replyValue) => emitAndAwaitReplyWithTimeout[T, R](timeout, mol, molValue, replyValue),
-      consumingReactions = consumingReactions(molecule.siteIndex),
-      sameReactionSite = _.id === this.id
-    )
-
   /** Each reaction site has a permanent unique ID number.
-    *
+    * It is used to detect identical reaction sites.
     */
-  private val id: Long = getNextId
+  private[jc] val id: Long = getNextId
 
   private val (staticReactions, nonStaticReactions) = reactions.toArray.partition(_.info.isStatic)
 
@@ -50,7 +31,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * This list may be incorrect if the static reaction code emits molecules conditionally or emits many copies.
     * So, the code (1 to 10).foreach (_ => s() ) will put (s -> 1) into `staticMolDeclared` but (s -> 10) into `staticMolsEmitted`.
     */
-  private val staticMolDeclared: Map[Molecule, Int] = staticReactions.map(_.info.outputs)
+  private[jc] val staticMolDeclared: Map[Molecule, Int] = staticReactions.map(_.info.outputs)
     .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
     .groupBy(identity)
     .mapValues(_.length)
@@ -73,9 +54,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** Value 0 means to log warnings and errors to the console.
     * Values greater than 0 will result in progressively more debug output.
     */
-  private var logLevel = -1
+  private[jc] var logLevel = -1
 
-  private def printBag: String = {
+  private[jc] def printBag: String = {
     val moleculesPrettyPrinted = if (moleculesPresent.exists(!_.isEmpty))
       s"Molecules: ${moleculeBagToString(moleculesPresent)}"
     else "No molecules"
@@ -110,7 +91,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   @tailrec
   private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
-    // TODO: optimize: precompute all related molecules in ReactionSite?
+    // TODO: optimize: precompute all related molecules in ReactionSite? (what exactly to precompute??)
     setNeedToSchedule(mol)
     // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
     val candidateReactions = consumingReactions(mol.siteIndex)
@@ -125,7 +106,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           val result = findInputMolecules(thisReaction, moleculesPresent)
           // If we have found a reaction that can be run; need to remove its input molecule values from their bags.
           result.map { thisInputList ⇒
-            thisInputList.indices.foreach { i ⇒
+            thisReaction.info.inputIndices.foreach { i ⇒
               val molValue = thisInputList(i)
               val mol = thisReaction.info.inputs(i).molecule
               // This error (molecule value was found for a reaction but is now not present) indicates a bug in this code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
@@ -194,8 +175,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     decideReactionsForNewMolecule(mol)
   }
 
-  private def reportError(message: String): Unit =
-    logError(messageWithTime(message), print = logLevel >= 0)
+  private def reportError(message: String, print: Boolean = logLevel > 0): Unit =
+    logError(messageWithTime(message), print)
 
 
   /** This closure will be run on the reaction thread pool to start a new reaction.
@@ -221,7 +202,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // Running the reaction body produced an exception that is internal to `Chymyst Core`.
         // We should not try to recover from this; it is either an error on user's part or a bug in `Chymyst Core`.
         val message = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: ${e.getMessage}"
-        reportError(message)
+        reportError(message, print = true)
         ReactionExitFailure(message)
 
       case e: Exception =>
@@ -236,7 +217,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
         val generalExceptionMessage = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] produced ${e.getClass.getSimpleName}.$retryMessage Message: ${e.getMessage}"
 
-        reportError(generalExceptionMessage)
+        reportError(generalExceptionMessage, print = true)
         status
     }
 
@@ -251,31 +232,16 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         .toSeq.toOptionSeq
         .map(_.map(_.toString).sorted.mkString(", "))
 
-      lazy val messageNoReply = blockingMoleculesWithNoReply.map { s =>
-        s"Error: In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] finished without replying to $s${exitStatus.getMessage}"
-      }
-
       // We will report all errors to each blocking molecule.
-      // However, if the reaction failed with retry, we don't yet need to release semaphores and don't need to report errors due to missing reply.
-      lazy val errorMessage = messageNoReply.mkString("; ")
-
       val haveErrorsWithBlockingMolecules = blockingMoleculesWithNoReply.nonEmpty && exitStatus.reactionSucceededOrFailedWithoutRetry
 
-      // Insert error messages into the reply wrappers and release all semaphores.
-      usedInputs.foreach {
-        case bm@BlockingMolValue(_, replyValue) =>
-          if (haveErrorsWithBlockingMolecules && exitStatus.reactionSucceededOrFailedWithoutRetry) {
-            // Do not send error messages to molecules that already got a reply - this is pointless and leads to errors.
-            if (bm.reactionSentNoReply) {
-              replyValue.acquireSemaphoreForReply()
-              replyValue.setErrorStatus(errorMessage)
-              replyValue.releaseSemaphoreForEmitter()
-            }
-          }
-        case _ => ()
+      if (haveErrorsWithBlockingMolecules) {
+        val messageNoReply = blockingMoleculesWithNoReply.map { s =>
+          s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] finished without replying to $s${exitStatus.getMessage}"
+        }
+        val errorMessage = messageNoReply.mkString("; ")
+        reportError(errorMessage)
       }
-
-      if (haveErrorsWithBlockingMolecules) reportError(errorMessage)
     }
   }
 
@@ -430,7 +396,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @param molValue Value of the molecule, wrapped in an instance of [[AbsMolValue]]`[T]` class.
     * @tparam T Type of the molecule value.
     */
-  private def emit[T](mol: Molecule, molValue: AbsMolValue[T]): Unit = {
+  private[jc] def emit[T](mol: Molecule, molValue: AbsMolValue[T]): Unit = {
     if (findUnboundOutputMolecules) {
       val moleculesString = unboundOutputMoleculesString(nonStaticReactions)
       val noReactionMessage = s"In $this: As $mol($molValue) is emitted, some reactions may emit molecules ($moleculesString) that are not bound to any reaction site"
@@ -455,7 +421,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // (If no condition is satisfied, we will not emit this value for a pipelined molecule.)
         // For non-pipelined molecules, `admitsValue` will be identically `true`.
         val admitsValue = !mol.isPipelined ||
-          // TODO: could optimize this, since `pipelinedMolecules` is only used to check `admitsValue`. (optimize how?)
+          // TODO: could optimize this, since `pipelinedMolecules` is only used to check `admitsValue`. (optimize how??)
           pipelinedMolecules.get(mol.siteIndex).forall(infos ⇒ infos.isEmpty || infos.exists(_.admitsValue(molValue)))
 
         // If we are here, we are allowed to emit.
@@ -506,69 +472,43 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       )(breakOut): Map[Molecule, Map[AbsMolValue[_], Int]]
     )
 
-  private def removeBlockingMolRunnable[T, R](bm: B[T, R], blockingMolValue: BlockingMolValue[T, R]): Runnable = new Runnable {
-    override def run(): Unit = {
-      if (removeFromBag(bm, blockingMolValue))
-        if (logLevel > 1) logMessage(s"Debug: $this removed $bm($blockingMolValue), now have molecules [${moleculeBagToString(moleculesPresent)}]")
-    }
-  }
-
-  // Remove a blocking molecule if it is present.
+  // Remove a blocking molecule if it is present. This is done asynchronously. (Why?)
   private def removeBlockingMolecule[T, R](bm: B[T, R], blockingMolValue: BlockingMolValue[T, R]): Unit = {
-    reactionPool.runScheduler(removeBlockingMolRunnable(bm, blockingMolValue))
+    if (removeFromBag(bm, blockingMolValue))
+      if (logLevel > 1) logMessage(s"Debug: $this removed $bm($blockingMolValue), now have molecules [${moleculeBagToString(moleculesPresent)}]")
   }
 
   /** Common code for [[emitAndAwaitReply]] and [[emitAndAwaitReplyWithTimeout]].
     *
-    * @param timeoutOpt        Timeout value in milliseconds, or None if no timeout is requested.
-    * @param bm                A blocking molecule to be emitted.
-    * @param v                 Value that the newly emitted molecule should carry.
-    * @param replyValueWrapper The reply value wrapper for the blocking molecule.
+    * @param bm A blocking molecule to be emitted.
+    * @param v  Value that the newly emitted molecule should carry.
     * @tparam T Type of the value carried by the blocking molecule.
     * @tparam R Type of the reply value.
-    * @return Reply status for the reply action.
+    * @return Wrapper for the blocking molecule's value.
     */
-  private def emitAndAwaitReplyInternal[T, R](timeoutOpt: Option[Long], bm: B[T, R], v: T, replyValueWrapper: AbsReplyEmitter[T, R]): ReplyStatus = {
-    val blockingMolValue = BlockingMolValue(v, replyValueWrapper)
-
+  @inline private def emitAndAwaitReplyInternal[T, R](bm: B[T, R], v: T) = {
+    val blockingMolValue = BlockingMolValue(v, new ReplyEmitter[T, R])
     emit[T](bm, blockingMolValue)
-
-    val timedOut: Boolean = !BlockingIdle(bm.isSelfBlocking) {
-      replyValueWrapper.acquireSemaphoreForEmitter(timeoutMillis = timeoutOpt)
-    }
-    // We might have timed out, in which case we need to forcibly remove the blocking molecule from the soup.
-    if (timedOut) {
-      removeBlockingMolecule(bm, blockingMolValue)
-      blockingMolValue.replyValue.setTimedOut()
-    }
-    replyValueWrapper.releaseSemaphoreForReply()
-    replyValueWrapper.getReplyStatus
+    blockingMolValue
   }
 
   // Adding a blocking molecule may trigger at most one reaction and must return a value of type R.
   // We must make this a blocking call, so we acquire a semaphore (with or without timeout).
-  private def emitAndAwaitReply[T, R](bm: B[T, R], v: T, replyValueWrapper: AbsReplyEmitter[T, R]): R = {
-    // check if we had any errors, and that we have a result value
-    emitAndAwaitReplyInternal(timeoutOpt = None, bm, v, replyValueWrapper) match {
-      case ErrorNoReply(message) =>
-        throw new Exception(message)
-      case HaveReply(res) =>
-        res.asInstanceOf[R] // Cannot guarantee type safety due to type erasure of `R`.
+  @inline private[jc] def emitAndAwaitReply[T, R](bm: B[T, R], v: T): R = {
+    BlockingIdle(bm.isSelfBlocking) {
+      emitAndAwaitReplyInternal(bm, v).replyEmitter.reply.await
     }
   }
 
   // This is a separate method because it has a different return type than [[emitAndAwaitReply]].
-  private def emitAndAwaitReplyWithTimeout[T, R](timeout: Long, bm: B[T, R], v: T, replyValueWrapper: AbsReplyEmitter[T, R]): Option[R] = {
-    // check if we had any errors, and that we have a result value
-    emitAndAwaitReplyInternal(timeoutOpt = Some(timeout), bm, v, replyValueWrapper) match {
-      case ErrorNoReply(message) =>
-        throw new Exception(message)
-      case HaveReply(res) =>
-        if (replyValueWrapper.isTimedOut)
-          None
-        else
-          Some(res.asInstanceOf[R]) // Cannot guarantee type safety due to type erasure of `R`.
+  @inline private[jc] def emitAndAwaitReplyWithTimeout[T, R](timeout: Duration, bm: B[T, R], v: T): Option[R] = {
+    val bmv = emitAndAwaitReplyInternal(bm, v)
+    val result = BlockingIdle(bm.isSelfBlocking) {
+      bmv.replyEmitter.reply.await(timeout)
     }
+    if (result.isEmpty)
+      removeBlockingMolecule(bm, bmv)
+    result
   }
 
   /** This is called once, when the reaction site is first declared using the [[site]] call.
@@ -590,8 +530,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       val pipelined = pipelinedMolecules contains index
       val simpleType = simpleTypes contains valType
       val unitType = valType === 'Unit
-      val selfBlocking = selfBlockingMols.get(mol)
-      moleculesPresent(index) = if (unitType || (simpleType && !pipelined))
+      val useMapBag = unitType || (simpleType && !pipelined)
+      moleculesPresent(index) = if (useMapBag)
         new MutableMapBag[AbsMolValue[_]]()
       else
         new MutableQueueBag[AbsMolValue[_]]()
@@ -601,7 +541,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         case Some(otherRS) =>
           throw new ExceptionMoleculeAlreadyBound(s"Molecule $mol cannot be used as input in $this since it is already bound to $otherRS")
         case None ⇒
-          mol.setReactionSiteInfo(this, index, valType, pipelined, selfBlocking)
+          val isSelfBlocking = selfBlockingMols.get(mol)
+          mol.setReactionSiteInfo(this, index, valType, pipelined, isSelfBlocking)
       }
     }
 
@@ -641,6 +582,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // Note: mutable variables are OK since this is on the same thread as the call to `site`, so it's guaranteed to be single-threaded!
     nowEmittingStaticMols = true
     staticReactions.foreach { reaction =>
+      // We run the body of the static reaction, in order to let it emit the initial static molecules.
       // It is OK that the argument is `null` because static reactions match on the wildcard: { case _ => ... }
       reaction.body.apply(null.asInstanceOf[ReactionBodyInput])
     }
@@ -717,7 +659,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   //    Array.tabulate(knownInputMolecules.size)(i ⇒ reactionInfos.keys.filter(_.inputMoleculesSet contains moleculeAtIndex(i)).toArray)
   // Instead of traversing all molecules, traverse all reactions and accumulate results. This is faster.
 
-  private val consumingReactions: Array[Array[Reaction]] = {
+  private[jc] val consumingReactions: Array[Array[Reaction]] = {
     val table = scala.collection.mutable.Map[Molecule, scala.collection.mutable.Set[Reaction]]()
     reactions.foreach { r ⇒
       r.info.inputs.foreach { info ⇒
@@ -798,43 +740,6 @@ private[jc] final class ExceptionMoleculeAlreadyBound(message: String) extends E
 private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInChymyst(message)
 
 private[jc] final class ExceptionEmittingStaticMol(message: String) extends ExceptionInChymyst(message)
-
-/** Molecules do not have direct access to the reaction site object.
-  * Molecules will call only functions from this wrapper.
-  * This is intended to make it impossible to access the reaction site object via reflection on private fields in the Molecule class.
-  *
-  * Specific values of [[ReactionSiteWrapper]] are created by [[ReactionSite.makeWrapper]]
-  * and assigned to molecule emitters by [[Molecule.setReactionSiteInfo]].
-  */
-private[jc] final class ReactionSiteWrapper[T, R](
-  override val toString: String,
-  val logSoup: () => String,
-  val setLogLevel: Int => Unit,
-  val isStatic: Boolean,
-  val emit: (Molecule, AbsMolValue[T]) => Unit,
-  val emitAndAwaitReply: (B[T, R], T, AbsReplyEmitter[T, R]) => R,
-  val emitAndAwaitReplyWithTimeout: (Long, B[T, R], T, AbsReplyEmitter[T, R]) => Option[R],
-  val consumingReactions: Array[Reaction],
-  val sameReactionSite: ReactionSite => Boolean
-)
-
-private[jc] object ReactionSiteWrapper {
-  def noReactionSite[T, R](m: Molecule): ReactionSiteWrapper[T, R] = {
-    def exception: Nothing = throw new ExceptionNoReactionSite(s"Molecule $m is not bound to any reaction site")
-
-    new ReactionSiteWrapper(
-      toString = "",
-      logSoup = () => exception,
-      setLogLevel = _ => exception,
-      isStatic = false,
-      emit = (_: Molecule, _: AbsMolValue[T]) => exception,
-      emitAndAwaitReply = (_: B[T, R], _: T, _: AbsReplyEmitter[T, R]) => exception,
-      emitAndAwaitReplyWithTimeout = (_: Long, _: B[T, R], _: T, _: AbsReplyEmitter[T, R]) => exception,
-      consumingReactions = Array[Reaction](),
-      sameReactionSite = _ => exception
-    )
-  }
-}
 
 private[jc] sealed trait ReactionExitStatus {
   val getMessage: String = ""

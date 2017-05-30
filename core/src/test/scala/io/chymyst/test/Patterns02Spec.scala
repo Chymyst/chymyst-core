@@ -113,7 +113,7 @@ class Patterns02Spec extends LogSpec with BeforeAndAfterEach {
       },
       go { case write(x) + access(0) => writeResource(x); access(0) },
       go { case finished(_) + access(k) + counter(l) => access(k - 1) + counter(l + 1) },
-      go { case counter(i) + all_done(_, r) if i >= iterations => r() + counter(i) },
+      go { case counter(i) + all_done(_, r) if i >= iterations => r(); counter(i) },
       go { case _ => access(0) + counter(0) }
     )
 
@@ -169,7 +169,7 @@ class Patterns02Spec extends LogSpec with BeforeAndAfterEach {
       },
       go { case write(x, writeReply) + access(0) => writeResource(x); writeReply(); access(0) },
       go { case finished(_) + access(k) + counter(l) => access(k - 1) + counter(l + 1) },
-      go { case counter(i) + all_done(_, r) if i >= iterations => r() + counter(i) },
+      go { case counter(i) + all_done(_, r) if i >= iterations => r(); counter(i) },
       go { case _ => access(0) + counter(0) }
     )
 

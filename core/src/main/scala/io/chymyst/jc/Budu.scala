@@ -10,25 +10,36 @@ import scala.concurrent.duration.Duration
 // There are only three states: 2 is empty, no time-out yet. 3 is empty, have time-out. 1 not empty, no time-out.
 
 final class Budu[X](useFuture: Boolean) {
-  private var resultPromise: Promise[X] =
+  private val resultPromise: Promise[X] =
     if (useFuture)
       Promise[X]()
     else null.asInstanceOf[Promise[X]]
 
-  @volatile var result: X = _
-  //  @volatile var isEmpty: Boolean = true
+  @volatile private var result: X = _
+  //  @volatile var haveNoReply: Boolean = true
   //  @volatile var notTimedOutYet: Boolean = true
-  @volatile var state: Int = EmptyNoTimeout
+  @volatile private var state: Int = EmptyNoTimeout
 
-  @inline def isEmpty: Boolean = state > 1
+  @inline def isEmpty: Boolean = haveNoReply
 
-  @inline def notTimedOutYet: Boolean = state < 3
+  @inline def isTimedOut: Boolean = !notTimedOutYet
 
+  @inline private def haveNoReply: Boolean = state > 1
+
+  @inline private def notTimedOutYet: Boolean = state < 3
+
+  /** Wait until the thread is notified and we get a reply value.
+    * Do not wait any longer than until the given target time.
+    * This function needs to be called inside a `synchronized` block.
+    *
+    * @param targetTime The absolute time (in milliseconds) until which we need to wait.
+    * @param newDuration The first duration of waiting, needs to be precomputed and supplied as argument.
+    */
   @tailrec
   private def waitUntil(targetTime: Long, newDuration: Long): Unit = {
     if (newDuration > 0) {
       wait(newDuration)
-      if (isEmpty) {
+      if (haveNoReply) {
         waitUntil(targetTime, targetTime - System.currentTimeMillis())
       }
     }
@@ -39,9 +50,13 @@ final class Budu[X](useFuture: Boolean) {
       val newDuration = duration.toMillis
       val targetTime = newDuration + System.currentTimeMillis()
       synchronized {
-        if (isEmpty)
+        if (haveNoReply)
           waitUntil(targetTime, newDuration)
-        if (isEmpty) {
+        // At this point, we have been notified.
+        // If we are here, it means that we are holding a `synchronized` monitor, and thus the notifying thread is not holding it any more.
+        // Therefore, the notifying thread has either finished its work and supplied us with a reply value, or it did not yet start replying.
+        // Checking `haveNoReply` at this point will reveal which of these two possibilities is the case.
+        if (haveNoReply) {
           state = EmptyAfterTimeout
           None
         } else
@@ -51,10 +66,10 @@ final class Budu[X](useFuture: Boolean) {
       Option(result)
 
 
-  def get: X =
+  def await: X =
     if (state === EmptyNoTimeout) {
       synchronized {
-        while (isEmpty) {
+        while (haveNoReply) {
           wait()
         }
         result
@@ -71,12 +86,15 @@ final class Budu[X](useFuture: Boolean) {
         if (notTimedOutYet) {
           result = x
           state = NonEmptyNoTimeout
+          // If we are here, we are holding the `synchronized` monitor, which means that the waiting thread is suspended.
           notify()
+          // At this point, we are still holding the `synchronized` monitor, and the waiting thread is still suspended.
+          // Therefore, it is safe to read or modify the state.
           if (useFuture)
             resultPromise.success(x)
         }
         notTimedOutYet
-      }
+      } // It is only here, after we release the `synchronized` monitor, that the waiting thread is woken up and resumes computation within its `synchronized` block after `wait()`.
     } else notTimedOutYet
 }
 

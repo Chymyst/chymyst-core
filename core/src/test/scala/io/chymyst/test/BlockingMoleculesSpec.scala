@@ -1,11 +1,11 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
+import io.chymyst.test.Common._
 import org.scalatest.BeforeAndAfterEach
 
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{Duration, DurationInt}
 import scala.language.postfixOps
-import io.chymyst.test.Common._
 
 /** More unit tests for blocking molecule functionality.
   *
@@ -143,7 +143,7 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val tp = new FixedPool(4)
     site(tp0)(
       go { case c(_) => e(g2()) }, // e(0) should be emitted now
-      go { case d(_) + g(_, r) + g2(_, r2) => r(0) + r2(0) } onThreads tp,
+      go { case d(_) + g(_, r) + g2(_, r2) => r(0); r2(0) } onThreads tp,
       go { case e(x) + h(_, r) => r(x) }
     )
     c() + d()
@@ -166,7 +166,7 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val tp = new FixedPool(4)
     site(tp0)(
       go { case c(_) => val x = g(); g2(); e(x) }, // e(0) should never be emitted because this thread is deadlocked
-      go { case g(_, r) + g2(_, r2) => r(0) + r2(0) } onThreads tp,
+      go { case g(_, r) + g2(_, r2) => r(0); r2(0) } onThreads tp,
       go { case e(x) + h(_, r) => r(x) },
       go { case d(_) + f(_) => e(2) },
       go { case f(_) + e(_) => e(1) }
@@ -281,6 +281,8 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
   behavior of "thread starvation with different threadpools"
 
+  val timeout: Duration = 400 millis
+
   def blockThreadsDueToBlockingMolecule(tp1: Pool): B[Unit, Unit] = {
     val c = m[Unit]
     val cStarted = m[Unit]
@@ -299,36 +301,35 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     )
 
     c()
-    started.timeout()(500 millis) shouldEqual Some(()) // now we are sure that both reactions are running and stuck
+    started.timeout()(timeout + 100.millis) shouldEqual Some(()) // now we are sure that both reactions are running and stuck
     g
   }
 
   it should "block the fixed threadpool when all threads are waiting for new reactions" in {
     withPool(new FixedPool(2)) { tp =>
       val g = blockThreadsDueToBlockingMolecule(tp)
-      g.timeout()(400 millis) shouldEqual None
-    }
+      g.timeout()(timeout) shouldEqual None
+    }.get
   }
 
   it should "not block the fixed threadpool when more threads are available" in {
     withPool(new FixedPool(3)) { tp =>
       val g = blockThreadsDueToBlockingMolecule(tp)
-      g.timeout()(400 millis) shouldEqual Some(())
-    }
+      g.timeout()(timeout) shouldEqual Some(())
+    }.get
   }
 
   it should "not block the blocking threadpool when all threads are waiting for new reactions" in {
-    val tp = new BlockingPool(2)
-    val g = blockThreadsDueToBlockingMolecule(tp)
-    g.timeout()(400 millis) shouldEqual Some(())
-    tp.shutdownNow()
+    withPool(new BlockingPool(2)) { tp ⇒
+      val g = blockThreadsDueToBlockingMolecule(tp)
+      g.timeout()(timeout) shouldEqual Some(())
+    }.get
   }
 
   it should "not block the blocking threadpool when more threads are available" in {
-    val tp = new BlockingPool(3)
-    val g = blockThreadsDueToBlockingMolecule(tp)
-    g.timeout()(400 millis) shouldEqual Some(())
-    tp.shutdownNow()
+    withPool(new BlockingPool(3)) { tp ⇒
+      val g = blockThreadsDueToBlockingMolecule(tp)
+      g.timeout()(timeout) shouldEqual Some(())
+    }.get
   }
-
 }

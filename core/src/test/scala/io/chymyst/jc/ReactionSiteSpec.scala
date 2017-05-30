@@ -218,7 +218,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
 
   it should "report errors when no reply received due to exception" in {
     val f = b[Unit, Unit]
-
+    clearGlobalErrorLog()
     val x = 10
 
     val result = withPool(new FixedPool(2)) { tp =>
@@ -228,19 +228,14 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
           r()
         }
       )
-      val thrown = intercept[Exception] {
-        f()
-      }
-      thrown.getMessage shouldEqual "Error: In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception"
-    }
-    if (result.isFailure) println(s"Test failed with message: ${result.failed.get.getMessage}")
-    result.get shouldEqual Succeeded
-    result.isFailure shouldEqual false
+      f.timeout()(500.millis)
+      globalLogHas("finished without replying", "In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception")
+    }.get
   }
 
   it should "report errors when no reply received due to exception within timeout" in {
     val f = b[Unit, Unit]
-
+    clearGlobalErrorLog()
     val x = 10
 
     withPool(new FixedPool(2)) { tp =>
@@ -250,10 +245,8 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
           r()
         }
       )
-      val thrown = intercept[Exception] {
-        f.timeout()(1.seconds)
-      }
-      thrown.getMessage shouldEqual "Error: In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception"
+      f.timeout()(500.millis)
+      globalLogHas("finished without replying", "In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception")
     }.get
   }
 

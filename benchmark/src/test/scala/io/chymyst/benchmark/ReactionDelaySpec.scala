@@ -1,13 +1,12 @@
 package io.chymyst.benchmark
 
-import java.io.File
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
 import io.chymyst.jc._
-import io.chymyst.test.LogSpec
-import org.sameersingh.scalaplot.jfreegraph.JFGraphPlotter
 import io.chymyst.test.Common._
+import io.chymyst.test.LogSpec
+
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Promise}
 import scala.util.Random.nextInt
@@ -221,12 +220,10 @@ class ReactionDelaySpec extends LogSpec {
     val maxTimeout = 500
 
     val tp = new BlockingPool(4)
-    val timeInit = LocalDateTime.now
 
     val result = processResults(measureTimeoutDelays(trials, maxTimeout, tp))
 
-    val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
-    println(s"Random timeout delay, parallel test ($trials trials, $maxTimeout max timeout) took $timeElapsed ms:")
+    println(s"Random timeout delay, parallel test ($trials trials, $maxTimeout max timeout):")
     println(result.printout)
     tp.shutdownNow()
   }
@@ -236,12 +233,10 @@ class ReactionDelaySpec extends LogSpec {
     val maxTimeout = 200
 
     val tp = new FixedPool(4)
-    val timeInit = LocalDateTime.now
 
     val result = processResults(measureTimeoutDelays(trials, maxTimeout, tp))
 
-    val timeElapsed = timeInit.until(LocalDateTime.now, ChronoUnit.MILLIS)
-    println(s"Random timeout delay, single-thread test ($trials trials, $maxTimeout max timeout) took $timeElapsed ms:")
+    println(s"Random timeout delay, single-thread test ($trials trials, $maxTimeout max timeout):")
     println(result.printout)
     tp.shutdownNow()
   }
@@ -309,6 +304,175 @@ class ReactionDelaySpec extends LogSpec {
     arr.foreach(i ⇒ arr.foreach(j ⇒ arr.foreach(k ⇒ math.cos(1.0 + (0.0 + i + j * total + k * total * total) / total / total / total / 100.0))))
     val elapsed = (System.nanoTime() - initTime) / 1000000L
     println(s"Long math.cos computation took $elapsed ms")
+  }
+
+  it should "measure the latency when using System.nanoTime() before and after JVM warm-up" in {
+    def measure(total: Int): Unit = {
+      var x: Long = 0
+      var y: Long = 0
+      var z: Long = 0
+      val result = (1 to total).map { _ ⇒
+        x = System.nanoTime()
+        z = System.nanoTime()
+        (z - x).toDouble
+      }
+      val (mean, std) = meanAndStdev(result.drop(total / 4))
+      println(s"System.nanoTime() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
+    }
+
+    measure(4)
+    measure(50)
+    measure(500)
+    measure(1000)
+    measure(5000)
+    measure(10000)
+    measure(50000)
+  }
+
+  it should "measure the latency of System.nanoTime() before and after JVM warm-up" in {
+    def measure(total: Int): Unit = {
+      var x: Long = 0
+      var y: Long = 0
+      var z: Long = 0
+      val result = (1 to total).map { _ ⇒
+        x = System.nanoTime()
+        y = System.nanoTime()
+        z = System.nanoTime()
+        (z - x).toDouble
+      }
+      val (mean, std) = meanAndStdev(result.drop(total / 4))
+      println(s"System.nanoTime() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
+    }
+
+    measure(4)
+    measure(50)
+    measure(500)
+    measure(1000)
+    measure(5000)
+    measure(10000)
+    measure(50000)
+  }
+
+  it should "measure the latency of System.currentTimeMillis() before and after JVM warm-up" in {
+    def measure(total: Int): Unit = {
+      var x: Long = 0
+      var y: Long = 0
+      var z: Long = 0
+      val result = (1 to total).map { _ ⇒
+        x = System.nanoTime()
+        y = System.currentTimeMillis()
+        z = System.nanoTime()
+        (z - x).toDouble
+      }
+      val (mean, std) = meanAndStdev(result.drop(total / 4))
+      println(s"System.currentTimeMillis() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
+    }
+
+    measure(4)
+    measure(50)
+    measure(500)
+    measure(1000)
+    measure(5000)
+    measure(10000)
+    measure(50000)
+  }
+
+  it should "measure the latency of System.currentTimeMillis() using lazy value before and after JVM warm-up" in {
+    def measure(total: Int): Unit = {
+      var x: Long = 0
+      var y: Long = 0
+      var z: Long = 0
+      val result = (1 to total).map { _ ⇒
+        lazy val l = System.currentTimeMillis()
+        x = System.nanoTime()
+        y = l
+        z = System.nanoTime()
+        (z - x).toDouble
+      }
+      val (mean, std) = meanAndStdev(result.drop(total / 4))
+      println(s"System.currentTimeMillis() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
+    }
+
+    measure(4)
+    measure(50)
+    measure(500)
+    measure(1000)
+    measure(5000)
+    measure(10000)
+    measure(50000)
+  }
+
+  it should "measure the latency of System.currentTimeMillis() using function value before and after JVM warm-up" in {
+    def measure(total: Int): Unit = {
+      var x: Long = 0
+      var y: Long = 0
+      var z: Long = 0
+      val l = () => System.currentTimeMillis()
+      val result = (1 to total).map { _ ⇒
+        x = System.nanoTime()
+        y = l()
+        z = System.nanoTime()
+        (z - x).toDouble
+      }
+      val (mean, std) = meanAndStdev(result.drop(total / 4))
+      println(s"System.currentTimeMillis() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
+    }
+
+    measure(4)
+    measure(50)
+    measure(500)
+    measure(1000)
+    measure(5000)
+    measure(10000)
+    measure(50000)
+  }
+
+  it should "measure the latency of System.currentTimeMillis() using lazy parameter before and after JVM warm-up" in {
+    def measure(total: Int, time: => Long): Unit = {
+      var x: Long = 0
+      var y: Long = 0
+      var z: Long = 0
+      val result = (1 to total).map { _ ⇒
+        x = System.nanoTime()
+        y = time
+        z = System.nanoTime()
+        (z - x).toDouble
+      }
+      val (mean, std) = meanAndStdev(result.drop(total / 4))
+      println(s"System.currentTimeMillis() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
+    }
+
+    measure(4, System.currentTimeMillis())
+    measure(50, System.currentTimeMillis())
+    measure(500, System.currentTimeMillis())
+    measure(1000, System.currentTimeMillis())
+    measure(5000, System.currentTimeMillis())
+    measure(10000, System.currentTimeMillis())
+    measure(50000, System.currentTimeMillis())
+  }
+
+  it should "measure the latency of LocalDateTime.now() before and after JVM warm-up" in {
+    def measure(total: Int): Unit = {
+      var x: Long = 0
+      var y: LocalDateTime = null
+      var z: Long = 0
+      val result = (1 to total).map { _ ⇒
+        x = System.nanoTime()
+        y = LocalDateTime.now()
+        z = System.nanoTime()
+        (z - x).toDouble
+      }
+      val (mean, std) = meanAndStdev(result.drop(total / 4))
+      println(s"LocalDateTime.now() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
+    }
+
+    measure(4)
+    measure(50)
+    measure(500)
+    measure(1000)
+    measure(5000)
+    measure(10000)
+    measure(50000)
   }
 
   it should "measure emitting non-blocking molecules" in {
