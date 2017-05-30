@@ -311,6 +311,13 @@ class MutableBagSpec extends LogSpec {
     b.contains(2) shouldEqual false
   }
 
+  it should "fail to implement takeAny" in {
+    the[scala.NotImplementedError] thrownBy {
+      val b = new MutableMultiset[Int]
+      b.takeAny(1)
+    } should have message "an implementation is missing"
+  }
+
   it should "obtain an independent copy of the bag" in {
     val b = new MutableMultiset[Int]
     val c = b.copyBag
