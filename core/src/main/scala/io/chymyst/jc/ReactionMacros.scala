@@ -26,18 +26,18 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   }
 
   private val constantExtractorCodes = Map(
-    "scala.Some" -> q"Some",
-    "scala.Symbol" -> q"Symbol",
-    "scala.`package`.Left" -> q"Left",
-    "scala.`package`.Right" -> q"Right"
+    "scala.Some" -> q"Some"
+    , "scala.Symbol" -> q"Symbol"
+    , "scala.`package`.Left" -> q"Left"
+    , "scala.`package`.Right" -> q"Right"
   )
 
   private val constantApplierCodes = Set(
-    "scala.Some.apply",
-    "scala.util.Left.apply",
-    "scala.util.Right.apply",
-    "scala.Symbol.apply",
-    "scala.collection.immutable.List.apply"
+    "scala.Some.apply"
+    , "scala.util.Left.apply"
+    , "scala.util.Right.apply"
+    , "scala.Symbol.apply"
+    , "scala.collection.immutable.List.apply"
   )
 
   private val seqConstantExtractorCodes = Map(
@@ -47,8 +47,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   private val seqConstantExtractorHeads = Set("scala.collection.generic.SeqFactory.unapplySeq")
 
   private val emitMultipleFunctionCodes = Set(
-    "io.chymyst.jc.EmitMultiple",
-    "io.chymyst.jc.EmitMultiple.$plus"
+    "io.chymyst.jc.EmitMultiple"
+    , "io.chymyst.jc.EmitMultiple.$plus"
   )
 
   private val iteratingFunctionCodes = Set(
@@ -594,7 +594,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           finishTraverseWithOutputEnv()
 
         /* The expression is `t.f(argumentList)`.
-         * This expression could be a molecule emission, but could be any call to `apply`, `checkTimeout`, or `timeout`.
+         * This expression could be a molecule emission, but could be any call to `apply` or `timeout`.
          * Other function calls will be analyzed in a later `case` clause.
          *
          * For example, if `c` is a molecule then `c(123)` is matched as `c.apply(List(123))`.
@@ -606,7 +606,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
          *  but { case a(x) => val c = m[Unit]; site(...); c() } also has a symbol "c" with the same owner.
          */
         case Apply(Select(t@Ident(TermName(_)), TermName(f)), argumentList)
-          if f === "apply" || f === "checkTimeout" || f === "timeout" =>
+          if f === "apply" || f === "timeout" ⇒
 
           // In the output list, we do not include any molecule emitters defined in the inner scope of the reaction.
           val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)

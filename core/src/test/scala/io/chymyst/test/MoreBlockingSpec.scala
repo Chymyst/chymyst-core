@@ -44,7 +44,7 @@ class MoreBlockingSpec extends LogSpec with TimeLimitedTests {
 
     site(tp)(
       go { case g(_, r) + a(x) => r(x) },
-      go { case f(_, r) + a(true) => Thread.sleep(500); a(r.checkTimeout(123)) }
+      go { case f(_, r) + a(true) => Thread.sleep(500); a(r(123)) }
     )
     a(true)
     f.timeout()(300.millis) shouldEqual None // should give enough time so that the reaction can start
@@ -62,7 +62,7 @@ class MoreBlockingSpec extends LogSpec with TimeLimitedTests {
 
     site(tp)(
       go { case g(_, r) + a(x) => r(x) },
-      go { case f(_, r) + a(true) => Thread.sleep(500); a(r.checkTimeout()) }
+      go { case f(_, r) + a(true) => Thread.sleep(500); a(r()) }
     )
     a(true)
     f.timeout()(300.millis) shouldEqual None // should give enough time so that the reaction can start
@@ -79,7 +79,7 @@ class MoreBlockingSpec extends LogSpec with TimeLimitedTests {
     val tp = new FixedPool(4)
 
     site(tp)(
-      go { case f(_, r) => val res = r.checkTimeout(123); waiter.success(res) }
+      go { case f(_, r) => val res = r(123); waiter.success(res) }
     )
     f.timeout()(10.seconds) shouldEqual Some(123)
 
@@ -97,7 +97,7 @@ class MoreBlockingSpec extends LogSpec with TimeLimitedTests {
     val tp = new FixedPool(6)
 
     site(tp)(
-      go { case f(_, reply) => a(reply.checkTimeout(123)) },
+      go { case f(_, reply) => a(reply(123)) },
       go { case a(x) + collect(n) => collect(n + (if (x) 0 else 1))},
       go { case collect(n) + get(_, reply) => reply(n) }
     )
@@ -222,7 +222,7 @@ class MoreBlockingSpec extends LogSpec with TimeLimitedTests {
       go { case get_f(_, r) + f(x) => r(x) },
       go { case c(_) => incr(); e() },
       go { case wait(_, r) + e(_) => r() },
-      go { case d(x) + incr(_, r) => wait(); r() + f(x) }
+      go { case d(x) + incr(_, r) => wait(); r(); f(x) }
     )
     d.setLogLevel(4)
     d(100)
@@ -250,7 +250,7 @@ class MoreBlockingSpec extends LogSpec with TimeLimitedTests {
       go { case get_f(_, r) + f(x) => r(x) },
       go { case c(_) => incr(); e() },
       go { case wait(_, r) + e(_) => r() },
-      go { case d(x) + incr(_, r) => wait(); r() + f(x) }
+      go { case d(x) + incr(_, r) => wait(); r(); f(x) }
     )
     d.setLogLevel(4)
     d(100)

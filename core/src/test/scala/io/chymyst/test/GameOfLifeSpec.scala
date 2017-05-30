@@ -50,7 +50,7 @@ class GameOfLifeSpec extends LogSpec {
     site(tp2)(
       // These reactions are needed to fetch the state of the board at the final time.
       go { case fc((x, y, state)) + f((count, board)) => board(y)(x) = state; f((count - 1, board)) },
-      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case g(_, r) + f((0, board)) => r(board); f((0, board)) },
       go { case _ => f((boardSize.x * boardSize.y, emptyBoard)) }
     )
 
@@ -145,7 +145,7 @@ class GameOfLifeSpec extends LogSpec {
     site(tp2)(
       // These reactions are needed to fetch the state of the board at the final time.
       go { case fc((x, y, state)) + f((count, board)) => board(y)(x) = state; f((count - 1, board)) },
-      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case g(_, r) + f((0, board)) => r(board); f((0, board)) },
       go { case _ => f((boardSize.x * boardSize.y, emptyBoard)) }
     )
 
@@ -301,7 +301,7 @@ class GameOfLifeSpec extends LogSpec {
     // These reactions are needed to fetch the state of the board at the final time.
     site(tp2)(
       go { case fc((x, y, state)) + f((count, board)) => board(x)(y) = state; f((count - 1, board)) },
-      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case g(_, r) + f((0, board)) => r(board); f((0, board)) },
       go { case _ => f((total, emptyBoard)) }
     )
 
@@ -438,7 +438,7 @@ class GameOfLifeSpec extends LogSpec {
     // These reactions are needed to fetch the state of the board at the final time.
     site(tp2)(
       go { case fc((x, y, state)) + f((count, board)) => board(x)(y) = state; f((count - 1, board)) },
-      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case g(_, r) + f((0, board)) => r(board); f((0, board)) },
       go { case _ => f((total, emptyBoard)) }
     )
 
@@ -563,7 +563,7 @@ class GameOfLifeSpec extends LogSpec {
     // These reactions are needed to fetch the state of the board at the final time.
     site(tp2)(
       go { case fc((x, y, state)) + f((count, board)) => board(x)(y) = state; f((count - 1, board)) },
-      go { case g(_, r) + f((0, board)) => r(board) + f((0, board)) },
+      go { case g(_, r) + f((0, board)) => r(board); f((0, board)) },
       go { case _ => f((boardSize.area, emptyBoard)) }
     )
 

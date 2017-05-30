@@ -176,7 +176,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
 
   it should "accept nonlinear input patterns, with blocking molecule" in {
     val a = new B[Unit, Unit]("a")
-    site(go { case a(_, r) + a(_, s) => r() + s() })
+    site(go { case a(_, r) + a(_, s) => r(); s() })
   }
 
   it should "throw exception when join pattern attempts to redefine a blocking molecule" in {
@@ -536,7 +536,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
         if (chooser(x)) throw new Exception("crash! (it's OK, ignore this)")
         c(x - 1)
       }.withRetry onThreads tp,
-      go { case c(0) + g(_, r) => r() + c(0) },
+      go { case c(0) + g(_, r) => r(); c(0) },
       go { case _ => c(n) }
     )
     (1 to n).foreach { _ => d() }

@@ -57,11 +57,11 @@ object MacroCompileErrorsUtest extends TestSuite {
       }
       * - {
         compileError(
-          "val r = go { case f(_, r) => r.checkTimeout() } "
+          "val r = go { case f(_, r) => r() } "
         ).check(
           """
-            |          "val r = go { case f(_, r) => r.checkTimeout() } "
-            |                                                      ^
+            |          "val r = go { case f(_, r) => r() } "
+            |                                         ^
             |""".stripMargin, "could not find implicit value for parameter arg: io.chymyst.jc.TypeMustBeUnit[Int]")
       }
     }
@@ -88,10 +88,10 @@ object MacroCompileErrorsUtest extends TestSuite {
       }
       * - {
         compileError(
-          "val r = go { case f(_, r) if r.checkTimeout(1) && x > 0 => }"
+          "val r = go { case f(_, r) if r(1) && x > 0 => }"
         ).check(
           """
-            |          "val r = go { case f(_, r) if r.checkTimeout(1) && x > 0 => }"
+            |          "val r = go { case f(_, r) if r(1) && x > 0 => }"
             |                      ^
             |""".stripMargin, "Input guard must not perform any reply actions (r)")
 
@@ -400,10 +400,10 @@ case c(_) + a(y) => c()
       //    "val r = go { case a(_,r) if r() => }" shouldNot compile // input guard performs reply actions
       * - {
         compileError(
-          "val r = go { case a(_,r) if r.checkTimeout() => }"
+          "val r = go { case a(_,r) if r() => }"
         ).check(
           """
-            |          "val r = go { case a(_,r) if r.checkTimeout() => }"
+            |          "val r = go { case a(_,r) if r() => }"
             |                      ^
             |""".stripMargin, "Input guard must not perform any reply actions (r)")
       }
@@ -1017,13 +1017,13 @@ case c(_) + a(y) => c()
                 |                          ^
                 |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(()))")
           }
-          //      "val r = go { case f(_, r) => while (r.checkTimeout()) { () } }" shouldNot compile
+          //      "val r = go { case f(_, r) => while (r()) { () } }" shouldNot compile
           * - {
             compileError(
-              "val r = go { case f(_, r) => while (r.checkTimeout()) { () } }"
+              "val r = go { case f(_, r) => while (r()) { () } }"
             ).check(
               """
-                |              "val r = go { case f(_, r) => while (r.checkTimeout()) { () } }"
+                |              "val r = go { case f(_, r) => while (r()) { () } }"
                 |                          ^
                 |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(()))")
           }
@@ -1037,13 +1037,13 @@ case c(_) + a(y) => c()
                 |                          ^
                 |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(()))")
           }
-          //      "val r = go { case f(_, r) => do () while (r.checkTimeout()) }" shouldNot compile
+          //      "val r = go { case f(_, r) => do () while (r()) }" shouldNot compile
           * - {
             compileError(
-              "val r = go { case f(_, r) => do () while (r.checkTimeout()) }"
+              "val r = go { case f(_, r) => do () while (r()) }"
             ).check(
               """
-                |              "val r = go { case f(_, r) => do () while (r.checkTimeout()) }"
+                |              "val r = go { case f(_, r) => do () while (r()) }"
                 |                          ^
                 |""".stripMargin, "Reaction body must not use reply emitters inside function blocks (reply emitter r(()))")
           }

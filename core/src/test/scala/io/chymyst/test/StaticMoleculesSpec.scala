@@ -270,7 +270,7 @@ class StaticMoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAf
       val n = 1
 
       site(tp)(
-        go { case c(_, r) + d(_) => r("ok") + d() },
+        go { case c(_, r) + d(_) => r("ok"); d() },
         go { case _ if n > 0 => d() } // static reaction
       )
     }

@@ -255,45 +255,33 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
   * @tparam T Type of the value that the molecule carries.
   * @tparam R Type of the reply value.
   */
-private[jc] final class ReplyEmitter[T, R] extends (R => Unit) {
+private[jc] final class ReplyEmitter[T, R] extends (R => Boolean) {
   private[jc] val reply = Budu[R]
 
   def isTimedOut: Boolean = reply.isTimedOut
 
   def noReplyAttemptedYet: Boolean = reply.isEmpty
 
-  /** Perform a reply action for a blocking molecule without checking the timeout status (this is slightly faster).
+  /** Perform a reply action for a blocking molecule with a check of the timeout status.
 
     * This is called by a reaction that consumed the blocking molecule.
     * The reply value will be received by the process that emitted the blocking molecule, and will unblock that process.
-    * The reply value will not be received if the emitting process timed out on the blocking call, or if the reply was already made (then it will be ignored; however, static analysis prohibits reactions that reply more than once.).
+    * The reply value will not be received if the emitting process timed out on the blocking call, or if the reply was
+    * already made.
+    * If a reply was already made then the call to `apply()` will be ignored.
+    * However, static analysis prohibits reactions that reply more than once or do not have any code that sends a reply.
     *
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
     * If a timeout occurred after the reaction body started evaluating but before the reply action was performed, the reply value will not be actually sent anywhere.
-    * This method will not fail in that case, but since it returns `Unit`, the user will not know whether the reply succeeded.
+    * This method will return `false` in that case. Otherwise it will return `true`.
     *
     * @param r Value to reply with.
     * @return Unit value, regardless of whether the reply succeeded before timeout.
     */
-  def apply(r: R): Unit = reply.is(r)
+  def apply(r: R): Boolean = reply.is(r)
 
   /** Same but for molecules with type `R = Unit`. */
-  def apply()(implicit arg: TypeMustBeUnit[R]): Unit = (apply(arg.getUnit) : @inline)
-
-  /** Perform a reply action for a blocking molecule with a check of the timeout status.
-    * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
-    * If a timeout occurred after the reaction body started evaluating but before the reply action was performed, the reply value will not be actually sent anywhere.
-    * This method will return `false` in that case.
-    *
-    * @param r Value to reply with.
-    * @return `true` if the reply was received, `false` if the blocking molecule timed out, or if a reply action was already performed.
-    */
-  def checkTimeout(r: R): Boolean = reply.is(r)
-
-  // TODO: remove checkTimeout() API altogether
-
-  /** Same as [[checkTimeout]] above but for molecules with type `R = Unit`, with shorter syntax. */
-  def checkTimeout()(implicit arg: TypeMustBeUnit[R]): Boolean = (checkTimeout(arg.getUnit) : @inline)
+  def apply()(implicit arg: TypeMustBeUnit[R]): Boolean = (apply(arg.getUnit) : @inline)
 }
 
 /** Blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.

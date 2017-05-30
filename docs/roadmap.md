@@ -2,7 +2,7 @@
 
 # Version history
 
-- 0.2.0 Renamed "SmartPool" to "BlockingPool" and simplified the thread info handling. More static checks for emission of static molecules.
+- 0.2.0 Renamed "SmartPool" to "BlockingPool" and simplified the thread info handling. More static checks for emission of static molecules. Radical rewrite of blocking molecules code without semaphores and without error replies, simplifying the API. The call `reply.checkTimeout()` is eliminated: the reply emitters now always return `Boolean`. Reactions will not throw exceptions any more to unblock waiting calls when errors occur. Instead, a better error recovery mechanism will be implemented. 
 
 - 0.1.9 Static molecules are now restricted to a linear output context, in a similar way to blocking replies. Reaction schedulers now run on a single dedicated thread; site pools are eliminated. New examples: 8 queens and hierarchical map/reduce. Added a simple facility for deadlock warning, used for `FixedPool`. Tutorial updated with a new "quick start" guide that avoids requiring too many new concepts. Miscellaneous bug fixes and performance improvements.
 
@@ -110,9 +110,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  Maybe remove default pools altogether? It seems that every pool needs to be stopped. — However, this would prevent sharing thread pools across scopes. Maybe that is not particularly useful?
   
  3 * 3 - implement "one-off" or "perishable" molecules that are emitted once (like static, from the reaction site itself) and may be emitted only if first consumed (but not necessarily emitted at start of the reaction site)
-  
- 2 * 2 - If a blocking molecule was emitted without a timeout, we don't need the second semaphore, and checkTimeout() should return `true` without any checking
- 
+
  5 * 5 - How to rewrite reaction sites so that blocking molecules are transparently replaced by a pair of non-blocking molecules? Can this be done even if blocking emitters are used inside functions? (Perhaps with extra molecules emitted at the end of the function call?) Is it useful to emit an auxiliary molecule at the end of an "if" expression, to avoid code duplication? How can we continue to support real blocking emitters when used outside of macro code? 
  
  5 * 5 - Can we perform the unblocking transformation using delimited continuations?
@@ -121,7 +119,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
   
  3 * 3 - Replace some timed tests by probabilistic tests that run multiple times and fail much less often; perhaps use Li Haoyi's `utest` framework that has features for this.
  
- 3 * 3 - `SmartThread` should keep information about which RS and which reaction is now running. This can be used both for monitoring and for automatic assignment of thread pools for reactions defined in the scope of another reaction. 
+ 3 * 3 - `ChymystThread` should keep information about which RS and which reaction is now running. This can be used both for monitoring and for automatic assignment of thread pools for reactions defined in the scope of another reaction. 
  
  3 * 3 - Write a tutorial section about timers and time-outs: cancellable recurring jobs, cancellable subscriptions, time-outs on receiving replies from non-blocking molecules (?)
  

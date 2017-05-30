@@ -143,7 +143,7 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val tp = new FixedPool(4)
     site(tp0)(
       go { case c(_) => e(g2()) }, // e(0) should be emitted now
-      go { case d(_) + g(_, r) + g2(_, r2) => r(0) + r2(0) } onThreads tp,
+      go { case d(_) + g(_, r) + g2(_, r2) => r(0); r2(0) } onThreads tp,
       go { case e(x) + h(_, r) => r(x) }
     )
     c() + d()
@@ -166,7 +166,7 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val tp = new FixedPool(4)
     site(tp0)(
       go { case c(_) => val x = g(); g2(); e(x) }, // e(0) should never be emitted because this thread is deadlocked
-      go { case g(_, r) + g2(_, r2) => r(0) + r2(0) } onThreads tp,
+      go { case g(_, r) + g2(_, r2) => r(0); r2(0) } onThreads tp,
       go { case e(x) + h(_, r) => r(x) },
       go { case d(_) + f(_) => e(2) },
       go { case f(_) + e(_) => e(1) }

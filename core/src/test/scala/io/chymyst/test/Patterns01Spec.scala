@@ -243,7 +243,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val total = 10000
     val tp = new BlockingPool(4) // Use BlockingPool because using a FixedPool gives a deadlock.
     site(tp)(
-      go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
+      go { case danceCounter(x) + done(_, r) if x.size == total => r(x); danceCounter(x) }, // ignore warning about "non-variable type argument Int"
       go { case beginDancing(xy) + danceCounter(x) => danceCounter(x :+ xy) },
       go { case _ => danceCounter(Vector()) }
     )
@@ -290,7 +290,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val tp1d = new FixedPool(1)
 
     site(tp)(
-      go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
+      go { case danceCounter(x) + done(_, r) if x.size == total => r(x); danceCounter(x) }, // ignore warning about "non-variable type argument Int"
       go { case beginDancing(xy) + danceCounter(x) => danceCounter(x :+ xy) } onThreads tp1d,
       go { case _ => danceCounter(Vector()) }
     )
@@ -333,7 +333,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val total = 100
 
     site(tp)(
-      go { case danceCounter(x) + done(_, r) if x.size == total => r(x) + danceCounter(x) }, // ignore warning about "non-variable type argument Int"
+      go { case danceCounter(x) + done(_, r) if x.size == total => r(x); danceCounter(x) }, // ignore warning about "non-variable type argument Int"
       go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() },
       go { case _ => danceCounter(Nil) }
     )
