@@ -55,10 +55,10 @@ class BuduSpec extends LogSpec {
   it should "wait for reply and report status" in {
     val x = Budu[Int]
     val y = Budu[Boolean]
+    x.isEmpty shouldEqual true
     Future {
       y.is(x.is(123))
     }
-    x.isEmpty shouldEqual true
     x.isTimedOut shouldEqual false
     x.await shouldEqual 123
     x.isEmpty shouldEqual false

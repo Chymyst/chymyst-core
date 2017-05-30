@@ -126,7 +126,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           val result = findInputMolecules(thisReaction, moleculesPresent)
           // If we have found a reaction that can be run; need to remove its input molecule values from their bags.
           result.map { thisInputList ⇒
-            thisInputList.indices.foreach { i ⇒
+            thisReaction.info.inputIndices.foreach { i ⇒
               val molValue = thisInputList(i)
               val mol = thisReaction.info.inputs(i).molecule
               // This error (molecule value was found for a reaction but is now not present) indicates a bug in this code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.

@@ -27,10 +27,9 @@ object Benchmarks1 {
         go { case c(n) + d(_) if n > 0 => c(n - 1) }
       )
 
-      val initialTime = LocalDateTime.now
       c(count)
+      val initialTime = LocalDateTime.now
       (1 to count).foreach { _ => d() }
-
       f(initialTime)
     }.get
   }
@@ -77,7 +76,6 @@ object Benchmarks1 {
 
   def benchmark2(count: Int, tp: Pool): Long = {
 
-    val initialTime = LocalDateTime.now
     object j2 extends Join {
       object c extends AsyName[Int]
       object g extends SynName[Unit, Int]
@@ -96,6 +94,7 @@ object Benchmarks1 {
     }
     j2.c(count)
 
+    val initialTime = LocalDateTime.now
     (1 to count).foreach{ _ => j2.d(()) }
     j2.f(initialTime)
   }
