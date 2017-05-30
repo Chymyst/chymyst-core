@@ -4,6 +4,22 @@ import scala.language.higherKinds
 
 object TypeLabels {
 
+  sealed trait LabelX[X] {
+    type T <: X
+
+    def apply(s: X): T
+
+    def subst[F[_]](fs: F[X]): F[T]
+  }
+
+  def makeLabeledX[X]: LabelX[X] = new LabelX[X] {
+    type T = X
+
+    override def apply(s: X): T = s
+
+    override def subst[F[_]](fs: F[X]): F[T] = fs
+  }
+
   // Example type label for String. See https://failex.blogspot.com/2017/04/the-high-cost-of-anyval-subclasses.html
   object LabeledString {
 
