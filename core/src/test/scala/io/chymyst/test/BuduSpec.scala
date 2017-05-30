@@ -10,12 +10,21 @@ import io.chymyst.test.Common._
 class BuduSpec extends LogSpec {
   behavior of "Budu()"
 
+  it should "report status = true if no waiting occurred" in {
+    val x = Budu[Int]
+    x.isEmpty shouldEqual true
+    x.isTimedOut shouldEqual false
+    x.is(123) shouldEqual true
+    x.isEmpty shouldEqual false
+    x.isTimedOut shouldEqual false
+  }
+
   it should "wait for reply" in {
     val x = Budu[Int]
     Future {
       x.is(123)
     }
-    x.get shouldEqual 123
+    x.await shouldEqual 123
   }
 
   it should "return old result when already have reply" in {
@@ -24,10 +33,10 @@ class BuduSpec extends LogSpec {
       x.is(123)
       x.is(200)
     }
-    x.get shouldEqual 123
-    x.get shouldEqual 123
+    x.await shouldEqual 123
+    x.await shouldEqual 123
     x.is(300)
-    x.get shouldEqual 123
+    x.await shouldEqual 123
   }
 
   it should "wait for reply using Future" in {
@@ -49,9 +58,15 @@ class BuduSpec extends LogSpec {
     Future {
       y.is(x.is(123))
     }
-    x.get shouldEqual 123
-    y.get shouldEqual true
-    x.is(200) shouldEqual true
+    x.isEmpty shouldEqual true
+    x.isTimedOut shouldEqual false
+    x.await shouldEqual 123
+    x.isEmpty shouldEqual false
+    x.isTimedOut shouldEqual false
+    y.await shouldEqual true
+    x.is(200) shouldEqual true // repeated reply is silently ignored
+    x.isEmpty shouldEqual false
+    x.isTimedOut shouldEqual false
   }
 
   it should "wait for reply with time-out not reached" in {
@@ -82,7 +97,7 @@ class BuduSpec extends LogSpec {
       y.is(x.is(123))
     }
     x.await(500.millis) shouldEqual Some(123)
-    y.get shouldEqual true
+    y.await shouldEqual true
   }
 
   it should "wait for reply with time-out reached and report status" in {
@@ -93,7 +108,7 @@ class BuduSpec extends LogSpec {
       y.is(x.is(123))
     }
     x.await(100.millis) shouldEqual None
-    y.get shouldEqual false
+    y.await shouldEqual false
   }
 
   behavior of "performance benchmark"
@@ -107,7 +122,7 @@ class BuduSpec extends LogSpec {
       Future {
         x.is(System.nanoTime())
       }
-      val now = x.get
+      val now = x.await
       System.nanoTime - now
     }.map(_.toDouble)
     val (average, stdev) = meanAndStdev(results.drop(total - best))

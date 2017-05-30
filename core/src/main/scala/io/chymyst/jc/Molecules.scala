@@ -1,8 +1,8 @@
 package io.chymyst.jc
 
-import Core._
-import java.util.concurrent.{Semaphore, TimeUnit}
-import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
+import java.util.concurrent.atomic.AtomicReference
+
+import io.chymyst.jc.Core._
 
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
@@ -63,15 +63,15 @@ private[jc] final case class MolValue[T](private[jc] val moleculeValue: T) exten
   * The `hashCode` of a [[BlockingMolValue]] should depend only on the `hashCode` of the value `v`,
   * and not on the reply value (which is mutable). This is now implemented in the parent trait [[AbsMolValue]].
   *
-  * @param replyValue The wrapper for the reply value, which will ultimately return a value of type R.
+  * @param replyEmitter The wrapper for the reply value, which will ultimately return a value of type R.
   * @tparam T The type of the value carried by the molecule.
   * @tparam R The type of the reply value.
   */
 private[jc] final case class BlockingMolValue[T, R](
   private[jc] val moleculeValue: T,
-  replyValue: ReplyEmitter[T, R]
+  private[jc] val replyEmitter: ReplyEmitter[T, R]
 ) extends AbsMolValue[T] {
-  override private[jc] def reactionSentNoReply: Boolean = replyValue.noReplyAttemptedYet // `true` if no value, no error, and no timeout
+  override private[jc] def reactionSentNoReply: Boolean = replyEmitter.noReplyAttemptedYet // `true` if no value, no error, and no timeout
 
   def isEmpty: Boolean = false
 
@@ -79,7 +79,7 @@ private[jc] final case class BlockingMolValue[T, R](
 
   def _1: T = moleculeValue
 
-  def _2: ReplyEmitter[T, R] = replyValue.asInstanceOf[ReplyEmitter[T, R]]
+  def _2: ReplyEmitter[T, R] = replyEmitter.asInstanceOf[ReplyEmitter[T, R]]
 }
 
 /** Abstract trait representing a molecule emitter.
@@ -216,7 +216,7 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
     */
   def apply(v: T): Unit =
     if (isStatic)
-      throw new ExceptionEmittingStaticMol(s"Error: static molecule $this cannot be emitted non-statically")
+      throw new ExceptionEmittingStaticMol(s"Error: static molecule $this($v) cannot be emitted non-statically")
     else applyStatic(v)
 
   def apply()(implicit arg: TypeMustBeUnit[T]): Unit = apply(arg.getUnit)
@@ -250,118 +250,24 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
   }
 }
 
-// TODO: remove this comment
-/* ReplyStatus represents the different states of the reply process.
-  * Initially, the status is [[HaveReply]] with a `null` value.
-  * Reply is successful if the emitting call does not time out. In this case, we have a reply value.
-  * This is represented by [[HaveReply]] with a non-null value.
-  * If the reply times out, there is still no reply value. This is represented by the AtomicBoolean flag [[ReplyEmitter.hasTimedOut]] set to `true`.
-  * If the reaction finished but did not reply, it is an error condition. If the reaction finished and replied more than once, it is also an error condition.
-  * After a reaction fails to reply, the emitting closure will put an error message into the status for that molecule. This is represented by [[ErrorNoReply]].
-  * When a reaction replies more than once, it is too late to put an error message into the status for that molecule. So we do not have a status value for this situation.
-  */
-
 /** Reply emitter for blocking molecules. This is a mutable class that holds the reply value and monitors time-out status.
   *
   * @tparam T Type of the value that the molecule carries.
   * @tparam R Type of the reply value.
   */
 private[jc] final class ReplyEmitter[T, R] extends (R => Unit) {
-  @volatile private var replyStatus: ReplyStatus[R] = Right(null.asInstanceOf[R]) // the `null` and the typecast will not be used because `replyStatus` will be either overwritten or ignored on timeout. This avoids a third case class in ReplyStatus, and the code can now be completely covered by tests.
+  private[jc] val reply = Budu[R]
 
-  private[jc] def getReplyStatus = replyStatus
+  def isTimedOut: Boolean = reply.isTimedOut
 
-  /** This is set by the reaction site in case there was a user error, such as not replying to a blocking molecule. */
-  private[jc] def setErrorStatus(message: String) = {
-    replyStatus = Left(message)
-  }
-
-  /** This atomic mutable value is read and written only by reactions that perform reply actions.
-    * Access to this variable must be guarded by [[semaphoreForReplyStatus]].
-    */
-  private val hasReply = new AtomicBoolean(false)
-
-  /** This atomic mutable value is written only by the reaction that emitted the blocking molecule,
-    * but read by reactions that perform the reply action with timeout checking.
-    * Access to this variable must be guarded by [[semaphoreForReplyStatus]].
-    */
-  private val hasTimedOut = new AtomicBoolean(false)
-
-  private[jc] def setTimedOut() = hasTimedOut.set(true)
-
-  private[jc] def isTimedOut: Boolean = hasTimedOut.get
-
-  private[jc] def noReplyAttemptedYet: Boolean = !hasReply.get
-
-  /** This semaphore blocks the emitter of a blocking molecule until a reply is received.
-    * This semaphore is initialized only once when creating an instance of this
-    * class. The semaphore will be acquired when emitting the molecule and released by the "reply"
-    * action. The semaphore will never be used again once a reply is received.
-    */
-  private val semaphoreForEmitter = new Semaphore(0, false)
-
-  /** This is used by the reaction that replies to the blocking molecule, in order to obtain
-    * the reply status safely (without race conditions).
-    * Initially, the semaphore has 1 permits.
-    * The reaction that replies will use 2 permits. Therefore, one additional permit will be given by the emitter after the reply is received.
-    */
-  private val semaphoreForReplyStatus = new Semaphore(1, false)
-
-  private[jc] def acquireSemaphoreForEmitter(timeoutMillis: Option[Long]): Boolean =
-    timeoutMillis match {
-      case Some(millis) => semaphoreForEmitter.tryAcquire(millis, TimeUnit.MILLISECONDS)
-      case None => semaphoreForEmitter.acquire(); true
-    }
-
-  private[jc] def releaseSemaphoreForEmitter(): Unit = semaphoreForEmitter.release()
-
-  private[jc] def releaseSemaphoreForReply(): Unit = semaphoreForReplyStatus.release()
-
-  private[jc] def acquireSemaphoreForReply() = semaphoreForReplyStatus.acquire()
-
-  /** Perform the reply action for a blocking molecule.
-    * This is called by a reaction that consumed the blocking molecule.
-    * The reply value will be received by the process that emitted the blocking molecule, and will unblock that process.
-    * The reply value will not be received if the emitting process timed out on the blocking call, or if the reply was already made (then it is an error to reply again).
-    *
-    * @param r Value to reply with.
-    * @return `true` if the reply was received normally, `false` if it was not received due to one of the above conditions.
-    */
-  private def performReplyAction(r: R): Boolean = {
-    // TODO: simplify this code under the assumption that repeated replies are impossible
-    val replyWasNotRepeated = hasReply.compareAndSet(false, true)
-
-    // We return `true` only if this reply was not a repeated reply, and if we have no timeout.
-    replyWasNotRepeated && {
-      // We have not yet tried to reply.
-      // This semaphore was released by the emitting reaction as it starts the blocking wait.
-      acquireSemaphoreForReply()
-      // We need to make sure the emitting reaction already started the blocking wait.
-      // After acquiring this semaphore, it is safe to read and modify `replyStatus`.
-      // The reply value will be assigned only if there was no timeout and no previous reply action.
-
-      replyStatus = Right(r)
-
-      releaseSemaphoreForEmitter() // Unblock the reaction that emitted this blocking molecule.
-      // That reaction will now set reply status and release semaphoreForReplyStatus again.
-
-      acquireSemaphoreForReply() // Wait until the emitting reaction has set the timeout status.
-      // After acquiring this semaphore, it is safe to read the reply status.
-      !isTimedOut
-    }
-  }
-
-  /** This is similar to [[performReplyAction]] except that user did not request the timeout checking, so we have fewer semaphores to deal with. */
-  private def performReplyActionWithoutTimeoutCheck(r: R): Unit = {
-    val replyWasNotRepeated = hasReply.compareAndSet(false, true)
-    if (replyWasNotRepeated) {
-      // We have not yet tried to reply.
-      replyStatus = Right(r)
-      releaseSemaphoreForEmitter() // Unblock the reaction that emitted this blocking molecule.
-    }
-  }
+  def noReplyAttemptedYet: Boolean = reply.isEmpty
 
   /** Perform a reply action for a blocking molecule without checking the timeout status (this is slightly faster).
+
+    * This is called by a reaction that consumed the blocking molecule.
+    * The reply value will be received by the process that emitted the blocking molecule, and will unblock that process.
+    * The reply value will not be received if the emitting process timed out on the blocking call, or if the reply was already made (then it will be ignored; however, static analysis prohibits reactions that reply more than once.).
+    *
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
     * If a timeout occurred after the reaction body started evaluating but before the reply action was performed, the reply value will not be actually sent anywhere.
     * This method will not fail in that case, but since it returns `Unit`, the user will not know whether the reply succeeded.
@@ -369,10 +275,10 @@ private[jc] final class ReplyEmitter[T, R] extends (R => Unit) {
     * @param r Value to reply with.
     * @return Unit value, regardless of whether the reply succeeded before timeout.
     */
-  def apply(r: R): Unit = performReplyActionWithoutTimeoutCheck(r)
+  def apply(r: R): Unit = reply.is(r)
 
   /** Same but for molecules with type `R = Unit`. */
-  def apply()(implicit arg: TypeMustBeUnit[R]): Unit = apply(arg.getUnit)
+  def apply()(implicit arg: TypeMustBeUnit[R]): Unit = (apply(arg.getUnit) : @inline)
 
   /** Perform a reply action for a blocking molecule with a check of the timeout status.
     * For each blocking molecule consumed by a reaction, exactly one reply action should be performed within the reaction body.
@@ -380,12 +286,14 @@ private[jc] final class ReplyEmitter[T, R] extends (R => Unit) {
     * This method will return `false` in that case.
     *
     * @param r Value to reply with.
-    * @return `true` if the reply was successful, `false` if the blocking molecule timed out, or if a reply action was already performed.
+    * @return `true` if the reply was received, `false` if the blocking molecule timed out, or if a reply action was already performed.
     */
-  def checkTimeout(r: R): Boolean = performReplyAction(r)
+  def checkTimeout(r: R): Boolean = reply.is(r)
+
+  // TODO: remove checkTimeout() API altogether
 
   /** Same as [[checkTimeout]] above but for molecules with type `R = Unit`, with shorter syntax. */
-  def checkTimeout()(implicit arg: TypeMustBeUnit[R]): Boolean = checkTimeout(arg.getUnit)
+  def checkTimeout()(implicit arg: TypeMustBeUnit[R]): Boolean = (checkTimeout(arg.getUnit) : @inline)
 }
 
 /** Blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -403,8 +311,9 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     * @param v        Value to be put onto the emitted molecule.
     * @return Non-empty option if the reply was received; None on timeout.
     */
-  def timeout(v: T)(duration: Duration): Option[R] = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, R]]
-    .emitAndAwaitReplyWithTimeout(duration.toMillis, this, v, new ReplyEmitter[T, R])
+  def timeout(v: T)(duration: Duration): Option[R] =
+    reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, R]]
+      .emitAndAwaitReplyWithTimeout(duration, this, v)
 
   /** Same but for molecules with type `T = Unit`; enables shorter syntax `b().timeout(1.second)`. */
   def timeout()(duration: Duration)(implicit arg: TypeMustBeUnit[T]): Option[R] = timeout(arg.getUnit)(duration)
@@ -423,8 +332,8 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     * @param v Value to be put onto the emitted molecule.
     * @return The "reply" value.
     */
-  def apply(v: T): R = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, R]]
-    .emitAndAwaitReply(this, v, new ReplyEmitter[T, R])
+  def apply(v: T): R =
+    reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, R]].emitAndAwaitReply(this, v)
 
   /** This enables the short syntax `b()` instead of `b(())`, and will only work when `T == Unit`. */
   def apply()(implicit arg: TypeMustBeUnit[T]): R = apply(arg.getUnit)
@@ -459,6 +368,7 @@ sealed trait PersistentHashCode {
   * or another type.
   *
   * This wrapper is for wrapping a value that is unconditionally returned by `unapply()`, as molecule extractors must do.
+  * Since that value is of an unknown type `T`, we can't add the named extractor API on top of that type. So we must use this wrapper.
   *
   * @param x Molecule value wrapped and to be returned by `unapply()`.
   * @tparam T Type of the molecule value.
@@ -470,6 +380,7 @@ final case class Wrap[T](x: T) extends AnyVal {
 }
 
 /** This type is used as argument for [[ReactionBody]], and can serve as its own extractor because it implements the named extractors API.
+  * The methods `isEmpty`, `get`, `_1`, `_2` are needed to implement the named extractor API.
   *
   * @param index Index into the [[InputMoleculeList]] array that indicates the molecule value for the current molecule.
   * @param inputs An [[InputMoleculeList]] array.

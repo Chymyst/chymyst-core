@@ -10,25 +10,29 @@ import scala.concurrent.duration.Duration
 // There are only three states: 2 is empty, no time-out yet. 3 is empty, have time-out. 1 not empty, no time-out.
 
 final class Budu[X](useFuture: Boolean) {
-  private var resultPromise: Promise[X] =
+  private val resultPromise: Promise[X] =
     if (useFuture)
       Promise[X]()
     else null.asInstanceOf[Promise[X]]
 
-  @volatile var result: X = _
-  //  @volatile var isEmpty: Boolean = true
+  @volatile private var result: X = _
+  //  @volatile var haveNoReply: Boolean = true
   //  @volatile var notTimedOutYet: Boolean = true
-  @volatile var state: Int = EmptyNoTimeout
+  @volatile private var state: Int = EmptyNoTimeout
 
-  @inline def isEmpty: Boolean = state > 1
+  def isEmpty: Boolean = haveNoReply
 
-  @inline def notTimedOutYet: Boolean = state < 3
+  def isTimedOut: Boolean = !notTimedOutYet
+
+  @inline private def haveNoReply: Boolean = state > 1
+
+  @inline private def notTimedOutYet: Boolean = state < 3
 
   @tailrec
   private def waitUntil(targetTime: Long, newDuration: Long): Unit = {
     if (newDuration > 0) {
       wait(newDuration)
-      if (isEmpty) {
+      if (haveNoReply) {
         waitUntil(targetTime, targetTime - System.currentTimeMillis())
       }
     }
@@ -39,9 +43,9 @@ final class Budu[X](useFuture: Boolean) {
       val newDuration = duration.toMillis
       val targetTime = newDuration + System.currentTimeMillis()
       synchronized {
-        if (isEmpty)
+        if (haveNoReply)
           waitUntil(targetTime, newDuration)
-        if (isEmpty) {
+        if (haveNoReply) {
           state = EmptyAfterTimeout
           None
         } else
@@ -51,10 +55,10 @@ final class Budu[X](useFuture: Boolean) {
       Option(result)
 
 
-  def get: X =
+  def await: X =
     if (state === EmptyNoTimeout) {
       synchronized {
-        while (isEmpty) {
+        while (haveNoReply) {
           wait()
         }
         result

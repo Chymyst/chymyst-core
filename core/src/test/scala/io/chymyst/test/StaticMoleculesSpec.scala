@@ -37,7 +37,7 @@ class StaticMoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAf
       val thrown = intercept[Exception] {
         d(s"bad $i") // this "d" should not be emitted, even though "d" is sometimes not in the soup due to reactions!
       }
-      thrown.getMessage shouldEqual s"Error: static molecule d cannot be emitted non-statically"
+      thrown.getMessage shouldEqual s"Error: static molecule d(bad $i) cannot be emitted non-statically"
       f.timeout()(500 millis) shouldEqual Some("ok")
     })
 
@@ -63,7 +63,7 @@ class StaticMoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAf
           d(s"bad $i $j") // this "d" should not be emitted, even though we are immediately after a reaction site,
           // and even if the initial d() emission was done late
         }
-        thrown.getMessage shouldEqual s"Error: static molecule d cannot be emitted non-statically"
+        thrown.getMessage shouldEqual s"Error: static molecule d(bad $i $j) cannot be emitted non-statically"
         f.timeout()(500 millis) shouldEqual Some("ok")
       })
     })
@@ -127,37 +127,37 @@ class StaticMoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAf
   }
 
   it should "signal error when a static molecule is emitted by another reaction to trick static analysis" in {
-    the[Exception] thrownBy {
-      val a = m[Unit]
-      val c = b[Unit, Unit]
-      val d = m[Unit]
-      val carrier = m[M[Unit]]
+    clearGlobalErrorLog()
+    val a = m[Unit]
+    val c = b[Unit, Unit]
+    val d = m[Unit]
+    val carrier = m[M[Unit]]
 
-      site(tp)(
-        go { case c(_, r) + carrier(q) ⇒ q(); r() },
-        go { case a(_) + d(_) => d() + carrier(d) },
-        go { case _ => d() } // static reaction
-      )
-      a()
-      c()
-    } should have message "Error: In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] finished without replying to c/B. Reported error: In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d cannot be emitted non-statically"
+    site(tp)(
+      go { case c(_, r) + carrier(q) ⇒ q(); r() },
+      go { case a(_) + d(_) => d() + carrier(d) },
+      go { case _ => d() } // static reaction
+    )
+    a()
+    c.timeout()(300.millis) shouldEqual None
+    globalLogHas("cannot be emitted non-statically", "In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d(()) cannot be emitted non-statically")
   }
 
   it should "signal error when a static molecule is emitted twice by another reaction to trick static analysis" in {
-    the[Exception] thrownBy {
-      val a = m[Unit]
-      val c = b[Unit, Unit]
-      val d = m[Unit]
-      val carrier = m[M[Unit]]
+    clearGlobalErrorLog()
+    val a = m[Unit]
+    val c = b[Unit, Unit]
+    val d = m[Unit]
+    val carrier = m[M[Unit]]
 
-      site(tp)(
-        go { case c(_, r) + carrier(q) + d(_) ⇒ q(); d(); r() },
-        go { case a(_) + d(_) => d() + carrier(d) },
-        go { case _ => d() } // static reaction
-      )
-      a()
-      c()
-    } should have message "Error: In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/B/P() + carrier/P(d) + d/P()] finished without replying to c/B. Reported error: In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/B/P() + carrier/P(d) + d/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d cannot be emitted non-statically"
+    site(tp)(
+      go { case c(_, r) + carrier(q) + d(_) ⇒ q(); d(); r() },
+      go { case a(_) + d(_) => d() + carrier(d) },
+      go { case _ => d() } // static reaction
+    )
+    a()
+    c.timeout()(300.millis) shouldEqual None
+    globalLogHas("cannot be emitted non-statically", "In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/B/P() + carrier/P(d) + d/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d(()) cannot be emitted non-statically")
   }
 
   it should "signal error when a static molecule is emitted inside an if-then block" in {
@@ -176,7 +176,14 @@ class StaticMoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAf
     val c = b[Int, Int]
     val d = m[Unit]
     site(tp)(
-      go { case c(x, r) + d(_) => if (x == 1) { d(); r(0) } else { d(); r(1) } },
+      go { case c(x, r) + d(_) => if (x == 1) {
+        d()
+        r(0)
+      } else {
+        d()
+        r(1)
+      }
+      },
       go { case _ => d() } // static reaction
     )
     c(0) shouldEqual 1
@@ -362,7 +369,7 @@ class StaticMoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAf
     g() // now we have attempted to emit d123(123) but we should have failed
     c(0)
     f.timeout()(1.second) shouldEqual None // if this is Some(1), reaction ran, which means the test failed
-    globalErrorLog.find(_.contains("Refusing to emit static pipelined molecule")).get should endWith("In Site{c + d123 → ...; d123 + g/B → ...}: Refusing to emit static pipelined molecule d123(123) since its value fails the relevant conditions")
+    globalLogHas("d123(123)", "In Site{c + d123 → ...; d123 + g/B → ...}: Refusing to emit static pipelined molecule d123(123) since its value fails the relevant conditions")
   }
 
   it should "handle static molecules with cross-molecule guards" in {

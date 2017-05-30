@@ -15,7 +15,7 @@ import scala.annotation.tailrec
   * @tparam A Type of the molecule value. If this is `Unit`, we will have an implicit value of type `TypeIsUnit[A]`, which will define `getUnit` to return `()`.
   */
 sealed trait TypeMustBeUnit[A] {
-  val getUnit: A
+  @inline val getUnit: A
 }
 
 /** Syntax helper for molecules with unit values.
@@ -116,8 +116,6 @@ object Core {
   private[jc] def messageWithTime(message: String): String = s"${LocalDateTime.now}: $message"
 
   private[jc] def logMessage(message: String): Unit = println(messageWithTime(message))
-
-  private[jc] type ReplyStatus[R] = Either[String, R]
 
   /** List of molecules used as inputs by a reaction. The molecules are ordered the same as in the reaction input list. */
   private[jc] type InputMoleculeList = Array[AbsMolValue[_]]

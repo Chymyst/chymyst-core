@@ -826,9 +826,10 @@ site(
 ```
 
 Finally, a reaction's body could throw an exception before emitting a reply.
-In this case, compile-time analysis will not show that there is a problem.
+In this case, compile-time analysis will not show that there is a problem
+because it is not possible to detect whether a portion of Scala code throws an exception without running that code.
 Nevertheless, the chemical machine will recognize at run time that the reaction body will have stopped without sending a reply to one or more blocking molecules.
-The chemical machine will then throw an additional exception in all threads that are still waiting for replies.
+The chemical machine will then log an error and specify which molecules are still waiting for replies.
  
 Here is an example of code that emits `f()` and waits for reply, while a reaction consuming `f()` can throw an exception before replying:
 
@@ -841,7 +842,9 @@ f()
 
 ```
 
-`java.lang.Exception: Error: In Site{c + f/B → ...}: Reaction {c + f/B → ...} finished without replying to f/B. Reported error: Bad value of n!`
+Running this code will print an error message to the global error log and to the console:
+
+`In Site{c + f/B → ...}: Reaction {c + f/B → ...} finished without replying to f/B. Reported error: Bad value of n!`
 
 In general, a reaction can consume one or more blocking molecules and fail to reply to them due to an exception.
 Thus, there can be one or more blocked threads still waiting for replies when this kind of situation occurs.

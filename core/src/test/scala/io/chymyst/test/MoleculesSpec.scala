@@ -1,6 +1,7 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
+import io.chymyst.test.Common._
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
@@ -14,11 +15,6 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
   var tp0: Pool = _
 
   implicit val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
-
-  // Note: log messages have a timestamp prepended to them, so we use `endsWith` when matching a log message.
-  def logShouldHave(message: String) = {
-    globalErrorLog.exists(_ endsWith message) should be(true)
-  }
 
   override def beforeEach(): Unit = {
     clearGlobalErrorLog()
@@ -386,6 +382,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
   }
 
   it should "start reaction but throw exception when unbound molecule emitter is passed on input molecule" in {
+    clearGlobalErrorLog()
     val a = m[M[Int]]
     val c = m[Int]
     val f = b[Unit, Int]
@@ -394,10 +391,8 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
     )
     // `c` is unbound, emitting `a(c)` will cause the reaction to fail.
     a(c)
-    val thrown = intercept[Exception] {
-      f() shouldEqual 123 // This should not pass.
-    }
-    thrown.getMessage shouldEqual "Error: In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] finished without replying to f/B. Reported error: In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site"
+    f.timeout()(300.millis) shouldEqual None // This should not pass.
+    globalLogHas("finished without replying", "In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] finished without replying to f/B. Reported error: In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
   }
 
   behavior of "basic functionality"

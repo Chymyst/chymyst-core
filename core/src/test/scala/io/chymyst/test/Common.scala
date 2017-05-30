@@ -4,8 +4,20 @@ import java.io.File
 
 import io.chymyst.jc._
 import org.sameersingh.scalaplot.jfreegraph.JFGraphPlotter
+import org.scalatest.Assertion
+import org.scalatest.Matchers._
 
 object Common {
+
+  def globalLogHas(part: String, message: String): Assertion = {
+    globalErrorLog.find(_.contains(part)).get should endWith (message)
+  }
+
+  // Note: log messages have a timestamp prepended to them, so we use `endsWith` when matching a log message.
+  def logShouldHave(message: String) = {
+    globalErrorLog.exists(_ endsWith message) should be(true)
+  }
+
   def repeat[A](n: Int)(x: => A): Unit = (1 to n).foreach(_ => x)
 
   def repeat[A](n: Int, f: Int => A): Unit = (1 to n).foreach(f)
