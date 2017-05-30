@@ -184,8 +184,6 @@ Here is the complete code:
 ```scala
 import io.chymyst.jc._
 
-import java.time.LocalDateTime.now
-import java.time.temporal.ChronoUnit.MILLIS
 
 object C3 extends App {
 
@@ -203,11 +201,11 @@ object C3 extends App {
   // emit molecules
 
   val N = 10000
-  val initTime = now
+  val initTime = System.currentTimeMillis()
   counter(N)
   (1 to N).foreach( _ ⇒ decr() )
   fetch()
-  val elapsed = initTime.until(now, MILLIS)
+  val elapsed = System.currentTimeMillis() - initTime
   println(s"Elapsed: $elapsed ms")
 }
 
