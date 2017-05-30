@@ -198,7 +198,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
     thrown.getMessage shouldEqual "Molecule x cannot be used as input in Site{x → ...} since it is already bound to Site{x + y → ...}"
   }
 
-  it should "throw exception when trying to emit a blocking molecule that has no join" in {
+  it should "throw exception when trying to emit a blocking molecule that has no reaction site" in {
     val thrown = intercept[Exception] {
       val a = new B[Unit, Unit]("x")
       a()
@@ -206,15 +206,14 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
     thrown.getMessage shouldEqual "Molecule x/B is not bound to any reaction site"
   }
 
-  it should "throw exception when trying to emit a non-blocking molecule that has no join" in {
-    val thrown = intercept[Exception] {
-      val a = new M[Unit]("x")
+  it should "throw exception when trying to emit a non-blocking molecule that has no reaction site" in {
+    val a = new M[Unit]("x")
+    the[Exception] thrownBy {
       a()
-    }
-    thrown.getMessage shouldEqual "Molecule x is not bound to any reaction site"
+    } should have message "Molecule x is not bound to any reaction site"
   }
 
-  it should "throw exception when trying to log soup of a blocking molecule that has no join" in {
+  it should "throw exception when trying to log soup of a blocking molecule that has no reaction site" in {
     val thrown = intercept[Exception] {
       val a = new B[Unit, Unit]("x")
       a.logSoup
@@ -222,7 +221,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
     thrown.getMessage shouldEqual "Molecule x/B is not bound to any reaction site"
   }
 
-  it should "throw exception when trying to log soup a non-blocking molecule that has no join" in {
+  it should "throw exception when trying to log soup a non-blocking molecule that has no reaction site" in {
     val thrown = intercept[Exception] {
       val a = new M[Unit]("x")
       a.logSoup
@@ -303,7 +302,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
       r
     }
     println(s"results for test 1: ${results.groupBy(identity).mapValues(_.size)}")
-    logShouldHave("In Site{p → ...}: Reaction {p(s) → } with inputs [p/P(c)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
+    globalLogHas("xception", "In Site{p → ...}: Reaction {p(s) → } with inputs [p/P(c)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
     results should contain(123)
     results should contain(0)
   }

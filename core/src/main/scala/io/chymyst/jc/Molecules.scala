@@ -151,7 +151,11 @@ sealed trait Molecule extends PersistentHashCode {
     * Will be empty if the molecule emitter is not yet bound to any reaction site.
     * This value is used only for static analysis.
     */
-  private[jc] lazy val consumingReactions: Array[Reaction] = reactionSite.consumingReactions(siteIndex)
+  private[jc] lazy val consumingReactions: Array[Reaction] = {
+    if (hasReactionSite)
+      reactionSite.consumingReactions(siteIndex)
+    else Array[Reaction]()
+  }
 
   /** The set of all reactions that *potentially* emit this molecule as output.
     * Some of these reactions may evaluate a run-time condition to decide whether to emit the molecule; so emission is not guaranteed.
@@ -176,11 +180,17 @@ sealed trait Molecule extends PersistentHashCode {
     ()
   }
 
-  final def setLogLevel(logLevel: Int): Unit = {
+  final def setLogLevel(logLevel: Int): Unit = ensureReactionSite {
     reactionSite.logLevel = logLevel
   }
 
-  final def logSoup: String = reactionSite.printBag
+  final protected[jc] def ensureReactionSite[T](x: => T): T = {
+    if (hasReactionSite)
+      x
+    else throw new ExceptionNoReactionSite(s"Molecule $this is not bound to any reaction site")
+  }
+
+  final def logSoup: String = ensureReactionSite(reactionSite.printBag)
 
   val isBlocking: Boolean = false
 
@@ -214,16 +224,17 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
     *
     * @param v Value to be put onto the emitted molecule.
     */
-  def apply(v: T): Unit =
+  def apply(v: T): Unit = ensureReactionSite {
     if (isStatic)
       throw new ExceptionEmittingStaticMol(s"Error: static molecule $this($v) cannot be emitted non-statically")
     else applyStatic(v)
+  }
 
-  def apply()(implicit arg: TypeMustBeUnit[T]): Unit = apply(arg.getUnit)
+  def apply()(implicit arg: TypeMustBeUnit[T]): Unit = (apply(arg.getUnit): @inline)
 
   def applyStatic(v: T): Unit = reactionSite.emit(this, MolValue(v))
 
-  def applyStatic()(implicit arg: TypeMustBeUnit[T]): Unit = applyStatic(arg.getUnit)
+  def applyStatic()(implicit arg: TypeMustBeUnit[T]): Unit = (applyStatic(arg.getUnit): @inline)
 
   /** Volatile reader for a molecule.
     * The molecule must be declared as static.
@@ -260,7 +271,7 @@ private[jc] final class ReplyEmitter[T, R] extends (R => Boolean) {
   def noReplyAttemptedYet: Boolean = reply.isEmpty
 
   /** Perform a reply action for a blocking molecule with a check of the timeout status.
-
+    *
     * This is called by a reaction that consumed the blocking molecule.
     * The reply value will be received by the process that emitted the blocking molecule, and will unblock that process.
     * The reply value will not be received if the emitting process timed out on the blocking call, or if the reply was
@@ -278,7 +289,7 @@ private[jc] final class ReplyEmitter[T, R] extends (R => Boolean) {
   def apply(r: R): Boolean = reply.is(r)
 
   /** Same but for molecules with type `R = Unit`. */
-  def apply()(implicit arg: TypeMustBeUnit[R]): Boolean = (apply(arg.getUnit) : @inline)
+  def apply()(implicit arg: TypeMustBeUnit[R]): Boolean = (apply(arg.getUnit): @inline)
 }
 
 /** Blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -316,21 +327,20 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     * @param v Value to be put onto the emitted molecule.
     * @return The "reply" value.
     */
-  def apply(v: T): R =
+  def apply(v: T): R = ensureReactionSite {
     reactionSite.emitAndAwaitReply(this, v)
-
-  /** This enables the short syntax `b()` instead of `b(())`, and will only work when `T == Unit`. */
-  def apply()(implicit arg: TypeMustBeUnit[T]): R = apply(arg.getUnit)
-
-  def isSelfBlocking: Boolean = valSelfBlockingPool.exists {
-    pool ⇒
-      Thread.currentThread match {
-        case t: ChymystThread ⇒
-          t.pool === pool
-        case _ ⇒ false
-      }
   }
 
+  /** This enables the short syntax `b()` instead of `b(())`, and will only work when `T == Unit`. */
+  def apply()(implicit arg: TypeMustBeUnit[T]): R = (apply(arg.getUnit): @inline)
+
+  def isSelfBlocking: Boolean = valSelfBlockingPool.exists { pool ⇒
+    Thread.currentThread match {
+      case t: ChymystThread ⇒
+        t.pool === pool
+      case _ ⇒ false
+    }
+  }
 }
 
 /** Mix this trait into your class to make the has code persistent after the first time it's computed.
@@ -361,7 +371,7 @@ final case class Wrap[T](x: T) extends AnyVal {
 /** This type is used as argument for [[ReactionBody]], and can serve as its own extractor because it implements the named extractors API.
   * The methods `isEmpty`, `get`, `_1`, `_2` are needed to implement the named extractor API.
   *
-  * @param index Index into the [[InputMoleculeList]] array that indicates the molecule value for the current molecule.
+  * @param index  Index into the [[InputMoleculeList]] array that indicates the molecule value for the current molecule.
   * @param inputs An [[InputMoleculeList]] array.
   */
 private[jc] final case class ReactionBodyInput(index: Int, inputs: InputMoleculeList) {
