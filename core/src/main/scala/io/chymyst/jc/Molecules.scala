@@ -105,12 +105,12 @@ sealed trait Molecule extends PersistentHashCode {
     * @param siteIndex Zero-based index of the input molecule at that reaction site.
     */
   private[jc] def setReactionSiteInfo(rs: ReactionSite, siteIndex: Int, typeSymbol: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]): Unit = {
-    reactionSiteString = rs.toString
     hasReactionSite = true
     siteIndexValue = siteIndex
     valTypeSymbol = typeSymbol
     valIsPipelined = pipelined
     valSelfBlockingPool = selfBlocking
+    reactionSite = rs
   }
 
   /** Check whether the molecule is already bound to a reaction site.
@@ -128,15 +128,15 @@ sealed trait Molecule extends PersistentHashCode {
     *         the string representation of that reaction site as a non-empty option.
     */
   final private[jc] def isBoundToAnotherReactionSite(rs: ReactionSite): Option[String] =
-    if (isBound && !reactionSiteWrapper.sameReactionSite(rs))
-      Some(reactionSiteWrapper.toString)
+    if (isBound && !(reactionSite.id === rs.id))
+      Some(reactionSite.toString)
     else
       None
 
   // All these variables will be assigned exactly once and will never change thereafter. It's not clear how best to enforce this in Scala.
   private var valIsPipelined: Boolean = false
 
-  protected var reactionSiteWrapper: ReactionSiteWrapper[_, _] = ReactionSiteWrapper.noReactionSite(this)
+  protected var reactionSite: ReactionSite = _
 
   protected var valTypeSymbol: Symbol = _
 
@@ -146,14 +146,12 @@ sealed trait Molecule extends PersistentHashCode {
 
   protected var hasReactionSite: Boolean = false
 
-  protected var reactionSiteString: String = _
-
   /** The list of reactions that can consume this molecule.
     *
     * Will be empty if the molecule emitter is not yet bound to any reaction site.
     * This value is used only for static analysis.
     */
-  private[jc] lazy val consumingReactions: Array[Reaction] = reactionSiteWrapper.consumingReactions
+  private[jc] lazy val consumingReactions: Array[Reaction] = reactionSite.consumingReactions(siteIndex)
 
   /** The set of all reactions that *potentially* emit this molecule as output.
     * Some of these reactions may evaluate a run-time condition to decide whether to emit the molecule; so emission is not guaranteed.
@@ -178,9 +176,11 @@ sealed trait Molecule extends PersistentHashCode {
     ()
   }
 
-  final def setLogLevel(logLevel: Int): Unit = reactionSiteWrapper.setLogLevel(logLevel)
+  final def setLogLevel(logLevel: Int): Unit = {
+    reactionSite.logLevel = logLevel
+  }
 
-  final def logSoup: String = reactionSiteWrapper.logSoup()
+  final def logSoup: String = reactionSite.printBag
 
   val isBlocking: Boolean = false
 
@@ -221,7 +221,7 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
 
   def apply()(implicit arg: TypeMustBeUnit[T]): Unit = apply(arg.getUnit)
 
-  def applyStatic(v: T): Unit = reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, Unit]].emit(this, MolValue(v))
+  def applyStatic(v: T): Unit = reactionSite.emit(this, MolValue(v))
 
   def applyStatic()(implicit arg: TypeMustBeUnit[T]): Unit = applyStatic(arg.getUnit)
 
@@ -233,7 +233,7 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
   def volatileValue: T = if (isBound) {
     if (isStatic)
       volatileValueRef.get
-    else throw new Exception(s"In $reactionSiteWrapper: volatile reader requested for non-static molecule ($this)")
+    else throw new Exception(s"In $reactionSite: volatile reader requested for non-static molecule ($this)")
   }
   else throw new Exception(s"Molecule $name is not bound to any reaction site, cannot read volatile value")
 
@@ -242,11 +242,10 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
 
   private val volatileValueRef: AtomicReference[T] = new AtomicReference[T]()
 
-  override def isStatic: Boolean = reactionSiteWrapper.isStatic
+  override def isStatic: Boolean = reactionSite.staticMolDeclared.contains(this)
 
   override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]) = {
     super.setReactionSiteInfo(rs, index, valType, pipelined, selfBlocking)
-    reactionSiteWrapper = rs.makeWrapper[T, Unit](this) // need to specify types for `makeWrapper`; set `Unit` instead of `R` for non-blocking molecules
   }
 }
 
@@ -300,8 +299,7 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     * @return Non-empty option if the reply was received; None on timeout.
     */
   def timeout(v: T)(duration: Duration): Option[R] =
-    reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, R]]
-      .emitAndAwaitReplyWithTimeout(duration, this, v)
+    reactionSite.emitAndAwaitReplyWithTimeout(duration, this, v)
 
   /** Same but for molecules with type `T = Unit`; enables shorter syntax `b().timeout(1.second)`. */
   def timeout()(duration: Duration)(implicit arg: TypeMustBeUnit[T]): Option[R] = timeout(arg.getUnit)(duration)
@@ -321,15 +319,10 @@ final class B[T, R](val name: String) extends (T => R) with Molecule {
     * @return The "reply" value.
     */
   def apply(v: T): R =
-    reactionSiteWrapper.asInstanceOf[ReactionSiteWrapper[T, R]].emitAndAwaitReply(this, v)
+    reactionSite.emitAndAwaitReply(this, v)
 
   /** This enables the short syntax `b()` instead of `b(())`, and will only work when `T == Unit`. */
   def apply()(implicit arg: TypeMustBeUnit[T]): R = apply(arg.getUnit)
-
-  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]) = {
-    super.setReactionSiteInfo(rs, index, valType, pipelined, selfBlocking)
-    reactionSiteWrapper = rs.makeWrapper[T, R](this) // need to specify types for `makeWrapper`
-  }
 
   def isSelfBlocking: Boolean = valSelfBlockingPool.exists {
     pool ⇒
