@@ -20,9 +20,9 @@ final class Budu[X](useFuture: Boolean) {
   //  @volatile var notTimedOutYet: Boolean = true
   @volatile private var state: Int = EmptyNoTimeout
 
-  def isEmpty: Boolean = haveNoReply
+  @inline def isEmpty: Boolean = haveNoReply
 
-  def isTimedOut: Boolean = !notTimedOutYet
+  @inline def isTimedOut: Boolean = !notTimedOutYet
 
   @inline private def haveNoReply: Boolean = state > 1
 

@@ -257,8 +257,6 @@ final class M[T](val name: String) extends (T => Unit) with Molecule {
 private[jc] final class ReplyEmitter[T, R] extends (R => Boolean) {
   private[jc] val reply = Budu[R]
 
-  def isTimedOut: Boolean = reply.isTimedOut
-
   def noReplyAttemptedYet: Boolean = reply.isEmpty
 
   /** Perform a reply action for a blocking molecule with a check of the timeout status.
