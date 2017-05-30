@@ -1,10 +1,11 @@
 package io.chymyst.jc
 
 import io.chymyst.test.LogSpec
+import org.scalatest.Matchers
 
 // Note: Compilation of this test suite will generate warnings such as "crushing into 2-tuple". This is expected and cannot be avoided.
 
-class MacroErrorSpec extends LogSpec {
+class MacroErrorSpec extends LogSpec with Matchers {
 
   it should "support concise syntax for Unit-typed molecules" in {
     val a = new M[Unit]("a")
@@ -51,6 +52,20 @@ class MacroErrorSpec extends LogSpec {
     // For some reason, utest cannot get the compiler error message for this case.
     // So we have to move this test back to scalatest, even though here we can't check the error message.
     "val r = go { case c(_) => (0 until 10).foreach{_ => g(f); () } }" shouldNot compile
+  }
+
+  it should "recognize emitter under finally{}" in {
+    val a = m[Unit]
+    val c = m[Unit]
+    val reaction = go { case a(_) ⇒
+      try
+        throw new Exception("")
+      catch {
+        case _: Exception ⇒
+      } finally c()
+    }
+    reaction.info.outputs.length shouldEqual 1
+    reaction.info.outputs(0).environments.toList should matchPattern { case List() ⇒ }
   }
 
   behavior of "compile-time errors due to chemistry"

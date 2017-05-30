@@ -2,7 +2,7 @@ package io.chymyst.jc
 
 import io.chymyst.test.Common._
 import io.chymyst.test.LogSpec
-import org.scalatest.{BeforeAndAfterEach, Succeeded}
+import org.scalatest.BeforeAndAfterEach
 
 import scala.concurrent.duration._
 
@@ -221,7 +221,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     clearGlobalErrorLog()
     val x = 10
 
-    val result = withPool(new FixedPool(2)) { tp =>
+    withPool(new FixedPool(2)) { tp =>
       site(tp)(
         go { case f(_, r) =>
           if (x > 0) throw new Exception("crash! ignore this exception")

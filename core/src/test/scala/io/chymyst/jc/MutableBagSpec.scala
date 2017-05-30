@@ -178,8 +178,6 @@ class MutableBagSpec extends LogSpec {
   }
 
   it should "quickly take one element from a MutableMapBag" in {
-    val take = 5
-    val total = 1000
     val message = "takeOne()"
     measureBagOp(new MutableMapBag[Int](), 0, _.takeOne, message)
     measureBagOp(new MutableMapBag[Int](), n / 4, _.takeOne, message)
@@ -189,8 +187,6 @@ class MutableBagSpec extends LogSpec {
   }
 
   it should "quickly compute headOption() on a MutableMapBag" in {
-    val take = 5
-    val total = 1000
     val message = "takeOne()"
     measureBagOp(new MutableMapBag[Int](), 0, _.headOption, message)
     measureBagOp(new MutableMapBag[Int](), n / 4, _.headOption, message)
@@ -201,7 +197,6 @@ class MutableBagSpec extends LogSpec {
 
   it should "quickly take several elements from a MutableMapBag" in {
     val take = 5
-    val total = 1000
     val message = s"takeAny($take)"
     measureBagOp(new MutableMapBag[Int](), 0, _.takeAny(take), message)
     measureBagOp(new MutableMapBag[Int](), n / 4, _.takeAny(take), message)
@@ -211,8 +206,6 @@ class MutableBagSpec extends LogSpec {
   }
 
   it should "quickly take one element from a MutableQueueBag" in {
-    val take = 5
-    val total = 1000
     val message = "takeOne()"
     measureBagOp(new MutableQueueBag[Int](), 0, _.takeOne, message)
     measureBagOp(new MutableQueueBag[Int](), n / 4, _.takeOne, message)
@@ -223,7 +216,6 @@ class MutableBagSpec extends LogSpec {
 
   it should "quickly take several elements from a MutableQueueBag" in {
     val take = 5
-    val total = 1000
     val message = s"takeAny($take)"
     measureBagOp(new MutableQueueBag[Int](), 0, _.takeAny(take), message)
     measureBagOp(new MutableQueueBag[Int](), n / 4, _.takeAny(take), message)

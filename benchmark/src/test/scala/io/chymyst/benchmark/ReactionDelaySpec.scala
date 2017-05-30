@@ -309,7 +309,6 @@ class ReactionDelaySpec extends LogSpec {
   it should "measure the latency when using System.nanoTime() before and after JVM warm-up" in {
     def measure(total: Int): Unit = {
       var x: Long = 0
-      var y: Long = 0
       var z: Long = 0
       val result = (1 to total).map { _ ⇒
         x = System.nanoTime()
