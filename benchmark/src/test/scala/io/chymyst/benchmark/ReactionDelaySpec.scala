@@ -311,6 +311,75 @@ class ReactionDelaySpec extends LogSpec {
     println(s"Long math.cos computation took $elapsed ms")
   }
 
+  it should "measure the latency of System.nanoTime() before and after JVM warm-up" in {
+    def measure(total: Int): Unit = {
+      var x: Long = 0
+      var y: Long = 0
+      var z: Long = 0
+      val result = (1 to total).map { _ ⇒
+        x = System.nanoTime()
+        y = System.nanoTime()
+        z = System.nanoTime()
+        (z - x).toDouble
+      }
+      val (mean, std) = meanAndStdev(result.drop(total / 4))
+      println(s"System.nanoTime() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
+    }
+    measure(4)
+    measure(50)
+    measure(500)
+    measure(1000)
+    measure(5000)
+    measure(10000)
+    measure(50000)
+  }
+
+  it should "measure the latency of System.currentTimeMillis() before and after JVM warm-up" in {
+    def measure(total: Int): Unit = {
+      var x: Long = 0
+      var y: Long = 0
+      var z: Long = 0
+      val result = (1 to total).map { _ ⇒
+        x = System.nanoTime()
+        y = System.currentTimeMillis()
+        z = System.nanoTime()
+        (z - x).toDouble
+      }
+      val (mean, std) = meanAndStdev(result.drop(total / 4))
+      println(s"System.currentTimeMillis() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
+    }
+    measure(4)
+    measure(50)
+    measure(500)
+    measure(1000)
+    measure(5000)
+    measure(10000)
+    measure(50000)
+  }
+
+  it should "measure the latency of LocalDateTime.now() before and after JVM warm-up" in {
+    def measure(total: Int): Unit = {
+      var x: Long = 0
+      var y: LocalDateTime = null
+      var z: Long = 0
+      val result = (1 to total).map { _ ⇒
+        x = System.nanoTime()
+        y = LocalDateTime.now()
+        z = System.nanoTime()
+        (z - x).toDouble
+      }
+      val (mean, std) = meanAndStdev(result.drop(total / 4))
+      println(s"LocalDateTime.now() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
+    }
+    measure(4)
+    measure(50)
+    measure(500)
+    measure(1000)
+    measure(5000)
+    measure(10000)
+    measure(50000)
+  }
+
   it should "measure emitting non-blocking molecules" in {
     val tp = new FixedPool(1)
     val c = m[Unit]
