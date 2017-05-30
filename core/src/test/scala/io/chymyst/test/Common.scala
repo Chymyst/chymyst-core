@@ -45,6 +45,13 @@ object Common {
     (result, elapsedTime)
   }
 
+  def elapsedTimeNs[T](x: ⇒ T): (T, Long) = {
+    val initTime = System.nanoTime()
+    val result = x
+    val elapsedTime = System.nanoTime() - initTime
+    (result, elapsedTime)
+  }
+
   def meanAndStdev(d: Seq[Double]): (Double, Double) = {
     val size = safeSize(d.size)
     val mean = d.sum / size
@@ -57,6 +64,8 @@ object Common {
   def formatNanosToMicros(x: Double): String = f"${x / 1000.0}%1.3f µs"
 
   def formatMicros(x: Double): String = f"$x%1.3f µs"
+
+  def formatNanosToMicrosWithMeanStd(mean: Double, std: Double): String = s"${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}"
 
   val safeSize: Int => Double = x => if (x == 0) 1.0f else x.toDouble
 

@@ -530,8 +530,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       val pipelined = pipelinedMolecules contains index
       val simpleType = simpleTypes contains valType
       val unitType = valType === 'Unit
-      val selfBlocking = selfBlockingMols.get(mol)
-      moleculesPresent(index) = if (unitType || (simpleType && !pipelined))
+      val useMapBag = unitType || (simpleType && !pipelined)
+      moleculesPresent(index) = if (useMapBag)
         new MutableMapBag[AbsMolValue[_]]()
       else
         new MutableQueueBag[AbsMolValue[_]]()
@@ -541,7 +541,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         case Some(otherRS) =>
           throw new ExceptionMoleculeAlreadyBound(s"Molecule $mol cannot be used as input in $this since it is already bound to $otherRS")
         case None ⇒
-          mol.setReactionSiteInfo(this, index, valType, pipelined, selfBlocking)
+          val isSelfBlocking = selfBlockingMols.get(mol)
+          mol.setReactionSiteInfo(this, index, valType, pipelined, isSelfBlocking)
       }
     }
 
