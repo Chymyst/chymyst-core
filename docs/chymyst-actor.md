@@ -43,6 +43,16 @@ c1 ! 123
 
 ```
 
+Different chemical actors are now distinguished only by their input message labels, for example:
+
+```scala
+go { x: Int from c1 ⇒ ... }
+go { z: Unit from d1 ⇒ ... }
+c1 ! 123
+d1 ! ()
+
+```
+
 The second requirement means that a chemical actor should be able to wait for, say, two messages at once, allowing us to write pseudo-code like this,
 
 ```scala
