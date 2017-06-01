@@ -29,7 +29,7 @@ What should happen if we quickly send many messages?
 
 ```scala
 val c1 = go { x: Int ⇒ ... }
-(1 to 100).foreach{c1 ! _}
+(1 to 100).foreach { c1 ! _ }
 
 ```
 
