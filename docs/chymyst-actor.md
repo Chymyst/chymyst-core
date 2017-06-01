@@ -47,9 +47,9 @@ Different chemical actors are now distinguished only by their input message labe
 
 ```scala
 go { x: Int from c1 ⇒ ... }
-go { z: Unit from d1 ⇒ ... }
+go { z: Int from d1 ⇒ ... }
 c1 ! 123
-d1 ! ()
+d1 ! 456
 
 ```
 
