@@ -127,6 +127,11 @@ val result: Option[String] = f.timeout(10)(100 millis)
 
 In this example, the `status` value will be `true` only if the caller has actually received the reply and did not time out.
 
+If the caller has timed out before the reply was sent (or even before the replying reaction started), the `status` value will be `false`.
+
+Reply emitters are instances of class `ReplyEmitter[T, R]` which extends `R => Boolean`.
+For this reason, reply emitters look like functions that return a `Boolean` value.
+
 ## Debugging
 
 Molecule emitters have the method `setLogLevel`, which is by default set to `-1`.
@@ -197,16 +202,16 @@ val reaction = go { case c(Some(x)) + d((y, "hello", true)) if x == y ⇒ c(Some
 Pattern-matching is a particular case of a guard condition that constrains the values of a reaction's input molecules.
 A reaction can have guard conditions of three types:
 
-1. Molecule predicates
+1. Single-molecule guards
 2. Cross-molecule guards
 3. Static guards
 
 The chemical machine will run a reaction only if it can find suitable input molecules such that all the guard conditions hold.
 
-#### Molecule predicates
+#### Single-molecule guards
 
-Molecule predicates are conditions that constrain the value carried by a single input molecule.
-For example,
+**Single-molecule** guards are conditions that constrain the value carried by a single input molecule.
+For example, the reaction
 
 ```scala
 go { case a(x) + c(y) if x > 0 ⇒ ??? }
@@ -214,21 +219,21 @@ go { case a(x) + c(y) if x > 0 ⇒ ??? }
 ```
 
 declares a guard condition that constrains the input molecule value `x`.
-We call this a **molecule predicate** for the input molecule `a(x)`.
+We call this condition a single-molecule guard for the input molecule `a(x)`.
 
-Another example of a molecule predicate is
+Another example of a single-molecule guard is
 
 ```scala
 go { case a(Some(x)) + c(y) ⇒ ??? }
 
 ```
 
-The requirement that the value of the molecule `a()` should be of the form `Some(x)` is a molecule predicate
+The condition that the value of the molecule `a()` should be of the form `Some(x)` is a single-molecule guard
 because it constrains only the value of one molecule.
 
 #### Cross-molecule guards
 
-Cross-molecule guards are conditions that constrain _several_ molecule values at once.
+**Cross-molecule** guards are conditions that constrain _several_ molecule values at once.
 An example is
 
 ```scala
@@ -236,12 +241,12 @@ go { case a(x) + c(y) if x > y ⇒ ??? }
 
 ```
 
-As a rule, the chemical machine will schedule such reactions more slowly because it must find a pair of molecule copies `a(x)` and `c(y)` such that the condition holds.
+As a rule, the chemical machine will schedule such reactions more slowly because it must find a _pair_ of molecules `a(x)` and `c(y)` such that the condition holds.
 If many copies of `a()` and `c()` are present in the soup, the search for a suitable pair can take a long time.
 
 #### Static guards
 
-Static guards are conditions that are independent of input molecule values.
+**Static** guards are conditions that are independent of input molecule values.
 For example,
 
 ```scala

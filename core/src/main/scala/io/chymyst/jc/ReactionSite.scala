@@ -31,7 +31,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * This list may be incorrect if the static reaction code emits molecules conditionally or emits many copies.
     * So, the code (1 to 10).foreach (_ => s() ) will put (s -> 1) into `staticMolDeclared` but (s -> 10) into `staticMolsEmitted`.
     */
-  private[jc] val staticMolDeclared: Map[Molecule, Int] = staticReactions.map(_.info.outputs)
+  private[jc] val staticMolDeclared: Map[MolEmitter, Int] = staticReactions.map(_.info.outputs)
     .flatMap(_.map(_.molecule).filterNot(_.isBlocking))
     .groupBy(identity)
     .mapValues(_.length)
@@ -79,18 +79,18 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   private val NO_NEED_TO_SCHEDULE = 1
 
-  private def setNoNeedToSchedule(mol: Molecule): Unit = needScheduling.set(mol.siteIndex, NO_NEED_TO_SCHEDULE)
+  private def setNoNeedToSchedule(mol: MolEmitter): Unit = needScheduling.set(mol.siteIndex, NO_NEED_TO_SCHEDULE)
 
-  private def setNeedToSchedule(mol: Molecule): Unit = needScheduling.set(mol.siteIndex, NEED_TO_SCHEDULE)
+  private def setNeedToSchedule(mol: MolEmitter): Unit = needScheduling.set(mol.siteIndex, NEED_TO_SCHEDULE)
 
-  private def isSchedulingNeeded(mol: Molecule): Boolean = needScheduling.compareAndSet(mol.siteIndex, NEED_TO_SCHEDULE, NO_NEED_TO_SCHEDULE)
+  private def isSchedulingNeeded(mol: MolEmitter): Boolean = needScheduling.compareAndSet(mol.siteIndex, NEED_TO_SCHEDULE, NO_NEED_TO_SCHEDULE)
 
   /** We only need to find one reaction whose input molecules are available.
     * For this, we use the special method [[ArrayWithExtraFoldOps.findAfterMap]].
     * The value `foundReactionsAndInputs` will indicate the selected reaction and its input molecule values.
     */
   @tailrec
-  private def decideReactionsForNewMolecule(mol: Molecule): Unit = {
+  private def decideReactionsForNewMolecule(mol: MolEmitter): Unit = {
     // TODO: optimize: precompute all related molecules in ReactionSite? (what exactly to precompute??)
     setNeedToSchedule(mol)
     // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
@@ -170,7 +170,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @param mol A molecule that was recently emitted.
     * @return A new [[Runnable]] that will looking for reactions that consume the molecule `mol`.
     */
-  private def emissionRunnable(mol: Molecule): Runnable = { () ⇒
+  private def emissionRunnable(mol: MolEmitter): Runnable = { () ⇒
     if (logLevel > 3) logMessage(s"Debug: In $this: deciding reactions for molecule $mol, present molecules [${moleculeBagToString(moleculesPresent)}]")
     decideReactionsForNewMolecule(mol)
   }
@@ -396,7 +396,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @param molValue Value of the molecule, wrapped in an instance of [[AbsMolValue]]`[T]` class.
     * @tparam T Type of the molecule value.
     */
-  private[jc] def emit[T](mol: Molecule, molValue: AbsMolValue[T]): Unit = {
+  private[jc] def emit[T](mol: MolEmitter, molValue: AbsMolValue[T]): Unit = {
     if (findUnboundOutputMolecules) {
       val moleculesString = unboundOutputMoleculesString(nonStaticReactions)
       val noReactionMessage = s"In $this: As $mol($molValue) is emitted, some reactions may emit molecules ($moleculesString) that are not bound to any reaction site"
@@ -449,7 +449,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     * @return For each molecule present in the soup, the map shows the number of copies present.
     */
-  private def getMoleculeCountsAfterInitialStaticEmission: Map[Molecule, Int] =
+  private def getMoleculeCountsAfterInitialStaticEmission: Map[MolEmitter, Int] =
     moleculesPresent.indices
       .flatMap(i => if (moleculesPresent(i).isEmpty)
         None
@@ -457,9 +457,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         Some((moleculeAtIndex(i), moleculesPresent(i).size))
       )(breakOut)
 
-  private def addToBag(mol: Molecule, molValue: AbsMolValue[_]): Unit = moleculesPresent(mol.siteIndex).add(molValue)
+  private def addToBag(mol: MolEmitter, molValue: AbsMolValue[_]): Unit = moleculesPresent(mol.siteIndex).add(molValue)
 
-  private def removeFromBag(mol: Molecule, molValue: AbsMolValue[_]): Boolean = {
+  private def removeFromBag(mol: MolEmitter, molValue: AbsMolValue[_]): Boolean = {
     moleculesPresent(mol.siteIndex).remove(molValue)
   }
 
@@ -469,7 +469,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         None
       else
         Some((moleculeAtIndex(i), bags(i).getCountMap))
-      )(breakOut): Map[Molecule, Map[AbsMolValue[_], Int]]
+      )(breakOut): Map[MolEmitter, Map[AbsMolValue[_], Int]]
     )
 
   // Remove a blocking molecule if it is present. This is done asynchronously. (Why?)
@@ -518,7 +518,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private def initializeReactionSite() = {
     /** Find blocking molecules whose emitting reactions are all in a single thread pool. These emissions are potential deadlock threats for that pool, especially for a [[FixedPool]]. */
-    val selfBlockingMols: Map[Molecule, Pool] =
+    val selfBlockingMols: Map[MolEmitter, Pool] =
       knownInputMolecules
         .map { case (mol, (i, _)) ⇒ (mol, (consumingReactions(i).map(_.threadPool.getOrElse(reactionPool)).toSet, mol.isBlocking)) }
         .filter { case (_, (pools, isBlocking)) ⇒ isBlocking && pools.size === 1 }
@@ -592,7 +592,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** Create the site-wide index map for all molecules bound to this reaction site.
     * This computation determines the site-wide index for each input molecule.
     */
-  private val knownInputMolecules: Map[Molecule, (Int, Symbol)] = {
+  private val knownInputMolecules: Map[MolEmitter, (Int, Symbol)] = {
     nonStaticReactions
       .flatMap(_.inputMoleculesSortedAlphabetically)
       .distinct // Take all input molecules from all reactions; arrange them in a single list.
@@ -651,7 +651,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   /** Map the site-wide index to molecule emitter. This is used often.
     */
-  private val moleculeAtIndex: Map[Int, Molecule] = knownInputMolecules.map { case (mol, (i, _)) ⇒ (i, mol) }(breakOut)
+  private val moleculeAtIndex: Map[Int, MolEmitter] = knownInputMolecules.map { case (mol, (i, _)) ⇒ (i, mol) }(breakOut)
 
   /** For each site-wide molecule index, this array holds the array of reactions consuming that molecule.
     */
@@ -660,7 +660,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   // Instead of traversing all molecules, traverse all reactions and accumulate results. This is faster.
 
   private[jc] val consumingReactions: Array[Array[Reaction]] = {
-    val table = scala.collection.mutable.Map[Molecule, scala.collection.mutable.Set[Reaction]]()
+    val table = scala.collection.mutable.Map[MolEmitter, scala.collection.mutable.Set[Reaction]]()
     reactions.foreach { r ⇒
       r.info.inputs.foreach { info ⇒
         table.update(info.molecule, {

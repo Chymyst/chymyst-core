@@ -359,7 +359,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     override def traverse(tree: c.universe.Tree): Unit = tree match {
       case pq"$_ @ $extr1(..$_)"
-        if extr1.symbol.fullName === "io.chymyst.jc.$plus" || extr1.tpe <:< typeOf[Molecule] =>
+        if extr1.symbol.fullName === "io.chymyst.jc.$plus" || extr1.tpe <:< typeOf[MolEmitter] =>
         found = true
       case pq"$extr1($_, $extr2($_, $_))"
         if extr1.symbol.fullName === "io.chymyst.jc.$plus" && extr2.symbol.fullName === "io.chymyst.jc.$plus" =>
@@ -464,7 +464,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
       }
     }
 
-    private def isMolecule(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< typeOf[Molecule]
+    private def isMolecule(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< typeOf[MolEmitter]
 
     private def isReplyEmitter(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< weakTypeOf[ReplyEmitter[_, _]]
 
@@ -478,7 +478,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           ()
 
         // matcher with a single argument: a(x)
-        case UnApply(Apply(Select(t, TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[Molecule] =>
+        case UnApply(Apply(Select(t, TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder)) if t.tpe <:< typeOf[MolEmitter] =>
           val flag2Opt = if (t.tpe <:< weakTypeOf[B[_, _]])
             Some(WrongReplyVarF)
           else None
@@ -495,7 +495,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           }
 
         // matcher with two arguments: a(x, y)
-        case UnApply(Apply(Select(t, TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[Molecule] =>
+        case UnApply(Apply(Select(t, TermName("unapply")), List(Ident(TermName("<unapply-selector>")))), List(binder1, binder2)) if t.tpe <:< typeOf[MolEmitter] =>
           val flag2 = getInputFlag(binder2) match {
             case SimpleVarF(_, _, _) =>
               ReplyVarF(getSimpleVar(binder2))

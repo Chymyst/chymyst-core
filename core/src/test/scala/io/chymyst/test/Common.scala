@@ -31,7 +31,7 @@ object Common {
     (signal, fetch)
   }
 
-  def checkExpectedPipelined(expectedMap: Map[Molecule, Boolean]): String = {
+  def checkExpectedPipelined(expectedMap: Map[MolEmitter, Boolean]): String = {
     val transformed = expectedMap.toList.map { case (t, r) => (t, t.isPipelined, r) }
     // Print detailed message.
     val difference = transformed.filterNot { case (_, x, y) => x == y }.map { case (m, actual, expected) => s"$m.isPipelined is $actual instead of $expected" }

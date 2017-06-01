@@ -86,7 +86,7 @@ private[jc] final case class BlockingMolValue[T, R](
   * This trait is not parameterized by type and is used in collections of molecules that do not require knowledge of molecule types.
   * Its only implementations are the classes [[B]] and [[M]].
   */
-sealed trait Molecule extends PersistentHashCode {
+sealed trait MolEmitter extends PersistentHashCode {
 
   /** The name of the molecule. Used only for debugging.
     * This will be assigned automatically if using the [[b]] or [[m]] macros.
@@ -110,7 +110,7 @@ sealed trait Molecule extends PersistentHashCode {
     valTypeSymbol = typeSymbol
     valIsPipelined = pipelined
     valSelfBlockingPool = selfBlocking
-    reactionSite = rs
+    reactionSiteValue = rs
   }
 
   /** Check whether the molecule is already bound to a reaction site.
@@ -136,15 +136,17 @@ sealed trait Molecule extends PersistentHashCode {
   // All these variables will be assigned exactly once and will never change thereafter. It's not clear how best to enforce this in Scala.
   private var valIsPipelined: Boolean = false
 
-  protected var reactionSite: ReactionSite = _
+  private var reactionSiteValue: ReactionSite = _
 
-  protected var valTypeSymbol: Symbol = _
+  @inline protected def reactionSite: ReactionSite = reactionSiteValue
+
+  private var valTypeSymbol: Symbol = _
 
   protected var valSelfBlockingPool: Option[Pool] = None
 
-  protected var siteIndexValue: Int = -1
+  private var siteIndexValue: Int = -1
 
-  protected var hasReactionSite: Boolean = false
+  private var hasReactionSite: Boolean = false
 
   /** The list of reactions that can consume this molecule.
     *
@@ -211,7 +213,7 @@ sealed trait Molecule extends PersistentHashCode {
   * @param name Name of the molecule, used for debugging only.
   * @tparam T Type of the value carried by the molecule.
   */
-final class M[T](val name: String) extends (T => Unit) with Molecule {
+final class M[T](val name: String) extends (T => Unit) with MolEmitter {
 
   def unapply(arg: ReactionBodyInput): Wrap[T] = {
     val v = arg.inputs(arg.index).asInstanceOf[MolValue[T]].moleculeValue
@@ -298,7 +300,7 @@ private[jc] final class ReplyEmitter[T, R] extends (R => Boolean) {
   * @tparam T Type of the value carried by the molecule.
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
-final class B[T, R](val name: String) extends (T => R) with Molecule {
+final class B[T, R](val name: String) extends (T => R) with MolEmitter {
   override val isBlocking = true
 
   /** Emit a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.

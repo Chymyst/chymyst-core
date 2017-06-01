@@ -77,7 +77,7 @@ object Core {
     * The `MutableBag` instance may be of different subclass for each molecule. */
   private[jc] type MoleculeBagArray = Array[MutableBag[AbsMolValue[_]]]
 
-  private[jc] def moleculeBagToString(mb: Map[Molecule, Map[AbsMolValue[_], Int]]): String =
+  private[jc] def moleculeBagToString(mb: Map[MolEmitter, Map[AbsMolValue[_], Int]]): String =
     mb.toSeq
       .map { case (mol, vs) => (s"$mol${pipelineSuffix(mol)}", vs) }
       .sortBy(_._1)
@@ -95,11 +95,11 @@ object Core {
       s"$mol${pipelineSuffix(mol)}($jmv)"
     }.toSeq.sorted.mkString(" + ")
 
-  /** The pipeline suffix is printed only in certain debug messages; the molecule's [[Molecule.name]] does not include that suffix.
+  /** The pipeline suffix is printed only in certain debug messages; the molecule's [[MolEmitter.name]] does not include that suffix.
     * The reason for this choice is that typically many molecules are automatically pipelined,
     * so output messages would be unnecessarily encumbered with the `/P` suffix.
     */
-  private def pipelineSuffix(mol: Molecule): String =
+  private def pipelineSuffix(mol: MolEmitter): String =
     if (mol.isPipelined)
       "/P"
     else

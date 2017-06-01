@@ -47,11 +47,13 @@ Different chemical actors are now distinguished only by their input message labe
 
 ```scala
 go { x: Int from c1 ⇒ ... }
-go { z: Int from d1 ⇒ ... }
+go { x: Int from d1 ⇒ ... }
 c1 ! 123
 d1 ! 456
 
 ```
+
+Actor references have disappeared from the code. Instead, input message labels such as `c1`, `d1` determine which computation will be started.
 
 The second requirement means that a chemical actor should be able to wait for, say, two messages at once, allowing us to write pseudo-code like this,
 
@@ -62,27 +64,29 @@ c2 ! "abc"
 
 ```
 
-The two messages are of different types and are labeled by `c1` and `c2` respectively. The computation starts only after both messages have been sent.
+The two messages are of different types and are labeled by `c1` and `c2` respectively. The computation starts only after _both_ messages have been sent.
 
 It follows that messages cannot be sent to a linearly ordered queue or a mailbox; instead, messages must be kept in an unordered bag, as they will be consumed in an unknown order.
 
-It also follows that we may now define several computations that _jointly contend_ on input messages:
+It also follows that we may define several computations that _jointly contend_ on input messages:
 
 ```scala
 go { x: Int from c1, y: String from c2 ⇒ ... }
-go { x: Int from c1, z: Unit from d1 ⇒ ... }
+go { x: Int from c1, z: Unit from e1 ⇒ ... }
 
 ```
 
-We find that messages that carry data are now completely decoupled from computations that consume the data. All computations start concurrently whenever their input messages become available. The runtime engine needs to resolve message contention by making a non-deterministic choice of the messages that will be actually consumed.
+Messages that carry data are now completely decoupled from computations that consume the data. All computations start concurrently whenever their input messages become available. The runtime engine needs to resolve message contention by making a non-deterministic choice of the messages that will be actually consumed.
 
 This concludes the second and final step towards the chemical machine paradigm. It remains to use the Scala syntax instead of pseudo-code.
+
+In Scala, we need to declare message types explicitly and to register each chemical computation with the runtime engine as a separate step.
 The syntax used by `Chymyst` looks like this:
 
 ```scala
 val c1 = m[Int]
 val c2 = m[String]
-go { c1(x) + c2(y) ⇒ ... }
+site(go { c1(x) + c2(y) ⇒ ... })
 c1(123)
 c2("abc")
 
@@ -93,8 +97,10 @@ Here, `m[Int]` creates a new message label with values of type `Int`.
 As we have just seen, the chemical machine paradigm is a radical departure from the Actor model:
 
 - Whenever there are sufficiently many input messages available for processing, the runtime engine may automatically instantiate several concurrent copies of the same computation that will consume the input messages concurrently. This is the main method for achieving parallelism in the chemical paradigm. The runtime engine is in the best position to balance the CPU load using low-level OS threads. The users do not need to concern themselves with the details of how many concurrent actors to instantiate at any given time.
-- Since chemical actors are stateless and instantiated automatically on demand, users do not need to implement actor lifecycle management, actor supervision hierarchies, backup and recovery of internal state of actors, or a special “dead letter” actor. This removes a significant amount of complexity from the architecture of concurrent applications.
+- Since chemical actors are stateless and instantiated automatically on demand, users do not need to implement actor lifecycle management, actor supervision hierarchies, backup and recovery of actors' internal state, or a special “dead letter” actor. This removes a significant amount of complexity from the architecture of concurrent applications.
 - Input message contention is used in the chemical machine paradigm as a general mechanism for synchronization and mutual exclusion. (In the Actor model, these features are implemented by creating a fixed number of actor instances that alone can consume certain messages.) Since the runtime engine will arbitrarily decide which actor to run, input contention will result in nondeterminism. This is quite similar to the nondeterminism in the usual models of concurrent programming. For example, mutual exclusion allows the programmer to implement safe exclusive access to a resource for any number of concurrent processes, but the order of access among the contending processes remains unspecified.
 
-In the rest of this book, “chemical actor” computations are called **reactions**, their input messages are called **input molecules**,
-and messages sent by a chemical computation are called **output molecules** of the reaction.
+In the rest of this book, “chemical actor” computations are called **reactions**, their input messages are **input molecules**,
+messages sent by a chemical computation are **output molecules** of the reaction, while input message labels are **molecule emitters**.
+
+In the academic literature, chemical computations are called “processes” and input message labels are “channels” or “channel names”.

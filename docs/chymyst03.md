@@ -468,7 +468,7 @@ def makeCounter(initCount: Int): (M[Unit], B[Unit, Int]) = {
   val fetch = m[Unit, Int]
 
   site(
-    go { counter(n) + fetch(_, r) ⇒ counter(n) + r(n)},
+    go { counter(n) + fetch(_, r) ⇒ counter(n); r(n)},
     go { counter(n) + decr(_) ⇒ counter(n - 1) }
   )
   // emit exactly one copy of `counter`

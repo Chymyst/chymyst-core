@@ -330,7 +330,7 @@ final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSym
   * @param sha1     Hash sum of the input pattern's source code (desugared Scala representation).
   * @param valType  String representation of the type `T` of the molecule's value, e.g. for [[M]]`[T]` or [[B]]`[T, R]`.
   */
-final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPatternType, sha1: String, valType: ScalaSymbol) {
+final case class InputMoleculeInfo(molecule: MolEmitter, index: Int, flag: InputPatternType, sha1: String, valType: ScalaSymbol) {
   val isConstantValue: Boolean = flag.isConstantValue
 
   private[jc] def admitsValue(molValue: AbsMolValue[_]): Boolean = flag match {
@@ -491,7 +491,7 @@ final case class InputMoleculeInfo(molecule: Molecule, index: Int, flag: InputPa
   * @param flag         Type of the output pattern: either a constant value or other value.
   * @param environments The code environment in which this output molecule was emitted.
   */
-final case class OutputMoleculeInfo(molecule: Molecule, flag: OutputPatternType, environments: List[OutputEnvironment]) {
+final case class OutputMoleculeInfo(molecule: MolEmitter, flag: OutputPatternType, environments: List[OutputEnvironment]) {
   val atLeastOnce: Boolean = environments.forall(_.atLeastOne)
 
   override val toString: String = s"$molecule($flag)"
@@ -701,7 +701,7 @@ final case class Reaction(
   def noRetry: Reaction = copy(retry = false)
 
   // Optimization: this is used often.
-  private[jc] val inputMoleculesSortedAlphabetically: Seq[Molecule] =
+  private[jc] val inputMoleculesSortedAlphabetically: Seq[MolEmitter] =
     info.inputs
       .map(_.molecule)
       .sortBy(_.toString)

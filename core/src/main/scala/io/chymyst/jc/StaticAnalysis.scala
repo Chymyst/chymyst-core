@@ -203,8 +203,8 @@ private[jc] object StaticAnalysis {
   // Each static molecule must occur in some reaction as an input.
   // No static molecule should be consumed twice by a reaction.
   // Each static molecule that is consumed by a reaction should also be emitted by the same reaction.
-  private def checkInputsForStaticMols(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
-    val staticMolsConsumedMaxTimes: Map[Molecule, Option[(Reaction, Int)]] =
+  private def checkInputsForStaticMols(staticMols: Map[MolEmitter, Int], reactions: Seq[Reaction]): Option[String] = {
+    val staticMolsConsumedMaxTimes: Map[MolEmitter, Option[(Reaction, Int)]] =
       staticMols.map { case (mol, _) ⇒
         val reactionsWithCounts = if (reactions.isEmpty)
           None
@@ -242,7 +242,7 @@ private[jc] object StaticAnalysis {
 
   // If a static molecule is output by a reaction, the same reaction must consume that molecule.
   // Every static molecule should be output exactly once and in a once-only output environment.
-  private def checkOutputsForStaticMols(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]): Option[String] = {
+  private def checkOutputsForStaticMols(staticMols: Map[MolEmitter, Int], reactions: Seq[Reaction]): Option[String] = {
     val errorList = staticMols.flatMap {
       case (mol, _) =>
         reactions.flatMap { r =>
@@ -266,14 +266,14 @@ private[jc] object StaticAnalysis {
     else None
   }
 
-  private[jc] def findStaticMolErrors(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]) = {
+  private[jc] def findStaticMolErrors(staticMols: Map[MolEmitter, Int], reactions: Seq[Reaction]) = {
     Seq(
       checkOutputsForStaticMols _,
       checkInputsForStaticMols _
     ).flatMap(_ (staticMols, reactions))
   }
 
-  private[jc] def findStaticMolWarnings(staticMols: Map[Molecule, Int], reactions: Seq[Reaction]) = {
+  private[jc] def findStaticMolWarnings(staticMols: Map[MolEmitter, Int], reactions: Seq[Reaction]) = {
     // TODO: implement
     Seq()
   }
@@ -286,7 +286,7 @@ private[jc] object StaticAnalysis {
   }
 
   // Inspect the static molecules actually emitted. Their multiplicities must be not less than the declared multiplicities.
-  private[jc] def findStaticMolsEmissionErrors(staticMolsDeclared: Map[Molecule, Int], staticMolsEmitted: Map[Molecule, Int]): Seq[String] = {
+  private[jc] def findStaticMolsEmissionErrors(staticMolsDeclared: Map[MolEmitter, Int], staticMolsEmitted: Map[MolEmitter, Int]): Seq[String] = {
     val foundErrors = staticMolsDeclared
       .filter { case (mol, count) => staticMolsEmitted.getOrElse(mol, 0) < count }
       .map { case (mol, count) =>
@@ -299,7 +299,7 @@ private[jc] object StaticAnalysis {
   }
 
   // Inspect the static molecules actually emitted. Their multiplicities must be not more than the declared multiplicities.
-  private[jc] def findStaticMolsEmissionWarnings(staticMolsDeclared: Map[Molecule, Int], staticMolsEmitted: Map[Molecule, Int]) = {
+  private[jc] def findStaticMolsEmissionWarnings(staticMolsDeclared: Map[MolEmitter, Int], staticMolsEmitted: Map[MolEmitter, Int]) = {
     val foundErrors = staticMolsDeclared
       .filter { case (mol, count) => staticMolsEmitted.getOrElse(mol, 0) > count }
       .map { case (mol, count) =>
