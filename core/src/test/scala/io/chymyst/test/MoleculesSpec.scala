@@ -294,6 +294,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
         go { case p(s) => if (i % 5 == 0) Thread.sleep(20); s(123) } // Some reactions will start later.
       )
       p(c)
+      if (i % 30 == 0) Thread.sleep(20)
       site(tp0)(
         go { case c(x) ⇒ }
       )
@@ -325,6 +326,7 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
         go { case begin(_) =>
           val e = m[Int]
           a(e) // The reaction for `a` will emit `e(123)`, unless it crashes due to `e` being unbound.
+          if (i % 30 == 0) Thread.sleep(20)
           site(tp0)(
             go { case e(y) ⇒ }
           )
