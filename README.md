@@ -24,12 +24,16 @@ The current implementation is tested under Oracle JDK 8 with Scala `2.11.8` and 
 
 ### [Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
 
+#### [From actors to reactions: a guide for those familiar with the Actor model](https://chymyst.github.io/chymyst-core/chymyst-actor.html)
+
+#### [Show me the code: An ultra-short guide to Chymyst](https://chymyst.github.io/chymyst-core/chymyst-quick.html)
+
 #### [A "Hello, world" project](https://github.com/Chymyst/helloworld)
 
 #### [Video presentation of early version of `Chymyst Core`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
 
 This talk was given at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala).
-See also these [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
+See also the [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
 ### [Main features of the chemical machine](docs/chymyst_features.md)
 
@@ -39,7 +43,7 @@ See also these [talk slides revised for the current syntax](https://github.com/w
 
 #### [Comparison of the chemical machine vs. the coroutines / channels approach (CSP)](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-csp)
 
-#### [Technical documentation for `Chymyst Core`](docs/chymyst-core.md)
+#### [Developer documentation for `Chymyst Core`](docs/chymyst-core.md)
 
 ## Example: "dining philosophers"
 

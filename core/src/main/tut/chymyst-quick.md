@@ -30,13 +30,14 @@ This imports all the necessary symbols such as `m`, `b`, `site`, `go` and so on.
 ## Async processes and async values
 
 In the chemical machine, an asynchronous concurrent process (for short, an **async process**) is implemented as a computation that works with a special kind of data called **async values**.
-An async process can consume one or more input async values and may emit (zero or more) output async values.
+An async process can consume one or more input async value and may emit (zero or more) new async values.
 
 An async process must be declared using the `go { }` syntax.
 In order to activate one or more async processes, use the `site()` call.
 
-Async values are created out of ordinary values by calling special **emitters**.
-Input and output async value emitters need to be declared separately using the special syntax `m[T]` where `T` is the type of the value:
+Async values are created out of ordinary values by calling special **async emitters**.
+All async emitters must be declared before using them.
+A new async emitter is created using the special syntax `m[T]`, where `T` is the type of the value:
 
 ```tut
 import io.chymyst.jc._
@@ -46,21 +47,19 @@ val in = m[Int] // emitter for async value of type `Int`
 val result = m[Int] // emitter for async value of type `String`
 
 site(
-  go { case in(x) ⇒
-    // compute some new value using x
-    val z = x * 2
-    result(z) // emit z as the `result` async value
+  go { case in(x) ⇒     // consume an async value `in(...)`
+    val z = x * 2       // compute some new value using x
+    result(z)           // emit a new async value `result(z)`
   },
-  go { case result(x) ⇒ println(x) }
+  go { case result(x) ⇒ println(x) } // consume `result(...)`
 )
-// emit some async values for input
-in(123); in(124); in(125)
-Thread.sleep(200) // wait for async processes
+in(123); in(124); in(125)   // emit some async values for input
+Thread.sleep(200) // wait for async processes to start
 
 ```
 
 An async process can depend on _several_ async input values at once, and may emit several async values as output.
-The process will start when all its input async values are available (have been emitted but not yet consumed).
+The process will start only when _all_ its input async values are available (have been emitted but not yet consumed).
 
 ```tut
 import io.chymyst.jc._
@@ -71,13 +70,11 @@ val in2 = m[Int] // async value 2
 val result = m[Boolean] // async value of type `Boolean`
 
 site(
-  go { case in1(x) + in2(y) ⇒
-    // debug
-    println(s"got x = $x, y = $y")
-    // compute output value
-    val z : Boolean = x != y // whatever
+  go { case in1(x) + in2(y) ⇒   // wait for two async values
+    println(s"got x = $x, y = $y")  // debug
+    val z: Boolean = x != y // compute some output value
     result(z) // emit `result` async value
-    val t : Boolean = x > y // whatever
+    val t: Boolean = x > y // whatever
     result(t) // emit another `result` value
     println(s"emitted result($z) and result($t)")
   },
@@ -100,14 +97,12 @@ import io.chymyst.jc._
 
 val in = m[Int] // async input value
 
-val cont = m[Int ⇒ Unit] // continuation with side effect
+val cont = m[Int ⇒ Unit]  // continuation
 
 site(
   go { case in(x) + cont(k) ⇒
-    // debug
     println(s"got x = $x")
-    // compute output value and continue
-    val z : Int = x * x // whatever
+    val z : Int = x * x   // compute some output value
     k(z) // invoke continuation
   }
 )
@@ -119,7 +114,7 @@ Thread.sleep(200)
 ```
 
 New async processes and async values can be defined anywhere in the code,
-including within a function scope, or within the scope of an async process.
+for instance, within a function scope or within the scope of an async process.
 
 ## Example: Concurrent counter
 
@@ -316,4 +311,4 @@ waitDone() // block until done, get result
 
 # Envoi
 
-In the rest of this book, async values are called **non-blocking molecules**, blocking channels are called **blocking molecules**, and async processes are called **reactions**.
+In the rest of this book, async values are called **non-blocking molecules**, blocking channels are called **blocking molecules**, async emitters are called **molecule emitters**, and async processes are called **reactions**.

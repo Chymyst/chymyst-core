@@ -370,9 +370,9 @@ doWorkWithTwoAccesses()
 
 ```
 
-### Providing access tokens
+### Token-based access
 
-It is often needed to regulate access to resource _R_ by tokens.
+It is often needed to regulate access to resource _R_ by tokens that carry authentication or other information.
 We will now suppose that `doWork()` requires a token, and that we only have a limited set of tokens.
 Therefore, we need to make sure that
 
@@ -434,8 +434,8 @@ Since the only way to communicate between reactions is to emit molecules, `begin
 Clearly, `beginCritical` must be blocking while `endCritical` does not have to be; so let us make `endCritical` a non-blocking molecule.
 
 What should happen when a process emits `beginCritical()`?
-We must enforce a single-process access to the critical section.
-In other words, a reaction that consumes `beginCritical()` should only start one at a time, even if several `beginCritical` molecules are available.
+We must enforce a single-user exclusive access to the critical section.
+In other words, only one reaction that consumes `beginCritical()` should be running at any one time, even if several `beginCritical` molecules are available.
 Therefore, this reaction must also require another input molecule, say `access()`, of which we will only have a single copy emitted into the soup:
 
 ```scala
@@ -454,7 +454,7 @@ All we need to do is insure that there is initially a single copy of `access()` 
 
 Another requirement is that emitting `endCritical()` must end whatever `beginCritical()` began, but only if `endCritical()` is emitted by the _same reaction_.
 If a different reaction emits `endCritical()`, no access to the critical section should be granted.
-Somehow, the `endCritical()` molecules must be different when emitted by different reactions.
+Somehow, the `endCritical()` molecules must be distinct when emitted by different reactions.
 However, `beginCritical()` must be the same for all reactions, or else there can't be any contention between them.
 
 Additionally, we would like it to be impossible for any reaction to call `endCritical()` without first calling `beginCritical()`.
@@ -519,7 +519,7 @@ endCritical() // End of the critical section.
 
 ```
 
-This implementation works but has a drawback: the user can call `endCritical()` multiple times.
+This implementation works but has a drawback: the user may call `endCritical()` multiple times.
 This will emit multiple `access()` molecules and break the logic of the critical section functionality.
 
 To fix this problem, let us think about how we could prevent `endCritical()` from starting its reaction after the first time it did so.

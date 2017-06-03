@@ -1,9 +1,9 @@
 <link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
 
-# Limitations of the Chemical Machine (and how to overcome them)
+# Constraints of the Chemical Machine (and how to overcome them)
 
 While designing the chemical laws for an application, we need to keep in mind that the chemical paradigm limits what we can do.
-As we will come to realize, these limitations are for our own good!
+As we will come to realize, these constraints are for our own good!
 
 ## Absence of molecules is undetectable
 
