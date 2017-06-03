@@ -309,6 +309,7 @@ The non-blocking version of the code never blocks any threads, which improves pa
 
 By comparing two versions of the Readers/Writers code, we notice that there is a certain correspondence between blocking and non-blocking code.
 A reaction that emits a blocking molecule is equivalent to two reactions with a new auxiliary non-blocking molecule defined in the scope of the first reaction.
+The reply emitter becomes an ordinary non-blocking molecule emitter, and its molecule triggers a reaction that computes the continuation of the reaction body.
 
 The following two code snippets illustrate the correspondence.
 
@@ -328,7 +329,7 @@ go { case ... ⇒
 go { case blockingMol(t, reply) + ... ⇒
   /* start of reaction body 2, uses `t`, defines `x` */
   val x: R = ???
-  reply(x)
+  reply(x) // reply emitter
   /* rest of reaction body 2 */
 }
 
@@ -338,7 +339,7 @@ The same code after the unblocking transformation:
 
 ```scala
 // Reaction that emits a non-blocking molecule.
-val nonBlockingMol = m[(T, M[R])]
+val nonBlockingMol = m[(T, M[R])] // this replaces `blockingMol`
 go { case ... ⇒
   /* start of reaction body 1, defines `a`, `b`, ... */
   val t: T = ???
@@ -348,14 +349,14 @@ go { case ... ⇒
     /* continuation of reaction body 1, can use `x`, `a`, `b`, `t`, ... */
     }
   )
-  nonBlockingMol((t, auxReply))
+  nonBlockingMol((t, auxReply)) // this replaces the call `blockingMol(t)`
 }
 
 // Reaction that consumes the non-blocking molecule.
 go { case nonBlockingMol((t, reply)) + ... ⇒
   /* start of reaction body 2, uses `t`, defines `x` */
   val x: R = ???
-  reply(x)
+  reply(x) // ordinary, non-blocking molecule emitter
   /* rest of reaction body 2 */
 }
 
@@ -365,17 +366,19 @@ This example is the simplest case where the blocking molecule is emitted in the 
 In order to transform this code into non-blocking code, the reaction body is cut at the point where the blocking molecule is emitted.
 The rest of the reaction body is then moved into a nested auxiliary reaction that consumes `auxReply()`.
 
-This code transformation can be seen as an optimization: when we translate blocking code into non-blocking code, we improve efficiency of the CPU usage because fewer threads will be waiting.
+This code transformation can be seen as an optimization: When we translate blocking code into non-blocking code, we improve efficiency of the CPU usage because fewer threads will be waiting.
 For this reason, it is desirable to perform this **unblocking transformation** when possible.
 
 If the blocking molecule is emitted inside an `if-then-else` block, or inside a `match-case` block, the unblocking transformation will need more work.
-It will be necessary to introduce multiple auxiliary reply molecules and multiple nested reactions, corresponding to all the possible clauses where the blocking molecule is emitted.
+It will be necessary to introduce multiple auxiliary reply molecules and multiple nested reactions, corresponding to all the possible continuations of the reaction body.
+Also, the transformation may need to duplicate some parts of the code of the reaction body.
 
 Similarly, the unblocking transformation becomes more involved when several different blocking molecules are emitted in the same reaction body.
 
 There are some cases where the unblocking transformation seems to be impossible.
 For example, it is impossible to perform the transformation automatically if a blocking molecule is emitted inside a loop, or more generally, within a function scope, because that function could later be called elsewhere by arbitrary code.
-In order to be able to always perform the unblocking transformation for reaction bodies, `Chymyst Core` prohibits emitting a blocking molecule in such contexts.
+
+In order to ensure the possibility of the unblocking transformation for reaction bodies, `Chymyst Core` currently prohibits emitting blocking molecules in such contexts.
 
 ```scala
 val c = m[Unit]
@@ -387,7 +390,7 @@ go { case c(_) => while (true) f() }
 `Error:(245, 8) reaction body must not emit blocking molecules inside function blocks (f(()))`
 `    go { case c(_) => while (true) f() }`
 
-In a future version of `Chymyst Core`, the unblocking transformation may be performed by macros as an automatic optimization when possible.
+In a future version of `Chymyst Core`, the unblocking transformation may be performed by macros as an automatic optimization.
 
 ## The unblocking transformation and continuations
 
@@ -778,7 +781,24 @@ As an exercise, the reader should now try to encapsulate the `parallelOr` operat
 Another exercise: Implement `parallelOr` for _three_ blocking emitters (say, `f`, `g`, `h`).
 The `parallelOr` emitter should return `true` whenever one of these emitters returns `true`; it should return `false` if _all_ of them return `false`; and it should block otherwise.
 
-## Errors with blocking molecules
+## Constraints on blocking molecules
+
+### No blocking at the end of the reaction body
+
+A reaction may not emit a blocking molecule as the last expression it computes.
+
+```scala
+val f = b[Unit, Int]
+site( go { case ... => ...; f() } ) // the last expression is f()
+// compile-time error: "Blocking molecules must not be emitted last in a reaction"
+
+```
+
+This code is considered to be a programmer's design error, since blocking just before the end of the reaction and throwing away the received reply value is most likely useless.
+The blocking molecule `f()` should probably be replaced by a non-blocking molecule.
+In the rare cases when precisely this behavior is required, a simple `f(); ()` will make the emitter call `f()` acceptable since it is no longer the last expression computed by the reaction. 
+
+### One blocking input, one reply
 
 Each blocking molecule must receive one (and only one) reply.
 It is an error if a reaction consumes a blocking molecule but does not reply.
@@ -792,14 +812,14 @@ val c = m[Int]
 site( go { case f(_, r) + c(n) => c(n + 1) } ) // forgot to reply!
 // compile-time error: "blocking input molecules should receive a reply but no unconditional reply found"
 
-site( go { case f(_, r) + c(n) => c(n + 1) + r(n) + r(n) } ) // replied twice!
+site( go { case f(_, r) + c(n) => c(n + 1); r(n); r(n) } ) // replied twice!
 // compile-time error: "blocking input molecules should receive one reply but possibly multiple replies found"
 
 ```
 
 The reply could depend on a run-time condition, which is impossible to evaluate at compile time.
-In this case, a reaction must use an `if` expression that calls the reply emitter in each branch.
-It is an error if a reply is emitted in only one of the `if` branches:
+In this case, a reaction must use an `if` expression that calls the reply emitter in _each_ branch.
+It is an error if a reply is only emitted in one of the `if` branches:
 
 ```scala
 val f = b[Unit, Int]
@@ -823,12 +843,30 @@ site(
 
 ```
 
+It is a compile-time error to use a reply emitter inside a loop, inside any function block, or, more generally, in any context that could not be guaranteed to get evaluated exactly once.
+It is also an error to create an alias for a reply emitter or to pass it as an argument to functions.
+All these restrictions are in place to ensure statically (at compile time) that a reply emitter will be called exactly once for each blocking molecule consumed by a reaction.
+
+```scala
+val f = b[Unit, Int]
+site( go { case f(_, r) => val x = r; q(x) } )
+// compile-time error: "Reaction body must not use reply emitters inside function blocks"
+
+site( go { case f(_, r) => try { throw ...; r(1) } catch {...} } )
+// compile-time error: "Reaction body must not use reply emitters inside function blocks"
+
+site( go { case f(_, r) => if (r(1)) ... } ) // OK, the `if` condition is evaluated exactly once
+
+```
+
+### Avoid throwing exceptions in reaction body
+
 Finally, a reaction's body could throw an exception before emitting a reply.
 In this case, compile-time analysis will not show that there is a problem
 because it is not possible to detect whether a portion of Scala code throws an exception without running that code.
 Nevertheless, the chemical machine will recognize at run time that the reaction body will have stopped without sending a reply to one or more blocking molecules.
-The chemical machine will then log an error and specify which molecules are still waiting for replies.
- 
+The chemical machine will then log an error message, specifying the molecules that are still waiting for replies.
+
 Here is an example of code that emits `f()` and waits for reply, while a reaction consuming `f()` can throw an exception before replying:
 
 ```scala
@@ -846,13 +884,12 @@ Running this code will print an error message to the global error log and to the
 
 In general, a reaction can consume one or more blocking molecules and fail to reply to them due to an exception.
 Thus, there can be one or more blocked threads still waiting for replies when this kind of situation occurs.
-The chemical machine will throw an exception in all threads that are still waiting for replies, unblocking all those threads (and possibly killing their calculations, unless exceptions are caught).
-This feature is intended to reduce deadlocks due to missing replies.
+The runtime engine cannot know whether it is desired to unblock there threads.
 
-In our example, the additional exception will be thrown only when the reaction actually starts and the condition `n == 0` is evaluated to `true`.
+In our example, the exception will be thrown only when the reaction actually starts and the condition `n == 0` is evaluated to `true`.
 It may not be easy to design unit tests for this condition.
 
-Also, if the blocking molecules are emitted from some reactions, exceptions occurring on those reactions will not necessarily immediately visible.
+Also, if the blocking molecules are emitted from some reactions, exceptions occurring on those reactions will be invisible except for an error message in the global error log.
 
 For these reasons, it is not easy to catch errors of this type, either at compile time or at run time.
 

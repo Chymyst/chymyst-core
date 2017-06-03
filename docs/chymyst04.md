@@ -385,10 +385,7 @@ Static molecules are a frequently used pattern in chemical machine programming.
 `Chymyst` provides special features for static molecules:
 
 - Only non-blocking molecules can be declared as static.
-- It is an error if a reaction consumes a static molecule but does not emit it back into the soup, or emits it more than once.
-- It is also an error if a reaction emits a static molecule it did not consume, or if any other code emits additional copies of the static molecule at any time.
-(However, this feature is easy to simulate with local scoping, which can prevent other code from having access to a molecule emitter.)
-- Static molecules are emitted directly from the reaction site definition, by special **static reactions** (see below) that run only once.
+- Static molecules are emitted directly from the reaction site definition, by special **static reactions** (see below) that are guaranteed to run only once.
 In this way, static molecules are guaranteed to be emitted once and only once, before any other reactions are run and before any molecules are emitted to that reaction site.
 - Static molecules have “volatile readers” (see below).
 
@@ -410,11 +407,21 @@ Such reactions are automatically recognized by `Chymyst` as **static reactions**
 A static reaction emits some molecules into the soup and at the same time declares these molecules as static.
 
 A reaction site can have one or more static reactions.
-Each non-blocking output molecule of each static reaction will be automatically declared a **static molecule**.
+Each non-blocking output molecule of each static reaction is automatically declared a **static molecule**.
 
 The reaction sites will run their static reactions only once, at the time of the `site(...)` call itself, and on the same thread that calls `site(...)`.
 At that time, the reaction site has no molecules present.
 Static molecules will be the first ones emitted into the soup at that reaction site.
+
+#### Constraints on using static molecules
+
+Declaring a molecule as static can be a useful tool for avoiding errors in chemical machine programs because the usage of static molecules is tightly constrained:
+
+- A static molecules can be emitted only by a reaction that consumes it, or by the static reaction that defines it.
+- A reaction may not consume more than one copy of a static molecule.
+- It is an error if a reaction consumes a static molecule but does not emit it back into the soup, or emits it more than once.
+- It is also an error if a reaction emits a static molecule it did not consume, or if any other code emits additional copies of the static molecule at any time.
+- A reaction may not emit static molecules in a loop
 
 ### Volatile readers for static molecules
 
