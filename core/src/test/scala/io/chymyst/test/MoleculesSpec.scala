@@ -298,13 +298,13 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
         go { case c(x) ⇒ }
       )
     }
-    globalLogHas("xception", "In Site{p → ...}: Reaction {p(s) → } with inputs [p/P(c)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
     val errors = globalErrorLog.count(_ contains "Molecule c is not bound to any reaction site")
     // Sometimes (on fast machines) the reaction always produces an exception, in which case the result is `total` exceptions.
     // Since this is expected and correct behavior, we should not fail the test when the reaction starts too fast to avoid the exception.
     println(s"unbound molecule exceptions, test 1: $errors errors out of $total runs")
     errors should be > 0
     errors should be < total
+    globalLogHas("xception", "In Site{p → ...}: Reaction {p(s) → } with inputs [p/P(c)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
   }
 
   // This test verifies that unbound molecule emitters will cause an exception when used in a nested reaction site.
@@ -335,13 +335,13 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
     }
     tp1.shutdownNow()
 
-    logShouldHave("In Site{a → ...}: Reaction {a(s) → } with inputs [a/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site")
     val errors = globalErrorLog.count(_ contains "Molecule e is not bound to any reaction site")
     // Sometimes (on fast machines) the reaction always produces an exception, in which case the result is `total` exceptions.
     // Since this is expected and correct behavior, we should not fail the test when the reaction starts too fast to avoid the exception.
     println(s"unbound molecule exceptions, test 2: $errors errors out of $total runs")
     errors should be > 0
     errors should be < total
+    globalLogHas("xception", "In Site{a → ...}: Reaction {a(s) → } with inputs [a/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site")
   }
 
   it should "start reactions without errors when molecule emitters are passed to nested reactions after they are bound" in {
