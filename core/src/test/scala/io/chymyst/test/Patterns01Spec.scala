@@ -252,7 +252,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
       go { case manL(xy) + womanL(xx) => beginDancing(Math.min(xx, xy)) },
       go { case _ => queueMen(0) + queueWomen(0) }
     )
-    checkExpectedPipelined(Map(man -> true, woman -> true, queueMen -> true, queueWomen -> true, manL -> true, womanL -> true)) shouldEqual ""
+    checkExpectedPipelined(Seq(man, woman, queueMen, queueWomen, manL, womanL).map(_ → true).toMap) shouldEqual ""
 
     (0 until total / 2).foreach(_ => man())
     danceCounter.volatileValue shouldEqual Nil
@@ -297,7 +297,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
       go { case manL(xy) + womanL(xx) => beginDancing(Math.min(xx, xy)) } onThreads tp1c,
       go { case _ => queueMen(0) + queueWomen(0) }
     )
-    checkExpectedPipelined(Map(man -> true, woman -> true, queueMen -> true, queueWomen -> true, manL -> true, womanL -> true)) shouldEqual ""
+    checkExpectedPipelined(Seq(man, woman, queueMen, queueWomen, manL, womanL).map(_ → true).toMap) shouldEqual ""
 
     (0 until total / 2).foreach(_ => man())
     danceCounter.volatileValue shouldEqual Nil
@@ -327,11 +327,11 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val danceCounter = m[List[Int]]
     val done = b[Unit, List[Int]]
 
-    val total = 100
+    val total = 1000
 
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x); danceCounter(x) }, // ignore warning about "non-variable type argument Int"
-      go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy) + r() },
+      go { case beginDancing(xy, r) + danceCounter(x) => danceCounter(x :+ xy); r() },
       go { case _ => danceCounter(Nil) }
     )
 
@@ -344,9 +344,10 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
 
     checkExpectedPipelined(Map(man -> true, woman -> true, queueMen -> true, queueWomen -> true, manL -> false, womanL -> false, mayBegin -> false)) shouldEqual ""
 
-    (1 to total).foreach(_ => man())
+    (0 until total / 2).foreach(_ => man())
     danceCounter.volatileValue shouldEqual Nil
-    (1 to total).foreach(_ => woman())
+    (0 until total / 2).foreach(_ => man() + woman())
+    (0 until total / 2).foreach(_ => woman())
 
     val initTime = System.currentTimeMillis()
     val ordering = done()
@@ -354,6 +355,46 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val outOfOrder = ordering.zip(ordering.drop(1)).filterNot { case (x, y) => x + 1 == y }.map(_._1)
     outOfOrder shouldEqual List()
     ordering shouldEqual (0 until total).toList // Dancing queue order must be observed.
+  }
+
+  it should "implement simple pipelining" in {
+    val c = m[Int]
+    val res = m[List[Int]]
+    val done = m[List[Int]]
+    val f = b[Unit, List[Int]]
+
+    val total = 1000
+
+    site(tp)(
+      go { case c(x) + res(l) ⇒ val newL = x :: l; if (x >= total) done(newL); res(newL) }
+      , go { case f(_, r) + done(l) ⇒ r(l)  }
+      , go { case _ ⇒ res(List[Int]()) }
+    )
+    checkExpectedPipelined(Map(c -> true)) shouldEqual ""
+    (1 to total).foreach(c)
+    val result = f()
+    result.reverse shouldEqual (1 to total).toList // emission order must be preserved
+  }
+
+  it should "process out of order for non-pipelined molecule" in {
+    val c = m[Int]
+    val res = m[List[Int]]
+    val done = m[List[Int]]
+    val f = b[Unit, List[Int]]
+
+    val total = 1000
+
+    site(tp)(
+      // This reaction has a cross-molecule guard that is always `true`, but its presence prevents `c` from being pipelined.
+      go { case c(x) + res(l) if x > 0 || l.length > -1 ⇒ val newL = x :: l; if (x >= total) done(newL); res(newL) }
+      , go { case f(_, r) + done(l) ⇒ r(l)  }
+      , go { case _ ⇒ res(List[Int]()) }
+    )
+
+    checkExpectedPipelined(Map(c -> false)) shouldEqual ""
+    (1 to total).foreach(c)
+    val result = f()
+    result.reverse shouldEqual (1 to total).toList // emission order must be preserved
   }
 
 }

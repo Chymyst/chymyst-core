@@ -374,9 +374,9 @@ A static molecule `s` must have reactions only of the form `s() + ... => s() + .
 An example of a static molecule is the “concurrent counter” molecule `c()`, with reactions that we have seen before:
 
 ```scala
-c(x) + d(_) => c(x - 1)
-c(x) + i(_) => c(x + 1)
-c(x) + f(_, r) => c(x) + r(x)
+c(x) + d(_) ⇒ c(x - 1)
+c(x) + i(_) ⇒ c(x + 1)
+c(x) + f(_, r) ⇒ c(x) + r(x)
 ```
 
 These reactions treat `c()` as a static molecule because they first consume and then emit a single copy of `c`.
