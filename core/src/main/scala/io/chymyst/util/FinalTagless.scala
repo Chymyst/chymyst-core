@@ -193,24 +193,19 @@ object FT4 {
     def none: Boolean = true
   }
 
-  def ie[T] = new FTIsEmpty[T]
-
   class FTGetOrElse[T] extends FTOptionAlg[T, T ⇒ T] {
-    def some(t: T): T ⇒ T = _ ⇒ t
+    override def some(t: T): T ⇒ T = _ ⇒ t
 
     def none: T ⇒ T = identity
   }
 
-  def goe[T] = new FTGetOrElse[T]
-
   // Also, put all extra methods here.
   implicit class FTOptionMethodIsEmpty[T](val fto: FTOption[T]) extends AnyVal {
-    def isEmpty: Boolean = fto.alg(ie[T])
+    def isEmpty: Boolean = fto.alg(new FTIsEmpty[T])
   }
 
   implicit class FTOptionMethodGetOrElse[T](val fto: FTOption[T]) extends AnyVal {
-    def getOrElse(t: T): T = fto.alg(goe[T])(t)
+    def getOrElse(t: T): T = fto.alg(new FTGetOrElse[T])(t)
   }
 
 }
-

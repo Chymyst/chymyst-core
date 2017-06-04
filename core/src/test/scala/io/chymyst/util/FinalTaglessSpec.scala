@@ -4,7 +4,7 @@ import io.chymyst.test.{Common, LogSpec}
 
 class FinalTaglessSpec extends LogSpec {
 
-  behavior of "final tagless Option secundo Oleksandr Manzyuk"
+  behavior of "final tagless Option"
 
   def benchmark(message: String, x: => Any): Unit = {
     val total = 50000
@@ -20,7 +20,8 @@ class FinalTaglessSpec extends LogSpec {
     benchmark("standard Option Some(3).getOrElse(2)", Some(3).getOrElse(2))
   }
 
-  it should "create some() and none() values and run isEmpty() and getOrElse() on them" in {
+// see https://oleksandrmanzyuk.wordpress.com/2014/06/18/from-object-algebras-to-finally-tagless-interpreters-2/
+  it should "create some() and none() values secundo Oleksandr Manzyuk" in {
 
     import FinalTagless._
 
@@ -75,11 +76,19 @@ class FinalTaglessSpec extends LogSpec {
   it should "use less boilerplate with FT4" in {
     import FT4._
 
-    def some3[X] = some(3)
+    val some3 = some(3) // some3 has type FT4Option[Int] with type inference.
 
     some3.isEmpty shouldEqual false
 
     benchmark("FT4Option some(3).getOrElse(2)", some(3).getOrElse(2))
+
+    val none3 = none[Int] // otherwise none3 has type FT4Option[Nothing] and that fails...
+
+    none3.isEmpty shouldEqual true
+
+    some3.getOrElse(2) shouldEqual 3
+
+    none3.getOrElse(2) shouldEqual 2
   }
 
 }
