@@ -209,3 +209,57 @@ object FT4 {
   }
 
 }
+
+//fifth attempt: try to further reduce boilerplate by using direct function types
+object FT5 {
+
+  // Put the ADT definition (all constructor types) here. This is the representing object of the ADT.
+  /*
+  data Option t where
+     some :: t => Option t
+     none :: Option t
+  */
+  trait FTOptionAlg[T, X] {
+    def some: T ⇒ X
+
+    def none: X
+  }
+
+  // This is the actual type of the "final tagless option" values. Pure boilerplate.
+  trait FTOption[T] {
+    def alg[X]: FTOptionAlg[T, X] ⇒ X
+  }
+
+  // Define each constructor now. Pure boilerplate.
+  def some[T](t: T): FTOption[T] = new FTOption[T] {
+    def alg[X] = _.some(t)
+  }
+
+  def none[T]: FTOption[T] = new FTOption[T] {
+    def alg[X] = _.none
+  }
+
+  // For each extra method, define a class that implements constructors, and provide an instance of the class.
+  // Note: all extra methods are must have the type Option[T] ⇒ Y and then their class extends FTOptionAlg[T, Y].
+  class FTIsEmpty[T] extends FTOptionAlg[T, Boolean] {
+    def some = _ ⇒ false
+
+    def none = true
+  }
+
+  class FTGetOrElse[T] extends FTOptionAlg[T, T ⇒ T] {
+    def some: T ⇒ T ⇒ T = t ⇒ _ ⇒ t
+
+    def none: T ⇒ T = identity
+  }
+
+  // Also, put all extra methods here. Pure boilerplate.
+  implicit class FTOptionMethodIsEmpty[T](val fto: FTOption[T]) extends AnyVal {
+    def isEmpty: Boolean = fto.alg(new FTIsEmpty[T])
+  }
+
+  implicit class FTOptionMethodGetOrElse[T](val fto: FTOption[T]) extends AnyVal {
+    def getOrElse(t: T): T = fto.alg(new FTGetOrElse[T])(t)
+  }
+
+}
