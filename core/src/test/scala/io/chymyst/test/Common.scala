@@ -10,7 +10,7 @@ import org.scalatest.Matchers._
 object Common {
 
   def globalLogHas(part: String, message: String): Assertion = {
-    globalErrorLog.find(_.contains(part)).get should endWith (message)
+    globalErrorLog.find(_.contains(part)).get should endWith(message)
   }
 
   // Note: log messages have a timestamp prepended to them, so we use `endsWith` when matching a log message.
@@ -52,6 +52,14 @@ object Common {
     (result, elapsedTime)
   }
 
+  def elapsedTimesNs[T](x: ⇒ Any, total: Int): Seq[Double] = {
+    (1 to total).map { _ ⇒
+      val initTime = System.nanoTime()
+      x
+      (System.nanoTime() - initTime).toDouble
+    }
+  }
+
   def meanAndStdev(d: Seq[Double]): (Double, Double) = {
     val size = safeSize(d.size)
     val mean = d.sum / size
@@ -83,6 +91,7 @@ object Common {
     val eps = math.sqrt(xs.zip(ys).map { case (x, y) ⇒ math.pow(a0 + a1 * funcX(x) - funcY(y), 2) }.sum) / n
     (a0, a1, eps)
   }
+
   def showRegression(message: String, results: Seq[Double], funcX: Double => Double, funcY: Double => Double = identity): Unit = {
     // Perform regression to determine the effect of JVM warm-up.
     // Assume that the warm-up works as a0 + a1*x^(-c). Try linear regression with different values of c.
@@ -92,7 +101,7 @@ object Common {
       .zipAll(results.drop(2), (Double.PositiveInfinity, Double.PositiveInfinity), Double.PositiveInfinity)
       .map { case ((x, y), z) ⇒ math.min(x, math.min(y, z)) }
     val (a0, a1, a0stdev) = regressLSQ(dataX, dataY, funcX, funcY)
-    val speedup = f"${(a0 + a1 * funcX(dataX.head)) / (a0 + a1*funcX(dataX.last))}%1.2f"
+    val speedup = f"${(a0 + a1 * funcX(dataX.head)) / (a0 + a1 * funcX(dataX.last))}%1.2f"
     println(s"Regression results for $message: constant = ${formatNanosToMicros(a0)} ± ${formatNanosToMicros(a0stdev)}, gain = ${formatNanosToMicros(a1)}*iteration, max. speedup = $speedup")
 
     import org.sameersingh.scalaplot.Implicits._

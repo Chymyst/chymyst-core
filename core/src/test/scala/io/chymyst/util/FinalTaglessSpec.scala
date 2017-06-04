@@ -1,14 +1,28 @@
 package io.chymyst.util
 
-import io.chymyst.test.LogSpec
+import io.chymyst.test.{Common, LogSpec}
 
 class FinalTaglessSpec extends LogSpec {
 
   behavior of "final tagless Option secundo Oleksandr Manzyuk"
 
+  def benchmark(message: String, x: => Any): Unit = {
+    val total = 10000
+
+    val result = Common.elapsedTimesNs(x, total)
+    val (mean0, std0) = Common.meanAndStdev(result.slice(50, 150))
+    val (mean1, std1) = Common.meanAndStdev(result.takeRight(200))
+    println(s"$message takes before warmup ${Common.formatNanosToMicrosWithMeanStd(mean0, std0)}, after warmup ${Common.formatNanosToMicrosWithMeanStd(mean1, std1)}")
+    Common.showRegression(message, result.drop(total / 10), x ⇒ math.pow(x + total / 10, -1.0))
+  }
+
+  it should "benchmark creating an Option[Int] value" in {
+    benchmark("standard Option Some(3).getOrElse(2)", Some(3).getOrElse(2))
+  }
+
   it should "create some() and none() values and run isEmpty() and getOrElse() on them" in {
 
-    import FinalTagless.{FTOptionIsEmpty, some, ie, none, goe}
+    import FinalTagless._
 
     // testing with explicit ftIsEmpty
     val some3: FTOptionIsEmpty = some(3)(ie)
@@ -34,6 +48,18 @@ class FinalTaglessSpec extends LogSpec {
     val res2 = noneGOE.getOrElse(100) // this is 100
 
     res2 shouldEqual 100
+
+    benchmark("FTOption some(3).getOrElse(2)", some(3)(goe).getOrElse(2))
+  }
+
+  it should "use less boilerplate with FT2" in {
+    import FT2._
+
+    def some3[X] = some[Int, X](3)
+
+    some3[Boolean].isEmpty shouldEqual false
+
+    benchmark("FT2Option some(3).getOrElse(2)", some[Int, Int ⇒ Int](3).getOrElse(2))
   }
 
 }
