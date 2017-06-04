@@ -7,7 +7,7 @@ class FinalTaglessSpec extends LogSpec {
   behavior of "final tagless Option secundo Oleksandr Manzyuk"
 
   def benchmark(message: String, x: => Any): Unit = {
-    val total = 10000
+    val total = 50000
 
     val result = Common.elapsedTimesNs(x, total)
     val (mean0, std0) = Common.meanAndStdev(result.slice(50, 150))
@@ -60,6 +60,16 @@ class FinalTaglessSpec extends LogSpec {
     some3[Boolean].isEmpty shouldEqual false
 
     benchmark("FT2Option some(3).getOrElse(2)", some[Int, Int ⇒ Int](3).getOrElse(2))
+  }
+
+  it should "use less boilerplate with FT3" in {
+    import FT3._
+
+    def some3[X] = some[Int, X](3)
+
+    some3[Boolean].isEmpty shouldEqual false
+
+    benchmark("FT3Option some(3).getOrElse(2)", some[Int, Int ⇒ Int](3).getOrElse(2))
   }
 
 }

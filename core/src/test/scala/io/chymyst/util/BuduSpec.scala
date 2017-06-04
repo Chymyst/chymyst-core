@@ -113,8 +113,10 @@ class BuduSpec extends LogSpec {
 
   behavior of "performance benchmark"
 
-  val total = 2000
-  val best = 50
+  val total = 20000
+  val best = 100
+
+  def getBest(res: Seq[Double]): Seq[Double] = res.sortBy(- _).dropRight(best)
 
   it should "measure reply speed for Budu" in {
     val results = (1 to total).map { _ ⇒
@@ -125,7 +127,7 @@ class BuduSpec extends LogSpec {
       val now = x.await
       System.nanoTime - now
     }.map(_.toDouble)
-    val (average, stdev) = meanAndStdev(results.drop(total - best))
+    val (average, stdev) = meanAndStdev(getBest(results))
     println(s"Best amortized reply speed for Budu, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
     showRegression("reply speed for Budu", results, x ⇒ math.pow(x + total / 5, -1.0))
   }
@@ -139,7 +141,7 @@ class BuduSpec extends LogSpec {
       val now = Await.result(x.future, Duration.Inf)
       System.nanoTime - now
     }.map(_.toDouble)
-    val (average, stdev) = meanAndStdev(results.drop(total - best))
+    val (average, stdev) = meanAndStdev(getBest(results))
     println(s"Best amortized reply speed for Promise, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
     showRegression("reply speed for Promise", results, x ⇒ math.pow(x + total / 5, -1.0))
   }
@@ -153,7 +155,7 @@ class BuduSpec extends LogSpec {
       val now = x.await(10.seconds).get
       System.nanoTime - now
     }.map(_.toDouble)
-    val (average, stdev) = meanAndStdev(results.drop(total - best))
+    val (average, stdev) = meanAndStdev(getBest(results))
     println(s"Best amortized time-out reply speed for Budu, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
     showRegression("time-out reply speed for Budu", results, x ⇒ math.pow(x + total / 5, -1.0))
   }
@@ -167,7 +169,7 @@ class BuduSpec extends LogSpec {
       val now = Await.result(x.future, 10.seconds)
       System.nanoTime - now
     }.map(_.toDouble)
-    val (average, stdev) = meanAndStdev(results.drop(total - best))
+    val (average, stdev) = meanAndStdev(getBest(results))
     println(s"Best amortized time-out reply speed for Promise, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
     showRegression("time-out reply speed for Promise", results, x ⇒ math.pow(x + total / 5, -1.0))
   }

@@ -59,7 +59,7 @@ object FinalTagless {
 object FT2 {
 
   // Put the ADT definition (all constructor types) here.
-  trait FTOptionAlg[T, +X] {
+  trait FTOptionAlg[T, X] { // The parameter X will be equal to the representing type for all the extra methods.
     def some(t: T): X
 
     def none: X
@@ -76,6 +76,7 @@ object FT2 {
 
   // For each extra method, define a class that implements constructors, and provide an instance of the class.
   // Note: all extra methods are assumed to have the type Option[T] ⇒ Y and then their class extends FTOptionAlg[T, Y].
+  // In other words, Y is the representing type of the extra method.
   class FTIsEmpty[T] extends FTOptionAlg[T, Boolean] {
     def some(t: T): Boolean = false
 
@@ -100,4 +101,62 @@ object FT2 {
   implicit class FTOptionMethodGetOrElse[T](val fto: FTOption[T, T ⇒ T]) extends AnyVal {
     def getOrElse(t: T): T = fto(goe[T])(t)
   }
+
 }
+
+// third attempt: try to avoid explicit typing such as some[Int, Int => Int](3).getOrElse(2)
+object FT3 {
+
+  // Put the ADT definition (all constructor types) here.
+  trait FTOptionAlg[T] { // Try to move X into the existential quantifier inside.
+
+    type P
+
+    def some(t: T): P
+
+    def none: P
+  }
+
+  // Type alias for convenience. This is the actual type of the "final tagless option" values.
+  type FTOption[T, X] = FTOptionAlg[T] {type P = X} ⇒ X
+
+  // Define each constructor now.
+
+  def some[T, X](t: T): FTOption[T, X] = ftoa ⇒ ftoa.some(t)
+
+  def none[T, X]: FTOption[T, X] = _.none
+
+  // For each extra method, define a class that implements constructors, and provide an instance of the class.
+  // Note: all extra methods are assumed to have the type Option[T] ⇒ Y and then their class extends FTOptionAlg[T, Y].
+  class FTIsEmpty[T] extends FTOptionAlg[T] {
+    type P = Boolean
+
+    def some(t: T): Boolean = false
+
+    def none: Boolean = true
+  }
+
+  def ie[T] = new FTIsEmpty[T]
+
+  class FTGetOrElse[T] extends FTOptionAlg[T] {
+
+    type P = T ⇒ T
+
+    def some(t: T): T ⇒ T = _ ⇒ t
+
+    def none: T ⇒ T = identity
+  }
+
+  def goe[T] = new FTGetOrElse[T]
+
+  // Also, put all extra methods here.
+  implicit class FTOptionMethodIsEmpty[T](val fto: FTOption[T, Boolean]) extends AnyVal {
+    def isEmpty: Boolean = fto(ie[T])
+  }
+
+  implicit class FTOptionMethodGetOrElse[T](val fto: FTOption[T, T ⇒ T]) extends AnyVal {
+    def getOrElse(t: T): T = fto(goe[T])(t)
+  }
+
+}
+
