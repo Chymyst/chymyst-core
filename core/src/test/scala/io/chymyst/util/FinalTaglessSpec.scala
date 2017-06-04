@@ -12,7 +12,7 @@ class FinalTaglessSpec extends LogSpec {
     val result = Common.elapsedTimesNs(x, total)
     val (mean0, std0) = Common.meanAndStdev(result.slice(50, 150))
     val (mean1, std1) = Common.meanAndStdev(result.takeRight(200))
-    println(s"$message takes before warmup ${Common.formatNanosToMicrosWithMeanStd(mean0, std0)}, after warmup ${Common.formatNanosToMicrosWithMeanStd(mean1, std1)}")
+    println(s"$message (total=$total) takes before warmup ${Common.formatNanosToMicrosWithMeanStd(mean0, std0)}, after warmup ${Common.formatNanosToMicrosWithMeanStd(mean1, std1)}")
     Common.showRegression(message, result.drop(total / 10), x ⇒ math.pow(x + total / 10, -1.0))
   }
 
@@ -70,6 +70,16 @@ class FinalTaglessSpec extends LogSpec {
     some3[Boolean].isEmpty shouldEqual false
 
     benchmark("FT3Option some(3).getOrElse(2)", some[Int, Int ⇒ Int](3).getOrElse(2))
+  }
+
+  it should "use less boilerplate with FT4" in {
+    import FT4._
+
+    def some3[X] = some(3)
+
+    some3.isEmpty shouldEqual false
+
+    benchmark("FT4Option some(3).getOrElse(2)", some(3).getOrElse(2))
   }
 
 }

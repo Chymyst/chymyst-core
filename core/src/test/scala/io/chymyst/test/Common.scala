@@ -41,14 +41,16 @@ object Common {
   def elapsedTimeMs[T](x: ⇒ T): (T, Long) = {
     val initTime = System.currentTimeMillis()
     val result = x
-    val elapsedTime = System.currentTimeMillis() - initTime
+    val y = System.currentTimeMillis()
+    val elapsedTime = y - initTime
     (result, elapsedTime)
   }
 
   def elapsedTimeNs[T](x: ⇒ T): (T, Long) = {
     val initTime = System.nanoTime()
     val result = x
-    val elapsedTime = System.nanoTime() - initTime
+    val y = System.nanoTime()
+    val elapsedTime = y - initTime
     (result, elapsedTime)
   }
 
@@ -56,7 +58,8 @@ object Common {
     (1 to total).map { _ ⇒
       val initTime = System.nanoTime()
       x
-      (System.nanoTime() - initTime).toDouble
+      val y = System.nanoTime()
+      (y - initTime).toDouble
     }
   }
 
@@ -102,7 +105,7 @@ object Common {
       .map { case ((x, y), z) ⇒ math.min(x, math.min(y, z)) }
     val (a0, a1, a0stdev) = regressLSQ(dataX, dataY, funcX, funcY)
     val speedup = f"${(a0 + a1 * funcX(dataX.head)) / (a0 + a1 * funcX(dataX.last))}%1.2f"
-    println(s"Regression results for $message: constant = ${formatNanosToMicros(a0)} ± ${formatNanosToMicros(a0stdev)}, gain = ${formatNanosToMicros(a1)}*iteration, max. speedup = $speedup")
+    println(s"Regression (total=${results.length}) for $message: constant = ${formatNanosToMicros(a0)} ± ${formatNanosToMicros(a0stdev)}, gain = ${formatNanosToMicros(a1)}*iteration, max. speedup = $speedup")
 
     import org.sameersingh.scalaplot.Implicits._
 

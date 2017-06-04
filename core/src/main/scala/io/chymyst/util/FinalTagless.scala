@@ -104,7 +104,7 @@ object FT2 {
 
 }
 
-// third attempt: try to avoid explicit typing such as some[Int, Int => Int](3).getOrElse(2)
+// third attempt: try to avoid explicit typing such as some[Int, Int => Int](3).getOrElse(2). Unsuccessful.
 object FT3 {
 
   // Put the ADT definition (all constructor types) here.
@@ -156,6 +156,60 @@ object FT3 {
 
   implicit class FTOptionMethodGetOrElse[T](val fto: FTOption[T, T ⇒ T]) extends AnyVal {
     def getOrElse(t: T): T = fto(goe[T])(t)
+  }
+
+}
+
+//fourth attempt: try to avoid explicit typing such as some[Int, Int => Int](3).getOrElse(2). Success!
+object FT4 {
+
+  // Put the ADT definition (all constructor types) here.
+  trait FTOptionAlg[T, X] {
+    def some(t: T): X
+
+    def none: X
+  }
+
+  // This is the actual type of the "final tagless option" values.
+  trait FTOption[T] {
+    def alg[X](ftoa: FTOptionAlg[T, X]): X
+  }
+
+  // Define each constructor now.
+
+  def some[T](t: T): FTOption[T] = new FTOption[T] {
+    override def alg[X](ftoa: FTOptionAlg[T, X]): X = ftoa.some(t)
+  }
+
+  def none[T]: FTOption[T] = new FTOption[T] {
+    override def alg[X](ftoa: FTOptionAlg[T, X]): X = ftoa.none
+  }
+
+  // For each extra method, define a class that implements constructors, and provide an instance of the class.
+  // Note: all extra methods are assumed to have the type Option[T] ⇒ Y and then their class extends FTOptionAlg[T, Y].
+  class FTIsEmpty[T] extends FTOptionAlg[T, Boolean] {
+    def some(t: T): Boolean = false
+
+    def none: Boolean = true
+  }
+
+  def ie[T] = new FTIsEmpty[T]
+
+  class FTGetOrElse[T] extends FTOptionAlg[T, T ⇒ T] {
+    def some(t: T): T ⇒ T = _ ⇒ t
+
+    def none: T ⇒ T = identity
+  }
+
+  def goe[T] = new FTGetOrElse[T]
+
+  // Also, put all extra methods here.
+  implicit class FTOptionMethodIsEmpty[T](val fto: FTOption[T]) extends AnyVal {
+    def isEmpty: Boolean = fto.alg(ie[T])
+  }
+
+  implicit class FTOptionMethodGetOrElse[T](val fto: FTOption[T]) extends AnyVal {
+    def getOrElse(t: T): T = fto.alg(goe[T])(t)
   }
 
 }
