@@ -58,7 +58,7 @@ package object jc {
     */
   // Making this `extend AnyVal` crashes JVM in tests!
   implicit final class EmitMultiple(x: Unit) {
-    def +(n: Unit): Unit = ()
+    def +(n: Unit): Unit = () // parameter n is not used
   }
 
   implicit final class SiteWithPool(val pool: Pool) extends AnyVal {

@@ -1,12 +1,8 @@
 package io.chymyst.test
 
 import io.chymyst.jc._
-import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.time.{Millis, Span}
 
-class StaticAnalysisSpec extends LogSpec with TimeLimitedTests {
-
-  val timeLimit = Span(5000, Millis)
+class StaticAnalysisSpec extends LogSpec {
 
   val warmupTimeMs = 50L
 

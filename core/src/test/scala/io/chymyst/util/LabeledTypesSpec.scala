@@ -1,6 +1,7 @@
-package io.chymyst.test
+package io.chymyst.util
 
-import io.chymyst.jc.LabeledTypes.{Newtype, Subtype}
+import io.chymyst.test.LogSpec
+import io.chymyst.util.LabeledTypes.{Newtype, Subtype}
 
 class LabeledTypesSpec extends LogSpec {
 
@@ -82,6 +83,8 @@ class LabeledTypesSpec extends LogSpec {
 
     def f(x: UserName): Int = UserName.get(x).length // no automatic upcast of x to String
     def g(x: String): Int = x.length
+
+    g("user name") shouldEqual 9
 
     f(x) shouldEqual 9
     """ f("abc") """ shouldNot compile

@@ -1,4 +1,4 @@
-package io.chymyst.jc
+package io.chymyst.util
 
 import scala.language.higherKinds
 

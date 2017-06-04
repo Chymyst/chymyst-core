@@ -1,13 +1,9 @@
 package io.chymyst.benchmark
 
 import code.jiansen.scalajoin._
-import io.chymyst.test.LogSpec
-import org.scalatest.concurrent.TimeLimitedTests
-import org.scalatest.time.{Millis, Span} // Use precompiled classes from Jiansen's Join.scala, which are in that package.
+import io.chymyst.test.LogSpec // Use precompiled classes from Jiansen's Join.scala, which are in that package.
 
-class JiansenFairnessSpec extends LogSpec with TimeLimitedTests {
-
-  val timeLimit = Span(2000, Millis)
+class JiansenFairnessSpec extends LogSpec {
 
   // fairness over reactions:
   // We have n molecules A:JA[Unit], which can all interact with a single molecule C:JA[(Int,Array[Int])].

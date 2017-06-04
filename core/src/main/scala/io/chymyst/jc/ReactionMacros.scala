@@ -164,7 +164,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     */
   def convertToCNF(term: Tree): List[List[Tree]] = {
 
-    import ConjunctiveNormalForm._
+    import io.chymyst.util.ConjunctiveNormalForm._
 
     def normalize(a: Trees#Tree): List[List[Tree]] = convertToCNF(a.asInstanceOf[Tree])
 

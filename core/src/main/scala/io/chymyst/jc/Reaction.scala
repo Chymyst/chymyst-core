@@ -67,7 +67,8 @@ final case class OtherInputPattern(matcher: PartialFunction[Any, Unit], vars: Li
 sealed trait OutputPatternType {
   val specificity: Int
 
-  def merge(other: OutputPatternType)(equals: (Any, Any) => Boolean = (a, b) => a === b): OutputPatternType = OtherOutputPattern
+  def merge(other: OutputPatternType)(equals: (Any, Any) => Boolean = (a, b) => a === b): OutputPatternType = // parameters are not used
+    OtherOutputPattern
 
   override val toString: String = this match {
     case ConstOutputPattern(()) =>
