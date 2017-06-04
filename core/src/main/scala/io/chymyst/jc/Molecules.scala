@@ -3,6 +3,7 @@ package io.chymyst.jc
 import java.util.concurrent.atomic.AtomicReference
 
 import io.chymyst.jc.Core._
+import io.chymyst.util.Budu
 
 import scala.collection.mutable
 import scala.concurrent.duration.Duration

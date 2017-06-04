@@ -1,11 +1,11 @@
-package io.chymyst.jc
+package io.chymyst.util
 
-import io.chymyst.jc.Budu._
 import io.chymyst.jc.Core.AnyOpsEquals
+import io.chymyst.util.Budu._
 
 import scala.annotation.tailrec
-import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration.Duration
+import scala.concurrent.{Future, Promise}
 
 // There are only three states: 2 is empty, no time-out yet. 3 is empty, have time-out. 1 not empty, no time-out.
 

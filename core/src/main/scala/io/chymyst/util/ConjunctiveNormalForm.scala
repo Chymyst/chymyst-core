@@ -1,4 +1,4 @@
-package io.chymyst.jc
+package io.chymyst.util
 
 /** Helper functions that perform computations with Boolean formulas while keeping them in the conjunctive normal form.
   *

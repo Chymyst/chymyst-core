@@ -3,7 +3,7 @@ package io.chymyst.jc
 import java.security.MessageDigest
 
 import Core._
-import io.chymyst.jc.ConjunctiveNormalForm.CNF
+import io.chymyst.util.ConjunctiveNormalForm.CNF
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
@@ -47,7 +47,7 @@ class CommonMacros(val c: blackbox.Context) {
     * [[OtherInputPatternF]]: none of the above (could be a case class or a general `unapply` expression)
     */
   sealed trait InputPatternFlag {
-    def patternSha1(showCode: Tree => String, md: MessageDigest): String = ""
+    def patternSha1(showCode: Tree => String, md: MessageDigest): String = "" // parameters are not used
 
     def notReplyValue: Boolean = true
 

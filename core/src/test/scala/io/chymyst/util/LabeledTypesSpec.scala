@@ -1,6 +1,7 @@
-package io.chymyst.test
+package io.chymyst.util
 
-import io.chymyst.jc.LabeledTypes.{Newtype, Subtype}
+import io.chymyst.test.LogSpec
+import io.chymyst.util.LabeledTypes.{Newtype, Subtype}
 
 class LabeledTypesSpec extends LogSpec {
 

@@ -1,11 +1,11 @@
-package io.chymyst.test
+package io.chymyst.util
 
-import io.chymyst.jc.Budu
+import io.chymyst.test.Common._
+import io.chymyst.test.LogSpec
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration.{Duration, DurationInt}
-import io.chymyst.test.Common._
+import scala.concurrent.{Await, Future, Promise}
 
 class BuduSpec extends LogSpec {
   behavior of "Budu()"

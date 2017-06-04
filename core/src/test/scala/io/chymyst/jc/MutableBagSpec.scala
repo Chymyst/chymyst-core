@@ -324,7 +324,6 @@ class MutableBagSpec extends LogSpec {
   behavior of "MutableMultiset performance"
 
   it should "quickly compute headOption() on a MutableMultiset" in {
-    val total = 1000
     val message = "headOption()"
     measureBagOp(new MutableMultiset[Int](), 0, _.headOption, message)
     measureBagOp(new MutableMultiset[Int](), n / 4, _.headOption, message)
@@ -334,7 +333,6 @@ class MutableBagSpec extends LogSpec {
   }
 
   it should "quickly compute takeOne() on a MutableMultiset" in {
-    val total = 1000
     val message = "takeOne()"
     measureBagOp(new MutableMultiset[Int](), 0, _.takeOne, message)
     measureBagOp(new MutableMultiset[Int](), n / 4, _.takeOne, message)
