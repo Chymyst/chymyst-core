@@ -2,15 +2,12 @@ package io.chymyst.jc
 
 import io.chymyst.test.LogSpec
 import org.scalactic.source.Position
-import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
 
 import scala.concurrent.ExecutionContext
 
-class PoolSpec extends LogSpec with TimeLimitedTests {
-
-  val timeLimit = Span(3000, Millis)
+class PoolSpec extends LogSpec {
 
   val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 

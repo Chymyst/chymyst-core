@@ -3,14 +3,13 @@ package io.chymyst.test
 import io.chymyst.jc._
 import io.chymyst.test.Common._
 import org.scalatest.BeforeAndAfterEach
-import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEach {
+class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
   var tp0: Pool = _
 
@@ -24,8 +23,6 @@ class MoleculesSpec extends LogSpec with TimeLimitedTests with BeforeAndAfterEac
   override def afterEach(): Unit = {
     tp0.shutdownNow()
   }
-
-  val timeLimit = Span(5000, Millis)
 
   val warmupTimeMs = 50L
 
