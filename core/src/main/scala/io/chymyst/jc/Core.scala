@@ -395,12 +395,4 @@ object Core {
 
   val NO_REACTION_INFO_STRING = "<none>"
 
-  private[jc] def newSingleThreadedExecutor: ThreadPoolExecutor = {
-    val queue = new LinkedBlockingQueue[Runnable]
-    val secondsToRecycleThread = 1L
-    val executor = new ThreadPoolExecutor(1, 1, secondsToRecycleThread, TimeUnit.SECONDS, queue)
-    executor.allowCoreThreadTimeOut(true)
-    executor
-  }
-
 }

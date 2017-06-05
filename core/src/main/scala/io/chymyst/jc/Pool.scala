@@ -32,9 +32,13 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
 
   def shutdownWaitTimeMs: Long = 200L
 
-  protected val schedulerExecutor: ThreadPoolExecutor = Core.newSingleThreadedExecutor
+  private[jc] val schedulerQueue: BlockingQueue[Runnable] = new LinkedBlockingQueue[Runnable]
 
-  val executionContext: ExecutionContext = ExecutionContext.fromExecutor(executor)
+  private[jc] val schedulerExecutor: ThreadPoolExecutor = {
+    val executor = new ThreadPoolExecutor(1, 1, recycleThreadTimeMs, TimeUnit.MILLISECONDS, schedulerQueue)
+    executor.allowCoreThreadTimeOut(true)
+    executor
+  }
 
   private[jc] val queue: BlockingQueue[Runnable] = new LinkedBlockingQueue[Runnable]
 
@@ -57,6 +61,8 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
     executor.allowCoreThreadTimeOut(true)
     executor
   }
+
+  val executionContext: ExecutionContext = ExecutionContext.fromExecutor(executor)
 
   private val currentThreadId: AtomicInteger = new AtomicInteger(0)
 
