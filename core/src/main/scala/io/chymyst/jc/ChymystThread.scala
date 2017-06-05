@@ -5,7 +5,7 @@ package io.chymyst.jc
   *
   * @param runnable The initial task given to the thread. (Required by the [[Thread]] interface.)
   */
-private[jc] final class ChymystThread(runnable: Runnable, val pool: Pool) extends Thread(runnable) {
+private[jc] final class ChymystThread(runnable: Runnable, val pool: Pool) extends Thread(pool.threadGroup, runnable, pool.nextThreadName) {
   private var inBlockingCall: Boolean = false
 
   private[jc] var reactionInfoString: String = Core.NO_REACTION_INFO_STRING

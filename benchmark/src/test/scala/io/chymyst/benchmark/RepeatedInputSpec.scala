@@ -15,7 +15,7 @@ class RepeatedInputSpec extends LogSpec {
 
     val (_, elapsed) = elapsedTimeMs(
       (1 to repetitions).foreach { i =>
-        withPool(new FixedPool(8)) { tp =>
+        withPool(FixedPool(8)) { tp =>
           val a = m[Option[Int]]
           val done = m[Int]
           val (all_done, f) = litmus[Boolean](tp)
@@ -39,7 +39,7 @@ class RepeatedInputSpec extends LogSpec {
 
     val (_, elapsed) = elapsedTimeMs(
       (1 to repetitions).foreach { i =>
-        withPool(new FixedPool(8)) { tp =>
+        withPool(FixedPool(8)) { tp =>
           val a = m[Option[Int]]
           val done = m[Int]
           val (all_done, f) = litmus[Boolean](tp)
@@ -67,7 +67,7 @@ class RepeatedInputSpec extends LogSpec {
 
     val (_, elapsed) = elapsedTimeMs(
       (1 to repetitions).foreach { i =>
-        withPool(new FixedPool(8)) { tp =>
+        withPool(FixedPool(8)) { tp =>
           val a = m[Int]
           val done = m[Int]
           val (all_done, f) = litmus[Boolean](tp)
@@ -95,7 +95,7 @@ class RepeatedInputSpec extends LogSpec {
 
     val (_, elapsed) = elapsedTimeMs(
       (1 to repetitions).foreach { i =>
-        withPool(new FixedPool(8)) { tp =>
+        withPool(FixedPool(8)) { tp =>
           val a = m[Int]
           val done = m[Int]
           val (all_done, f) = litmus[Boolean](tp)
@@ -123,7 +123,7 @@ class RepeatedInputSpec extends LogSpec {
 
     val (_, elapsed) = elapsedTimeMs(
       (1 to repetitions).foreach { i =>
-        withPool(new FixedPool(8)) { tp =>
+        withPool(FixedPool(8)) { tp =>
           val a = m[Int]
           val done = m[Int]
           val (all_done, f) = litmus[Boolean](tp)
@@ -165,7 +165,7 @@ class RepeatedInputSpec extends LogSpec {
     val (_, elapsed) = elapsedTimeMs(
       (1 to repetitions).foreach { i =>
         //        println(s"iteration $i")
-        withPool(new FixedPool(8)) { tp =>
+        withPool(FixedPool(8)) { tp =>
           val a = m[Long]
           val done = m[Int]
           val (all_done, f) = litmus[Boolean](tp)

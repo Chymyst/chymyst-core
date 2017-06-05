@@ -15,7 +15,7 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
   var tp0: Pool = _
 
   override def beforeEach(): Unit = {
-    tp0 = new BlockingPool(12)
+    tp0 = BlockingPool(12)
   }
 
   override def afterEach(): Unit = {
@@ -140,7 +140,7 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val g = b[Unit, Int]
     val g2 = b[Unit, Int]
     val h = b[Unit, Int]
-    val tp = new FixedPool(4)
+    val tp = FixedPool(4)
     site(tp0)(
       go { case c(_) => e(g2()) }, // e(0) should be emitted now
       go { case d(_) + g(_, r) + g2(_, r2) => r(0); r2(0) } onThreads tp,
@@ -163,7 +163,7 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val g = b[Unit, Int]
     val g2 = b[Unit, Int]
     val h = b[Unit, Int]
-    val tp = new FixedPool(4)
+    val tp = FixedPool(4)
     site(tp0)(
       go { case c(_) => val x = g(); g2(); e(x) }, // e(0) should never be emitted because this thread is deadlocked
       go { case g(_, r) + g2(_, r2) => r(0); r2(0) } onThreads tp,
@@ -188,7 +188,7 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val d = m[Unit]
     val g = b[Unit, Int]
     val g2 = b[Unit, Int]
-    val tp = new FixedPool(2)
+    val tp = FixedPool(2)
     site(tp)(
       go { case d(_) => g(); () }, // this will be used to emit g() and block the thread
       go { case c(_) + g(_, r) => r(0) }, // this will not start because we have no c()
@@ -205,7 +205,7 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val d = m[Unit]
     val g = b[Unit, Int]
     val g2 = b[Unit, Int]
-    val tp = new FixedPool(1)
+    val tp = FixedPool(1)
     site(tp)(
       go { case d(_) => g(); () }, // this will be used to emit g() and block one thread
       go { case c(_) + g(_, r) => r(0) }, // this will not start because we have no c()
@@ -237,14 +237,14 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
   }
 
   it should "block the fixed threadpool when one thread is sleeping with Thread.sleep" in {
-    val tp = new FixedPool(1)
+    val tp = FixedPool(1)
     val res = makeBlockingCheck(Thread.sleep(1000), tp)
     res._2.timeout()(150 millis) shouldEqual None // this should be blocked
     tp.shutdownNow()
   }
 
   it should "block the fixed threadpool when one thread is sleeping with BlockingIdle(Thread.sleep)" in {
-    val tp = new FixedPool(1)
+    val tp = FixedPool(1)
     val res = makeBlockingCheck(BlockingIdle {
       Thread.sleep(500)
     }, tp)
@@ -253,7 +253,7 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
   }
 
   it should "not block the blocking threadpool with BlockingIdle(Thread.sleep)" in {
-    val tp = new BlockingPool(1)
+    val tp = BlockingPool(1)
     val (g, g2) = makeBlockingCheck(BlockingIdle {
       Thread.sleep(500)
     }, tp)
@@ -266,7 +266,7 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
   }
 
   it should "implement BlockingIdle(BlockingIdle()) as BlockingIdle()" in {
-    val tp = new BlockingPool(1)
+    val tp = BlockingPool(1)
     val (g, g2) = makeBlockingCheck(BlockingIdle {
       BlockingIdle {
         Thread.sleep(500)
@@ -306,28 +306,28 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
   }
 
   it should "block the fixed threadpool when all threads are waiting for new reactions" in {
-    withPool(new FixedPool(2)) { tp =>
+    withPool(FixedPool(2)) { tp =>
       val g = blockThreadsDueToBlockingMolecule(tp)
       g.timeout()(timeout) shouldEqual None
     }.get
   }
 
   it should "not block the fixed threadpool when more threads are available" in {
-    withPool(new FixedPool(3)) { tp =>
+    withPool(FixedPool(3)) { tp =>
       val g = blockThreadsDueToBlockingMolecule(tp)
       g.timeout()(timeout) shouldEqual Some(())
     }.get
   }
 
   it should "not block the blocking threadpool when all threads are waiting for new reactions" in {
-    withPool(new BlockingPool(2)) { tp ⇒
+    withPool(BlockingPool(2)) { tp ⇒
       val g = blockThreadsDueToBlockingMolecule(tp)
       g.timeout()(timeout) shouldEqual Some(())
     }.get
   }
 
   it should "not block the blocking threadpool when more threads are available" in {
-    withPool(new BlockingPool(3)) { tp ⇒
+    withPool(BlockingPool(3)) { tp ⇒
       val g = blockThreadsDueToBlockingMolecule(tp)
       g.timeout()(timeout) shouldEqual Some(())
     }.get

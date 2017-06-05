@@ -17,7 +17,7 @@ object Benchmarks1 {
     val d = m[Unit]
     val f = b[LocalDateTime,Long]
 
-    withPool(new FixedPool(8)) { tp1 =>
+    withPool(FixedPool(8)) { tp1 =>
       site(tp)( // Right now we don't use tp1. If we use `site(tp, tp1)`, the run time is increased by factor 2.
         go { case c(0) + f(tInit, r) =>
           r(elapsed(tInit))

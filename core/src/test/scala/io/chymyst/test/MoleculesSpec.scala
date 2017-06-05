@@ -17,7 +17,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
   override def beforeEach(): Unit = {
     clearGlobalErrorLog()
-    tp0 = new FixedPool(4)
+    tp0 = FixedPool(4)
   }
 
   override def afterEach(): Unit = {
@@ -309,7 +309,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
   // The way to avoid this problem is to define nested reaction sites *before* the new emitters are used.
   // This test intentionally defines the reaction site defining the {e -> } reaction *after* the `e` emitter is passed to the `a` reaction.
   it should "start reactions and throw exception when molecule emitters are passed to nested reactions slightly before they are bound" in {
-    val tp1 = new FixedPool(2)
+    val tp1 = FixedPool(2)
     clearGlobalErrorLog()
     val total = 100
     (1 to total).foreach { i =>
@@ -409,7 +409,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val a = new M[Int]("all_finished")
     val g = new B[Unit, Int]("getValue")
 
-    val tp = new FixedPool(1)
+    val tp = FixedPool(1)
 
     site(tp0)(
       go { case c(x) + d(_) => Thread.sleep(300); c(x - 1) + f() } onThreads tp,
@@ -436,7 +436,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val a = new M[Int]("all_finished")
     val g = new B[Unit, Int]("getValue")
 
-    val tp = new FixedPool(2)
+    val tp = FixedPool(2)
 
     site(tp0)(
       go { case c(_) + d(_) => Thread.sleep(300); f() } onThreads tp,
@@ -471,7 +471,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
     val g = new B[Unit, Unit]("getValue")
-    val tp = new FixedPool(2)
+    val tp = FixedPool(2)
 
     site(tp0)(
       go { case c(x) + d(_) =>
@@ -496,7 +496,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
     val g = new B[Unit, Unit]("getValue")
-    val tp = new FixedPool(2)
+    val tp = FixedPool(2)
 
     site(tp0)(
       go { case c(x) + d(_) =>
@@ -522,7 +522,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val c = new M[Int]("counter")
     val d = new M[Unit]("decrement")
     val g = new B[Unit, Unit]("getValue")
-    val tp = new FixedPool(2)
+    val tp = FixedPool(2)
 
     site(tp0)(
       go { case c(x) + d(_) =>
@@ -548,7 +548,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val c = new M[Int]("counter")
     val d = new B[Unit, Unit]("decrement")
     val g = new B[Unit, Unit]("getValue")
-    val tp = new FixedPool(2)
+    val tp = FixedPool(2)
 
     site(tp0)(
       go { case c(x) + d(_, r) =>

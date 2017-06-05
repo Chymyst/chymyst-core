@@ -2,8 +2,8 @@ package io.chymyst.jc
 
 import java.security.MessageDigest
 import java.time.LocalDateTime
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.{ConcurrentLinkedQueue, LinkedBlockingQueue, ThreadPoolExecutor, TimeUnit}
 import javax.xml.bind.DatatypeConverter
 
 import scala.annotation.tailrec
@@ -394,13 +394,5 @@ object Core {
   }
 
   val NO_REACTION_INFO_STRING = "<none>"
-
-  private[jc] def newSingleThreadedExecutor: ThreadPoolExecutor = {
-    val queue = new LinkedBlockingQueue[Runnable]
-    val secondsToRecycleThread = 1L
-    val executor = new ThreadPoolExecutor(1, 1, secondsToRecycleThread, TimeUnit.SECONDS, queue)
-    executor.allowCoreThreadTimeOut(true)
-    executor
-  }
 
 }

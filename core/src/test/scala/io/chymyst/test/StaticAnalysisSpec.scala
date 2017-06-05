@@ -476,7 +476,7 @@ class StaticAnalysisSpec extends LogSpec {
   behavior of "livelock with static molecules"
 
   it should "give warning in a simple reaction with possible livelock" in {
-    withPool(new FixedPool(2)) { tp ⇒
+    withPool(FixedPool(2)) { tp ⇒
       val a = m[Int]
       val warnings = site(tp)(
         go { case _ ⇒ a(1) },
@@ -487,7 +487,7 @@ class StaticAnalysisSpec extends LogSpec {
   }
 
   it should "give an error in a reaction with static molecule emitted conditionally" in {
-    val tp = new FixedPool(2)
+    val tp = FixedPool(2)
     val a = m[Int]
     the[Exception] thrownBy {
       val warnings = site(tp)(
@@ -500,7 +500,7 @@ class StaticAnalysisSpec extends LogSpec {
   }
 
   it should "give warning in a reaction with static molecule emitted conditionally with two branches" in {
-    val tp = new FixedPool(2)
+    val tp = FixedPool(2)
     val a = m[Int]
     val warnings = site(tp)(
       go { case _ ⇒ a(1) },

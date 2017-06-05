@@ -22,7 +22,7 @@ class MapReduceSpec extends LogSpec {
     val d = m[Int]
     val get = b[Unit, List[Int]]
 
-    val tp = new FixedPool(4)
+    val tp = FixedPool(4)
     site(tp)(
       go { case d(n) => r(n * 2) },
       go { case res(list) + r(s) => res(s :: list) },
@@ -55,7 +55,7 @@ class MapReduceSpec extends LogSpec {
     val accum = m[(Int, Int)]
     val fetch = b[Unit, Int]
 
-    val tp = new FixedPool(8)
+    val tp = FixedPool(8)
 
     // declare the reaction for "map"
     site(tp)(
@@ -93,8 +93,8 @@ class MapReduceSpec extends LogSpec {
     val interm = m[(Int, Int)]
     val fetch = b[Unit, Int]
 
-    val tp = new FixedPool(8)
-    val tp2 = new FixedPool(1)
+    val tp = FixedPool(8)
+    val tp2 = FixedPool(1)
 
     // reactions for "reduce" must be together since they share "interm"
     site(tp)(
@@ -132,8 +132,8 @@ class MapReduceSpec extends LogSpec {
     val fetch = b[Unit, Int]
     val done = m[Int]
 
-    val tp = new FixedPool(8)
-    val tp2 = new FixedPool(1)
+    val tp = FixedPool(8)
+    val tp2 = FixedPool(1)
 
     // reactions for "reduce" must be together since they share "interm"
     site(tp)(
@@ -165,7 +165,7 @@ class MapReduceSpec extends LogSpec {
 
     val count = 10000
 
-    val tp = new FixedPool(cpuCores + 1)
+    val tp = FixedPool(cpuCores + 1)
     val initTime = System.currentTimeMillis()
 
     site(tp)(
@@ -194,8 +194,8 @@ class MapReduceSpec extends LogSpec {
 
     val count = 10000
 
-    val tp = new FixedPool(cpuCores + 1)
-    val tp2 = new FixedPool(1)
+    val tp = FixedPool(cpuCores + 1)
+    val tp2 = FixedPool(1)
     val initTime = System.currentTimeMillis()
 
     site(tp)(
@@ -226,9 +226,9 @@ class MapReduceSpec extends LogSpec {
 
     val count = 100000
 
-    val tp = new FixedPool(cpuCores + 1)
-    val tp2 = new FixedPool(1)
-    val tp3 = new FixedPool(1)
+    val tp = FixedPool(cpuCores + 1)
+    val tp2 = FixedPool(1)
+    val tp3 = FixedPool(1)
     val initTime = System.currentTimeMillis()
 
     site(tp2)(
@@ -287,7 +287,7 @@ class MapReduceSpec extends LogSpec {
     val count = 2
 
     (1 to n).foreach { _ ⇒
-      val tp = new FixedPool(numberOfCounters)
+      val tp = FixedPool(numberOfCounters)
 
       val done = m[Unit]
       val all_done = m[Int]
@@ -346,8 +346,8 @@ class MapReduceSpec extends LogSpec {
     val done = m[Int]
     val f = b[Unit, Int]
 
-    val tp = new FixedPool(cpuCores)
-    val tp2 = new FixedPool(1)
+    val tp = FixedPool(cpuCores)
+    val tp2 = FixedPool(1)
     val initTime = System.currentTimeMillis()
 
     site(tp2)(
@@ -384,7 +384,7 @@ class MapReduceSpec extends LogSpec {
 
     val count = 30
 
-    val tp = new FixedPool(cpuCores)
+    val tp = FixedPool(cpuCores)
     val initTime = System.currentTimeMillis()
 
     site(tp)(
@@ -532,8 +532,8 @@ class MapReduceSpec extends LogSpec {
   }
 
   it should "use algorithm with binary split" in {
-    val tp = new FixedPool(cpuCores + 2)
-    val tp1 = new FixedPool(1)
+    val tp = FixedPool(cpuCores + 2)
+    val tp1 = FixedPool(1)
 
     val result = m[Int]
     val f = b[Unit, Int]
@@ -554,8 +554,8 @@ class MapReduceSpec extends LogSpec {
   }
 
   it should "use algorithm with optimizations in binary split" in {
-    val tp = new FixedPool(cpuCores + 2)
-    val tp1 = new FixedPool(1)
+    val tp = FixedPool(cpuCores + 2)
+    val tp1 = FixedPool(1)
 
     val result = m[Int]
     val f = b[Unit, Int]
@@ -576,8 +576,8 @@ class MapReduceSpec extends LogSpec {
   }
 
   it should "use algorithm with ternary split" in {
-    val tp = new FixedPool(cpuCores + 2)
-    val tp1 = new FixedPool(1)
+    val tp = FixedPool(cpuCores + 2)
+    val tp1 = FixedPool(1)
 
     val result = m[Int]
     val f = b[Unit, Int]
@@ -598,8 +598,8 @@ class MapReduceSpec extends LogSpec {
   }
 
   it should "use algorithm with log(n) reaction sites" in {
-    val tp = new FixedPool(cpuCores + 2)
-    val tp1 = new FixedPool(1)
+    val tp = FixedPool(cpuCores + 2)
+    val tp1 = FixedPool(1)
 
     val count = countHierarchical
 

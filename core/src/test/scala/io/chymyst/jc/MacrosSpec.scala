@@ -16,7 +16,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
   def waitSome(): Unit = Thread.sleep(warmupTimeMs)
 
   override def beforeEach(): Unit = {
-    tp0 = new FixedPool(4)
+    tp0 = FixedPool(4)
   }
 
   override def afterEach(): Unit = {

@@ -8,9 +8,11 @@ import io.chymyst.jc._
   */
 class ShutdownSpec extends LogSpec {
 
-  it should "not fail to schedule reactions after a timeout of site pool" in {
+  behavior of "pool threads"
 
-    val pool = new FixedPool(2)
+  it should "not fail to schedule reactions after a timeout when fixed pool may free threads" in {
+
+    val pool = FixedPool()
 
     val x = m[Unit]
     site(pool)(go { case x(()) => })
@@ -20,9 +22,25 @@ class ShutdownSpec extends LogSpec {
     pool.shutdownNow()
   }
 
+  it should "not fail to schedule reactions after a timeout when BlockingPool may free threads" in {
+
+    val pool = BlockingPool()
+
+    pool.currentPoolSize shouldEqual cpuCores
+
+    val x = m[Unit]
+    site(pool)(go { case x(()) => })
+    x()
+    pool.currentPoolSize shouldEqual cpuCores
+    Thread.sleep(5000)
+    pool.currentPoolSize shouldEqual cpuCores
+    x()
+    pool.shutdownNow()
+  }
+
   it should "not fail to schedule reactions after shutdown of custom reaction pool" in {
 
-    val pool = new FixedPool(2)
+    val pool = FixedPool(2)
     pool.shutdownNow()
 
     val x = m[Unit]
@@ -43,4 +61,5 @@ class ShutdownSpec extends LogSpec {
       x()
     } should have message "In Site{x → ...}: Cannot emit molecule x() because reaction pool is not active"
   }
+
 }

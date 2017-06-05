@@ -34,9 +34,9 @@ class GameOfLifeSpec extends LogSpec {
     // blocking molecule to fetch the final accumulator value
     val g = b[Unit, Array[Array[Int]]]
 
-    val tp = new FixedPool(4)
+    val tp = FixedPool(4)
 
-    val tp2 = new FixedPool(2)
+    val tp2 = FixedPool(2)
 
     // Toroidal board of size m * n
     val boardSize = BoardSize(5, 5)
@@ -130,8 +130,8 @@ class GameOfLifeSpec extends LogSpec {
     // blocking molecule to fetch the final accumulator value
     val g = b[Unit, Array[Array[Int]]]
 
-    val tp = new FixedPool(16)
-    val tp2 = new FixedPool(2)
+    val tp = FixedPool(16)
+    val tp2 = FixedPool(2)
 
     // Toroidal board of size m * n
     val boardSize = BoardSize(5, 5)
@@ -229,8 +229,8 @@ class GameOfLifeSpec extends LogSpec {
     // blocking molecule to fetch the final accumulator value
     val g = b[Unit, Array[Array[Int]]]
 
-    val tp = new FixedPool(16)
-    val tp2 = new FixedPool(2)
+    val tp = FixedPool(16)
+    val tp2 = FixedPool(2)
 
     // Toroidal board of size m * n
     val boardSize = BoardSize(10, 10)
@@ -365,8 +365,8 @@ class GameOfLifeSpec extends LogSpec {
     // blocking molecule to fetch the final accumulator value
     val g = b[Unit, Array[Array[Int]]]
 
-    val tp = new FixedPool(16)
-    val tp2 = new FixedPool(2)
+    val tp = FixedPool(16)
+    val tp2 = FixedPool(2)
 
     // Toroidal board of size m * n
     val boardSize = BoardSize(10, 10)
@@ -503,8 +503,8 @@ class GameOfLifeSpec extends LogSpec {
     // blocking molecule to fetch the final accumulator value
     val g = b[Unit, Array[Array[Int]]]
 
-    val tp = new FixedPool(16) // maximum parallelism
-    val tp2 = new FixedPool(2)
+    val tp = FixedPool(16) // maximum parallelism
+    val tp2 = FixedPool(2)
 
     val emptyBoard: Array[Array[Int]] = Array.fill(boardSize.x, boardSize.y)(0)
 

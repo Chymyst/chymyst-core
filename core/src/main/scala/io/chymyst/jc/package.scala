@@ -46,7 +46,7 @@ package object jc {
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
     * @return A [[Reaction]] value, containing the reaction body as well as static information about input and output molecules.
     */
-  def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl // IDEA cannot resolve symbol `BlackboxMacros`, but compilation works.
+  def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl // IntelliJ cannot resolve symbol `BlackboxMacros`, but compilation works.
 
   /**
     * Convenience syntax: users can write `a(x) + b(y)` to emit several molecules at once.
@@ -71,7 +71,7 @@ package object jc {
     * @tparam T Type of the value carried by the molecule.
     * @return A new instance of class [[io.chymyst.jc.M]]`[T]`.
     */
-  def m[T]: M[T] = macro MoleculeMacros.mImpl[T] // IDEA cannot resolve symbol `MoleculeMacros`, but compilation works.
+  def m[T]: M[T] = macro MoleculeMacros.mImpl[T] // IntelliJ cannot resolve symbol `MoleculeMacros`, but compilation works.
 
   /** Declare a new blocking molecule emitter.
     * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
@@ -80,10 +80,10 @@ package object jc {
     * @tparam R Type of the reply value.
     * @return A new instance of class [[io.chymyst.jc.B]]`[T,R]`.
     */
-  def b[T, R]: B[T, R] = macro MoleculeMacros.bImpl[T, R] // IDEA cannot resolve symbol `MoleculeMacros`, but compilation works.
+  def b[T, R]: B[T, R] = macro MoleculeMacros.bImpl[T, R] // IntelliJ cannot resolve symbol `MoleculeMacros`, but compilation works.
 
   /** This pool is used for sites that do not specify a thread pool. */
-  lazy val defaultPool = new BlockingPool()
+  lazy val defaultPool = new BlockingPool("defaultPool")
 
   /** Access the global error log used by all reaction sites to report runtime errors.
     *
@@ -98,7 +98,7 @@ package object jc {
 
   /** A helper method to run a closure that uses a thread pool, safely closing the pool after use.
     *
-    * @param pool   A thread pool value, evaluated lazily - typically `new BlockingPool(...)`.
+    * @param pool   A thread pool value, evaluated lazily - typically `BlockingPool(...)`.
     * @param doWork A closure, typically containing a `site(pool)(...)` call.
     * @tparam T Type of the value returned by the closure.
     * @return The value returned by the closure, wrapped in a `Try`.
