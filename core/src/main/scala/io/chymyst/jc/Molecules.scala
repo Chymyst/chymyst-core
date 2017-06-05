@@ -6,6 +6,7 @@ import io.chymyst.jc.Core._
 import io.chymyst.util.Budu
 
 import scala.collection.mutable
+import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 
 /** Convenience syntax: provides an `unapply` operation, so that users can write the chemical notation, such as
@@ -183,11 +184,11 @@ sealed trait MolEmitter extends PersistentHashCode {
     ()
   }
 
-  final def setLogLevel(logLevel: Int): Unit = ensureReactionSite {
+  @inline final def setLogLevel(logLevel: Int): Unit = ensureReactionSite {
     reactionSite.logLevel = logLevel
   }
 
-  final protected[jc] def ensureReactionSite[T](x: => T): T = {
+  @inline final protected[jc] def ensureReactionSite[T](x: => T): T = {
     if (hasReactionSite)
       x
     else throw new ExceptionNoReactionSite(s"Molecule $this is not bound to any reaction site")
@@ -268,8 +269,8 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter {
   * @tparam T Type of the value that the molecule carries.
   * @tparam R Type of the reply value.
   */
-private[jc] final class ReplyEmitter[T, R] extends (R => Boolean) {
-  private[jc] val reply = Budu[R]
+private[jc] final class ReplyEmitter[T, R](useFuture: Boolean) extends (R => Boolean) {
+  @inline private[jc] val reply = Budu[R](useFuture)
 
   def noReplyAttemptedYet: Boolean = reply.isEmpty
 
@@ -313,10 +314,11 @@ final class B[T, R](val name: String) extends (T => R) with MolEmitter {
   def timeout(v: T)(duration: Duration): Option[R] =
     reactionSite.emitAndAwaitReplyWithTimeout(duration, this, v)
 
-  /** Same but for molecules with type `T = Unit`; enables shorter syntax `b().timeout(1.second)`. */
+  /** Same but for molecules with type `T == Unit`; enables shorter syntax `b.timeout()(1.second)`. */
   def timeout()(duration: Duration)(implicit arg: TypeMustBeUnit[T]): Option[R] = timeout(arg.getUnit)(duration)
 
-  /** Perform the unapply matching and return a wrapped ReplyValue on success.
+  /** Perform the unapply matching and return a named extractor on success.
+    * The extractor will always succeed, yielding the molecule value held by a [[BlockingMolValue]].
     *
     * @param arg The input molecule list and the index into that list, indicating which molecule value we need.
     * @return An instance of [[BlockingMolValue]] that plays the role of its own extractor.
@@ -336,6 +338,13 @@ final class B[T, R](val name: String) extends (T => R) with MolEmitter {
 
   /** This enables the short syntax `b()` instead of `b(())`, and will only work when `T == Unit`. */
   def apply()(implicit arg: TypeMustBeUnit[T]): R = (apply(arg.getUnit): @inline)
+
+  def futureReply(v: T): Future[R] = ensureReactionSite {
+    reactionSite.emitAndGetFutureReply(this, v)
+  }
+
+  /** This enables the short syntax `b.futureReply()` instead of `b.futureReply(())`, and will only work when `T == Unit`. */
+  def futureReply()(implicit arg: TypeMustBeUnit[T]): Future[R] = (futureReply(arg.getUnit): @inline)
 
   def isSelfBlocking: Boolean = valSelfBlockingPool.exists { pool ⇒
     Thread.currentThread match {

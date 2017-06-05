@@ -7,6 +7,7 @@ import io.chymyst.jc.StaticAnalysis._
 
 import scala.annotation.tailrec
 import scala.collection.breakOut
+import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 
 /** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
@@ -486,8 +487,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @tparam R Type of the reply value.
     * @return Wrapper for the blocking molecule's value.
     */
-  @inline private def emitAndAwaitReplyInternal[T, R](bm: B[T, R], v: T) = {
-    val blockingMolValue = BlockingMolValue(v, new ReplyEmitter[T, R])
+  @inline private def emitAndCreateReplyEmitter[T, R](bm: B[T, R], v: T, useFuture: Boolean = false) = {
+    val blockingMolValue = BlockingMolValue(v, new ReplyEmitter[T, R](useFuture))
     emit[T](bm, blockingMolValue)
     blockingMolValue
   }
@@ -496,19 +497,23 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   // We must make this a blocking call, so we acquire a semaphore (with or without timeout).
   @inline private[jc] def emitAndAwaitReply[T, R](bm: B[T, R], v: T): R = {
     BlockingIdle(bm.isSelfBlocking) {
-      emitAndAwaitReplyInternal(bm, v).replyEmitter.reply.await
+      emitAndCreateReplyEmitter(bm, v).replyEmitter.reply.await
     }
   }
 
   // This is a separate method because it has a different return type than [[emitAndAwaitReply]].
   @inline private[jc] def emitAndAwaitReplyWithTimeout[T, R](timeout: Duration, bm: B[T, R], v: T): Option[R] = {
-    val bmv = emitAndAwaitReplyInternal(bm, v)
+    val bmv = emitAndCreateReplyEmitter(bm, v)
     val result = BlockingIdle(bm.isSelfBlocking) {
       bmv.replyEmitter.reply.await(timeout)
     }
     if (result.isEmpty)
       removeBlockingMolecule(bm, bmv)
     result
+  }
+
+  @inline private[jc] def emitAndGetFutureReply[T, R](bm: B[T, R], v: T): Future[R] = {
+    emitAndCreateReplyEmitter(bm, v, useFuture = true).replyEmitter.reply.getFuture
   }
 
   /** This is called once, when the reaction site is first declared using the [[site]] call.
