@@ -485,7 +485,7 @@ To facilitate this control, `Chymyst Core` implements the thread pool feature.
 Each RS uses a special thread pool (the `reactionPool`).
 The reaction pool contains two sets of threads:
 
-1. A common thread executor for running reactions. This thread executor can have one or more threads.
+1. A common `ThreadPoolExecutor` for running reactions. This thread executor (called `workerExecutor` in `Pool.scala`) can have one or more threads.
 2. A single, dedicated scheduler thread for deciding new reactions (called the `schedulerExecutor` in the code).
 
 By default, the reaction sites use a statically allocated reaction pool that is shared by all RSs.
@@ -559,10 +559,6 @@ site(tp)(
  go { case c(_) => ... }, // this reaction will run on `tp`
 )
 
-// Wait until all done.
-tp.shutdownNow()
-tp2.shutdownNow()
-
 ```
 
 By default, all sites will use the `defaultPool`.
@@ -571,9 +567,9 @@ If the reaction pool is specified for a particular RS, all reactions in that RS 
 
 ## Stopping a thread pool
 
-Since JVM will not quit when some threads are still active, the programmer needs to stop the thread pool when all tasks are finished and no more reactions need to be run.
+Sometimes the programmer needs to stop the thread pool imediately, so that no more reactions can be run.
 
-The method `shutdownNow()` will stop the threads in the thread pool.
+The method `shutdownNow()` will interrupt all threads in the thread pool and clear out the reaction queue.
 
 ```scala
 val tp = BlockingPool(8)
@@ -582,14 +578,16 @@ site(tp)(...)
 
 // Emit molecules
   ...
-// Now wait until all tasks are finished.
-
+// All work needs to be stopped now.
 tp.shutdownNow()
 
 ```
 
 Thread pools also implement the `AutoCloseable` interface.
 The `close()` method is an alias to `shutdownNow()`.
+
+Thread pools will stop their threads when idle for a certain time `Pool.recycleThreadTimeMs()`.
+So usually it is not necessary to shut down the pools manually.
 
 ## Blocking calls and thread pools
 

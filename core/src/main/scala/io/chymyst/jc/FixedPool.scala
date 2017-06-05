@@ -12,16 +12,16 @@ final class FixedPool(name: String, override val parallelism: Int = cpuCores, pr
   private[jc] val blockingCalls = new AtomicInteger(0)
 
   private[jc] def deadlockCheck(): Unit = {
-    val deadlock = blockingCalls.get >= executor.getMaximumPoolSize
+    val deadlock = blockingCalls.get >= workerExecutor.getMaximumPoolSize
     if (deadlock) {
-      val message = s"Error: deadlock occurred in fixed pool (${executor.getMaximumPoolSize} threads) due to ${blockingCalls.get} concurrent blocking calls, reaction: ${Core.getReactionInfo}"
+      val message = s"Error: deadlock occurred in fixed pool (${workerExecutor.getMaximumPoolSize} threads) due to ${blockingCalls.get} concurrent blocking calls, reaction: ${Core.getReactionInfo}"
       Core.logError(message, print = true)
     }
   }
 
   private[chymyst] def runReaction(closure: => Unit): Unit = {
     deadlockCheck()
-    executor.execute { () ⇒ closure }
+    workerExecutor.execute { () ⇒ closure }
   }
 
   private[jc] override def startedBlockingCall(selfBlocking: Boolean) = if (selfBlocking) {

@@ -25,13 +25,13 @@ final class BlockingPool(name: String, override val parallelism: Int = cpuCores,
   // Looks like we will die hard at about 2021 threads...
   val poolSizeLimit: Int = math.min(2000, 1000 + 2 * parallelism)
 
-  def currentPoolSize: Int = executor.getCorePoolSize
+  def currentPoolSize: Int = workerExecutor.getCorePoolSize
 
   private[jc] override def startedBlockingCall(selfBlocking: Boolean) = synchronized { // Need a lock to modify the pool sizes.
     val newPoolSize = math.min(currentPoolSize + 1, poolSizeLimit)
     if (newPoolSize > currentPoolSize) {
-      executor.setMaximumPoolSize(newPoolSize)
-      executor.setCorePoolSize(newPoolSize)
+      workerExecutor.setMaximumPoolSize(newPoolSize)
+      workerExecutor.setCorePoolSize(newPoolSize)
     } else {
       logMessage(s"Chymyst Core warning: In $this: It is dangerous to increase the pool size, which is now $currentPoolSize. Memory is ${Runtime.getRuntime.maxMemory}")
     }
@@ -39,11 +39,11 @@ final class BlockingPool(name: String, override val parallelism: Int = cpuCores,
 
   private[jc] override def finishedBlockingCall(selfBlocking: Boolean) = synchronized { // Need a lock to modify the pool sizes.
     val newPoolSize = math.max(parallelism, currentPoolSize - 1)
-    executor.setCorePoolSize(newPoolSize) // Must set them in this order, so that the core pool size is never larger than the maximum pool size.
-    executor.setMaximumPoolSize(newPoolSize)
+    workerExecutor.setCorePoolSize(newPoolSize) // Must set them in this order, so that the core pool size is never larger than the maximum pool size.
+    workerExecutor.setMaximumPoolSize(newPoolSize)
   }
 
-  private[chymyst] override def runReaction(closure: => Unit): Unit = executor.execute { () => closure }
+  private[chymyst] override def runReaction(closure: => Unit): Unit = workerExecutor.execute { () => closure }
 }
 
 object BlockingPool {

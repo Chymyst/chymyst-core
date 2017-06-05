@@ -50,7 +50,7 @@ class PoolSpec extends LogSpec {
 
     tp.shutdownNow()
   }
-/*
+
   it should "interrupt a thread when shutting down" in {
     val waiter = new Waiter
 
@@ -76,7 +76,7 @@ class PoolSpec extends LogSpec {
 
     waiter.await()(patienceConfig, implicitly[Position])
   }
-*/
+
   behavior of "Chymyst thread"
 
   it should "return empty info by default" in {

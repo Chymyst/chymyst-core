@@ -26,7 +26,7 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
     */
   private[chymyst] def runReaction(closure: => Unit): Unit
 
-  def isInactive: Boolean = executor.isShutdown || executor.isTerminated
+  def isInactive: Boolean = workerExecutor.isShutdown || workerExecutor.isTerminated
 
   override def close(): Unit = shutdownNow()
 
@@ -44,7 +44,7 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
     tg
   }
 
-  private[jc] val schedulerQueue: BlockingQueue[Runnable] = new LinkedBlockingQueue[Runnable]
+  private val schedulerQueue: BlockingQueue[Runnable] = new LinkedBlockingQueue[Runnable]
 
   private val schedulerThreadFactory: ThreadFactory = { (r: Runnable) ⇒ new Thread(threadGroup, r, toString + ",scheduler_thread") }
 
@@ -56,35 +56,39 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
 
   private[jc] def runScheduler(runnable: Runnable): Unit = schedulerExecutor.execute(runnable)
 
-  private[jc] val queue: BlockingQueue[Runnable] = new LinkedBlockingQueue[Runnable]
+  private val workerQueue: BlockingQueue[Runnable] = new LinkedBlockingQueue[Runnable]
 
-  private val threadFactory: ThreadFactory = { (r: Runnable) ⇒ new ChymystThread(r, Pool.this) }
+  private val workerThreadFactory: ThreadFactory = { (r: Runnable) ⇒ new ChymystThread(r, Pool.this) }
 
-  protected val executor: ThreadPoolExecutor = {
-    val executor = new ThreadPoolExecutor(parallelism, parallelism, recycleThreadTimeMs, TimeUnit.MILLISECONDS, queue, threadFactory)
+  protected val workerExecutor: ThreadPoolExecutor = {
+    val executor = new ThreadPoolExecutor(parallelism, parallelism, recycleThreadTimeMs, TimeUnit.MILLISECONDS, workerQueue, workerThreadFactory)
     executor.allowCoreThreadTimeOut(true)
     executor
   }
 
-  val executionContext: ExecutionContext = ExecutionContext.fromExecutor(executor)
+  val executionContext: ExecutionContext = ExecutionContext.fromExecutor(workerExecutor)
 
   private val currentThreadId: AtomicInteger = new AtomicInteger(0)
 
   private[jc] def nextThreadName: String = threadNameBase + currentThreadId.getAndIncrement().toString
 
-  def shutdownNow(): Unit = ()
-
-  /*def shutdownNow(): Unit = new Thread {
+  /** Shut down the thread pool when required. This will interrupt all threads and clear the worker and the scheduler queues.
+    *
+    * Usually this is not needed in application code. Call this method in a situation when work has to be stopped immediately.
+    */
+  def shutdownNow(): Unit = new Thread {
     try {
-      executor.getQueue.clear()
-      executor.shutdown()
-      executor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
+      schedulerExecutor.getQueue.clear()
+      schedulerExecutor.shutdown()
+      workerExecutor.getQueue.clear()
+      workerExecutor.shutdown()
+      workerExecutor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
     } finally {
-      executor.shutdownNow()
-      executor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
-      executor.shutdownNow()
+      workerExecutor.shutdownNow()
+      workerExecutor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
+      workerExecutor.shutdownNow()
       ()
     }
   }.start()
-*/
+
 }

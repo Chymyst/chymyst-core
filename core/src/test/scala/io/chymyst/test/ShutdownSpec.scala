@@ -38,7 +38,7 @@ class ShutdownSpec extends LogSpec {
     pool.shutdownNow()
   }
 
-/*  it should "not fail to schedule reactions after shutdown of custom reaction pool" in {
+  it should "not fail to schedule reactions after shutdown of custom reaction pool" in {
 
     val pool = FixedPool(2)
     pool.shutdownNow()
@@ -61,5 +61,5 @@ class ShutdownSpec extends LogSpec {
       x()
     } should have message "In Site{x → ...}: Cannot emit molecule x() because reaction pool is not active"
   }
-  */
+
 }
