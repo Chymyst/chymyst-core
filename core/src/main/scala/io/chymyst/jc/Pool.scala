@@ -34,12 +34,6 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
 
   protected val schedulerExecutor: ThreadPoolExecutor = Core.newSingleThreadedExecutor
 
-  protected val executor: ThreadPoolExecutor = {
-    val executor = new ThreadPoolExecutor(0, parallelism, recycleThreadTimeMs, TimeUnit.MILLISECONDS, queue, threadFactory)
-    executor.allowCoreThreadTimeOut(true)
-    executor
-  }
-
   val executionContext: ExecutionContext = ExecutionContext.fromExecutor(executor)
 
   private[jc] val queue: BlockingQueue[Runnable] = new LinkedBlockingQueue[Runnable]
@@ -58,9 +52,15 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
 
   protected val threadFactory: ThreadFactory = { (r: Runnable) ⇒ new ChymystThread(r, Pool.this) }
 
+  protected val executor: ThreadPoolExecutor = {
+    val executor = new ThreadPoolExecutor(parallelism, parallelism, recycleThreadTimeMs, TimeUnit.MILLISECONDS, queue, threadFactory)
+    executor.allowCoreThreadTimeOut(true)
+    executor
+  }
+
   private val currentThreadId: AtomicInteger = new AtomicInteger(0)
 
-  private[jc] def nextThreadName: String = threadNameBase + currentThreadId.getAndIncrement()
+  private[jc] def nextThreadName: String = threadNameBase + "-" + currentThreadId.getAndIncrement().toString
 
   def shutdownNow(): Unit = new Thread {
     try {
@@ -75,4 +75,5 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
     }
   }.start()
 
+  override val toString: String = s"${this.getClass.getSimpleName}:$name"
 }

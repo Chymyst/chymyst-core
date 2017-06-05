@@ -17,12 +17,12 @@ class PoolSpec extends LogSpec {
     val n = 1065
     val tp = BlockingPool(2)
 
-    tp.maxPoolSize should be < n
+    tp.poolSizeLimit should be < n
     tp.currentPoolSize shouldEqual 2
 
-    (1 to tp.maxPoolSize + 2).foreach (_ => tp.startedBlockingCall(false))
+    (1 to tp.poolSizeLimit + 2).foreach (_ => tp.startedBlockingCall(false))
 
-    tp.currentPoolSize shouldEqual tp.maxPoolSize
+    tp.currentPoolSize shouldEqual tp.poolSizeLimit
 
     tp.shutdownNow()
   }
@@ -40,8 +40,7 @@ class PoolSpec extends LogSpec {
       waiter.dismiss()
 
       try {
-        Thread.sleep(10000000)  // this should not time out
-
+        Thread.sleep(10000000) // this should not time out
       } catch {
         case _: InterruptedException => ()
       }
@@ -59,13 +58,16 @@ class PoolSpec extends LogSpec {
 
     tp.runReaction({
       try {
-        Thread.sleep(10000000)  // this should not time out
+        Thread.sleep(10000000) // this should not time out
 
       } catch {
         case _: InterruptedException => waiter.dismiss()
         case other: Exception =>
           other.printStackTrace()
-          waiter { false shouldEqual true ; () }
+          waiter {
+            false shouldEqual true;
+            ()
+          }
       }
     })
     Thread.sleep(20)
@@ -83,14 +85,45 @@ class PoolSpec extends LogSpec {
     thread.reactionInfo shouldEqual Core.NO_REACTION_INFO_STRING
   }
 
-  behavior of "blocking pool"
+  behavior of "fixed pool"
 
-  it should "initialize with default CPU core parallelism" in {
-    val tp = BlockingPool()
-
-    tp.currentPoolSize shouldEqual cpuCores
+  it should "initialize with default settings" in {
+    val tp = FixedPool()
+    tp.name shouldEqual "tp"
+    tp.toString shouldEqual "FixedPool:tp"
+    tp.parallelism shouldEqual cpuCores
     tp.executionContext.isInstanceOf[ExecutionContext] shouldEqual true
     tp.close()
   }
 
+  it should "initialize with specified settings" in {
+    val tp = FixedPool(313)
+    tp.name shouldEqual "tp"
+    tp.toString shouldEqual "FixedPool:tp"
+    tp.parallelism shouldEqual 313
+    tp.executionContext.isInstanceOf[ExecutionContext] shouldEqual true
+    tp.close()
+  }
+
+  behavior of "blocking pool"
+
+  it should "initialize with default CPU core parallelism" in {
+    val tp = BlockingPool()
+    tp.name shouldEqual "tp"
+    tp.toString shouldEqual "BlockingPool:tp"
+    tp.currentPoolSize shouldEqual cpuCores
+    tp.poolSizeLimit should be > 1000
+    tp.executionContext.isInstanceOf[ExecutionContext] shouldEqual true
+    tp.close()
+  }
+
+  it should "initialize with specified parallelism" in {
+    val tp = BlockingPool(313)
+    tp.name shouldEqual "tp"
+    tp.toString shouldEqual "BlockingPool:tp"
+    tp.currentPoolSize shouldEqual 313
+    tp.poolSizeLimit should be > 1000
+    tp.executionContext.isInstanceOf[ExecutionContext] shouldEqual true
+    tp.close()
+  }
 }
