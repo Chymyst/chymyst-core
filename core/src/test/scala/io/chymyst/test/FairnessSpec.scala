@@ -27,7 +27,7 @@ class FairnessSpec extends LogSpec {
       val a3 = m[Unit]
       //n = 4
 
-      val tp = new FixedPool(4)
+      val tp = FixedPool(4)
 
       site(tp)(
         go { case getC(_, r) + done(arr) => r(arr) },
@@ -96,7 +96,7 @@ class FairnessSpec extends LogSpec {
     val gather = m[List[Int]]
     val a = m[Int]
 
-    val tp = new FixedPool(8)
+    val tp = FixedPool(8)
 
     site(tp)(
       go { case done(arr) + getC(_, r) => r(arr) },
@@ -135,7 +135,7 @@ class FairnessSpec extends LogSpec {
     val f = m[(Int, Int, Int)]
     val g = b[Unit, (Int, Int)]
 
-    val tp = new FixedPool(8)
+    val tp = FixedPool(8)
 
     site(tp)(
       go { case a(x) + bb(y) if x == y => d() },
@@ -173,7 +173,7 @@ class FairnessSpec extends LogSpec {
   // This test failed to complete in 500ms on Travis CI with Scala 2.10, but succeeds with 2.11. However, this could have been a fluctuation.
   it should "fail to schedule reactions fairly after multiple emission into separate RSs" in {
 
-    val tp = new FixedPool(8)
+    val tp = FixedPool(8)
 
     def makeRS(d1: M[Unit], d2: M[Unit]): (M[Unit], M[Unit], M[Unit]) = {
       val a = m[Unit]

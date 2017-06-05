@@ -529,7 +529,7 @@ class GuardsSpec extends LogSpec {
     val bb = m[Option[Int]]
     val f = b[Unit, Boolean]
 
-    withPool(new FixedPool(4)) { tp ⇒
+    withPool(FixedPool(4)) { tp ⇒
       site(tp)(go { case a(Some(px@(1))) + bb(py@Some(y)) + f(_, r) // ignore warning about "non-variable type argument Int"
         if py.get > px ⇒ r(true) })
       // TODO: fix type breakage if we write z + px.get instead of z + x: the reason is that `px` is inferred to be Some[Any] instead of Some[Int]
@@ -545,7 +545,7 @@ class GuardsSpec extends LogSpec {
     val a = m[Int]
     val f = b[Unit, Unit]
 
-    val status = withPool(new FixedPool(4)) { tp =>
+    val status = withPool(FixedPool(4)) { tp =>
       site(tp)(go { case a(x) + a(y) + f(_, r) if x == y + 1 => r() })
 
       (1 to 3).foreach(_ => a(0) + a(1))
@@ -579,7 +579,7 @@ class GuardsSpec extends LogSpec {
     val a = m[Int]
     val f = b[Unit, Boolean]
 
-    withPool(new FixedPool(4)) { tp ⇒
+    withPool(FixedPool(4)) { tp ⇒
       site(tp)(go { case a(1) + a(y) + a(z) + f(_, r) if y > z ⇒ r(true) })
 
       (1 to 3).foreach { i ⇒ a(i) }
@@ -591,7 +591,7 @@ class GuardsSpec extends LogSpec {
     val a = m[Option[Int]]
     val f = b[Unit, Boolean]
 
-    withPool(new FixedPool(4)) { tp ⇒
+    withPool(FixedPool(4)) { tp ⇒
       site(tp)(go { case a(Some(1)) + a(Some(y)) + a(Some(z)) + f(_, r) if y > z && z > 1 ⇒ r(true) })
       (1 to 3).foreach(_ ⇒ (1 to 3).foreach { i ⇒ a(Some(i)) })
       (1 to 3).map(_ ⇒ f.timeout()(1.second)).map(_.get).reduce(_ && _)
@@ -602,7 +602,7 @@ class GuardsSpec extends LogSpec {
     val a = m[Option[Int]]
     val f = b[Unit, Boolean]
 
-    withPool(new FixedPool(4)) { tp ⇒
+    withPool(FixedPool(4)) { tp ⇒
       site(tp)(go { case a(Some(px@(1))) + a(py@Some(y)) + a(Some(z)) + f(_, r) // ignore warning about "non-variable type argument Int"
         if py.get >= z + px ⇒ r(true) })
       // TODO: fix type breakage if we write z + px.get instead of z + x: the reason is that `px` is inferred to be Some[Any] instead of Some[Int]

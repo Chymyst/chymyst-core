@@ -10,7 +10,7 @@ class ShutdownSpec extends LogSpec {
 
   it should "not fail to schedule reactions after a timeout of site pool" in {
 
-    val pool = new FixedPool(2)
+    val pool = FixedPool(2)
 
     val x = m[Unit]
     site(pool)(go { case x(()) => })
@@ -22,7 +22,7 @@ class ShutdownSpec extends LogSpec {
 
   it should "not fail to schedule reactions after shutdown of custom reaction pool" in {
 
-    val pool = new FixedPool(2)
+    val pool = FixedPool(2)
     pool.shutdownNow()
 
     val x = m[Unit]

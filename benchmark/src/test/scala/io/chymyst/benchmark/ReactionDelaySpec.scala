@@ -17,7 +17,7 @@ class ReactionDelaySpec extends LogSpec {
 
   it should "measure simple statistics on reaction delay" in {
     val f = b[Unit, Unit]
-    val tp = new BlockingPool(4)
+    val tp = BlockingPool(4)
     site(tp)(
       go { case f(_, r) => r() }
     )
@@ -36,7 +36,7 @@ class ReactionDelaySpec extends LogSpec {
   it should "measure simple statistics on reaction delay with extra delay" in {
     val extraDelay = 1L
     val f = b[Unit, Unit]
-    val tp = new BlockingPool(4)
+    val tp = BlockingPool(4)
     site(tp)(
       go { case f(_, r) =>
         BlockingIdle {
@@ -64,7 +64,7 @@ class ReactionDelaySpec extends LogSpec {
     val all_done = b[Unit, List[Double]]
     val done = m[Double]
     val begin = m[Unit]
-    val tp = new BlockingPool(4)
+    val tp = BlockingPool(4)
 
     val trials = 800
 
@@ -99,7 +99,7 @@ class ReactionDelaySpec extends LogSpec {
     val a = m[Long]
     val c = m[Long]
     val f = b[Unit, Long]
-    val tp = new BlockingPool(4)
+    val tp = BlockingPool(4)
     site(tp)(
       go { case c(x) + f(_, r) => r(x) },
       go { case a(d) =>
@@ -219,7 +219,7 @@ class ReactionDelaySpec extends LogSpec {
     val trials = 500
     val maxTimeout = 500
 
-    val tp = new BlockingPool(4)
+    val tp = BlockingPool(4)
 
     val result = processResults(measureTimeoutDelays(trials, maxTimeout, tp))
 
@@ -232,7 +232,7 @@ class ReactionDelaySpec extends LogSpec {
     val trials = 20
     val maxTimeout = 200
 
-    val tp = new FixedPool(4)
+    val tp = FixedPool(4)
 
     val result = processResults(measureTimeoutDelays(trials, maxTimeout, tp))
 
@@ -246,7 +246,7 @@ class ReactionDelaySpec extends LogSpec {
   val total = 10000
 
   it should "measure the reply delay using blocking molecules" in {
-    val tp = new FixedPool(1)
+    val tp = FixedPool(1)
 
     val f = b[Unit, Long]
 
@@ -270,7 +270,7 @@ class ReactionDelaySpec extends LogSpec {
   }
 
   it should "measure the reply delay using promises" in {
-    val tp = new FixedPool(1)
+    val tp = FixedPool(1)
 
     val f = m[Promise[Long]]
 
@@ -475,7 +475,7 @@ class ReactionDelaySpec extends LogSpec {
   }
 
   it should "measure emitting non-blocking molecules" in {
-    val tp = new FixedPool(1)
+    val tp = FixedPool(1)
     val c = m[Unit]
     site(tp)(go { case c(_) ⇒ })
     val total = 10000
@@ -503,7 +503,7 @@ class ReactionDelaySpec extends LogSpec {
   }
 
   it should "measure emitting non-blocking molecules using one while loop" in {
-    val tp = new FixedPool(1)
+    val tp = FixedPool(1)
     val c = m[Unit]
     site(tp)(go { case c(_) ⇒ })
     val total = 10000
@@ -525,7 +525,7 @@ class ReactionDelaySpec extends LogSpec {
   }
 
   it should "measure emitting non-blocking molecules using two while loops" in {
-    val tp = new FixedPool(1)
+    val tp = FixedPool(1)
     val c = m[Unit]
     site(tp)(go { case c(_) ⇒ })
     val total = 10000
@@ -624,7 +624,7 @@ class ReactionDelaySpec extends LogSpec {
   }
 
   it should "measure creating a new reaction site" in {
-    val tp = new FixedPool(1)
+    val tp = FixedPool(1)
     val total = 1000
     val drop = 20
     val iterations = 40

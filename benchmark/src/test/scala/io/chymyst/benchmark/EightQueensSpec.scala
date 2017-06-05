@@ -23,8 +23,8 @@ class EightQueensSpec extends LogSpec {
   }
 
   def run3Queens(supply: Int, boardSize: Int, iterations: Int): Unit = {
-    val tp = new FixedPool(2)
-    val tp2 = new FixedPool(2)
+    val tp = FixedPool(2)
+    val tp2 = FixedPool(2)
     val pos = m[(Int, Int)]
     val done = m[Seq[(Int, Int)]]
     val all_done = m[Unit]
@@ -68,8 +68,8 @@ class EightQueensSpec extends LogSpec {
   }
 
   def run5Queens(supply: Int, boardSize: Int, iterations: Int): Unit = {
-    val tp = new FixedPool(2)
-    val tp2 = new FixedPool(2)
+    val tp = FixedPool(2)
+    val tp2 = FixedPool(2)
     val pos = m[(Int, Int)]
     val done = m[Seq[(Int, Int)]]
     val all_done = m[Unit]
@@ -121,8 +121,8 @@ class EightQueensSpec extends LogSpec {
   }
 
   def run8Queens(supply: Int, boardSize: Int): Seq[(Int, Int)] = {
-    val tp = new FixedPool(1)
-    val tp2 = new FixedPool(2)
+    val tp = FixedPool(1)
+    val tp2 = FixedPool(2)
     val pos = m[(Int, Int)]
     val done = m[Seq[(Int, Int)]]
     val finished = b[Unit, Seq[(Int, Int)]]
@@ -240,15 +240,15 @@ class EightQueensSpec extends LogSpec {
 
   it should "obtain solutions for 3 queens on 4x4 board using n-queens scheme" in {
     // 3 queens exist when board size is at least a 4x4, and require no backtracking
-    withPool(new FixedPool(2))(tp2 => withPool(new FixedPool(2)) { tp ⇒ runNQueens(nQueens = 3, supply = 10, boardSize = 4, iterations = 20000, timeout = 200, tp, tp2) })
+    withPool(FixedPool(2))(tp2 => withPool(FixedPool(2)) { tp ⇒ runNQueens(nQueens = 3, supply = 10, boardSize = 4, iterations = 20000, timeout = 200, tp, tp2) })
   }
 
   it should "obtain solutions for 8 queens on 12x12 board using n-queens scheme" in {
-    withPool(new FixedPool(2))(tp2 => withPool(new FixedPool(2)) { tp ⇒ runNQueens(nQueens = 8, supply = 10, boardSize = 10, iterations = 1000, timeout = 200, tp, tp2) })
+    withPool(FixedPool(2))(tp2 => withPool(FixedPool(2)) { tp ⇒ runNQueens(nQueens = 8, supply = 10, boardSize = 10, iterations = 1000, timeout = 200, tp, tp2) })
   }
 
   it should "obtain solutions for 8 queens on 8x8 board using n-queens scheme" in {
-    withPool(new FixedPool(2))(tp2 => withPool(new FixedPool(2)) { tp ⇒ runNQueens(nQueens = 8, supply = 10, boardSize = 8, iterations = 100, timeout = 200, tp, tp2) })
+    withPool(FixedPool(2))(tp2 => withPool(FixedPool(2)) { tp ⇒ runNQueens(nQueens = 8, supply = 10, boardSize = 8, iterations = 100, timeout = 200, tp, tp2) })
   }
 
   behavior of "eight queens problem - hard-coded number of queens, one RS"

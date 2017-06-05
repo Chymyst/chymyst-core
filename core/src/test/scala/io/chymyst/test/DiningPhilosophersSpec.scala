@@ -25,7 +25,7 @@ class DiningPhilosophersSpec extends LogSpec {
 
   private def diningPhilosophers(cycles: Int) = {
 
-    val tp = new FixedPool(8)
+    val tp = FixedPool(8)
 
     val hungry1 = m[Int]
     val hungry2 = m[Int]

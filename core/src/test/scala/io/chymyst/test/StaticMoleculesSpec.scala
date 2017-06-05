@@ -11,7 +11,7 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
   var tp: Pool = _
 
-  override def beforeEach(): Unit = tp = new FixedPool(3)
+  override def beforeEach(): Unit = tp = FixedPool(3)
 
   override def afterEach(): Unit = tp.shutdownNow()
 
@@ -22,7 +22,7 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val f = b[Unit, String]
     val d = m[String]
 
-    val tp1 = new FixedPool(1) // This test works only with single threads.
+    val tp1 = FixedPool(1) // This test works only with single threads.
 
     site(tp1)(
       go { case f(_, r) + d(text) => r(text); d(text) },
@@ -42,7 +42,7 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
   it should "refuse to emit a static molecule immediately after reaction site" in {
 
-    val tp1 = new FixedPool(1) // This test works only with single threads.
+    val tp1 = FixedPool(1) // This test works only with single threads.
 
     repeat(20, { i =>
       val f = b[Unit, String]
@@ -437,8 +437,8 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val incr = b[Unit, Unit]
     val stabilize_d = b[Unit, Unit]
 
-    val tp1 = new FixedPool(1)
-    val tp3 = new BlockingPool(5)
+    val tp1 = FixedPool(1)
+    val tp3 = BlockingPool(5)
 
     site(tp3)(
       go { case wait(_, r) + e(_) => r() } onThreads tp3,

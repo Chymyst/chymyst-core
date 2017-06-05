@@ -26,7 +26,7 @@ class SingleThreadSpec extends LogSpec {
   it should "schedule tasks" in {
 
     counter.set(0)
-    withPool(new FixedPool(1)) { tp =>
+    withPool(FixedPool(1)) { tp =>
       (1 to n).foreach { _ => tp.runReaction(incrementTask.run()) }
       val done = Promise[Unit]()
       tp.runReaction(doneTask(done).run())

@@ -17,7 +17,7 @@ class MoreBlockingSpec extends LogSpec {
     val c = m[Int]
     val d = m[Int]
 
-    val tp = new FixedPool(6)
+    val tp = FixedPool(6)
 
     site(tp)(
       go { case f(_, r) => r(123) },
@@ -36,7 +36,7 @@ class MoreBlockingSpec extends LogSpec {
     val f = b[Unit,Int]
     val g = b[Unit, Boolean]
 
-    val tp = new FixedPool(4)
+    val tp = FixedPool(4)
 
     site(tp)(
       go { case g(_, r) + a(x) => r(x) },
@@ -54,7 +54,7 @@ class MoreBlockingSpec extends LogSpec {
     val f = b[Unit,Unit]
     val g = b[Unit, Boolean]
 
-    val tp = new FixedPool(4)
+    val tp = FixedPool(4)
 
     site(tp)(
       go { case g(_, r) + a(x) => r(x) },
@@ -72,7 +72,7 @@ class MoreBlockingSpec extends LogSpec {
 
     val waiter = Promise[Boolean]()
 
-    val tp = new FixedPool(4)
+    val tp = FixedPool(4)
 
     site(tp)(
       go { case f(_, r) => val res = r(123); waiter.success(res) }
@@ -90,7 +90,7 @@ class MoreBlockingSpec extends LogSpec {
     val f = b[Unit, Int]
     val get = b[Unit, Int]
 
-    val tp = new FixedPool(6)
+    val tp = FixedPool(6)
 
     site(tp)(
       go { case f(_, reply) => a(reply(123)) },
@@ -116,7 +116,7 @@ class MoreBlockingSpec extends LogSpec {
     val a = m[Int]
     val f = b[Unit,Int]
 
-    val tp = new FixedPool(2)
+    val tp = FixedPool(2)
 
     site(tp)(
       go { case f(_, r) + a(x) => r(x); a(0) }
@@ -143,7 +143,7 @@ class MoreBlockingSpec extends LogSpec {
     val c = m[Int]
     val f = b[Int,Int]
 
-    val tp = new FixedPool(6)
+    val tp = FixedPool(6)
     site(tp)(
       go { case f(x, r) + a(y) => c(x); val s = f(x+y); r(s) },
       go { case f(x, r) + c(y) => r(x*y) }
@@ -162,7 +162,7 @@ class MoreBlockingSpec extends LogSpec {
     val incr = b[Unit, Unit]
     val get_d = b[Unit, Int]
 
-    val tp = new FixedPool(6)
+    val tp = FixedPool(6)
 
     site(tp)(
       go { case get_d(_, r) + d(x) => r(x) },
@@ -187,7 +187,7 @@ class MoreBlockingSpec extends LogSpec {
     val incr = b[Unit, Unit]
     val get_f = b[Unit, Int]
 
-    val tp = new FixedPool(6)
+    val tp = FixedPool(6)
 
     site(tp)(
       go { case get_f(_, r) + f(x) => r(x) },
@@ -212,7 +212,7 @@ class MoreBlockingSpec extends LogSpec {
     val get_f = b[Unit, Int]
 
     clearGlobalErrorLog()
-    val tp = new FixedPool(4)
+    val tp = FixedPool(4)
 
     site(tp)(
       go { case get_f(_, r) + f(x) => r(x) },
@@ -240,7 +240,7 @@ class MoreBlockingSpec extends LogSpec {
     val get_f = b[Unit, Int]
 
     clearGlobalErrorLog()
-    val tp = new FixedPool(2)
+    val tp = FixedPool(2)
 
     site(tp)(
       go { case get_f(_, r) + f(x) => r(x) },

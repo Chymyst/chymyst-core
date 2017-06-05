@@ -15,7 +15,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
   var tp: Pool = _
 
   override def beforeEach(): Unit = {
-    tp = new BlockingPool(8)
+    tp = BlockingPool(8)
   }
 
   override def afterEach(): Unit = {
@@ -165,7 +165,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val n = 100 // The number of rendezvous participants needs to be known in advance, or else we don't know how long still to wait for rendezvous.
 
     // There will be 2*n blocked threads; the test will fail with FixedPool(2*n-1).
-    withPool(new FixedPool(2 * n)) { pool =>
+    withPool(FixedPool(2 * n)) { pool =>
 
       val barrier = b[Unit, Unit]
       val counterInit = m[Unit]
@@ -239,7 +239,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val done = b[Unit, Vector[Int]]
 
     val total = 10000
-    val tp = new BlockingPool(4) // Use BlockingPool because using a FixedPool gives a deadlock.
+    val tp = BlockingPool(4) // Use BlockingPool because using a FixedPool gives a deadlock.
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x); danceCounter(x) }, // ignore warning about "non-variable type argument Int"
       go { case beginDancing(xy) + danceCounter(x) => danceCounter(x :+ xy) },
@@ -281,10 +281,10 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
 
     val total = 50000
 
-    val tp1a = new FixedPool(1)
-    val tp1b = new FixedPool(1)
-    val tp1c = new FixedPool(1)
-    val tp1d = new FixedPool(1)
+    val tp1a = FixedPool(1)
+    val tp1b = FixedPool(1)
+    val tp1c = FixedPool(1)
+    val tp1d = FixedPool(1)
 
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x); danceCounter(x) }, // ignore warning about "non-variable type argument Int"

@@ -225,7 +225,7 @@ class CoreSpec extends LogSpec {
   }
 
   it should "give reaction info inside reaction" in {
-    withPool(new FixedPool(2)) { tp =>
+    withPool(FixedPool(2)) { tp =>
       val a = m[Int]
       val f = b[Unit, String]
 

@@ -15,7 +15,7 @@ class PoolSpec extends LogSpec {
 
   it should "refuse to increase the thread pool beyond its limit" in {
     val n = 1065
-    val tp = new BlockingPool(2)
+    val tp = BlockingPool(2)
 
     tp.maxPoolSize should be < n
     tp.currentPoolSize shouldEqual 2
@@ -32,7 +32,7 @@ class PoolSpec extends LogSpec {
   it should "run a task on a separate thread" in {
     val waiter = new Waiter
 
-    val tp = new FixedPool(2)
+    val tp = FixedPool(2)
 
     tp.executionContext.isInstanceOf[ExecutionContext] shouldEqual true
 
@@ -55,7 +55,7 @@ class PoolSpec extends LogSpec {
   it should "interrupt a thread when shutting down" in {
     val waiter = new Waiter
 
-    val tp = new FixedPool(2)
+    val tp = FixedPool(2)
 
     tp.runReaction({
       try {
@@ -78,7 +78,7 @@ class PoolSpec extends LogSpec {
   behavior of "Chymyst thread"
 
   it should "return empty info by default" in {
-    val tp = new BlockingPool()
+    val tp = BlockingPool()
     val thread = new ChymystThread(() ⇒ (), tp)
     thread.reactionInfo shouldEqual Core.NO_REACTION_INFO_STRING
   }
@@ -86,7 +86,7 @@ class PoolSpec extends LogSpec {
   behavior of "blocking pool"
 
   it should "initialize with default CPU core parallelism" in {
-    val tp = new BlockingPool()
+    val tp = BlockingPool()
 
     tp.currentPoolSize shouldEqual cpuCores
     tp.executionContext.isInstanceOf[ExecutionContext] shouldEqual true

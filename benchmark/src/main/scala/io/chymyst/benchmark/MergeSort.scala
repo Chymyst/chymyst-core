@@ -33,8 +33,8 @@ object MergeSort {
 
     val finalResult = m[Coll[T]]
     val getFinalResult = b[Unit, Coll[T]]
-    val reactionPool = new FixedPool(threads)
-    val pool2 = new FixedPool(threads)
+    val reactionPool = FixedPool(threads)
+    val pool2 = FixedPool(threads)
 
     site(pool2)(
       go { case finalResult(arr) + getFinalResult(_, r) => r(arr) }

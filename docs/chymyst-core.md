@@ -503,7 +503,7 @@ Thus, creating many thousands of new reaction pools is impossible.
 A thread pool is created like this:
 
 ```scala
-val tp = new BlockingPool(8)
+val tp = BlockingPool(8)
 
 ```
 
@@ -513,7 +513,7 @@ As a convenience, the method `cpuCores` can be used to determine the number of a
 This value is used by `BlockingPool`'s default constructor.
 
 ```scala
-val tp1 = new BlockingPool() // same as new BlockingPool(cpuCores)
+val tp1 = BlockingPool() // same as BlockingPool(cpuCores)
 
 ```
 
@@ -521,7 +521,7 @@ Another available reaction pool is `FixedPool`.
 This pool holds a fixed, never changing number of reaction threads (and a single, dedicated scheduler thread).
 
 ```scala
-val tp1 = new FixedPool(4) // 4 threads for reactions, one thread for scheduler
+val tp1 = FixedPool(4) // 4 threads for reactions, one thread for scheduler
 
 ```
 
@@ -530,7 +530,7 @@ val tp1 = new FixedPool(4) // 4 threads for reactions, one thread for scheduler
 The `site()` call can take an additional argument that specifies a thread pool for all reactions at this RS.
 
 ```scala
-val tp = new BlockingPool(8)
+val tp = BlockingPool(8)
 
 val a = m[Unit]
 val c = m[Unit]
@@ -546,9 +546,9 @@ site(tp)(
 When it is desired that a particular reaction should be scheduled on a particular thread pool, the `onThreads()` method can be used.
 
 ```scala
-val tp = new BlockingPool(8)
+val tp = BlockingPool(8)
 
-val tp2 = new BlockingPool(2)
+val tp2 = BlockingPool(2)
 
 val a = m[Unit]
 val c = m[Unit]
@@ -576,7 +576,7 @@ Since JVM will not quit when some threads are still active, the programmer needs
 The method `shutdownNow()` will stop the threads in the thread pool.
 
 ```scala
-val tp = new BlockingPool(8)
+val tp = BlockingPool(8)
 
 site(tp)(...)
 
@@ -607,7 +607,7 @@ The user needs to employ `BlockingIdle` explicitly only when a reaction contains
 Example:
 
 ```scala
-val pool = new BlockingPool(8)
+val pool = BlockingPool(8)
 
 val a = m[Url]
 val b = m[Client]

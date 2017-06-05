@@ -2,12 +2,12 @@ package io.chymyst.jc
 
 import java.security.MessageDigest
 
-import Core._
+import io.chymyst.jc.Core._
 import io.chymyst.util.ConjunctiveNormalForm.CNF
 
 import scala.language.experimental.macros
-import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer.LOCAL_SUFFIX_STRING
+import scala.reflect.macros.blackbox
 
 class CommonMacros(val c: blackbox.Context) {
 
@@ -152,7 +152,7 @@ final class MoleculeMacros(override val c: blackbox.Context) extends CommonMacro
 
   import c.universe._
 
-  def mImpl[T: c.WeakTypeTag]: c.universe.Tree = {
+  def mImpl[T: c.WeakTypeTag]: Tree = {
     val moleculeName = getEnclosingName
     val moleculeValueType = c.weakTypeOf[T]
     q"new M[$moleculeValueType]($moleculeName)"
@@ -166,6 +166,32 @@ final class MoleculeMacros(override val c: blackbox.Context) extends CommonMacro
     val replyValueType = c.weakTypeOf[R]
 
     q"new B[$moleculeValueType,$replyValueType]($moleculeName)"
+  }
+
+}
+
+final class PoolMacros(override val c: blackbox.Context) extends CommonMacros(c) {
+
+  import c.universe._
+
+  def newFixedPoolImpl0(): Tree = {
+    val poolName = getEnclosingName
+    q"new FixedPool($poolName)"
+  }
+
+  def newFixedPoolImpl1(parallelism: c.Expr[Int]): Tree = {
+    val poolName = getEnclosingName
+    q"new FixedPool($poolName, $parallelism)"
+  }
+
+  def newBlockingPoolImpl0(): Tree = {
+    val poolName = getEnclosingName
+    q"new BlockingPool($poolName)"
+  }
+
+  def newBlockingPoolImpl1(parallelism: c.Expr[Int]): Tree = {
+    val poolName = getEnclosingName
+    q"new BlockingPool($poolName, $parallelism)"
   }
 
 }

@@ -105,7 +105,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
   }
 
   it should "run reactions with cross-molecule conditionals but without cross-molecule guards" in {
-    withPool(new FixedPool(2)) { tp =>
+    withPool(FixedPool(2)) { tp =>
       val a = m[Int]
       val f = b[Unit, Int]
       site(tp)(
@@ -221,7 +221,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     clearGlobalErrorLog()
     val x = 10
 
-    withPool(new FixedPool(2)) { tp =>
+    withPool(FixedPool(2)) { tp =>
       site(tp)(
         go { case f(_, r) =>
           if (x > 0) throw new Exception("crash! ignore this exception")
@@ -238,7 +238,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     clearGlobalErrorLog()
     val x = 10
 
-    withPool(new FixedPool(2)) { tp =>
+    withPool(FixedPool(2)) { tp =>
       site(tp)(
         go { case f(_, r) =>
           if (x > 0) throw new Exception("crash! ignore this exception")

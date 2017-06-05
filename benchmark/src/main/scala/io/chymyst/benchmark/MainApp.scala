@@ -55,7 +55,7 @@ object MainApp extends App {
   ).zipWithIndex.foreach {
     case ((message, benchmark), i) => println(s"Benchmark ${i + 1} took ${
       run3times {
-        val tp = new FixedPool(threads)
+        val tp = FixedPool(threads)
         val result = benchmark(n, tp)
         tp.shutdownNow()
         result

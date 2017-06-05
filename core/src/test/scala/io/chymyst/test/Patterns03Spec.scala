@@ -14,7 +14,7 @@ class Patterns03Spec extends LogSpec with BeforeAndAfterEach {
   var tp: Pool = _
 
   override def beforeEach(): Unit = {
-    tp = new BlockingPool(4)
+    tp = BlockingPool(4)
   }
 
   override def afterEach(): Unit = {

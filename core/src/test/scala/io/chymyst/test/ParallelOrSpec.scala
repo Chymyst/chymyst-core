@@ -59,7 +59,7 @@ class ParallelOrSpec extends LogSpec {
     val fastFalse = b[Unit, Boolean]
     val slowFalse = b[Unit, Boolean]
 
-    val tp = new FixedPool(30)
+    val tp = FixedPool(30)
 
     site(tp)(
       go { case never(_, r) => r(neverReturn[Boolean]) },
@@ -126,7 +126,7 @@ class ParallelOrSpec extends LogSpec {
     val fast = b[Unit, String]
     val slow = b[Unit, String]
 
-    val tp = new FixedPool(30)
+    val tp = FixedPool(30)
 
     site(tp)(
       go { case never(_, r) => r(neverReturn[String]) },

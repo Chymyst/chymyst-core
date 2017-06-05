@@ -21,7 +21,7 @@ class MultithreadSpec extends LogSpec {
       val finished = m[Unit]
       val counter = m[Int]
       val allFinished = b[Unit, Unit]
-      val tp = new FixedPool(threads)
+      val tp = FixedPool(threads)
       site(tp)(
         go { case work(_) => performWork(); finished() },
         go { case counter(n) + finished(_) => counter(n-1) },

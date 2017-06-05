@@ -1,8 +1,8 @@
 package io.chymyst.jc
 
-import java.util.concurrent._
-
 import io.chymyst.jc.Core.logMessage
+
+import scala.language.experimental.macros
 
 /** This is similar to scala.concurrent.blocking and is used to annotate expressions that should lead to a possible increase of thread count.
   * Multiple nested calls to `BlockingIdle` are equivalent to one call.
@@ -20,7 +20,7 @@ object BlockingIdle {
 /** A cached pool that increases its thread count whenever a blocking molecule is emitted, and decreases afterwards.
   * The `BlockingIdle` function, similar to `scala.concurrent.blocking`, is used to annotate expressions that should lead to an increase of thread count, and to a decrease of thread count once the idle blocking call returns.
   */
-class BlockingPool(parallelism: Int = cpuCores) extends Pool {
+final class BlockingPool(name: String, override val parallelism: Int = cpuCores, priority: Int = Thread.NORM_PRIORITY) extends Pool(name, priority) {
 
   // Looks like we will die hard at about 2021 threads...
   val maxPoolSize: Int = 1000 + 2 * parallelism
@@ -43,34 +43,10 @@ class BlockingPool(parallelism: Int = cpuCores) extends Pool {
     executor.setMaximumPoolSize(newPoolSize)
   }
 
-  val initialThreads: Int = parallelism
-  val secondsToRecycleThread = 1L
-  val shutdownWaitTimeMs = 200L
-
-  protected val executor: ThreadPoolExecutor = {
-    val newThreadFactory = new ThreadFactory {
-      override def newThread(r: Runnable): Thread = new ChymystThread(r, BlockingPool.this)
-    }
-    val queue = new LinkedBlockingQueue[Runnable]
-    val executor = new ThreadPoolExecutor(initialThreads, parallelism, secondsToRecycleThread, TimeUnit.SECONDS, queue, newThreadFactory)
-    executor.allowCoreThreadTimeOut(true)
-    executor
-  }
-
-  override def shutdownNow(): Unit = new Thread {
-    try {
-      executor.getQueue.clear()
-      executor.shutdown()
-      executor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
-    } finally {
-      executor.shutdownNow()
-      executor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
-      executor.shutdownNow()
-      ()
-    }
-  }.start()
-
   private[chymyst] override def runReaction(closure: => Unit): Unit = executor.execute { () => closure }
+}
 
-  override def isInactive: Boolean = executor.isShutdown || executor.isTerminated
+object BlockingPool {
+  def apply(): BlockingPool = macro PoolMacros.newBlockingPoolImpl0 // IntelliJ cannot resolve the symbol PoolMacros, but compilation works.
+  def apply(parallelism: Int): BlockingPool = macro PoolMacros.newBlockingPoolImpl1 // IntelliJ cannot resolve the symbol PoolMacros, but compilation works.
 }
