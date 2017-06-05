@@ -68,7 +68,9 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
 
   private[jc] def nextThreadName: String = threadNameBase + "-" + currentThreadId.getAndIncrement().toString
 
-  def shutdownNow(): Unit = new Thread {
+  def shutdownNow(): Unit = ()
+
+  /*def shutdownNow(): Unit = new Thread {
     try {
       executor.getQueue.clear()
       executor.shutdown()
@@ -80,6 +82,6 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
       ()
     }
   }.start()
-
+*/
   override val toString: String = s"${this.getClass.getSimpleName}:$name"
 }
