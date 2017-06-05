@@ -83,6 +83,22 @@ class MoreBlockingSpec extends LogSpec {
     tp.shutdownNow()
   }
 
+  it should "check status after blocking molecule had a successful reply" in {
+    val f = b[Unit, Int]
+
+    val waiter = Promise[Boolean]() // this is only used as a "waiter" for this async test; we are not testing Promise functionality here.
+
+    val tp = FixedPool(4)
+
+    site(tp)(
+      go { case f(_, r) => r(123); val res = r.noReplyAttemptedYet; waiter.success(r.noReplyAttemptedYet && res) }
+    )
+    f.timeout()(10.seconds) shouldEqual Some(123)
+
+    Await.result(waiter.future, Duration.Inf) shouldEqual false
+    tp.shutdownNow()
+  }
+
   // warning: this test sometimes fails
   it should "return true for many blocking molecules with successful reply" in {
     val a = m[Boolean]
