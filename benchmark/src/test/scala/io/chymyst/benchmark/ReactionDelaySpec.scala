@@ -243,7 +243,7 @@ class ReactionDelaySpec extends LogSpec {
 
   behavior of "blocking reply via promise"
 
-  val total = 10000
+  val total = 1000
 
   it should "measure the reply delay using blocking molecules" in {
     val tp = FixedPool(1)
@@ -251,8 +251,8 @@ class ReactionDelaySpec extends LogSpec {
     val f = b[Unit, Long]
 
     site(tp)(go { case f(_, r) ⇒ r(System.nanoTime()) })
-
-    val res = (1 to 10).map { _ ⇒
+    val drop = 10
+    val res = (1 to 20 + drop).map { i ⇒
       val results = (1 to total).map { _ ⇒
         val t = System.nanoTime()
         val r = f()
@@ -262,9 +262,9 @@ class ReactionDelaySpec extends LogSpec {
       val resLaunch = results.map(_._2)
       val aveDelay = resDelay.sum / resDelay.length
       val aveLaunch = resLaunch.sum / resLaunch.length
-      println(s"Average reply delay with blocking molecules: $aveDelay ns; average launch time: $aveLaunch ns")
+      println(s"Average reply delay with blocking molecules (iteration $i): $aveDelay ns; average launch time: $aveLaunch ns")
       (aveDelay, aveLaunch)
-    }.drop(2)
+    }.drop(drop)
     println(s"Reply delay with blocking molecules: after ${res.length} tries, average is ${res.map(_._1).sum / res.length}, average launch time is ${res.map(_._2).sum / res.length}")
     tp.shutdownNow()
   }
@@ -276,7 +276,7 @@ class ReactionDelaySpec extends LogSpec {
 
     site(tp)(go { case f(promise) ⇒ promise.success(System.nanoTime()) })
     val drop = 10
-    val res = (1 to 20 + drop).map { _ ⇒
+    val res = (1 to 20 + drop).map { i ⇒
       val results = (1 to total).map { _ ⇒
         val t = System.nanoTime()
         val p = Promise[Long]()
@@ -288,7 +288,7 @@ class ReactionDelaySpec extends LogSpec {
       val resLaunch = results.map(_._2)
       val aveDelay = resDelay.sum / resDelay.length
       val aveLaunch = resLaunch.sum / resLaunch.length
-      println(s"Average reply delay with blocking molecules: $aveDelay ns; average launch time: $aveLaunch ns")
+      println(s"Average reply delay with blocking molecules using promises (iteration $i): $aveDelay ns; average launch time: $aveLaunch ns")
       (aveDelay, aveLaunch)
     }.drop(drop)
     println(s"Reply delay with promises: after ${res.length} tries, average is ${res.map(_._1).sum / res.length}, average launch time is ${res.map(_._2).sum / res.length}")

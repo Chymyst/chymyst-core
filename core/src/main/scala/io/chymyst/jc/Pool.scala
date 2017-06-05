@@ -11,6 +11,8 @@ import scala.concurrent.ExecutionContext
   * The pool can be shut down, in which case all further tasks will be refused.
   */
 abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
+  override val toString: String = s"${this.getClass.getSimpleName}:$name"
+
   private[jc] def startedBlockingCall(selfBlocking: Boolean): Unit
 
   private[jc] def finishedBlockingCall(selfBlocking: Boolean): Unit
@@ -32,21 +34,9 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
 
   def shutdownWaitTimeMs: Long = 200L
 
-  private[jc] val schedulerQueue: BlockingQueue[Runnable] = new LinkedBlockingQueue[Runnable]
+  private val threadGroupName = toString + ",thread_group"
 
-  private[jc] val schedulerExecutor: ThreadPoolExecutor = {
-    val executor = new ThreadPoolExecutor(1, 1, recycleThreadTimeMs, TimeUnit.MILLISECONDS, schedulerQueue)
-    executor.allowCoreThreadTimeOut(true)
-    executor
-  }
-
-  private[jc] val queue: BlockingQueue[Runnable] = new LinkedBlockingQueue[Runnable]
-
-  private[jc] def runScheduler(runnable: Runnable): Unit = schedulerExecutor.execute(runnable)
-
-  private val threadGroupName = "chymyst-thread-group-" + name
-
-  private val threadNameBase = "chymyst-thread-" + name
+  private val threadNameBase = toString + ",worker_thread:"
 
   val threadGroup: ThreadGroup = {
     val tg = new ThreadGroup(threadGroupName)
@@ -54,7 +44,21 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
     tg
   }
 
-  protected val threadFactory: ThreadFactory = { (r: Runnable) ⇒ new ChymystThread(r, Pool.this) }
+  private[jc] val schedulerQueue: BlockingQueue[Runnable] = new LinkedBlockingQueue[Runnable]
+
+  private val schedulerThreadFactory: ThreadFactory = { (r: Runnable) ⇒ new Thread(threadGroup, r, toString + ",scheduler_thread") }
+
+  private[jc] val schedulerExecutor: ThreadPoolExecutor = {
+    val executor = new ThreadPoolExecutor(1, 1, recycleThreadTimeMs, TimeUnit.MILLISECONDS, schedulerQueue, schedulerThreadFactory)
+    executor.allowCoreThreadTimeOut(true)
+    executor
+  }
+
+  private[jc] def runScheduler(runnable: Runnable): Unit = schedulerExecutor.execute(runnable)
+
+  private[jc] val queue: BlockingQueue[Runnable] = new LinkedBlockingQueue[Runnable]
+
+  private val threadFactory: ThreadFactory = { (r: Runnable) ⇒ new ChymystThread(r, Pool.this) }
 
   protected val executor: ThreadPoolExecutor = {
     val executor = new ThreadPoolExecutor(parallelism, parallelism, recycleThreadTimeMs, TimeUnit.MILLISECONDS, queue, threadFactory)
@@ -66,7 +70,7 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
 
   private val currentThreadId: AtomicInteger = new AtomicInteger(0)
 
-  private[jc] def nextThreadName: String = threadNameBase + "-" + currentThreadId.getAndIncrement().toString
+  private[jc] def nextThreadName: String = threadNameBase + currentThreadId.getAndIncrement().toString
 
   def shutdownNow(): Unit = ()
 
@@ -83,5 +87,4 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
     }
   }.start()
 */
-  override val toString: String = s"${this.getClass.getSimpleName}:$name"
 }
