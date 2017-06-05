@@ -2,8 +2,8 @@ package io.chymyst.jc
 
 import java.security.MessageDigest
 import java.time.LocalDateTime
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.{ConcurrentLinkedQueue, LinkedBlockingQueue, ThreadPoolExecutor, TimeUnit}
 import javax.xml.bind.DatatypeConverter
 
 import scala.annotation.tailrec
