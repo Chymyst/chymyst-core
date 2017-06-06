@@ -38,6 +38,9 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     //    "-language:existentials",
     "-language:higherKinds",
     "-language:implicitConversions",
+    "-opt:l:project",
+    "-Yvirtpatmat",
+    "-Ydelambdafy:inline",
     // "-Xfatal-warnings",
     "-Xlint",
     "-Yno-adapted-args", // Makes calling a() fail to substitute a Unit argument into a.apply(x: Unit)
