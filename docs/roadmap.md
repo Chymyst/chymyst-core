@@ -61,10 +61,8 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 # Current To-Do List
 
  value * difficulty - description
-  
- 1 * 1 - static molecules cannot have reactions with only one input (?)
 
- 1 * 1 - blocking molecules cannot have reactions with only one input (?)
+ 1 * 1 - blocking molecules cannot have reactions with only one input (?) - not sure if this is helpful.
 
  4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
 

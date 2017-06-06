@@ -419,9 +419,13 @@ Declaring a molecule as static can be a useful tool for avoiding errors in chemi
 
 - A static molecules can be emitted only by a reaction that consumes it, or by the static reaction that defines it.
 - A reaction may not consume more than one copy of a static molecule.
+- A reaction must have other non-static input molecules besides static molecules.
 - It is an error if a reaction consumes a static molecule but does not emit it back into the soup, or emits it more than once.
 - It is also an error if a reaction emits a static molecule it did not consume, or if any other code emits additional copies of the static molecule at any time.
-- A reaction may not emit static molecules in a loop
+- A reaction may not emit static molecules from within a loop or within function calls.
+
+These restrictions are intended to maintain the semantics of static molecules.
+Application code that violates these restrictions will cause an "early" run-time error.
 
 ### Volatile readers for static molecules
 
