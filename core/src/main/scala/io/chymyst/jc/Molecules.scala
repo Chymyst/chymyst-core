@@ -95,11 +95,16 @@ sealed trait MolEmitter extends PersistentHashCode {
     */
   val name: String
 
+  /** Check whether the molecule has been automatically pipelined. */
   @inline def isPipelined: Boolean = valIsPipelined
 
+  /** The type symbol corresponding to the value type of the molecule.
+    * For instance, a molcule emitter defined as `val f = b[Int, String]` has type symbol `'Int`.
+    * @return A symbol representing the type, such as `'Unit`, `'Int` etc.
+    */
   @inline def typeSymbol: Symbol = valTypeSymbol
 
-  @inline def siteIndex: Int = siteIndexValue
+  @inline private[jc] def siteIndex: Int = siteIndexValue
 
   /** This is called by a [[ReactionSite]] when a molecule becomes bound to that reaction site.
     *
@@ -118,7 +123,7 @@ sealed trait MolEmitter extends PersistentHashCode {
   /** Check whether the molecule is already bound to a reaction site.
     * Note that molecules can be emitted only if they are bound.
     *
-    * @return True if already bound, false otherwise.
+    * @return `true` if already bound, `false` otherwise.
     */
   final def isBound: Boolean = hasReactionSite
 
@@ -272,6 +277,11 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter {
 private[jc] final class ReplyEmitter[T, R](useFuture: Boolean) extends (R => Boolean) {
   @inline private[jc] val reply = Budu[R](useFuture)
 
+  /** Check whether this reply emitter has been already used to send a reply.
+    * This check does not depend on whether the process that was waiting for the reply timed out or not.
+    *
+    * @return `true` if the reply emitter has not yet been used, `false` otherwise.
+    */
   def noReplyAttemptedYet: Boolean = reply.isEmpty
 
   /** Perform a reply action for a blocking molecule with a check of the timeout status.
