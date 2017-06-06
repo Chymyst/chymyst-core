@@ -2,6 +2,8 @@
 
 # Concurrency in Reactions: Declarative Scala multithreading with `Chymyst`
 
+(c) by Sergei Winitzki, 2016-2017
+
 [Preface](chymyst-preface.md)
 
 [Chapter 0: Quick start](chymyst-quick.md)

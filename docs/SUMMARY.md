@@ -1,4 +1,4 @@
-e# Summary
+# Summary
 
 * [Preface](chymyst-preface.md)
 * [Chapter 0: Quick start](chymyst-quick.md)
