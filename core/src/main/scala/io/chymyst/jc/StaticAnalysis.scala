@@ -213,6 +213,15 @@ private[jc] object StaticAnalysis {
         mol → reactionsWithCounts
       }
 
+    val singleConsumed = reactions
+      .map(r ⇒ (r, r.inputMoleculesSortedAlphabetically.headOption))
+      .filter { _._1.info.inputsSortedByConstraintStrength match {
+        // select 1-element input lists such that the input is a static molecule
+        case List(info) ⇒ staticMols contains info.molecule
+        case _ => false
+      }
+    }.collect{ case (r, Some(mol)) ⇒ s"static molecule ($mol) is the only input of reaction ${r.info}"}
+
     val wrongConsumed = staticMolsConsumedMaxTimes
       .flatMap {
         case (mol, None) ⇒
@@ -233,7 +242,7 @@ private[jc] object StaticAnalysis {
       case _ => None
     }
 
-    val errorList = wrongConsumed ++ wrongOutput
+    val errorList = wrongConsumed ++ wrongOutput ++ singleConsumed
 
     if (errorList.nonEmpty)
       Some(s"Incorrect static molecule usage: ${errorList.mkString("; ")}")

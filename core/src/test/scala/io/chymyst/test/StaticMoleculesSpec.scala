@@ -93,6 +93,21 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     thrown.getMessage shouldEqual "In Site{c/B + d → ...}: Incorrect static molecule usage: static molecule (d) emitted more than once by reaction {c/B(_) + d(_) → d() + d()}"
   }
 
+  it should "signal error when a static molecule is the sole input of a reaction" in {
+    val thrown = intercept[Exception] {
+      val c = b[Unit, String]
+      val d = m[Unit]
+      val e = m[Unit]
+
+      site(tp)(
+        go { case c(_, r) => r("ok"); d() },
+        go { case d(_) => e() },
+        go { case _ => d() } // static reaction
+      )
+    }
+    thrown.getMessage shouldEqual "In Site{c/B → ...; d → ...}: Incorrect static molecule usage: static molecule (d) emitted but not consumed by reaction {c/B(_) → d()}; Incorrect static molecule usage: static molecule (d) consumed but not emitted by reaction {d(_) → e()}; static molecule (d) is the only input of reaction d(_) → e()"
+  }
+
   it should "signal error when a static molecule is emitted but not consumed by reaction" in {
     val thrown = intercept[Exception] {
       val c = b[Unit, String]
