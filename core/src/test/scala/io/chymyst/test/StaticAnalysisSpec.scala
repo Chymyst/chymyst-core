@@ -478,35 +478,38 @@ class StaticAnalysisSpec extends LogSpec {
   it should "give warning in a simple reaction with possible livelock" in {
     withPool(FixedPool(2)) { tp ⇒
       val a = m[Int]
+      val c = m[Unit]
       val warnings = site(tp)(
         go { case _ ⇒ a(1) },
-        go { case a(1) ⇒ val x = 1; a(x) }
+        go { case a(1) + c(_) ⇒ val x = 1; c(); a(x) }
       )
-      warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
+      warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) + c(_) → c() + a(?)}"), List(), "Site{a + c → ...}")
     }.get
   }
 
   it should "give an error in a reaction with static molecule emitted conditionally" in {
     val tp = FixedPool(2)
     val a = m[Int]
+    val c = m[Unit]
     the[Exception] thrownBy {
       val warnings = site(tp)(
         go { case _ ⇒ a(1) },
-        go { case a(1) ⇒ val x = 1; if (x > 0) a(x) }
+        go { case a(1) + c(_) ⇒ val x = 1; if (x > 0) a(x) }
       )
       warnings shouldEqual WarningsAndErrors(List(), List(), "Site{a → ...}")
-    } should have message "In Site{a → ...}: Incorrect static molecule usage: static molecule (a) consumed but not guaranteed to be emitted by reaction {a(1) → a(?)}"
+    } should have message "In Site{a + c → ...}: Incorrect static molecule usage: static molecule (a) consumed but not guaranteed to be emitted by reaction {a(1) + c(_) → a(?)}"
     tp.shutdownNow()
   }
 
   it should "give warning in a reaction with static molecule emitted conditionally with two branches" in {
     val tp = FixedPool(2)
     val a = m[Int]
+    val c = m[Unit]
     val warnings = site(tp)(
       go { case _ ⇒ a(1) },
-      go { case a(1) ⇒ val x = 1; if (x > 0) a(x) else a(-x) }
+      go { case a(1) + c(_) ⇒ val x = 1; c(); if (x > 0) a(x) else a(-x) }
     )
-    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) → a(?)}"), List(), "Site{a → ...}")
+    warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) + c(_) → c() + a(?)}"), List(), "Site{a + c → ...}")
     tp.shutdownNow()
   }
 

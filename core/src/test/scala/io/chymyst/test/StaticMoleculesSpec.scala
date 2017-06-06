@@ -105,7 +105,22 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
         go { case _ => d() } // static reaction
       )
     }
-    thrown.getMessage shouldEqual "In Site{c/B → ...; d → ...}: Incorrect static molecule usage: static molecule (d) emitted but not consumed by reaction {c/B(_) → d()}; Incorrect static molecule usage: static molecule (d) consumed but not emitted by reaction {d(_) → e()}; static molecule (d) is the only input of reaction d(_) → e()"
+    thrown.getMessage shouldEqual "In Site{c/B → ...; d → ...}: Incorrect static molecule usage: static molecule (d) emitted but not consumed by reaction {c/B(_) → d()}; Incorrect static molecule usage: static molecule (d) consumed but not emitted by reaction {d(_) → e()}; reaction {d(_) → e()} has only static input molecules (d)"
+  }
+
+  it should "signal error when two static molecules are the sole input of a reaction" in {
+    val thrown = intercept[Exception] {
+      val c = b[Unit, String]
+      val d = m[Unit]
+      val e = m[Unit]
+
+      site(tp)(
+        go { case c(_, r) => r("ok"); d() },
+        go { case d(_) + e(_) => e() },
+        go { case _ => d() + e() } // static reaction
+      )
+    }
+    thrown.getMessage shouldEqual "In Site{c/B → ...; d + e → ...}: Incorrect static molecule usage: static molecule (d) emitted but not consumed by reaction {c/B(_) → d()}; Incorrect static molecule usage: static molecule (d) consumed but not emitted by reaction {d(_) + e(_) → e()}; reaction {d(_) + e(_) → e()} has only static input molecules (d,e)"
   }
 
   it should "signal error when a static molecule is emitted but not consumed by reaction" in {
