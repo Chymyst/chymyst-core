@@ -404,10 +404,10 @@ x.isBound // returns `true`
 ### Error: Redefining chemistry
 
 Chemical laws are immutable and statically defined in a `Chymyst` program.
-All reactions that consume a certain molecule must be declared in one RS.
+All reactions that consume a certain molecule must be declared in one reaction site.
 Once it is declared that a certain molecule starts certain reactions, users cannot add new reactions that consume that molecule.
 
-For this reason, it is an error to write a reaction whose input molecule is already _used as input_ at another RS.
+For this reason, it is an error to write a reaction whose input molecule is already _used as input_ at another reaction site.
 
 ```scala
 val x = m[Int]
@@ -421,7 +421,11 @@ site( go { case x(n) + b(_) ⇒ println(s"have x($n) + b") } )
 
 ```
 
-What the programmer probably meant to write is that the molecule `x()` has two reactions that consume it.
+This program also contradicts the intended meaning of reaction sites, namely that molecules arrive there to wait for their reaction partners.
+If we defined two RSs as in the example just given and then emit `x(123)`, the molecule `x(123)` must go to the first RS if it is to react with `a()` and to the second RS if it is to react with `b()`.
+There is no single RS where `x()` could wait for both of its possible reaction partners, and `x()` cannot be present at two reaction sites at the same time. 
+
+What the programmer probably meant is simply that the molecule `x()` has two different reactions that consume it.
 Correct use of `Chymyst` requires that we put these two reactions together into _one_ reaction site:
  
 ```scala
@@ -439,8 +443,8 @@ site(
 More generally, all reactions that share any input molecules must be defined together in a single RS.
 Whenever a molecule is consumed by a reaction at some RS, we say that this molecule is **bound** to that RS, and any reactions that consume that molecule must be defined at the same RS.
 
-However, reactions that use that molecule only as an output molecule can be declared in another RS.
-Here is an example where we define one RS that computes a result and emits a molecule called `show`, which is bound to another RS:
+However, reactions that use that molecule only as an _output_ molecule may be declared in another RS.
+Here is an example where we define a reaction that computes a result and emits a molecule called `show`, which is bound to another RS:
 
 ```scala
 val show = m[Int]
