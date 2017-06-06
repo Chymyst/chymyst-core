@@ -46,10 +46,10 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     "-Ywarn-value-discard",
     "-Xfuture",
     "-Ywarn-unused"
-  ) ++ (//target:jvm-1.8 supported from 2.11.5, warn-unused-import deprecated in 2.12
+  ) ++ (//target:jvm-1.8 supported from 2.11.5, warn-unused-import deprecated in 2.12; -Xexperimental is needed for SAM closures
     if (scalaBinaryVersion.value == "2.11") {
       val revision = scalaVersion.value.split('.').last.toInt
-      Seq("-Ywarn-unused-import") ++ (
+      Seq("-Ywarn-unused-import", "-Xexperimental") ++ (
         if (revision >= 5) {
           Seq("-target:jvm-1.8")
         }

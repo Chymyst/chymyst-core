@@ -191,6 +191,9 @@ $ sbt
 
 ```
 
+If `sonatypeRelease` fails due to any problems with POM files while `+publishSigned` succeeded,
+it is possible to release manually on the [Sonatype web site](https://oss.sonatype.org/#nexus-search;quick~chymyst-core) (requires login). Go to "Staging Repositories" and execute the actions to "promote" the release.
+
 ## Trivia
 
 [![Robert Boyle's self-flowing flask](docs/Boyle_Self-Flowing_Flask.png)](https://en.wikipedia.org/wiki/Robert_Boyle#/media/File:Boyle%27sSelfFlowingFlask.png)
