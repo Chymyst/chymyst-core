@@ -15,6 +15,8 @@ The code of `Chymyst Core` is based on previous Join Calculus implementations by
 
 ### [Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
 
+#### [From actors to reactions: a guide for those familiar with the Actor model](https://chymyst.github.io/chymyst-core/chymyst-actor.html)
+
 #### [A "Hello, world" project](https://github.com/Chymyst/helloworld)
 
 #### [Video presentation of early version of `Chymyst Core`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
@@ -22,15 +24,15 @@ The code of `Chymyst Core` is based on previous Join Calculus implementations by
 This talk was given at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala).
 See also these [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
-### [Main features of the chemical machine](docs/chymyst_features.md)
+### [Main features of the chemical machine](chymyst_features.md)
 
-#### [Comparison of the chemical machine vs. academic Join Calculus](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-academic-join-calculus)
+#### [Comparison of the chemical machine vs. academic Join Calculus](chymyst_vs_jc.md#comparison-chemical-machine-vs-academic-join-calculus)
 
-#### [Comparison of the chemical machine vs. the Actor model](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-actor-model)
+#### [Comparison of the chemical machine vs. the Actor model](chymyst_vs_jc.md#comparison-chemical-machine-vs-actor-model)
 
-#### [Comparison of the chemical machine vs. the coroutines / channels approach (CSP)](docs/chymyst_vs_jc.md#comparison-chemical-machine-vs-csp)
+#### [Comparison of the chemical machine vs. the coroutines / channels approach (CSP)](chymyst_vs_jc.md#comparison-chemical-machine-vs-csp)
 
-#### [Technical documentation for `Chymyst Core`](docs/chymyst-core.md)
+#### [Technical documentation for `Chymyst Core`](chymyst-core.md)
 
 #### [Source code repository for `Chymyst Core`](https://github.com/Chymyst/chymyst-core)
 

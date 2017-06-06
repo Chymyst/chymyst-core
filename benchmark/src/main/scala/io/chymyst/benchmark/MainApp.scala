@@ -18,8 +18,6 @@ object MainApp extends App {
 
   import MainAppConfig._
 
-  val version = "0.1.9-SNAPSHOT"
-
   def run3times(task: => Long): Long = {
     task
     // just priming, no measurement

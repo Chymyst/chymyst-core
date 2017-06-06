@@ -22,7 +22,9 @@ The current implementation is tested under Oracle JDK 8 with Scala `2.11.8` and 
 
 ## Overview of `Chymyst` and the chemical machine paradigm
 
-### [Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
+#### [Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
+ 
+#### [Project documentation at Github Pages](https://chymyst.github.io/chymyst-core/chymyst00.html)
 
 #### [From actors to reactions: a guide for those familiar with the Actor model](https://chymyst.github.io/chymyst-core/chymyst-actor.html)
 

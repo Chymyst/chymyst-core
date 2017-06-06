@@ -213,6 +213,10 @@ private[jc] object StaticAnalysis {
         mol → reactionsWithCounts
       }
 
+    val onlyStaticConsumed = reactions
+      .filter(_.info.inputs.forall(info ⇒ staticMols.contains(info.molecule)))
+      .map { r ⇒ s"reaction {${r.info}} has only static input molecules (${r.inputMoleculesSortedAlphabetically.mkString(",")})" }
+
     val wrongConsumed = staticMolsConsumedMaxTimes
       .flatMap {
         case (mol, None) ⇒
@@ -233,7 +237,7 @@ private[jc] object StaticAnalysis {
       case _ => None
     }
 
-    val errorList = wrongConsumed ++ wrongOutput
+    val errorList = wrongConsumed ++ wrongOutput ++ onlyStaticConsumed
 
     if (errorList.nonEmpty)
       Some(s"Incorrect static molecule usage: ${errorList.mkString("; ")}")
@@ -245,24 +249,33 @@ private[jc] object StaticAnalysis {
   private def checkOutputsForStaticMols(staticMols: Map[MolEmitter, Int], reactions: Seq[Reaction]): Option[String] = {
     val errorList = staticMols.flatMap {
       case (mol, _) =>
-        reactions.flatMap { r =>
-          val outputs = r.info.shrunkOutputs.filter(_.molecule === mol)
-          val outputTimes = outputs.length
-          val containsAsInput = r.inputMoleculesSet.contains(mol)
-          if (outputTimes > 1)
-            Some(s"static molecule ($mol) emitted more than once by reaction {${r.info}}")
-          else if (outputs.count(_.environments.forall(env ⇒ env.linear && env.atLeastOne)) === 1) {
-            if (!containsAsInput)
-              Some(s"static molecule ($mol) emitted but not consumed by reaction {${r.info}}")
+        reactions.flatMap {
+          r =>
+            val outputs = r.info.shrunkOutputs.filter(_.molecule === mol)
+            val outputTimes = outputs.length
+            val containsAsInput = r.inputMoleculesSet.contains(mol)
+            if (outputTimes > 1)
+              Some(s"static molecule ($mol) emitted more than once by reaction {${
+                r.info
+              }}")
+            else if (outputs.count(_.environments.forall(env ⇒ env.linear && env.atLeastOne)) === 1) {
+              if (!containsAsInput)
+                Some(s"static molecule ($mol) emitted but not consumed by reaction {${
+                  r.info
+                }}")
+              else None
+            } else if (outputTimes =!= 0 && containsAsInput) // outputTimes == 0 was already handled by checkInputsForStaticMols
+              Some(s"static molecule ($mol) consumed but not guaranteed to be emitted by reaction {${
+                r.info
+              }}")
             else None
-          } else if (outputTimes =!= 0 && containsAsInput) // outputTimes == 0 was already handled by checkInputsForStaticMols
-            Some(s"static molecule ($mol) consumed but not guaranteed to be emitted by reaction {${r.info}}")
-          else None
         }
     }
 
     if (errorList.nonEmpty)
-      Some(s"Incorrect static molecule usage: ${errorList.mkString("; ")}")
+      Some(s"Incorrect static molecule usage: ${
+        errorList.mkString("; ")
+      }")
     else None
   }
 
@@ -281,33 +294,45 @@ private[jc] object StaticAnalysis {
   private[jc] def findStaticMolDeclarationErrors(staticReactions: Seq[Reaction]): Seq[String] = {
     val foundErrors = staticReactions.map(_.info).filterNot(_.guardPresence.noCrossGuards)
     if (foundErrors.nonEmpty)
-      foundErrors.map { info => s"Static reaction {$info} should not have a guard condition" }
+      foundErrors.map {
+        info => s"Static reaction {$info} should not have a guard condition"
+      }
     else Seq()
   }
 
   // Inspect the static molecules actually emitted. Their multiplicities must be not less than the declared multiplicities.
   private[jc] def findStaticMolsEmissionErrors(staticMolsDeclared: Map[MolEmitter, Int], staticMolsEmitted: Map[MolEmitter, Int]): Seq[String] = {
     val foundErrors = staticMolsDeclared
-      .filter { case (mol, count) => staticMolsEmitted.getOrElse(mol, 0) < count }
-      .map { case (mol, count) =>
-        val countEmitted = staticMolsEmitted.getOrElse(mol, 0)
-        s"$mol emitted $countEmitted times instead of $count"
+      .filter {
+        case (mol, count) => staticMolsEmitted.getOrElse(mol, 0) < count
+      }
+      .map {
+        case (mol, count) =>
+          val countEmitted = staticMolsEmitted.getOrElse(mol, 0)
+          s"$mol emitted $countEmitted times instead of $count"
       }
     if (foundErrors.nonEmpty)
-      Seq(s"Too few static molecules emitted: ${foundErrors.toList.sorted.mkString(", ")}")
+      Seq(s"Too few static molecules emitted: ${
+        foundErrors.toList.sorted.mkString(", ")
+      }")
     else Seq()
   }
 
   // Inspect the static molecules actually emitted. Their multiplicities must be not more than the declared multiplicities.
   private[jc] def findStaticMolsEmissionWarnings(staticMolsDeclared: Map[MolEmitter, Int], staticMolsEmitted: Map[MolEmitter, Int]) = {
     val foundErrors = staticMolsDeclared
-      .filter { case (mol, count) => staticMolsEmitted.getOrElse(mol, 0) > count }
-      .map { case (mol, count) =>
-        val countEmitted = staticMolsEmitted.getOrElse(mol, 0)
-        s"$mol emitted $countEmitted times instead of $count"
+      .filter {
+        case (mol, count) => staticMolsEmitted.getOrElse(mol, 0) > count
+      }
+      .map {
+        case (mol, count) =>
+          val countEmitted = staticMolsEmitted.getOrElse(mol, 0)
+          s"$mol emitted $countEmitted times instead of $count"
       }
     if (foundErrors.nonEmpty)
-      Seq(s"Possibly too many static molecules emitted: ${foundErrors.toList.sorted.mkString(", ")}")
+      Seq(s"Possibly too many static molecules emitted: ${
+        foundErrors.toList.sorted.mkString(", ")
+      }")
     else Seq()
   }
 
