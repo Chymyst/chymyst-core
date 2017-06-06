@@ -3,7 +3,7 @@ package io.chymyst.test
 import io.chymyst.jc._
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Promise}
+import scala.concurrent.{Await, Future, Promise}
 import scala.language.postfixOps
 
 class MoreBlockingSpec extends LogSpec {
@@ -33,7 +33,7 @@ class MoreBlockingSpec extends LogSpec {
 
   it should "return false if blocking molecule timed out" in {
     val a = m[Boolean]
-    val f = b[Unit,Int]
+    val f = b[Unit, Int]
     val g = b[Unit, Boolean]
 
     val tp = FixedPool(4)
@@ -44,14 +44,14 @@ class MoreBlockingSpec extends LogSpec {
     )
     a(true)
     f.timeout()(300.millis) shouldEqual None // should give enough time so that the reaction can start
-    g() shouldEqual false  // will be `true` when the `f` reaction did not start before timeout
+    g() shouldEqual false // will be `true` when the `f` reaction did not start before timeout
 
     tp.shutdownNow()
   }
 
   it should "return false if blocking molecule timed out, with an empty reply value" in {
     val a = m[Boolean]
-    val f = b[Unit,Unit]
+    val f = b[Unit, Unit]
     val g = b[Unit, Boolean]
 
     val tp = FixedPool(4)
@@ -68,9 +68,9 @@ class MoreBlockingSpec extends LogSpec {
   }
 
   it should "return true if blocking molecule had a successful reply" in {
-    val f = b[Unit,Int]
+    val f = b[Unit, Int]
 
-    val waiter = Promise[Boolean]()
+    val waiter = Promise[Boolean]() // this is only used as a "waiter" for this async test; we are not testing Promise functionality here.
 
     val tp = FixedPool(4)
 
@@ -80,6 +80,31 @@ class MoreBlockingSpec extends LogSpec {
     f.timeout()(10.seconds) shouldEqual Some(123)
 
     Await.result(waiter.future, Duration.Inf) shouldEqual true
+    tp.shutdownNow()
+  }
+
+  it should "check status after blocking molecule had a successful reply" in {
+    val f = b[Unit, Int]
+
+    val waiter = Promise[Any]() // this is only used as a "waiter" for this async test; we are not testing Promise functionality here.
+
+    val tp = FixedPool(4)
+
+    site(tp)(
+      go { case f(_, r) =>
+        r(123)
+        val res = r.noReplyAttemptedYet
+        waiter.success((r.noReplyAttemptedYet, res, f.name, f.typeSymbol, f.isBound, f.isPipelined))
+      }
+    )
+    f.name shouldEqual "f"
+    f.typeSymbol shouldEqual 'Unit
+    f.isBound shouldEqual true
+    f.isPipelined shouldEqual true
+    (f.name === "f" && f.typeSymbol === 'Unit && f.isBound && f.isPipelined) shouldEqual true
+    f.timeout()(10.seconds) shouldEqual Some(123)
+
+    Await.result(waiter.future, Duration.Inf) shouldEqual ((false, false, "f", 'Unit, true, true))
     tp.shutdownNow()
   }
 
@@ -94,7 +119,7 @@ class MoreBlockingSpec extends LogSpec {
 
     site(tp)(
       go { case f(_, reply) => a(reply(123)) },
-      go { case a(x) + collect(n) => collect(n + (if (x) 0 else 1))},
+      go { case a(x) + collect(n) => collect(n + (if (x) 0 else 1)) },
       go { case collect(n) + get(_, reply) => reply(n) }
     )
     collect(0)
@@ -114,7 +139,7 @@ class MoreBlockingSpec extends LogSpec {
 
   it should "remove blocking molecule from soup after timeout" in {
     val a = m[Int]
-    val f = b[Unit,Int]
+    val f = b[Unit, Int]
 
     val tp = FixedPool(2)
 
@@ -141,12 +166,12 @@ class MoreBlockingSpec extends LogSpec {
   it should "correctly handle multiple blocking molecules of the same sort" in {
     val a = m[Int]
     val c = m[Int]
-    val f = b[Int,Int]
+    val f = b[Int, Int]
 
     val tp = FixedPool(6)
     site(tp)(
-      go { case f(x, r) + a(y) => c(x); val s = f(x+y); r(s) },
-      go { case f(x, r) + c(y) => r(x*y) }
+      go { case f(x, r) + a(y) => c(x); val s = f(x + y); r(s) },
+      go { case f(x, r) + c(y) => r(x * y) }
     )
 
     a(10)
@@ -167,7 +192,7 @@ class MoreBlockingSpec extends LogSpec {
     site(tp)(
       go { case get_d(_, r) + d(x) => r(x) },
       go { case wait(_, r) + e(_) => r() },
-      go { case d(x) + incr(_, r) => r(); wait(); d(x+1) }
+      go { case d(x) + incr(_, r) => r(); wait(); d(x + 1) }
     )
     d(100)
     incr() // reaction 3 started and is waiting for e()
@@ -193,7 +218,7 @@ class MoreBlockingSpec extends LogSpec {
       go { case get_f(_, r) + f(x) => r(x) },
       go { case c(_) => incr(); e() },
       go { case wait(_, r) + e(_) => r() },
-      go { case d(x) + incr(_, r) => r(); wait(); f(x+1) }
+      go { case d(x) + incr(_, r) => r(); wait(); f(x + 1) }
     )
     d(100)
     c() // update started and is waiting for e(), which should come after incr() gets its reply
@@ -253,6 +278,42 @@ class MoreBlockingSpec extends LogSpec {
     c() // update started and is waiting for e(), which should come after incr() gets its reply
     get_f.timeout()(1000 millis) shouldEqual None // deadlock
     globalErrorLog.toIndexedSeq should contain("Error: deadlock occurred in fixed pool (2 threads) due to 2 concurrent blocking calls, reaction: d(x) + incr/B(_) → wait/B() + f(?)")
+    tp.shutdownNow()
+  }
+
+  behavior of "future emitters"
+
+  it should "run reaction and get the future reply" in {
+    val f = b[Int, Int]
+
+    val tp = FixedPool(4)
+
+    implicit val _ = tp.executionContext
+
+    site(tp)(
+      go { case f(x, r) ⇒ Thread.sleep(100); r(x + 1) }
+    )
+    val futureR = f.futureReply(123)
+    futureR.isCompleted shouldEqual false
+    Await.result(futureR, Duration.Inf) shouldEqual 124
+    tp.shutdownNow()
+  }
+
+  it should "run reaction and manipulate the future reply" in {
+    val f = b[Unit, Int]
+
+    val tp = FixedPool(4)
+
+    implicit val _ = tp.executionContext
+
+    site(tp)(
+      go { case f(_, r) ⇒ Thread.sleep(100); r(123) }
+    )
+    val futureR = f.futureReply()
+    futureR.isCompleted shouldEqual false
+    val futureR2 = futureR.flatMap(i ⇒ Future(i + 1))
+    futureR2.isCompleted shouldEqual false
+    Await.result(futureR2, Duration.Inf) shouldEqual 124
     tp.shutdownNow()
   }
 }

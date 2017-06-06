@@ -1,7 +1,7 @@
-package io.chymyst.test
+package io.chymyst.jc
 
-import io.chymyst.jc._
 import io.chymyst.test.Common._
+import io.chymyst.test.LogSpec
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}

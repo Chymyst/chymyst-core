@@ -1,11 +1,12 @@
 package io.chymyst.jc
 
-import Core._
+import io.chymyst.jc.Core._
 
-import scala.collection.mutable
-import scala.reflect.macros.blackbox
 import scala.annotation.tailrec
+import scala.collection.mutable
+import scala.language.postfixOps
 import scala.reflect.api.Trees
+import scala.reflect.macros.blackbox
 
 class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
@@ -55,6 +56,38 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     "scala.collection.TraversableLike.map",
     "scala.collection.immutable.Range.foreach"
   )
+
+  // These operations constitute the "use" of a reply emitter in a reply action.
+  private val replyEmitterActionOps = Set(
+    "apply"
+  )
+
+  // These operations do not constitute the "use" of a reply emitter in a reply action.
+  private val replyEmitterReadOps = Set(
+    "noReplyAttemptedYet"
+  )
+
+  // These operations constitute the "use" of a molecule emitter to emit molecules.
+  private val moleculeEmitterActionOps = Set(
+    "apply"
+    , "timeout"
+    , "futureReply"
+  )
+
+  // These operations do not constitute the "use" of a molecule emitter to emit molecules.
+  private val moleculeEmitterReadOps = Set(
+    "name"
+    , "isBound"
+    , "isPipelined"
+    , "typeSymbol"
+  )
+
+  private val emitterReadOps = moleculeEmitterReadOps ++ replyEmitterReadOps
+
+  private val moleculeEmitterAllOps = moleculeEmitterActionOps ++
+    moleculeEmitterReadOps ++
+    replyEmitterActionOps ++
+    replyEmitterReadOps
 
   /** Detect whether a pattern-matcher expression tree represents an irrefutable pattern.
     * For example, `Some(_)` is refutable because it does not match `None`.
@@ -606,12 +639,13 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
          *  but { case a(x) => val c = m[Unit]; site(...); c() } also has a symbol "c" with the same owner.
          */
         case Apply(Select(t@Ident(TermName(_)), TermName(f)), argumentList)
-          if f === "apply" || f === "timeout" ⇒
+          if moleculeEmitterAllOps contains f ⇒
 
           // In the output list, we do not include any molecule emitters defined in the inner scope of the reaction.
           val includeThisSymbol = !isOwnedBy(t.symbol.owner, reactionBodyOwner)
           val thisSymbolIsAMolecule = isMolecule(t)
           val thisSymbolIsAReply = isReplyEmitter(t)
+          val thisIsAReplyAction = replyEmitterActionOps contains f
           val flag1 = getOutputFlag(argumentList)
           lazy val funcName = s"${t.symbol.fullName}.$f"
           if (flag1.needTraversal) {
@@ -626,15 +660,21 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
             argumentList.foreach(traverse)
             finishTraverseWithOutputEnv()
           }
-
-          if (includeThisSymbol) {
-            if (thisSymbolIsAMolecule) {
-              outputMolecules.append((t.symbol, flag1, outputEnv))
-            }
+          if (includeThisSymbol && thisSymbolIsAMolecule) {
+            outputMolecules.append((t.symbol, flag1, outputEnv))
           }
-          if (thisSymbolIsAReply) {
+          if (thisSymbolIsAReply && thisIsAReplyAction) {
             replyActions.append((t.symbol, flag1, outputEnv))
           }
+
+        /* Select() without Apply(): call zero-argument methods on a reply emitter or molecule emitter.
+         * For example, f.name or reply.noReplyAttemptedYet
+         * These are not considered as "using" the emitters and do not affect the linearity.
+          * We should not add them to any of the output lists.
+          */
+        case Select(t@Ident(TermName(_)), TermName(f))
+          if (isMolecule(t) || isReplyEmitter(t)) && emitterReadOps.contains(f) ⇒
+          ()
 
         // tuple
         case q"(..$args)"
@@ -680,7 +720,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
         // This term is a bare identifier.
         case Ident(TermName(_)) if isReplyEmitter(tree) =>
-          // All use of reply emitters must be logged, including just copying an emitter itself.
+          // All other use of reply emitters must be logged, including just copying an emitter itself.
           replyActions.append((tree.asInstanceOf[Tree].symbol, EmptyOutputPatternF, outputEnv))
 
         // Statement block with several statements. We will mark all but the last statement in the block with a NotLastBlock() environment.

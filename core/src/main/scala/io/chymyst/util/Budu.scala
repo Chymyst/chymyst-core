@@ -32,7 +32,7 @@ final class Budu[X](useFuture: Boolean) {
     * Do not wait any longer than until the given target time.
     * This function needs to be called inside a `synchronized` block.
     *
-    * @param targetTime The absolute time (in milliseconds) until which we need to wait.
+    * @param targetTime  The absolute time (in milliseconds) until which we need to wait.
     * @param newDuration The first duration of waiting, needs to be precomputed and supplied as argument.
     */
   @tailrec
@@ -61,20 +61,21 @@ final class Budu[X](useFuture: Boolean) {
           None
         } else
           Some(result)
-      }
+      } // End of `synchronized`
     } else
       Option(result)
 
 
-  def await: X =
+  def await: X = {
     if (state === EmptyNoTimeout) {
       synchronized {
         while (haveNoReply) {
           wait()
         }
-        result
-      }
-    } else result
+      } // End of `synchronized`
+    }
+    result
+  }
 
   def getFuture: Future[X] = if (useFuture)
     resultPromise.future
@@ -94,7 +95,8 @@ final class Budu[X](useFuture: Boolean) {
             resultPromise.success(x)
         }
         notTimedOutYet
-      } // It is only here, after we release the `synchronized` monitor, that the waiting thread is woken up and resumes computation within its `synchronized` block after `wait()`.
+      } // End of `synchronized`
+      // It is only here, after we release the `synchronized` monitor, that the waiting thread is woken up and resumes computation within its `synchronized` block after `wait()`.
     } else notTimedOutYet
 }
 

@@ -2,7 +2,7 @@
 
 # Version history
 
-- 0.2.0 Renamed "SmartPool" to "BlockingPool" and simplified the thread info handling. More static checks for emission of static molecules. Radical rewrite of blocking molecules code without semaphores and without error replies, simplifying the API. The call `reply.checkTimeout()` is eliminated: the reply emitters now always return `Boolean`. Reactions will not throw exceptions any more to unblock waiting calls when errors occur. Instead, a better error recovery mechanism will be implemented. New functionality: pool names, shorter pool syntax, thread group priorities, and automatic pool shutdown. Added documentation chapter on `Chymyst` as an evolution of Actor model. 
+- 0.2.0 Renamed "SmartPool" to "BlockingPool" and simplified the thread info handling. More static checks for emission of static molecules. Radical rewrite of blocking molecules code without semaphores and without error replies, simplifying the API. The call `reply.checkTimeout()` is eliminated: the reply emitters now always return `Boolean`. New APIs for reply: `ReplyEmitter.noReplyAttemptedYet` and `B.futureReply`. Reactions will no longer throw exceptions to unblock waiting calls when errors occur. Instead, a better error recovery mechanism will be implemented. New functionality for thread pools: pool names and thread names for debugging, shorter pool creation syntax, thread group priority API. Thread pools no longer need to be shut down explicitly (although this is helpful if there are thousands of them). Added documentation chapter on `Chymyst` as an evolution of Actor model.
 
 - 0.1.9 Static molecules are now restricted to a linear output context, in a similar way to blocking replies. Reaction schedulers now run on a single dedicated thread; site pools are eliminated. New examples: 8 queens and hierarchical map/reduce. Added a simple facility for deadlock warning, used for `FixedPool`. Tutorial updated with a new "quick start" guide that avoids requiring too many new concepts. Miscellaneous bug fixes and performance improvements.
 
@@ -117,14 +117,9 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 
  3 * 5 - consider whether we would like to prohibit emitting molecules from non-reaction code. Maybe with a construct such as `withMolecule{ ... }` where the special molecule will be emitted by the system? Can we rewrite tests so that everything happens only inside reactions?
 
- 3 * 3 - perhaps prohibit using explicit thread pools? It's error-prone because the user can forget to stop a pool. Perhaps only expose an API such as `withFixedPool(4){ implicit tp => ...}`? Investigate using implicit values for pools.
- Maybe remove default pools altogether? It seems that every pool needs to be stopped. — However, this would prevent sharing thread pools across scopes. Maybe that is not particularly useful?
-  
  3 * 3 - implement "one-off" or "perishable" molecules that are emitted once (like static, from the reaction site itself) and may be emitted only if first consumed (but not necessarily emitted at start of the reaction site)
 
  5 * 5 - How to rewrite reaction sites so that blocking molecules are transparently replaced by a pair of non-blocking molecules? Can this be done even if blocking emitters are used inside functions? (Perhaps with extra molecules emitted at the end of the function call?) Is it useful to emit an auxiliary molecule at the end of an "if" expression, to avoid code duplication? How can we continue to support real blocking emitters when used outside of macro code? 
- 
- 5 * 5 - Can we perform the unblocking transformation using delimited continuations? -- Not sure. Delimited continuations seem to require all code to reside inside `reset()`.
  
  2 * 2 - Revisit Philippe's error reporting branch, perhaps salvage some code
   
@@ -134,7 +129,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  
  3 * 3 - Write a tutorial section about timers and time-outs: cancellable recurring jobs, cancellable subscriptions, time-outs on receiving replies from non-blocking molecules (?)
  
- 3 * 4 - Blocking molecule emitter should have a Future[] API as well. When exception is thrown in the reaction, the Promise will fail. Emitting thread could inspect the promise and detect the failure. In this way, we can still have some error reporting from exceptions (which was removed in 0.2.0). However, a better mechanism could be implemented.
+ 3 * 4 - Blocking molecule emitter's Future[] API should report errors (failure to give a reply value), while a non-Future API doesn't do this. When exception is thrown in the reaction, the Promise will fail. Emitting thread could inspect the promise and detect the failure. In this way, we can still have some error reporting from exceptions (which was removed in 0.2.0). However, a better mechanism could be implemented.
  
  5 * 5 - Implement full error recovery: attach an error handler to a reaction. Error handler is another reaction that has an automatic `Throwable` input and otherwise has the same input molecules as the errored reaction. `go { case a(x) + b(y) => ... } recoverWith { (e: Throwable) => go { case a(x) + b(y) => ... } }`
   Recovery semantics:
@@ -157,7 +152,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic. — Will not do now. Not sure that lazy values on molecules are important as a primitive. We can always simulate them using closures.
 
- 2 * 3 - investigate using wait/notify instead of semaphore; does it give better performance? - So far, attempts to do this failed.
+ 2 * 3 - investigate using a single wait/notify pair instead of 2 semaphores; does it give better performance? - Implemented in 0.2.0
  
  5 * 5 - implement fairness with respect to molecules. - Will not do now. If reactions depend on fairness, something is probably wrong with the chemistry. Instead, pipelining should be a very often occurring optimization.
 
@@ -173,3 +168,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 
  4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same reaction site, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on reaction site information gleaned using a macro. — This was attempted, but yields a very complex algorithm and does not give a significant performance boost.
 
+ 3 * 3 - perhaps prohibit using explicit thread pools? It's error-prone because the user can forget to stop a pool. Perhaps only expose an API such as `withFixedPool(4){ implicit tp => ...}`? Investigate using implicit values for pools. -- doesn't seem to be useful.
+ Maybe remove default pools altogether? It seems that every pool needs to be stopped. — However, this would prevent sharing thread pools across scopes. Maybe that is not particularly useful? - Also, with the 0.2.0 changes, pools do not need to be stopped explicitly.
+
+ 5 * 5 - Can we perform the unblocking transformation using delimited continuations? -- Not sure. Delimited continuations seem to require all code to reside inside `reset()`.
