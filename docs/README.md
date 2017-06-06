@@ -11,6 +11,8 @@ The chemical machine concurrency paradigm has the same expressive power as CSP (
 
 The code of `Chymyst Core` is based on previous Join Calculus implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
+# [The _Concurrency in Reactions_ tutorial book: table of contents](chymyst00.md) 
+
 ## Overview of `Chymyst` and the chemical machine paradigm
 
 ### [Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
@@ -37,7 +39,7 @@ See also these [talk slides revised for the current syntax](https://github.com/w
 #### [Source code repository for `Chymyst Core`](https://github.com/Chymyst/chymyst-core)
 
 
-#### [Version history and roadmap](roadmap.md)
+### [Version history and roadmap](roadmap.md)
 
 
 ## Status
