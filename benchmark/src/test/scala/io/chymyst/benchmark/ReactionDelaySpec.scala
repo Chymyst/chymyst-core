@@ -340,7 +340,7 @@ class ReactionDelaySpec extends LogSpec {
         (z - x).toDouble
       }
       val (mean, std) = meanAndStdev(result.drop(total / 4))
-      println(s"System.nanoTime() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
+      println(s"System.nanoTime()*2 after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
     }
 
     measure(4)
@@ -474,11 +474,35 @@ class ReactionDelaySpec extends LogSpec {
     measure(50000)
   }
 
+  it should "measure the latency of System.nanoTime using elapsedTimesNs" in {
+    val total = 50000
+    val results = elapsedTimesNs(System.nanoTime(), total)
+    showFullStatistics("latency of System.nanoTime", results, factor = 200) // about 30 ns
+  }
+
+  it should "measure the latency of elapsedTimesNs" in {
+    val total = 50000
+    val results = elapsedTimesNs((), total)
+    showFullStatistics("latency of elapsedTimesNs", results, factor = 200) // about 30 ns
+  }
+
+  it should "get statistics on emitting non-blocking molecules" in {
+    val tp = FixedPool(1)
+    val c = m[Unit]
+    site(tp)(go { case c(_) ⇒ })
+
+    val total = 10000
+    val results = elapsedTimesNs(c(), total)
+    showFullStatistics("latency of emitting non-blocking molecule", results, factor = 100)
+
+    tp.shutdownNow()
+  }
+
   it should "measure emitting non-blocking molecules" in {
     val tp = FixedPool(1)
     val c = m[Unit]
     site(tp)(go { case c(_) ⇒ })
-    val total = 10000
+    val total = 100000
     val drop = 20
     val iterations = 40
     val result = (1 to drop + iterations).map { _ ⇒
@@ -571,7 +595,7 @@ class ReactionDelaySpec extends LogSpec {
       }
       resultsSum / iterations
     }
-    println(s"Emitting non-blocking molecules using two while loops: emission time is ${(overheadAverage - overheadAverageWithoutPayload) / 1000L} µs per molecule, overhead ${overheadAverageWithoutPayload / 1000L} µs")
+    println(s"Emitting non-blocking molecules using two while loops: mean time is ${(overheadAverage - overheadAverageWithoutPayload) / 1000L} µs per molecule, overhead ${overheadAverageWithoutPayload / 1000L} µs")
     tp.shutdownNow()
   }
 
@@ -619,7 +643,7 @@ class ReactionDelaySpec extends LogSpec {
       }
       resultsSum / iterations
     }
-    println(s"Creating a new reaction using two while loops: emission time is ${(overheadAverage - overheadAverageWithoutPayload) / 1000L} µs per reaction, overhead ${overheadAverageWithoutPayload / 1000L} µs")
+    println(s"Creating a new reaction using two while loops: mean time is ${(overheadAverage - overheadAverageWithoutPayload) / 1000L} µs per reaction, overhead ${overheadAverageWithoutPayload / 1000L} µs")
 
   }
 
@@ -669,8 +693,26 @@ class ReactionDelaySpec extends LogSpec {
       }
       resultsSum / iterations
     }
-    println(s"Creating a new reaction site using two while loops: emission time is ${(overheadAverage - overheadAverageWithoutPayload) / 1000L} µs per site, overhead ${overheadAverageWithoutPayload / 1000L} µs")
+    println(s"Creating a new reaction site using two while loops: mean time is ${(overheadAverage - overheadAverageWithoutPayload) / 1000L} µs per site, overhead ${overheadAverageWithoutPayload / 1000L} µs")
     tp.shutdownNow()
   }
 
+  it should "measure JVM warmup regression for creating a new reaction" in {
+    val total = 5000
+    val results = elapsedTimesNs({
+      val c = b[Unit, Unit]
+      go { case c(_, r) ⇒ r() }
+    }, total).sortBy(-_)
+    showFullStatistics("creating a new reaction", results, 100)
+  }
+
+  it should "measure JVM warmup regression for creating a new reaction site" in {
+    val total = 5000
+    val results = elapsedTimesNs({
+      val c = b[Unit, Unit]
+      val d = m[Unit]
+      site(go { case c(_, r) + d(_) + d(_) + d(_) ⇒ r(); d() + d() + d() })
+    }, total).sortBy(-_)
+    showFullStatistics("creating a new reaction site", results, 100)
+  }
 }
