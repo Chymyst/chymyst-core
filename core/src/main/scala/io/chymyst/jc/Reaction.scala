@@ -1,8 +1,9 @@
 package io.chymyst.jc
 
-import Core._
+import io.chymyst.jc.Core._
 
 import scala.{Symbol => ScalaSymbol}
+import scalaxy.streams.optimize
 
 /** Represents compile-time information about the pattern matching for values carried by input molecules.
   * Possibilities:
@@ -520,7 +521,7 @@ final class ReactionInfo(
 
   // TODO: write a test that fixes this functionality?
   /** This array is either empty or contains several arrays, each of length at least 2. */
-  private val repeatedCrossConstrainedMolecules: Array[Set[Int]] =
+  private val repeatedCrossConstrainedMolecules: Array[Set[Int]] = optimize {
     inputs
       .groupBy(_.molecule)
       .filter(_._2.length >= 2)
@@ -533,6 +534,7 @@ final class ReactionInfo(
       }
       .toArray
       .map(_.map(_.index).toSet)
+  }
 
   /** "Cross-conditionals" are repeated input molecules, such that one of them has a conditional or participates in a cross-molecule guard.
     * This value holds the set of input indices for all such molecules, for quick access.
@@ -546,13 +548,17 @@ final class ReactionInfo(
     * An exception to these rules is a molecule with a constant matcher: this molecule is always independent.
     */
   private[jc] val independentInputMolecules = {
-    val moleculesWithoutCrossConditionals = inputs.map(_.index)
-      .filter(index ⇒
-        !crossConditionalsForRepeatedMols.contains(index) && crossGuards.forall {
-          case CrossMoleculeGuard(indices, _, _) ⇒
-            !indices.contains(index)
-        })
-    val moleculesWithConstantValues = inputs.filter(_.isConstantValue).map(_.index)
+    val moleculesWithoutCrossConditionals = optimize {
+      inputs.map(_.index)
+        .filter(index ⇒
+          !crossConditionalsForRepeatedMols.contains(index) && crossGuards.forall {
+            case CrossMoleculeGuard(indices, _, _) ⇒
+              !indices.contains(index)
+          })
+    }
+    val moleculesWithConstantValues = optimize {
+      inputs.filter(_.isConstantValue).map(_.index)
+    }
     (moleculesWithoutCrossConditionals ++ moleculesWithConstantValues).toSet
   }
 
@@ -562,7 +568,7 @@ final class ReactionInfo(
     *
     * This [[SearchDSL]] program is optimized by including the constraint guards as early as possible.
     */
-  private[jc] val searchDSLProgram = {
+  private[jc] val searchDSLProgram = optimize {
     /** The array of sets of cross-molecule dependency groups. Each molecule is represented by its input index.
       * The cross-molecule dependency groups include both the molecules that are constrained by cross-molecule guards and also
       * repeated molecules whose copies participate in a cross-molecule guard or a per-molecule conditional.
@@ -585,7 +591,7 @@ final class ReactionInfo(
   }
 
   // The input pattern sequence is pre-sorted by descending strength of constraint — for pretty-printing as well as for use in static analysis.
-  private[jc] val inputsSortedByConstraintStrength: List[InputMoleculeInfo] = {
+  private[jc] val inputsSortedByConstraintStrength: List[InputMoleculeInfo] = optimize {
     inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha, _) =>
       // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers.
       val patternPrecedence = flag match {
@@ -625,13 +631,14 @@ final class ReactionInfo(
     inputsSortedIndependentConditional
     ) = {
     val (inputsSortedIrrefutable, inputsSortedConditional) = inputsSortedByConstraintStrength.partition(_.flag.isIrrefutable)
-    val inputsSortedIrrefutableGrouped =
+    val inputsSortedIrrefutableGrouped = {
       inputsSortedIrrefutable
         .filter(info ⇒ independentInputMolecules contains info.index)
         .orderedMapGroupBy(_.molecule.siteIndex, _.index)
         .map { case (i, is) ⇒ (i, is.toArray) }
         .toArray
-    (inputsSortedIrrefutableGrouped, inputsSortedConditional.filter(info ⇒ independentInputMolecules contains info.index).toArray)
+    }
+    (inputsSortedIrrefutableGrouped, optimize{inputsSortedConditional.filter(info ⇒ independentInputMolecules contains info.index).toArray})
   }
 
   /* Not sure if this is still useful.

@@ -638,7 +638,8 @@ class ReactionDelaySpec extends LogSpec {
         val initTime = System.nanoTime()
         while (i < total) {
           val c = b[Unit, Unit]
-          site(tp)(go { case c(_, r) ⇒ r() })
+          val d = m[Unit]
+          site(tp)(go { case c(_, r) + d(_) + d(_) + d(_) ⇒ r(); d() + d() + d() })
           i += 1
         }
 

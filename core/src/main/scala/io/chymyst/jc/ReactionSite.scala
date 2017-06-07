@@ -9,6 +9,7 @@ import scala.annotation.tailrec
 import scala.collection.breakOut
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
+import scalaxy.streams.optimize
 
 /** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
   * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
@@ -91,7 +92,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * The value `foundReactionsAndInputs` will indicate the selected reaction and its input molecule values.
     */
   @tailrec
-  private def decideReactionsForNewMolecule(mol: MolEmitter): Unit = {
+  private def decideReactionsForNewMolecule(mol: MolEmitter): Unit = optimize {
     // TODO: optimize: precompute all related molecules in ReactionSite? (what exactly to precompute??)
     setNeedToSchedule(mol)
     // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
@@ -247,7 +248,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   /** Find a set of input molecule values for a reaction. */
-  private def findInputMolecules(r: Reaction, moleculesPresent: MoleculeBagArray): Option[InputMoleculeList] = {
+  private def findInputMolecules(r: Reaction, moleculesPresent: MoleculeBagArray): Option[InputMoleculeList] = optimize {
     val info = r.info
     // This array will be mutated in place as we search for molecule values.
     val foundValues = new Array[AbsMolValue[_]](info.inputs.length)
@@ -521,7 +522,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     * @return A tuple containing the molecule value bags, and a list of warning and error messages.
     */
-  private def initializeReactionSite() = {
+  private def initializeReactionSite() = optimize {
     /** Find blocking molecules whose emitting reactions are all in a single thread pool. These emissions are potential deadlock threats for that pool, especially for a [[FixedPool]]. */
     val selfBlockingMols: Map[MolEmitter, Pool] =
       knownInputMolecules
@@ -597,7 +598,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** Create the site-wide index map for all molecules bound to this reaction site.
     * This computation determines the site-wide index for each input molecule.
     */
-  private val knownInputMolecules: Map[MolEmitter, (Int, Symbol)] = {
+  private val knownInputMolecules: Map[MolEmitter, (Int, Symbol)] = optimize {
     nonStaticReactions
       .flatMap(_.inputMoleculesSortedAlphabetically)
       .distinct // Take all input molecules from all reactions; arrange them in a single list.
@@ -623,7 +624,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *         describing that molecule's conditionals in all reactions consuming that molecule.
     *         The set is empty if the molecule has no conditionals in any of the consuming reactions.
     */
-  private def infosIfPipelined(i: Int): Option[Set[InputMoleculeInfo]] = {
+  private def infosIfPipelined(i: Int): Option[Set[InputMoleculeInfo]] = optimize {
     consumingReactions(i)
       .flatFoldLeft[(Set[InputMoleculeInfo], Boolean, Boolean)]((Set(), false, true)) {
       case (acc, r) ⇒
@@ -685,11 +686,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** For each (site-wide) molecule index, the corresponding set of [[InputMoleculeInfo]]s contains only the infos with nontrivial conditions for the molecule value.
     * This is used to assign the pipelined status of a molecules and also to obtain the conditional for that molecule's value.
     */
-  private val pipelinedMolecules: Map[Int, Set[InputMoleculeInfo]] =
+  private val pipelinedMolecules: Map[Int, Set[InputMoleculeInfo]] = optimize {
     moleculeAtIndex
       .flatMap { case (index, _) ⇒
         infosIfPipelined(index).map(c ⇒ (index, c))
       }
+  }
 
   /** For each (site-wide) molecule index, the corresponding array element represents the container for
     * that molecule's present values.

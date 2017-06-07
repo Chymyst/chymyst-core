@@ -619,7 +619,7 @@ class MapReduceSpec extends LogSpec {
 
     // Declare reaction sites.
     reactions.foreach(rs ⇒ site(tp)(rs: _*))
-    println(s"declared reaction sites at ${elapsed(initTime)}")
+    println(s"declared ${reactions.length} reaction sites, total ${reactions.flatten.length} reactions, at ${elapsed(initTime)}")
     // Emit initial molecules. The distance between p and q can be at most 2.
     emitterList.foreach { case (mol, p, q) ⇒
       if (q - p == 1) mol(data(p)) else mol(assocNonCommutOperation(data(p), data(p + 1)))
