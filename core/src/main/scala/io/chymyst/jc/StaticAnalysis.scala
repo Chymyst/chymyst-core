@@ -1,8 +1,10 @@
 package io.chymyst.jc
 
-import Core._
+import io.chymyst.jc.Core._
 
 import scala.annotation.tailrec
+import scalaxy.streams.optimize
+import scalaxy.streams.strategy.aggressive
 
 private[jc] object StaticAnalysis {
 
@@ -22,10 +24,8 @@ private[jc] object StaticAnalysis {
         case Nil =>
           false // input1 has matchers but input2 has no matchers left
         case _ =>
-          val isWeaker: InputMoleculeInfo => Boolean =
-            i => info1.matcherIsWeakerThan(i).getOrElse(false)
-
-          input2.find(isWeaker) match {
+          // find a molecule value matcher that is stronger than info1
+          input2.find(i => info1.matcherIsWeakerThan(i).getOrElse(false)) match {
             case Some(correspondingMatcher) =>
               allMatchersAreWeakerThan(rest1, input2 difff List(correspondingMatcher))
             case None => false
@@ -50,7 +50,7 @@ private[jc] object StaticAnalysis {
     inputMatchersWeakerThanOutput((inputInfo, outputInfo) => inputInfo.matcherIsSimilarToOutput(outputInfo))(input, output)
 
   // Reactions whose inputs are all unconditional matchers and are a subset of inputs of another reaction:
-  private def checkReactionShadowing(reactions: Seq[Reaction]): Option[String] = {
+  private def checkReactionShadowing(reactions: Seq[Reaction]): Option[String] = optimize {
     val suspiciousReactions = for {
       r1 <- reactions
       if r1.info.guardPresence.noCrossGuards
@@ -100,7 +100,7 @@ private[jc] object StaticAnalysis {
     else None
   }
 
-  private def singleReactionLivelockWarning(reactions: Seq[Reaction]): Option[String] = {
+  private def singleReactionLivelockWarning(reactions: Seq[Reaction]): Option[String] = optimize {
     val warningList = reactions
       .filter { r => inputMatchersAreSimilarToOutput(r.info.inputsSortedByConstraintStrength, r.info.shrunkOutputs) }
       .map(r => s"{${r.info.toString}}")
@@ -109,16 +109,16 @@ private[jc] object StaticAnalysis {
     else None
   }
 
-  private def checkInputsForDeadlockWarning(reactions: Seq[Reaction]): Option[String] = {
+  // This is time-consuming!
+  @SuppressWarnings(Array("org.wartremover.warts.TraversableOps"))
+  private def checkInputsForDeadlockWarning(reactions: Seq[Reaction]): Option[String] = optimize {
     // A "possible deadlock" means that an input blocking molecule is consumed together with other molecules that are emitted later by the same reactions that emit the blocking molecule.
-    val blockingInputsWithNonblockingInputs: Seq[(InputMoleculeInfo, List[InputMoleculeInfo])] =
-      reactions.map(_.info.inputsSortedByConstraintStrength.partition(_.molecule.isBlocking)).filter(m => m._1.nonEmpty && m._2.nonEmpty)
-        .flatMap { case (bInputs, mInputs) => bInputs.map(b => (b, mInputs)) }
 
     val likelyDeadlocks: Seq[(InputMoleculeInfo, InputMoleculeInfo, Reaction)] = for {
-      bmInputs <- blockingInputsWithNonblockingInputs
-      bInput = bmInputs._1
-      mInput <- bmInputs._2
+      re ← reactions
+      bmInputs = re.info.inputsSortedByConstraintStrength.partition(_.molecule.isBlocking)
+      bInput ← bmInputs._1
+      mInput ← bmInputs._2
       possibleReactions = Set(bInput, mInput).flatMap(_.molecule.emittingReactions).toSeq
       reaction <- possibleReactions
       outputs = reaction.info.outputs
@@ -142,7 +142,7 @@ private[jc] object StaticAnalysis {
     else None
   }
 
-  private def checkOutputsForDeadlockWarning(reactions: Seq[Reaction]): Option[String] = {
+  private def checkOutputsForDeadlockWarning(reactions: Seq[Reaction]): Option[String] = optimize {
     // A "possible deadlock" means that an output blocking molecule is followed by other output molecules that the blocking molecule may be waiting for.
     val possibleDeadlocks: Seq[(OutputMoleculeInfo, List[OutputMoleculeInfo])] =
       reactions.map(_.info.outputs)
@@ -203,7 +203,7 @@ private[jc] object StaticAnalysis {
   // Each static molecule must occur in some reaction as an input.
   // No static molecule should be consumed twice by a reaction.
   // Each static molecule that is consumed by a reaction should also be emitted by the same reaction.
-  private def checkInputsForStaticMols(staticMols: Map[MolEmitter, Int], reactions: Seq[Reaction]): Option[String] = {
+  private def checkInputsForStaticMols(staticMols: Map[MolEmitter, Int], reactions: Seq[Reaction]): Option[String] = optimize {
     val staticMolsConsumedMaxTimes: Map[MolEmitter, Option[(Reaction, Int)]] =
       staticMols.map { case (mol, _) ⇒
         val reactionsWithCounts = if (reactions.isEmpty)
@@ -246,7 +246,7 @@ private[jc] object StaticAnalysis {
 
   // If a static molecule is output by a reaction, the same reaction must consume that molecule.
   // Every static molecule should be output exactly once and in a once-only output environment.
-  private def checkOutputsForStaticMols(staticMols: Map[MolEmitter, Int], reactions: Seq[Reaction]): Option[String] = {
+  private def checkOutputsForStaticMols(staticMols: Map[MolEmitter, Int], reactions: Seq[Reaction]): Option[String] = optimize {
     val errorList = staticMols.flatMap {
       case (mol, _) =>
         reactions.flatMap {
@@ -301,7 +301,7 @@ private[jc] object StaticAnalysis {
   }
 
   // Inspect the static molecules actually emitted. Their multiplicities must be not less than the declared multiplicities.
-  private[jc] def findStaticMolsEmissionErrors(staticMolsDeclared: Map[MolEmitter, Int], staticMolsEmitted: Map[MolEmitter, Int]): Seq[String] = {
+  private[jc] def findStaticMolsEmissionErrors(staticMolsDeclared: Map[MolEmitter, Int], staticMolsEmitted: Map[MolEmitter, Int]): Seq[String] = optimize {
     val foundErrors = staticMolsDeclared
       .filter {
         case (mol, count) => staticMolsEmitted.getOrElse(mol, 0) < count
@@ -319,7 +319,7 @@ private[jc] object StaticAnalysis {
   }
 
   // Inspect the static molecules actually emitted. Their multiplicities must be not more than the declared multiplicities.
-  private[jc] def findStaticMolsEmissionWarnings(staticMolsDeclared: Map[MolEmitter, Int], staticMolsEmitted: Map[MolEmitter, Int]) = {
+  private[jc] def findStaticMolsEmissionWarnings(staticMolsDeclared: Map[MolEmitter, Int], staticMolsEmitted: Map[MolEmitter, Int]) = optimize {
     val foundErrors = staticMolsDeclared
       .filter {
         case (mol, count) => staticMolsEmitted.getOrElse(mol, 0) > count

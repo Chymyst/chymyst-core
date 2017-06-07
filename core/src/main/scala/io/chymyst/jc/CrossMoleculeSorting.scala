@@ -1,6 +1,8 @@
 package io.chymyst.jc
 
 import scala.annotation.tailrec
+import scalaxy.streams.optimize
+import scalaxy.streams.strategy.aggressive
 
 /** Utility functions for various calculations related to cross-molecule guards and conditions.
   * Molecules are represented by their zero-based indices in the reaction input list. (These are not the site-wide molecule indices.)
@@ -17,16 +19,17 @@ private[jc] object CrossMoleculeSorting {
         result
       case Some(largest) ⇒
         val (connected, nonConnected) = connectedSets.partition(_.exists(largest.contains))
-        sortConnectedSets(nonConnected, result ++ connected.sortBy(g ⇒ (-(largest intersect g).size, g.min, g.max)))
+        sortConnectedSets(nonConnected, optimize { result ++ connected.sortBy(g ⇒ (-(largest intersect g).size, g.min, g.max)) })
     }
   }
 
-  private[jc] def sortedConnectedSets(groupedSets: Coll[(Set[Int], Coll[Set[Int]])]): Coll[(Set[Int], Coll[Set[Int]])] =
+  private[jc] def sortedConnectedSets(groupedSets: Coll[(Set[Int], Coll[Set[Int]])]): Coll[(Set[Int], Coll[Set[Int]])] = optimize {
     groupedSets
       .sortBy(_._1.size)
       .map { case (s, a) ⇒
         (s, sortConnectedSets(a.sortBy { g ⇒ a.map(_ intersect g).map(_.size).sum }))
       }
+  }
 
   @tailrec
   private[jc] def groupConnectedSets(
@@ -37,7 +40,7 @@ private[jc] object CrossMoleculeSorting {
     if (currentSet.isEmpty)
       result
     else {
-      val newResult = result ++ Array((currentSet, currentResult))
+      val newResult = result :+ ((currentSet, currentResult))
       if (remaining.isEmpty)
         newResult
       else
@@ -69,7 +72,7 @@ private[jc] object CrossMoleculeSorting {
   }
 
   // Insert ConstrainGuard(i) commands whenever the already chosen molecules contain the set constrained by the guard.
-  private def insertConstrainGuardCommands(crossGroups: Coll[Set[Int]], program: Coll[SearchDSL]): Coll[SearchDSL] = {
+  private def insertConstrainGuardCommands(crossGroups: Coll[Set[Int]], program: Coll[SearchDSL]): Coll[SearchDSL] = { // can't use scalaxy optimize here
     val groupIndexed = crossGroups.zipWithIndex
     // Accumulator is a 4-tuple: (all guards seen so far, current guards, all molecules seen so far, current command)
     program.scanLeft((Set[Int](), Set[Int](), Set[Int](), CloseGroup: SearchDSL)) {
@@ -95,15 +98,18 @@ private[jc] object CrossMoleculeSorting {
   ): Coll[SearchDSL] = {
     val allGroups: Coll[Set[Int]] = crossGroups ++ repeatedMols
 
-    val sortedCrossGroups: Coll[Coll[Coll[Int]]] = sortedConnectedSets(groupConnectedSets(allGroups))
-      .map(_._2.map(_.toArray.sortBy(moleculeWeights.apply))) // each cross-guard set needs to be sorted by molecule weight
+    val sortedCrossGroups: Coll[Coll[Coll[Int]]] = optimize {
+      sortedConnectedSets(groupConnectedSets(allGroups))
+        .map(_._2.map(_.toArray.sortBy(moleculeWeights.apply))) // each cross-guard set needs to be sorted by molecule weight
+    }
 
-    val programWithoutConstrainGuardCommands: Coll[SearchDSL] =
+    val programWithoutConstrainGuardCommands: Coll[SearchDSL] = { // can't use scalaxy optimize on this!
       sortedCrossGroups.flatMap(
         // We reverse the order so that smaller groups go first, which may help optimize the guard positions.
         _.reverse
           .flatMap(_.map(ChooseMol)).distinct :+ CloseGroup
       )
+    }
 
     insertConstrainGuardCommands(crossGroups, programWithoutConstrainGuardCommands)
   }

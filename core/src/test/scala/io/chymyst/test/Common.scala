@@ -70,11 +70,9 @@ object Common {
     (mean, std)
   }
 
-  def formatNanosToMs(x: Double): String = f"${x / 1000000.0}%1.3f"
+  def formatNanosToMs(x: Double): String = f"${x / 1000000.0}%1.3f ms"
 
   def formatNanosToMicros(x: Double): String = f"${x / 1000.0}%1.3f µs"
-
-  def formatMicros(x: Double): String = f"$x%1.3f µs"
 
   def formatNanosToMicrosWithMeanStd(mean: Double, std: Double): String = s"${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}"
 
@@ -114,9 +112,19 @@ object Common {
     val plotter = new JFGraphPlotter(chart)
     val plotdir = "logs/"
     new File(plotdir).mkdir()
-    val plotfile = "benchmark " + message.replaceAll(" ", "_")
+    val plotfile = "benchmark." + message.replaceAll(" ", "_")
     plotter.pdf(plotdir, plotfile)
     println(s"Plot file produced in $plotdir$plotfile.pdf")
+  }
+
+  def showFullStatistics(message: String, resultsRaw: Seq[Double], factor: Double = 20.0): Unit = {
+    val results = resultsRaw.sortBy(- _)
+    val total = results.length
+    val take = (total / factor).toInt
+    val (mean, std) = meanAndStdev(results.takeRight(take))
+    val headPortion = resultsRaw.take(take)
+    println(s"$message: best result overall: ${formatNanosToMicros(results.last)}; last portion: ${formatNanosToMicrosWithMeanStd(mean, std)}; first portion ($take) ranges from ${formatNanosToMicros(headPortion.max)} to ${formatNanosToMicros(headPortion.min)}")
+    showRegression(message, results, x ⇒ math.pow(x + total / factor, -1.0))
   }
 
 }

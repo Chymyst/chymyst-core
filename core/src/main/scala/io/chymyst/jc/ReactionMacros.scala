@@ -811,17 +811,23 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
   // This method helps move `shrink` out of the macro namespace, by making the type `Any` available.
   // But it will be always called on a pair of Trees.
-  def equalsInMacro(a: Any, b: Any): Boolean = a match {
+  def equalsToTree(a: Any, b: Any): Boolean = a match {
     case x: Tree => x.equalsStructure(b.asInstanceOf[Tree])
   }
 
   class ReplaceStaticEmits(reactionBodyOwner: MacroSymbol) extends Transformer {
     override def transform(tree: Tree): Tree = tree match {
+
+      // avoid traversing nested reactions: check whether this subtree is a Reaction() value
+      case q"io.chymyst.jc.Reaction.apply(..$_)" =>
+        tree
+      case q"Reaction.apply(..$_)" => // Is this clause ever used?
+        tree
+
       case q"$f.apply[..$t](...$arg)" if arg.nonEmpty &&
         f.tpe <:< typeOf[M[_]] &&
         !isOwnedBy(f.asInstanceOf[Tree].symbol.owner, reactionBodyOwner)
       =>
-        // TODO: skip traversing embedded Reaction() values!
         c.typecheck(q"$f.applyStatic[..$t](...$arg)")
 
       // Replace `isDefinedAt` by `true` in the reaction body since the reaction scheduler

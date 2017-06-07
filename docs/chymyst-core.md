@@ -667,10 +667,6 @@ If there is an operation that could intermittently throw an exception, and if it
 (Also, any other irreversible side effects should not happen before exceptions are thrown.)
 In this case, the retry mechanism will be able to restart the reaction without repeating any of its side effects.
 
-# Limitations in the current version of `Chymyst Core`
-
-- when a thread pool's queue is full, new reactions cannot be run, - this situation is not processed well, exceptions are thrown and not handled
-
 # Troubleshooting and known bugs
 
 ## Using single variables to match a tuple
@@ -781,7 +777,7 @@ Several workarounds are possible:
 At any given time, each reaction site (RS) must decide which reactions can start.
 This decision depends only on the molecule values of molecules bound to this site, since we can decide whether to start a reaction when we know which input molecules are present and with what values.
 
-Therefore, RS maintains a multiset of input molecules present at that site.
+Therefore, each RS maintains a multiset of input molecules present at that site.
 This multiset can be visualized as containing pairs `(molecule emitter, value)`.
 
 Whenever a molecule is emitted, it goes into the multiset at the RS to which the molecule is bound.
