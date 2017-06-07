@@ -5,17 +5,15 @@ import io.chymyst.jc._
 class DiningPhilosophersSpec extends LogSpec {
 
   def randomWait(message: String): Unit = {
-//    println(message)
     Thread.sleep(math.floor(scala.util.Random.nextDouble*20.0 + 2.0).toLong)
   }
 
-  val philosophers = IndexedSeq("Socrates", "Confucius", "Plato", "Descartes", "Voltaire")
-
-  def eating(philosopher: Int): Unit = {
-    randomWait(s"${philosophers(philosopher-1)} is eating")
+  def eat(philosopher: Philosopher): Unit = {
+    randomWait(s"$philosopher is eating")
   }
-  def thinking(philosopher: Int): Unit = {
-    randomWait(s"${philosophers(philosopher-1)} is thinking")
+
+  def think(philosopher: Philosopher): Unit = {
+    randomWait(s"$philosopher is thinking")
   }
 
   val cycles: Int = 50
@@ -23,11 +21,18 @@ class DiningPhilosophersSpec extends LogSpec {
     diningPhilosophers(cycles)
   }
 
+  sealed trait Philosopher
+  case object Socrates extends Philosopher
+  case object Confucius extends Philosopher
+  case object Plato extends Philosopher
+  case object Descartes extends Philosopher
+  case object Voltaire extends Philosopher
+
   private def diningPhilosophers(cycles: Int) = {
 
     val tp = FixedPool(8)
 
-    val hungry1 = m[Int]
+    val hungry1 = m[Int] // The `Int` value represents how many cycles of eating/thinking still remain.
     val hungry2 = m[Int]
     val hungry3 = m[Int]
     val hungry4 = m[Int]
@@ -47,19 +52,19 @@ class DiningPhilosophersSpec extends LogSpec {
     val check = b[Unit, Unit]
 
     site(tp) (
-      go { case thinking1(n) => thinking(1); hungry1(n - 1) },
-      go { case thinking2(n) => thinking(2); hungry2(n - 1) },
-      go { case thinking3(n) => thinking(3); hungry3(n - 1) },
-      go { case thinking4(n) => thinking(4); hungry4(n - 1) },
-      go { case thinking5(n) => thinking(5); hungry5(n - 1) },
+      go { case thinking1(n) => think(Socrates);  hungry1(n - 1) },
+      go { case thinking2(n) => think(Confucius); hungry2(n - 1) },
+      go { case thinking3(n) => think(Plato);     hungry3(n - 1) },
+      go { case thinking4(n) => think(Descartes); hungry4(n - 1) },
+      go { case thinking5(n) => think(Voltaire);  hungry5(n - 1) },
 
-      go { case done(_) + check(_, r) => r() },
+      go { case done(()) + check((), reply) => reply() },
 
-      go { case hungry1(n) + fork12(_) + fork51(_) => eating(1); thinking1(n) + fork12() + fork51(); if (n == 0) done() },
-      go { case hungry2(n) + fork23(_) + fork12(_) => eating(2); thinking2(n) + fork23() + fork12() },
-      go { case hungry3(n) + fork34(_) + fork23(_) => eating(3); thinking3(n) + fork34() + fork23() },
-      go { case hungry4(n) + fork45(_) + fork34(_) => eating(4); thinking4(n) + fork45() + fork34() },
-      go { case hungry5(n) + fork51(_) + fork45(_) => eating(5); thinking5(n) + fork51() + fork45() }
+      go { case hungry1(n) + fork12(()) + fork51(()) => eat(Socrates);  thinking1(n) + fork12() + fork51(); if (n == 0) done() },
+      go { case hungry2(n) + fork23(()) + fork12(()) => eat(Confucius); thinking2(n) + fork23() + fork12() },
+      go { case hungry3(n) + fork34(()) + fork23(()) => eat(Plato);     thinking3(n) + fork34() + fork23() },
+      go { case hungry4(n) + fork45(()) + fork34(()) => eat(Descartes); thinking4(n) + fork45() + fork34() },
+      go { case hungry5(n) + fork51(()) + fork45(()) => eat(Voltaire);  thinking5(n) + fork51() + fork45() }
     )
 
     thinking1(cycles) + thinking2(cycles) + thinking3(cycles) + thinking4(cycles) + thinking5(cycles)
