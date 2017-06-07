@@ -474,12 +474,12 @@ final case class InputMoleculeInfo(molecule: MolEmitter, index: Int, flag: Input
       case SimpleVarInput(v, None) =>
         v.name
       case SimpleVarInput(v, Some(_)) =>
-        s"${v.name} if ?"
+        v.name + " if ?"
       //      case ConstInputPattern(()) => ""  // This case was eliminated by converting constants of Unit type to Wildcard input flag.
       case ConstInputPattern(c) =>
         c.toString
       case OtherInputPattern(_, vars, isIrrefutable) =>
-        s"${if (isIrrefutable) "" else "?"}${vars.map(_.name).mkString(",")}"
+        (if (isIrrefutable) "" else "?") + vars.map(_.name).mkString(",")
     }
 
     s"$molecule($printedPattern)"
