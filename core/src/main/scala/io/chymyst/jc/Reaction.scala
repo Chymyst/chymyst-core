@@ -4,6 +4,7 @@ import io.chymyst.jc.Core._
 
 import scala.{Symbol => ScalaSymbol}
 import scalaxy.streams.optimize
+import scalaxy.streams.strategy.aggressive
 
 /** Represents compile-time information about the pattern matching for values carried by input molecules.
   * Possibilities:
@@ -568,7 +569,7 @@ final class ReactionInfo(
     *
     * This [[SearchDSL]] program is optimized by including the constraint guards as early as possible.
     */
-  private[jc] val searchDSLProgram = {
+  private[jc] val searchDSLProgram = optimize {
     /** The array of sets of cross-molecule dependency groups. Each molecule is represented by its input index.
       * The cross-molecule dependency groups include both the molecules that are constrained by cross-molecule guards and also
       * repeated molecules whose copies participate in a cross-molecule guard or a per-molecule conditional.
@@ -665,7 +666,7 @@ final class ReactionInfo(
       case GuardPresent(Some(_), Array()) =>
         " if(?)" // This indicates that there is a static guard but no cross-molecule guards.
       case GuardPresent(_, guards) =>
-        val crossGuardsInfo = optimize { guards.flatMap(_.symbols).map(_.name).distinct.mkString(",") }
+        val crossGuardsInfo = guards.flatMap(_.symbols).distinct.map(_.name).mkString(",") // can't use scalaxy optimize on this line!
         s" if($crossGuardsInfo)"
     }
     val outputsInfo = shrunkOutputs.map(_.toString).mkString(" + ")

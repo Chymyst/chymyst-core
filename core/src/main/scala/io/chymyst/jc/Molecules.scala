@@ -325,7 +325,7 @@ final class B[T, R](val name: String) extends (T => R) with MolEmitter {
     reactionSite.emitAndAwaitReplyWithTimeout(duration, this, v)
 
   /** Same but for molecules with type `T == Unit`; enables shorter syntax `b.timeout()(1.second)`. */
-  def timeout()(duration: Duration)(implicit arg: TypeMustBeUnit[T]): Option[R] = timeout(arg.getUnit)(duration)
+  def timeout()(duration: Duration)(implicit arg: TypeMustBeUnit[T]): Option[R] = (timeout(arg.getUnit)(duration): @inline)
 
   /** Perform the unapply matching and return a named extractor on success.
     * The extractor will always succeed, yielding the molecule value held by a [[BlockingMolValue]].

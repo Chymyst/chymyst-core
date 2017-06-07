@@ -10,6 +10,7 @@ import scala.collection.breakOut
 import scala.concurrent.Future
 import scala.concurrent.duration.Duration
 import scalaxy.streams.optimize
+import scalaxy.streams.strategy.aggressive
 
 /** Represents the reaction site, which holds one or more reaction definitions (chemical laws).
   * At run time, the reaction site maintains a bag of currently available input molecules and runs reactions.
