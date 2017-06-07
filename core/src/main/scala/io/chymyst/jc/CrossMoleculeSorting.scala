@@ -1,6 +1,7 @@
 package io.chymyst.jc
 
 import scala.annotation.tailrec
+import scalaxy.streams.optimize
 
 /** Utility functions for various calculations related to cross-molecule guards and conditions.
   * Molecules are represented by their zero-based indices in the reaction input list. (These are not the site-wide molecule indices.)
@@ -17,16 +18,17 @@ private[jc] object CrossMoleculeSorting {
         result
       case Some(largest) ⇒
         val (connected, nonConnected) = connectedSets.partition(_.exists(largest.contains))
-        sortConnectedSets(nonConnected, result ++ connected.sortBy(g ⇒ (-(largest intersect g).size, g.min, g.max)))
+        sortConnectedSets(nonConnected, optimize { result ++ connected.sortBy(g ⇒ (-(largest intersect g).size, g.min, g.max)) })
     }
   }
 
-  private[jc] def sortedConnectedSets(groupedSets: Coll[(Set[Int], Coll[Set[Int]])]): Coll[(Set[Int], Coll[Set[Int]])] =
+  private[jc] def sortedConnectedSets(groupedSets: Coll[(Set[Int], Coll[Set[Int]])]): Coll[(Set[Int], Coll[Set[Int]])] = optimize {
     groupedSets
       .sortBy(_._1.size)
       .map { case (s, a) ⇒
         (s, sortConnectedSets(a.sortBy { g ⇒ a.map(_ intersect g).map(_.size).sum }))
       }
+  }
 
   @tailrec
   private[jc] def groupConnectedSets(
@@ -69,7 +71,7 @@ private[jc] object CrossMoleculeSorting {
   }
 
   // Insert ConstrainGuard(i) commands whenever the already chosen molecules contain the set constrained by the guard.
-  private def insertConstrainGuardCommands(crossGroups: Coll[Set[Int]], program: Coll[SearchDSL]): Coll[SearchDSL] = {
+  private def insertConstrainGuardCommands(crossGroups: Coll[Set[Int]], program: Coll[SearchDSL]): Coll[SearchDSL] = optimize {
     val groupIndexed = crossGroups.zipWithIndex
     // Accumulator is a 4-tuple: (all guards seen so far, current guards, all molecules seen so far, current command)
     program.scanLeft((Set[Int](), Set[Int](), Set[Int](), CloseGroup: SearchDSL)) {
@@ -92,7 +94,7 @@ private[jc] object CrossMoleculeSorting {
     crossGroups: Coll[Set[Int]],
     repeatedMols: Coll[Set[Int]],
     moleculeWeights: Coll[(Int, Boolean)]
-  ): Coll[SearchDSL] = {
+  ): Coll[SearchDSL] = optimize {
     val allGroups: Coll[Set[Int]] = crossGroups ++ repeatedMols
 
     val sortedCrossGroups: Coll[Coll[Coll[Int]]] = sortedConnectedSets(groupConnectedSets(allGroups))

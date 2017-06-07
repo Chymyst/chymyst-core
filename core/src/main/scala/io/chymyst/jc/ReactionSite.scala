@@ -665,7 +665,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   //    Array.tabulate(knownInputMolecules.size)(i ⇒ reactionInfos.keys.filter(_.inputMoleculesSet contains moleculeAtIndex(i)).toArray)
   // Instead of traversing all molecules, traverse all reactions and accumulate results. This is faster.
 
-  private[jc] val consumingReactions: Array[Array[Reaction]] = {
+  private[jc] val consumingReactions: Array[Array[Reaction]] = optimize {
     val table = scala.collection.mutable.Map[MolEmitter, scala.collection.mutable.Set[Reaction]]()
     reactions.foreach { r ⇒
       r.info.inputs.foreach { info ⇒

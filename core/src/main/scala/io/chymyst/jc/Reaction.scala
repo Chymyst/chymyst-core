@@ -496,7 +496,7 @@ final case class InputMoleculeInfo(molecule: MolEmitter, index: Int, flag: Input
 final case class OutputMoleculeInfo(molecule: MolEmitter, flag: OutputPatternType, environments: List[OutputEnvironment]) {
   val atLeastOnce: Boolean = environments.forall(_.atLeastOne)
 
-  override val toString: String = s"$molecule($flag)"
+  override val toString: String = s"${molecule.toString}($flag)"
 }
 
 // This class is immutable.
@@ -507,7 +507,7 @@ final class ReactionInfo(
   private[jc] val guardPresence: GuardPresenceFlag,
   private[jc] val sha1: String
 ) {
-  private[jc] val hasBlockingInputs: Boolean = inputs.exists(_.molecule.isBlocking)
+  private[jc] val hasBlockingInputs: Boolean = optimize { inputs.exists(_.molecule.isBlocking) }
 
   private[jc] val inputIndices = inputs.indices
 
@@ -568,7 +568,7 @@ final class ReactionInfo(
     *
     * This [[SearchDSL]] program is optimized by including the constraint guards as early as possible.
     */
-  private[jc] val searchDSLProgram = optimize {
+  private[jc] val searchDSLProgram = {
     /** The array of sets of cross-molecule dependency groups. Each molecule is represented by its input index.
       * The cross-molecule dependency groups include both the molecules that are constrained by cross-molecule guards and also
       * repeated molecules whose copies participate in a cross-molecule guard or a per-molecule conditional.
@@ -665,7 +665,7 @@ final class ReactionInfo(
       case GuardPresent(Some(_), Array()) =>
         " if(?)" // This indicates that there is a static guard but no cross-molecule guards.
       case GuardPresent(_, guards) =>
-        val crossGuardsInfo = guards.flatMap(_.symbols).map(_.name).distinct.mkString(",")
+        val crossGuardsInfo = optimize { guards.flatMap(_.symbols).map(_.name).distinct.mkString(",") }
         s" if($crossGuardsInfo)"
     }
     val outputsInfo = shrunkOutputs.map(_.toString).mkString(" + ")

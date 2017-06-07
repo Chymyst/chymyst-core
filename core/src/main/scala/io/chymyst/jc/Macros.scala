@@ -399,7 +399,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, ${p.patternTypeWithTree}, ${envs.reverse})" }.toArray
 
     // Compute shrunk output info.
-    val shrunkOutputInfo = OutputEnvironment.shrink(allOutputInfo.map { case (m, p, envs) => (m, p.patternTypeWithTree, envs) }, equalsInMacro)
+    val shrunkOutputInfo = OutputEnvironment.shrink(allOutputInfo.map { case (m, p, envs) => (m, p.patternTypeWithTree, envs) }, equalsToTree)
     val shrunkOutputReactionInfo = shrunkOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
 
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
@@ -409,7 +409,7 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
     // If we are here, all reply emitters have correct pattern variables. Now we check that each blocking molecule has one and only one reply.
     val shrunkReplyInfo: List[(MacroSymbol, OutputPatternType, List[OutputEnvironment])] =
-      OutputEnvironment.shrink(bodyReply.map { case (m, p, envs) => (m, p.patternTypeWithTree, envs) }, equalsInMacro)
+      OutputEnvironment.shrink(bodyReply.map { case (m, p, envs) => (m, p.patternTypeWithTree, envs) }, equalsToTree)
 
     val shrunkGuaranteedReplies = shrunkReplyInfo.filter(_._3.forall(_.atLeastOne)).map(_._1.asTerm.name.decodedName)
     val shrunkPossibleReplies = shrunkReplyInfo.map(_._1.asTerm.name.decodedName)

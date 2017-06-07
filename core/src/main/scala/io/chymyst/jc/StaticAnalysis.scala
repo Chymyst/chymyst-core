@@ -4,6 +4,7 @@ import io.chymyst.jc.Core._
 
 import scala.annotation.tailrec
 import scalaxy.streams.optimize
+import scalaxy.streams.strategy.aggressive
 
 private[jc] object StaticAnalysis {
 
@@ -108,16 +109,15 @@ private[jc] object StaticAnalysis {
     else None
   }
 
+  // This is time-consuming!
   private def checkInputsForDeadlockWarning(reactions: Seq[Reaction]): Option[String] = optimize {
     // A "possible deadlock" means that an input blocking molecule is consumed together with other molecules that are emitted later by the same reactions that emit the blocking molecule.
-    val blockingInputsWithNonblockingInputs: Seq[(InputMoleculeInfo, List[InputMoleculeInfo])] =
-      reactions.map(_.info.inputsSortedByConstraintStrength.partition(_.molecule.isBlocking)).filter(m => m._1.nonEmpty && m._2.nonEmpty)
-        .flatMap { case (bInputs, mInputs) => bInputs.map(b => (b, mInputs)) }
 
     val likelyDeadlocks: Seq[(InputMoleculeInfo, InputMoleculeInfo, Reaction)] = for {
-      bmInputs <- blockingInputsWithNonblockingInputs
-      bInput = bmInputs._1
-      mInput <- bmInputs._2
+      re ← reactions
+      bmInputs = re.info.inputsSortedByConstraintStrength.partition(_.molecule.isBlocking)
+      bInput ← bmInputs._1
+      mInput ← bmInputs._2
       possibleReactions = Set(bInput, mInput).flatMap(_.molecule.emittingReactions).toSeq
       reaction <- possibleReactions
       outputs = reaction.info.outputs
