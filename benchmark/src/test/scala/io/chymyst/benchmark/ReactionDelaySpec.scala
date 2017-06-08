@@ -138,10 +138,9 @@ class ReactionDelaySpec extends LogSpec {
     println(s"Sequential test of emission and reaction delay (before JVM warm-up): trials = ${resultsStartDelay0.length}, meanReactionStartDelay = ${formatNanosToMicros(meanReactionStartDelay0)} +- ${formatNanosToMicros(stdevReactionStartDelay0)}, meanEmitDelay = ${formatNanosToMicros(meanEmitDelay0)} ± ${formatNanosToMicros(stdevEmitDelay0)}, meanReplyDelay = ${formatNanosToMicros(meanReplyDelay0)} ± ${formatNanosToMicros(stdevReplyDelay0)}")
     println(s"Sequential test of emission and reaction delay (after JVM warm-up): trials = ${resultsStartDelay.length}, meanReactionStartDelay = ${formatNanosToMicros(meanReactionStartDelay)} +- ${formatNanosToMicros(stdevReactionStartDelay)}, meanEmitDelay = ${formatNanosToMicros(meanEmitDelay)} ± ${formatNanosToMicros(stdevEmitDelay)}, meanReplyDelay = ${formatNanosToMicros(meanReplyDelay)} ± ${formatNanosToMicros(stdevReplyDelay)}")
 
-    val power = -1.0
-    showRegression("reaction start delay", results.map(_._1.toDouble))
-    showRegression("emit delay", results.map(_._2.toDouble))
-    showRegression("reply delay", results.map(_._3.toDouble))
+    showFullStatistics("reaction start delay", results.map(_._1.toDouble))
+    showFullStatistics("emit delay", results.map(_._2.toDouble))
+    showFullStatistics("reply delay", results.map(_._3.toDouble))
   }
 
   type Result = (Int, Int, Long, Boolean)

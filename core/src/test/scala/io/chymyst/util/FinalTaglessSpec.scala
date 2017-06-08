@@ -13,7 +13,7 @@ class FinalTaglessSpec extends LogSpec {
     val (mean0, std0) = Common.meanAndStdev(result.slice(50, 150))
     val (mean1, std1) = Common.meanAndStdev(result.takeRight(200))
     println(s"$message (total=$total) takes before warmup ${Common.formatNanosToMicrosWithMeanStd(mean0, std0)}, after warmup ${Common.formatNanosToMicrosWithMeanStd(mean1, std1)}")
-    Common.showRegression(message, result.drop(total / 10))
+    Common.showFullStatistics(message, result)
   }
 
   it should "benchmark creating an Option[Int] value" in {

@@ -78,9 +78,9 @@ object Common {
 
   val safeSize: Int => Double = x => if (x == 0) 1.0f else x.toDouble
 
-  def det(a00: Double, a01: Double, a10: Double, a11: Double): Double = a00 * a11 - a01 * a10
+  private def det(a00: Double, a01: Double, a10: Double, a11: Double): Double = a00 * a11 - a01 * a10
 
-  def regressLSQ(xs: Seq[Double], ys: Seq[Double], funcX: Double ⇒ Double, funcY: Double ⇒ Double): (Double, Double, Double) = {
+  private def regressLSQ(xs: Seq[Double], ys: Seq[Double], funcX: Double ⇒ Double, funcY: Double ⇒ Double): (Double, Double, Double) = {
     val n = xs.length
     val sumX = xs.map(funcX).sum
     val sumXX = xs.map(funcX).map(x ⇒ x * x).sum
@@ -93,7 +93,7 @@ object Common {
     (a0, a1, eps)
   }
 
-  def showRegression(message: String, resultsRaw: Seq[Double]): Unit = {
+  private def showRegression(message: String, resultsRaw: Seq[Double]): Unit = {
     // Perform regression to determine the effect of JVM warm-up.
     // Assume that the warm-up works as a0 + a1*x^(-c). Try linear regression with different values of c.
     val total = resultsRaw.length
@@ -127,7 +127,7 @@ object Common {
     println(s"Plot file produced in $plotdir$plotfile.pdf")
   }
 
-  def showStd(message: String, results: Seq[Double], factor: Double): Unit = {
+  private def showStd(message: String, results: Seq[Double], factor: Double): Unit = {
     val total = results.length
     val take = (total / factor).toInt
     val (mean, std) = meanAndStdev(results.sortBy(-_).takeRight(take))

@@ -129,7 +129,7 @@ class BuduSpec extends LogSpec {
     }.map(_.toDouble)
     val (average, stdev) = meanAndStdev(getBest(results))
     println(s"Best amortized reply speed for Budu, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
-    showRegression("reply speed for Budu", results)
+    showFullStatistics("reply speed for Budu", results)
   }
 
   it should "measure reply speed for Promise" in {
@@ -143,7 +143,7 @@ class BuduSpec extends LogSpec {
     }.map(_.toDouble)
     val (average, stdev) = meanAndStdev(getBest(results))
     println(s"Best amortized reply speed for Promise, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
-    showRegression("reply speed for Promise", results)
+    showFullStatistics("reply speed for Promise", results)
   }
 
   it should "measure time-out reply speed for Budu" in {
@@ -157,7 +157,7 @@ class BuduSpec extends LogSpec {
     }.map(_.toDouble)
     val (average, stdev) = meanAndStdev(getBest(results))
     println(s"Best amortized time-out reply speed for Budu, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
-    showRegression("time-out reply speed for Budu", results)
+    showFullStatistics("time-out reply speed for Budu", results)
   }
 
   it should "measure time-out reply speed for Promise" in {
@@ -171,7 +171,7 @@ class BuduSpec extends LogSpec {
     }.map(_.toDouble)
     val (average, stdev) = meanAndStdev(getBest(results))
     println(s"Best amortized time-out reply speed for Promise, based on $best best samples: ${formatNanosToMicros(average)} ± ${formatNanosToMicros(stdev)}")
-    showRegression("time-out reply speed for Promise", results)
+    showFullStatistics("time-out reply speed for Promise", results)
   }
 
 }
