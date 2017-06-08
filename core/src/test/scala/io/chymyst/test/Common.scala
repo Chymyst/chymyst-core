@@ -93,11 +93,14 @@ object Common {
     (a0, a1, eps)
   }
 
-  def showRegression(message: String, results: Seq[Double]): Unit = {
+  def showRegression(message: String, resultsRaw: Seq[Double]): Unit = {
     // Perform regression to determine the effect of JVM warm-up.
     // Assume that the warm-up works as a0 + a1*x^(-c). Try linear regression with different values of c.
+    val total = resultsRaw.length
+    val take = (total * 0.02).toInt // omit the first few % of data due to extreme variability before JVM warm-up
+    val results = resultsRaw.drop(take)
     val dataX = results.indices.map(_.toDouble)
-    val dataY = results // pass with a min window
+    val dataY = results // smoothing pass with a min window
       .zipAll(results.drop(1), Double.PositiveInfinity, Double.PositiveInfinity)
       .zipAll(results.drop(2), (Double.PositiveInfinity, Double.PositiveInfinity), Double.PositiveInfinity)
       .map { case ((x, y), z) ⇒ math.min(x, math.min(y, z)) }
@@ -106,16 +109,16 @@ object Common {
       (shift, regressLSQ(dataX, dataY, x ⇒ math.pow(x + shift, -1.0), identity))
     }.minBy(_._2._3)
     val funcX = (x: Double) ⇒ math.pow(x + shift, -1.0)
-    val take = 10
     val earlyValue = dataY.take(take).sum / take
     val lateValue = dataY.takeRight(take).sum / take
     val speedup = f"${earlyValue / lateValue}%1.2f"
-    println(s"Regression (total=${results.length}) for $message: constant = ${formatNanosToMicros(a0)} ± ${formatNanosToMicros(a0stdev)}, gain = ${formatNanosToMicros(a1)}*iteration, max. speedup = $speedup, shift = $shift")
+    println(s"Regression (total=$total) for $message: constant = ${formatNanosToMicros(a0)} ± ${formatNanosToMicros(a0stdev)}, gain = ${formatNanosToMicros(a1)}*iteration, max. speedup = $speedup, shift = $shift")
 
     import org.sameersingh.scalaplot.Implicits._
 
-    val dataTheoryY = dataX.map(i ⇒ a0 + a1 * funcX(i))
-    val chart = xyChart(dataX → ((dataTheoryY, dataY)))
+    val dataXplotting = dataX.drop(take)
+    val dataTheoryY = dataXplotting.map(i ⇒ a0 + a1 * funcX(i))
+    val chart = xyChart(dataXplotting → ((dataTheoryY, dataY.drop(take))))
     val plotter = new JFGraphPlotter(chart)
     val plotdir = "logs/"
     new File(plotdir).mkdir()
@@ -124,13 +127,17 @@ object Common {
     println(s"Plot file produced in $plotdir$plotfile.pdf")
   }
 
-  def showFullStatistics(message: String, resultsRaw: Seq[Double], factor: Double = 20.0): Unit = {
-    val results = resultsRaw.sortBy(- _)
+  def showStd(message: String, results: Seq[Double], factor: Double): Unit = {
     val total = results.length
     val take = (total / factor).toInt
-    val (mean, std) = meanAndStdev(results.takeRight(take))
-    val headPortion = resultsRaw.take(take)
-    println(s"$message: best result overall: ${formatNanosToMicros(results.last)}; last portion: ${formatNanosToMicrosWithMeanStd(mean, std)}; first portion ($take) ranges from ${formatNanosToMicros(headPortion.max)} to ${formatNanosToMicros(headPortion.min)}")
+    val (mean, std) = meanAndStdev(results.sortBy(-_).takeRight(take))
+    val headPortion = results.take(take)
+    println(s"$message: best result overall: ${formatNanosToMicros(results.min)}; best portion: ${formatNanosToMicrosWithMeanStd(mean, std)}; first portion ($take) ranges from ${formatNanosToMicros(headPortion.max)} to ${formatNanosToMicros(headPortion.min)}")
+
+  }
+
+  def showFullStatistics(message: String, results: Seq[Double], factor: Double = 20.0): Unit = {
+    showStd(message, results, factor)
     showRegression(message, results)
   }
 
