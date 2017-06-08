@@ -1,7 +1,7 @@
 package io.chymyst.benchmark
 
 import java.time.LocalDateTime
-import java.time.temporal.ChronoUnit
+import scalaxy.streams.optimize
 
 import io.chymyst.jc._
 import io.chymyst.test.Common._
@@ -367,26 +367,54 @@ class ReactionDelaySpec extends LogSpec {
     println(s"Long math.cos computation took $elapsed ms")
   }
 
+  def longComputation(): Unit = {
+    val total = 250
+    val arr = 1 to total
+    arr.foreach(i ⇒ arr.foreach(j ⇒ arr.foreach(k ⇒ math.cos(1.0 + (0.0 + i + j * total + k * total * total) / total / total / total / 100.0))))
+  }
+
+  def longComputationOptimized(): Unit = optimize {
+    val total = 250
+    val arr = 1 to total
+    arr.foreach(i ⇒ arr.foreach(j ⇒ arr.foreach(k ⇒ math.cos(1.0 + (0.0 + i + j * total + k * total * total) / total / total / total / 100.0))))
+  }
+
+  it should "measure CPU speed using def function" in {
+    val elapsed = elapsedTimeMs {
+      longComputation()
+    }._2
+    println(s"Long math.cos computation using def function took $elapsed ms")
+  }
+
+  it should "measure CPU speed using optimized def function" in {
+    val elapsed = elapsedTimeMs {
+      longComputationOptimized()
+    }._2
+    println(s"Long math.cos computation using optimized def function took $elapsed ms")
+  }
+
+  behavior of "time function statistics"
+
   it should "measure the latency of System.currentTimeMillis using elapsedTimesNs" in {
-    val total = 50000
+    val total = 20000
     val results = elapsedTimesNs(System.currentTimeMillis(), total)
     showFullStatistics("latency of System.currentTimeMillis", results, factor = 200) // about 30 ns
   }
 
   it should "measure the latency of LocalDateTime.now using elapsedTimesNs" in {
-    val total = 50000
+    val total = 20000
     val results = elapsedTimesNs(LocalDateTime.now, total)
     showFullStatistics("latency of LocalDateTime.now", results, factor = 200) // about 30 ns
   }
 
   it should "measure the latency of System.nanoTime using elapsedTimesNs" in {
-    val total = 50000
+    val total = 20000
     val results = elapsedTimesNs(System.nanoTime(), total)
     showFullStatistics("latency of System.nanoTime", results, factor = 200) // about 30 ns
   }
 
   it should "measure the latency of elapsedTimesNs" in {
-    val total = 50000
+    val total = 20000
     val results = elapsedTimesNs((), total)
     showFullStatistics("latency of elapsedTimesNs", results, factor = 200) // about 30 ns
   }
@@ -396,7 +424,7 @@ class ReactionDelaySpec extends LogSpec {
     val c = m[Unit]
     site(tp)(go { case c(_) ⇒ })
 
-    val total = 50000
+    val total = 20000
     val results = elapsedTimesNs(c(), total)
     showFullStatistics("latency of emitting non-blocking molecule", results, factor = 100)
 
