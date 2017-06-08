@@ -332,7 +332,7 @@ class ReactionDelaySpec extends LogSpec {
       val results = elapsedTimesNs({
         val p = Promise[Long]()
         f(p)
-        val r = Await.result(p.future, Duration.Inf
+        val r = Await.result(p.future, Duration.Inf)
         val x = System.nanoTime()
         x - r
       }, total)
