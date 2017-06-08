@@ -138,11 +138,10 @@ class ReactionDelaySpec extends LogSpec {
     println(s"Sequential test of emission and reaction delay (before JVM warm-up): trials = ${resultsStartDelay0.length}, meanReactionStartDelay = ${formatNanosToMicros(meanReactionStartDelay0)} +- ${formatNanosToMicros(stdevReactionStartDelay0)}, meanEmitDelay = ${formatNanosToMicros(meanEmitDelay0)} ± ${formatNanosToMicros(stdevEmitDelay0)}, meanReplyDelay = ${formatNanosToMicros(meanReplyDelay0)} ± ${formatNanosToMicros(stdevReplyDelay0)}")
     println(s"Sequential test of emission and reaction delay (after JVM warm-up): trials = ${resultsStartDelay.length}, meanReactionStartDelay = ${formatNanosToMicros(meanReactionStartDelay)} +- ${formatNanosToMicros(stdevReactionStartDelay)}, meanEmitDelay = ${formatNanosToMicros(meanEmitDelay)} ± ${formatNanosToMicros(stdevEmitDelay)}, meanReplyDelay = ${formatNanosToMicros(meanReplyDelay)} ± ${formatNanosToMicros(stdevReplyDelay)}")
 
-    val offset = 250.0
     val power = -1.0
-    showRegression("reaction start delay", results.map(_._1.toDouble), x ⇒ math.pow(x + offset, power))
-    showRegression("emit delay", results.map(_._2.toDouble), x ⇒ math.pow(x + offset, power))
-    showRegression("reply delay", results.map(_._3.toDouble), x ⇒ math.pow(x + offset, power))
+    showRegression("reaction start delay", results.map(_._1.toDouble))
+    showRegression("emit delay", results.map(_._2.toDouble))
+    showRegression("reply delay", results.map(_._3.toDouble))
   }
 
   type Result = (Int, Int, Long, Boolean)
@@ -256,7 +255,8 @@ class ReactionDelaySpec extends LogSpec {
       val results = (1 to total).map { _ ⇒
         val t = System.nanoTime()
         val r = f()
-        (System.nanoTime() - r, r - t)
+        val x = System.nanoTime()
+        (x - r, r - t)
       }
       val resDelay = results.map(_._1)
       val resLaunch = results.map(_._2)
@@ -278,11 +278,12 @@ class ReactionDelaySpec extends LogSpec {
     val drop = 10
     val res = (1 to 20 + drop).map { i ⇒
       val results = (1 to total).map { _ ⇒
-        val t = System.nanoTime()
         val p = Promise[Long]()
+        val t = System.nanoTime()
         f(p)
         val r = Await.result(p.future, Duration.Inf)
-        (System.nanoTime() - r, r - t)
+        val x = System.nanoTime()
+        (x - r, r - t)
       }
       val resDelay = results.map(_._1)
       val resLaunch = results.map(_._2)
@@ -293,6 +294,66 @@ class ReactionDelaySpec extends LogSpec {
     }.drop(drop)
     println(s"Reply delay with promises: after ${res.length} tries, average is ${res.map(_._1).sum / res.length}, average launch time is ${res.map(_._2).sum / res.length}")
     tp.shutdownNow()
+  }
+
+  it should "measure statistics of reply delay using blocking molecules" in {
+    withPool(FixedPool(1)) { tp ⇒
+      val f = b[Unit, Long]
+      site(tp)(go { case f(_, r) ⇒ r(System.nanoTime()) })
+      val total = 10000
+      val results = elapsedTimesNs({
+        val x = f()
+        val y = System.nanoTime()
+        y - x
+      }, total)
+      showFullStatistics("latency of reply delay using blocking molecules", results, factor = 200) // about 30 ns
+    }
+  }
+
+  it should "measure statistics of reaction launch using blocking molecules" in {
+    withPool(FixedPool(1)) { tp ⇒
+      val f = b[Unit, Long]
+      site(tp)(go { case f(_, r) ⇒ r(System.nanoTime()) })
+      val total = 10000
+      val results = elapsedTimesNs({
+        val t = System.nanoTime()
+        val x = f()
+        x - t
+      }, total)
+      showFullStatistics("latency of reaction launch using blocking molecules", results, factor = 200) // about 30 ns
+    }
+  }
+
+  it should "measure statistics of reply delay using promises" in {
+    withPool(FixedPool(1)) { tp ⇒
+      val f = m[Promise[Long]]
+      site(tp)(go { case f(promise) ⇒ promise.success(System.nanoTime()) })
+      val total = 10000
+      val results = elapsedTimesNs({
+        val p = Promise[Long]()
+        f(p)
+        val r = Await.result(p.future, Duration.Inf
+        val x = System.nanoTime()
+        x - r
+      }, total)
+      showFullStatistics("latency of reply delay using promises", results, factor = 200) // about 30 ns
+    }
+  }
+
+  it should "measure statistics of reaction launch using promises" in {
+    withPool(FixedPool(1)) { tp ⇒
+      val f = m[Promise[Long]]
+      site(tp)(go { case f(promise) ⇒ promise.success(System.nanoTime()) })
+      val total = 10000
+      val results = elapsedTimesNs({
+        val p = Promise[Long]()
+        val t = System.nanoTime()
+        f(p)
+        val r = Await.result(p.future, Duration.Inf)
+        r - t
+      }, total)
+      showFullStatistics("latency of reaction launch using promises", results, factor = 200) // about 30 ns
+    }
   }
 
   behavior of "general overhead"
@@ -306,172 +367,16 @@ class ReactionDelaySpec extends LogSpec {
     println(s"Long math.cos computation took $elapsed ms")
   }
 
-  it should "measure the latency when using System.nanoTime() before and after JVM warm-up" in {
-    def measure(total: Int): Unit = {
-      var x: Long = 0
-      var z: Long = 0
-      val result = (1 to total).map { _ ⇒
-        x = System.nanoTime()
-        z = System.nanoTime()
-        (z - x).toDouble
-      }
-      val (mean, std) = meanAndStdev(result.drop(total / 4))
-      println(s"System.nanoTime() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
-    }
-
-    measure(4)
-    measure(50)
-    measure(500)
-    measure(1000)
-    measure(5000)
-    measure(10000)
-    measure(50000)
+  it should "measure the latency of System.currentTimeMillis using elapsedTimesNs" in {
+    val total = 50000
+    val results = elapsedTimesNs(System.currentTimeMillis(), total)
+    showFullStatistics("latency of System.currentTimeMillis", results, factor = 200) // about 30 ns
   }
 
-  it should "measure the latency of System.nanoTime() before and after JVM warm-up" in {
-    def measure(total: Int): Unit = {
-      var x: Long = 0
-      var y: Long = 0
-      var z: Long = 0
-      val result = (1 to total).map { _ ⇒
-        x = System.nanoTime()
-        y = System.nanoTime()
-        z = System.nanoTime()
-        (z - x).toDouble
-      }
-      val (mean, std) = meanAndStdev(result.drop(total / 4))
-      println(s"System.nanoTime()*2 after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
-    }
-
-    measure(4)
-    measure(50)
-    measure(500)
-    measure(1000)
-    measure(5000)
-    measure(10000)
-    measure(50000)
-  }
-
-  it should "measure the latency of System.currentTimeMillis() before and after JVM warm-up" in {
-    def measure(total: Int): Unit = {
-      var x: Long = 0
-      var y: Long = 0
-      var z: Long = 0
-      val result = (1 to total).map { _ ⇒
-        x = System.nanoTime()
-        y = System.currentTimeMillis()
-        z = System.nanoTime()
-        (z - x).toDouble
-      }
-      val (mean, std) = meanAndStdev(result.drop(total / 4))
-      println(s"System.currentTimeMillis() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
-    }
-
-    measure(4)
-    measure(50)
-    measure(500)
-    measure(1000)
-    measure(5000)
-    measure(10000)
-    measure(50000)
-  }
-
-  it should "measure the latency of System.currentTimeMillis() using lazy value before and after JVM warm-up" in {
-    def measure(total: Int): Unit = {
-      var x: Long = 0
-      var y: Long = 0
-      var z: Long = 0
-      val result = (1 to total).map { _ ⇒
-        lazy val l = System.currentTimeMillis()
-        x = System.nanoTime()
-        y = l
-        z = System.nanoTime()
-        (z - x).toDouble
-      }
-      val (mean, std) = meanAndStdev(result.drop(total / 4))
-      println(s"System.currentTimeMillis() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
-    }
-
-    measure(4)
-    measure(50)
-    measure(500)
-    measure(1000)
-    measure(5000)
-    measure(10000)
-    measure(50000)
-  }
-
-  it should "measure the latency of System.currentTimeMillis() using function value before and after JVM warm-up" in {
-    def measure(total: Int): Unit = {
-      var x: Long = 0
-      var y: Long = 0
-      var z: Long = 0
-      val l = () => System.currentTimeMillis()
-      val result = (1 to total).map { _ ⇒
-        x = System.nanoTime()
-        y = l()
-        z = System.nanoTime()
-        (z - x).toDouble
-      }
-      val (mean, std) = meanAndStdev(result.drop(total / 4))
-      println(s"System.currentTimeMillis() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
-    }
-
-    measure(4)
-    measure(50)
-    measure(500)
-    measure(1000)
-    measure(5000)
-    measure(10000)
-    measure(50000)
-  }
-
-  it should "measure the latency of System.currentTimeMillis() using lazy parameter before and after JVM warm-up" in {
-    def measure(total: Int, time: => Long): Unit = {
-      var x: Long = 0
-      var y: Long = 0
-      var z: Long = 0
-      val result = (1 to total).map { _ ⇒
-        x = System.nanoTime()
-        y = time
-        z = System.nanoTime()
-        (z - x).toDouble
-      }
-      val (mean, std) = meanAndStdev(result.drop(total / 4))
-      println(s"System.currentTimeMillis() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
-    }
-
-    measure(4, System.currentTimeMillis())
-    measure(50, System.currentTimeMillis())
-    measure(500, System.currentTimeMillis())
-    measure(1000, System.currentTimeMillis())
-    measure(5000, System.currentTimeMillis())
-    measure(10000, System.currentTimeMillis())
-    measure(50000, System.currentTimeMillis())
-  }
-
-  it should "measure the latency of LocalDateTime.now() before and after JVM warm-up" in {
-    def measure(total: Int): Unit = {
-      var x: Long = 0
-      var y: LocalDateTime = null
-      var z: Long = 0
-      val result = (1 to total).map { _ ⇒
-        x = System.nanoTime()
-        y = LocalDateTime.now()
-        z = System.nanoTime()
-        (z - x).toDouble
-      }
-      val (mean, std) = meanAndStdev(result.drop(total / 4))
-      println(s"LocalDateTime.now() after $total warmup iterations takes ${formatNanosToMicros(mean)} ± ${formatNanosToMicros(std)}")
-    }
-
-    measure(4)
-    measure(50)
-    measure(500)
-    measure(1000)
-    measure(5000)
-    measure(10000)
-    measure(50000)
+  it should "measure the latency of LocalDateTime.now using elapsedTimesNs" in {
+    val total = 50000
+    val results = elapsedTimesNs(LocalDateTime.now, total)
+    showFullStatistics("latency of LocalDateTime.now", results, factor = 200) // about 30 ns
   }
 
   it should "measure the latency of System.nanoTime using elapsedTimesNs" in {
@@ -491,209 +396,10 @@ class ReactionDelaySpec extends LogSpec {
     val c = m[Unit]
     site(tp)(go { case c(_) ⇒ })
 
-    val total = 10000
+    val total = 50000
     val results = elapsedTimesNs(c(), total)
     showFullStatistics("latency of emitting non-blocking molecule", results, factor = 100)
 
-    tp.shutdownNow()
-  }
-
-  it should "measure emitting non-blocking molecules" in {
-    val tp = FixedPool(1)
-    val c = m[Unit]
-    site(tp)(go { case c(_) ⇒ })
-    val total = 100000
-    val drop = 20
-    val iterations = 40
-    val result = (1 to drop + iterations).map { _ ⇒
-      val initTime = System.nanoTime()
-      (1 to total).foreach { _ ⇒
-        c()
-        0
-      }
-      (System.nanoTime() - initTime) / 1000L
-    }.drop(drop).sum / iterations
-    val resultWithoutPayload = (1 to drop + iterations).map { _ ⇒
-      val initTime = System.nanoTime()
-      (1 to total).foreach { _ ⇒
-        //        c()
-        0
-      }
-      (System.nanoTime() - initTime) / 1000L
-    }.drop(drop).sum / iterations
-
-    println(s"Emitting non-blocking molecules: emission time is ${result - resultWithoutPayload} µs per molecule, overhead $resultWithoutPayload µs")
-    tp.shutdownNow()
-  }
-
-  it should "measure emitting non-blocking molecules using one while loop" in {
-    val tp = FixedPool(1)
-    val c = m[Unit]
-    site(tp)(go { case c(_) ⇒ })
-    val total = 10000
-    val drop = 20
-    val iterations = 40
-
-    val results = (1 to drop + iterations).map { _ ⇒
-      var i = 0
-      val initTime = System.nanoTime()
-      while (i < total) {
-        c()
-        i += 1
-      }
-      (System.nanoTime() - initTime) / 1000L
-    }.drop(drop)
-    val overheadAverage = results.sum / results.size
-    println(s"Emitting non-blocking molecules using one while loop: emission time is $overheadAverage µs per molecule")
-    tp.shutdownNow()
-  }
-
-  it should "measure emitting non-blocking molecules using two while loops" in {
-    val tp = FixedPool(1)
-    val c = m[Unit]
-    site(tp)(go { case c(_) ⇒ })
-    val total = 10000
-    val drop = 20
-    val iterations = 40
-
-    val overheadAverage = {
-      var resultsSum = 0L
-
-      var counter = 0
-      while (counter < drop + iterations) {
-        var i = 0
-        val initTime = System.nanoTime()
-        while (i < total) {
-          c()
-          i += 1
-        }
-
-        val elapsed = System.nanoTime() - initTime
-        if (counter > drop) resultsSum += elapsed
-
-        counter += 1
-      }
-      resultsSum / iterations
-    }
-
-    val overheadAverageWithoutPayload = {
-      var resultsSum = 0L
-
-      var counter = 0
-      while (counter < drop + iterations) {
-        var i = 0
-        val initTime = System.nanoTime()
-        while (i < total) {
-          //          c()
-          i += 1
-        }
-
-        val elapsed = System.nanoTime() - initTime
-        if (counter > drop) resultsSum += elapsed
-
-        counter += 1
-      }
-      resultsSum / iterations
-    }
-    println(s"Emitting non-blocking molecules using two while loops: mean time is ${(overheadAverage - overheadAverageWithoutPayload) / 1000L} µs per molecule, overhead ${overheadAverageWithoutPayload / 1000L} µs")
-    tp.shutdownNow()
-  }
-
-  it should "measure creating a new reaction" in {
-    val total = 1000
-    val drop = 20
-    val iterations = 40
-
-    val overheadAverage = {
-      var resultsSum = 0L
-
-      var counter = 0
-      while (counter < drop + iterations) {
-        var i = 0
-        val initTime = System.nanoTime()
-        while (i < total) {
-          val c = b[Unit, Unit]
-          go { case c(_, r) ⇒ r() }
-          i += 1
-        }
-
-        val elapsed = System.nanoTime() - initTime
-        if (counter > drop) resultsSum += elapsed
-
-        counter += 1
-      }
-      resultsSum / iterations
-    }
-
-    val overheadAverageWithoutPayload = {
-      var resultsSum = 0L
-
-      var counter = 0
-      while (counter < drop + iterations) {
-        var i = 0
-        val initTime = System.nanoTime()
-        while (i < total) {
-          i += 1
-        }
-
-        val elapsed = System.nanoTime() - initTime
-        if (counter > drop) resultsSum += elapsed
-
-        counter += 1
-      }
-      resultsSum / iterations
-    }
-    println(s"Creating a new reaction using two while loops: mean time is ${(overheadAverage - overheadAverageWithoutPayload) / 1000L} µs per reaction, overhead ${overheadAverageWithoutPayload / 1000L} µs")
-
-  }
-
-  it should "measure creating a new reaction site" in {
-    val tp = FixedPool(1)
-    val total = 1000
-    val drop = 20
-    val iterations = 40
-
-    val overheadAverage = {
-      var resultsSum = 0L
-
-      var counter = 0
-      while (counter < drop + iterations) {
-        var i = 0
-        val initTime = System.nanoTime()
-        while (i < total) {
-          val c = b[Unit, Unit]
-          val d = m[Unit]
-          site(tp)(go { case c(_, r) + d(_) + d(_) + d(_) ⇒ r(); d() + d() + d() })
-          i += 1
-        }
-
-        val elapsed = System.nanoTime() - initTime
-        if (counter > drop) resultsSum += elapsed
-
-        counter += 1
-      }
-      resultsSum / iterations
-    }
-
-    val overheadAverageWithoutPayload = {
-      var resultsSum = 0L
-
-      var counter = 0
-      while (counter < drop + iterations) {
-        var i = 0
-        val initTime = System.nanoTime()
-        while (i < total) {
-          i += 1
-        }
-
-        val elapsed = System.nanoTime() - initTime
-        if (counter > drop) resultsSum += elapsed
-
-        counter += 1
-      }
-      resultsSum / iterations
-    }
-    println(s"Creating a new reaction site using two while loops: mean time is ${(overheadAverage - overheadAverageWithoutPayload) / 1000L} µs per site, overhead ${overheadAverageWithoutPayload / 1000L} µs")
     tp.shutdownNow()
   }
 
@@ -702,7 +408,7 @@ class ReactionDelaySpec extends LogSpec {
     val results = elapsedTimesNs({
       val c = b[Unit, Unit]
       go { case c(_, r) ⇒ r() }
-    }, total).sortBy(-_)
+    }, total)
     showFullStatistics("creating a new reaction", results, 100)
   }
 
@@ -712,7 +418,7 @@ class ReactionDelaySpec extends LogSpec {
       val c = b[Unit, Unit]
       val d = m[Unit]
       site(go { case c(_, r) + d(_) + d(_) + d(_) ⇒ r(); d() + d() + d() })
-    }, total).sortBy(-_)
+    }, total)
     showFullStatistics("creating a new reaction site", results, 100)
   }
 }

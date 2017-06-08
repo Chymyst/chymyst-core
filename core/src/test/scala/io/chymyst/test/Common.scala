@@ -93,7 +93,7 @@ object Common {
     (a0, a1, eps)
   }
 
-  def showRegression(message: String, results: Seq[Double], funcX: Double => Double, funcY: Double => Double = identity): Unit = {
+  def showRegression(message: String, results: Seq[Double]): Unit = {
     // Perform regression to determine the effect of JVM warm-up.
     // Assume that the warm-up works as a0 + a1*x^(-c). Try linear regression with different values of c.
     val dataX = results.indices.map(_.toDouble)
@@ -101,9 +101,16 @@ object Common {
       .zipAll(results.drop(1), Double.PositiveInfinity, Double.PositiveInfinity)
       .zipAll(results.drop(2), (Double.PositiveInfinity, Double.PositiveInfinity), Double.PositiveInfinity)
       .map { case ((x, y), z) ⇒ math.min(x, math.min(y, z)) }
-    val (a0, a1, a0stdev) = regressLSQ(dataX, dataY, funcX, funcY)
-    val speedup = f"${(a0 + a1 * funcX(dataX.head)) / (a0 + a1 * funcX(dataX.last))}%1.2f"
-    println(s"Regression (total=${results.length}) for $message: constant = ${formatNanosToMicros(a0)} ± ${formatNanosToMicros(a0stdev)}, gain = ${formatNanosToMicros(a1)}*iteration, max. speedup = $speedup")
+    val (shift, (a0, a1, a0stdev)) = (0 to 100).map { i ⇒
+      val shift = 0.1 + 2.5 * i
+      (shift, regressLSQ(dataX, dataY, x ⇒ math.pow(x + shift, -1.0), identity))
+    }.minBy(_._2._3)
+    val funcX = (x: Double) ⇒ math.pow(x + shift, -1.0)
+    val take = 10
+    val earlyValue = dataY.take(take).sum / take
+    val lateValue = dataY.takeRight(take).sum / take
+    val speedup = f"${earlyValue / lateValue}%1.2f"
+    println(s"Regression (total=${results.length}) for $message: constant = ${formatNanosToMicros(a0)} ± ${formatNanosToMicros(a0stdev)}, gain = ${formatNanosToMicros(a1)}*iteration, max. speedup = $speedup, shift = $shift")
 
     import org.sameersingh.scalaplot.Implicits._
 
@@ -124,7 +131,7 @@ object Common {
     val (mean, std) = meanAndStdev(results.takeRight(take))
     val headPortion = resultsRaw.take(take)
     println(s"$message: best result overall: ${formatNanosToMicros(results.last)}; last portion: ${formatNanosToMicrosWithMeanStd(mean, std)}; first portion ($take) ranges from ${formatNanosToMicros(headPortion.max)} to ${formatNanosToMicros(headPortion.min)}")
-    showRegression(message, results, x ⇒ math.pow(x + total / factor, -1.0))
+    showRegression(message, results)
   }
 
 }
