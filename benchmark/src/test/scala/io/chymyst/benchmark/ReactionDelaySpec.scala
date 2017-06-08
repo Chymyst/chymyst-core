@@ -240,119 +240,40 @@ class ReactionDelaySpec extends LogSpec {
     tp.shutdownNow()
   }
 
-  behavior of "blocking reply via promise"
+  behavior of "blocking reply statistics"
 
-  val total = 1000
+  val total = 10000
 
-  it should "measure the reply delay using blocking molecules" in {
-    val tp = FixedPool(1)
-
-    val f = b[Unit, Long]
-
-    site(tp)(go { case f(_, r) ⇒ r(System.nanoTime()) })
-    val drop = 10
-    val res = (1 to 20 + drop).map { i ⇒
-      val results = (1 to total).map { _ ⇒
-        val t = System.nanoTime()
-        val r = f()
-        val x = System.nanoTime()
-        (x - r, r - t)
-      }
-      val resDelay = results.map(_._1)
-      val resLaunch = results.map(_._2)
-      val aveDelay = resDelay.sum / resDelay.length
-      val aveLaunch = resLaunch.sum / resLaunch.length
-      println(s"Average reply delay with blocking molecules (iteration $i): $aveDelay ns; average launch time: $aveLaunch ns")
-      (aveDelay, aveLaunch)
-    }.drop(drop)
-    println(s"Reply delay with blocking molecules: after ${res.length} tries, average is ${res.map(_._1).sum / res.length}, average launch time is ${res.map(_._2).sum / res.length}")
-    tp.shutdownNow()
-  }
-
-  it should "measure the reply delay using promises" in {
-    val tp = FixedPool(1)
-
-    val f = m[Promise[Long]]
-
-    site(tp)(go { case f(promise) ⇒ promise.success(System.nanoTime()) })
-    val drop = 10
-    val res = (1 to 20 + drop).map { i ⇒
-      val results = (1 to total).map { _ ⇒
-        val p = Promise[Long]()
-        val t = System.nanoTime()
-        f(p)
-        val r = Await.result(p.future, Duration.Inf)
-        val x = System.nanoTime()
-        (x - r, r - t)
-      }
-      val resDelay = results.map(_._1)
-      val resLaunch = results.map(_._2)
-      val aveDelay = resDelay.sum / resDelay.length
-      val aveLaunch = resLaunch.sum / resLaunch.length
-      println(s"Average reply delay with blocking molecules using promises (iteration $i): $aveDelay ns; average launch time: $aveLaunch ns")
-      (aveDelay, aveLaunch)
-    }.drop(drop)
-    println(s"Reply delay with promises: after ${res.length} tries, average is ${res.map(_._1).sum / res.length}, average launch time is ${res.map(_._2).sum / res.length}")
-    tp.shutdownNow()
-  }
-
-  it should "measure statistics of reply delay using blocking molecules" in {
+  it should "using blocking molecules" in {
     withPool(FixedPool(1)) { tp ⇒
       val f = b[Unit, Long]
       site(tp)(go { case f(_, r) ⇒ r(System.nanoTime()) })
-      val total = 10000
-      val results = elapsedTimesNs({
+      val results = (1 to total).map { _ ⇒
+        val t = System.nanoTime()
         val x = f()
         val y = System.nanoTime()
-        y - x
-      }, total)
-      showFullStatistics("latency of reply delay using blocking molecules", results, factor = 200) // about 30 ns
+        (y - x, x - t)
+      }
+      showFullStatistics("latency of reply delay using blocking molecules", results.map(_._1.toDouble), factor = 200) // about 30 ns
+      showFullStatistics("latency of reaction launch using blocking molecules", results.map(_._2.toDouble), factor = 200) // about 30 ns
     }
   }
 
-  it should "measure statistics of reaction launch using blocking molecules" in {
-    withPool(FixedPool(1)) { tp ⇒
-      val f = b[Unit, Long]
-      site(tp)(go { case f(_, r) ⇒ r(System.nanoTime()) })
-      val total = 10000
-      val results = elapsedTimesNs({
-        val t = System.nanoTime()
-        val x = f()
-        x - t
-      }, total)
-      showFullStatistics("latency of reaction launch using blocking molecules", results, factor = 200) // about 30 ns
-    }
-  }
-
-  it should "measure statistics of reply delay using promises" in {
+  it should "using promises" in {
     withPool(FixedPool(1)) { tp ⇒
       val f = m[Promise[Long]]
       site(tp)(go { case f(promise) ⇒ promise.success(System.nanoTime()) })
       val total = 10000
-      val results = elapsedTimesNs({
-        val p = Promise[Long]()
-        f(p)
-        val r = Await.result(p.future, Duration.Inf)
-        val x = System.nanoTime()
-        x - r
-      }, total)
-      showFullStatistics("latency of reply delay using promises", results, factor = 200) // about 30 ns
-    }
-  }
-
-  it should "measure statistics of reaction launch using promises" in {
-    withPool(FixedPool(1)) { tp ⇒
-      val f = m[Promise[Long]]
-      site(tp)(go { case f(promise) ⇒ promise.success(System.nanoTime()) })
-      val total = 10000
-      val results = elapsedTimesNs({
+      val results = (1 to total).map { _ ⇒
         val p = Promise[Long]()
         val t = System.nanoTime()
         f(p)
-        val r = Await.result(p.future, Duration.Inf)
-        r - t
-      }, total)
-      showFullStatistics("latency of reaction launch using promises", results, factor = 200) // about 30 ns
+        val x = Await.result(p.future, Duration.Inf)
+        val y = System.nanoTime()
+        (y - x, x - t)
+      }
+      showFullStatistics("latency of reply delay using promises", results.map(_._1.toDouble), factor = 200) // about 30 ns
+      showFullStatistics("latency of reaction launch using promises", results.map(_._2.toDouble), factor = 200) // about 30 ns
     }
   }
 
