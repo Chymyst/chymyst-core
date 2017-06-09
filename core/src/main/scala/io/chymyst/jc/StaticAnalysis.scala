@@ -109,7 +109,7 @@ private[jc] object StaticAnalysis {
     else None
   }
 
-  // This is time-consuming!
+  // This is very slow!
   @SuppressWarnings(Array("org.wartremover.warts.TraversableOps"))
   private def checkInputsForDeadlockWarning(reactions: Seq[Reaction]): Option[String] = optimize {
     // A "possible deadlock" means that an input blocking molecule is consumed together with other molecules that are emitted later by the same reactions that emit the blocking molecule.
