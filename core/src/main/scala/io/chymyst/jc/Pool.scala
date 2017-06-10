@@ -19,6 +19,8 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
 
   def parallelism: Int
 
+  var reporter: Reporter = new EmptyReporter
+
   /** Run a reaction closure on the thread pool.
     * The reaction closure will be created by [[ReactionSite.reactionClosure]].
     *
