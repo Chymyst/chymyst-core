@@ -19,15 +19,21 @@ object BlockingIdle {
 
 /** A cached pool that increases its thread count whenever a blocking molecule is emitted, and decreases afterwards.
   * The `BlockingIdle` function, similar to `scala.concurrent.blocking`, is used to annotate expressions that should lead to an increase of thread count, and to a decrease of thread count once the idle blocking call returns.
+  * @param parallelism Initial number of threads.
   */
-final class BlockingPool(name: String, override val parallelism: Int = cpuCores, priority: Int = Thread.NORM_PRIORITY) extends Pool(name, priority) {
+final class BlockingPool(
+  name: String,
+  override val parallelism: Int = cpuCores,
+  priority: Int = Thread.NORM_PRIORITY,
+  reporter: Reporter = NoopReporter
+) extends Pool(name, priority, reporter) {
 
   // Looks like we will die hard at about 2021 threads...
   val poolSizeLimit: Int = math.min(2000, 1000 + 2 * parallelism)
 
   def currentPoolSize: Int = workerExecutor.getCorePoolSize
 
-  private[jc] override def startedBlockingCall(selfBlocking: Boolean) = synchronized { // Need a lock to modify the pool sizes.
+  private[jc] def startedBlockingCall(selfBlocking: Boolean) = synchronized { // Need a lock to modify the pool sizes.
     val newPoolSize = math.min(currentPoolSize + 1, poolSizeLimit)
     if (newPoolSize > currentPoolSize) {
       workerExecutor.setMaximumPoolSize(newPoolSize)
@@ -37,13 +43,15 @@ final class BlockingPool(name: String, override val parallelism: Int = cpuCores,
     }
   }
 
-  private[jc] override def finishedBlockingCall(selfBlocking: Boolean) = synchronized { // Need a lock to modify the pool sizes.
+  private[jc] def finishedBlockingCall(selfBlocking: Boolean) = synchronized { // Need a lock to modify the pool sizes.
     val newPoolSize = math.max(parallelism, currentPoolSize - 1)
     workerExecutor.setCorePoolSize(newPoolSize) // Must set them in this order, so that the core pool size is never larger than the maximum pool size.
     workerExecutor.setMaximumPoolSize(newPoolSize)
   }
 
-  private[chymyst] override def runReaction(closure: => Unit): Unit = workerExecutor.execute { () => closure }
+  private[chymyst] def runReaction(closure: => Unit): Unit = workerExecutor.execute { () => closure }
+
+  def withReporter(r: Reporter): BlockingPool = new BlockingPool(name, parallelism, priority, reporter)
 }
 
 object BlockingPool {

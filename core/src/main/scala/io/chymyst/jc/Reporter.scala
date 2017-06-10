@@ -2,8 +2,14 @@ package io.chymyst.jc
 
 import io.chymyst.jc.Core.InputMoleculeList
 
+import scala.concurrent.duration.Duration
+
 trait Reporter {
   def emitted[T](mol: MolEmitter, value: T): Unit
+
+  def replyReceived[T, R](mol: B[T, R], value: R): Unit
+
+  def replyTimedOut[T, R](mol: B[T, R], timeout: Duration): Unit
 
   def reactionSiteCreated(reactionSite: ReactionSite): Unit
 
@@ -14,17 +20,26 @@ trait Reporter {
   def reactionStarted(reaction: Reaction, inputs: InputMoleculeList): Unit
 
   def reactionFinished(reaction: Reaction, inputs: InputMoleculeList, status: ReactionExitStatus): Unit
+
+  def errorReport(reactionSite: ReactionSite, message: String): Unit
 }
 
-class EmptyReporter extends Reporter {override def emitted[T](mol: MolEmitter, value: T): Unit = ()
+object NoopReporter extends Reporter {
+  def emitted[T](mol: MolEmitter, value: T): Unit = ()
 
-  override def reactionSiteCreated(reactionSite: ReactionSite): Unit = ()
+  def replyReceived[T, R](mol: B[T, R], value: R): Unit = ()
 
-  override def schedulerStep(mol: MolEmitter): Unit = ()
+  def replyTimedOut[T, R](mol: B[T, R], timeout: Duration): Unit = ()
 
-  override def reactionScheduled(mol: MolEmitter, reaction: Reaction): Unit = ()
+  def reactionSiteCreated(reactionSite: ReactionSite): Unit = ()
 
-  override def reactionStarted(reaction: Reaction, inputs: InputMoleculeList): Unit = ()
+  def schedulerStep(mol: MolEmitter): Unit = ()
 
-  override def reactionFinished(reaction: Reaction, inputs: InputMoleculeList, status: ReactionExitStatus): Unit = ()
+  def reactionScheduled(mol: MolEmitter, reaction: Reaction): Unit = ()
+
+  def reactionStarted(reaction: Reaction, inputs: InputMoleculeList): Unit = ()
+
+  def reactionFinished(reaction: Reaction, inputs: InputMoleculeList, status: ReactionExitStatus): Unit = ()
+
+  def errorReport(reactionSite: ReactionSite, message: String): Unit = ()
 }

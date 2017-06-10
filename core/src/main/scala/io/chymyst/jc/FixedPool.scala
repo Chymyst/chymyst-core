@@ -8,7 +8,12 @@ import scala.language.experimental.macros
   *
   * @param parallelism Total number of threads.
   */
-final class FixedPool(name: String, override val parallelism: Int = cpuCores, priority: Int = Thread.NORM_PRIORITY) extends Pool(name, priority) {
+final class FixedPool(
+  name: String,
+  override val parallelism: Int = cpuCores,
+  priority: Int = Thread.NORM_PRIORITY,
+  reporter: Reporter = NoopReporter
+) extends Pool(name, priority, reporter) {
   private[jc] val blockingCalls = new AtomicInteger(0)
 
   private[jc] def deadlockCheck(): Unit = {
@@ -24,16 +29,17 @@ final class FixedPool(name: String, override val parallelism: Int = cpuCores, pr
     workerExecutor.execute { () ⇒ closure }
   }
 
-  private[jc] override def startedBlockingCall(selfBlocking: Boolean) = if (selfBlocking) {
+  private[jc] def startedBlockingCall(selfBlocking: Boolean) = if (selfBlocking) {
     blockingCalls.getAndIncrement()
     deadlockCheck()
   }
 
-  private[jc] override def finishedBlockingCall(selfBlocking: Boolean) = if (selfBlocking) {
+  private[jc] def finishedBlockingCall(selfBlocking: Boolean) = if (selfBlocking) {
     blockingCalls.getAndDecrement()
     deadlockCheck()
   }
 
+  def withReporter(r: Reporter): FixedPool = new FixedPool(name, parallelism, priority, reporter)
 }
 
 object FixedPool {
