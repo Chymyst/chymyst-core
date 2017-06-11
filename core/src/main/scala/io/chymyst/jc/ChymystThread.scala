@@ -1,5 +1,7 @@
 package io.chymyst.jc
 
+import io.chymyst.jc.Core.ReactionString
+
 /** Thread that knows which Chymyst reaction is running on it, and which pool it belongs to.
   * This is used for debugging and for implementing [[BlockingIdle]] functionality.
   *
@@ -8,9 +10,9 @@ package io.chymyst.jc
 private[jc] final class ChymystThread(runnable: Runnable, val pool: Pool) extends Thread(pool.threadGroup, runnable, pool.nextThreadName) {
   private var inBlockingCall: Boolean = false
 
-  private[jc] var reactionInfoString: String = Core.NO_REACTION_INFO_STRING
+  private[jc] var reactionInfoString: ReactionString = Core.NO_REACTION_INFO_STRING
 
-  def reactionInfo: String = reactionInfoString
+  def reactionInfo: ReactionString = reactionInfoString
 
   /** Given that the expression `expr` is "idle blocking", the thread pool will increase the parallelism.
     * This method always runs on `this` thread, so no need to synchronize the mutation of `var inBlockingCall`.

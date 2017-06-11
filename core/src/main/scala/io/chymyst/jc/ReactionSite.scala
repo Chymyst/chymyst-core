@@ -200,7 +200,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def reportError(message: String, print: Boolean = false): Unit =
     reactionPool.reporter.errorReport(id, toString, message, print)
 
-
   /** This closure will be run on the reaction thread pool to start a new reaction.
     *
     * @param thisReaction Reaction to run.

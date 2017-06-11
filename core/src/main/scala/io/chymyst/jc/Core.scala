@@ -124,14 +124,6 @@ object Core {
     else
       ""
 
-  /** Global log of all error and warning messages ever emitted by any reaction site. */
-  private[jc] val errorLog = new ConcurrentLinkedQueue[String]
-
-  private[jc] def logError(message: String, print: Boolean): Unit = {
-    errorLog.add(message)
-    if (print) println(message)
-  }
-
   private[jc] def messageWithTime(message: String): String = s"${LocalDateTime.now}: $message"
 
   private[jc] def logMessage(message: String): Unit = println(messageWithTime(message))
@@ -393,7 +385,7 @@ object Core {
     * @return `"<none>"` if the current thread is not currently running a reaction.
     *         Otherwise, returns the string that describes the reaction now being run by this thread.
     */
-  def getReactionInfo: String = Thread.currentThread() match {
+  def getReactionInfo: ReactionString = Thread.currentThread() match {
     case t: ChymystThread ⇒
       t.reactionInfo
     case _ ⇒
@@ -412,6 +404,6 @@ object Core {
     case _ ⇒
   }
 
-  val NO_REACTION_INFO_STRING = "<none>"
+  val NO_REACTION_INFO_STRING = ReactionString("<none>")
 
 }

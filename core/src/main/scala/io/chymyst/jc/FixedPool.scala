@@ -20,7 +20,7 @@ final class FixedPool(
     val deadlock = blockingCalls.get >= workerExecutor.getMaximumPoolSize
     if (deadlock) {
       val message = s"Error: deadlock occurred in fixed pool (${workerExecutor.getMaximumPoolSize} threads) due to ${blockingCalls.get} concurrent blocking calls, reaction: ${Core.getReactionInfo}"
-      Core.logError(message, print = true)
+      reporter.reportDeadlock(name, workerExecutor.getMaximumPoolSize, blockingCalls.get, Core.getReactionInfo)
     }
   }
 

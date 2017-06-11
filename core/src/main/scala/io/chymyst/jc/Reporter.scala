@@ -28,6 +28,8 @@ trait Reporter {
   def reactionFinished(rsId: ReactionSiteId, rsString: ReactionSiteString, reaction: ReactionString, inputs: ⇒ String, status: ReactionExitStatus): Unit = ()
 
   def errorReport(rsId: ReactionSiteId, rsString: ReactionSiteString, message: String, printToConsole: Boolean = false): Unit = ()
+
+  def reportDeadlock(poolName: String, maxPoolSize: Int, blockingCalls: Int, reactionInfo: ReactionString): Unit = ()
 }
 
 /** This [[Reporter]] prints no messages at all.
@@ -40,7 +42,11 @@ object NoopSilentReporter extends Reporter
   */
 trait ConsoleErrorReporter extends Reporter {
   override def errorReport(rsId: ReactionSiteId, rsString: ReactionSiteString, message: String, printToConsole: Boolean = false): Unit = {
-    if (printToConsole) println(s"${LocalDateTime.now} Error: In $rsString: $message")
+    if (printToConsole) println(s"${LocalDateTime.now}: Error: In $rsString: $message")
+  }
+
+  override def reportDeadlock(poolName: String, maxPoolSize: Int, blockingCalls: Int, reactionInfo: ReactionString): Unit = {
+    println(s"Error: deadlock occurred in fixed pool ($maxPoolSize threads) due to $blockingCalls concurrent blocking calls, reaction: $reactionInfo")
   }
 }
 
