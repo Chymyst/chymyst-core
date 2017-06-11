@@ -1,12 +1,14 @@
 package io.chymyst.jc
 
 import java.time.LocalDateTime
+import java.util.concurrent.LinkedBlockingQueue
 
 import io.chymyst.jc.Core._
 
+import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.concurrent.duration.Duration
 
-trait Reporter {
+abstract class Reporter {
   def emitted(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, molValue: ⇒ String, moleculesPresent: ⇒ String): Unit = ()
 
   def removed(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, molValue: ⇒ String, moleculesPresent: ⇒ String): Unit = ()
@@ -30,6 +32,19 @@ trait Reporter {
   def errorReport(rsId: ReactionSiteId, rsString: ReactionSiteString, message: String, printToConsole: Boolean = false): Unit = ()
 
   def reportDeadlock(poolName: String, maxPoolSize: Int, blockingCalls: Int, reactionInfo: ReactionString): Unit = ()
+
+  /** Access the global error log used by all reaction sites to report runtime errors.
+    *
+    * @return An `Iterable` representing the complete error log.
+    */
+  def globalErrorLog: Iterable[String] = errorLog.iterator().asScala.toIterable
+
+  /** Clear the global error log used by all reaction sites to report runtime errors.
+    *
+    */
+  def clearGlobalErrorLog(): Unit = errorLog.clear()
+
+  private val errorLog = new LinkedBlockingQueue[String]()
 }
 
 /** This [[Reporter]] prints no messages at all.

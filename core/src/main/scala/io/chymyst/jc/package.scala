@@ -1,7 +1,6 @@
 package io.chymyst
 
 import scala.language.experimental.macros
-import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.util.{Failure, Success, Try}
 
 /** This object contains code that should be visible to users of `Chymyst Core`.
@@ -84,17 +83,6 @@ package object jc {
 
   /** This pool is used for sites that do not specify a thread pool. */
   lazy val defaultPool = new BlockingPool("defaultPool")
-
-  /** Access the global error log used by all reaction sites to report runtime errors.
-    *
-    * @return An `Iterable` representing the complete error log.
-    */
-  def globalErrorLog: Iterable[String] = Core.errorLog.iterator().asScala.toIterable
-
-  /** Clear the global error log used by all reaction sites to report runtime errors.
-    *
-    */
-  def clearGlobalErrorLog(): Unit = Core.errorLog.clear()
 
   /** A helper method to run a closure that uses a thread pool, safely closing the pool after use.
     *
