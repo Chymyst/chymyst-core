@@ -25,7 +25,7 @@ final class BlockingPool(
   name: String,
   override val parallelism: Int = cpuCores,
   priority: Int = Thread.NORM_PRIORITY,
-  reporter: Reporter = NoopReporter
+  reporter: Reporter = ConsoleErrorReporter
 ) extends Pool(name, priority, reporter) {
 
   // Looks like we will die hard at about 2021 threads...

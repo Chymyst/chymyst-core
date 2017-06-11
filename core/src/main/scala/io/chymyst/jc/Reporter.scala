@@ -1,5 +1,7 @@
 package io.chymyst.jc
 
+import java.time.LocalDateTime
+
 import io.chymyst.jc.Core._
 
 import scala.concurrent.duration.Duration
@@ -28,4 +30,27 @@ trait Reporter {
   def errorReport(rsId: ReactionSiteId, rsString: ReactionSiteString, message: String, printToConsole: Boolean = false): Unit = ()
 }
 
-object NoopReporter extends Reporter
+/** This [[Reporter]] prints no messages at all.
+  *
+  */
+object NoopSilentReporter extends Reporter
+
+/** This [[Reporter]] prints no messages except errors, which are logged to console.
+  *
+  */
+trait ConsoleErrorReporter extends Reporter {
+  override def errorReport(rsId: ReactionSiteId, rsString: ReactionSiteString, message: String, printToConsole: Boolean = false): Unit = {
+    if (printToConsole) println(s"${LocalDateTime.now} Error: In $rsString: $message")
+  }
+}
+
+object ConsoleErrorReporter extends ConsoleErrorReporter
+
+class ConsoleLoggerReporter(logLevel: Int) extends ConsoleErrorReporter {
+
+}
+
+object ConsoleLoggerReporter {
+  def apply(logLevel: Int): ConsoleLoggerReporter = new ConsoleLoggerReporter(logLevel)
+}
+

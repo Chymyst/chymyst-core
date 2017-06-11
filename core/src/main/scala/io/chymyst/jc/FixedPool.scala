@@ -12,7 +12,7 @@ final class FixedPool(
   name: String,
   override val parallelism: Int = cpuCores,
   priority: Int = Thread.NORM_PRIORITY,
-  reporter: Reporter = NoopReporter
+  reporter: Reporter = ConsoleErrorReporter
 ) extends Pool(name, priority, reporter) {
   private[jc] val blockingCalls = new AtomicInteger(0)
 
