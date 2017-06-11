@@ -1160,12 +1160,10 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
   }
 
   it should "refuse to emit static molecule from a reaction that did not consume it when this cannot be determined statically" in {
-    clearGlobalErrorLog()
-
     val c = new M[Unit]("c")
     val dIncorrectStaticMol = m[Unit]
     val e = new M[M[Unit]]("e")
-    clearGlobalErrorLog()
+    tp0.reporter.clearGlobalErrorLog()
     site(tp0)(
       go { case e(s) => s() },
       go { case dIncorrectStaticMol(_) + c(_) => dIncorrectStaticMol() },
@@ -1175,7 +1173,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     e(dIncorrectStaticMol)
     waitSome()
     e.logSoup shouldEqual s"Site{c + ${dIncorrectStaticMol.name} → ...; e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
-    globalLogHas("cannot be emitted", s"In Site{c + dIncorrectStaticMol → ...; e → ...}: Reaction {e(s) → } with inputs [e/P(dIncorrectStaticMol)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule dIncorrectStaticMol(()) cannot be emitted non-statically")
+    globalLogHas(tp0, "cannot be emitted", s"In Site{c + dIncorrectStaticMol → ...; e → ...}: Reaction {e(s) → } with inputs [e/P(dIncorrectStaticMol)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule dIncorrectStaticMol(()) cannot be emitted non-statically")
   }
 
 }
