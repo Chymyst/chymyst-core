@@ -6,8 +6,9 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
 import javax.xml.bind.DatatypeConverter
 
-import scala.annotation.tailrec
+import io.chymyst.util.LabeledTypes.Subtype
 
+import scala.annotation.tailrec
 
 /** Syntax helper for zero-argument molecule emitters.
   * This trait has a single method, `getUnit`, which returns a value of type `T`, but the only instance will exist if `T` is `Unit` and will return `()`.
@@ -26,9 +27,27 @@ object UnitTypeMustBeUnit extends TypeMustBeUnit[Unit] {
 }
 
 object Core {
-  private val longId: AtomicLong = new AtomicLong(0L)
 
-  private[jc] def getNextId: Long = longId.incrementAndGet()
+  private[jc] val ReactionSiteId = Subtype[Long]
+  private[jc] type ReactionSiteId = ReactionSiteId.T
+
+  private[jc] val ReactionSiteString = Subtype[String]
+  private[jc] type ReactionSiteString = ReactionSiteString.T
+
+  private[jc] val ReactionString = Subtype[String]
+  private[jc] type ReactionString = ReactionString.T
+
+  private[jc] val MolSiteIndex = Subtype[Int]
+  private[jc] type MolSiteIndex = MolSiteIndex.T
+
+  private[jc] val MolString = Subtype[String]
+  private[jc] type MolString = MolString.T
+
+  implicit val molStringOrdering: Ordering[MolString] = { (x: MolString, y: MolString) ⇒ x.compare(y) } // same as for String
+
+  private val globalReactionSiteIdCounter: AtomicLong = new AtomicLong(0L)
+
+  private[jc] def nextReactionSiteId = ReactionSiteId(globalReactionSiteIdCounter.incrementAndGet())
 
   def getMessageDigest: MessageDigest = MessageDigest.getInstance("SHA-1")
 
@@ -88,7 +107,7 @@ object Core {
         }
       }.sorted.mkString(" + ")
 
-  private[jc] def moleculeBagToString(reaction: Reaction, inputs: InputMoleculeList): String =
+  private[jc] def reactionInputsToString(reaction: Reaction, inputs: InputMoleculeList): String =
     inputs.indices.map { i ⇒
       val jmv = inputs(i)
       val mol = reaction.info.inputs(i).molecule

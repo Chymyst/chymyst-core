@@ -104,14 +104,14 @@ sealed trait MolEmitter extends PersistentHashCode {
     */
   @inline def typeSymbol: Symbol = valTypeSymbol
 
-  @inline private[jc] def siteIndex: Int = siteIndexValue
+  @inline private[jc] def siteIndex: MolSiteIndex = siteIndexValue
 
   /** This is called by a [[ReactionSite]] when a molecule becomes bound to that reaction site.
     *
     * @param rs        Reaction site to which the molecule is now bound.
     * @param siteIndex Zero-based index of the input molecule at that reaction site.
     */
-  private[jc] def setReactionSiteInfo(rs: ReactionSite, siteIndex: Int, typeSymbol: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]): Unit = {
+  private[jc] def setReactionSiteInfo(rs: ReactionSite, siteIndex: MolSiteIndex, typeSymbol: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]): Unit = {
     hasReactionSite = true
     siteIndexValue = siteIndex
     valTypeSymbol = typeSymbol
@@ -151,7 +151,7 @@ sealed trait MolEmitter extends PersistentHashCode {
 
   protected var valSelfBlockingPool: Option[Pool] = None
 
-  private var siteIndexValue: Int = -1
+  private var siteIndexValue: MolSiteIndex = MolSiteIndex(-1)
 
   private var hasReactionSite: Boolean = false
 
@@ -189,10 +189,6 @@ sealed trait MolEmitter extends PersistentHashCode {
     ()
   }
 
-  @inline final def setLogLevel(logLevel: Int): Unit = ensureReactionSite {
-    reactionSite.logLevel = logLevel
-  }
-
   @inline final protected[jc] def ensureReactionSite[T](x: => T): T = {
     if (hasReactionSite)
       x
@@ -212,7 +208,7 @@ sealed trait MolEmitter extends PersistentHashCode {
     *
     * @return A molecule's displayed name as string.
     */
-  override def toString: String = (if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "") // This can't be a lazy val because `isBlocking` is overridden in derived classes.
+  override def toString: MolString = MolString((if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "")) // This can't be a lazy val because `isBlocking` is overridden in derived classes.
 }
 
 /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -264,7 +260,7 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter {
 
   override def isStatic: Boolean = reactionSite.staticMolDeclared.contains(this)
 
-  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: Int, valType: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]) = {
+  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: MolSiteIndex, valType: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]) = {
     super.setReactionSiteInfo(rs, index, valType, pipelined, selfBlocking)
   }
 }

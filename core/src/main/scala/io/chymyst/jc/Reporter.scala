@@ -1,45 +1,31 @@
 package io.chymyst.jc
 
-import io.chymyst.jc.Core.InputMoleculeList
+import io.chymyst.jc.Core._
 
 import scala.concurrent.duration.Duration
 
 trait Reporter {
-  def emitted[T](mol: MolEmitter, value: T): Unit
+  def emitted(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, molValue: ⇒ String, moleculesPresent: ⇒ String): Unit = ()
 
-  def replyReceived[T, R](mol: B[T, R], value: R): Unit
+  def removed(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, molValue: ⇒ String, moleculesPresent: ⇒ String): Unit = ()
 
-  def replyTimedOut[T, R](mol: B[T, R], timeout: Duration): Unit
+  def replyReceived(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, molValue: ⇒ String): Unit = ()
 
-  def reactionSiteCreated(reactionSite: ReactionSite): Unit
+  def replyTimedOut(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, timeout: Duration): Unit = ()
 
-  def schedulerStep(mol: MolEmitter): Unit
+  def reactionSiteCreated(rsId: ReactionSiteId, rsString: ReactionSiteString): Unit = ()
 
-  def reactionScheduled(mol: MolEmitter, reaction: Reaction): Unit
+  def schedulerStep(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, moleculesPresent: ⇒ String): Unit = ()
 
-  def reactionStarted(reaction: Reaction, inputs: InputMoleculeList): Unit
+  def reactionScheduled(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, reaction: ReactionString, inputs: ⇒ String, remainingMols: ⇒ String): Unit = ()
 
-  def reactionFinished(reaction: Reaction, inputs: InputMoleculeList, status: ReactionExitStatus): Unit
+  def noReactionScheduled(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString): Unit = ()
 
-  def errorReport(reactionSite: ReactionSite, message: String): Unit
+  def reactionStarted(rsId: ReactionSiteId, rsString: ReactionSiteString, reaction: ReactionString, inputs: ⇒ String): Unit = ()
+
+  def reactionFinished(rsId: ReactionSiteId, rsString: ReactionSiteString, reaction: ReactionString, inputs: ⇒ String, status: ReactionExitStatus): Unit = ()
+
+  def errorReport(rsId: ReactionSiteId, rsString: ReactionSiteString, message: String, printToConsole: Boolean = false): Unit = ()
 }
 
-object NoopReporter extends Reporter {
-  def emitted[T](mol: MolEmitter, value: T): Unit = ()
-
-  def replyReceived[T, R](mol: B[T, R], value: R): Unit = ()
-
-  def replyTimedOut[T, R](mol: B[T, R], timeout: Duration): Unit = ()
-
-  def reactionSiteCreated(reactionSite: ReactionSite): Unit = ()
-
-  def schedulerStep(mol: MolEmitter): Unit = ()
-
-  def reactionScheduled(mol: MolEmitter, reaction: Reaction): Unit = ()
-
-  def reactionStarted(reaction: Reaction, inputs: InputMoleculeList): Unit = ()
-
-  def reactionFinished(reaction: Reaction, inputs: InputMoleculeList, status: ReactionExitStatus): Unit = ()
-
-  def errorReport(reactionSite: ReactionSite, message: String): Unit = ()
-}
+object NoopReporter extends Reporter
