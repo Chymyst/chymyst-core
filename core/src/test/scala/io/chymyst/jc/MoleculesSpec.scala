@@ -16,8 +16,8 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
   implicit val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
   override def beforeEach(): Unit = {
-    clearGlobalErrorLog()
     tp0 = FixedPool(4)
+    tp0.reporter.clearGlobalErrorLog()
   }
 
   override def afterEach(): Unit = {
@@ -282,7 +282,6 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
   }
 
   it should "start reactions when molecule emitters are passed on input molecules slightly before they are bound" in {
-    clearGlobalErrorLog()
     val total = 100
     (1 to total).foreach { i =>
       val p = m[M[Int]]
@@ -296,13 +295,13 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
         go { case c(x) ⇒ }
       )
     }
-    val errors = globalErrorLog.count(_ contains "Molecule c is not bound to any reaction site")
+    val errors = tp0.reporter.globalErrorLog.count(_ contains "Molecule c is not bound to any reaction site")
     // Sometimes (on fast machines) the reaction always produces an exception, in which case the result is `total` exceptions.
     // Since this is expected and correct behavior, we should not fail the test when the reaction starts too fast to avoid the exception.
     println(s"unbound molecule exceptions, test 1: $errors errors out of $total runs")
     errors should be > 0
     errors should be < total
-    globalLogHas("xception", "In Site{p → ...}: Reaction {p(s) → } with inputs [p/P(c)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
+    globalLogHas(tp0, "xception", "In Site{p → ...}: Reaction {p(s) → } with inputs [p/P(c)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
   }
 
   // This test verifies that unbound molecule emitters will cause an exception when used in a nested reaction site.
@@ -310,7 +309,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
   // This test intentionally defines the reaction site defining the {e -> } reaction *after* the `e` emitter is passed to the `a` reaction.
   it should "start reactions and throw exception when molecule emitters are passed to nested reactions slightly before they are bound" in {
     val tp1 = FixedPool(2)
-    clearGlobalErrorLog()
+    tp1.reporter.clearGlobalErrorLog()
     val total = 100
     (1 to total).foreach { i =>
       val a = m[M[Int]]
@@ -334,17 +333,16 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     }
     tp1.shutdownNow()
 
-    val errors = globalErrorLog.count(_ contains "Molecule e is not bound to any reaction site")
+    val errors = tp1.reporter.globalErrorLog.count(_ contains "Molecule e is not bound to any reaction site")
     // Sometimes (on fast machines) the reaction always produces an exception, in which case the result is `total` exceptions.
     // Since this is expected and correct behavior, we should not fail the test when the reaction starts too fast to avoid the exception.
     println(s"unbound molecule exceptions, test 2: $errors errors out of $total runs")
     errors should be > 0
     errors should be < total
-    globalLogHas("xception", "In Site{a → ...}: Reaction {a(s) → } with inputs [a/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site")
+    globalLogHas(tp1, "xception", "In Site{a → ...}: Reaction {a(s) → } with inputs [a/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site")
   }
 
   it should "start reactions without errors when molecule emitters are passed to nested reactions after they are bound" in {
-    clearGlobalErrorLog()
     val results = (1 to 100).map { _ =>
       val q = m[M[Int]]
       val p = m[Int]
@@ -368,14 +366,13 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
       f()
     }
     println(s"results for test 3: ${results.groupBy(identity).mapValues(_.size)}")
-    globalErrorLog.exists(_ contains "In Site{q → ...}: Reaction {q(s) → } with inputs [q/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site") should be(false)
-    globalErrorLog.count(_ contains "Molecule e is not bound to any reaction site") shouldEqual 0
+    tp0.reporter.globalErrorLog.exists(_ contains "In Site{q → ...}: Reaction {q(s) → } with inputs [q/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site") should be(false)
+    tp0.reporter.globalErrorLog.count(_ contains "Molecule e is not bound to any reaction site") shouldEqual 0
     results should contain(246)
     results should not contain 0
   }
 
   it should "start reaction but throw exception when unbound molecule emitter is passed on input molecule" in {
-    clearGlobalErrorLog()
     val a = m[M[Int]]
     val c = m[Int]
     val f = b[Unit, Int]
@@ -385,7 +382,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     // `c` is unbound, emitting `a(c)` will cause the reaction to fail.
     a(c)
     f.timeout()(300.millis) shouldEqual None // This should not pass.
-    globalLogHas("finished without replying", "In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] finished without replying to f/B. Reported error: In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
+    globalLogHas(tp0, "finished without replying", "In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] finished without replying to f/B. Reported error: In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
   }
 
   behavior of "basic functionality"
@@ -511,7 +508,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val result = g.timeout()(1500 millis)
     tp.shutdownNow()
     result shouldEqual Some(())
-    logShouldHave("In Site{counter + decrement → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement(_) → counter(?)} with inputs [counter(5) + decrement/P()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
+    logShouldHave(tp0, "In Site{counter + decrement → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement(_) → counter(?)} with inputs [counter(5) + decrement/P()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
   }
 
   it should "finish job by retrying reactions with static molecules even if 1 out of 2 processes crash" in {
@@ -537,7 +534,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val result = g.timeout()(1500 millis)
     tp.shutdownNow()
     result shouldEqual Some(())
-    logShouldHave("In Site{counter + decrement → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement(_) → counter(?)} with inputs [counter(5) + decrement/P()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
+    logShouldHave(tp0, "In Site{counter + decrement → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement(_) → counter(?)} with inputs [counter(5) + decrement/P()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
   }
 
   it should "retry reactions that contain blocking molecules" in {
@@ -560,14 +557,14 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     c(n)
     (1 to n).foreach { _ =>
       if (d.timeout()(1500 millis).isEmpty) {
-        println(s"first 50 items from global log for test 4:\n${globalErrorLog.take(50).toList}") // this should not happen, but will be helpful for debugging
+        println(s"first 50 items from global log for test 4:\n${tp0.reporter.globalErrorLog.take(50).toList}") // this should not happen, but will be helpful for debugging
       }
     }
 
     val result = g.timeout()(1500 millis)
     tp.shutdownNow()
     result shouldEqual Some(())
-    logShouldHave("In Site{counter + decrement/B → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement/B(_) → counter(?)} with inputs [counter(5) + decrement/B/P()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
+    logShouldHave(tp0, "In Site{counter + decrement/B → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement/B(_) → counter(?)} with inputs [counter(5) + decrement/B/P()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
   }
 
 }
