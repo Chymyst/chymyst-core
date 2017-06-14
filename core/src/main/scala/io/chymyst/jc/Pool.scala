@@ -15,7 +15,7 @@ import scala.concurrent.ExecutionContext
   * @param reporter An instance of [[Reporter]] that will be used to gather performance metrics for each reaction site using this thread pool.
   *                 By default, a [[ReportErrors]] reporter is assigned, which only logs run-time errors to the console.
   */
-abstract class Pool(val name: String, val priority: Int, var reporter: Reporter = new ReportErrors(new ConsoleLogTransport)) extends AutoCloseable {
+abstract class Pool(val name: String, val priority: Int, var reporter: Reporter) extends AutoCloseable {
   override val toString: String = s"${this.getClass.getSimpleName}:$name"
 
   private[jc] def startedBlockingCall(selfBlocking: Boolean): Unit
@@ -29,7 +29,11 @@ abstract class Pool(val name: String, val priority: Int, var reporter: Reporter 
     *
     * @param closure A reaction closure to run.
     */
-  private[chymyst] def runReaction(closure: => Unit): Unit
+  private[chymyst] def runReaction(name: String, closure: ⇒ Unit): Unit = workerExecutor.execute(new Runnable {
+    override def toString: String = name
+
+    override def run(): Unit = closure
+  })
 
   def isInactive: Boolean = workerExecutor.isShutdown || workerExecutor.isTerminated
 

@@ -27,9 +27,9 @@ class SingleThreadSpec extends LogSpec {
 
     counter.set(0)
     withPool(FixedPool(1)) { tp =>
-      (1 to n).foreach { _ => tp.runReaction(incrementTask.run()) }
+      (1 to n).foreach { _ ⇒ tp.runReaction(s"task $n", incrementTask.run()) }
       val done = Promise[Unit]()
-      tp.runReaction(doneTask(done).run())
+      tp.runReaction("done", doneTask(done).run())
       Await.result(done.future, Duration.Inf)
       counter.get() shouldEqual n
     }.get

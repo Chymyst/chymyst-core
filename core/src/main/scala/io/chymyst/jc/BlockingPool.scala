@@ -25,7 +25,7 @@ final class BlockingPool(
   name: String,
   override val parallelism: Int = cpuCores,
   priority: Int = Thread.NORM_PRIORITY,
-  reporter: Reporter = ConsoleErrorReporter
+  reporter: Reporter = new ReportErrors(ConsoleLogTransport)
 ) extends Pool(name, priority, reporter) {
 
   // Looks like we will die hard at about 2021 threads...
@@ -48,8 +48,6 @@ final class BlockingPool(
     workerExecutor.setCorePoolSize(newPoolSize) // Must set them in this order, so that the core pool size is never larger than the maximum pool size.
     workerExecutor.setMaximumPoolSize(newPoolSize)
   }
-
-  private[chymyst] def runReaction(closure: => Unit): Unit = workerExecutor.execute { () => closure }
 
   def withReporter(r: Reporter): BlockingPool = new BlockingPool(name, parallelism, priority, reporter)
 }

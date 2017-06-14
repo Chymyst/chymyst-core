@@ -12,7 +12,7 @@ final class FixedPool(
   name: String,
   override val parallelism: Int = cpuCores,
   priority: Int = Thread.NORM_PRIORITY,
-  reporter: Reporter = ConsoleErrorReporter
+  reporter: Reporter = new ReportErrors(ConsoleLogTransport)
 ) extends Pool(name, priority, reporter) {
   private[jc] val blockingCalls = new AtomicInteger(0)
 
@@ -24,9 +24,9 @@ final class FixedPool(
     }
   }
 
-  private[chymyst] def runReaction(closure: => Unit): Unit = {
+  override private[chymyst] def runReaction(name: String, closure: ⇒ Unit): Unit = {
     deadlockCheck()
-    workerExecutor.execute { () ⇒ closure }
+    super.runReaction(name, closure)
   }
 
   private[jc] def startedBlockingCall(selfBlocking: Boolean) = if (selfBlocking) {

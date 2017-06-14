@@ -185,7 +185,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private def scheduleReaction(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit =
-    poolForReaction.runReaction(reactionClosure(reaction, usedInputs, poolForReaction: Pool))
+    poolForReaction.runReaction(reaction.info.toString, reactionClosure(reaction, usedInputs, poolForReaction: Pool))
 
   /** This [[Runnable]] will be run on a single-threaded reaction site pool, therefore we do not need to synchronize anything.
     *

@@ -36,7 +36,7 @@ class PoolSpec extends LogSpec {
 
     tp.executionContext.isInstanceOf[ExecutionContext] shouldEqual true
 
-    tp.runReaction({
+    tp.runReaction("", {
       waiter.dismiss()
 
       try {
@@ -56,7 +56,7 @@ class PoolSpec extends LogSpec {
 
     val tp = FixedPool(2)
 
-    tp.runReaction({
+    tp.runReaction("", {
       try {
         Thread.sleep(10000000) // this should not time out
 

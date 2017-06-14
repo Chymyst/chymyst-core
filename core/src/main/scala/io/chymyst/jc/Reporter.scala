@@ -73,7 +73,7 @@ sealed trait LogTransport {
   def log(message: String): Unit
 }
 
-final class ConsoleLogTransport extends LogTransport {
+object ConsoleLogTransport extends LogTransport {
   override def log(message: String): Unit = println(message)
 }
 
