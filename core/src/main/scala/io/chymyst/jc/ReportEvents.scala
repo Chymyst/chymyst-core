@@ -12,19 +12,6 @@ abstract class Reporter(logTransport: LogTransport) extends ReportEvents {
   @inline def log(message: String): Unit = {
     logTransport.log(message): @inline
   }
-
-  /** Access the reporter's global message log. This is used by reaction sites to report errors, metrics, and debugging messages at run time.
-    *
-    * @return An [[Iterable]] representing the sequence of all messages in the message log.
-    */
-  def globalErrorLog: Iterable[String] = errorLog.iterator().asScala.toIterable
-
-  /** Clear the global error log used by all reaction sites to report runtime errors.
-    *
-    */
-  def clearGlobalErrorLog(): Unit = errorLog.clear()
-
-  private val errorLog = new LinkedBlockingQueue[String]()
 }
 
 trait ReportEvents {
@@ -59,12 +46,12 @@ trait ReportEvents {
   def reportDeadlock(poolName: String, maxPoolSize: Int, blockingCalls: Int, reactionInfo: ReactionString): Unit = ()
 }
 
-/** This [[ReportEvents]] never prints any messages at all.
+/** This [[Reporter]] never prints any messages at all.
   *
   */
 object NoopSilentReporter extends Reporter(NoopLogTransport)
 
-/** This [[ReportEvents]] prints no messages except errors, which are logged to console.
+/** This trait prints no messages except errors.
   *
   */
 trait ReportErrors extends ReportEvents {
@@ -106,3 +93,22 @@ object NoopLogTransport extends LogTransport {
 }
 
 object ConsoleErrorReporter extends Reporter(ConsoleLogTransport) with ReportErrors
+
+object ConsoleErrorsAndWarningsReporter extends Reporter(ConsoleLogTransport) with ReportErrors with ReportWarnings
+
+final class MemoryLogger extends LogTransport {
+  /** Access the reporter's global message log. This is used by reaction sites to report errors, metrics, and debugging messages at run time.
+    *
+    * @return An [[Iterable]] representing the sequence of all messages in the message log.
+    */
+  def messages: Iterable[String] = messageLog.iterator().asScala.toIterable
+
+  /** Clear the global error log used by all reaction sites to report runtime errors.
+    *
+    */
+  def clearLog(): Unit = messageLog.clear()
+
+  private val messageLog = new LinkedBlockingQueue[String]()
+
+  override def log(message: String): Unit = messageLog.add(message)
+}
