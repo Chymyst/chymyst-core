@@ -21,6 +21,8 @@ import scalaxy.streams.strategy.aggressive
   */
 private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool) {
 
+  private val initTime = System.nanoTime()
+
   private val (staticReactions, nonStaticReactions) = reactions.toArray.partition(_.info.isStatic)
 
   /** Create the site-wide index map for all molecules bound to this reaction site.
@@ -719,8 +721,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   // This call should be done at the very end of the reaction site constructor because it depends on `pipelinedMolecules`, `consumingReactions`, `knownInputMolecules`,
-  // and other values that need to be already computed.
-  private val diagnostics: WarningsAndErrors = initializeReactionSite()
+  // and other values that need to be already computed. This call will also report the elapsed time, measuring the overhead of creating a new reaction site.
+  private val diagnostics: WarningsAndErrors = {
+    val warningsAndErrors = initializeReactionSite()
+    val endTime = System.nanoTime()
+    reactionPool.reporter.reactionSiteCreated(id, toString, initTime, endTime)
+    warningsAndErrors
+  }
 }
 
 final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], reactionSite: String) {
