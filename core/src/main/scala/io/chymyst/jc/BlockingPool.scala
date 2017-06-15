@@ -47,7 +47,7 @@ final class BlockingPool(
     workerExecutor.setMaximumPoolSize(newPoolSize)
   }
 
-  def withReporter(r: EventReporting): BlockingPool = new BlockingPool(name, parallelism, priority, reporter)
+  def withReporter(r: EventReporting): BlockingPool = new BlockingPool(name, parallelism, priority, r)
 }
 
 object BlockingPool {

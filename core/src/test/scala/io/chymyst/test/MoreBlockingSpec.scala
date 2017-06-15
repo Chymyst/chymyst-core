@@ -256,7 +256,7 @@ class MoreBlockingSpec extends LogSpec {
     tp.shutdownNow()
   }
 
-  it should "deadlock warning since another reaction is blocked until molecule is emitted" in {
+  it should "print deadlock warning since another reaction is blocked until molecule is emitted" in {
     val c = m[Unit]
     val d = m[Int]
     val e = m[Unit]
@@ -265,9 +265,8 @@ class MoreBlockingSpec extends LogSpec {
     val incr = b[Unit, Unit]
     val get_f = b[Unit, Int]
 
-    val tp = FixedPool(2)
     val memLog = new MemoryLogger
-    tp.reporter = new ErrorsAndWarningsReporter(memLog)
+    val tp = FixedPool(2).withReporter(new ErrorsAndWarningsReporter(memLog))
 
     site(tp)(
       go { case get_f(_, r) + f(x) => r(x) },
@@ -278,7 +277,7 @@ class MoreBlockingSpec extends LogSpec {
     d(100)
     c() // update started and is waiting for e(), which should come after incr() gets its reply
     get_f.timeout()(1000 millis) shouldEqual None // deadlock
-    memLog.messages.toIndexedSeq should contain("Error: deadlock occurred in fixed pool (2 threads) due to 2 concurrent blocking calls, reaction: d(x) + incr/B(_) → wait/B() + f(?)")
+    memLog.messages.toIndexedSeq should contain("Warning: deadlock occurred in pool tp (2 threads) due to 2 concurrent blocking calls while running reaction {d(x) + incr/B(_) → wait/B() + f(?)}")
     tp.shutdownNow()
   }
 

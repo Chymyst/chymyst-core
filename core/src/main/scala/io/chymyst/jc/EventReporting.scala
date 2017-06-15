@@ -53,19 +53,19 @@ trait EventReporting {
   *
   */
 trait ReportErrors extends EventReporting {
-  override def errorReport(rsId: ReactionSiteId, rsString: ReactionSiteString, message: ⇒ String, enable: Boolean = false): Unit = {
-    if (enable) log(s"Error: In $rsString: $message")
+  override def errorReport(rsId: ReactionSiteId, rsString: ReactionSiteString, message: ⇒ String, printToConsole: Boolean = false): Unit = {
+    log(s"Error: In $rsString: $message")
+    if (printToConsole) println(message)
   }
 
   override def reactionSiteError(rsId: ReactionSiteId, rsString: ReactionSiteString, message: ⇒ String): Unit = {
     log(s"Error: In $rsString: $message")
   }
-
 }
 
 trait ReportMinorErrors extends EventReporting {
   override def reportDeadlock(poolName: String, maxPoolSize: Int, blockingCalls: Int, reactionInfo: ReactionString): Unit = {
-    log(s"Warning: deadlock occurred in pool $poolName ($maxPoolSize threads) due to $blockingCalls concurrent blocking calls, while running reaction {$reactionInfo}")
+    log(s"Warning: deadlock occurred in pool $poolName ($maxPoolSize threads) due to $blockingCalls concurrent blocking calls while running reaction {$reactionInfo}")
   }
 
   override def warnTooManyThreads(poolName: String, threadCount: Int): Unit = {

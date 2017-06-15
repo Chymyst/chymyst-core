@@ -16,13 +16,9 @@ final class FixedPool(
 ) extends Pool(name, priority, reporter) {
   private[jc] val blockingCalls = new AtomicInteger(0)
 
-  private[jc] def deadlockCheck(): Unit = {
-    val deadlock = blockingCalls.get >= workerExecutor.getMaximumPoolSize
-    if (deadlock) {
-      val message = s"Error: deadlock occurred in fixed pool (${workerExecutor.getMaximumPoolSize} threads) due to ${blockingCalls.get} concurrent blocking calls, reaction: ${Core.getReactionInfo}"
+  private def deadlockCheck(): Unit =
+    if (blockingCalls.get >= workerExecutor.getMaximumPoolSize)
       reporter.reportDeadlock(name, workerExecutor.getMaximumPoolSize, blockingCalls.get, Core.getReactionInfo)
-    }
-  }
 
   override private[chymyst] def runReaction(name: String, closure: ⇒ Unit): Unit = {
     deadlockCheck()
@@ -39,7 +35,7 @@ final class FixedPool(
     deadlockCheck()
   }
 
-  def withReporter(r: EventReporting): FixedPool = new FixedPool(name, parallelism, priority, reporter)
+  def withReporter(r: EventReporting): FixedPool = new FixedPool(name, parallelism, priority, r)
 }
 
 object FixedPool {
