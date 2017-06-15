@@ -141,7 +141,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
               val molValue = thisInputList(i)
               val mol = thisReaction.info.inputs(i).molecule
               // This error (molecule value was found for a reaction but is now not present) indicates a bug in this code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
-              if (!internalRemoveFromBag(mol, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $mol($molValue) from its bag; molecule index ${mol.siteIndex}, bag ${moleculesPresent(mol.siteIndex)}")
+              if (!internalRemoveFromBag(mol, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $mol($molValue) from its bag; molecule index ${mol.siteIndex}, bag ${moleculesPresent(mol.siteIndex)}", printToConsole = true)
             }
             setNoNeedToSchedule(mol)
 
@@ -162,7 +162,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
         val poolForReaction = thisReaction.threadPool.getOrElse(reactionPool)
         if (poolForReaction.isInactive) {
-          reportError(s"In $this: cannot run reaction {${thisReaction.info}} since reaction pool is not active; input molecules ${reactionInputsToString(thisReaction, usedInputs)} were consumed and not emitted again")
+          reportError(s"In $this: cannot run reaction {${thisReaction.info}} since reaction pool is not active; input molecules ${reactionInputsToString(thisReaction, usedInputs)} were consumed and not emitted again", printToConsole = false)
           // In this case, we do not attempt to schedule a reaction. However, input molecules were consumed and not emitted again.
         } else if (!Thread.currentThread().isInterrupted) {
           reactionPool.reporter.reactionScheduled(id, toString, mol.siteIndex, mol.toString, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs), debugRemainingMolecules)
@@ -199,7 +199,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     decideReactionsForNewMolecule(mol)
   }
 
-  private def reportError(message: String, printToConsole: Boolean = false): Unit =
+  private def reportError(message: String, printToConsole: Boolean): Unit =
     reactionPool.reporter.errorReport(id, toString, message, printToConsole)
 
   /** This closure will be run on the reaction thread pool to start a new reaction.
@@ -263,11 +263,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       val haveErrorsWithBlockingMolecules = blockingMoleculesWithNoReply.nonEmpty && exitStatus.reactionSucceededOrFailedWithoutRetry
 
       if (haveErrorsWithBlockingMolecules) {
-        val messageNoReply = blockingMoleculesWithNoReply.map { s =>
-          s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] finished without replying to $s${exitStatus.getMessage}"
-        }
-        val errorMessage = messageNoReply.mkString("; ")
-        reportError(errorMessage)
+        val message = blockingMoleculesWithNoReply.map { bmol ⇒
+          s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] finished without replying to $bmol${exitStatus.getMessage}"
+        }.mkString("; ")
+        reportError(message, printToConsole = false)
       }
     }
   }
