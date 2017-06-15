@@ -18,7 +18,7 @@ final class FixedPool(
 
   private def deadlockCheck(): Unit =
     if (blockingCalls.get >= workerExecutor.getMaximumPoolSize)
-      reporter.reportDeadlock(name, workerExecutor.getMaximumPoolSize, blockingCalls.get, Core.getReactionInfo)
+      reporter.reportDeadlock(toString, workerExecutor.getMaximumPoolSize, blockingCalls.get, Core.getReactionInfo)
 
   override private[chymyst] def runReaction(name: String, closure: ⇒ Unit): Unit = {
     deadlockCheck()

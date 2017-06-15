@@ -226,6 +226,8 @@ class MoreBlockingSpec extends LogSpec {
     tp.shutdownNow()
   }
 
+  val deadlockMessage = "Warning: deadlock occurred in FixedPool:tp (2 threads) due to 2 concurrent blocking calls while running reaction {d(x) + incr/B(_) → wait/B() + f(?)}"
+
   it should "deadlock without warning, since another reaction is blocked until molecule is emitted" in {
     val c = m[Unit]
     val d = m[Int]
@@ -251,7 +253,8 @@ class MoreBlockingSpec extends LogSpec {
     get_f.timeout()(1000 millis) shouldEqual None // deadlock: get_f() waits for f(), which will be emitted only after wait() returns; the reply to wait() is blocked by missing e(), which is emitted only after incr() returns, which also happens only after wait().
     // This deadlock cannot be detected by static analysis, unless we know that no other e() will be emitted.
     // All we know is that one thread is blocked by wait(), another by incr(), and that the reply to wait() requires a reaction wait + e -> ..., which is currently not running.
-    memLog.messages.toIndexedSeq should not contain "Error: deadlock occurred in fixed pool (4 threads) due to 2 concurrent blocking calls, reaction: d(x) + incr/B(_) → wait/B() + f(?)"
+    memLog.messages.toIndexedSeq should not contain deadlockMessage
+    memLog.messages.foreach(println)
     tp.shutdownNow()
   }
 
@@ -276,7 +279,7 @@ class MoreBlockingSpec extends LogSpec {
     d(100)
     c() // update started and is waiting for e(), which should come after incr() gets its reply
     get_f.timeout()(1000 millis) shouldEqual None // deadlock
-    memLog.messages.toIndexedSeq should contain("Warning: deadlock occurred in pool tp (2 threads) due to 2 concurrent blocking calls while running reaction {d(x) + incr/B(_) → wait/B() + f(?)}")
+    memLog.messages.toIndexedSeq should contain(deadlockMessage)
 
     memLog.clearLog()
     memLog.messages.size shouldEqual 0

@@ -1,6 +1,6 @@
 package io.chymyst.jc
 
-import io.chymyst.test.LogSpec
+import io.chymyst.test.{Common, LogSpec}
 import org.scalactic.source.Position
 import org.scalatest.concurrent.Waiters.{PatienceConfig, Waiter}
 import org.scalatest.time.{Millis, Span}
@@ -15,7 +15,9 @@ class PoolSpec extends LogSpec {
 
   it should "refuse to increase the thread pool beyond its limit" in {
     val n = 1065
-    val tp = BlockingPool(2)
+
+    val memoryLogger = new MemoryLogger
+    val tp = BlockingPool(2).withReporter(new ErrorsAndWarningsReporter(memoryLogger))
 
     tp.poolSizeLimit should be < n
     tp.currentPoolSize shouldEqual 2
@@ -24,6 +26,7 @@ class PoolSpec extends LogSpec {
 
     tp.currentPoolSize shouldEqual tp.poolSizeLimit
 
+    Common.globalLogHas(memoryLogger, "dangerous", "Warning: In BlockingPool:tp: It is dangerous to further increase the pool size, which is now 1004")
     tp.shutdownNow()
   }
 

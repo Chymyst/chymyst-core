@@ -67,7 +67,7 @@ trait ReportSevereErrors extends EventReporting {
 
 trait ReportMinorErrors extends EventReporting {
   override def reportDeadlock(poolName: String, maxPoolSize: Int, blockingCalls: Int, reactionInfo: ReactionString): Unit = {
-    log(s"Warning: deadlock occurred in pool $poolName ($maxPoolSize threads) due to $blockingCalls concurrent blocking calls while running reaction {$reactionInfo}")
+    log(s"Warning: deadlock occurred in $poolName ($maxPoolSize threads) due to $blockingCalls concurrent blocking calls while running reaction {$reactionInfo}")
   }
 
   override def warnTooManyThreads(poolName: String, threadCount: Int): Unit = {

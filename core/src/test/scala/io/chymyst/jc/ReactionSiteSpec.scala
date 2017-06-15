@@ -283,12 +283,13 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
       site(tp)(
         go { case f(_, r) =>
           x += 1
-          if (x < 0) throw new Exception("crash! ignore this exception")
+          if (x < 0) throw new Exception(s"crash! ignore this exception (x = $x)") else println(s"ok, have x = $x")
           r()
         }.withRetry
       )
-      f()
-      globalLogHas(memLog, "Retry", "In Site{f/B → .../R}: Reaction {f/B(_) → } with inputs [f/BP()] produced Exception. Retry run was scheduled. Message: crash! ignore this exception")
+      f.timeout()(2.seconds) shouldEqual Some(()) // make sure we gather the log message about reply received
+      globalLogHas(memLog, "Retry", "In Site{f/B → .../R}: Reaction {f/B(_) → } with inputs [f/BP()] produced Exception. Retry run was scheduled. Message: crash! ignore this exception (x = -1)")
+      globalLogHas(memLog, "received reply value", "Debug: In Site{f/B → .../R}: molecule f/B received reply value: Some(())")
     }.get
   }
 
