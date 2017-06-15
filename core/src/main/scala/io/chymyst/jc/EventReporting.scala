@@ -7,7 +7,7 @@ import io.chymyst.jc.Core._
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.concurrent.duration.Duration
 
-abstract class Reporter(logTransport: LogTransport) extends EventReporting {
+class EmptyReporter(logTransport: LogTransport) extends EventReporting {
   @inline def log(message: String): Unit = {
     logTransport.log(message): @inline
   }
@@ -44,7 +44,7 @@ trait EventReporting {
 
   def reactionFinished(rsId: ReactionSiteId, rsString: ReactionSiteString, reaction: ReactionString, inputs: ⇒ String, status: ReactionExitStatus): Unit = ()
 
-  def errorReport(rsId: ReactionSiteId, rsString: ReactionSiteString, message: ⇒ String, printToConsole: Boolean = false): Unit = ()
+  def chymystRuntimeError(rsId: ReactionSiteId, rsString: ReactionSiteString, message: ⇒ String, printToConsole: Boolean = false): Unit = ()
 
   def reportDeadlock(poolName: String, maxPoolSize: Int, blockingCalls: Int, reactionInfo: ReactionString): Unit = ()
 
@@ -54,8 +54,8 @@ trait EventReporting {
 /** This trait prints no messages except errors.
   *
   */
-trait ReportErrors extends EventReporting {
-  override def errorReport(rsId: ReactionSiteId, rsString: ReactionSiteString, message: ⇒ String, printToConsole: Boolean = false): Unit = {
+trait ReportSevereErrors extends EventReporting {
+  override def chymystRuntimeError(rsId: ReactionSiteId, rsString: ReactionSiteString, message: ⇒ String, printToConsole: Boolean = false): Unit = {
     log(s"Error: In $rsString: $message")
     if (printToConsole) println(message)
   }
@@ -149,19 +149,24 @@ object ConsoleLogOutput extends LogTransport {
 
 // Now we can easily define reporters. We just specify the log transport and the event reporting traits.
 
-class ErrorReporter(logTransport: LogTransport) extends Reporter(logTransport) with ReportErrors
+/** This reporter never logs any messages.
+  *
+  */
+object ConsoleEmptyReporter extends EmptyReporter(ConsoleLogOutput)
+
+class ErrorReporter(logTransport: LogTransport) extends EmptyReporter(logTransport) with ReportSevereErrors
 
 object ConsoleErrorReporter extends ErrorReporter(ConsoleLogOutput)
 
-class ErrorsAndWarningsReporter(logTransport: LogTransport) extends Reporter(logTransport)
-  with ReportErrors
+class ErrorsAndWarningsReporter(logTransport: LogTransport) extends EmptyReporter(logTransport)
+  with ReportSevereErrors
   with ReportMinorErrors
   with ReportWarnings
 
 object ConsoleErrorsAndWarningsReporter extends ErrorsAndWarningsReporter(ConsoleLogOutput)
 
-class DebugAllReporter(logTransport: LogTransport) extends Reporter(logTransport)
-  with ReportErrors
+class DebugAllReporter(logTransport: LogTransport) extends EmptyReporter(logTransport)
+  with ReportSevereErrors
   with ReportMinorErrors
   with ReportWarnings
   with ReportReactionSites

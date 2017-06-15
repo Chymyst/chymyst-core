@@ -116,12 +116,13 @@ object Core {
   /** The pipeline suffix is printed only in certain debug messages; the molecule's [[MolEmitter.name]] does not include that suffix.
     * The reason for this choice is that typically many molecules are automatically pipelined,
     * so output messages would be unnecessarily encumbered with the `/P` suffix.
+    *
+    * We would like to avoid "mol/B/P" in favor of "mol/BP", so we omit the slash if the molecule is blocking.
     */
   private def pipelineSuffix(mol: MolEmitter): String =
-    if (mol.isPipelined)
-      "/P"
-    else
-      ""
+    if (mol.isPipelined) {
+      if (mol.isBlocking) "P" else "/P"
+    } else ""
 
   /** List of molecules used as inputs by a reaction. The molecules are ordered the same as in the reaction input list. */
   private[jc] type InputMoleculeList = Array[AbsMolValue[_]]

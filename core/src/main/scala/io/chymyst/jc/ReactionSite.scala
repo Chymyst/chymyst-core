@@ -200,7 +200,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private def reportError(message: String, printToConsole: Boolean): Unit =
-    reactionPool.reporter.errorReport(id, toString, message, printToConsole)
+    reactionPool.reporter.chymystRuntimeError(id, toString, message, printToConsole)
 
   /** This closure will be run on the reaction thread pool to start a new reaction.
     *
@@ -537,8 +537,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val result = BlockingIdle(bm.isSelfBlocking) {
       bmv.replyEmitter.reply.await(timeout)
     }
-    if (result.isEmpty) // The emitting process has waited but did not get any reply value.
+    if (result.isEmpty) {
+      reactionPool.reporter.replyTimedOut(id, toString, bm.siteIndex, bm.toString, timeout)
+      // The emitting process has waited but did not get any reply value.
       removeBlockingMolecule(bm, bmv)
+    } else {
+      reactionPool.reporter.replyReceived(id, toString, bm.siteIndex, bm.toString, result.toString)
+    }
     result
   }
 

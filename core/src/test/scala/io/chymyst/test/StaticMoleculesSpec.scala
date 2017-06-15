@@ -167,7 +167,7 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     )
     a()
     c.timeout()(300.millis) shouldEqual None
-    globalLogHas(memLog, "cannot be emitted non-statically", "In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d(()) cannot be emitted non-statically")
+    globalLogHas(memLog, "cannot be emitted non-statically", "In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/BP() + carrier/P(d)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d(()) cannot be emitted non-statically")
   }
 
   it should "signal error when a static molecule is emitted twice by another reaction to trick static analysis" in {
@@ -185,7 +185,7 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     )
     a()
     c.timeout()(300.millis) shouldEqual None
-    globalLogHas(memLog, "cannot be emitted non-statically", "In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/B/P() + carrier/P(d) + d/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d(()) cannot be emitted non-statically")
+    globalLogHas(memLog, "cannot be emitted non-statically", "In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/BP() + carrier/P(d) + d/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d(()) cannot be emitted non-statically")
   }
 
   it should "signal error when a static molecule is emitted inside an if-then block" in {

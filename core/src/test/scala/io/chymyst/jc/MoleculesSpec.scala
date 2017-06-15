@@ -386,7 +386,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     // `c` is unbound, emitting `a(c)` will cause the reaction to fail.
     a(c)
     f.timeout()(300.millis) shouldEqual None // This should not pass.
-    globalLogHas(memLog, "finished without replying", "In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] finished without replying to f/B. Reported error: In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/B/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
+    globalLogHas(memLog, "finished without replying", "In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/BP()] finished without replying to f/B. Reported error: In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/BP()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
   }
 
   behavior of "basic functionality"
@@ -568,7 +568,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val result = g.timeout()(1500 millis)
     tp.shutdownNow()
     result shouldEqual Some(())
-    logShouldHave(memLog, "In Site{counter + decrement/B → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement/B(_) → counter(?)} with inputs [counter(5) + decrement/B/P()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
+    logShouldHave(memLog, "In Site{counter + decrement/B → .../R; counter + getValue/B → ...}: Reaction {counter(x) + decrement/B(_) → counter(?)} with inputs [counter(5) + decrement/BP()] produced Exception. Retry run was scheduled. Message: crash! (it's OK, ignore this)")
   }
 
 }
