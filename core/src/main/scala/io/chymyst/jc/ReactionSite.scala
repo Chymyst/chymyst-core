@@ -463,9 +463,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           reactionPool.reporter.emitted(id, toString, mol.siteIndex, mol.toString, molValue.toString, moleculesPresentToString)
           if (isSchedulingNeeded(mol))
             reactionPool.runScheduler(emissionRunnable(mol))
-          //          else if (logLevel > 1) logMessage(s"Debug: In $this: not scheduling emissionRunnable") // This is too verbose.
         } else {
-          reportError(s"In $this: Refusing to emit${if (mol.isStatic) " static" else ""} pipelined molecule $mol($molValue) since its value fails the relevant conditions", printToConsole = false)
+          val message = s"In $this: Refusing to emit${if (mol.isStatic) " static" else ""} pipelined molecule $mol($molValue) since its value fails the relevant conditions"
+          if (mol.isStatic)
+            reportError(message, printToConsole = false)
+          else
+            reactionPool.reporter.omitPipelined(id, toString, mol.siteIndex, mol.toString, molValue.toString)
         }
       }
     }

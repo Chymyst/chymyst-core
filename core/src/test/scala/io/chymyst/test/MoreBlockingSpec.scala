@@ -141,12 +141,11 @@ class MoreBlockingSpec extends LogSpec {
     val a = m[Int]
     val f = b[Unit, Int]
 
-    val tp = FixedPool(2)
+    val tp = BlockingPool(2).withReporter(ConsoleDebugAllReporter)
 
     site(tp)(
       go { case f(_, r) + a(x) => r(x); a(0) }
     )
-    tp.reporter = ConsoleDebugAllReporter
     a.logSoup shouldEqual "Site{a + f/B → ...}\nNo molecules"
     f.timeout()(100 millis) shouldEqual None
     Thread.sleep(300)

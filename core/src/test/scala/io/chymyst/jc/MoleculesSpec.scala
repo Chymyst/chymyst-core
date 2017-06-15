@@ -179,7 +179,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     site(go { case a(_, r) + a(_, s) => r(); s() })
   }
 
-  it should "throw exception when join pattern attempts to redefine a blocking molecule" in {
+  it should "throw exception when input pattern attempts to redefine a blocking molecule" in {
     val thrown = intercept[Exception] {
       val a = new B[Unit, Unit]("a")
       site(go { case a(_, r) => r() })
@@ -188,7 +188,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     thrown.getMessage shouldEqual "Molecule a/B cannot be used as input in Site{a/B → ...} since it is already bound to Site{a/B → ...}"
   }
 
-  it should "throw exception when join pattern attempts to redefine a non-blocking molecule" in {
+  it should "throw exception when input pattern attempts to redefine a non-blocking molecule" in {
     val thrown = intercept[Exception] {
       val a = new M[Unit]("x")
       val b = new M[Unit]("y")

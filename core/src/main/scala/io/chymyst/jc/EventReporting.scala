@@ -18,6 +18,8 @@ trait EventReporting {
 
   def emitted(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, molValue: ⇒ String, moleculesPresent: ⇒ String): Unit = ()
 
+  def omitPipelined(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, molValue: ⇒ String): Unit = ()
+
   def removed(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, molValue: ⇒ String, moleculesPresent: ⇒ String): Unit = ()
 
   def replyReceived(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, molValue: ⇒ String): Unit = ()
@@ -116,6 +118,10 @@ trait DebugReactions extends EventReporting {
 trait DebugMolecules extends EventReporting {
   override def emitted(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, molValue: ⇒ String, moleculesPresent: ⇒ String): Unit = {
     log(s"Debug: In $rsString: emitted molecule $mol($molValue), molecules present: [$moleculesPresent]")
+  }
+
+  override def omitPipelined(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, molValue: ⇒ String): Unit = {
+    log(s"Debug: In $rsString: Refusing to emit pipelined molecule $mol($molValue) since its value fails the relevant conditions")
   }
 
   override def removed(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, molValue: ⇒ String, moleculesPresent: ⇒ String): Unit = {
