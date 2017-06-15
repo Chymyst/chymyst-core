@@ -160,7 +160,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     reaction.info.outputs shouldEqual List()
   }
 
-  it should "inspect reaction body with embedded join" in {
+  it should "inspect reaction body with embedded site" in {
     val a = m[Int]
     val bb = m[Int]
     val f = b[Unit, Int]
@@ -176,7 +176,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     f.timeout()(1000 millis) shouldEqual Some(2)
   }
 
-  it should "inspect reaction body with embedded join and go" in {
+  it should "inspect reaction body with embedded site and go" in {
     val a = m[Int]
     val bb = m[Int]
     val f = b[Unit, Int]
@@ -252,6 +252,14 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     // This reaction is different only in the order of input molecules, so its sha1 must be the same.
     val result2 = go { case qq(_) + a(x) => qq() }
     result2.info.sha1 shouldEqual ax_qq_reaction_sha1
+  }
+
+  it should "compile reaction with blocking molecule inside a non-blocking molecule with warnings" in {
+    val a = m[Int]
+    val c = m[Int]
+    val f = b[Unit, Int]
+    val status = site(go { case a(x) + c(_) + f(_, r) ⇒  c(f() + 1); r(x) })
+    status shouldEqual WarningsAndErrors(List("Possible deadlock: molecule f/B may deadlock due to outputs of {a(x) + c(_) + f/B(_) → f/B() + c(?)}", "Possible deadlock: molecule (f/B) may deadlock due to (c) among the outputs of {a(x) + c(_) + f/B(_) → f/B() + c(?)}"), Nil, "Site{a + c + f/B → ...}")
   }
 
   it should "compute reaction sha1 independently of guard order" in {
