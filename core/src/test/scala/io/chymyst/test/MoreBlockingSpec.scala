@@ -278,6 +278,10 @@ class MoreBlockingSpec extends LogSpec {
     c() // update started and is waiting for e(), which should come after incr() gets its reply
     get_f.timeout()(1000 millis) shouldEqual None // deadlock
     memLog.messages.toIndexedSeq should contain("Warning: deadlock occurred in pool tp (2 threads) due to 2 concurrent blocking calls while running reaction {d(x) + incr/B(_) → wait/B() + f(?)}")
+
+    memLog.clearLog()
+    memLog.messages.size shouldEqual 0
+
     tp.shutdownNow()
   }
 
