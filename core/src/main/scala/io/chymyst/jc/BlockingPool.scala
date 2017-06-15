@@ -1,7 +1,5 @@
 package io.chymyst.jc
 
-import io.chymyst.jc.Core.logMessage
-
 import scala.language.experimental.macros
 
 /** This is similar to scala.concurrent.blocking and is used to annotate expressions that should lead to a possible increase of thread count.
@@ -25,7 +23,7 @@ final class BlockingPool(
   name: String,
   override val parallelism: Int = cpuCores,
   priority: Int = Thread.NORM_PRIORITY,
-  reporter: ReportEvents = ConsoleErrorReporter
+  reporter: EventReporting = ConsoleErrorReporter
 ) extends Pool(name, priority, reporter) {
 
   // Looks like we will die hard at about 2021 threads...
@@ -39,7 +37,7 @@ final class BlockingPool(
       workerExecutor.setMaximumPoolSize(newPoolSize)
       workerExecutor.setCorePoolSize(newPoolSize)
     } else {
-      logMessage(s"Chymyst Core warning: In $this: It is dangerous to increase the pool size, which is now $currentPoolSize. Memory is ${Runtime.getRuntime.maxMemory}")
+      reporter.warnTooManyThreads(toString, currentPoolSize)
     }
   }
 
@@ -49,7 +47,7 @@ final class BlockingPool(
     workerExecutor.setMaximumPoolSize(newPoolSize)
   }
 
-  def withReporter(r: ReportEvents): BlockingPool = new BlockingPool(name, parallelism, priority, reporter)
+  def withReporter(r: EventReporting): BlockingPool = new BlockingPool(name, parallelism, priority, reporter)
 }
 
 object BlockingPool {

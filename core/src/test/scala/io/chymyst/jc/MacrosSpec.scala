@@ -1163,7 +1163,8 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     val c = new M[Unit]("c")
     val dIncorrectStaticMol = m[Unit]
     val e = new M[M[Unit]]("e")
-    tp0.reporter.clearGlobalErrorLog()
+    val memLog = new MemoryLogger
+    tp0.reporter = new ErrorReporter(memLog)
     site(tp0)(
       go { case e(s) => s() },
       go { case dIncorrectStaticMol(_) + c(_) => dIncorrectStaticMol() },
@@ -1173,7 +1174,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     e(dIncorrectStaticMol)
     waitSome()
     e.logSoup shouldEqual s"Site{c + ${dIncorrectStaticMol.name} → ...; e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
-    globalLogHas(tp0, "cannot be emitted", s"In Site{c + dIncorrectStaticMol → ...; e → ...}: Reaction {e(s) → } with inputs [e/P(dIncorrectStaticMol)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule dIncorrectStaticMol(()) cannot be emitted non-statically")
+    globalLogHas(memLog, "cannot be emitted", s"In Site{c + dIncorrectStaticMol → ...; e → ...}: Reaction {e(s) → } with inputs [e/P(dIncorrectStaticMol)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule dIncorrectStaticMol(()) cannot be emitted non-statically")
   }
 
 }

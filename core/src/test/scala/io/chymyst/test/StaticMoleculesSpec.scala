@@ -153,12 +153,13 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
   }
 
   it should "signal error when a static molecule is emitted by another reaction to trick static analysis" in {
-    tp.reporter.clearGlobalErrorLog()
     val a = m[Unit]
     val c = b[Unit, Unit]
     val d = m[Unit]
     val carrier = m[M[Unit]]
 
+    val memLog = new MemoryLogger
+    tp.reporter = new ErrorReporter(memLog)
     site(tp)(
       go { case c(_, r) + carrier(q) ⇒ q(); r() },
       go { case a(_) + d(_) => d() + carrier(d) },
@@ -166,11 +167,12 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     )
     a()
     c.timeout()(300.millis) shouldEqual None
-    globalLogHas(tp, "cannot be emitted non-statically", "In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d(()) cannot be emitted non-statically")
+    globalLogHas(memLog, "cannot be emitted non-statically", "In Site{a + d → ...; c/B + carrier → ...}: Reaction {c/B(_) + carrier(q) → } with inputs [c/B/P() + carrier/P(d)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d(()) cannot be emitted non-statically")
   }
 
   it should "signal error when a static molecule is emitted twice by another reaction to trick static analysis" in {
-    tp.reporter.clearGlobalErrorLog()
+    val memLog = new MemoryLogger
+    tp.reporter = new ErrorReporter(memLog)
     val a = m[Unit]
     val c = b[Unit, Unit]
     val d = m[Unit]
@@ -183,7 +185,7 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     )
     a()
     c.timeout()(300.millis) shouldEqual None
-    globalLogHas(tp, "cannot be emitted non-statically", "In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/B/P() + carrier/P(d) + d/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d(()) cannot be emitted non-statically")
+    globalLogHas(memLog, "cannot be emitted non-statically", "In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/B/P() + carrier/P(d) + d/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d(()) cannot be emitted non-statically")
   }
 
   it should "signal error when a static molecule is emitted inside an if-then block" in {
@@ -386,7 +388,8 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val c = m[Short]
     val g = b[Unit, Unit]
     val (e, f) = litmus[Short](tp)
-    tp.reporter.clearGlobalErrorLog()
+    val memLog = new MemoryLogger
+    tp.reporter = new ErrorReporter(memLog)
     site(tp)(
       go { case _ => d123(1) },
       go { case d123(x) + g(_, r) if x < 10 => d123(123) + r() },
@@ -396,7 +399,7 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     g() // now we have attempted to emit d123(123) but we should have failed
     c(0)
     f.timeout()(1.second) shouldEqual None // if this is Some(1), reaction ran, which means the test failed
-    globalLogHas(tp, "d123(123)", "In Site{c + d123 → ...; d123 + g/B → ...}: Refusing to emit static pipelined molecule d123(123) since its value fails the relevant conditions")
+    globalLogHas(memLog, "d123(123)", "In Site{c + d123 → ...; d123 + g/B → ...}: Refusing to emit static pipelined molecule d123(123) since its value fails the relevant conditions")
   }
 
   it should "handle static molecules with cross-molecule guards" in {

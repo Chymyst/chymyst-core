@@ -9,13 +9,19 @@ import org.scalatest.Matchers._
 
 object Common {
 
-  def globalLogHas(tp: Pool, part: String, message: String): Assertion = {
-    tp.reporter.globalErrorLog.find(_.contains(part)).get should endWith(message)
+  def globalLogHas(reporter: MemoryLogger, part: String, message: String): Assertion = {
+    reporter.messages.find(_.contains(part)) match {
+      case Some(str) ⇒ str should endWith(message)
+      case None ⇒
+        reporter.messages.foreach(println) shouldEqual "Test failed, see log messages above" // this fails and alerts the user
+    }
   }
 
   // Note: log messages have a timestamp prepended to them, so we use `endsWith` when matching a log message.
-  def logShouldHave(tp: Pool, message: String) = {
-    tp.reporter.globalErrorLog.exists(_ endsWith message) should be(true)
+  def logShouldHave(reporter: MemoryLogger, message: String): Assertion = {
+    val status = reporter.messages.exists(_ endsWith message)
+    if (!status) reporter.messages.foreach(println) shouldEqual "Test failed, see log messages above" // this fails and alerts the user
+    else status shouldEqual true
   }
 
   def repeat[A](n: Int)(x: => A): Unit = (1 to n).foreach(_ => x)

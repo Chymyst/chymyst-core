@@ -30,9 +30,3 @@ private[jc] final class ChymystThread(runnable: Runnable, val pool: Pool) extend
     result
   }
 }
-
-private[jc] final class ChymystRunnable(name: String, code: ⇒ Unit) extends Runnable {
-  override def toString: String = name
-
-  override def run(): Unit = code
-}

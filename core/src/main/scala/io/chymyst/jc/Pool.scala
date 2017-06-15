@@ -15,7 +15,7 @@ import scala.concurrent.ExecutionContext
   * @param reporter An instance of [[Reporter]] that will be used to gather performance metrics for each reaction site using this thread pool.
   *                 By default, a [[ConsoleErrorReporter]] is assigned, which only logs run-time errors to the console.
   */
-abstract class Pool(val name: String, val priority: Int, var reporter: ReportEvents) extends AutoCloseable {
+abstract class Pool(val name: String, val priority: Int, var reporter: EventReporting) extends AutoCloseable {
   override val toString: String = s"${this.getClass.getSimpleName}:$name"
 
   private[jc] def startedBlockingCall(selfBlocking: Boolean): Unit

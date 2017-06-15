@@ -123,10 +123,6 @@ object Core {
     else
       ""
 
-  private[jc] def messageWithTime(message: String): String = s"${LocalDateTime.now}: $message"
-
-  private[jc] def logMessage(message: String): Unit = println(messageWithTime(message))
-
   /** List of molecules used as inputs by a reaction. The molecules are ordered the same as in the reaction input list. */
   private[jc] type InputMoleculeList = Array[AbsMolValue[_]]
 

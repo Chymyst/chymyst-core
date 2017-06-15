@@ -220,7 +220,9 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     val f = b[Unit, Unit]
     val x = 10
 
-    withPool(FixedPool(2)) { tp =>
+    withPool(FixedPool(2)) { tp ⇒
+      val memLog = new MemoryLogger
+      tp.reporter = new ErrorReporter(memLog)
       site(tp)(
         go { case f(_, r) =>
           if (x > 0) throw new Exception("crash! ignore this exception")
@@ -228,7 +230,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
         }
       )
       f.timeout()(500.millis)
-      globalLogHas(tp, "finished without replying", "In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception")
+      globalLogHas(memLog, "finished without replying", "In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception")
     }.get
   }
 
@@ -236,7 +238,9 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     val f = b[Unit, Unit]
     val x = 10
 
-    withPool(FixedPool(2)) { tp =>
+    withPool(FixedPool(2)) { tp ⇒
+      val memLog = new MemoryLogger
+      tp.reporter = new ErrorReporter(memLog)
       site(tp)(
         go { case f(_, r) =>
           if (x > 0) throw new Exception("crash! ignore this exception")
@@ -244,7 +248,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
         }
       )
       f.timeout()(500.millis)
-      globalLogHas(tp, "finished without replying", "In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception")
+      globalLogHas(memLog, "finished without replying", "In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception")
     }.get
   }
 

@@ -12,7 +12,7 @@ final class FixedPool(
   name: String,
   override val parallelism: Int = cpuCores,
   priority: Int = Thread.NORM_PRIORITY,
-  reporter: ReportEvents = ConsoleErrorReporter
+  reporter: EventReporting = ConsoleErrorReporter
 ) extends Pool(name, priority, reporter) {
   private[jc] val blockingCalls = new AtomicInteger(0)
 
@@ -39,7 +39,7 @@ final class FixedPool(
     deadlockCheck()
   }
 
-  def withReporter(r: ReportEvents): FixedPool = new FixedPool(name, parallelism, priority, reporter)
+  def withReporter(r: EventReporting): FixedPool = new FixedPool(name, parallelism, priority, reporter)
 }
 
 object FixedPool {
