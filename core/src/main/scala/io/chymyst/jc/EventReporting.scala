@@ -9,7 +9,7 @@ import scala.concurrent.duration.Duration
 
 class EmptyReporter(logTransport: LogTransport) extends EventReporting {
   @inline def log(message: String): Unit = {
-    logTransport.log(message): @inline
+    logTransport.log(s"[${System.nanoTime()}] $message"): @inline
   }
 }
 
