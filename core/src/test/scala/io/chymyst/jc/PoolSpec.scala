@@ -30,6 +30,23 @@ class PoolSpec extends LogSpec {
     tp.shutdownNow()
   }
 
+  it should "report as warning that it refused to increase the thread pool beyond its limit" in {
+    val n = 1065
+
+    val memoryLogger = new MemoryLogger
+    val tp = BlockingPool(2).withReporter(new ErrorReporter(memoryLogger))
+
+    tp.poolSizeLimit should be < n
+    tp.currentPoolSize shouldEqual 2
+
+    (1 to tp.poolSizeLimit + 2).foreach (_ => tp.startedBlockingCall(false))
+
+    tp.currentPoolSize shouldEqual tp.poolSizeLimit
+
+    memoryLogger.messages.size shouldEqual 0
+    tp.shutdownNow()
+  }
+
   behavior of "fixed thread pool"
 
   it should "run a task on a separate thread" in {
