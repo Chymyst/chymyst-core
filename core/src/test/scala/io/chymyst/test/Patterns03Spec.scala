@@ -39,9 +39,9 @@ class Patterns03Spec extends LogSpec with BeforeAndAfterEach {
     }
     val logFile = new ConcurrentLinkedQueue[LockEvent]
 
-    def useResource(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
+    def useResource(): Unit = () //Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
 
-    def waitForUserRequest(): Unit = Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
+    def waitForUserRequest(): Unit = () // Thread.sleep(math.floor(scala.util.Random.nextDouble * 4.0 + 1.0).toLong)
 
     def visitCriticalSection(name: String): Unit = {
       logFile.add(LockAcquisition(name))
@@ -77,8 +77,8 @@ class Patterns03Spec extends LogSpec with BeforeAndAfterEach {
       go { case count(0) + readerCount(0) + check(_, r) => r() }, // readerCount(0) condition ensures we end when all locks are released.
 
       go { case readerCount(n) + readerExit(name) =>
-        readerCount(n - 1)
         leaveCriticalSection(name)
+        readerCount(n - 1)
         waitForUserRequest() // gives a chance to writer to do some work
         reader(name)
       },
