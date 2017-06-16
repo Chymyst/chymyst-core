@@ -42,7 +42,7 @@ trait EventReporting {
 
   def reactionStarted(rsId: ReactionSiteId, rsString: ReactionSiteString, threadName: String, reaction: ReactionString, inputs: ⇒ String): Unit = ()
 
-  def reactionFinished(rsId: ReactionSiteId, rsString: ReactionSiteString, reaction: ReactionString, inputs: ⇒ String, status: ReactionExitStatus): Unit = ()
+  def reactionFinished(rsId: ReactionSiteId, rsString: ReactionSiteString, reaction: ReactionString, inputs: ⇒ String, status: ReactionExitStatus, durationNs: Long): Unit = ()
 
   def chymystRuntimeError(rsId: ReactionSiteId, rsString: ReactionSiteString, message: ⇒ String, printToConsole: Boolean = false): Unit = ()
 
@@ -107,11 +107,11 @@ trait DebugReactionSites extends EventReporting {
 
 trait DebugReactions extends EventReporting {
   override def reactionStarted(rsId: ReactionSiteId, rsString: ReactionSiteString, threadName: String, reaction: ReactionString, inputs: ⇒ String): Unit = {
-    log(s"Info: In $rsString: started reaction {$reaction} with inputs [$inputs]")
+    log(s"Info: In $rsString: started reaction {$reaction} with inputs [$inputs] on thread $threadName")
   }
 
-  override def reactionFinished(rsId: ReactionSiteId, rsString: ReactionSiteString, reaction: ReactionString, inputs: ⇒ String, status: ReactionExitStatus): Unit = {
-    log(s"Info: In $rsString: finished reaction {$reaction} with inputs [$inputs], status $status")
+  override def reactionFinished(rsId: ReactionSiteId, rsString: ReactionSiteString, reaction: ReactionString, inputs: ⇒ String, status: ReactionExitStatus, durationNs: Long): Unit = {
+    log(s"Info: In $rsString: finished reaction {$reaction} with inputs [$inputs], status $status, took $durationNs ns")
   }
 }
 

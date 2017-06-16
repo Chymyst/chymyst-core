@@ -206,7 +206,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private def reactionClosure(thisReaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit = {
     reactionPool.reporter.reactionStarted(id, toString, Thread.currentThread().getName, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs))
-
+    val initNs = System.nanoTime()
     lazy val reactionInputs = reactionInputsToString(thisReaction, usedInputs)
     val exitStatus: ReactionExitStatus = try {
       setReactionInfo(thisReaction.info)
@@ -241,7 +241,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         status
     }
 
-    reactionPool.reporter.reactionFinished(id, toString, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs), exitStatus)
+    val elapsedNs = System.nanoTime() - initNs
+    reactionPool.reporter.reactionFinished(id, toString, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs), exitStatus, elapsedNs)
 
     // The reaction is finished. If it had any blocking input molecules, we check if any of them got no reply.
     if (thisReaction.info.hasBlockingInputs && usedInputs.exists(_.reactionSentNoReply)) {
