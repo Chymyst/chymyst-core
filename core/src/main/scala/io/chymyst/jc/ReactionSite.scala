@@ -176,14 +176,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
   }
 
-  private val noMoleculesRemainingMessage =
-    s"Debug: In $this: no molecules remaining"
-
   private def debugRemainingMolecules: String = {
     if (moleculesPresent.forall(_.isEmpty))
-      noMoleculesRemainingMessage
+      ""
     else
-      s"Debug: In $this: remaining molecules [$moleculesPresentToString]"
+      s"$moleculesPresentToString"
   }
 
   private def scheduleReaction(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit =

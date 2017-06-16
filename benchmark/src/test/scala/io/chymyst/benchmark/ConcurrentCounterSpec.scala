@@ -3,10 +3,12 @@ package io.chymyst.benchmark
 import org.scalatest.{FlatSpec, Matchers}
 import io.chymyst.jc._
 import io.chymyst.test.Common._
+import ammonite.ops._
+import io.chymyst.test.LogSpec
 
-class ConcurrentCounterSpec extends FlatSpec with Matchers {
+class ConcurrentCounterSpec extends LogSpec {
 
-  val count = 50000
+  val count = 10000
 
   behavior of "concurrent counter"
 
@@ -61,6 +63,7 @@ class ConcurrentCounterSpec extends FlatSpec with Matchers {
       f(initialTime)
     }.get
     println(s"benchmark1 with logging took ${formatNanosToMs(elapsed)}")
+//    write.over(pwd / 'logs / "benchmark1_logging.txt", memoryLogger.messages.map(_ + "\n"))
   }
 
   it should s"produce no-logging pipelined benchmark1 data on $count counter runs" in {
@@ -110,6 +113,7 @@ class ConcurrentCounterSpec extends FlatSpec with Matchers {
     }.get
 
     println(s"pipelined benchmark1 with logging took ${formatNanosToMs(elapsed)}")
+//    write.over(pwd / 'logs / "benchmark1_pipelined_logging.txt", memoryLogger.messages.map(_ + "\n"))
   }
 
 }
