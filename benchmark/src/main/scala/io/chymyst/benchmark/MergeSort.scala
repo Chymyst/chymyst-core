@@ -1,6 +1,8 @@
 package io.chymyst.benchmark
 
+// Make all imports explicit, just to see what is the entire set of required imports.
 import io.chymyst.jc.{+, FixedPool, M, m, B, b, go, Reaction, ReactionInfo, InputMoleculeInfo, AllMatchersAreTrivial, OutputMoleculeInfo, site, EmitMultiple}
+import io.chymyst.jc.ConsoleErrorsAndWarningsReporter
 
 import scala.annotation.tailrec
 import scala.collection.mutable
@@ -34,6 +36,9 @@ object MergeSort {
     val finalResult = m[Coll[T]]
     val getFinalResult = b[Unit, Coll[T]]
     val reactionPool = FixedPool(threads)
+
+    reactionPool.reporter = ConsoleErrorsAndWarningsReporter
+
     val pool2 = FixedPool(threads)
 
     site(pool2)(
@@ -64,7 +69,6 @@ object MergeSort {
     )
     // sort our array: emit `mergesort` at top level
     mergesort((array, finalResult))
-    mergesort.setLogLevel(0)
 
     val result = getFinalResult()
     reactionPool.shutdownNow()

@@ -1,7 +1,8 @@
 package io.chymyst.util
 
 // Exploration of final tagless types. This implements Option[T] as a final tagless type.
-// Results are not satisfactory: FTOption[T] cannot avoid allocations because it has a type parameter T and thus cannot have `val`
+// Results are not satisfactory: FTOption[T] cannot avoid allocations because it has a type parameter T and thus cannot have `val` implicits.
+// We will not use this for now.
 
 object FinalTagless {
 

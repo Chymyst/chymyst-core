@@ -476,7 +476,8 @@ class StaticAnalysisSpec extends LogSpec {
   behavior of "livelock with static molecules"
 
   it should "give warning in a simple reaction with possible livelock" in {
-    withPool(FixedPool(2)) { tp ⇒
+    val memLog = new MemoryLogger
+    withPool(FixedPool(2).withReporter(new DebugAllReporter(memLog))) { tp ⇒
       val a = m[Int]
       val c = m[Unit]
       val warnings = site(tp)(
@@ -485,6 +486,7 @@ class StaticAnalysisSpec extends LogSpec {
       )
       warnings shouldEqual WarningsAndErrors(List("Possible livelock: reaction {a(1) + c(_) → c() + a(?)}"), List(), "Site{a + c → ...}")
     }.get
+    Common.globalLogHas(memLog, "Possible", "Warning: In Site{a + c → ...}: Possible livelock: reaction {a(1) + c(_) → c() + a(?)}")
   }
 
   it should "give an error in a reaction with static molecule emitted conditionally" in {

@@ -218,10 +218,11 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
 
   it should "report errors when no reply received due to exception" in {
     val f = b[Unit, Unit]
-    clearGlobalErrorLog()
     val x = 10
 
-    withPool(FixedPool(2)) { tp =>
+    withPool(FixedPool(2)) { tp ⇒
+      val memLog = new MemoryLogger
+      tp.reporter = new ErrorReporter(memLog)
       site(tp)(
         go { case f(_, r) =>
           if (x > 0) throw new Exception("crash! ignore this exception")
@@ -229,16 +230,17 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
         }
       )
       f.timeout()(500.millis)
-      globalLogHas("finished without replying", "In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception")
+      globalLogHas(memLog, "finished without replying", "In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/BP()] finished without replying to f/B. Reported error: crash! ignore this exception")
     }.get
   }
 
   it should "report errors when no reply received due to exception within timeout" in {
     val f = b[Unit, Unit]
-    clearGlobalErrorLog()
     val x = 10
 
-    withPool(FixedPool(2)) { tp =>
+    withPool(FixedPool(2)) { tp ⇒
+      val memLog = new MemoryLogger
+      tp.reporter = new ErrorReporter(memLog)
       site(tp)(
         go { case f(_, r) =>
           if (x > 0) throw new Exception("crash! ignore this exception")
@@ -246,8 +248,76 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
         }
       )
       f.timeout()(500.millis)
-      globalLogHas("finished without replying", "In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/B/P()] finished without replying to f/B. Reported error: crash! ignore this exception")
+      globalLogHas(memLog, "finished without replying", "In Site{f/B → ...}: Reaction {f/B(_) → } with inputs [f/BP()] finished without replying to f/B. Reported error: crash! ignore this exception")
     }.get
+  }
+
+  behavior of "reaction site error reporting"
+
+  it should "report no errors to empty reporter when no reply received due to exception" in {
+    val f = b[Unit, Unit]
+    val x = 10
+
+    withPool(FixedPool(2)) { tp ⇒
+      val memLog = new MemoryLogger
+      tp.reporter = new EmptyReporter(memLog)
+      site(tp)(
+        go { case f(_, r) =>
+          if (x > 0) throw new Exception("crash! ignore this exception")
+          r()
+        }
+      )
+      f.timeout()(500.millis)
+      memLog.messages.size shouldEqual 0
+    }.get
+  }
+
+  it should "report debug messages due to restarting of reaction" in {
+    val f = b[Unit, Unit]
+
+    withPool(FixedPool(2)) { tp ⇒
+      val memLog = new MemoryLogger
+      tp.reporter = new DebugAllReporter(memLog)
+      @volatile var x: Int = -2
+
+      site(tp)(
+        go { case f(_, r) =>
+          x += 1
+          if (x < 0) throw new Exception(s"crash! ignore this exception (x = $x)") else println(s"ok, have x = $x")
+          r()
+        }.withRetry
+      )
+      f.timeout()(2.seconds) shouldEqual Some(()) // make sure we gather the log message about reply received
+      globalLogHas(memLog, "Retry", "In Site{f/B → .../R}: Reaction {f/B(_) → } with inputs [f/BP()] produced Exception. Retry run was scheduled. Message: crash! ignore this exception (x = -1)")
+      globalLogHas(memLog, "received reply value", "Debug: In Site{f/B → .../R}: molecule f/B received reply value: Some(())")
+    }.get
+  }
+
+  it should "report errors when creating a reaction site" in {
+    val a = m[Unit]
+    val memLog = new MemoryLogger
+    val tp = FixedPool(1).withReporter(new ErrorsAndWarningsReporter(memLog))
+    the[Exception] thrownBy {
+      site(tp)(
+        go { case a(x) ⇒ }
+        , go { case a(x) ⇒ }
+      )
+    } should have message "In Site{a → ...; a → ...}: Identical repeated reactions: {a(x) → }, {a(x) → }; Unavoidable nondeterminism: reaction {a(x) → } is shadowed by {a(x) → }, reaction {a(x) → } is shadowed by {a(x) → }"
+    memLog.messages.size shouldEqual 1
+    globalLogHas(memLog, "repeated", "Error: In Site{a → ...; a → ...}: Identical repeated reactions: {a(x) → }, {a(x) → }; Unavoidable nondeterminism: reaction {a(x) → } is shadowed by {a(x) → }, reaction {a(x) → } is shadowed by {a(x) → }")
+  }
+
+  it should "report no errors with empty reporter when creating a reaction site" in {
+    val a = m[Unit]
+    val memLog = new MemoryLogger
+    val tp = FixedPool(1).withReporter(new EmptyReporter(memLog))
+    the[Exception] thrownBy {
+      site(tp)(
+        go { case a(x) ⇒ }
+        , go { case a(x) ⇒ }
+      )
+    } should have message "In Site{a → ...; a → ...}: Identical repeated reactions: {a(x) → }, {a(x) → }; Unavoidable nondeterminism: reaction {a(x) → } is shadowed by {a(x) → }, reaction {a(x) → } is shadowed by {a(x) → }"
+    memLog.messages.size shouldEqual 0
   }
 
   behavior of "pipeline molecule detection"
@@ -516,6 +586,22 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
       go { case c(n) + d(_, r) if n > 0 => c(n - 1); r() }
     )
     checkExpectedPipelined(Map(c → false, d → true)) shouldEqual ""
+  }
+
+  behavior of "pipelined molecules with conditions"
+
+  it should "refuse to emit when condition fails" in {
+    val c = m[Int]
+    val memLog = new MemoryLogger
+    withPool(FixedPool(1).withReporter(new DebugAllReporter(memLog))) { tp ⇒
+      site(tp)(
+        go { case c(x) if x > 0 ⇒ }
+      )
+      c(-1)
+      c(0)
+      c(1)
+    }
+    globalLogHas(memLog, "Refusing to emit", "Debug: In Site{c → ...}: Refusing to emit pipelined molecule c(-1) since its value fails the relevant conditions")
   }
 
 }

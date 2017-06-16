@@ -9,8 +9,13 @@ import scala.concurrent.ExecutionContext
 /** A pool of execution threads, or another way of running tasks (could use actors or whatever else).
   * Tasks submitted for execution can have Chymyst-specific info (useful for debugging) when scheduled using `runReaction`.
   * The pool can be shut down, in which case all further tasks will be refused.
+  *
+  * @param name     Name assigned to the thread pool, used for debugging purposes.
+  * @param priority Thread group priority for this pool, such as [[Thread.NORM_PRIORITY]].
+  * @param reporter An instance of [[EmptyReporter]] that will be used to gather performance metrics for each reaction site using this thread pool.
+  *                 By default, a [[ConsoleErrorReporter]] is assigned, which only logs run-time errors to the console.
   */
-abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
+abstract class Pool(val name: String, val priority: Int, var reporter: EventReporting) extends AutoCloseable {
   override val toString: String = s"${this.getClass.getSimpleName}:$name"
 
   private[jc] def startedBlockingCall(selfBlocking: Boolean): Unit
@@ -24,7 +29,11 @@ abstract class Pool(val name: String, val priority: Int) extends AutoCloseable {
     *
     * @param closure A reaction closure to run.
     */
-  private[chymyst] def runReaction(closure: => Unit): Unit
+  private[chymyst] def runReaction(name: String, closure: ⇒ Unit): Unit = workerExecutor.execute(new Runnable {
+    override def toString: String = name
+
+    override def run(): Unit = closure
+  })
 
   def isInactive: Boolean = workerExecutor.isShutdown || workerExecutor.isTerminated
 

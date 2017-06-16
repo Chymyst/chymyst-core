@@ -2,12 +2,12 @@ package io.chymyst.jc
 
 import java.security.MessageDigest
 import java.time.LocalDateTime
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
 import javax.xml.bind.DatatypeConverter
 
-import scala.annotation.tailrec
+import io.chymyst.util.LabeledTypes.Subtype
 
+import scala.annotation.tailrec
 
 /** Syntax helper for zero-argument molecule emitters.
   * This trait has a single method, `getUnit`, which returns a value of type `T`, but the only instance will exist if `T` is `Unit` and will return `()`.
@@ -26,9 +26,27 @@ object UnitTypeMustBeUnit extends TypeMustBeUnit[Unit] {
 }
 
 object Core {
-  private val longId: AtomicLong = new AtomicLong(0L)
 
-  private[jc] def getNextId: Long = longId.incrementAndGet()
+  private[jc] val ReactionSiteId = Subtype[Long]
+  private[jc] type ReactionSiteId = ReactionSiteId.T
+
+  private[jc] val ReactionSiteString = Subtype[String]
+  private[jc] type ReactionSiteString = ReactionSiteString.T
+
+  private[jc] val ReactionString = Subtype[String]
+  private[jc] type ReactionString = ReactionString.T
+
+  private[jc] val MolSiteIndex = Subtype[Int]
+  private[jc] type MolSiteIndex = MolSiteIndex.T
+
+  private[jc] val MolString = Subtype[String]
+  private[jc] type MolString = MolString.T
+
+  implicit val molStringOrdering: Ordering[MolString] = { (x: MolString, y: MolString) ⇒ x.compare(y) } // same as for String
+
+  private val globalReactionSiteIdCounter: AtomicLong = new AtomicLong(0L)
+
+  private[jc] def nextReactionSiteId = ReactionSiteId(globalReactionSiteIdCounter.incrementAndGet())
 
   def getMessageDigest: MessageDigest = MessageDigest.getInstance("SHA-1")
 
@@ -88,7 +106,7 @@ object Core {
         }
       }.sorted.mkString(" + ")
 
-  private[jc] def moleculeBagToString(reaction: Reaction, inputs: InputMoleculeList): String =
+  private[jc] def reactionInputsToString(reaction: Reaction, inputs: InputMoleculeList): String =
     inputs.indices.map { i ⇒
       val jmv = inputs(i)
       val mol = reaction.info.inputs(i).molecule
@@ -98,24 +116,13 @@ object Core {
   /** The pipeline suffix is printed only in certain debug messages; the molecule's [[MolEmitter.name]] does not include that suffix.
     * The reason for this choice is that typically many molecules are automatically pipelined,
     * so output messages would be unnecessarily encumbered with the `/P` suffix.
+    *
+    * We would like to avoid "mol/B/P" in favor of "mol/BP", so we omit the slash if the molecule is blocking.
     */
   private def pipelineSuffix(mol: MolEmitter): String =
-    if (mol.isPipelined)
-      "/P"
-    else
-      ""
-
-  /** Global log of all error and warning messages ever emitted by any reaction site. */
-  private[jc] val errorLog = new ConcurrentLinkedQueue[String]
-
-  private[jc] def logError(message: String, print: Boolean): Unit = {
-    errorLog.add(message)
-    if (print) println(message)
-  }
-
-  private[jc] def messageWithTime(message: String): String = s"${LocalDateTime.now}: $message"
-
-  private[jc] def logMessage(message: String): Unit = println(messageWithTime(message))
+    if (mol.isPipelined) {
+      if (mol.isBlocking) "P" else "/P"
+    } else ""
 
   /** List of molecules used as inputs by a reaction. The molecules are ordered the same as in the reaction input list. */
   private[jc] type InputMoleculeList = Array[AbsMolValue[_]]
@@ -374,7 +381,7 @@ object Core {
     * @return `"<none>"` if the current thread is not currently running a reaction.
     *         Otherwise, returns the string that describes the reaction now being run by this thread.
     */
-  def getReactionInfo: String = Thread.currentThread() match {
+  def getReactionInfo: ReactionString = Thread.currentThread() match {
     case t: ChymystThread ⇒
       t.reactionInfo
     case _ ⇒
@@ -393,6 +400,6 @@ object Core {
     case _ ⇒
   }
 
-  val NO_REACTION_INFO_STRING = "<none>"
+  val NO_REACTION_INFO_STRING = ReactionString("<none>")
 
 }

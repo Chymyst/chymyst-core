@@ -656,7 +656,7 @@ final class ReactionInfo(
 
   val isStatic: Boolean = inputsSortedByConstraintStrength.isEmpty
 
-  override val toString: String = {
+  override val toString: ReactionString = {
     val inputsInfo = inputsSortedByConstraintStrength.map(_.toString).mkString(" + ")
     val staticPrefix = if (isStatic) "_" else ""
     val guardInfo = guardPresence match {
@@ -670,7 +670,7 @@ final class ReactionInfo(
         s" if($crossGuardsInfo)"
     }
     val outputsInfo = shrunkOutputs.map(_.toString).mkString(" + ")
-    s"$inputsInfo$staticPrefix$guardInfo → $outputsInfo"
+    ReactionString(s"$inputsInfo$staticPrefix$guardInfo → $outputsInfo")
   }
 }
 

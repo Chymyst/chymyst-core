@@ -162,6 +162,7 @@ lazy val benchmark = (project in file("benchmark"))
     },
     libraryDependencies ++= Seq(
       "org.scalatest" %% "scalatest" % "3.0.1" % Test
+      , "com.lihaoyi" %% "ammonite-ops" % "1.0.0-RC7" % Test
     )
   ).dependsOn(core % "compile->compile;test->test")
 
