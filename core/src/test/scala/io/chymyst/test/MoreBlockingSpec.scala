@@ -253,7 +253,7 @@ class MoreBlockingSpec extends LogSpec {
     get_f.timeout()(1000 millis) shouldEqual None // deadlock: get_f() waits for f(), which will be emitted only after wait() returns; the reply to wait() is blocked by missing e(), which is emitted only after incr() returns, which also happens only after wait().
     // This deadlock cannot be detected by static analysis, unless we know that no other e() will be emitted.
     // All we know is that one thread is blocked by wait(), another by incr(), and that the reply to wait() requires a reaction wait + e -> ..., which is currently not running.
-    memLog.messages.toIndexedSeq should not contain deadlockMessage
+    memLog.messages.exists(_ endsWith deadlockMessage) shouldEqual false
     memLog.messages.foreach(println)
     tp.shutdownNow()
   }
@@ -279,7 +279,7 @@ class MoreBlockingSpec extends LogSpec {
     d(100)
     c() // update started and is waiting for e(), which should come after incr() gets its reply
     get_f.timeout()(1000 millis) shouldEqual None // deadlock
-    memLog.messages.toIndexedSeq should contain(deadlockMessage)
+    memLog.messages.exists(_ endsWith deadlockMessage) shouldEqual true
 
     memLog.clearLog()
     memLog.messages.size shouldEqual 0
