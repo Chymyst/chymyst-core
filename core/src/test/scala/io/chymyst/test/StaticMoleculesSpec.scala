@@ -184,7 +184,7 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
       go { case _ => d() } // static reaction
     )
     a()
-    c.timeout()(300.millis) shouldEqual None
+    c.timeout()(600.millis) shouldEqual None
     globalLogHas(memLog, "cannot be emitted non-statically", "In Site{a + d → ...; c/B + carrier + d → ...}: Reaction {c/B(_) + carrier(q) + d(_) → d()} with inputs [c/BP() + carrier/P(d) + d/P()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule d(()) cannot be emitted non-statically")
   }
 
