@@ -69,16 +69,12 @@ object Core {
   }
 
   /** Compute the difference between sequences, enforcing type equality.
-    * (The standard `diff` method will allow type mismatch, which has lead to an error.)
+    * (The standard `diff` method will allow type mismatch, which has lead to an error before.)
     *
     * @param s Sequence whose elements need to be "subtracted".
     * @tparam T Type of sequence elements.
     */
-  implicit final class SafeSeqDiff[T](val s: Seq[T]) extends AnyVal {
-    @inline def difff(t: Seq[T]): Seq[T] = s diff t
-  }
-
-  implicit final class SafeListDiff[T](val s: List[T]) extends AnyVal {
+   implicit final class SafeListDiff[T](val s: List[T]) extends AnyVal {
     @inline def difff(t: List[T]): List[T] = s diff t
   }
 
