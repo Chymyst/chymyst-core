@@ -62,7 +62,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 
  value * difficulty - description
 
- 1 * 1 - fix link to Chymyst-Core from Chymyst repo; add chymyst-examples repo.
+ 1 * 1 - add chymyst-examples repo.
 
  2 * 2 - add a metadata record to molecules. Documentation string for the molecule's value, other metadata. 
 

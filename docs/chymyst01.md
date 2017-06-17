@@ -355,20 +355,6 @@ val counter = new M[Int]("counter")
 Descriptive names of molecules are very useful for visualizing the reactions, as well as for debugging and logging.
 In this tutorial, we will always use macros to define molecules.
 
-### Logging the flow of reactions and molecules
-
-To get asynchronous, real-time logging information about the molecules being consumed or emitted and about the reactions being started, the user can set the logging level on the RS.
-This is done by calling `setLogLevel` on any molecule emitter bound to that RS.
-
-```scala
-counter.setLogLevel(2)
-
-```
-
-After this, verbosity level 2 is set on all reactions involving the RS to which `counter` is bound.
-This might result in a large printout if many reactions are happening.
-So this facility should be used only for debugging or testing.
-
 ## Common errors
 
 ### Error: Emitting molecules with undefined chemistry
@@ -385,7 +371,7 @@ x(100)
 
 ```
 
-The same error will occur if such emission is attempted inside a reaction body, or if we call `logSoup` or `setLogLevel` on the molecule emitter.
+The same error will occur if the emitter call is attempted inside a reaction body, or if we call `logSoup` on the molecule emitter.
 
 The correct way of using `Chymyst` is first to define molecules, then to create a RS where these molecules are used as inputs for reactions, and only then to start emitting these molecules.
 
@@ -393,6 +379,7 @@ The method `isBound` can be used to determine at run time whether a molecule has
 
 ```scala
 val x = m[Int]
+
 x.isBound // returns `false`
 
 site( go { case x(2) => } )
