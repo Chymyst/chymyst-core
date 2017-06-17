@@ -18,9 +18,8 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
   implicit val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
   override def beforeEach(): Unit = {
-    tp0 = FixedPool(4)
     memLog = new MemoryLogger
-    tp0.reporter = new ErrorReporter(memLog)
+    tp0 = FixedPool(4).withReporter(new ErrorReporter(memLog))
   }
 
   override def afterEach(): Unit = {
@@ -449,6 +448,19 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     g.timeout()(1.second) shouldEqual Some(2)
 
     tp.shutdownNow()
+  }
+
+  it should "disallow logSoup() on reaction threads" in {
+    val c = m[String]
+    val g = b[Unit, String]
+
+    site(tp0)(
+      go { case c(_) + g(_, r) ⇒ r(c.logSoup) }
+    )
+    c("xyz")
+
+    val result = g.timeout()(1500 millis)
+    result shouldEqual Some("")
   }
 
   behavior of "fault-tolerant resume facility"

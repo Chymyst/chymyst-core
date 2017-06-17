@@ -123,4 +123,12 @@ package object jc {
   /** We need to have a single implicit instance of [[TypeMustBeUnit]]`[Unit]`. */
   implicit val UnitArgImplicit: TypeMustBeUnit[Unit] = UnitTypeMustBeUnit
 
+  /** Check whether the current thread is a Chymyst thread.
+    *
+    * @return `true` if the current thread belongs to a Chymyst reaction pool, `false` otherwise.
+    */
+  def isChymystThread: Boolean = Thread.currentThread() match {
+    case t: ChymystThread ⇒ true
+    case _ ⇒ false
+  }
 }

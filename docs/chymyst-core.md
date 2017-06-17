@@ -588,8 +588,11 @@ It is sometimes not easy to make sure that the reactions are correctly designed.
 The library offers some debugging facilities:
 
 - each molecule and each thread pool is named, and macros will assign these names automatically
-- the user can log the current contents of a reaction site (`logSoup`)
+- the user can log the current contents of a reaction site using `logSoup()`
 - the user can trace the operation of a reaction site using a verbose event reporter
+
+Currently, `logSoup()` is allowed only outside reactions; it will return an empty string if used on a reaction thread.
+User code should not use `logSoup()` to implement the logic of the concurrent application.
 
 ## Event reporters
 

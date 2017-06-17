@@ -100,6 +100,7 @@ sealed trait MolEmitter extends PersistentHashCode {
 
   /** The type symbol corresponding to the value type of the molecule.
     * For instance, a molcule emitter defined as `val f = b[Int, String]` has type symbol `'Int`.
+    *
     * @return A symbol representing the type, such as `'Unit`, `'Int` etc.
     */
   @inline def typeSymbol: Symbol = valTypeSymbol
@@ -195,7 +196,11 @@ sealed trait MolEmitter extends PersistentHashCode {
     else throw new ExceptionNoReactionSite(s"Molecule $this is not bound to any reaction site")
   }
 
-  final def logSoup: String = ensureReactionSite(reactionSite.printBag)
+  final def logSoup: String = ensureReactionSite {
+    if (isChymystThread)
+      ""
+    else reactionSite.printBag
+  }
 
   val isBlocking: Boolean = false
 
@@ -208,7 +213,7 @@ sealed trait MolEmitter extends PersistentHashCode {
     *
     * @return A molecule's displayed name as string.
     */
-  override def toString: MolString = MolString((if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "")) // This can't be a lazy val because `isBlocking` is overridden in derived classes.
+  override final def toString: MolString = MolString((if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "")) // This can't be a lazy val because `isBlocking` is overridden in derived classes.
 }
 
 /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.

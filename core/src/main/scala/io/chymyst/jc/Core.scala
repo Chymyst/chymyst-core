@@ -365,10 +365,7 @@ object Core {
     }
   }
 
-  private[jc] def haveUnboundOutputMolecules(nonStaticReactions: Seq[Reaction]): Boolean =
-    nonStaticReactions.exists(_.info.outputs.exists(!_.molecule.isBound))
-
-  private[jc] def unboundOutputMoleculesString(nonStaticReactions: Seq[Reaction]): String =
+  private[jc] def unboundOutputMoleculesString(nonStaticReactions: Array[Reaction]): String =
     nonStaticReactions
       .flatMap(_.info.outputs.filter(!_.molecule.isBound).map(_.molecule.toString))
       .toSet
