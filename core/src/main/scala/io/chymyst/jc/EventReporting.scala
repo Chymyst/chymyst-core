@@ -7,14 +7,18 @@ import io.chymyst.jc.Core._
 import scala.collection.JavaConverters.asScalaIteratorConverter
 import scala.concurrent.duration.Duration
 
-class EmptyReporter(logTransport: LogTransport) extends EventReporting {
+class EmptyReporter(logTransport: String ⇒ Unit) extends EventReporting {
   @inline def log(message: String): Unit = {
-    logTransport.log(s"[${System.nanoTime()}] $message"): @inline
+    logTransport.apply(s"[${System.nanoTime()}] $message"): @inline
   }
 }
 
 trait EventReporting {
   def log(message: String): Unit // This method remains abstract, all others have default no-op implementations.
+
+  def reporterUnassigned(pool: Pool, previous: EventReporting): Unit = log(s"${this.getClass.getSimpleName} unassigned from $pool, previous was ${previous.getClass.getSimpleName}")
+
+  def reporterAssigned(pool: Pool): Unit = log(s"${this.getClass.getSimpleName} assigned to $pool")
 
   def emitted(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, molValue: ⇒ String, moleculesPresent: ⇒ String): Unit = ()
 
@@ -42,7 +46,7 @@ trait EventReporting {
 
   def reactionStarted(rsId: ReactionSiteId, rsString: ReactionSiteString, threadName: String, reaction: ReactionString, inputs: ⇒ String): Unit = ()
 
-  def reactionFinished(rsId: ReactionSiteId, rsString: ReactionSiteString, reaction: ReactionString, inputs: ⇒ String, status: ReactionExitStatus): Unit = ()
+  def reactionFinished(rsId: ReactionSiteId, rsString: ReactionSiteString, reaction: ReactionString, inputs: ⇒ String, status: ReactionExitStatus, durationNs: Long): Unit = ()
 
   def chymystRuntimeError(rsId: ReactionSiteId, rsString: ReactionSiteString, message: ⇒ String, printToConsole: Boolean = false): Unit = ()
 
@@ -97,7 +101,7 @@ trait DebugReactionSites extends EventReporting {
   }
 
   override def noReactionScheduled(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, remainingMols: ⇒ String): Unit = {
-    log(s"Debug: In $rsString: no reactions scheduled for molecule $mol, molecules present: [$remainingMols]")
+    log(s"Debug: In $rsString: no more reactions scheduled for molecule $mol, molecules present: [$remainingMols]")
   }
 
   override def schedulerStep(rsId: ReactionSiteId, rsString: ReactionSiteString, molIndex: MolSiteIndex, mol: MolString, moleculesPresent: ⇒ String): Unit = {
@@ -107,11 +111,11 @@ trait DebugReactionSites extends EventReporting {
 
 trait DebugReactions extends EventReporting {
   override def reactionStarted(rsId: ReactionSiteId, rsString: ReactionSiteString, threadName: String, reaction: ReactionString, inputs: ⇒ String): Unit = {
-    log(s"Info: In $rsString: started reaction {$reaction} with inputs [$inputs]")
+    log(s"Info: In $rsString: started reaction {$reaction} with inputs [$inputs] on thread $threadName")
   }
 
-  override def reactionFinished(rsId: ReactionSiteId, rsString: ReactionSiteString, reaction: ReactionString, inputs: ⇒ String, status: ReactionExitStatus): Unit = {
-    log(s"Info: In $rsString: finished reaction {$reaction} with inputs [$inputs], status $status")
+  override def reactionFinished(rsId: ReactionSiteId, rsString: ReactionSiteString, reaction: ReactionString, inputs: ⇒ String, status: ReactionExitStatus, durationNs: Long): Unit = {
+    log(s"Info: In $rsString: finished reaction {$reaction} with inputs [$inputs], status $status, took $durationNs ns")
   }
 }
 
@@ -139,12 +143,8 @@ trait DebugBlockingMolecules extends EventReporting {
   }
 }
 
-trait LogTransport {
-  def log(message: String): Unit
-}
-
-object ConsoleLogOutput extends LogTransport {
-  override def log(message: String): Unit = println(message)
+object ConsoleLogOutput extends (String ⇒ Unit) {
+  override def apply(message: String): Unit = println(message)
 }
 
 // Now we can easily define reporters. We just specify the log transport and the event reporting traits.
@@ -154,30 +154,41 @@ object ConsoleLogOutput extends LogTransport {
   */
 object ConsoleEmptyReporter extends EmptyReporter(ConsoleLogOutput)
 
-class ErrorReporter(logTransport: LogTransport) extends EmptyReporter(logTransport) with ReportSevereErrors
+class ErrorReporter(logTransport: String ⇒ Unit) extends EmptyReporter(logTransport) with ReportSevereErrors
 
 object ConsoleErrorReporter extends ErrorReporter(ConsoleLogOutput)
 
-class ErrorsAndWarningsReporter(logTransport: LogTransport) extends EmptyReporter(logTransport)
+class ErrorsAndWarningsReporter(logTransport: String ⇒ Unit) extends EmptyReporter(logTransport)
   with ReportSevereErrors
   with ReportMinorErrors
   with ReportWarnings
 
 object ConsoleErrorsAndWarningsReporter extends ErrorsAndWarningsReporter(ConsoleLogOutput)
 
-class DebugAllReporter(logTransport: LogTransport) extends EmptyReporter(logTransport)
+class DebugAllReporter(logTransport: String ⇒ Unit) extends EmptyReporter(logTransport)
   with ReportSevereErrors
   with ReportMinorErrors
   with ReportWarnings
   with ReportReactionSites
   with DebugReactionSites
-  with DebugMolecules
   with DebugReactions
+  with DebugMolecules
+  with DebugBlockingMolecules
+
+class DebugReactionSitesReporter(logTransport: String ⇒ Unit) extends EmptyReporter(logTransport)
+  with ReportReactionSites
+  with DebugReactionSites
+
+class DebugReactionsReporter(logTransport: String ⇒ Unit) extends EmptyReporter(logTransport)
+  with DebugReactions
+
+class DebugMoleculesReporter(logTransport: String ⇒ Unit) extends EmptyReporter(logTransport)
+  with DebugMolecules
   with DebugBlockingMolecules
 
 object ConsoleDebugAllReporter extends DebugAllReporter(ConsoleLogOutput)
 
-final class MemoryLogger extends LogTransport {
+final class MemoryLogger extends (String ⇒ Unit) {
   /** Access the reporter's global message log. This is used by reaction sites to report errors, metrics, and debugging messages at run time.
     *
     * @return An [[Iterable]] representing the sequence of all messages in the message log.
@@ -191,5 +202,5 @@ final class MemoryLogger extends LogTransport {
 
   private val messageLog = new LinkedBlockingQueue[String]()
 
-  override def log(message: String): Unit = messageLog.add(message)
+  override def apply(message: String): Unit = messageLog.add(message)
 }

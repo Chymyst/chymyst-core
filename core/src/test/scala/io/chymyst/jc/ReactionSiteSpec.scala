@@ -257,10 +257,8 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
   it should "report no errors to empty reporter when no reply received due to exception" in {
     val f = b[Unit, Unit]
     val x = 10
-
-    withPool(FixedPool(2)) { tp ⇒
-      val memLog = new MemoryLogger
-      tp.reporter = new EmptyReporter(memLog)
+    val memLog = new MemoryLogger
+    withPool(FixedPool(2).withReporter(new EmptyReporter(memLog))) { tp ⇒
       site(tp)(
         go { case f(_, r) =>
           if (x > 0) throw new Exception("crash! ignore this exception")
@@ -268,8 +266,8 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
         }
       )
       f.timeout()(500.millis)
-      memLog.messages.size shouldEqual 0
-    }.get
+    }.get shouldEqual None
+    memLog.messages.size shouldEqual 0
   }
 
   it should "report debug messages due to restarting of reaction" in {

@@ -1,7 +1,6 @@
 package io.chymyst.jc
 
 import java.security.MessageDigest
-import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicLong
 import javax.xml.bind.DatatypeConverter
 

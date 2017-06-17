@@ -10,12 +10,12 @@ import scala.concurrent.ExecutionContext
   * Tasks submitted for execution can have Chymyst-specific info (useful for debugging) when scheduled using `runReaction`.
   * The pool can be shut down, in which case all further tasks will be refused.
   *
-  * @param name     Name assigned to the thread pool, used for debugging purposes.
-  * @param priority Thread group priority for this pool, such as [[Thread.NORM_PRIORITY]].
-  * @param reporter An instance of [[EmptyReporter]] that will be used to gather performance metrics for each reaction site using this thread pool.
-  *                 By default, a [[ConsoleErrorReporter]] is assigned, which only logs run-time errors to the console.
+  * @param name      Name assigned to the thread pool, used for debugging purposes.
+  * @param priority  Thread group priority for this pool, such as [[Thread.NORM_PRIORITY]].
+  * @param _reporter An instance of [[EmptyReporter]] that will be used to gather performance metrics for each reaction site using this thread pool.
+  *                  By default, a [[ConsoleErrorReporter]] is assigned, which only logs run-time errors to the console.
   */
-abstract class Pool(val name: String, val priority: Int, var reporter: EventReporting) extends AutoCloseable {
+abstract class Pool(val name: String, val priority: Int, private[this] var _reporter: EventReporting) extends AutoCloseable {
   override val toString: String = s"${this.getClass.getSimpleName}:$name"
 
   private[jc] def startedBlockingCall(selfBlocking: Boolean): Unit
@@ -100,4 +100,11 @@ abstract class Pool(val name: String, val priority: Int, var reporter: EventRepo
     }
   }.start()
 
+  @inline def reporter: EventReporting = _reporter
+
+  def reporter_=(r: EventReporting): Unit = {
+    reporter.reporterUnassigned(this, r)
+    _reporter = r
+    r.reporterAssigned(this)
+  }
 }

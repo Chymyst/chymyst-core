@@ -132,26 +132,10 @@ If the caller has timed out before the reply was sent (or even before the replyi
 Reply emitters are instances of class `ReplyEmitter[T, R]` which extends `R => Boolean`.
 For this reason, reply emitters look like functions that return a `Boolean` value.
 
-## Debugging
+### Logging the present molecules
 
-Molecule emitters have the method `setLogLevel`, which is by default set to `-1`.
-Nonnegative values will lead to more debugging output:
-
-- level 0 will print all internal error messages and exceptions occurring within reactions
-- level 1 will print messages about scheduling and starting reactions 
-- level 2 will print messages about emitting molecules and removing blocking molecules after timeout
-- level 3 will print messages about molecules remaining after starting a reaction, as well as messages about no reactions started 
-
-The log level will affect the entire reaction site to which the molecule is bound.
-
-```scala
-val x = m[Int]
-site(...) // consuming x
-x.setLogLevel(2)
-
-```
-
-The method `logSoup` returns a string that represents the molecules currently present in the reaction site to which the molecule is bound.
+The method `logSoup` returns a `String` that represents the molecules currently present in the reaction site to which the molecule is bound.
+This is intended as a debugging tool only.
 
 ```scala
 val x = m[Int]
@@ -160,7 +144,7 @@ println(x.logSoup)
 
 ```
 
-It is a run-time error to use `setLogLevel` or `logSoup` on molecules that are not yet bound to any reaction site.
+It is a run-time error to use `logSoup` on molecules that are not yet bound to any reaction site.
 
 ## Reactions
 
@@ -385,85 +369,6 @@ This feature of the chemical machine allows us to create a library of reactions 
 Also, because of this rule, different reaction sites do not contend on input molecules.
 In other words, the decisions about which reactions to start are local to each RS.
 
-# Debugging the flow of reactions
-
-It is sometimes not easy to make sure that the reactions are correctly designed.
-The library offers some debugging facilities:
-
-- each molecule is named;
-- a macro is available to assign names automatically;
-- the user can set a log level on each reaction site.
- 
-Here is some typical debug output from running some reactions:
-
-```scala
-import io.chymyst.jc._
-
-val counter = b[Int] // the name of this molecule is "counter"
-val decr = b[Unit] // the name is "decr"
-val get = b[Unit,Int] // the name is "get"
-
-site (
-  go { case counter(n) + decr(_) if n > 0 => counter(n - 1) },
-  go { case counter(n) + get(_, res) => res(n) + counter(n) }
-)
-
-counter(5)
-
-/* Let's start debugging... */
-counter.setLogLevel(2)
-
-/* Each molecule is automatically named: */
-counter.toString // returns the string "counter"
-
-decr() + decr() + decr()
-/* This prints:
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr(), now have molecules counter(5), decr()
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr(), now have molecules decr()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while with inputs decr(), counter(5)
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr(), now have molecules decr() * 2
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started with thread id 547
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(4), now have molecules counter(4), decr() * 2
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while with inputs decr(), counter(4)
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started with thread id 548
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(3), now have molecules counter(3), decr()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while with inputs decr(), counter(3)
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started with thread id 549
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(2), now have molecules counter(2)
-
-*/
-println(counter.logSoup)
-/* This prints:
- Site{counter + decr → ...; counter + get/S → ...}
- Molecules: counter(2)
- */
-decr() + decr() + decr()
-/* This prints:
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr(), now have molecules counter(2), decr()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while with inputs decr(), counter(2)
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr(), now have molecules decr()
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting decr(), now have molecules decr() * 2
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started with thread id 613
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(1), now have molecules counter(1), decr() * 2
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + decr → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while with inputs decr(), counter(1)
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + decr → ...} started with thread id 548
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(0), now have molecules counter(0), decr()
-*/
-println(counter.logSoup)
-/* This prints:
- Site{counter + decr → ...; counter + get/S → ...}
- Molecules: counter(0), decr()
- */
-
-val x = get()
-/* This results in setting x = 0 and also prints:
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting get/S(), now have molecules counter(0), decr(), get/S()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: scheduling reaction {counter + get/S → ...} on thread pool io.chymyst.jc.ReactionPool@57efee08 while with inputs counter(0), get/S()
-Debug: In Site{counter + decr → ...; counter + get/S → ...}: reaction {counter + get/S → ...} started with thread id 549
-Debug: Site{counter + decr → ...; counter + get/S → ...} emitting counter(0), now have molecules counter(0), decr()
-*/
-```
-
 # Thread pools
 
 There are two kinds of tasks that `Chymyst Core` performs concurrently:
@@ -483,31 +388,35 @@ In particular, all screen updates (as well as all user event callbacks) must be 
 To facilitate this control, `Chymyst Core` implements the thread pool feature.
 
 Each RS uses a special thread pool (the `reactionPool`).
-The reaction pool contains two sets of threads:
+This thread pool contains two sets of threads:
 
-1. A common `ThreadPoolExecutor` for running reactions. This thread executor (called `workerExecutor` in `Pool.scala`) can have one or more threads.
+1. A `ThreadPoolExecutor` for running reactions. This thread executor (called `workerExecutor` in `Pool.scala`) manages one or more worker threads.
 2. A single, dedicated scheduler thread for deciding new reactions (called the `schedulerExecutor` in the code).
 
-By default, the reaction sites use a statically allocated reaction pool that is shared by all RSs.
+All reactions are run on the reaction pool's worker threads.
+The code for choosing input molecules for new reactions and scheduling these reactions is run on the reaction pool's scheduler thread.
 
-Users can create custom reaction pools and specify, for any given RS, on which pool each reaction will run.
+By default, the reaction sites use a statically allocated reaction pool that is shared by all RSs unless a new reaction pool is specified.
+Users can also create new reaction pools and assign them to specific reaction sites.
 
-The dedicated scheduler thread is part of a reaction pool, although it is separate and free of contention with reaction tasks.
-If two reaction sites share their reaction pool, they also share the scheduler thread.
+The dedicated scheduler thread is also a part of a reaction pool, although it is separate and free of contention with the worker threads.
+So, if several reaction sites share a reaction pool, they also share the (single) scheduler thread, which may lead to scheduler starvation if a reaction takes a long time to schedule.
 
 Also note that the total number of threads in the JVM is limited to about 2,000.
-Thus, creating many thousands of new reaction pools is impossible.
+Thus, creating more than about a thousand separate reaction pools is impossible in any case.
 
-## Creating a custom thread pool
+## Creating a new reaction pool
 
-A thread pool is created like this:
+`Chymyst` provides two classes for reaction pools: `BlockingPool` and `FixedPool`.
+
+A new thread pool is created like this:
 
 ```scala
 val tp = BlockingPool(8)
 
 ```
 
-This initializes a thread pool with 8 initial threads.
+This initializes a thread pool with 8 initial worker threads.
 
 As a convenience, the method `cpuCores` can be used to determine the number of available CPU cores.
 This value is used by `BlockingPool`'s default constructor.
@@ -517,8 +426,7 @@ val tp1 = BlockingPool() // same as BlockingPool(cpuCores)
 
 ```
 
-Another available reaction pool is `FixedPool`.
-This pool holds a fixed, never changing number of reaction threads (and a single, dedicated scheduler thread).
+A `FixedPool` pool holds a specified number of worker threads (in addition to a single, dedicated scheduler thread).
 
 ```scala
 val tp1 = FixedPool(4) // 4 threads for reactions, one thread for scheduler
@@ -543,7 +451,7 @@ site(tp)(
 
 ```
 
-When it is desired that a particular reaction should be scheduled on a particular thread pool, the `onThreads()` method can be used.
+When it is desired that a particular reaction should be scheduled on a particular thread pool, the `onThreads()` method can be used:
 
 ```scala
 val tp = BlockingPool(8)
@@ -561,15 +469,16 @@ site(tp)(
 
 ```
 
-By default, all sites will use the `defaultPool`.
+By default, all sites will use the `defaultPool`, unless another thread pool is specified in the `site(tp)(...)` call.
 
-If the reaction pool is specified for a particular RS, all reactions in that RS will use that thread pool, unless a reaction has its own `onTreads()` specification.
+If the thread pool is specified for a particular RS, all reactions in that RS will use that thread pool, except for reactions with their own `onTreads()` specifications.
 
 ## Stopping a thread pool
 
 Sometimes the programmer needs to stop the thread pool imediately, so that no more reactions can be run.
 
-The method `shutdownNow()` will interrupt all threads in the thread pool and clear out the reaction queue.
+The method `shutdownNow()` will interrupt all threads in the thread pool and clear its reaction queue.
+Calling this method on a thread pool will also prevent new reactions to be scheduled in the affected reaction sites.
 
 ```scala
 val tp = BlockingPool(8)
@@ -589,18 +498,21 @@ The `close()` method is an alias to `shutdownNow()`.
 Thread pools will stop their threads when idle for a certain time `Pool.recycleThreadTimeMs()`.
 So usually it is not necessary to shut down the pools manually.
 
-## Blocking calls and thread pools
+Once a thread pool is shut down, it cannot be restarted.
 
-The `BlockingPool` class is used to create thread pools for reactions that may generate a lot of blocking molecules.
-This thread pool will automatically increment the pool size when a blocking molecule is emitted, and decrement it when the blocking molecule receives a reply and unblocks the calling process.
+## Blocking calls and the `BlockingPool`
 
-This functionality is available with the `BlockingIdle` function.
+The `BlockingPool` class is used to create thread pools for reactions that may emit a lot of blocking molecules, or perform other blocking calls that leave the thread idle (the **idle blocking** calls).
+This thread pool will automatically increment the pool size while an idle blocking call is performed, and decrement the pool size when the blocking call is finished and the process is unblocked.
+
+This functionality is available with the `BlockingIdle()` function, which is analogous to `scala.concurrent.blocking()` normally used with the Scala's default implicit execution context.
+
 Whenever a reaction contains an idle blocking call, the corresponding thread will be blocked while doing no computations.
 If the thread pool does not increase the number of available threads in this case, it is possible that the blocking call is waiting for a molecule that is never going to be emitted since no free threads are available to run reactions.
-To prevent this kind of starvation, the user can surround the idle blocking calls with `BlockingIdle(...)`.
+To prevent this kind of starvation and deadlock, the user should surround an idle blocking call with `BlockingIdle(...)`.
 
 Emitters of blocking molecules already use `BlockingIdle` in their implementation.
-The user needs to employ `BlockingIdle` explicitly only when a reaction contains blocking idle calls, such as `Thread.sleep`, synchronous HTTP calls, database queries, and so on.
+The user needs to write `BlockingIdle` explicitly only when a reaction contains blocking idle calls, such as `Thread.sleep`, synchronous HTTP calls, database queries, and so on.
 
 Example:
 
@@ -615,23 +527,26 @@ site(pool)(
   go { case a(url) + b(client) ⇒
       val result = BlockingIdle { client.callSyncHttpApi(url) }
       c(result)
-    }
+    },
+  go { case c(result) ⇒ ... }
 )
 ```
 
 The reaction scheduler (i.e. the code that decides which reaction will start next) is running on a single dedicated thread (the `schedulerExecutor`).
-User programs should avoid defining reactions with complicated conditions that could block the RS scheduler.
+User programs should avoid defining reactions with complicated conditions that could cause the RS scheduler to work very slowly or to be blocked.
 For example, code like this should be avoided:
 
 ```scala
 ... // define molecule emitters
 
-site()(
+site(pool)(
 // Guard condition executes a blocking HTTP call. Not recommended!
   go { case a(url) + b(client) if client.callSyncHttpApi(url).isSuccessful ⇒ ...}
 )
 
 ```
+
+Instead, the chemistry should be reorganized (e.g. as shown in the previous example) so that the blocking call is performed within a reaction body.
 
 ## Fault tolerance and exceptions
 
@@ -666,6 +581,224 @@ Therefore, it is advisable not to allow exceptions to be thrown within reactions
 If there is an operation that could intermittently throw an exception, and if it is useful to retry the reaction in that case, the best way is mark the reaction `withRetry` and to make sure that all output molecules are emitted at the end of the reaction body, after any exceptions were thrown.
 (Also, any other irreversible side effects should not happen before exceptions are thrown.)
 In this case, the retry mechanism will be able to restart the reaction without repeating any of its side effects.
+
+# Debugging the flow of reactions
+
+It is sometimes not easy to make sure that the reactions are correctly designed.
+The library offers some debugging facilities:
+
+- each molecule and each thread pool is named, and macros will assign these names automatically
+- the user can log the current contents of a reaction site (`logSoup`)
+- the user can trace the operation of a reaction site using a verbose event reporter
+
+## Event reporters
+
+Each reaction pool contains an event reporter, which is an implementation of the `EventReporting` trait.
+
+Events are broadly divided into several categories:
+
+- Severe errors (e.g. when the application contains a programming error such as an unbound emitter) 
+- Minor errors (currently, deadlocks in `FixedPool`s and thread overflows in `BlockingPool`s)
+- Warnings while creating reaction sites, e.g. a possible livelock
+- Reaction site events - creating a new reaction site, searching for reactions, scheduling new reactions
+- Reaction events - starting, stopping a reaction
+- Molecule events - emitting or consuming a molecule, sending a reply to a blocking molecule, timing out on a blocking wait
+
+For each of the supported events, `Chymyst` generates a log message (currently, a `String`).
+An event reporter can be configured to print these messages to the console, store them in a queue in memory, or publish them via another log transport.
+The log transport configuration is represented by a function of type `String => Unit` that will be called to publish each log message.
+
+In this way, users can create custom event reporters to, say, to create log entries in a database, or to choose to report certain events but not others.
+
+The events generated by a given reaction site will be reported to the reaction pool of that reaction site.
+If several reaction sites share a reaction pool, their events will be reported together.
+
+### Using event reporters
+
+To create and configure an event reporter, start by choosing a log transport.
+`Chymyst` predefines two log transports: `ConsoleLogOutput` and `MemoryLogger`.
+A custom log transport could be an instance of any class that extends `String => Unit`.
+
+Then choose the reporter class for events that need to be logged.
+`Chymyst` predefines several reporter classes such as `ErrorReporter`, `ErrorsAndWarningsReporter`, `DebugMoleculesReporter`, `DebugAllReporter` and so on.
+
+The most verbose setting is the `DebugAllReporter`; the `EmptyReporter` is completely silent.
+
+`Chymyst` also predefines console-printing reporters such as `ConsoleErrorReporter`, `ConsoleErrorsAndWarningsReporter`, and `ConsoleDebugAllReporter`:
+
+```scala
+object ConsoleErrorReporter extends ErrorReporter(ConsoleLogOutput)
+object ConsoleErrorsAndWarningsReporter extends ErrorsAndWarningsReporter(ConsoleLogOutput)
+
+```
+
+Users can easily define other event reporters by mixing in the desired event reporting traits, for example like this:
+
+```scala
+object ConsoleReactionAndMoleculeDebugger extends EmptyReporter(ConsoleLogOutput)
+   with DebugReactions
+   with DebugMolecules
+   with DebugBlockingMolecules
+
+```
+
+See the source code of `EventReporting.scala` for more details.
+
+Finally, a reaction pool needs to be assigned an event reporter.
+This can be done together with creating a reaction pool or later. 
+By default, reaction pools are assigned the `ConsoleErrorReporter` that logs run-time errors to the console.
+
+Here is sample code that defines the fully verbose console reporter and assigns it to a new reaction pool:
+
+```scala
+val tp = FixedPool(2).withReporter(ConsoleDebugAllReporter)
+
+```
+
+If we now create a reaction site using the pool `tp`, all events in that reaction site will be reported to the console.
+
+Here is typical debug output from running some reactions with this reporter:
+
+```scala
+import io.chymyst.jc._
+
+val counter = m[Int] // the name of this molecule is "counter"
+val decr = m[Unit] // the name is "decr"
+val get = b[Unit, Int] // the name is "get"
+
+site(tp) (
+  go { case counter(n) + decr(_) if n > 0 ⇒ counter(n - 1) },
+  go { case counter(n) + get(_, res) ⇒ res(n); counter(n) }
+)
+// This prints:
+// [1742522843584742] Debug: Created reaction site 1: Site{counter + decr → ...; counter + get/B → ...} at 1742522634128757 ns, took 209334151 ns
+
+counter(5)
+// This prints:
+// [1742537166199398] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule counter(5), molecules present: [counter(5)]
+// [1742537169586371] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule counter, molecules present: [counter(5)]
+// [1742537175881229] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule counter, molecules present: [counter(5)]
+
+/* Each molecule is automatically named: */
+counter.toString // returns the string "counter"
+
+decr() + decr() + decr()
+/* This prints:
+[1742620631122532] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule decr(), molecules present: [counter(5) + decr/P()]
+[1742620632433889] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule decr, molecules present: [counter(5) + decr/P()]
+[1742620633365719] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule decr(), molecules present: [counter(5) + decr/P() * 2]
+[1742620639051113] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule decr(), molecules present: [counter(5) + decr/P() * 3]
+[1742620647873588] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduled reaction {counter(n if ?) + decr(_) → } for molecule decr, inputs [counter(5) + decr/P()], remaining molecules [decr/P() * 2]
+[1742620650275553] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule decr, molecules present: [decr/P() * 2]
+[1742620650429874] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule decr, molecules present: [decr/P() * 2]
+[1742620650549649] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule decr, molecules present: [decr/P() * 2]
+[1742620651326091] Info: In Site{counter + decr → ...; counter + get/B → ...}: started reaction {counter(n if ?) + decr(_) → } with inputs [counter(5) + decr/P()] on thread FixedPool:tp,worker_thread:0
+[1742620654421113] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule counter(4), molecules present: [counter(4) + decr/P() * 2]
+[1742620654809781] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule counter, molecules present: [counter(4) + decr/P() * 2]
+[1742620655009798] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduled reaction {counter(n if ?) + decr(_) → } for molecule counter, inputs [counter(4) + decr/P()], remaining molecules [decr/P()]
+[1742620655586370] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule counter, molecules present: [decr/P()]
+[1742620655596017] Info: In Site{counter + decr → ...; counter + get/B → ...}: started reaction {counter(n if ?) + decr(_) → } with inputs [counter(4) + decr/P()] on thread FixedPool:tp,worker_thread:1
+[1742620655808072] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule counter(3), molecules present: [counter(3) + decr/P()]
+[1742620656006161] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule counter, molecules present: [counter(3) + decr/P()]
+[1742620656123784] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduled reaction {counter(n if ?) + decr(_) → } for molecule counter, inputs [counter(3) + decr/P()], remaining molecules []
+[1742620656171688] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule counter, molecules present: []
+[1742620656701691] Info: In Site{counter + decr → ...; counter + get/B → ...}: finished reaction {counter(n if ?) + decr(_) → } with inputs [counter(5) + decr/P()], status ReactionExitSuccess, took 4479038 ns
+[1742620656762618] Info: In Site{counter + decr → ...; counter + get/B → ...}: started reaction {counter(n if ?) + decr(_) → } with inputs [counter(3) + decr/P()] on thread FixedPool:tp,worker_thread:0
+[1742620656881947] Info: In Site{counter + decr → ...; counter + get/B → ...}: finished reaction {counter(n if ?) + decr(_) → } with inputs [counter(4) + decr/P()], status ReactionExitSuccess, took 193742 ns
+[1742620656928384] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule counter(2), molecules present: [counter(2)]
+[1742620656985952] Info: In Site{counter + decr → ...; counter + get/B → ...}: finished reaction {counter(n if ?) + decr(_) → } with inputs [counter(3) + decr/P()], status ReactionExitSuccess, took 185948 ns
+[1742620657091402] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule counter, molecules present: [counter(2)]
+[1742620657196664] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule counter, molecules present: [counter(2)]
+*/
+println(counter.logSoup)
+/* This prints:
+ Site{counter + decr → ...; counter + get/S → ...}
+ Molecules: counter(2)
+ */
+decr() + decr() + decr()
+/* This prints:
+[1742669441488900] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule decr(), molecules present: [counter(2) + decr/P()]
+[1742669443751867] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule decr, molecules present: [counter(2) + decr/P()]
+[1742669443903120] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduled reaction {counter(n if ?) + decr(_) → } for molecule decr, inputs [counter(2) + decr/P()], remaining molecules []
+[1742669444843991] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule decr, molecules present: []
+[1742669444952240] Info: In Site{counter + decr → ...; counter + get/B → ...}: started reaction {counter(n if ?) + decr(_) → } with inputs [counter(2) + decr/P()] on thread FixedPool:tp,worker_thread:2
+[1742669445157222] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule counter(1), molecules present: [counter(1)]
+[1742669445209517] Info: In Site{counter + decr → ...; counter + get/B → ...}: finished reaction {counter(n if ?) + decr(_) → } with inputs [counter(2) + decr/P()], status ReactionExitSuccess, took 216108 ns
+[1742669445331921] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule counter, molecules present: [counter(1)]
+[1742669445426155] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule counter, molecules present: [counter(1)]
+[1742669447845348] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule decr(), molecules present: [counter(1) + decr/P()]
+[1742669448038499] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule decr(), molecules present: [counter(1) + decr/P() * 2]
+[1742669448064598] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule decr, molecules present: [counter(1) + decr/P() * 2]
+[1742669448261435] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduled reaction {counter(n if ?) + decr(_) → } for molecule decr, inputs [counter(1) + decr/P()], remaining molecules [decr/P()]
+[1742669448698914] Info: In Site{counter + decr → ...; counter + get/B → ...}: started reaction {counter(n if ?) + decr(_) → } with inputs [counter(1) + decr/P()] on thread FixedPool:tp,worker_thread:3
+[1742669448702588] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule decr, molecules present: [decr/P()]
+[1742669448875080] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule counter(0), molecules present: [counter(0) + decr/P()]
+[1742669448937413] Info: In Site{counter + decr → ...; counter + get/B → ...}: finished reaction {counter(n if ?) + decr(_) → } with inputs [counter(1) + decr/P()], status ReactionExitSuccess, took 181723 ns
+[1742669449027057] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule counter, molecules present: [counter(0) + decr/P()]
+[1742669449173158] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule counter, molecules present: [counter(0) + decr/P()]
+*/
+println(counter.logSoup)
+/* This prints:
+ Site{counter + decr → ...; counter + get/S → ...}
+ Molecules: counter(0) + decr/P()
+ */
+
+val x = get()
+/* This results in setting x = 0 and also prints:
+[1742722592701505] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule get/B(), molecules present: [counter(0) + decr/P() + get/BP()]
+[1742722594017965] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule get/B, molecules present: [counter(0) + decr/P() + get/BP()]
+[1742722594581047] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduled reaction {counter(n) + get/B(_) → } for molecule get/B, inputs [counter(0) + get/BP()], remaining molecules [decr/P()]
+[1742722595057089] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule get/B, molecules present: [decr/P()]
+[1742722595276930] Info: In Site{counter + decr → ...; counter + get/B → ...}: started reaction {counter(n) + get/B(_) → } with inputs [counter(0) + get/BP()] on thread FixedPool:tp,worker_thread:4
+[1742722595846304] Debug: In Site{counter + decr → ...; counter + get/B → ...}: emitted molecule counter(0), molecules present: [counter(0) + decr/P()]
+[1742722595934923] Info: In Site{counter + decr → ...; counter + get/B → ...}: finished reaction {counter(n) + get/B(_) → } with inputs [counter(0) + get/BP()], status ReactionExitSuccess, took 599784 ns
+[1742722596425786] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule counter, molecules present: [counter(0) + decr/P()]
+[1742722596631627] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule counter, molecules present: [counter(0) + decr/P()]
+*/
+
+```
+
+A reaction pool will recycle the threads on which reactions were started.
+However, after a certain period of inactivity, threads are freed.
+For this reason, the 2-thread `FixedPool` reused its two threads `worker_thread:0` and `worker_thread:1` while running the first three reactions, but created new threads `worker_thread:2` and `worker_thread:3` after a period of inactivity.
+
+### Using `MemoryLogger`
+
+A `MemoryLogger` will accumulate all messages in a memory-based queue and print nothing to the console.
+At any time, the accumulated messages are available as a `messages()` iterable.
+
+Here is some example code using a `MemoryLogger` to configure an event reporter:
+
+```scala
+val memLog = new MemoryLogger
+val reporter = new DebugReactionsReporter(memLog)
+val tp = FixedPool(2).withReporter(reporter)
+
+```
+
+Once the event reporter has gathered some messages, the `MemoryLogger` instance can be queried for messages or drained:
+
+```scala
+memLog.messages.foreach(println)
+memLog.clearLog
+
+```
+
+### Reassigning an event reporter
+
+An event reporter can be reassigned at any time:
+
+```scala
+tp.reporter = ConsoleErrorsAndWarningsReporter
+
+```
+
+A call to the `withReporter()` method produces a _new_ thread pool instance, which, however, uses the same threads as the old thread pool.
+In this way, reaction sites can be configured to share threads but to use different event reporters.
+
+## Unit testing and property testing
+
+***
 
 # Troubleshooting and known bugs
 
