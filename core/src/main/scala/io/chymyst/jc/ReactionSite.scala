@@ -160,7 +160,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             if (!internalRemoveFromBag(molEmitter, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $molEmitter($molValue) from its bag; molecule index ${molEmitter.siteIndex}, bag ${moleculesPresent(molEmitter.siteIndex)}", printToConsole = true)
           }
 
-          // Shuffle this reaction to the beginning of consumingReactions.
+          // Shuffle this reaction to the beginning of consumingReactions, so that it will be considered first in the next scheduling round.
           if (ind > 0) {
             val r = candidateReactions(0)
             candidateReactions(0) = thisReaction
@@ -175,12 +175,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // At this point, we may release the lock on the molecule bags. (Right now, the scheduler is single-threaded, but in the future it could become multi-threaded.)
 
-    foundReactionAndInputs match {
-      case Some((thisReaction, usedInputs)) ⇒
-
+    // We need to return `true` only if we have successfully scheduled a new reaction.
+    foundReactionAndInputs.exists {
+      case (thisReaction, usedInputs) ⇒
         val poolForReaction = thisReaction.threadPool.getOrElse(reactionPool)
         if (poolForReaction.isInactive) {
-          reportError(s"In $this: cannot run reaction {${thisReaction.info}} since reaction pool is not active; input molecules ${reactionInputsToString(thisReaction, usedInputs)} were consumed and not emitted again", printToConsole = false)
+          reportError(s"In $this: cannot run reaction {${thisReaction.info}} since reaction pool $poolForReaction is not active; input molecules ${reactionInputsToString(thisReaction, usedInputs)} were consumed and not emitted again", printToConsole = false)
           // In this case, we do not attempt to schedule a reaction. However, input molecules were consumed and not emitted again.
           false
         } else {
@@ -195,16 +195,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             scheduleReaction(thisReaction, usedInputs, poolForReaction)
             reactionPool.reporter.reactionScheduled(id, toString, mol.siteIndex, mol.toString, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs), debugRemainingMolecules)
             // Signal success of scheduler decision.
-            thisReaction.inputMoleculesSet.foreach(_.fulfillwhenScheduledPromise(mol.toString))
+            thisReaction.inputMoleculesSet.foreach(_.succeedWhenScheduledPromise(mol.toString))
             // The scheduler loops, trying to run another reaction with the same molecule, if possible. This is required for correct operation.
             true
           }
-
         }
-      case None ⇒
-        mol.failwhenScheduledPromise()
-        reactionPool.reporter.noReactionScheduled(id, toString, mol.siteIndex, mol.toString, debugRemainingMolecules)
-        false
     }
   }
 
@@ -225,7 +220,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private def emissionRunnable(mol: MolEmitter): Runnable = { () ⇒
     reactionPool.reporter.schedulerStep(id, toString, mol.siteIndex, mol.toString, moleculesPresentToString)
-    while (decideReactionsForNewMolecule(mol)) {}
+    // We need to repeat the scheduling round if possible.
+    if (decideReactionsForNewMolecule(mol)) {
+      while (decideReactionsForNewMolecule(mol)) {}
+    } else { // If the first scheduling round failed, we signal failure here.
+      mol.failWhenScheduledPromise()
+      reactionPool.reporter.noReactionScheduled(id, toString, mol.siteIndex, mol.toString, debugRemainingMolecules)
+    }
   }
 
   private def reportError(message: String, printToConsole: Boolean): Unit =
@@ -463,7 +464,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       throw new ExceptionNoReactionSite(message)
     }
     else if (reactionPool.isInactive) {
-      val message = s"In $this: Cannot emit molecule $mol($molValue) because reaction pool is not active"
+      val message = s"In $this: Cannot emit molecule $mol($molValue) because reaction pool $reactionPool is not active"
       reportError(message, printToConsole = false)
       throw new ExceptionNoReactionPool(message)
     }

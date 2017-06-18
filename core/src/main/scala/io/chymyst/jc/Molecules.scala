@@ -260,14 +260,14 @@ sealed trait MolEmitter extends PersistentHashCode {
     newPromise.future
   }
 
-  private[jc] def fulfillwhenScheduledPromise(molName: String): Unit = {
+  private[jc] def succeedWhenScheduledPromise(molName: String): Unit = {
     whenScheduledPromise.foreach(_.success(molName))
     whenScheduledPromise = None
   }
 
   private final val noReactionScheduledException = new Exception(s"$this.whenScheduled() failed because no reaction could be scheduled (this is not an error)")
 
-  private[jc] def failwhenScheduledPromise(): Unit = {
+  private[jc] def failWhenScheduledPromise(): Unit = {
     whenScheduledPromise.foreach(_.failure(noReactionScheduledException))
     whenScheduledPromise = None
   }
