@@ -18,11 +18,11 @@ class EventHooksSpec extends FlatSpec with Matchers {
       site(tp)(
         go { case a(x) + c(_) ⇒ c(x) }
       )
-      (1 to 10).foreach(a)
+      a(123)
       c(0)
       val fut = c.whenEmitted
       val res = Await.result(fut, 2.seconds)
-      res shouldEqual 1
+      res shouldEqual 123
     }.get
   }
 
@@ -183,13 +183,15 @@ class EventHooksSpec extends FlatSpec with Matchers {
   it should "signal error on static molecules" in {
     val a = m[Unit]
     val c = m[Unit]
-    site(
-      go { case _ ⇒ a() }
-      , go { case a(_) + c(_) ⇒ a() }
-    )
-    a.isStatic shouldEqual true
-    c.isStatic shouldEqual false
-    the[ExceptionEmittingStaticMol] thrownBy a.emitUntilConsumed() should have message "Error: static molecule a(()) cannot be emitted non-statically"
+    withPool(FixedPool(2)) { tp ⇒
+      site(tp)(
+        go { case _ ⇒ a() }
+        , go { case a(_) + c(_) ⇒ a() }
+      )
+      a.isStatic shouldEqual true
+      c.isStatic shouldEqual false
+      the[ExceptionEmittingStaticMol] thrownBy a.emitUntilConsumed() should have message "Error: static molecule a(()) cannot be emitted non-statically"
+    }.get
   }
 
   behavior of "user code utilizing test hooks"

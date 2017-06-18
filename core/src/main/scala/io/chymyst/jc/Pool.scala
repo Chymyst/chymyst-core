@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent._
 
 import scala.concurrent.ExecutionContext
+import Core._
 
 /** A pool of execution threads, or another way of running tasks (could use actors or whatever else).
   * Tasks submitted for execution can have Chymyst-specific info (useful for debugging) when scheduled using `runReaction`.
@@ -103,8 +104,11 @@ abstract class Pool(val name: String, val priority: Int, private[this] var _repo
   @inline def reporter: EventReporting = _reporter
 
   def reporter_=(r: EventReporting): Unit = {
-    reporter.reporterUnassigned(this, r)
-    _reporter = r
-    r.reporterAssigned(this)
+    val reporterChanged = _reporter.asInstanceOf[EventReporting] =!= r
+    if (reporterChanged) {
+      reporter.reporterUnassigned(this, r)
+      _reporter = r
+      r.reporterAssigned(this)
+    }
   }
 }

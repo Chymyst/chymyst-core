@@ -899,7 +899,7 @@ def makeCounter(initValue: Int, tp: Pool): (M[Unit], B[Unit, Int]) = {
 
 The current value of `c()` can be queried using `f()`. 
 We would like to verify that when we emit `d()`, the value of `c()` is decremented.
-However, `d()` is a non-blocking molecule, and `c()` will be decremented asynchronously, at some future time when `d()` is consumed.
+However, `d()` is a non-blocking molecule, and so `c()` will be decremented asynchronously, at some future time when `d()` is consumed.
 We need to emit `d()`, wait until _that_ copy of `d()` is consumed, and only then query the value of `c()`.
 
 We can orchestrate this using the testing hook `emitUntilConsumed()`:
@@ -907,7 +907,7 @@ We can orchestrate this using the testing hook `emitUntilConsumed()`:
 ```scala
 val (d, f) = makeCounter(10, FixedPool(2))
 
-val x = f() // current value
+val x = f() // get the current value
 val fut = d.emitUntilConsumed()
 // give a timeout just to be safe; actually, this will be quick
 Await.result(fut, 5.seconds)
