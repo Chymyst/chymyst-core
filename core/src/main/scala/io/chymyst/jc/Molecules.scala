@@ -246,20 +246,20 @@ sealed trait MolEmitter extends PersistentHashCode {
     whenEmittedPromise = None
   }
 
-  private var whenDecidedPromise: Option[Promise[Unit]] = None
+  private var whenDecidedPromise: Option[Promise[String]] = None
 
-  protected def whenDecidedFuture: Future[Unit] = {
-    val newPromise = Promise[Unit]()
+  protected def whenDecidedFuture: Future[String] = {
+    val newPromise = Promise[String]()
     whenDecidedPromise = Some(newPromise)
     newPromise.future
   }
 
-  private[jc] def fulfillWhenDecidedPromise(): Unit = {
-    whenDecidedPromise.foreach(_.success(()))
+  private[jc] def fulfillWhenDecidedPromise(molName: String): Unit = {
+    whenDecidedPromise.foreach(_.success(molName))
     whenDecidedPromise = None
   }
 
-  private final val noReactionScheduledException = new Exception("No reaction scheduled (this is not an error)")
+  private final val noReactionScheduledException = new Exception(s"$this.whenDecided() failed because no reaction could be scheduled (this is not an error)")
 
   private[jc] def failWhenDecidedPromise(): Unit = {
     whenDecidedPromise.foreach(_.failure(noReactionScheduledException))
@@ -332,40 +332,42 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter {
     * @param v Value of the molecule, to be emitted now.
     * @return `Future[T]` holding the value of type `T` that is consumed by reaction.
     */
-  def whenConsumed(v: T): Future[T] = if (isChymystThread) {
-    Promise[T]()
-      .failure(new Exception(s"whenConsumed() is disallowed on reaction threads (molecule: $this)"))
-      .future
-  } else ensureReactionSite {
-    if (isStatic)
-      throw new ExceptionEmittingStaticMol(s"Error: static molecule $this($v) cannot be emitted non-statically")
-    else {
-      val mv = MolValue(v)
-      reactionSite.emit(this, mv)
-      mv.whenConsumed
+  def emitUntilConsumed(v: T): Future[T] =
+    if (isChymystThread)
+      Promise[T]().failure(exceptionDisallowedWhenConsumed).future
+    else ensureReactionSite {
+      if (isStatic)
+        throw new ExceptionEmittingStaticMol(s"Error: static molecule $this($v) cannot be emitted non-statically")
+      else {
+        val mv = MolValue(v)
+        reactionSite.emit(this, mv)
+        mv.whenConsumed
+      }
     }
-  }
 
-  /** Emit a molecule with value `v`, and define the corresponding scheduler decision event.
-    * The resulting `Future` will resolve successfully if some reaction could be found that consumes some copy of this molecule,
-    * and will fail if no reaction consuming this molecule can start at this time.
+  def emitUntilConsumed()(implicit arg: TypeMustBeUnit[T]): Future[T] = (emitUntilConsumed(arg.getUnit): @inline)
+
+  private val exceptionDisallowedWhenConsumed = new Exception(s"emitUntilConsumed() is disallowed on reaction threads (molecule: $this)")
+
+  /** Define the scheduler decision event for reactions consuming this molecule.
+    * The resulting `Future` will resolve successfully when some reaction could be found that consumes some copy of this molecule,
+    * and will fail if no reaction consuming this molecule can start at the next time scheduling decisions are made.
     *
-    * Note that the scheduler may be unable to consume the molecule just emitted, and yet be able to schedule another
-    * reaction consuming a different copy of the same molecule, carrying a different value than `v`.
-    * In this case, the returned `Future` will still resolve successfully.
+    * Note that the scheduler may be looking for reactions consuming another emitted molecule and, as a result, schedule a
+    * reaction consuming a copy of `this` molecule.
+    * In this case, the returned `Future` will also resolve successfully.
     *
-    * @param v Value of the molecule, to be emitted now.
-    * @return `Future[Unit]` that either succeeds or fails.
+    * The resolved `String` value of the `Future` shows the name of the molecule for which the scheduler decision was made.
+    * This does not necessarily coincide with the molecule on which `whenDecided()` is called.
+    *
+    * @return `Future[String]` that either succeeds, with the name of the molecule, or fails.
     */
-  def whenDecided(v: T): Future[Unit] = if (isChymystThread) {
-    Promise[Unit]()
-      .failure(new Exception(s"whenDecided() is disallowed on reaction threads (molecule: $this)"))
-      .future
-  } else {
-    apply(v): @inline
-    whenDecidedFuture
-  }
+  def whenDecided: Future[String] =
+    if (isChymystThread)
+      Promise[String]().failure(exceptionDisallowedWhenDecided).future
+    else whenDecidedFuture
 
+  private val exceptionDisallowedWhenDecided = new Exception(s"whenDecided() is disallowed on reaction threads (molecule: $this)")
 }
 
 /** Reply emitter for blocking molecules. This is a mutable class that holds the reply value and monitors time-out status.
