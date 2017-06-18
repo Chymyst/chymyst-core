@@ -502,13 +502,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     *
     * @return For each molecule present in the soup, the map shows the number of copies present.
     */
-  private def getMoleculeCountsAfterInitialStaticEmission: Map[MolEmitter, Int] =
-    moleculesPresent.indices
-      .flatMap(i => if (moleculesPresent(i).isEmpty)
-        None
-      else
-        Some((moleculeAtIndex(i), moleculesPresent(i).size))
-      )(breakOut)
+  private def getMoleculeCountsAfterInitialStaticEmission: Map[MolEmitter, Int] = optimize {
+    moleculesPresent.zipWithIndex
+      .flatMap { case (moleculeBag, i) =>
+        if (moleculeBag.isEmpty)
+          None
+        else
+          Some((moleculeAtIndex(i), moleculeBag.size))
+      }(breakOut)
+  }
 
   private def addToBag(mol: MolEmitter, molValue: AbsMolValue[_]): Unit = moleculesPresent(mol.siteIndex).add(molValue)
 
@@ -516,14 +518,16 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     moleculesPresent(mol.siteIndex).remove(molValue)
   }
 
-  private[jc] def moleculesPresentToString: String =
-    Core.moleculeBagToString(moleculesPresent.indices
-      .flatMap(i => if (moleculesPresent(i).isEmpty)
-        None
-      else
-        Some((moleculeAtIndex(i), moleculesPresent(i).getCountMap))
-      )(breakOut): Map[MolEmitter, Map[AbsMolValue[_], Int]]
+  private[jc] def moleculesPresentToString: String = optimize {
+    Core.moleculeBagToString(moleculesPresent.zipWithIndex
+      .flatMap { case (moleculeBag, i) ⇒
+        if (moleculeBag.isEmpty)
+          None
+        else
+          Some((moleculeAtIndex(i), moleculeBag.getCountMap))
+      }(breakOut): Map[MolEmitter, Map[AbsMolValue[_], Int]]
     )
+  }
 
   // Remove a blocking molecule if it is present.
   private def removeBlockingMolecule[T, R](bm: B[T, R], blockingMolValue: BlockingMolValue[T, R]): Unit = {
