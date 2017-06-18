@@ -107,24 +107,22 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private lazy val needScheduling: AtomicIntegerArray = new AtomicIntegerArray(knownInputMolecules.size) // initialized to zero
 
-  /* State machine with 4 states (LN, RN, LP, RP). Transitions:
+  /* State machine with 3 states (LN, LP, R). Transitions:
   on emit molecule: if the state is LN, set it to LP and schedule a new round. Otherwise do nothing.
   on start looking: set state to LN (we might be executing a previously pending round)
   on finish looking, giving up: do nothing since the gave-up states have the same transitions as looking-states.
-  on finish looking, repeating: change L to R but keep the N/P part the same. This transition is the same as incrementing the numerical value of the state.
+  on finish looking, repeating: change any state to R.
    */
 
   private val LOOKING_OR_GAVE_UP_AND_NO_PENDING = 0 // The initial state.
 
-  private val WILL_REPEAT_AND_NO_PENDING = 1
+  private val LOOKING_OR_GAVE_UP_AND_PENDING = 1
 
-  private val LOOKING_OR_GAVE_UP_AND_PENDING = 2
-
-  private val WILL_REPEAT_AND_PENDING = 3
+  private val WILL_REPEAT_AND_MAYBE_PENDING = 2
 
   // The state does not change if we finished looking and will not repeat. So we do not need a method for "finished looking and gave up".
 
-  private def finishedLookingAtMolBagAndWillRepeat(mol: MolEmitter): Unit = needScheduling.getAndIncrement(mol.siteIndex)
+  private def finishedLookingAtMolBagAndWillRepeat(mol: MolEmitter): Unit = needScheduling.set(mol.siteIndex, WILL_REPEAT_AND_MAYBE_PENDING)
 
   private def startedLookingAtMolBag(mol: MolEmitter): Unit = needScheduling.set(mol.siteIndex, LOOKING_OR_GAVE_UP_AND_NO_PENDING)
 
@@ -221,6 +219,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def emissionRunnable(mol: MolEmitter): Runnable = { () ⇒
     reactionPool.reporter.schedulerStep(id, toString, mol.siteIndex, mol.toString, moleculesPresentToString)
     // We need to repeat the scheduling round if possible.
+    finishedLookingAtMolBagAndWillRepeat(mol)
     if (decideReactionsForNewMolecule(mol)) {
       while (decideReactionsForNewMolecule(mol)) {}
     } else { // If the first scheduling round failed, we signal failure here.
