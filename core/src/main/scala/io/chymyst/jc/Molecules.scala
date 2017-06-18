@@ -6,7 +6,7 @@ import io.chymyst.jc.Core._
 import io.chymyst.util.Budu
 
 import scala.collection.mutable
-import scala.concurrent.Future
+import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration.Duration
 
 /** Convenience syntax: provides an `unapply` operation, so that users can write the chemical notation, such as
@@ -53,6 +53,19 @@ private[jc] sealed trait AbsMolValue[T] {
   // This method is in the parent trait only because we would like to check for missing replies faster,
   // without pattern-matching on blocking vs non-blocking molecules.
   private[jc] def reactionSentNoReply: Boolean = false
+
+  private var whenConsumedPromise: Option[Promise[T]] = None
+
+  private[jc] def whenConsumed: Future[T] = {
+    val newPromise = Promise[T]()
+    whenConsumedPromise = Some(newPromise)
+    newPromise.future
+  }
+
+  private[jc] def fulfillWhenConsumedPromise(): Unit = {
+    whenConsumedPromise.foreach(_.success(moleculeValue))
+    whenConsumedPromise = None
+  }
 }
 
 /** Container for the value of a non-blocking molecule.
@@ -86,12 +99,12 @@ private[jc] final case class BlockingMolValue[T, R](
 
 /** Abstract trait representing a molecule emitter.
   * This trait is not parameterized by type and is used in collections of molecules that do not require knowledge of molecule types.
-  * Its only implementations are the classes [[B]] and [[M]].
+  * Its only implementations are the (parameterized) classes [[B]]`[T, R]` and [[M]]`[T]`.
   */
 sealed trait MolEmitter extends PersistentHashCode {
 
   /** The name of the molecule. Used only for debugging.
-    * This will be assigned automatically if using the [[b]] or [[m]] macros.
+    * This will be assigned automatically if using the [[b]] or [[m]] macros to create a new molecule emitter.
     */
   val name: String
 
@@ -101,13 +114,14 @@ sealed trait MolEmitter extends PersistentHashCode {
   /** The type symbol corresponding to the value type of the molecule.
     * For instance, a molcule emitter defined as `val f = b[Int, String]` has type symbol `'Int`.
     *
-    * @return A symbol representing the type, such as `'Unit`, `'Int` etc.
+    * @return A Scala [[Symbol]] representing the molecule value type, such as `'Unit`, `'Int` etc.
     */
   @inline def typeSymbol: Symbol = valTypeSymbol
 
+  /** Global site-wide index that numbers all molecules bound to a given reaction site. */
   @inline private[jc] def siteIndex: MolSiteIndex = siteIndexValue
 
-  /** This is called by a [[ReactionSite]] when a molecule becomes bound to that reaction site.
+  /** This is called by a [[ReactionSite]] only once, for each molecule emitter when it first becomes bound to that reaction site.
     *
     * @param rs        Reaction site to which the molecule is now bound.
     * @param siteIndex Zero-based index of the input molecule at that reaction site.
@@ -196,16 +210,20 @@ sealed trait MolEmitter extends PersistentHashCode {
     else throw new ExceptionNoReactionSite(s"Molecule $this is not bound to any reaction site")
   }
 
+  /** List all molecules (with their values) currently present at the reaction site to which this molecule emitter is bound.
+    * This method is time-consuming and intended only for debugging, and should not be called within reactions.
+    * If called from a reaction thread, it will return an empty string.
+    */
   final def logSoup: String = ensureReactionSite {
     if (isChymystThread)
       ""
     else reactionSite.printBag
   }
 
-  val isBlocking: Boolean = false
+  def isBlocking: Boolean = false
 
   /** This is a `def` because we will only know whether this molecule is static after this molecule is bound to a reaction site, at run time.
-    * This will be overridden by the [[M]] class (only non-blocking molecules can be static).
+    * The value `false` will be overridden by the [[M]] class (only non-blocking molecules can be static).
     */
   def isStatic: Boolean = false
 
@@ -213,7 +231,40 @@ sealed trait MolEmitter extends PersistentHashCode {
     *
     * @return A molecule's displayed name as string.
     */
-  override final def toString: MolString = MolString((if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else "")) // This can't be a lazy val because `isBlocking` is overridden in derived classes.
+  override final val toString: MolString = MolString((if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else ""))
+
+  private var whenEmittedPromise: Option[Promise[Any]] = None
+
+  protected def whenEmittedFuture: Future[Any] = {
+    val newPromise = Promise[Any]()
+    whenEmittedPromise = Some(newPromise)
+    newPromise.future
+  }
+
+  private[jc] def fulfillWhenEmittedPromise(t: Any): Unit = {
+    whenEmittedPromise.foreach(_.success(t))
+    whenEmittedPromise = None
+  }
+
+  private var whenDecidedPromise: Option[Promise[Unit]] = None
+
+  protected def whenDecidedFuture: Future[Unit] = {
+    val newPromise = Promise[Unit]()
+    whenDecidedPromise = Some(newPromise)
+    newPromise.future
+  }
+
+  private[jc] def fulfillWhenDecidedPromise(): Unit = {
+    whenDecidedPromise.foreach(_.success(()))
+    whenDecidedPromise = None
+  }
+
+  private final val noReactionScheduledException = new Exception("No reaction scheduled (this is not an error)")
+
+  private[jc] def failWhenDecidedPromise(): Unit = {
+    whenDecidedPromise.foreach(_.failure(noReactionScheduledException))
+    whenDecidedPromise = None
+  }
 }
 
 /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -268,6 +319,53 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter {
   override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: MolSiteIndex, valType: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]) = {
     super.setReactionSiteInfo(rs, index, valType, pipelined, selfBlocking)
   }
+
+  /** Define the next emission event. The resulting `Future` will resolve once, at the next time this molecule is emitted.
+    *
+    * @return `Future[T]` holding the value of type `T` that will be carried by the emitted molecule.
+    */
+  def whenEmitted: Future[T] = whenEmittedFuture.asInstanceOf[Future[T]]
+
+  /** Emit a molecule with value `v`, and define the corresponding consumption event.
+    * The resulting `Future` will resolve once, when some reaction consumes the molecule value just emitted now.
+    *
+    * @param v Value of the molecule, to be emitted now.
+    * @return `Future[T]` holding the value of type `T` that is consumed by reaction.
+    */
+  def whenConsumed(v: T): Future[T] = if (isChymystThread) {
+    Promise[T]()
+      .failure(new Exception(s"whenConsumed() is disallowed on reaction threads (molecule: $this)"))
+      .future
+  } else ensureReactionSite {
+    if (isStatic)
+      throw new ExceptionEmittingStaticMol(s"Error: static molecule $this($v) cannot be emitted non-statically")
+    else {
+      val mv = MolValue(v)
+      reactionSite.emit(this, mv)
+      mv.whenConsumed
+    }
+  }
+
+  /** Emit a molecule with value `v`, and define the corresponding scheduler decision event.
+    * The resulting `Future` will resolve successfully if some reaction could be found that consumes some copy of this molecule,
+    * and will fail if no reaction consuming this molecule can start at this time.
+    *
+    * Note that the scheduler may be unable to consume the molecule just emitted, and yet be able to schedule another
+    * reaction consuming a different copy of the same molecule, carrying a different value than `v`.
+    * In this case, the returned `Future` will still resolve successfully.
+    *
+    * @param v Value of the molecule, to be emitted now.
+    * @return `Future[Unit]` that either succeeds or fails.
+    */
+  def whenDecided(v: T): Future[Unit] = if (isChymystThread) {
+    Promise[Unit]()
+      .failure(new Exception(s"whenDecided() is disallowed on reaction threads (molecule: $this)"))
+      .future
+  } else {
+    apply(v): @inline
+    whenDecidedFuture
+  }
+
 }
 
 /** Reply emitter for blocking molecules. This is a mutable class that holds the reply value and monitors time-out status.
@@ -314,7 +412,7 @@ private[jc] final class ReplyEmitter[T, R](useFuture: Boolean) extends (R => Boo
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
 final class B[T, R](val name: String) extends (T => R) with MolEmitter {
-  override val isBlocking = true
+  override def isBlocking = true
 
   /** Emit a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
     *
@@ -371,6 +469,8 @@ final class B[T, R](val name: String) extends (T => R) with MolEmitter {
       case _ ⇒ false
     }
   }
+
+  def whenEmitted: Future[T] = whenEmittedFuture.asInstanceOf[Future[T]]
 }
 
 /** Mix this trait into your class to make the has code persistent after the first time it's computed.

@@ -585,11 +585,20 @@ In this case, the retry mechanism will be able to restart the reaction without r
 # Debugging the flow of reactions
 
 It is sometimes not easy to make sure that the reactions are correctly designed.
-The library offers some debugging facilities:
+`Chymyst` offers some debugging facilities:
 
-- each molecule and each thread pool is named, and macros will assign these names automatically
-- the user can log the current contents of a reaction site using `logSoup()`
-- the user can trace the operation of a reaction site using a verbose event reporter
+- all molecules, thread pools, and reaction threads are named, and macros will assign these names automatically
+- the user can log the current contents of a reaction site by using `logSoup()`
+- the user can trace the operation of a reaction site by using event reporters
+- the user can orchestrate asynchronous unit tests by waiting for specific events (molecule consumed, molecule emitted, reaction decided for molecule) 
+
+## Printing the list of present molecules
+
+Calling `c.logSoup()` on a molecule emitter `c` will return a `String` with a description of all molecules present at the reaction site to which `c` is bound.
+
+Note that reaction sites may contain molecules whose emitters are not visible to the user.
+It is important to guarantee that the user does not have access to those emitters.
+Since `logSoup()` returns a `String`, it will not contain any emitter values (but may reveal the names of the emitters that the user has no access to).
 
 Currently, `logSoup()` is allowed only outside reactions; it will return an empty string if used on a reaction thread.
 User code should not use `logSoup()` to implement the logic of the concurrent application.
@@ -796,12 +805,23 @@ tp.reporter = ConsoleErrorsAndWarningsReporter
 
 ```
 
-A call to the `withReporter()` method produces a _new_ thread pool instance, which, however, uses the same threads as the old thread pool.
-In this way, reaction sites can be configured to share threads but to use different event reporters.
+A call to the method `withReporter()` produces a _new_ thread pool instance, which, however, uses the same threads as the old thread pool.
+In this way, reaction sites can be configured to share threads but to use different event reporters:
 
-## Unit testing and property testing
+```scala
+val tp = FixedPool(2)
+val tp1 = tp.withReporter(...) // same threads, different reporter
 
-***
+site(tp)(...)
+
+site(tp1)(...)
+
+```
+
+## Unit testing and property checking
+
+`Chymyst` includes some facilities for unit-testing a given set of reactions.
+
 
 # Troubleshooting and known bugs
 

@@ -165,13 +165,18 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           reportError(s"In $this: cannot run reaction {${thisReaction.info}} since reaction pool is not active; input molecules ${reactionInputsToString(thisReaction, usedInputs)} were consumed and not emitted again", printToConsole = false)
           // In this case, we do not attempt to schedule a reaction. However, input molecules were consumed and not emitted again.
         } else if (!Thread.currentThread().isInterrupted) {
-          reactionPool.reporter.reactionScheduled(id, toString, mol.siteIndex, mol.toString, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs), debugRemainingMolecules)
+
           // Schedule the reaction now. Provide reaction info to the thread.
+
           scheduleReaction(thisReaction, usedInputs, poolForReaction)
+          reactionPool.reporter.reactionScheduled(id, toString, mol.siteIndex, mol.toString, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs), debugRemainingMolecules)
+          // Signal success of scheduler decision.
+          mol.fulfillWhenDecidedPromise()
           // The scheduler loops, trying to run another reaction with the same molecule, if possible. This is required for correct operation.
           decideReactionsForNewMolecule(mol)
         }
       case None ⇒
+        mol.failWhenDecidedPromise()
         reactionPool.reporter.noReactionScheduled(id, toString, mol.siteIndex, mol.toString, debugRemainingMolecules)
     }
   }
@@ -207,12 +212,19 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def reactionClosure(thisReaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit = {
     reactionPool.reporter.reactionStarted(id, toString, Thread.currentThread().getName, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs))
     val initNs = System.nanoTime()
-    lazy val reactionInputs = reactionInputsToString(thisReaction, usedInputs)
+    lazy val reactionInputsDebugString = reactionInputsToString(thisReaction, usedInputs)
     val exitStatus: ReactionExitStatus = try {
-      setReactionInfo(thisReaction.info)
-      // Here we actually apply the reaction body to its input molecules.
+      setReactionInfoInThread(thisReaction.info)
+
+      usedInputs.foreach(_.fulfillWhenConsumedPromise())
+
+      ///////////
+      // At this point, we apply the reaction body to its input molecules. This runs the reaction.
+      //////////
+
       thisReaction.body.apply(ReactionBodyInput(index = usedInputs.length - 1, inputs = usedInputs))
-      clearReactionInfo()
+
+      clearReactionInfoInThread()
       // If we are here, we had no exceptions during evaluation of reaction body.
       ReactionExitSuccess
     } catch {
@@ -220,7 +232,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       case e: ExceptionInChymyst =>
         // Running the reaction body produced an exception that is internal to `Chymyst Core`.
         // We should not try to recover from this; it is either an error on user's part or a bug in `Chymyst Core`.
-        val message = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: ${e.getMessage}"
+        val message = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputsDebugString] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: ${e.getMessage}"
         reportError(message, printToConsole = true)
         ReactionExitFailure(message)
 
@@ -229,13 +241,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // We will now schedule this reaction again if retry was requested. Hopefully, no side-effects or output molecules were produced so far.
         val (status, retryMessage) =
           if (thisReaction.retry) {
-            reactionPool.reporter.reactionRescheduled(id, toString, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs), debugRemainingMolecules)
+            reactionPool.reporter.reactionRescheduled(id, toString, thisReaction.info.toString, reactionInputsDebugString, debugRemainingMolecules)
             scheduleReaction(thisReaction, usedInputs, poolForReaction)
             (ReactionExitRetryFailure(e.getMessage), " Retry run was scheduled.")
           }
           else (ReactionExitFailure(e.getMessage), " Retry run was not scheduled.")
 
-        val generalExceptionMessage = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] produced ${e.getClass.getSimpleName}.$retryMessage Message: ${e.getMessage}"
+        val generalExceptionMessage = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputsDebugString] produced ${e.getClass.getSimpleName}.$retryMessage Message: ${e.getMessage}"
 
         reportError(generalExceptionMessage, printToConsole = true)
         status
@@ -262,7 +274,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
       if (haveErrorsWithBlockingMolecules) {
         val message = blockingMoleculesWithNoReply.map { bmol ⇒
-          s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputs] finished without replying to $bmol${exitStatus.getMessage}"
+          s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputsDebugString] finished without replying to $bmol${exitStatus.getMessage}"
         }.mkString("; ")
         reportError(message, printToConsole = false)
       }
@@ -434,7 +446,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
     else if (!Thread.currentThread().isInterrupted) {
       if (nowEmittingStaticMols) {
-        // Emit them on the same thread, and do not start any reactions.
+        // Emit them on the same thread as the site() call, and do not start any reactions.
         if (mol.isStatic) {
           addToBag(mol, molValue)
           mol.asInstanceOf[M[T]].assignStaticMolVolatileValue(molValue)
@@ -457,11 +469,17 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           if (mol.isStatic) {
             mol.asInstanceOf[M[T]].assignStaticMolVolatileValue(molValue)
           }
-          addToBag(mol, molValue)
+          /////////////
+          // At this point, we emit the molecule.
+          ////////////
 
-          reactionPool.reporter.emitted(id, toString, mol.siteIndex, mol.toString, molValue.toString, moleculesPresentToString)
+          addToBag(mol, molValue)
           if (isSchedulingNeeded(mol))
             reactionPool.runScheduler(emissionRunnable(mol))
+
+          // Perform debug activity now.
+          mol.fulfillWhenEmittedPromise(molValue.moleculeValue)
+          reactionPool.reporter.emitted(id, toString, mol.siteIndex, mol.toString, molValue.toString, moleculesPresentToString)
         } else {
           val message = s"In $this: Refusing to emit${if (mol.isStatic) " static" else ""} pipelined molecule $mol($molValue) since its value fails the relevant conditions"
           if (mol.isStatic)
