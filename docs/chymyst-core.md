@@ -876,6 +876,45 @@ The method `c.emitUntilConsumed(v)` emits a new copy of the molecule `c(v)` and 
 It is important to provide for the possibility that the returned `Future` never completes.
 This will happen if some reaction starts immediately and consumes another copy of `c()`, while our copy is still present in the soup and waits for new reactions.
 
+### Example
+
+Consider the "concurrent counter" chemistry encapsulated in a function,
+
+```scala
+def makeCounter(initValue: Int, tp: Pool): (M[Unit], B[Unit, Int]) = {
+  val c = m[Int]
+  val d = m[Unit]
+  val f = b[Unit, Int]
+
+  site(tp)(
+    go { case c(x) + f(_, r) ⇒ c(x) + r(x) },
+    go { case c(x) + d(_) ⇒ c(x - 1) },
+    go { case _ ⇒ c(initValue) }
+  )
+  
+  (d, f)
+}
+
+```
+
+The current value of `c()` can be queried using `f()`. 
+We would like to verify that when we emit `d()`, the value of `c()` is decremented.
+However, `d()` is a non-blocking molecule, and `c()` will be decremented asynchronously, at some future time when `d()` is consumed.
+We need to emit `d()`, wait until _that_ copy of `d()` is consumed, and only then query the value of `c()`.
+
+We can orchestrate this using the testing hook `emitUntilConsumed()`:
+
+```scala
+val (d, f) = makeCounter(10, FixedPool(2))
+
+val x = f() // current value
+val fut = d.emitUntilConsumed()
+// give a timeout just to be safe; actually, this will be quick
+Await.result(fut, 5.seconds)
+f() shouldEqual x - 1
+
+```
+
 # Troubleshooting and known issues
 
 ## Using single variables to match a tuple

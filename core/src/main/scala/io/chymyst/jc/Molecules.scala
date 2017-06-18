@@ -54,25 +54,28 @@ private[jc] sealed trait AbsMolValue[T] {
   // without pattern-matching on blocking vs non-blocking molecules.
   private[jc] def reactionSentNoReply: Boolean = false
 
-  private var whenConsumedPromise: Option[Promise[T]] = None
-
-  private[jc] def whenConsumed: Future[T] = {
-    val newPromise = Promise[T]()
-    whenConsumedPromise = Some(newPromise)
-    newPromise.future
-  }
-
-  private[jc] def fulfillWhenConsumedPromise(): Unit = {
-    whenConsumedPromise.foreach(_.success(moleculeValue))
-    whenConsumedPromise = None
-  }
+  private[jc] def fulfillWhenConsumedPromise(): Unit = ()
 }
 
 /** Container for the value of a non-blocking molecule.
   *
   * @tparam T The type of the value.
   */
-private[jc] final case class MolValue[T](private[jc] val moleculeValue: T) extends AbsMolValue[T]
+private[jc] final case class MolValue[T](private[jc] val moleculeValue: T) extends AbsMolValue[T] {
+
+  private var whenConsumedPromise: Option[Promise[T]] = None
+
+  override private[jc] def fulfillWhenConsumedPromise(): Unit = {
+    whenConsumedPromise.foreach(_.success(moleculeValue))
+    whenConsumedPromise = None
+  }
+
+  private[jc] def whenConsumed: Future[T] = {
+    val newPromise = Promise[T]()
+    whenConsumedPromise = Some(newPromise)
+    newPromise.future
+  }
+}
 
 /** Container for the value of a blocking molecule.
   * The `hashCode` of a [[BlockingMolValue]] should depend only on the `hashCode` of the value `v`,
@@ -86,6 +89,7 @@ private[jc] final case class BlockingMolValue[T, R](
   private[jc] val moleculeValue: T,
   private[jc] val replyEmitter: ReplyEmitter[T, R]
 ) extends AbsMolValue[T] {
+
   override private[jc] def reactionSentNoReply: Boolean = replyEmitter.noReplyAttemptedYet // `true` if no value, no error, and no timeout
 
   def isEmpty: Boolean = false
@@ -233,6 +237,8 @@ sealed trait MolEmitter extends PersistentHashCode {
     */
   override final val toString: MolString = MolString((if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else ""))
 
+  // This is `Any` because we need to call this on a `MolEmitter`, which does not have a type parameter.
+  // We could avoid this using a type downcast.
   private var whenEmittedPromise: Option[Promise[Any]] = None
 
   protected def whenEmittedFuture: Future[Any] = {
@@ -314,7 +320,7 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter {
 
   private val volatileValueRef: AtomicReference[T] = new AtomicReference[T]()
 
-  override def isStatic: Boolean = reactionSite.staticMolDeclared.contains(this)
+  override lazy val isStatic: Boolean = reactionSite.staticMolDeclared.contains(this)
 
   override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: MolSiteIndex, valType: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]) = {
     super.setReactionSiteInfo(rs, index, valType, pipelined, selfBlocking)
@@ -340,8 +346,9 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter {
         throw new ExceptionEmittingStaticMol(s"Error: static molecule $this($v) cannot be emitted non-statically")
       else {
         val mv = MolValue(v)
+        val fut = mv.whenConsumed
         reactionSite.emit(this, mv)
-        mv.whenConsumed
+        fut
       }
     }
 

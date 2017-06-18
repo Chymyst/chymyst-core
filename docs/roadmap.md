@@ -2,6 +2,8 @@
 
 # Version history
 
+- 0.2.1 Implemented new APIs: event reporter traits and per-molecule unit testing hooks. The old `setLogLevel()` and `globalErrorLog` APIs are both removed.
+
 - 0.2.0 Renamed "SmartPool" to "BlockingPool" and simplified the thread info handling. More static checks for emission of static molecules. Radical rewrite of blocking molecules code without semaphores and without error replies, simplifying the API. The call `reply.checkTimeout()` is eliminated: the reply emitters now always return `Boolean`. New APIs for reply: `ReplyEmitter.noReplyAttemptedYet` and `B.futureReply`. Reactions will no longer throw exceptions to unblock waiting calls when errors occur. Instead, a better error recovery mechanism will be implemented. New functionality for thread pools: pool names and thread names for debugging, shorter pool creation syntax, thread group priority API. Thread pools no longer need to be shut down explicitly (although this is helpful if there are thousands of them). Added documentation chapter on `Chymyst` as an evolution of Actor model.
 
 - 0.1.9 Static molecules are now restricted to a linear output context, in a similar way to blocking replies. Reaction schedulers now run on a single dedicated thread; site pools are eliminated. New examples: 8 queens and hierarchical map/reduce. Added a simple facility for deadlock warning, used for `FixedPool`. Tutorial updated with a new "quick start" guide that avoids requiring too many new concepts. Miscellaneous bug fixes and performance improvements.
@@ -50,13 +52,17 @@ This will allow us to implement interesting features such as:
 
 Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka Streaming, Kafka, Heron. Use "pipelined" molecules that are optimized for streaming usage (done in 0.1.8).
 
-Version 0.4: Enterprise readiness: fault tolerance, monitoring, flexible logging, assertions on static molecules and perhaps on some other situations, thread fusing for static or pipelined molecule reactions.
+Version 0.4: Enterprise readiness: fault tolerance, monitoring, flexible logging (done in 0.2.1), assertions on static molecules and perhaps on some other situations, thread fusing for static or pipelined molecule reactions.
 
 Version 0.5: Application framework `Chymyst`, converting between molecules and various external APIs such as HTTP, GUI toolkits, Unix files and processes.
 
 Version 0.6: Automatic distributed and fault-tolerant execution of chemical reactions ("soup pools" or another mechanism).
 
 Version 0.7: Static optimizations: use advanced macros and code transformations to completely eliminate all blocking and all inessential pattern-matching overhead.
+
+Version 0.8: Distributed execution and cluster deployments.
+
+Version 1.0: Complete enterprise-ready features, adapters to other frameworks, and several real-life projects using `Chymyst Core`. Complete documentation as a separate developer documentation and a book "Concurrency in Reactions: Declarative Scala multithreading with `Chymyst`".
 
 # Current To-Do List
 
@@ -70,6 +76,23 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 
  4 * 5 - do not schedule reactions if queues are full. At the moment, RejectedExecutionException is thrown. It's best to avoid this. Molecules should be accumulated in the bag, to be inspected at a later time (e.g. when some tasks are finished). Insert a call at the end of each reaction, to re-inspect the bag.
 
+ 3 * 4 - Blocking molecule emitter's Future[] API should report errors (failure to give a reply value), while a non-Future API doesn't do this. When exception is thrown in the reaction, the Promise will fail. Emitting thread could inspect the promise and detect the failure. In this way, we can still have some error reporting from exceptions (which was removed in 0.2.0). However, a better mechanism could be implemented.
+ 
+ 5 * 5 - Implement full error recovery: attach an error handler to a reaction. Error handler is another reaction that has an automatic `Throwable` input and otherwise has the same input molecules as the errored reaction. `go { case a(x) + b(y) => ... } recoverWith { (e: Throwable) => go { case a(x) + b(y) => ... } }`
+  Recovery semantics:
+  
+  - Reaction is _disabled_ for the duration of recovery, i.e. no new instances of the reaction can be scheduled.
+  - Recovery handler returns a Policy value which determines whether we:
+    - Run the reaction again, keeping its recovery option (this risks an infinite recovery loop)
+    - Run the reaction again but disable it permanently if it fails next time (or up to retry count)
+    - Disable the reaction permanently and re-emit its consumed inputs back into the soup
+    - Disable the reaction permanently but do not re-emit its inputs
+ 
+ 1 * 1 - Implement Reaction.withRetry(retry: Boolean) as another alias to the existing API. Also, Reaction.enable(enable: Boolean) ?
+ 
+ 5 * 5 - Implement performance metrics either through a given logger or through special molecules.
+ Need to monitor: Bag size at reaction site; arrival rate; consumption rate; reaction error rate; reaction compute time; thread utilization (busy / locked waiting / idle) both for scheduler thread and for worker threads.
+ 
  2 * 2 - Detect this condition at the reaction site time:
  A cycle of input molecules being subset of output molecules, possibly spanning several reaction sites (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.  - This depends on better detection of output environments.
  
@@ -99,14 +122,9 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  2 * 3 - when attaching molecules to futures or futures to molecules, we can perhaps schedule the new futures on the same thread pool as the reaction site to which the molecule is bound? This requires having access to that thread pool. Maybe that access would be handy to users anyway?
  
  5 * 5 - is it possible to implement distributed execution by sharing the site pool with another machine (but running the reaction sites only on the master node)? Use Paxos, Raft, or other consensus algorithm to ensure consistency?
-
- 5 * 5 - implement per-molecule unit testing API. `mol.onEmit(callback: T => Unit)`, `mol.onConsume(callback: T => Unit)`, `mol.onDecide(callback: T => Unit)`. Through this, we can also implement Future-yielding APIs, `mol.nextEmit : Future[T]` etc. - These APIs should be considered debug-only; callbacks cannot be assigned within reactions (??) and/or can be assigned only once (??). Using these test features, chemistry can be tested via scalacheck by formulating a law such as:
- `c(n); d().awaitConsumed(); now assert f() == n-1.`
  
  5 * 5 - Distributed vs. Remote; molecule vs. reaction vs. reaction site. This yields 6 distinct possibilities for distributed / remote execution. Need to figure out their logical dependencies and implementation possibilities. Note that, compared with the Actor model, we do not need to check that the actor is alive; distributed execution model only needs to verify that (1) network is up, (2) remote application is running.
   
- 3 * 2 - add per-molecule logging; log to file or to logger function
-
  5 * 5 - implement "progress and safety" assertions so that we could prevent deadlock in more cases
  and be able to better reason about our declarative reactions. First, need to understand what is to be asserted.
  Can we assert non-contention on certain molecules? Can we assert deterministic choice of some reactions? Should we assert the number of certain molecules present (precisely N, or at most N)?
@@ -131,27 +149,12 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
  
  3 * 3 - Write a tutorial section about timers and time-outs: cancellable recurring jobs, cancellable subscriptions, time-outs on receiving replies from non-blocking molecules (?)
  
- 3 * 4 - Blocking molecule emitter's Future[] API should report errors (failure to give a reply value), while a non-Future API doesn't do this. When exception is thrown in the reaction, the Promise will fail. Emitting thread could inspect the promise and detect the failure. In this way, we can still have some error reporting from exceptions (which was removed in 0.2.0). However, a better mechanism could be implemented.
- 
- 5 * 5 - Implement full error recovery: attach an error handler to a reaction. Error handler is another reaction that has an automatic `Throwable` input and otherwise has the same input molecules as the errored reaction. `go { case a(x) + b(y) => ... } recoverWith { (e: Throwable) => go { case a(x) + b(y) => ... } }`
-  Recovery semantics:
-  
-  - Reaction is _disabled_ for the duration of recovery, i.e. no new instances of the reaction can be scheduled.
-  - Recovery handler returns a Policy value which determines whether we:
-    - Run the reaction again, keeping its recovery option (this risks an infinite recovery loop)
-    - Run the reaction again but disable it permanently if it fails next time (or up to retry count)
-    - Disable the reaction permanently and re-emit its consumed inputs back into the soup
-    - Disable the reaction permanently but do not re-emit its inputs
- 
- 1 * 1 - Implement Reaction.withRetry(retry: Boolean) as another alias to the existing API. Also, Reaction.enable(enable: Boolean) ?
- 
- 5 * 5 - Implement performance metrics either through a given logger or through special molecules.
- Need to monitor: Bag size at reaction site; arrival rate; consumption rate; reaction error rate; reaction compute time; thread utilization (busy / locked waiting / idle) both for scheduler thread and for worker threads.
- 
  3 * 3 - Nested reactions could be automatically defined at the same reaction site as parent reactions? This seems to be required for the automatic unblocking transformation.
  
 ## Will not do for now
  
+ 3 * 2 - add per-molecule logging; log to file or to logger function (do we need this, if we already have event reporting and test hooks?)
+
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic. — Will not do now. Not sure that lazy values on molecules are important as a primitive. We can always simulate them using closures.
 
  2 * 3 - investigate using a single wait/notify pair instead of 2 semaphores; does it give better performance? - Implemented in 0.2.0

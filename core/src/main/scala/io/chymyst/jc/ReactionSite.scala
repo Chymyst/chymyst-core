@@ -770,15 +770,15 @@ final case class WarningsAndErrors(warnings: Seq[String], errors: Seq[String], r
   *
   * @param message Description of the error.
   */
-private[jc] sealed class ExceptionInChymyst(message: String) extends Exception(message)
+sealed class ExceptionInChymyst(message: String) extends Exception(message)
 
-private[jc] final class ExceptionNoReactionSite(message: String) extends ExceptionInChymyst(message)
+final class ExceptionNoReactionSite(message: String) extends ExceptionInChymyst(message)
 
-private[jc] final class ExceptionMoleculeAlreadyBound(message: String) extends ExceptionInChymyst(message)
+final class ExceptionMoleculeAlreadyBound(message: String) extends ExceptionInChymyst(message)
 
-private[jc] final class ExceptionNoReactionPool(message: String) extends ExceptionInChymyst(message)
+final class ExceptionNoReactionPool(message: String) extends ExceptionInChymyst(message)
 
-private[jc] final class ExceptionEmittingStaticMol(message: String) extends ExceptionInChymyst(message)
+final class ExceptionEmittingStaticMol(message: String) extends ExceptionInChymyst(message)
 
 private[jc] sealed trait ReactionExitStatus {
   def getMessage: String

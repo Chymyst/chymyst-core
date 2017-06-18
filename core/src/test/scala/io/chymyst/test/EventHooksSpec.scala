@@ -26,6 +26,22 @@ class EventHooksSpec extends FlatSpec with Matchers {
     }.get
   }
 
+  it should "resolve future when some blocking molecule is emitted" in {
+    val a = m[Int]
+    val c = b[Int, Int]
+    withPool(FixedPool(2)) { tp ⇒
+      site(tp)(
+        go { case a(x) ⇒ c(x); () }
+        , go { case c(_, r) ⇒ r(0) }
+      )
+      val fut = c.whenEmitted
+      a(123)
+
+      val res = Await.result(fut, 2.seconds)
+      res shouldEqual 123
+    }.get
+  }
+
   behavior of "whenScheduled"
 
   it should "resolve when some reaction is scheduled" in {
@@ -163,4 +179,43 @@ class EventHooksSpec extends FlatSpec with Matchers {
       the[Exception] thrownBy Await.result(fut, 2.seconds) should have message "emitUntilConsumed() is disallowed on reaction threads (molecule: a)"
     }.get
   }
+
+  it should "signal error on static molecules" in {
+    val a = m[Unit]
+    val c = m[Unit]
+    site(
+      go { case _ ⇒ a() }
+      , go { case a(_) + c(_) ⇒ a() }
+    )
+    a.isStatic shouldEqual true
+    c.isStatic shouldEqual false
+    the[ExceptionEmittingStaticMol] thrownBy a.emitUntilConsumed() should have message "Error: static molecule a(()) cannot be emitted non-statically"
+  }
+
+  behavior of "user code utilizing test hooks"
+
+  def makeCounter(initValue: Int, tp: Pool): (M[Unit], B[Unit, Int]) = {
+    val c = m[Int]
+    val d = m[Unit]
+    val f = b[Unit, Int]
+
+    site(tp)(
+      go { case c(x) + f(_, r) ⇒ c(x) + r(x) },
+      go { case c(x) + d(_) ⇒ c(x - 1) },
+      go { case _ ⇒ c(initValue) }
+    )
+
+    (d, f)
+  }
+
+  it should "verify the operation of the concurrent counter" in {
+    val (d, f) = makeCounter(10, FixedPool(2))
+
+    val x = f() // current value
+    val fut = d.emitUntilConsumed()
+    // give a timeout just to be safe; actually, this will be quick
+    Await.result(fut, 5.seconds)
+    f() shouldEqual x - 1
+  }
+
 }
