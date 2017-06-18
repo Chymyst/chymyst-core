@@ -246,24 +246,24 @@ sealed trait MolEmitter extends PersistentHashCode {
     whenEmittedPromise = None
   }
 
-  private var whenDecidedPromise: Option[Promise[String]] = None
+  private var whenScheduledPromise: Option[Promise[String]] = None
 
-  protected def whenDecidedFuture: Future[String] = {
+  protected def whenScheduledFuture: Future[String] = {
     val newPromise = Promise[String]()
-    whenDecidedPromise = Some(newPromise)
+    whenScheduledPromise = Some(newPromise)
     newPromise.future
   }
 
-  private[jc] def fulfillWhenDecidedPromise(molName: String): Unit = {
-    whenDecidedPromise.foreach(_.success(molName))
-    whenDecidedPromise = None
+  private[jc] def fulfillwhenScheduledPromise(molName: String): Unit = {
+    whenScheduledPromise.foreach(_.success(molName))
+    whenScheduledPromise = None
   }
 
-  private final val noReactionScheduledException = new Exception(s"$this.whenDecided() failed because no reaction could be scheduled (this is not an error)")
+  private final val noReactionScheduledException = new Exception(s"$this.whenScheduled() failed because no reaction could be scheduled (this is not an error)")
 
-  private[jc] def failWhenDecidedPromise(): Unit = {
-    whenDecidedPromise.foreach(_.failure(noReactionScheduledException))
-    whenDecidedPromise = None
+  private[jc] def failwhenScheduledPromise(): Unit = {
+    whenScheduledPromise.foreach(_.failure(noReactionScheduledException))
+    whenScheduledPromise = None
   }
 }
 
@@ -358,16 +358,16 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter {
     * In this case, the returned `Future` will also resolve successfully.
     *
     * The resolved `String` value of the `Future` shows the name of the molecule for which the scheduler decision was made.
-    * This does not necessarily coincide with the molecule on which `whenDecided()` is called.
+    * This does not necessarily coincide with the molecule on which `whenScheduled()` is called.
     *
     * @return `Future[String]` that either succeeds, with the name of the molecule, or fails.
     */
-  def whenDecided: Future[String] =
+  def whenScheduled: Future[String] =
     if (isChymystThread)
-      Promise[String]().failure(exceptionDisallowedWhenDecided).future
-    else whenDecidedFuture
+      Promise[String]().failure(exceptionDisallowedwhenScheduled).future
+    else whenScheduledFuture
 
-  private val exceptionDisallowedWhenDecided = new Exception(s"whenDecided() is disallowed on reaction threads (molecule: $this)")
+  private val exceptionDisallowedwhenScheduled = new Exception(s"whenScheduled() is disallowed on reaction threads (molecule: $this)")
 }
 
 /** Reply emitter for blocking molecules. This is a mutable class that holds the reply value and monitors time-out status.

@@ -788,11 +788,11 @@ val tp = FixedPool(2).withReporter(reporter)
 
 ```
 
-Once the event reporter has gathered some messages, the `MemoryLogger` instance can be queried for messages or drained:
+Once the event reporter has gathered some messages, the `MemoryLogger` instance can be queried for messages or cleared:
 
 ```scala
 memLog.messages.foreach(println)
-memLog.clearLog
+memLog.clearLog()
 
 ```
 
@@ -801,7 +801,10 @@ memLog.clearLog
 An event reporter can be reassigned at any time:
 
 ```scala
+tp.reporter = ConsoleDebugAllReporter
+...
 tp.reporter = ConsoleErrorsAndWarningsReporter
+...
 
 ```
 
@@ -820,10 +823,60 @@ site(tp1)(...)
 
 ## Unit testing and property checking
 
-`Chymyst` includes some facilities for unit-testing a given set of reactions.
+`Chymyst` includes a basic API intended for unit testing.
+With this API, users can orchestrate a sequence of asynchronous events, wait until certain molecules are emitted or consumed, and verify that reactions proceed as required.
+Since this is done without modifying any reaction code, users can write unit tests for reactions and reaction sites that are encapsulated in inaccessible local scopes.
 
+The unit testing API provides hooks that return `Future[]` values for certain events occurring for a specific molecule.
+Three types of events can be monitored:
 
-# Troubleshooting and known bugs
+- Molecule `c` was emitted with value `v`.
+- The reaction site has searched for reactions that would consume molecule `c` and either scheduled such a reaction or found no suitable reactions.
+- Molecule `c` with value `v` was consumed by a newly started reaction.
+
+### `whenEmitted()`
+
+To monitor emission events, use `c.whenEmitted`.
+This returns a `Future[T]` that resolves to a value of type `T` when a molecule `c` is emitted next.
+
+### `whenScheduled()`
+
+To monitor the reaction site's scheduler events, use `c.whenScheduled`.
+This returns a `Future[String]` that resolves when the reaction site's scheduler has finished its current round of searching for new reactions.
+
+To use `c.whenScheduled` effectively, it is necessary to know a few details about `Chymyst`'s reaction scheduling strategy.
+
+Each reaction site runs the reaction scheduler on the dedicated "scheduler" thread.
+While no new molecules are emitted to the reaction site, this thread is dormant.
+Whenever a new molecule is emitted, the reaction scheduler wakes up and starts a "search round", looking for reactions that might consume the newly emitted molecule.
+We say that the search round is "driven by" a particular newly emitted molecule.
+
+The `Future` returned by `c.whenScheduled` will complete when the next search round is finished.
+If the search was successful, the future will resolve successfully to the name of the molecule that was driving the search round. 
+If the search failed, the future will complete with a failure.
+
+The failure message emphasizes that this failure is not necessarily a sign of an error.
+Keep in mind that the scheduling process is non-deterministic and depends on the presence of other molecules and the timings of other concurrent reactions.
+Depending on the chemistry of the application, it may not be possible to schedule new reactions immediately after some new molecules are emitted.
+
+```
+java.lang.Exception: c.whenScheduled() failed because no reaction could be scheduled (this is not an error)
+```
+
+When using `c.whenScheduled`, it is important to exclude the possibility that the returned `Future` never completes.
+This will happen if the reaction scheduler finished scheduling the reaction too quickly, before the `c.whenScheduled` call is completed.
+
+It is safe to call `c.whenScheduled` _before_ emitting a new copy of the `c()` molecule.
+In that case, it is guaranteed that the scheduler will perform another search round for this molecule, and so will resolve the future in one way or another. 
+
+### `emitUntilConsumed()`
+
+The method `c.emitUntilConsumed(v)` emits a new copy of the molecule `c(v)` and returns a `Future[T]` that resolves when some reaction consumes _the emitted copy_ of the molecule.
+
+It is important to provide for the possibility that the returned `Future` never completes.
+This will happen if some reaction starts immediately and consumes another copy of `c()`, while our copy is still present in the soup and waits for new reactions.
+
+# Troubleshooting and known issues
 
 ## Using single variables to match a tuple
 
@@ -934,20 +987,26 @@ At any given time, each reaction site (RS) must decide which reactions can start
 This decision depends only on the molecule values of molecules bound to this site, since we can decide whether to start a reaction when we know which input molecules are present and with what values.
 
 Therefore, each RS maintains a multiset of input molecules present at that site.
-This multiset can be visualized as containing pairs `(molecule emitter, value)`.
+The elements of this multiset can be visualized as pairs `(molecule emitter, value)`.
 
-Whenever a molecule is emitted, it goes into the multiset at the RS to which the molecule is bound.
+Whenever a molecule is emitted, it is added to the multiset of the RS to which the molecule is bound.
 
-At this time, an RS knows that some reaction might become possible that consumes this new molecule.
-We can assume that all other molecules waiting at this RS are "inert" - they do not start any reactions, because if they did, we would have already started those reactions at a previous step when a previous molecule was emitted.
+At the same time, a new "reaction search round" is scheduled on the RS's scheduler thread.
+The RS starts a new search round because now, possibly, some new reaction should be started, consuming this new molecule.
 
-Therefore, at this step we can have at most one reaction that can start, and if so, this reaction will consume the new molecule.
+This molecule is said to "drive" the new search round.
+All other molecules waiting at this RS are "inert": they cannot start any reactions by themselves, because if they could we would have already started those reactions at a previous round when a previous molecule was emitted.
+
+Therefore, at this round we can have at most one new reaction that can start, and if so, this reaction will consume the driving molecule.
 
 Thus, we take the list of reactions that consume this molecule (this list is known at compile time), and go through this list, checking whether one of these reactions can find its required input molecules among the molecules present at the RS at this time.
  
 This is a multiset matching problem: a reaction requires a multiset of input molecules with possibly some conditions on their values, and we have a multiset of available molecules with values.
-We need to find the first reaction that can obtain all its input molecules.
+We need to find the first reaction that can obtain all its input molecules from the multiset.
 
-If we find no such reactions, we are done with this step, since we have established that the current multiset of molecules is "inert".
+If we find no such reactions, we are done with this round, since we have established that the current multiset of molecules is "inert".
 
 If we find a reaction that can obtain all its input molecules, we atomically remove all these input molecules from the multiset, extract their values, and start the reaction.
+
+While we were completing the reaction search, more copies of the driving molecule could have been emitted.
+Therefore, we repeat the round with the same driving molecule, until no more reactions can be scheduled.

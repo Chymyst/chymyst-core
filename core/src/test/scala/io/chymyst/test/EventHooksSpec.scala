@@ -14,17 +14,19 @@ class EventHooksSpec extends FlatSpec with Matchers {
   it should "resolve future when some molecule is emitted" in {
     val a = m[Int]
     val c = m[Int]
-    site(
-      go { case a(x) + c(_) ⇒ c(x) }
-    )
-    (1 to 10).foreach(a)
-    c(0)
-    val fut = c.whenEmitted
-    val res = Await.result(fut, 2.seconds)
-    res shouldEqual 1
+    withPool(FixedPool(2)) { tp ⇒
+      site(tp)(
+        go { case a(x) + c(_) ⇒ c(x) }
+      )
+      (1 to 10).foreach(a)
+      c(0)
+      val fut = c.whenEmitted
+      val res = Await.result(fut, 2.seconds)
+      res shouldEqual 1
+    }.get
   }
 
-  behavior of "whenDecided"
+  behavior of "whenScheduled"
 
   it should "resolve when some reaction is scheduled" in {
     val res = (1 to 20).map { _ =>
@@ -34,7 +36,7 @@ class EventHooksSpec extends FlatSpec with Matchers {
         site(tp)(
           go { case a(x) + c(_) ⇒ c(x) }
         )
-        val fut = a.whenDecided
+        val fut = a.whenScheduled
         c(0)
         a(1)
         Try(Await.result(fut, 2.seconds)) match {
@@ -55,7 +57,7 @@ class EventHooksSpec extends FlatSpec with Matchers {
         site(tp)(
           go { case a(x) + c(_) ⇒ c(x) }
         )
-        val fut = c.whenDecided
+        val fut = c.whenScheduled
         c(0)
         a(1)
         Try(Await.result(fut, 2.seconds)) match {
@@ -76,7 +78,7 @@ class EventHooksSpec extends FlatSpec with Matchers {
         site(tp)(
           go { case a(x) + c(_) ⇒ c(x) }
         )
-        val fut = c.whenDecided
+        val fut = c.whenScheduled
         a(1)
         c(0)
         Try(Await.result(fut, 2.seconds)) match {
@@ -96,9 +98,9 @@ class EventHooksSpec extends FlatSpec with Matchers {
       site(tp)(
         go { case a(x) + c(_) ⇒ c(x) }
       )
-      val fut = a.whenDecided
+      val fut = a.whenScheduled
       a(1)
-      the[Exception] thrownBy Await.result(fut, 2.seconds) should have message "a.whenDecided() failed because no reaction could be scheduled (this is not an error)"
+      the[Exception] thrownBy Await.result(fut, 2.seconds) should have message "a.whenScheduled() failed because no reaction could be scheduled (this is not an error)"
     }.get
 
   }
@@ -108,12 +110,12 @@ class EventHooksSpec extends FlatSpec with Matchers {
     val c = b[Unit, Future[String]]
     withPool(FixedPool(2)) { tp ⇒
       site(tp)(
-        go { case a(x) + c(_, r) ⇒ r(a.whenDecided) }
+        go { case a(x) + c(_, r) ⇒ r(a.whenScheduled) }
       )
       a(1)
       val fut = c()
       fut.isCompleted shouldEqual  true
-      the[Exception] thrownBy Await.result(fut, 2.seconds) should have message "whenDecided() is disallowed on reaction threads (molecule: a)"
+      the[Exception] thrownBy Await.result(fut, 2.seconds) should have message "whenScheduled() is disallowed on reaction threads (molecule: a)"
     }.get
   }
 

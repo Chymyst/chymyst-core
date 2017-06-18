@@ -171,12 +171,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           scheduleReaction(thisReaction, usedInputs, poolForReaction)
           reactionPool.reporter.reactionScheduled(id, toString, mol.siteIndex, mol.toString, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs), debugRemainingMolecules)
           // Signal success of scheduler decision.
-          thisReaction.inputMoleculesSet.foreach(_.fulfillWhenDecidedPromise(mol.toString))
+          thisReaction.inputMoleculesSet.foreach(_.fulfillwhenScheduledPromise(mol.toString))
           // The scheduler loops, trying to run another reaction with the same molecule, if possible. This is required for correct operation.
           decideReactionsForNewMolecule(mol)
         }
       case None ⇒
-        mol.failWhenDecidedPromise()
+        mol.failwhenScheduledPromise()
         reactionPool.reporter.noReactionScheduled(id, toString, mol.siteIndex, mol.toString, debugRemainingMolecules)
     }
   }
