@@ -125,19 +125,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private def decideReactionsForNewMolecule(mol: MolEmitter): Boolean = optimize {
     // TODO: optimize: precompute all related molecules in ReactionSite? (what exactly to precompute??)
     setNeedToSchedule(mol)
-    timingHelper.update(9)
     // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
     val candidateReactions = consumingReactions(mol.siteIndex)
     val foundReactionAndInputs: Option[(Reaction, InputMoleculeList)] = candidateReactions.zipWithIndex.map { case (thisReaction, ind) ⇒
-      timingHelper.update(31)
       // Optimization: ignore reactions that do not have all the required molecules. Not sure if this actually helps! Let's skip it for now.
       if ( //          thisReaction.inputMoleculesSet.exists(mol ⇒ moleculesPresent(mol.siteIndex).isEmpty) ||
         !thisReaction.info.guardPresence.staticGuardHolds())
         None
       else {
-        timingHelper.update(32)
         val result: Option[InputMoleculeList] = findInputMolecules(thisReaction, moleculesPresent)
-        timingHelper.update(35)
 
         // If we have found a reaction that can be run, remove its input molecule values from their bags.
         result.map { thisInputList ⇒
@@ -146,11 +142,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             val molValue = thisInputList(i)
             val molEmitter = molInfo.molecule
             // This error (molecule value was found for a reaction but is now not present) indicates a bug in this code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
-            timingHelper.update(36)
 
             if (!internalRemoveFromBag(molEmitter, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $molEmitter($molValue) from its bag; molecule index ${molEmitter.siteIndex}, bag ${moleculesPresent(molEmitter.siteIndex)}", printToConsole = true)
           }
-          timingHelper.update(33)
 
           // Shuffle this reaction to the beginning of consumingReactions.
           if (ind > 0) {
@@ -158,7 +152,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             candidateReactions(0) = thisReaction
             candidateReactions(ind) = r
           }
-          timingHelper.update(34)
 
           (thisReaction, thisInputList)
         }
@@ -168,7 +161,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // At this point, we may release the lock on the molecule bags. (Right now, the scheduler is single-threaded, but in the future it could become multi-threaded.)
 
-    timingHelper.update(10)
     foundReactionAndInputs match {
       case Some((thisReaction, usedInputs)) ⇒
 
@@ -185,14 +177,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
           (!Thread.currentThread().isInterrupted) && {
             // Schedule the reaction now. Provide reaction info to the thread.
-            timingHelper.update(11)
             scheduleReaction(thisReaction, usedInputs, poolForReaction)
-            timingHelper.update(12)
             reactionPool.reporter.reactionScheduled(id, toString, mol.siteIndex, mol.toString, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs), debugRemainingMolecules)
-            timingHelper.update(13)
             // Signal success of scheduler decision.
             thisReaction.inputMoleculesSet.foreach(_.fulfillwhenScheduledPromise(mol.toString))
-            timingHelper.update(14)
             // The scheduler loops, trying to run another reaction with the same molecule, if possible. This is required for correct operation.
             true
           }
@@ -200,7 +188,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         }
       case None ⇒
         mol.failwhenScheduledPromise()
-        timingHelper.update(15)
         reactionPool.reporter.noReactionScheduled(id, toString, mol.siteIndex, mol.toString, debugRemainingMolecules)
         false
     }
@@ -222,11 +209,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @return A new [[Runnable]] that will looking for reactions that consume the molecule `mol`.
     */
   private def emissionRunnable(mol: MolEmitter): Runnable = { () ⇒
-    timingHelper.update(16)
     reactionPool.reporter.schedulerStep(id, toString, mol.siteIndex, mol.toString, moleculesPresentToString)
-    timingHelper.update(17)
     while (decideReactionsForNewMolecule(mol)) {}
-    timingHelper.update(18)
   }
 
   private def reportError(message: String, printToConsole: Boolean): Unit =
@@ -238,25 +222,18 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @param usedInputs   Molecules (with values) that are consumed by the reaction.
     */
   private def reactionClosure(thisReaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit = {
-    timingHelper.update(19)
     reactionPool.reporter.reactionStarted(id, toString, Thread.currentThread().getName, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs))
-    timingHelper.update(20)
     val initNs = System.nanoTime()
     lazy val reactionInputsDebugString = reactionInputsToString(thisReaction, usedInputs)
-    timingHelper.update(21)
     val exitStatus: ReactionExitStatus = try {
       setReactionInfoInThread(thisReaction.info)
-      timingHelper.update(22)
       usedInputs.foreach(_.fulfillWhenConsumedPromise())
-      timingHelper.update(23)
       ///////////
       // At this point, we apply the reaction body to its input molecules. This runs the reaction.
       //////////
 
       thisReaction.body.apply(ReactionBodyInput(index = usedInputs.length - 1, inputs = usedInputs))
-      timingHelper.update(24)
       clearReactionInfoInThread()
-      timingHelper.update(25)
       // If we are here, we had no exceptions during evaluation of reaction body.
       ReactionExitSuccess
     } catch {
@@ -287,7 +264,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     val elapsedNs = System.nanoTime() - initNs
     reactionPool.reporter.reactionFinished(id, toString, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs), exitStatus, elapsedNs)
-    timingHelper.update(26)
     // The reaction is finished. If it had any blocking input molecules, we check if any of them got no reply.
     if (thisReaction.info.hasBlockingInputs && usedInputs.exists(_.reactionSentNoReply)) {
       // For any blocking input molecules that have no reply, put an error message into them and reply with empty value to unblock the threads.
@@ -311,7 +287,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         reportError(message, printToConsole = false)
       }
     }
-    timingHelper.update(27)
   }
 
   /** Find a set of input molecule values for a reaction. */
@@ -457,9 +432,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private lazy val findUnboundOutputMolecules: Boolean = nonStaticReactions.exists(_.info.outputs.exists(!_.molecule.isBound))
 
-  // DEBUGGING
-  private[jc] val timingHelper = new TimingHelper
-
   /** Emit a molecule with a value into the soup.
     *
     * This method is run on the thread that emits the molecule. This method is common for blocking and non-blocking molecules.
@@ -469,7 +441,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @tparam T Type of the molecule value.
     */
   private[jc] def emit[T](mol: MolEmitter, molValue: AbsMolValue[T]): Unit = {
-    timingHelper.update(1)
     if (findUnboundOutputMolecules) {
       val moleculesString = unboundOutputMoleculesString(nonStaticReactions)
       val message = s"In $this: As $mol($molValue) is emitted, some reactions may emit molecules ($moleculesString) that are not bound to any reaction site"
@@ -496,7 +467,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // For pipelined molecules, check whether their value satisfies at least one of the conditions (if any conditions are present).
         // (If no condition is satisfied, we will not emit this value for a pipelined molecule.)
         // For non-pipelined molecules, `admitsValue` will be identically `true`.
-        timingHelper.update(2)
         val admitsValue = !mol.isPipelined ||
           // TODO: could optimize this, since `pipelinedMolecules` is only used to check `admitsValue`. (optimize how??)
           pipelinedMolecules.get(mol.siteIndex).forall(infos ⇒ infos.isEmpty || infos.exists(_.admitsValue(molValue)))
@@ -510,18 +480,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           /////////////
           // At this point, we emit the molecule.
           ////////////
-          timingHelper.update(3)
-          timingHelper.update(4)
           addToBag(mol, molValue)
-          timingHelper.update(5)
           if (isSchedulingNeeded(mol))
             reactionPool.runScheduler(emissionRunnable(mol))
-          timingHelper.update(6)
           // Perform debug activity now.
           mol.fulfillWhenEmittedPromise(molValue.moleculeValue)
-          timingHelper.update(7)
           reactionPool.reporter.emitted(id, toString, mol.siteIndex, mol.toString, molValue.toString, moleculesPresentToString)
-          timingHelper.update(8)
         } else {
           val message = s"In $this: Refusing to emit${if (mol.isStatic) " static" else ""} pipelined molecule $mol($molValue) since its value fails the relevant conditions"
           if (mol.isStatic)

@@ -166,9 +166,6 @@ sealed trait MolEmitter extends PersistentHashCode {
 
   @inline protected def reactionSite: ReactionSite = reactionSiteValue
 
-  // DEBUGGING
-  private[jc] def timingHelper = reactionSite.timingHelper
-
   private var valTypeSymbol: Symbol = _
 
   protected var valSelfBlockingPool: Option[Pool] = None
