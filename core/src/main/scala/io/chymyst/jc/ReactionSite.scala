@@ -1,6 +1,7 @@
 package io.chymyst.jc
 
 import java.util.concurrent.atomic.AtomicIntegerArray
+import java.util.function.IntUnaryOperator
 
 import io.chymyst.jc.Core._
 import io.chymyst.jc.StaticAnalysis._
@@ -104,17 +105,30 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * The value 1 represents the fact that a scheduling closure is now running and will check new reactions for this molecule,
     * so no new scheduling closures need to be run for this molecule now.
     */
-  private lazy val needScheduling: AtomicIntegerArray = new AtomicIntegerArray(knownInputMolecules.size)
+  private lazy val needScheduling: AtomicIntegerArray = new AtomicIntegerArray(knownInputMolecules.size) // initialized to zero
 
-  private val NEED_TO_SCHEDULE = 0
+  /* State machine with 4 states (LN, RN, LP, RP). Transitions:
+  on emit molecule: if the state is LN, set it to LP and schedule a new round. Otherwise do nothing.
+  on start looking: set state to LN (we might be executing a previously pending round)
+  on finish looking, giving up: do nothing since the gave-up states have the same transitions as looking-states.
+  on finish looking, repeating: change L to R but keep the N/P part the same. This transition is the same as incrementing the numerical value of the state.
+   */
 
-  private val NO_NEED_TO_SCHEDULE = 1
+  private val LOOKING_OR_GAVE_UP_AND_NO_PENDING = 0 // The initial state.
 
-  private def setNoNeedToSchedule(mol: MolEmitter): Unit = needScheduling.set(mol.siteIndex, NO_NEED_TO_SCHEDULE)
+  private val WILL_REPEAT_AND_NO_PENDING = 1
 
-  private def setNeedToSchedule(mol: MolEmitter): Unit = needScheduling.set(mol.siteIndex, NEED_TO_SCHEDULE)
+  private val LOOKING_OR_GAVE_UP_AND_PENDING = 2
 
-  private def isSchedulingNeeded(mol: MolEmitter): Boolean = needScheduling.compareAndSet(mol.siteIndex, NEED_TO_SCHEDULE, NO_NEED_TO_SCHEDULE)
+  private val WILL_REPEAT_AND_PENDING = 3
+
+  // The state does not change if we finished looking and will not repeat. So we do not need a method for "finished looking and gave up".
+
+  private def finishedLookingAtMolBagAndWillRepeat(mol: MolEmitter): Unit = needScheduling.getAndIncrement(mol.siteIndex)
+
+  private def startedLookingAtMolBag(mol: MolEmitter): Unit = needScheduling.set(mol.siteIndex, LOOKING_OR_GAVE_UP_AND_NO_PENDING)
+
+  private def isSchedulingNeeded(mol: MolEmitter): Boolean = needScheduling.compareAndSet(mol.siteIndex, LOOKING_OR_GAVE_UP_AND_NO_PENDING, LOOKING_OR_GAVE_UP_AND_PENDING)
 
   /** We only need to find one reaction whose input molecules are available.
     * For this, we use the special method [[ArrayWithExtraFoldOps.findAfterMap]].
@@ -124,7 +138,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private def decideReactionsForNewMolecule(mol: MolEmitter): Boolean = optimize {
     // TODO: optimize: precompute all related molecules in ReactionSite? (what exactly to precompute??)
-    setNeedToSchedule(mol)
+
     // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
     val candidateReactions = consumingReactions(mol.siteIndex)
     val foundReactionAndInputs: Option[(Reaction, InputMoleculeList)] = candidateReactions.zipWithIndex.map { case (thisReaction, ind) ⇒
@@ -133,11 +147,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         !thisReaction.info.guardPresence.staticGuardHolds())
         None
       else {
+        startedLookingAtMolBag(mol)
         val result: Option[InputMoleculeList] = findInputMolecules(thisReaction, moleculesPresent)
 
         // If we have found a reaction that can be run, remove its input molecule values from their bags.
         result.map { thisInputList ⇒
-          setNoNeedToSchedule(mol) // Do this early, and only on the driving molecule.
           thisReaction.info.inputs.zipWithIndex.foreach { case (molInfo, i) ⇒
             val molValue = thisInputList(i)
             val molEmitter = molInfo.molecule
@@ -170,6 +184,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           // In this case, we do not attempt to schedule a reaction. However, input molecules were consumed and not emitted again.
           false
         } else {
+          finishedLookingAtMolBagAndWillRepeat(mol) // Do this early, and only on the driving molecule.
 
           ////////////
           // Build a closure out of the reaction, and run that closure on the reaction's thread pool.
