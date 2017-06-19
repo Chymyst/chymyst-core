@@ -9,13 +9,13 @@ scala:
   - 2.12.1
   - 2.12.2
 jdk:
-  - oraclejdk9
+  - oraclejdk8
 
 addons:
   apt:
     packages:
-      - oracle-java9-installer
-      - oracle-java9-set-default
+      - oracle-java8-installer
+      - oracle-java8-set-default
 
 script:
   - sbt clean coverage test coverageReport package package-doc
