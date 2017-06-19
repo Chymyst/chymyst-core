@@ -90,10 +90,12 @@ abstract class Pool(val name: String, val priority: Int, private[this] var _repo
     try {
       schedulerExecutor.getQueue.clear()
       schedulerExecutor.shutdown()
+      schedulerExecutor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
       workerExecutor.getQueue.clear()
       workerExecutor.shutdown()
       workerExecutor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
     } finally {
+      schedulerExecutor.shutdown()
       workerExecutor.shutdownNow()
       workerExecutor.awaitTermination(shutdownWaitTimeMs, TimeUnit.MILLISECONDS)
       workerExecutor.shutdownNow()
