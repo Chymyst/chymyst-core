@@ -325,7 +325,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
         go { case begin(_) =>
           val e = m[Int]
           a(e) // The reaction for `a` will emit `e(123)`, unless it crashes due to `e` being unbound.
-          if (i % 30 == 0) Thread.sleep(20)
+          if (i % 20 == 0) Thread.sleep(2 * i)
           site(tp0)(
             go { case e(y) ⇒ }
           )
@@ -433,7 +433,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val d = m[Int]
     val s = m[Unit]
     val f = b[Unit, Int]
-    withPool(FixedPool(2)){ tp ⇒
+    withPool(FixedPool(2)) { tp ⇒
       site(tp)(
         go { case c(x) ⇒ s(); Thread.sleep(x); d(x) },
         go { case s(_) ⇒ d(0) },
