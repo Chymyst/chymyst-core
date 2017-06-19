@@ -294,7 +294,8 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
           r()
         }.withRetry
       )
-      f.timeout()(2.seconds) shouldEqual Some(()) // make sure we gather the log message about reply received
+      f.timeout()(2.seconds) shouldEqual Some(())
+      Thread.sleep(100) // make sure we gather the log message about the exception; this message is generated concurrenly with the present thread!
       globalLogHas(memLog, "Retry", "In Site{f/B → .../R}: Reaction {f/B(_) → } with inputs [f/BP()] produced Exception. Retry run was scheduled. Message: crash! ignore this exception (x = -1)")
       globalLogHas(memLog, "received reply value", "Debug: In Site{f/B → .../R}: molecule f/B received reply value: Some(())")
     }.get
