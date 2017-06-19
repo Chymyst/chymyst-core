@@ -253,30 +253,39 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
   }
 
   it should "not block the blocking threadpool with BlockingIdle(Thread.sleep)" in {
-    val tp = BlockingPool(1)
-    val (g, g2) = makeBlockingCheck(BlockingIdle {
-      Thread.sleep(500)
-    }, tp)
+    val result = (1 to 10).map { _ ⇒
+      withPool(BlockingPool(1)) { tp ⇒
+        val (g, g2) = makeBlockingCheck(BlockingIdle {
+          Thread.sleep(500)
+        }, tp)
 
-    g2.timeout()(300 millis) shouldEqual Some(1) // this should not be blocked
-    tp.currentPoolSize shouldEqual 2
-    g() // now we know that the first reaction has finished
-    tp.currentPoolSize shouldEqual 1
-    tp.shutdownNow()
+        g2.timeout()(300 millis) shouldEqual Some(1) // this should not be blocked
+        val sizeIs2 = tp.currentPoolSize
+        g() // now we know that the first reaction has finished
+        val sizeIs1 = tp.currentPoolSize
+        (sizeIs2, sizeIs1)
+      }.get
+    }
+    result should contain ((2, 1))
   }
 
   it should "implement BlockingIdle(BlockingIdle()) as BlockingIdle()" in {
-    val tp = BlockingPool(1)
-    val (g, g2) = makeBlockingCheck(BlockingIdle {
-      BlockingIdle {
-        Thread.sleep(500)
-      }
-    }, tp)
-    g2.timeout()(300 millis) shouldEqual Some(1) // this should not be blocked
-    tp.currentPoolSize shouldEqual 2
-    g() // now we know that the first reaction has finished
-    tp.currentPoolSize shouldEqual 1
-    tp.shutdownNow()
+    val result = (1 to 10).map { _ ⇒
+      withPool(BlockingPool(1)) { tp ⇒
+        val (g, g2) = makeBlockingCheck(BlockingIdle {
+          BlockingIdle {
+            Thread.sleep(500)
+          }
+        }, tp)
+
+        g2.timeout()(300 millis) shouldEqual Some(1) // this should not be blocked
+      val sizeIs2 = tp.currentPoolSize
+        g() // now we know that the first reaction has finished
+      val sizeIs1 = tp.currentPoolSize
+        (sizeIs2, sizeIs1)
+      }.get
+    }
+    result should contain ((2, 1))
   }
 
   behavior of "thread starvation with different threadpools"
