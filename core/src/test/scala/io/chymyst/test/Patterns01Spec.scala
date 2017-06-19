@@ -327,7 +327,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val danceCounter = m[List[Int]]
     val done = b[Unit, List[Int]]
 
-    val total = 1000
+    val total = 100
 
     site(tp)(
       go { case danceCounter(x) + done(_, r) if x.size == total => r(x); danceCounter(x) }, // ignore warning about "non-variable type argument Int"
@@ -344,6 +344,8 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
 
     checkExpectedPipelined(Map(man -> true, woman -> true, queueMen -> true, queueWomen -> true, manL -> false, womanL -> false, mayBegin -> false)) shouldEqual ""
 
+    tp.reporter = ConsoleDebugAllReporter
+
     (0 until total / 2).foreach(_ => man())
     danceCounter.volatileValue shouldEqual Nil
     (0 until total / 2).foreach(_ => man() + woman())
@@ -355,6 +357,8 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val outOfOrder = ordering.zip(ordering.drop(1)).filterNot { case (x, y) => x + 1 == y }.map(_._1)
     outOfOrder shouldEqual List()
     ordering shouldEqual (0 until total).toList // Dancing queue order must be observed.
+
+    tp.reporter = ConsoleErrorReporter
   }
 
   it should "implement simple pipelining" in {
