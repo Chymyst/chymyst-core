@@ -9,14 +9,11 @@ scala:
   - 2.12.1
   - 2.12.2
 jdk:
-  - oraclejdk8
   - oraclejdk9
 
 addons:
   apt:
     packages:
-      - oracle-java8-installer
-      - oracle-java8-set-default
       - oracle-java9-installer
       - oracle-java9-set-default
 

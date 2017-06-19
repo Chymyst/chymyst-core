@@ -158,7 +158,7 @@ class CoreSpec extends LogSpec {
   }
 
   it should "process null resource" in {
-    cleanup(null)(x ⇒ 123)(x ⇒ ()).get shouldEqual 123
+    cleanup(null)(x ⇒ ())(x ⇒ 123).get shouldEqual 123
   }
 
   behavior of "intHash"
