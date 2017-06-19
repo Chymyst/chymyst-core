@@ -728,8 +728,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
           // Set the output environment while traversing statements of the block, except for the last statement.
           renewOutputEnvId()
           pushEnv(NotLastBlock(currentOutputEnvId))
-          statements.indices.foreach { i ⇒
-            val s = statements(i)
+          statements.zipWithIndex.foreach { case (s, i) ⇒
             if (i + 1 === statements.length)
               finishTraverseWithOutputEnv()
             traverse(s.asInstanceOf[Tree])

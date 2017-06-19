@@ -218,9 +218,9 @@ class CoreSpec extends LogSpec {
 
   it should "give no info when running outside reactions" in {
     getReactionInfo shouldEqual NO_REACTION_INFO_STRING
-    setReactionInfo(new ReactionInfo(Array(), Array(), Array(), GuardAbsent, "sha1"))
+    setReactionInfoInThread(new ReactionInfo(Array(), Array(), Array(), GuardAbsent, "sha1"))
     getReactionInfo shouldEqual NO_REACTION_INFO_STRING
-    clearReactionInfo()
+    clearReactionInfoInThread()
     getReactionInfo shouldEqual NO_REACTION_INFO_STRING
   }
 

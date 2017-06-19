@@ -510,8 +510,6 @@ final class ReactionInfo(
 ) {
   private[jc] val hasBlockingInputs: Boolean = optimize { inputs.exists(_.molecule.isBlocking) }
 
-  private[jc] val inputIndices = inputs.indices
-
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
     case GuardPresent(_, guards) =>

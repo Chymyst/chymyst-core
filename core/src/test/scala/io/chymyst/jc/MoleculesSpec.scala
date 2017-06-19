@@ -18,9 +18,8 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
   implicit val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
 
   override def beforeEach(): Unit = {
-    tp0 = FixedPool(4)
     memLog = new MemoryLogger
-    tp0.reporter = new ErrorReporter(memLog)
+    tp0 = FixedPool(4).withReporter(new ErrorReporter(memLog))
   }
 
   override def afterEach(): Unit = {
@@ -429,26 +428,33 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     tp.shutdownNow()
   }
 
-  // this test sometimes fails
   it should "use two threads for concurrent computations" in {
-    val c = new M[Unit]("counter")
-    val d = new M[Unit]("decrement")
-    val f = new M[Unit]("finished")
-    val a = new M[Int]("all_finished")
-    val g = new B[Unit, Int]("getValue")
+    val c = m[Int]
+    val d = m[Int]
+    val s = m[Unit]
+    val f = b[Unit, Int]
+    withPool(FixedPool(2)){ tp ⇒
+      site(tp)(
+        go { case c(x) ⇒ s(); Thread.sleep(x); d(x) },
+        go { case s(_) ⇒ d(0) },
+        go { case d(x) + f(_, r) ⇒ r(x) }
+      )
+      c(10000)
+      f()
+    }.get shouldEqual 0
+  }
 
-    val tp = FixedPool(2)
+  it should "disallow logSoup() on reaction threads" in {
+    val c = m[String]
+    val g = b[Unit, String]
 
     site(tp0)(
-      go { case c(_) + d(_) => Thread.sleep(300); f() } onThreads tp,
-      go { case a(x) + g(_, r) => r(x) },
-      go { case f(_) + a(x) => a(x + 1) }
+      go { case c(_) + g(_, r) ⇒ r(c.logSoup) }
     )
-    a(0) + c() + c() + d() + d()
-    Thread.sleep(500) // This is less than 2*300ms, and the test fails unless we use 2 threads concurrently.
-    g.timeout()(1.second) shouldEqual Some(2)
+    c("xyz")
 
-    tp.shutdownNow()
+    val result = g.timeout()(1500 millis)
+    result shouldEqual Some("")
   }
 
   behavior of "fault-tolerant resume facility"

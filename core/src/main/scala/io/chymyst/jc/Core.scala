@@ -69,16 +69,12 @@ object Core {
   }
 
   /** Compute the difference between sequences, enforcing type equality.
-    * (The standard `diff` method will allow type mismatch, which has lead to an error.)
+    * (The standard `diff` method will allow type mismatch, which has lead to an error before.)
     *
     * @param s Sequence whose elements need to be "subtracted".
     * @tparam T Type of sequence elements.
     */
-  implicit final class SafeSeqDiff[T](val s: Seq[T]) extends AnyVal {
-    @inline def difff(t: Seq[T]): Seq[T] = s diff t
-  }
-
-  implicit final class SafeListDiff[T](val s: List[T]) extends AnyVal {
+   implicit final class SafeListDiff[T](val s: List[T]) extends AnyVal {
     @inline def difff(t: List[T]): List[T] = s diff t
   }
 
@@ -365,10 +361,7 @@ object Core {
     }
   }
 
-  private[jc] def haveUnboundOutputMolecules(nonStaticReactions: Seq[Reaction]): Boolean =
-    nonStaticReactions.exists(_.info.outputs.exists(!_.molecule.isBound))
-
-  private[jc] def unboundOutputMoleculesString(nonStaticReactions: Seq[Reaction]): String =
+  private[jc] def unboundOutputMoleculesString(nonStaticReactions: Array[Reaction]): String =
     nonStaticReactions
       .flatMap(_.info.outputs.filter(!_.molecule.isBound).map(_.molecule.toString))
       .toSet
@@ -387,13 +380,13 @@ object Core {
       NO_REACTION_INFO_STRING
   }
 
-  private[jc] def setReactionInfo(info: ReactionInfo): Unit = Thread.currentThread() match {
+  private[jc] def setReactionInfoInThread(info: ReactionInfo): Unit = Thread.currentThread() match {
     case t: ChymystThread ⇒
       t.reactionInfoString = info.toString
     case _ ⇒
   }
 
-  private[jc] def clearReactionInfo(): Unit = Thread.currentThread() match {
+  private[jc] def clearReactionInfoInThread(): Unit = Thread.currentThread() match {
     case t: ChymystThread ⇒
       t.reactionInfoString = NO_REACTION_INFO_STRING
     case _ ⇒
