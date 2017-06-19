@@ -37,8 +37,6 @@ object MergeSort {
     val getFinalResult = b[Unit, Coll[T]]
     val reactionPool = FixedPool(threads)
 
-    reactionPool.reporter = ConsoleErrorsAndWarningsReporter
-
     val pool2 = FixedPool(threads)
 
     site(pool2)(

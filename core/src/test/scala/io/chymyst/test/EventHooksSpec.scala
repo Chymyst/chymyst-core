@@ -18,10 +18,10 @@ class EventHooksSpec extends FlatSpec with Matchers {
       site(tp)(
         go { case a(x) + c(_) ⇒ c(x) }
       )
-      a(123)
       c(0)
       val fut = c.whenEmitted
-      val res = Await.result(fut, 2.seconds)
+      a(123)
+      val res = Await.result(fut, 10.seconds)
       res shouldEqual 123
     }.get
   }

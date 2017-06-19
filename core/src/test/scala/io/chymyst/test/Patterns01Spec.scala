@@ -367,16 +367,17 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val done = m[List[Int]]
     val f = b[Unit, List[Int]]
 
-    val total = 1000
+    val total = 50000
 
     site(tp)(
       go { case c(x) + res(l) ⇒ val newL = x :: l; if (x >= total) done(newL); res(newL) }
       , go { case f(_, r) + done(l) ⇒ r(l)  }
       , go { case _ ⇒ res(List[Int]()) }
     )
-    checkExpectedPipelined(Map(c -> true)) shouldEqual ""
+    checkExpectedPipelined(Map(c -> true, res -> true)) shouldEqual ""
     (1 to total).foreach(c)
     val result = f()
+    println(s"pipelined molecule, checking with ${result.length} reactions")
     result.reverse shouldEqual (1 to total).toList // emission order must be preserved
   }
 
@@ -386,7 +387,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val done = m[List[Int]]
     val f = b[Unit, List[Int]]
 
-    val total = 1000
+    val total = 50000
 
     site(tp)(
       // This reaction has a cross-molecule guard that is always `true`, but its presence prevents `c` from being pipelined.
@@ -395,9 +396,10 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
       , go { case _ ⇒ res(List[Int]()) }
     )
 
-    checkExpectedPipelined(Map(c -> false)) shouldEqual ""
+    checkExpectedPipelined(Map(c -> false, res -> false)) shouldEqual ""
     (1 to total).foreach(c)
     val result = f()
+    println(s"non-pipelined molecule, checking with ${result.length} reactions")
     result.reverse shouldNot equal ((1 to total).toList) // emission order will not be preserved
   }
 
