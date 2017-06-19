@@ -157,6 +157,10 @@ class CoreSpec extends LogSpec {
     tryResult.failed.get.getMessage shouldEqual "ignore this exception"
   }
 
+  it should "process null resource" in {
+    cleanup(null)(x ⇒ 123)(x ⇒ ()).get shouldEqual 123
+  }
+
   behavior of "intHash"
 
   it should "compute correct values for arrays" in {

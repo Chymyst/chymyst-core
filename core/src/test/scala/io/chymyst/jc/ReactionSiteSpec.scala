@@ -216,6 +216,15 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
 
   behavior of "error detection for blocking replies"
 
+  it should "not print a message about assigning reporter if reporter did not change" in {
+    val memLog = new MemoryLogger
+    val reporter = new ErrorsAndWarningsReporter(memLog)
+    withPool(FixedPool(1).withReporter(reporter)) { tp ⇒
+      tp.reporter = reporter
+      memLog.messages.size shouldEqual 0
+    }
+  }
+
   it should "report errors when no reply received due to exception" in {
     val f = b[Unit, Unit]
     val x = 10
