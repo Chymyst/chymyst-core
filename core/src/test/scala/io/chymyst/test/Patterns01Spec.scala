@@ -344,7 +344,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
 
     checkExpectedPipelined(Map(man -> true, woman -> true, queueMen -> true, queueWomen -> true, manL -> false, womanL -> false, mayBegin -> false)) shouldEqual ""
 
-    tp.reporter = ConsoleDebugAllReporter
+//    tp.reporter = ConsoleDebugAllReporter
 
     (0 until total / 2).foreach(_ => man())
     danceCounter.volatileValue shouldEqual Nil
@@ -357,8 +357,6 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val outOfOrder = ordering.zip(ordering.drop(1)).filterNot { case (x, y) => x + 1 == y }.map(_._1)
     outOfOrder shouldEqual List()
     ordering shouldEqual (0 until total).toList // Dancing queue order must be observed.
-
-    tp.reporter = ConsoleErrorReporter
   }
 
   it should "implement simple pipelining" in {
