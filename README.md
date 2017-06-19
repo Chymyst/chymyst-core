@@ -16,7 +16,7 @@ JC has the same expressive power as CSP ([Communicating Sequential Processes](ht
 
 The initial code of `Chymyst Core` was based on [previous work by Jiansen He](https://github.com/Jiansen/ScalaJoin) (2011) and [Philipp Haller](http://lampwww.epfl.ch/~phaller/joins/index.html) (2008), as well as on Join Calculus prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin) (2012).
 
-The current implementation is tested under Oracle JDK 8 with Scala `2.11.8` and `2.12.1`.
+The current implementation is tested under Oracle JDK 8 with Scala `2.11.8`, `2.11.11`, `2.12.1`, and `2.12.2`.
 
 ### [Version history and roadmap](https://chymyst.github.io/chymyst-core/roadmap.html)
 

@@ -1,7 +1,8 @@
 language: scala
 
-sudo: false
-dist: trusty
+# This is only necessary for trying out oraclejdk9, which doesn't yet work on their side
+# sudo: false
+# dist: trusty
 
 scala:
   - 2.11.8
