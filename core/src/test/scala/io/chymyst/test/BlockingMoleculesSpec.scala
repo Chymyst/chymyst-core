@@ -39,11 +39,11 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
   it should "not timeout when a blocking molecule is responding" in {
 
-    (1 to 1000).map { _ =>
-      val f = b[Unit, Int]
-      site(tp0)(go { case f(_, r) => r(0) })
+    val f = b[Unit, Int]
+    site(tp0)(go { case f(_, r) => r(0) })
 
-      f.timeout()(500 millis).getOrElse(1)
+    (1 to 10000).map { _ =>
+      f.timeout()(1500 millis).getOrElse(1)
     }.sum shouldEqual 0 // we used to have about 4% failure rate here!
   }
 
