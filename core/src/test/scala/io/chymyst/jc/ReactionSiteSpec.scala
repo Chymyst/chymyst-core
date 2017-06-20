@@ -216,6 +216,15 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
 
   behavior of "error detection for blocking replies"
 
+  it should "not print a message about assigning reporter if reporter did not change" in {
+    val memLog = new MemoryLogger
+    val reporter = new ErrorsAndWarningsReporter(memLog)
+    withPool(FixedPool(1).withReporter(reporter)) { tp ⇒
+      tp.reporter = reporter
+      memLog.messages.size shouldEqual 0
+    }
+  }
+
   it should "report errors when no reply received due to exception" in {
     val f = b[Unit, Unit]
     val x = 10
@@ -285,7 +294,8 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
           r()
         }.withRetry
       )
-      f.timeout()(2.seconds) shouldEqual Some(()) // make sure we gather the log message about reply received
+      f.timeout()(2.seconds) shouldEqual Some(())
+      Thread.sleep(100) // make sure we gather the log message about the exception; this message is generated concurrenly with the present thread!
       globalLogHas(memLog, "Retry", "In Site{f/B → .../R}: Reaction {f/B(_) → } with inputs [f/BP()] produced Exception. Retry run was scheduled. Message: crash! ignore this exception (x = -1)")
       globalLogHas(memLog, "received reply value", "Debug: In Site{f/B → .../R}: molecule f/B received reply value: Some(())")
     }.get

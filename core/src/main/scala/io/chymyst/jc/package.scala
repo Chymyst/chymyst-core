@@ -91,7 +91,7 @@ package object jc {
     * @tparam T Type of the value returned by the closure.
     * @return The value returned by the closure, wrapped in a `Try`.
     */
-  def withPool[T](pool: => Pool)(doWork: Pool => T): Try[T] = cleanup(pool)(_.shutdownNow())(doWork)
+  def withPool[T, P <: Pool](pool: => P)(doWork: P => T): Try[T] = cleanup(pool)(_.shutdownNow())(doWork)
 
   /** Run a closure with a resource that is allocated and safely cleaned up after use.
     * Resource will be cleaned up even if the closure throws an exception.

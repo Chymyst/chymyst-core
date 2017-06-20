@@ -294,8 +294,6 @@ class MoreBlockingSpec extends LogSpec {
 
     val tp = FixedPool(4)
 
-    implicit val _ = tp.executionContext
-
     site(tp)(
       go { case f(x, r) ⇒ Thread.sleep(100); r(x + 1) }
     )

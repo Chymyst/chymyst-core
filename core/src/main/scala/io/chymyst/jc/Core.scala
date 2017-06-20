@@ -53,9 +53,9 @@ object Core {
 
   //  def flatten[T](optionSeq: Option[Seq[T]]): Seq[T] = optionSeq.getOrElse(Seq())
 
-  implicit final class SeqWithOption[S](val s: Seq[S]) extends AnyVal {
-    def toOptionSeq: Option[Seq[S]] = if (s.isEmpty) None else Some(s)
-  }
+  //  implicit final class SeqWithOption[S](val s: Seq[S]) extends AnyVal {
+  //    def toOptionSeq: Option[Seq[S]] = if (s.isEmpty) None else Some(s)
+  //  }
 
   @SuppressWarnings(Array("org.wartremover.warts.Equals"))
   implicit final class AnyOpsEquals[A](val self: A) extends AnyVal {
@@ -74,7 +74,7 @@ object Core {
     * @param s Sequence whose elements need to be "subtracted".
     * @tparam T Type of sequence elements.
     */
-   implicit final class SafeListDiff[T](val s: List[T]) extends AnyVal {
+  implicit final class SafeListDiff[T](val s: List[T]) extends AnyVal {
     @inline def difff(t: List[T]): List[T] = s diff t
   }
 

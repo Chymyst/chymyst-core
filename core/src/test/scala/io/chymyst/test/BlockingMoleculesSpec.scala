@@ -39,11 +39,11 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
   it should "not timeout when a blocking molecule is responding" in {
 
-    (1 to 1000).map { _ =>
-      val f = b[Unit, Int]
-      site(tp0)(go { case f(_, r) => r(0) })
+    val f = b[Unit, Int]
+    site(tp0)(go { case f(_, r) => r(0) })
 
-      f.timeout()(500 millis).getOrElse(1)
+    (1 to 10000).map { _ =>
+      f.timeout()(1500 millis).getOrElse(1)
     }.sum shouldEqual 0 // we used to have about 4% failure rate here!
   }
 
@@ -253,30 +253,39 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
   }
 
   it should "not block the blocking threadpool with BlockingIdle(Thread.sleep)" in {
-    val tp = BlockingPool(1)
-    val (g, g2) = makeBlockingCheck(BlockingIdle {
-      Thread.sleep(500)
-    }, tp)
+    val result = (1 to 10).map { _ ⇒
+      withPool(BlockingPool(1)) { tp ⇒
+        val (g, g2) = makeBlockingCheck(BlockingIdle {
+          Thread.sleep(500)
+        }, tp)
 
-    g2.timeout()(300 millis) shouldEqual Some(1) // this should not be blocked
-    tp.currentPoolSize shouldEqual 2
-    g() // now we know that the first reaction has finished
-    tp.currentPoolSize shouldEqual 1
-    tp.shutdownNow()
+        g2.timeout()(300 millis) shouldEqual Some(1) // this should not be blocked
+        val sizeIs2 = tp.currentPoolSize
+        g() // now we know that the first reaction has finished
+        val sizeIs1 = tp.currentPoolSize
+        (sizeIs2, sizeIs1)
+      }.get
+    }
+    result should contain ((2, 1))
   }
 
   it should "implement BlockingIdle(BlockingIdle()) as BlockingIdle()" in {
-    val tp = BlockingPool(1)
-    val (g, g2) = makeBlockingCheck(BlockingIdle {
-      BlockingIdle {
-        Thread.sleep(500)
-      }
-    }, tp)
-    g2.timeout()(300 millis) shouldEqual Some(1) // this should not be blocked
-    tp.currentPoolSize shouldEqual 2
-    g() // now we know that the first reaction has finished
-    tp.currentPoolSize shouldEqual 1
-    tp.shutdownNow()
+    val result = (1 to 10).map { _ ⇒
+      withPool(BlockingPool(1)) { tp ⇒
+        val (g, g2) = makeBlockingCheck(BlockingIdle {
+          BlockingIdle {
+            Thread.sleep(500)
+          }
+        }, tp)
+
+        g2.timeout()(300 millis) shouldEqual Some(1) // this should not be blocked
+      val sizeIs2 = tp.currentPoolSize
+        g() // now we know that the first reaction has finished
+      val sizeIs1 = tp.currentPoolSize
+        (sizeIs2, sizeIs1)
+      }.get
+    }
+    result should contain ((2, 1))
   }
 
   behavior of "thread starvation with different threadpools"

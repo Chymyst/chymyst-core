@@ -288,17 +288,17 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         usedInputs.zipWithIndex
           .filter(_._1.reactionSentNoReply)
           .map { case (_, i) ⇒ thisReaction.info.inputs(i).molecule }
-          .toSeq.toOptionSeq
-          .map(_.map(_.toString).sorted.mkString(", "))
+          .toSeq
+          .map(_.toString)
+          .sorted
+          .mkString(", ")
       }
 
-      // We will report all errors to each blocking molecule.
       val haveErrorsWithBlockingMolecules = blockingMoleculesWithNoReply.nonEmpty && exitStatus.reactionSucceededOrFailedWithoutRetry
 
       if (haveErrorsWithBlockingMolecules) {
-        val message = blockingMoleculesWithNoReply.map { bmol ⇒
-          s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputsDebugString] finished without replying to $bmol${exitStatus.getMessage}"
-        }.mkString("; ")
+        val message =
+          s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputsDebugString] finished without replying to $blockingMoleculesWithNoReply${exitStatus.getMessage}"
         reportError(message, printToConsole = false)
       }
     }

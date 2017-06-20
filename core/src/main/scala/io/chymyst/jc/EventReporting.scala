@@ -16,7 +16,7 @@ class EmptyReporter(logTransport: String ⇒ Unit) extends EventReporting {
 trait EventReporting {
   def log(message: String): Unit // This method remains abstract, all others have default no-op implementations.
 
-  def reporterUnassigned(pool: Pool, previous: EventReporting): Unit = log(s"${this.getClass.getSimpleName} unassigned from $pool, previous was ${previous.getClass.getSimpleName}")
+  def reporterUnassigned(pool: Pool, previous: EventReporting): Unit = log(s"${this.getClass.getSimpleName} unassigned from $pool, new reporter is ${previous.getClass.getSimpleName}")
 
   def reporterAssigned(pool: Pool): Unit = log(s"${this.getClass.getSimpleName} assigned to $pool")
 

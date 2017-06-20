@@ -51,7 +51,7 @@ final class Budu[X](useFuture: Boolean) {
       val targetTime = newDuration + System.currentTimeMillis()
       synchronized {
         if (haveNoReply)
-          waitUntil(targetTime, newDuration)
+          waitUntil(targetTime, newDuration) // This is an additional check that we have no reply. It's hard to trigger a race condition when `haveNoReply` would be false here. So, coverage cannot be 100%.
         // At this point, we have been notified.
         // If we are here, it means that we are holding a `synchronized` monitor, and thus the notifying thread is not holding it any more.
         // Therefore, the notifying thread has either finished its work and supplied us with a reply value, or it did not yet start replying.

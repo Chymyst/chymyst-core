@@ -1,10 +1,22 @@
 language: scala
+
+# This is only necessary for trying out oraclejdk9, which doesn't yet work on their side
+# sudo: false
+# dist: trusty
+
 scala:
   - 2.11.8
+  - 2.11.11
   - 2.12.1
   - 2.12.2
 jdk:
   - oraclejdk8
+
+addons:
+  apt:
+    packages:
+      - oracle-java8-installer
+      - oracle-java8-set-default
 
 script:
   - sbt clean coverage test coverageReport package package-doc
