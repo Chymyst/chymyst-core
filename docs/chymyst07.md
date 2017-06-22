@@ -1141,6 +1141,60 @@ go { case _ => queueMen(0) + queueWomen(0) + mayBegin(0) }
 
 The complete working code is found in `Patterns01Spec.scala`.
 
+## State machines
+
+A state machine starts out in a certain initial state `s` of type `S` and receives actions of type `A`.
+The transition function `tr: (A, S) => S` defines what new state will be chosen when an action `a: A` is received in a given state `s: S`.
+While performing the state transition, the state machine can also execute arbitrary code for side effects.
+
+One way of modeling a state machine is to represent the current state by a molecule `state: M[S]` and actions by molecules `action: M[A]`.
+
+```scala
+val a = m[A]
+val s = m[S]
+val tr: (A, S) => S = ???
+val initialState: S = ???
+
+site(
+  go { case action(a) + state(s) ⇒ sideEffects(a, s); state(tr(a, s)) },
+  go { case _ => state(initialState) }
+)
+
+```
+
+We declared `state()` as a static molecule because, most likely, it will be necessary to guarantee that there exists only one copy of `state()` in the soup.
+
+If the state type `S` is a disjunction type (in Scala, this is a sealed trait extended by a fixed number of case classes), we may choose another way of modeling the state machine:
+Each case class in the disjunction is represented by a different molecule, and there are separate  reactions for transitions involving different states.
+Here is an example:
+
+```scala
+sealed trait States
+case object Initial extends States
+final case class State1(x: Int) extends States
+final case class State2(s: String) extends States
+
+val stateInit = m[Initial]
+val state1 = m[State1]
+val state2 = m[State2]
+
+val action = m[A]
+
+site(
+  go { case action(a) + stateInit(s) ⇒ ... state1(...) }, // whichever is appropriate
+  go { case action(a) + state1(s) ⇒   ... },
+  go { case action(a) + state2(s) ⇒   ... }
+)
+
+stateInit(Initial) // emit initial state
+
+```
+
+Here, each reaction's body is specialized to the case of the given current state.
+This may be a more convenient way of organizing the code.
+If the action type `A` is a disjunction type, we can likewise use separate molecules for representing different actions.
+Represented in this way, a state machine is translated into declarative code, at the cost of having to define many more molecules and reactions.
+
 ## Variations on Readers/Writers
 
 ### Ordered `m` : `n` Readers/Writers
@@ -1150,15 +1204,16 @@ The solution must support `m` concurrent Readers and `n` concurrent Writers.
 
 TODO
 
-### Fair, ordered `m` : `n` Readers/Writers ("Unisex bathroom")
+### Fair `m` : `n` Readers/Writers ("Unisex bathroom")
 
 The key new requirement is that Readers and Writers should be able to work starvation-free.
 Even if there is a constant stream of Readers and the ratio is `n` to `1`, a single Writer should not wait indefinitely.
 The program should guarantee a fixed upper limit on the waiting time for both Readers and Writers.
+However, the order in which Readers and Writers get to work is now unimportant.
 
 ### Majority rule `n` : `n` Readers/Writers ("The Modus Hall problem")
 
-Readers and Writers have ratio `n` : `n`.
+For this example, Readers and Writers have equal ratio `n` : `n`.
 However, a new rule involving wait times is introduced:
 If more Readers than Writers are waiting to access the resource, no more Writers can be granted access, and vice versa.
 
