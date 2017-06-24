@@ -1192,6 +1192,11 @@ stateInit(Initial) // emit initial state
 
 Here, each reaction's body is specialized to the case of the given current state.
 This may be a more convenient way of organizing the code.
+
+One difference from the previous pattern is that the state-representing molecules are no longer static.
+Therefore, we need to guarantee that no extraneous copies of `stateInit()`, `state1()`, `state2()` can be emitted by the user code.
+This can be easily arranged by encapsulating the chemistry in a local function scope and by exposing only the action molecules outside that scope.
+
 If the action type `A` is a disjunction type, we can likewise use separate molecules for representing different actions.
 Represented in this way, a state machine is translated into declarative code, at the cost of having to define many more molecules and reactions.
 
@@ -1207,8 +1212,10 @@ TODO
 ### Fair `m` : `n` Readers/Writers ("Unisex bathroom")
 
 The key new requirement is that Readers and Writers should be able to work starvation-free.
-Even if there is a constant stream of Readers and the ratio is `n` to `1`, a single Writer should not wait indefinitely.
+Even if there is a heavy stream of Readers and the ratio is `n` to `1`, a single incoming Writer should not wait indefinitely.
 The program should guarantee a fixed upper limit on the waiting time for both Readers and Writers.
+
+The parameters `m` and `n` should allow the program to optimize its throughput when the incoming stream of Readers and Writers has the average ratio `m` : `n`.
 However, the order in which Readers and Writers get to work is now unimportant.
 
 ### Majority rule `n` : `n` Readers/Writers ("The Modus Hall problem")
