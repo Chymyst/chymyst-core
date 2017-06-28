@@ -49,8 +49,8 @@ See also the [talk slides revised for the current syntax](https://github.com/win
 
 ## Example: "dining philosophers"
 
-This is a complete runnable example.
-The logic of "dining philosophers" is implemented in a completely declarative and straightforward code.
+The following code snippet is a complete runnable example
+that implements the logic of "dining philosophers" in a fully declarative and straightforward way.
 
 ```scala
 import io.chymyst.jc._
@@ -62,16 +62,16 @@ object Main extends App {
     Thread.sleep(scala.util.Random.nextInt(20))
   }
   
-  val hungry1 = m[Int]
-  val hungry2 = m[Int]
-  val hungry3 = m[Int]
-  val hungry4 = m[Int]
-  val hungry5 = m[Int]
-  val thinking1 = m[Int]
-  val thinking2 = m[Int]
-  val thinking3 = m[Int]
-  val thinking4 = m[Int]
-  val thinking5 = m[Int]
+  val hungry1 = m[Unit]
+  val hungry2 = m[Unit]
+  val hungry3 = m[Unit]
+  val hungry4 = m[Unit]
+  val hungry5 = m[Unit]
+  val thinking1 = m[Unit]
+  val thinking2 = m[Unit]
+  val thinking3 = m[Unit]
+  val thinking4 = m[Unit]
+  val thinking5 = m[Unit]
   val fork12 = m[Unit]
   val fork23 = m[Unit]
   val fork34 = m[Unit]
