@@ -494,6 +494,7 @@ sealed trait PersistentHashCode {
 /** Wrapper for `unapply()`. According to https://github.com/scala/scala/pull/2848 the `unapply()` function can return any
   * type that directly contains methods `isEmpty: Boolean` and `get: T` where `T` can be either a tuple type with extractors _1, _2 etc.,
   * or another type.
+  * (This is the "named extractor API".)
   *
   * This wrapper is for wrapping a value that is unconditionally returned by `unapply()`, as molecule extractors must do.
   * Since that value is of an unknown type `T`, we can't add the named extractor API on top of that type. So we must use this wrapper.
