@@ -118,8 +118,8 @@ def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
   val vl = m[T] // have to use `vl` since `val` is a Scala keyword
   
   site(
-    go { case put(w, ret) + _val(v) ⇒ vl(w); ret() },
-    go { case get(_, ret) + _val(v) ⇒ vl(v); ret(v) }
+    go { case put(w, ret) + vl(v) ⇒ vl(w); ret() },
+    go { case get(_, ret) + vl(v) ⇒ vl(v); ret(v) }
   )
   vl(v0)
   
