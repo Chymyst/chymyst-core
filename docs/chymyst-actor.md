@@ -23,7 +23,7 @@ c1 ! 123
 
 ```
 
-The computation labeled as `c1` receives a message with an `Int` value and performs some processing on it. The computation will be instantiated and run concurrently, whenever a message is sent. In this way, we made the first step towards the full chemical machine paradigm. 
+The computation under the `go()` keyword receives a message with an `Int` value and performs some processing on it. The computation will be instantiated and run concurrently, whenever a message is sent. In this way, we made the first step towards the chemical machine paradigm. 
 
 What should happen if we quickly send many messages?
 
@@ -33,9 +33,11 @@ val c1 = go { x: Int ⇒ ... }
 
 ```
 
-Since our computations are stateless, it is safe to run several instances of the computation `c1` concurrently. The runtime engine may automatically adjust the degree of parallelism depending on CPU load.
+Since our computations are stateless, it is safe to run several instances of the computation `{ x: Int ⇒ ... }` concurrently. The runtime engine may automatically adjust the degree of parallelism depending on CPU load.
 
-Note that `c1` is not a reference to a particular instance of a computation. Rather, the computation `{ x: Int ⇒ ... }` is being defined _declaratively_, as a description of what needs to be done with any message sent via `c1`. We could say that the value `c1` plays the role of a _label_ attached to the value `123`. The label implies that the value `123` should be used as the input parameter `x` in a particular computation. To express this semantics more clearly, let us change our pseudo-code notation to
+Note that `c1` is not a reference to a particular _instance_ of the computation. Rather, the computation `{ x: Int ⇒ ... }` is merely a declarative description of what needs to be done with any message sent via `c1`. We could say that the value `c1` plays the role of a _label_ attached to the value `123`. This label implies that the value `123` should be used as the input parameter `x` in a particular computation.
+
+To express this semantics more clearly, let us change our pseudo-code notation to
 
 ```scala
 go { x: Int from c1 ⇒ ... }
@@ -64,7 +66,7 @@ c2 ! "abc"
 
 ```
 
-The two messages are of different types and are labeled by `c1` and `c2` respectively. The computation starts only after _both_ messages have been sent, and consumes both messages atomically.
+The two messages carry data of different types and are labeled by `c1` and `c2` respectively. The computation starts only after _both_ messages have been sent, and consumes both messages atomically.
 
 It follows that messages cannot be sent to a linearly ordered queue or a mailbox. Instead, messages must be kept in an unordered bag, as they will be consumed in an unknown order.
 
@@ -78,9 +80,11 @@ go { x: Int from c1, z: Unit from e1 ⇒ ... }
 
 Messages that carry data are now completely decoupled from computations that consume the data. All computations start concurrently whenever their input messages become available. The runtime engine needs to resolve message contention by making a non-deterministic choice of the messages that will be actually consumed.
 
-This concludes the second and final step towards the chemical machine paradigm. It remains to use the Scala syntax instead of pseudo-code.
+This concludes the second and final step towards the chemical machine paradigm where
+"chemical actors" are called **reactions**, "messages" are **molecules**, and "input message labels" are **molecule emitters**.
 
-In Scala, we need to declare message types explicitly and to register chemical computations with the runtime engine as a separate step.
+It remains to use the Scala syntax instead of pseudo-code.
+In Scala, we need to declare message types explicitly and to register reactions with the runtime engine as a separate step.
 The syntax used by `Chymyst` looks like this:
 
 ```scala
@@ -94,13 +98,13 @@ c2("abc")
 
 Here, `m[Int]` creates a new message label with values of type `Int`.
 
-As we have just seen, the chemical machine paradigm is a radical departure from the Actor model:
+As we have just seen, the chemical machine paradigm is a radical departure from the Actor model.
 
-- Whenever there are sufficiently many input messages available for processing, the runtime engine may automatically instantiate several concurrent copies of the same computation that will consume the input messages concurrently. This is the main method for achieving parallelism in the chemical paradigm. The runtime engine is in the best position to balance the CPU load using low-level OS threads. The application code does not need to decide how many concurrent actors to instantiate at any given time.
-- Since chemical actors are stateless and instantiated automatically on demand, users do not need to implement actor lifecycle management, actor supervision hierarchies, backup and recovery of actors' internal state, or a special “dead letter” actor. This removes a significant amount of complexity from the architecture of concurrent applications.
-- Input message contention is used in the chemical machine paradigm as a general mechanism for synchronization and mutual exclusion. (In the Actor model, these features are implemented by creating a fixed number of actor instances that alone can consume certain messages.) Since the runtime engine will arbitrarily decide which actor to run, input contention will result in nondeterminism. This is quite similar to the nondeterminism in the usual models of concurrent programming. For example, mutual exclusion allows the programmer to implement safe exclusive access to a resource for any number of concurrent processes, but the order of access among the contending processes remains unspecified.
+Whenever there are sufficiently many input messages available for processing, the runtime engine may automatically instantiate several concurrent copies of the same reaction that will consume the input messages concurrently. This is the main method for achieving parallelism in the chemical paradigm. The runtime engine is in the best position to balance the CPU load over low-level threads.
+The application code does not need to specify how many parallel processes to run at any given time.
 
-In the rest of this book, “chemical actor” computations are called **reactions**, their input messages are **input molecules**,
-messages sent by a chemical computation are **output molecules** of the reaction, while input message labels are **molecule emitters**.
+Since reactions are stateless and instantiated automatically on demand, the application code does not need to manipulate explicit actor references, which is error-prone.
+(For example, books on Akka routinely warn against capturing `sender()` in a `Future`, which may yield an incorrect actor reference when the `Future` is resolved.)
+The application code also does not need to implement actor lifecycle management, actor hierarchies, backup and recovery of actors' internal state, or dead with the special “dead letter” actor. This removes a significant amount of complexity from the architecture of concurrent applications.
 
-In the academic literature, chemical computations are called “processes” and input message labels are “channels” or “channel names”.
+Input message contention is used in the chemical machine paradigm as a general mechanism for synchronization and mutual exclusion. (In the Actor model, these features are implemented by creating a fixed number of actor instances that alone can consume certain messages.) Since the runtime engine will arbitrarily decide which actor to run, input contention will result in nondeterminism. This is quite similar to the nondeterminism in the usual models of concurrent programming. For example, mutual exclusion allows the programmer to implement safe exclusive access to a resource for any number of concurrent processes, but the order of access among the contending processes remains unspecified.
