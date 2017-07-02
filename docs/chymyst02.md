@@ -798,7 +798,7 @@ go { case interm((l1, n1, x1)) + interm((l2, n2, x2))
 
 This optimization is completely mechanical: it consists of permuting the order of repeated molecules before applying the guard condition.
 The chemical machine could perform this code transformation automatically for all such reactions.
-As of version 0.2.0, `Chymyst Core` does not implement this optimization.
+As of version 0.2.0, `Chymyst` does not implement this optimization.
 
 ### Improving performance
 

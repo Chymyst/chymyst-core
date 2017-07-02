@@ -337,7 +337,7 @@ The change speeds up the simulation by a few times, although it remains unaccept
 
 Tests 1 and 2 are intentionally very slow, to be used as benchmarks of the chemical machine.
 The speedup between 1 and 2 suggests that avoiding repeated input molecules is a source of additional speedup.
-This may or may not remain the case in future versions of `Chymyst Core`. 
+This may or may not remain the case in future versions of `Chymyst`. 
 
 Test 3 uses a different molecule sort for each cell on the board.
 However, molecules corresponding to different time steps are the same.

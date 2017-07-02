@@ -371,7 +371,7 @@ Often it is necessary to ensure that exactly one copy of a certain molecule is i
 Such molecules are called **static**.
 A static molecule `s` must have reactions only of the form `s() + ... => s() + ...`, — that is, reactions that consume the single copy of `s` and then also emit a single copy of `s`.
 
-An example of a static molecule is the “concurrent counter” molecule `c()`, with reactions that we have seen before:
+An example of a static molecule is the “asynchronous counter” molecule `c()`, with reactions that we have seen before:
 
 ```scala
 c(x) + d(_) ⇒ c(x - 1)

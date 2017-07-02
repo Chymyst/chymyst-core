@@ -878,7 +878,7 @@ This will happen if some reaction starts immediately and consumes another copy o
 
 ### Example
 
-Consider the "concurrent counter" chemistry encapsulated in a function,
+Consider the “asynchronous counter” chemistry encapsulated in a function,
 
 ```scala
 def makeCounter(initValue: Int, tp: Pool): (M[Unit], B[Unit, Int]) = {
