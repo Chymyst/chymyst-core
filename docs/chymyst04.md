@@ -4,15 +4,14 @@
 
 ## Molecule names
 
-For debugging purposes, molecules in `Chymyst` have names.
-These names have no effect on any concurrent computations.
-For instance, the runtime engine will not check that each molecule's name is not empty, or that the names of different molecules are different.
+The names of molecules in `Chymyst` have no effect on any concurrent computations.
+For instance, the runtime engine will not check that a molecule's name is not empty, or that the names of different molecules are different.
 Molecule names are used only for debugging: they are printed when logging reactions and reaction sites.
 
 There are two ways of assigning a name to a molecule:
 
-- specify a name explicitly, by using a class constructor;
-- use the macros `m` and `b`.
+- specify a name explicitly, by using a class constructor
+- use the macros `m` and `b`
 
 Here is an example of defining emitters using explicit class constructors and molecule names:
 
@@ -56,9 +55,11 @@ val c = m[Int]
 ```
 
 Any molecule emitted in the soup must carry a value.
-So the value `c` itself is not a molecule in the soup.
+For example, the molecule `c()` must carry an integer value.
+
+So the value `c` we just defined is not a molecule in the soup.
 The value `c` is a **molecule emitter**, — a function that, when called, will emit molecules of chemical sort `c` into the soup.
-The result of evaluating the emitter call such as `c(123)` is a _side effect_ that emits the molecule of sort `c` with value `123`.
+More precisely, an emitter call such as `c(123)` returns `Unit` and performs a _side effect_ that consists of emitting the molecule of sort `c` with value `123` into the soup.
 
 The syntax `c(x)` is used in two different ways:
 
@@ -85,9 +86,8 @@ val c = new M[Int]("c")
 
 ```
 
-Molecules carrying `Unit` values can be emitted using the syntax such as `a()` rather than `a(())`.
-This is provided as a syntactic convenience, equivalent to writing `a(())`.
-
+Molecules carrying `Unit` values can be emitted using the syntax such as `a()` rather than `a(())`, which is also valid.
+The shorter syntax `a()` is provided as a purely syntactic convenience.
 
 ### Blocking molecules
 
@@ -102,7 +102,7 @@ val f = b[Int, String]
 
 Now `f` is a blocking emitter that takes an `Int` value and returns a `String`.
 
-Emitters for blocking molecules are values of type `B[T, R]`, which is a subtype of `Function1[T, R]`.
+Blocking emitters are values of type `B[T, R]`, which is a subtype of `T ⇒ R`.
 The emitter `f` could be equivalently defined by
 
 ```scala
@@ -126,7 +126,7 @@ After emitting `f(123)`, the process will become blocked until some reaction sta
 Since the type of `f` is `B[Int, String]`, the reply action must pass a `String` value to the reply function:
 
 ```scala
-go { case c(x) + f(y, r) =>
+go { case c(x) + f(y, r) ⇒
   val replyValue = (x + y).toString 
   r(replyValue) 
 }
@@ -145,13 +145,15 @@ Emitted molecules cannot be stored in a data structure or passed as arguments to
 The programmer has no direct access to the molecules in the soup, apart from being able to emit them.
 But emitters _are_ ordinary, locally defined Scala values and can be manipulated as any other Scala values.
 Emitters are functions whose `apply` method has the side effect of emitting a new copy of a molecule into the soup.
-- Emitters are local values of type `B[T, R]` or `M[T]`. Both types extend the abstract trait `Molecule` as well as the `Function1[T, R]` trait.
+- Emitters are local values of type `B[T, R]` or `M[T]`. Both types extend the trait `MolEmitter` as well as the type `T ⇒ R`.
 Blocking molecule emitters are of type `B[T, R]`, non-blocking of type `M[T]`.
-- Reactions are local values of type `Reaction`. Reactions are created using the function `go` with the syntax `go { case ... => ... }`.
-- Only one `case` clause can be used in each reaction. It is an error to use several `case` clauses, or case clauses that do not match on input molecules, such as `go { case x => }`.
+- Reactions are local values of type `Reaction`. Reactions are created using the function `go` with the syntax `go { case ... ⇒ ... }`.
+- Only one `case` clause can be used in each reaction. It is an error to use several `case` clauses,
+or case clauses that do not match on input molecules, such as `go { case x ⇒ }`.
+The only exception is "static reactions" described later.
 - Reaction sites are immutable values of type `ReactionSite`. These values are not visible to the user: they are created in a closed scope by the `site(...)` call. The `site(...)` call activates all the reactions at that reaction site.
 - Molecule emitters are immutable after all reactions have been activated where these molecules are used as inputs.
-- Molecules emitted into the soup gather at their reaction site. Reaction sites proceed by first deciding which input molecules can be consumed by some reactions; this decision involves the chemical sorts of the molecules as well as any pattern matching and guard conditions that depend on molecule values.
+- When emitted into the soup, molecules gather at their reaction sites. Reaction sites proceed by first deciding which input molecules can be consumed by some reactions; this decision involves the chemical sorts of the molecules as well as any pattern matching and guard conditions that depend on molecule values.
 When suitable input molecules are found and a reaction is chosen, the input molecules are atomically removed from the soup, and the reaction body is executed.
 - The reaction body can emit one or more new molecules into the soup.
 The code can emit new molecules into the soup at any time and from any code, not only inside a reaction body.
@@ -208,9 +210,9 @@ The chemical designation of the molecule specifies two aspects of the concurrent
 - what other molecules (i.e. what other chemical designations) are required to start a reaction with this molecule, and at which reaction site;
 - what computation will be performed when this molecule and all the other required input molecules are available.
 
-When a new reaction site is defined, new molecules bound to that site are defined as well.
-(These molecules are inputs to reactions defined at the new site.)
-If a reaction site is defined within a local scope of a function, a new reaction site will be created every time the function is called.
+When a new reaction site is defined, certain molecules become bound to that site.
+(These molecules are the inputs of reactions defined at the new site.)
+If a reaction site is defined within a local scope of a function, new molecule emitters and a new reaction site will be created _every time_ the function is called.
 Since molecules internally hold a reference to their reaction site, each function call will create _chemically unique_ new molecules,
 in the sense that these molecules will react only with other molecules defined in the same function call.
 
@@ -222,7 +224,7 @@ def makeLabeledReaction() = {
   val label = m[String]
   
   site(
-    go { case begin(_) + label(labelString) => println(labelString) }
+    go { case begin(_) + label(labelString) ⇒ println(labelString) }
   )
   
   (begin, label)
@@ -240,7 +242,7 @@ Both `begin1` and `begin2` have the name `"begin"`, and they are of the same typ
 However, they are _chemically_ different: `begin1` will react only with `label1`, and `begin2` only with `label2`.
 The molecules `begin1` and `label1` are bound to the reaction site created by the first call to `makeLabeledReaction()`, and this reaction site is different from that created by the second call to `makeLabeledReaction()`.
 
-For instance, suppose we call `label1("abc")` and `begin2()`.
+For example, suppose we emit `label1("abc")` and `begin2()`.
 We have emitted a molecule named `"label"` and a molecule named `"begin"`.
 However, these molecules will not start any reactions, because they are bound to different reaction sites.
 
@@ -277,12 +279,13 @@ q("abc") // Same as label2("abc") — reaction starts and prints "abc"
 
 ```
 
-In this example, the values `x` and `begin1` are equal to the same molecule emitter, thus they have the same chemical designation.
+In this example, the values `x` and `begin1` refer to the same molecule emitter, thus they have the same chemical designation.
 For this reason, the calls to `x()` and `begin1()` will emit copies of the same molecule.
 As we already discussed, the molecule emitted by `x()` will have a different chemical designation from that emitted by `begin2()`.
 
 In practice, it is of course advisable to choose meaningful local variable names.
-However, it is important to keep in mind that:
+
+To summarize:
 
 - each molecule has a chemical designation, a reaction site to which the molecule is bound, a name, and a molecule emitter (usually assigned to a local variable)
 - the chemical reactions started by molecules depend only on their chemical designations, not on names
@@ -298,7 +301,7 @@ Let us consider what _could_ theoretically happen when we call an emitter.
 The emitter call can be either blocking or non-blocking, and it could return a value or return no value.
 Let us write down all possible combinations of emitter call types as a “type matrix”.
 
-To use a concrete example example, we assume that `c` is a non-blocking emitter of type `M[Int]` and `f` is a blocking emitter of type `B[Unit, Int]`.
+To use a concrete example, we assume that `c` is a non-blocking emitter of type `M[Int]` and `f` is a blocking emitter of type `B[Unit, Int]`.
 
 | | blocking emitter | non-blocking emitter |
 |---|---|---|
@@ -321,13 +324,13 @@ With these additional features, the type matrix of emission is complete:
 | | blocking emitter | non-blocking emitter |
 |---|---|---|
 | value is returned: | `val x: Int = f()` | `val x: Int = c.volatileValue` |
-| no value returned: | timeout was reached | `c(123)` // side effect |
+| no value returned: | (timeout was reached) | `c(123)` // side effect |
 
 We will now describe these features in more detail.
 
 ### Timeouts for blocking emitters
 
-By default, a blocking emitter will emit a new molecule and block until a reply action is performed for that molecule by a reaction that consumes that molecule.
+By default, a blocking emitter will emit a new molecule and block until a reply action is performed for that molecule by some reaction.
 If no reaction can be started that consumes the blocking molecule, its emitter will block and wait indefinitely.
 
 `Chymyst` allows us to limit the waiting time to a fixed timeout value.
@@ -335,7 +338,7 @@ Timeouts are implemented by the method `timeout()()` on the blocking emitter:
 
 ```scala
 val f = b[Unit, Int]
-// write a reaction site involving `f` and other molecules:
+// create a reaction site involving `f` and other molecules:
 site(...)
 
 // call the emitter `f` with 200ms timeout:
@@ -350,82 +353,84 @@ The second argument of the `timeout()()` method is the duration of the delay.
 The `timeout()()` method returns a value of type `Option[R]`, where `R` is the type of the blocking molecule's reply value.
 In the code above, if the emitter received a reply value `v` before the timeout expired then the value of `x` will become `Some(v)`.
 
-If the emitter times out before a reply action is performed, the value of `x` will be set to `None`, and the blocking molecule `f()` will be _removed_ from the soup.
+If the emitter times out before a reply action is performed, the value of `x` will be `None` and the blocking molecule `f()` will be _removed_ from the soup.
 If the timeout occurred because no reaction started with `f()`, which is the usual reason, the removal of `f()` makes sense because no further reactions should try to consume `f()` and reply.
 
 A less frequent situation is when a reaction already started, consuming `f()` and is about to reply to `f()`, but the waiting process just happened to time out at that very moment.
 In that case, sending a reply to `f()` will have no effect.
 
 Is the timeout feature required?
-The timeout functionality can be simulated, for instance, using the “First Reply” construction.
+The timeout functionality can be simulated, in principle, using the “First Reply” construction.
 However, this construction is cumbersome and will sometimes leave a thread blocked forever, which is undesirable from the implementation point of view.
 For this reason, `Chymyst` implements the timeout functionality as a special primitive feature available for blocking molecules.
 
-In some cases, the reaction that sends a reply to a blocking molecule needs to know whether the waiting process has already timed out and given up.
+In some cases, the reaction that sends a reply to a blocking molecule needs to know whether the waiting process has already timed out.
 For this purpose, `Chymyst` defines the reply emitters as functions `R ⇒ Boolean`.
-The reply status is `true` if the waiting process has received the reply, and `false` otherwise.
+The return value is `true` if the waiting process has received the reply, and `false` otherwise.
 
 ### Static molecules
 
-Often it is necessary to ensure that exactly one copy of a certain molecule is initially present in the soup, and that no further copies can be emitted unless a copy is first consumed.
+It is often useful to ensure that exactly one copy of a certain molecule is initially present in the soup, and that no further copies can be emitted unless one is first consumed.
 Such molecules are called **static**.
-A static molecule `s` must have reactions only of the form `s() + ... => s() + ...`, — that is, reactions that consume the single copy of `s` and then also emit a single copy of `s`.
+A static molecule `s` must have reactions only of the form `s + a + b + ... → s + c + d + ...`, — that is, reactions that consume a single copy of `s` and then also emit a single copy of `s`.
 
-An example of a static molecule is the “asynchronous counter” molecule `c()`, with reactions that we have seen before:
+An example of a static molecule is the “asynchronous counter” molecule `c()` with reactions that we have seen before:
 
 ```scala
-c(x) + d(_) ⇒ c(x - 1)
-c(x) + i(_) ⇒ c(x + 1)
-c(x) + f(_, r) ⇒ c(x) + r(x)
+go { case c(x) + d(_) ⇒ c(x - 1) }
+go { case c(x) + i(_) ⇒ c(x + 1) }
+go { case c(x) + f(_, r) ⇒ c(x) + r(x) }
+
 ```
 
-These reactions treat `c()` as a static molecule because they first consume and then emit a single copy of `c`.
+These reactions treat `c()` as a static molecule because they first consume and then emit a single copy of `c()`.
 
 Static molecules are a frequently used pattern in chemical machine programming.
 `Chymyst` provides special features for static molecules:
 
 - Only non-blocking molecules can be declared as static.
-- Static molecules are emitted directly from the reaction site definition, by special **static reactions** (see below) that are guaranteed to run only once.
+- Static molecules are emitted directly from a reaction site definition, by special static reactions that run only once.
 In this way, static molecules are guaranteed to be emitted once and only once, before any other reactions are run and before any molecules are emitted to that reaction site.
-- Static molecules have “volatile readers” (see below).
+- Static molecules have “volatile readers”.
 
-In order to declare a molecule as static, the users of `Chymyst` must write a reaction that has no input molecules but emits some output molecules:
+In order to declare a molecule as static, the users of `Chymyst` must write a reaction that has no input molecules but emits some output molecules.
+Such reactions are automatically recognized by `Chymyst` as **static reactions**:
 
 ```scala
 site (
-    // This is a static reaction that declares a, c, and q to be static molecules, and emits each of them.
-    go { case _ => a(1) + c(123) + q() },
-    // Now we need to define some more reactions that consume a, c, and q.
-    go { case a(x) + ... => ??? } // etc.
+// This static reaction declares a, c, and q to be static molecules and emits them.
+    go { case _ ⇒ a(1) + c(123) + q() },
+// Now define some more reactions that consume a, c, and q.
+    go { case a(x) + ... ⇒ ???; a(y) } // etc.
 )
 
 ```
 
-Look at the reaction `go { case _ => a(1) + c(123) + q() }`.
-This reaction emits three output molecules `a()`, `c()`, and `q()`, but has a wildcard instead of input molecules. 
-Such reactions are automatically recognized by `Chymyst` as **static reactions**.
-A static reaction emits some molecules into the soup and at the same time declares these molecules as static.
+The reaction `go { case _ ⇒ a(1) + c(123) + q() }`
+emits three output molecules `a()`, `c()`, and `q()` but has a wildcard instead of input molecules.
+`Chymyst` detects this and marks the reaction as static.
+The output molecules are also declared as static.
 
-A reaction site can have one or more static reactions.
+A reaction site can have several static reactions.
 Each non-blocking output molecule of each static reaction is automatically declared a **static molecule**.
 
 The reaction sites will run their static reactions only once, at the time of the `site(...)` call itself, and on the same thread that calls `site(...)`.
-At that time, the reaction site has no molecules present.
-Static molecules will be the first ones emitted into the soup at that reaction site.
+At that time, the reaction site still has no molecules present.
+Static molecules will be the first ones emitted into that reaction site.
 
 #### Constraints on using static molecules
 
 Declaring a molecule as static can be a useful tool for avoiding errors in chemical machine programs because the usage of static molecules is tightly constrained:
 
-- A static molecules can be emitted only by a reaction that consumes it, or by the static reaction that defines it.
+- A static molecule can be emitted only by a reaction that consumes it, or by the static reaction that defines it.
 - A reaction may not consume more than one copy of a static molecule.
-- A reaction must have other non-static input molecules besides static molecules.
+- A reaction that consumes a static molecule must also have some non-static input molecules.
 - It is an error if a reaction consumes a static molecule but does not emit it back into the soup, or emits it more than once.
 - It is also an error if a reaction emits a static molecule it did not consume, or if any other code emits additional copies of the static molecule at any time.
 - A reaction may not emit static molecules from within a loop or within function calls.
 
 These restrictions are intended to maintain the semantics of static molecules.
-Application code that violates these restrictions will cause an "early" run-time error.
+Application code that violates these restrictions will cause an "early" run-time error - that is, an exception thrown by the `site()` call before any reactions can run at that reaction site.
 
 ### Volatile readers for static molecules
 
@@ -433,14 +438,14 @@ When a static molecule exists only as a single copy, its value works effectively
 the value can be modified by reactions, but the cell cannot be destroyed.
 So it appears useful to have a read-only access to the value in the cell.
 
-Accordingly, each static molecule has a **volatile reader** — a function of type `=> T` that fetches the value carried by that static molecule when it was most recently emitted.
+This is implemented as a **volatile reader** — a function of type `⇒ T` that fetches the value carried by that static molecule when it was most recently emitted.
 Here is how volatile readers are used:
 
 ```scala
 val c = m[Int]
 site(
-  go { case c(x) + incr(_) => c(x + 1) },
-  go { case _ => c(0) } // emit `c(0)` and declare it as static
+  go { case c(x) + incr(_) ⇒ c(x + 1) },
+  go { case _ ⇒ c(0) } // emit `c(0)` and declare it as static
 )
 
 val readC: Int = c.volatileValue // initially returns 0
@@ -451,22 +456,21 @@ The volatile reader is thread-safe (can be used from any reaction without blocki
 
 The value of a static molecule, viewed as a mutable cell, can be modified only by a reaction that consumes the molecule and then emits it back with a different value.
 If the volatile reader is called while that reaction is being run, the reader will return the previous known value of the static molecule, which is probably going to become obsolete very shortly.
-I call the volatile reader “volatile” for this reason: it returns a value that could change at any time.
+We call the volatile reader “volatile” for this reason: it returns a value that could change at any time.
 
 The functionality of a volatile reader is similar to an additional reaction with a blocking molecule `f` that reads the current value carried by `c`:
 
 ```scala
-go { case c(x) + f(_, reply) => c(x) + reply(x) }
+go { case c(x) + f(_, reply) ⇒ c(x) + reply(x) }
 
 ```
 
 Calling `f()` returns the current value carried by `c()`, just like the volatile reader does.
-However, the call `f()` may block for an unknown time if `c()` has been consumed by a long-running reaction, or if the reaction scheduler happens to be busy.
-Even if `c()` is immediately available in the soup, running this reaction requires an extra scheduling operation.
-Volatile readers provide very fast read-only access to the values carried by static molecules.
+However, the call `f()` may block for an unknown time if `c()` has been consumed by a long-running reaction, or if the reaction site happens to be busy with other computations.
+Even if `c()` is immediately available in the soup, running a new reaction requires an extra scheduling operation.
+Volatile readers provide fast read-only access to values carried by static molecules.
 
-This feature is restricted to static molecules because it appears to be useless if we could get the last emitted value of a molecule that has many different copies emitted in the soup.
-
+This feature is restricted to static molecules because it appears to be useless if we read the last emitted value of a molecule that has many different copies emitted in the soup.
 
 ## Exercise: concurrent divide-and-conquer with cancellation
 

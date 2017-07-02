@@ -90,7 +90,7 @@ This reaction is impossible to express in JoCaml directly.
 
 This tutorial is a pragmatic, non-theoretical introduction to Join Calculus for programmers.
 
-This text is based on my [earlier tutorial for JoCaml](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml). (However, be warned that the old JoCaml tutorial is unfinished and probably contains some mistakes in some of the more advanced code examples.)
+This text is based on my [earlier tutorial for JoCaml](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml). (However, be warned that the old JoCaml tutorial is unfinished and contains mistakes in some of the more advanced code examples.)
 
 See also [my recent presentation at _Scalæ by the Bay 2016_](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala).
 ([Talk slides are available](https://github.com/winitzki/talks/tree/master/join_calculus)).
@@ -101,9 +101,10 @@ Unfortunately, I cannot recommend reading them because they are unsuitable for l
 
 I learned about the “Reflexive Chemical Abstract Machine” from the introduction in one of the [early papers on Join Calculus](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.32.3078&rep=rep1&type=pdf).
 
-Do not start by reading academic papers if you never studied Join Calculus - you will be unnecessarily confused, because those texts are not pedagogical but intended for advanced computer scientists.
+Do not start by reading academic papers if you never studied Join Calculus - you will be unnecessarily confused.
+All Join Calculus papers I've seen are not pedagogically written and are intended for advanced computer scientists.
 
-As another comparison, here is some code in academic Join Calculus, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
+As another comparison, here is some code taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf), written in academic Join Calculus notation:
 
 <img alt="def newVar(v0) def put(w) etc." src="academic_join_calculus_2.png" width="400" />
 
@@ -129,7 +130,7 @@ def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
 ```
 
 I also do not recommend reading the [Wikipedia page on Join Calculus](https://en.wikipedia.org/wiki/Join-calculus).
-As of December 2016, this page says this about Join Calculus:
+As of June 2017, this page says this about Join Calculus:
 
 > The join-calculus ... can be considered, at its core, an asynchronous π-calculus with several strong restrictions:
 >
@@ -157,10 +158,10 @@ Here is a dictionary:
 
 | Chemical machine  | Academic Join Calculus | `Chymyst` code |
 |---|---|---|
-| input molecule | message on a channel | `case a(123) => ...` _// pattern-matching_ |
-| molecule emitter | channel name | `val a :  M[Int]` |
+| input molecule | message on a channel | `case a(123) ⇒ ...` _// pattern-matching_ |
+| molecule emitter | channel name | `val a:  M[Int]` |
 | blocking emitter | synchronous channel | `val q :  B[Unit, Int]` |
-| reaction | process | `val r1 = go { case a(x) + ... => ... }` |
+| reaction | process | `val r1 = go { case a(x) + ... ⇒ ... }` |
 | emitting a molecule | sending a message | `a(123)` _// side effect_ |
 | emitting a blocking molecule | sending a synchronous message | `q()` _// returns_ `Int` |
 | reaction site | join definition | `site(r1, r2, ...)` |
