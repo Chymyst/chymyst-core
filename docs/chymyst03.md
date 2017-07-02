@@ -217,8 +217,8 @@ Some remarks:
 - Blocking molecules are like functions except that they will block until their reactions can start.
 If the relevant reaction never starts, — for instance, because some input molecules are missing, — a blocking molecule will block forever.
 The runtime engine cannot prevent this situation, because it cannot determine that the missing input molecules will never become available in the future.
-- The correct function of a program may depend on the order in which blocking molecules are emitted.
-With non-blocking molecules, the emission order is irrelevant since emission is concurrent, and so the programmer cannot control the actual order in which emitted molecules will become available in the soup.
+- The correct function of a program may depend on the order in which blocking molecules are emitted. If `f()` and `g()` are blocking molecules, the effect of `f(); g()` is not the same as that of `g(); f()` because `f(); g()` will not emit `g()` until a reply to `f` is received.
+With non-blocking molecules, the order of emission is irrelevant since the emission calls are asynchronous. So `c(); d()` has the same effect as `d(); c()` if `c` and `d` are non-blocking emitters.
 - If several reactions can consume a blocking molecule, one of these reactions will be selected arbitrarily.
 - Blocking molecule names are printed with the suffix `"/B"` in the debugging output.
 - Molecules with unit values can be emitted simply by calling `decr()` and `fetch()` without arguments, but they still require a pattern variable when used in the `case` construction.
