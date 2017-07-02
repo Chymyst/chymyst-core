@@ -2,7 +2,7 @@
 
 # Game of Life
 
-Let us implement the famous [Game of Life](http://ddi.cs.uni-potsdam.de/HyFISCH/Produzieren/lis_projekt/proj_gamelife/ConwayScientificAmerican.htm) as a concurrent computation in the chemical machine.
+Let us implement Conway's famous [Game of Life](http://ddi.cs.uni-potsdam.de/HyFISCH/Produzieren/lis_projekt/proj_gamelife/ConwayScientificAmerican.htm) as a concurrent computation in the chemical machine.
 
 Our goal is to make use of concurrency as much as possible.
 An elementary computation in the Game of Life is to determine the next state of a cell, given its present state and the present states of its 8 neighbor cells.
@@ -19,10 +19,11 @@ def getNewState(
   state7: Int,
   state8: Int
 ): Int =
-  (state1 + state2 + state3 + state4 + state5 + state6 + state7 + state8) match {
-    case 2 => state0
-    case 3 => 1
-    case _ => 0
+  (state1 + state2 + state3 + state4 +
+     state5 + state6 + state7 + state8) match {
+    case 2 ⇒ state0
+    case 3 ⇒ 1
+    case _ ⇒ 0
   }
 
 ```
@@ -60,7 +61,7 @@ go { case
       c5((x, y, t, state5)) +
       c6((x, y, t, state6)) +
       c7((x, y, t, state7)) +
-      c8((x, y, t, state8)) => ??? }
+      c8((x, y, t, state8)) ⇒ ??? }
 
 ```
 
@@ -68,7 +69,7 @@ Here, `c1((x, y, t, s))` represents the state of the "first" neighbor at the `(x
 The values `x` and `y` always represent the coordinates of the center cell.
 
 Now, we will immediately recognize that the reaction cannot work as written:
-Scala does not allow the `case` match to use repeated variables.
+Scala does not allow repeated pattern variables in a `case` pattern.
 
 Our intention was to start the reaction only when all 9 input molecules have the same values of `x`, `y`, `t`.
 To do this, we must use a guard condition on the reaction:
@@ -84,9 +85,12 @@ go { case
   c6((x6, y6, t6, state6)) +
   c7((x7, y7, t7, state7)) +
   c8((x8, y8, t8, state8))
-   if x0 == x1 && x0 == x2 && x0 == x3 && x0 == x4 && x0 == x5 && x0 == x6 && x0 == x7 && x0 == x8 &&
-      y0 == y1 && y0 == y2 && y0 == y3 && y0 == y4 && y0 == y5 && y0 == y6 && y0 == y7 && y0 == y8 &&
-      t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 && t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 => ??? 
+   if x0 == x1 && x0 == x2 && x0 == x3 && x0 == x4 &&
+      x0 == x5 && x0 == x6 && x0 == x7 && x0 == x8 &&
+      y0 == y1 && y0 == y2 && y0 == y3 && y0 == y4 &&
+      y0 == y5 && y0 == y6 && y0 == y7 && y0 == y8 &&
+      t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 &&
+      t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 ⇒ ??? 
 }
 
 ```
@@ -105,10 +109,14 @@ go { case
   c6((x6, y6, t6, state6)) +
   c7((x7, y7, t7, state7)) +
   c8((x8, y8, t8, state8))
-   if x0 == x1 && x0 == x2 && x0 == x3 && x0 == x4 && x0 == x5 && x0 == x6 && x0 == x7 && x0 == x8 &&
-      y0 == y1 && y0 == y2 && y0 == y3 && y0 == y4 && y0 == y5 && y0 == y6 && y0 == y7 && y0 == y8 &&
-      t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 && t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 =>
-  val newState = getNewState(state0, state1, state2, state3, state4, state5, state6, state7, state8)
+   if x0 == x1 && x0 == x2 && x0 == x3 && x0 == x4 &&
+      x0 == x5 && x0 == x6 && x0 == x7 && x0 == x8 &&
+      y0 == y1 && y0 == y2 && y0 == y3 && y0 == y4 &&
+      y0 == y5 && y0 == y6 && y0 == y7 && y0 == y8 &&
+      t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 &&
+      t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 ⇒
+  val newState = getNewState(state0, state1, state2, state3,
+    state4, state5, state6, state7, state8)
   c0((x, y, t + 1, newState))
   ???
 }
@@ -119,7 +127,8 @@ But how would the chemistry work at the next time step?
 The molecule `c0((x, y, t + 1, _))` will need to react with its 8 neighbors.
 However, each of the neighbor cells, such as `c0((x-1, y, t + 1, _))`, also needs to react with _its_ 8 neighbors.
 
-Therefore, we need to have 9 output molecules in this reaction: one molecule, `c0()`, will react with its neighbors and produce the new state, while 8 others will provide `newState` as "neighbor data" for each of the 8 neighbors.
+Therefore, we need to have 9 _output_ molecules in this reaction: one molecule, `c0()`, represents the new state of the center cell,
+while 8 others will provide `newState` as "neighbor data" for each of the 8 neighbors.
 We need to emit these 8 other molecules with shifted coordinates, so that they will react with their proper neighbors at time `t + 1`.
 
 The reaction now looks like this:
@@ -135,16 +144,20 @@ go { case
   c6((x6, y6, t6, state6)) +
   c7((x7, y7, t7, state7)) +
   c8((x8, y8, t8, state8))
-   if x0 == x1 && x0 == x2 && x0 == x3 && x0 == x4 && x0 == x5 && x0 == x6 && x0 == x7 && x0 == x8 &&
-      y0 == y1 && y0 == y2 && y0 == y3 && y0 == y4 && y0 == y5 && y0 == y6 && y0 == y7 && y0 == y8 &&
-      t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 && t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 =>
-  val newState = getNewState(state0, state1, state2, state3, state4, state5, state6, state7, state8)
+   if x0 == x1 && x0 == x2 && x0 == x3 && x0 == x4 &&
+      x0 == x5 && x0 == x6 && x0 == x7 && x0 == x8 &&
+      y0 == y1 && y0 == y2 && y0 == y3 && y0 == y4 &&
+      y0 == y5 && y0 == y6 && y0 == y7 && y0 == y8 &&
+      t0 == t1 && t0 == t2 && t0 == t3 && t0 == t4 &&
+      t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 ⇒
+  val newState = getNewState(state0, state1, state2, state3,
+    state4, state5, state6, state7, state8)
   c1((x - 1, y - 1, t + 1, newState))
   c2((x + 0, y - 1, t + 1, newState))
   c3((x + 1, y - 1, t + 1, newState))
   c4((x - 1, y + 0, t + 1, newState))
 
-  c0((x + 0, y + 0, t + 1, newState)) // center
+  c0((x + 0, y + 0, t + 1, newState)) // center cell
 
   c5((x + 1, y + 0, t + 1, newState))
   c6((x - 1, y + 1, t + 1, newState))
@@ -154,12 +167,12 @@ go { case
 
 ```
 
-These reactions will work! That's actually the entire chemistry that correctly simulates the Game of Life.
+These reactions work! That's actually a complete chemical program that correctly simulates the Game of Life.
 
 To start the simulation, we need to emit initial molecules.
 For each cell `(x, y)` on the initial board, we need to emit 9 molecules `c0((x, y, t = 0, _))`, ..., `c8((x, y, t = 0, _))`: `c0()` bearing the initial state and `c1()`, ..., `c8()` providing neighbor data.
 
-Another detail we glossed over is that the finite size of the board.
+Another detail we glossed over is handling the edges of the game board.
 The simplest solution is to make the board wrap around in both `x` and `y` directions.
 
 The code for emitting the initial molecules with wraparound can be like this:
@@ -167,8 +180,8 @@ The code for emitting the initial molecules with wraparound can be like this:
 ```scala
 val initBoard: Array[Array[Int]] = ???
 
-(0 until sizeY).foreach { y0 =>
- (0 until sizeX).foreach { x0 =>
+(0 until sizeY).foreach { y0 ⇒
+ (0 until sizeX).foreach { x0 ⇒
    val initState = initBoard(y0)(x0)
    c0(((x0 + 0 + sizeX) % sizeX, (y0 + 0 + sizeY)) % sizeY), 0, initState))
    c1(((x0 - 1 + sizeX) % sizeX, (y0 - 1 + sizeY)) % sizeY), 0, initState))
@@ -189,13 +202,13 @@ The complete working code for this implementation is the second test case in `Ga
 ## Improving performance
 
 While the program as written so far works correctly, it works _extremely slowly_.
-The computation on a tiny 2 by 2 board takes about 2 seconds per timestep on a fast 8-core machine.
-The CPU utilization stays around 100%; in other words, only one CPU core is loaded at 100% while other cores remain idle.
-Not only the code runs unacceptably slowly, — it also fails to use any concurrency!
+Also, the CPU utilization stays around 100%; in other words, only one CPU core is loaded at 100% while other cores remain idle.
+Not only the code runs slowly, — it also fails to use any concurrency!
 
 The main reason for the bad performance is the complicated guard condition in the reaction.
-This guard condition is an example of a **cross-molecule guard**, meaning that it constrains the values of a set of molecules as a whole (rather than one molecule value at a time).
-In our code, the cross-molecule guard constrains the values of all 9 input molecules together.
+This guard condition is an example of a **cross-molecule guard**,
+which means a constraint on the values of a set of molecules as a whole (rather than constraining one molecule value at a time).
+In our code, the cross-molecule guard constrains the values of all 9 input molecules at once.
 
 Because of the presence of the cross-molecule guard, many combinations of molecule values must be examined before a reaction can be started.
 Let us make a rough estimate.
@@ -204,8 +217,8 @@ The reaction site needs to find one copy of `c0()`, one copy of `c1()`, etc., su
 In the worst case, the reaction site will examine `(n * n) ^ 9` possible combinations of molecule values before scheduling a single reaction.
 There are `n * n` reactions to be scheduled at each time step.
 This brings the worst-case complexity to `(n * n) ^ 10` per time step.
-So, even for a smallest board with `n=2`, we get `(2 * 2) ^ 10 = 1048576`.
-A million operations is a very large scheduling overhead for a computation that only runs 4 reactions with actual computations per time step.
+So, even for a smallest board with `n=2`, we get `(2 * 2) ^ 10 = 1048576` combinations to be examined.
+A million operations is a very large scheduling overhead for a computation that only runs 4 reactions per time step.
 
 The chemical machine can only go so far in optimizing guard conditions that can contain arbitrary user code.
 Reactions without guard conditions are scheduled much faster.
@@ -219,15 +232,17 @@ Instead of using a cross-molecule guard to select input molecules, we can define
 To achieve this, instead of using a single molecule sort `c0` with parameters `(x, y, t, state)`, we will use a new molecule sort for each set of `(x, y, t)`.
 In other words, we will define _chemically different_ molecules representing cells at different `(x, y, t)`.
 The easiest implementation is by creating a multidimensional matrix of molecule emitters.
-Now that we are at it, the 9 sorts `c0`, ..., `c9` can be accommodated by an additional dimension in the same matrix; this will save us some boilerplate typing.
+Now that we are at it, the 9 sorts `c0`, ..., `c9` can be accommodated by an additional dimension in the same matrix; this will save us some boilerplate.
 
 ```scala
 val emitterMatrix: Array[Array[Array[Array[M[Int]]]]] =
- Array.tabulate(sizeX, sizeY, sizeT, 9)((x, y, t, label) => new M[Int](s"c$label[$x,$y,$t]"))
+ Array.tabulate(sizeX, sizeY, sizeT, 9)((x, y, t, label) ⇒
+   new M[Int](s"c$label[$x,$y,$t]")
+ )
 
 ```
 
-The array `emitterMatrix` now stores all the molecule emitters we will need.
+The array `emitterMatrix` stores all the molecule emitters we will need.
 The strings such as `"c8[2,3,0]"`, representing the names of all the new molecules, are assigned explicitly using the `new M()` constructor since the macro `m` would assign the same name to all molecules, which might complicate debugging.
 Molecule emitters are of type `M[Int]` because the only value that the new molecules need to carry is the integer `state`.
 
@@ -239,9 +254,10 @@ Here is code that defines the 3-dimensional array of reactions:
 
 ```scala
 val reactionMatrix: Array[Array[Array[Reaction]]] =
- Array.tabulate(boardSize.x, boardSize.y, finalTimeStep) { (x, y, t) =>
+ Array.tabulate(boardSize.x, boardSize.y, finalTimeStep) { (x, y, t) ⇒
    // Molecule emitters for the inputs.
-   // We need to assign them to separate `val`'s because `case emitterMatrix(x)(y)(t)(0)(state) => ...` will not compile.
+   // We need to assign them to separate `val`'s
+   // because `case emitterMatrix(x)(y)(t)(0)(state) ⇒ ...` does not compile.
    val c0 = emitterMatrix(x)(y)(t)(0)
    val c1 = emitterMatrix(x)(y)(t)(1)
    val c2 = emitterMatrix(x)(y)(t)(2)
@@ -261,8 +277,9 @@ val reactionMatrix: Array[Array[Array[Reaction]]] =
        c5(state5) +
        c6(state6) +
        c7(state7) +
-       c8(state8) =>
-     val newState = getNewState(state0, state1, state2, state3, state4, state5, state6, state7, state8)
+       c8(state8) ⇒
+     val newState = getNewState(state0, state1, state2, state3,
+       state4, state5, state6, state7, state8)
   
      // Emit output molecules.
      emitterMatrix(x + 0)(y + 0)(t + 1)(0)(newState)
@@ -304,7 +321,7 @@ In this case, we can define _each reaction_ at a separate reaction site, instead
 The only code change we need to make is the definition of the reaction sites, which will now look like this:
 
 ```scala
-reactionMatrix.foreach(_.foreach(_.foreach(r => site(r)))))
+reactionMatrix.foreach(_.foreach(_.foreach(r ⇒ site(r)))))
 
 ```
 
@@ -327,9 +344,6 @@ The implementation in test 1 uses a single reaction with a single molecule sort.
 The reaction has 9 repeated input molecules and emits 9 copies of the same molecule.
 All coordination is performed by the guard condition that selects input molecules for reactions.
 
-This implementation is catastrophically slow.
-Running on anything larger than a 2x2 board takes forever and may crash due to garbage collecting overhead.
-
 Test 2 is the solution first discussed in this chapter.
 It introduces 9 different molecule sorts `c0`, ..., `c8` instead of using one molecule sort.
 Otherwise, the chemistry remains the same as in test 1.
@@ -337,7 +351,7 @@ The change speeds up the simulation by a few times, although it remains unaccept
 
 Tests 1 and 2 are intentionally very slow, to be used as benchmarks of the chemical machine.
 The speedup between 1 and 2 suggests that avoiding repeated input molecules is a source of additional speedup.
-This may or may not remain the case in future versions of `Chymyst Core`. 
+This may or may not remain the case in future versions of `Chymyst`. 
 
 Test 3 uses a different molecule sort for each cell on the board.
 However, molecules corresponding to different time steps are the same.

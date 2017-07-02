@@ -9,7 +9,7 @@ import scalaxy.streams.strategy.aggressive
 private[jc] object StaticAnalysis {
 
   /** Check that every input molecule matcher of one reaction is weaker than a corresponding input matcher in another reaction.
-    * If true, it means that the first reaction can start whenever the second reaction can start, which is an instance of unavoidable nondeterminism.
+    * If true, it means that the first reaction can start whenever the second reaction can start, which is an instance of unavoidable indeterminism.
     *
     * @param input1 Sorted input list for the first reaction.
     * @param input2 Sorted input list  for the second reaction.
@@ -63,7 +63,7 @@ private[jc] object StaticAnalysis {
       val errorList = suspiciousReactions.map { case (r1, r2) =>
         s"reaction {${r2.info}} is shadowed by {${r1.info}}"
       }.mkString(", ")
-      Some(s"Unavoidable nondeterminism: $errorList")
+      Some(s"Unavoidable indeterminism: $errorList")
     } else None
   }
 
