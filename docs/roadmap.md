@@ -40,7 +40,7 @@
 
 These features are considered for implementation in the next versions:
 
-Version 0.1: (Released.) Perform static analysis of reactions, and warn the user about certain situations with unavoidable livelock, deadlock, or nondeterminism.
+Version 0.1: (Released.) Perform static analysis of reactions, and warn the user about certain situations with unavoidable livelock, deadlock, or indeterminism.
 
 Version 0.2: (Released.) Rewrite the reaction scheduler, optimizing for performance and flexibility.
 In particular, do not lock the entire molecule bag - only lock some groups of molecules that have contention on certain molecule inputs (decide this using static analysis information).

@@ -136,7 +136,7 @@ Note that the name `rpl` is not a keyword but an arbitrary name of a pattern var
 Blocking molecule emitters are values of type `B[T, R]`, while non-blocking molecule emitters have type `M[T]`.
 Here `T` is the type of value that the molecule carries, and `R` (for blocking molecules) is the type of the reply value.
 
-The reply emitter is of special type `ReplyValue[T, R]`, which is a subtype of the function type `R => Unit`.
+The reply emitter is of special type `ReplyValue[T, R]`, which is a subtype of the function type `R ⇒ Unit`.
 
 In general, the pattern-matching expression for a blocking molecule `g` of type `B[T, R]` has the form
 
@@ -145,7 +145,7 @@ In general, the pattern-matching expression for a blocking molecule `g` of type 
 
 ```
 The pattern variable `v` will match a value of type `T`.
-The pattern variable `r` will match the reply emitter, which can be seen as a function of type `R => Unit`.
+The pattern variable `r` will match the reply emitter, which can be seen as a function of type `R ⇒ Unit`.
 
 Since `r` has a function type, users must match it with a simple pattern variable; it is an error to write any other pattern for the reply emitter.
 For clarity, we will usually name this pattern variable `reply` or `r`.
@@ -383,12 +383,12 @@ In order to ensure the possibility of the unblocking transformation for reaction
 ```scala
 val c = m[Unit]
 val f = b[Unit, Unit]
-go { case c(_) => while (true) f() }
+go { case c(_) ⇒ while (true) f() }
 
 ```
 
 `Error:(245, 8) reaction body must not emit blocking molecules inside function blocks (f(()))`
-`    go { case c(_) => while (true) f() }`
+`    go { case c(_) ⇒ while (true) f() }`
 
 In a future version of `Chymyst Core`, the unblocking transformation may be performed by macros as an automatic optimization.
 
@@ -458,7 +458,7 @@ We already saw one use of this feature for the unblocking transformation, where 
 To further illustrate this feature of the chemical paradigm, let us implement a function that encapsulates a “concurrent counter” and initializes it with a given value.
 
 Our previous implementation of the concurrent counter has a drawback: The molecule `counter(n)` must be emitted by the user and remains globally visible.
-If the user emits two copies of `counter()` with different values, the `counter + decr` and `counter + fetch` reactions will work unreliably, choosing between the two copies of `counter()` nondeterministically.
+If the user emits two copies of `counter()` with different values, the `counter + decr` and `counter + fetch` reactions will work unreliably, choosing between the two copies of `counter()` non-deterministically.
 In order to guarantee reliable functionality, we would like to emit exactly one copy of `counter()` and then prevent the user from emitting any further copies of that molecule.
 
 A solution is to define `counter` and its reactions within a function that returns the `decr` and `fetch` emitters to the outside scope.
@@ -513,7 +513,7 @@ Suppose we have two blocking molecules `f()` and `g()` that return a reply value
 We would like to emit both `f()` and `g()` together and wait until a reply value is received from whichever molecule unblocks sooner.
 If the other molecule gets a reply value later, we will just ignore that value.
 
-The result of this nondeterministic operation is the value of type `T` obtained from one of the molecules `f` and `g`, depending on which molecule got its reply first.
+The result of this non-deterministic operation is the value of type `T` obtained from one of the molecules `f` and `g`, depending on which molecule got its reply first.
 
 Let us now implement this operation in `Chymyst`.
 We will derive the required chemistry by reasoning about the behavior of molecules.
@@ -530,7 +530,7 @@ These input molecules cannot be `f` and `g` since these two molecules are given 
 Therefore, we need at least one new molecule that will be consumed to start these two reactions.
 However, if we declare the two reactions as `c() → f()` and `c() → g()` and then emit two copies of `c()`, we are not guaranteed that both reactions will start.
 It is possible that two copies of the first reaction or two copies of the second reaction are started instead.
-In other words, there will be an _unavoidable nondeterminism_ in our chemistry.
+In other words, there will be an _unavoidable indeterminism_ in our chemistry.
 
 `Chymyst` will in fact detect this problem and generate an error:
 
@@ -539,12 +539,12 @@ val c = m[Unit]
 val f = b[Unit, Int]
 val g = b[Unit, Int]
 site(
-    go { case c(_) => val x = f(); ??? },
-    go { case c(_) => val x = g(); ??? }
+    go { case c(_) ⇒ val x = f(); ??? },
+    go { case c(_) ⇒ val x = g(); ??? }
 )
 
 ```
-`java.lang.Exception: In Site{c → ...; c → ...}: Unavoidable nondeterminism:`
+`java.lang.Exception: In Site{c → ...; c → ...}: Unavoidable indeterminism:`
 `reaction {c → } is shadowed by {c → }`
 
 So, we need to define two _different_ molecules (say, `c` and `d`) as inputs for these two reactions.
@@ -555,8 +555,8 @@ val d = m[Unit]
 val f = b[Unit, Int]
 val g = b[Unit, Int]
 site(
-    go { case c(_) => val x = f(); ??? },
-    go { case d(_) => val x = g(); ??? }
+    go { case c(_) ⇒ val x = f(); ??? },
+    go { case d(_) ⇒ val x = g(); ??? }
 )
 c() + d()
 
@@ -573,7 +573,7 @@ Therefore, there must be some _other_ reaction that consumes `firstResult` and r
 This reaction must have the form
 
 ```scala
-go { case firstResult(_, reply) + ??? => reply(x) }
+go { case firstResult(_, reply) + ??? ⇒ reply(x) }
 
 ```
 
@@ -582,7 +582,7 @@ So we need a new auxiliary molecule, say `done(x)`, that will carry `x` on itsel
 The reaction with `firstResult` will then have the form
 
 ```scala
-go { case firstResult(_, reply) + done(x) => reply(x) }
+go { case firstResult(_, reply) + done(x) ⇒ reply(x) }
 
 ```
 
@@ -598,11 +598,11 @@ val g = b[Unit, Int]
 val done = m[Int]
 
 site(
-  go { case c(_) => val x = f(); done(x) },
-  go { case d(_) => val x = g(); done(x) }
+  go { case c(_) ⇒ val x = f(); done(x) },
+  go { case d(_) ⇒ val x = g(); done(x) }
 )
 site(
-  go { case firstResult(_, r) + done(x) => r(x) }
+  go { case firstResult(_, r) + done(x) ⇒ r(x) }
 )
 
 c() + d()
@@ -630,11 +630,11 @@ def makeFirstResult[T](f: B[Unit, T], g: B[Unit, T]): B[Unit, T] = {
     val done = m[Int]
 
     site(
-      go { case c(_) => val x = f(); done(x) },
-      go { case d(_) => val x = g(); done(x) }
+      go { case c(_) ⇒ val x = f(); done(x) },
+      go { case d(_) ⇒ val x = g(); done(x) }
     )
     site(
-      go { case firstResult(_, r) + done(x) => r(x) }
+      go { case firstResult(_, r) + done(x) ⇒ r(x) }
     )
 
     c() + d()
@@ -676,8 +676,8 @@ val f = b[Unit, Boolean]
 val g = b[Unit, Boolean]
 
 site(
-  go { case c(_) => val x = f(); ??? },
-  go { case d(_) => val y = g(); ??? }
+  go { case c(_) ⇒ val x = f(); ??? },
+  go { case d(_) ⇒ val y = g(); ??? }
 )
 c() + d()
 
@@ -697,9 +697,9 @@ For this, we can use a non-blocking molecule `done` and write reactions like thi
 
 ```scala
 site(
-  go { case c(_) => val x = f(); done(x) },
-  go { case d(_) => val y = g(); done(y) },
-  go { case result(n) + done(x) => result(n + 1) }
+  go { case c(_) ⇒ val x = f(); done(x) },
+  go { case d(_) ⇒ val y = g(); done(y) },
+  go { case result(n) + done(x) ⇒ result(n + 1) }
 )
 c() + d() + result(0)
 
@@ -714,20 +714,20 @@ When `result` receives a `false` value twice, it should return `false` as a fina
 Otherwise, there is no final answer yet.
 
 We are required to deliver the final answer as a reply to the `parallelOr` molecule.
-It is clear that `parallelOr` cannot be reacting with the `result` molecule — this would prevent the `result + done => result` reaction from running.
+It is clear that `parallelOr` cannot be reacting with the `result` molecule — this would prevent the `result + done ⇒ result` reaction from running.
 Therefore, `parallelOr` needs to react with _another_ auxiliary molecule, say `finalResult`.
 There is only one way of defining this kind of reaction,
 
 ```scala
-go { case parallelOr(_, r) + finalResult(x) => r(x) }
+go { case parallelOr(_, r) + finalResult(x) ⇒ r(x) }
 
 ```
 
 Now it is clear that the problem will be solved if we emit `finalResult` only when we actually have the final answer.
-This can be done from the `result + done => result` reaction, which we modify as follows:
+This can be done from the `result + done ⇒ result` reaction, which we modify as follows:
 
 ```scala
-go { case result(n) + done(x) =>
+go { case result(n) + done(x) ⇒
         if (x == true) finalResult(true)
         else if (n == 1) finalResult(false)
         else result(n + 1)
@@ -739,9 +739,9 @@ To make the chemistry clearer, we may rewrite this reaction as three reactions w
 
 ```scala
 site(
-  go { case result(1) + done(false) => finalResult(false) },
-  go { case result(0) + done(false) => result(1) },
-  go { case result(_) + done(true)  => finalResult(true) }
+  go { case result(1) + done(false) ⇒ finalResult(false) },
+  go { case result(0) + done(false) ⇒ result(1) },
+  go { case result(_) + done(true)  ⇒ finalResult(true) }
 )
 
 ```
@@ -759,16 +759,16 @@ val g = b[Unit, Boolean]
 val parallelOr = b[Unit, Boolean]
 
 site(
-  go { case parallelOr(_, r) + finalResult(x) => r(x) }
+  go { case parallelOr(_, r) + finalResult(x) ⇒ r(x) }
 )
 site(
-  go { case result(1) + done(false) => finalResult(false) },
-  go { case result(0) + done(false) => result(1) },
-  go { case result(_) + done(true)  => finalResult(true) }
+  go { case result(1) + done(false) ⇒ finalResult(false) },
+  go { case result(0) + done(false) ⇒ result(1) },
+  go { case result(_) + done(true)  ⇒ finalResult(true) }
 )
 site(
-  go { case c(_) => val x = f(); done(x) },
-  go { case d(_) => val y = g(); done(y) }
+  go { case c(_) ⇒ val x = f(); done(x) },
+  go { case d(_) ⇒ val y = g(); done(y) }
 )
 
 c() + d() + result(0)
@@ -789,7 +789,7 @@ A reaction may not emit a blocking molecule as the last expression it computes.
 
 ```scala
 val f = b[Unit, Int]
-site( go { case ... => ...; f() } ) // the last expression is f()
+site( go { case ... ⇒ ...; f() } ) // the last expression is f()
 // compile-time error: "Blocking molecules must not be emitted last in a reaction"
 
 ```
@@ -809,10 +809,10 @@ Errors of this type are caught at compile time:
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-site( go { case f(_, r) + c(n) => c(n + 1) } ) // forgot to reply!
+site( go { case f(_, r) + c(n) ⇒ c(n + 1) } ) // forgot to reply!
 // compile-time error: "blocking input molecules should receive a reply but no unconditional reply found"
 
-site( go { case f(_, r) + c(n) => c(n + 1); r(n); r(n) } ) // replied twice!
+site( go { case f(_, r) + c(n) ⇒ c(n + 1); r(n); r(n) } ) // replied twice!
 // compile-time error: "blocking input molecules should receive one reply but possibly multiple replies found"
 
 ```
@@ -824,7 +824,7 @@ It is an error if a reply is only emitted in one of the `if` branches:
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-site( go { case f(_, r) + c(n) => c(n + 1); if (n != 0) r(n) } )
+site( go { case f(_, r) + c(n) ⇒ c(n + 1); if (n != 0) r(n) } )
 // compile-time error: "blocking input molecules should receive a reply but no unconditional reply found"
 
 ```
@@ -835,7 +835,7 @@ A correct reaction could look like this:
 val f = b[Unit, Int]
 val c = m[Int]
 site(
-  go { case f(_, r) + c(n) =>
+  go { case f(_, r) + c(n) ⇒
     // reply is always sent, regardless of the value of `n`
     c(n + 1); if (n != 0) r(n) else r(0)
   }
@@ -849,13 +849,13 @@ All these restrictions are in place to ensure statically (at compile time) that 
 
 ```scala
 val f = b[Unit, Int]
-site( go { case f(_, r) => val x = r; q(x) } )
+site( go { case f(_, r) ⇒ val x = r; q(x) } )
 // compile-time error: "Reaction body must not use reply emitters inside function blocks"
 
-site( go { case f(_, r) => try { throw ...; r(1) } catch {...} } )
+site( go { case f(_, r) ⇒ try { throw ...; r(1) } catch {...} } )
 // compile-time error: "Reaction body must not use reply emitters inside function blocks"
 
-site( go { case f(_, r) => if (r(1)) ... } ) // OK, the `if` condition is evaluated exactly once
+site( go { case f(_, r) ⇒ if (r(1)) ... } ) // OK, the `if` condition is evaluated exactly once
 
 ```
 
@@ -872,7 +872,7 @@ Here is an example of code that emits `f()` and waits for reply, while a reactio
 ```scala
 val f = b[Unit, Int]
 val c = m[Int]
-site( go { case f(_, r) + c(n) => c(n + 1); if (n == 0) throw new Exception("Bad value of n!"); r(n) } )
+site( go { case f(_, r) + c(n) ⇒ c(n + 1); if (n == 0) throw new Exception("Bad value of n!"); r(n) } )
 c(0)
 f()
 
@@ -904,13 +904,13 @@ In the previous chapter, we have seen the following code for the ordered map/red
 ```
 val reduceAll = m[(Array[T], M[T])]
 site(
- go { case reduceAll((arr, res)) =>
+ go { case reduceAll((arr, res)) ⇒
   if (arr.length == 1) res(arr(0))
   else  {
     val (arr0, arr1) = arr.splitAt(arr.length / 2)
     val a0 = m[T]
     val a1 = m[T]
-    site( go { case a0(x) + a1(y) => res(reduceB(x, y)) } )
+    site( go { case a0(x) + a1(y) ⇒ res(reduceB(x, y)) } )
     reduceAll((arr0, a0)) + reduceAll((arr1, a1))
   }
  }
@@ -942,7 +942,7 @@ In this way, the final result of the computation will be sent to the process tha
 We can now encapsulate the code as a (blocking) function call:
 
 ```
-def doReduce[T](array: Array[T], reduceB: (T, T) => T): T = {
+def doReduce[T](array: Array[T], reduceB: (T, T) ⇒ T): T = {
 val result = m[T]
 val waitResult = B[Unit, T]
 
@@ -951,13 +951,13 @@ site( go { case waitResult(_, r) + result(x) ⇒ r(x) } )
 val reduceAll = m[(Array[T], M[T])]
 
 site(
- go { case reduceAll((arr, res)) =>
+ go { case reduceAll((arr, res)) ⇒
   if (arr.length == 1) res(arr(0))
   else  {
     val (arr0, arr1) = arr.splitAt(arr.length / 2)
     val a0 = m[T]
     val a1 = m[T]
-    site( go { case a0(x) + a1(y) => res(reduceB(x, y)) } )
+    site( go { case a0(x) + a1(y) ⇒ res(reduceB(x, y)) } )
     reduceAll((arr0, a0)) + reduceAll((arr1, a1))
   }
  }

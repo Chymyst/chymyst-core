@@ -27,7 +27,7 @@ It could happen that `a()` was present but got involved in some other reactions 
 Another feature would be to introduce “inhibiting” conditions on reactions: a certain reaction can start when molecules `a` and `b` are present but no molecule `c` is present.
 However, it is not clear that this extension of the chemical paradigm would be useful.
 The reactions with “inhibiting” conditions will be unreliable because they will sometimes run and sometimes not run, depending on exactly when some molecules are emitted.
-Since the programmer cannot control the duration of time taken by reactions, it seems that “inhibiting” conditions simply lead to a kind of nondeterminism that the programmer cannot control at all.
+Since the programmer cannot control the duration of time taken by reactions, it seems that “inhibiting” conditions simply lead to a kind of indeterminism that the programmer cannot control at all.
 
 Since we can expect molecules to be emitted at random and unpredictable times by concurrently running processes, it is always possible that a certain molecule is, at a given time, not present in the soup but is about to be emitted by some reaction because the emitter has already been called and its task is already waiting in the queue.
 If we added a feature to the chemical machine that explicitly detects the absence of a molecule,

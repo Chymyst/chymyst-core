@@ -310,9 +310,9 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
         go { case a(x) ⇒ }
         , go { case a(x) ⇒ }
       )
-    } should have message "In Site{a → ...; a → ...}: Identical repeated reactions: {a(x) → }, {a(x) → }; Unavoidable nondeterminism: reaction {a(x) → } is shadowed by {a(x) → }, reaction {a(x) → } is shadowed by {a(x) → }"
+    } should have message "In Site{a → ...; a → ...}: Identical repeated reactions: {a(x) → }, {a(x) → }; Unavoidable indeterminism: reaction {a(x) → } is shadowed by {a(x) → }, reaction {a(x) → } is shadowed by {a(x) → }"
     memLog.messages.size shouldEqual 1
-    globalLogHas(memLog, "repeated", "Error: In Site{a → ...; a → ...}: Identical repeated reactions: {a(x) → }, {a(x) → }; Unavoidable nondeterminism: reaction {a(x) → } is shadowed by {a(x) → }, reaction {a(x) → } is shadowed by {a(x) → }")
+    globalLogHas(memLog, "repeated", "Error: In Site{a → ...; a → ...}: Identical repeated reactions: {a(x) → }, {a(x) → }; Unavoidable indeterminism: reaction {a(x) → } is shadowed by {a(x) → }, reaction {a(x) → } is shadowed by {a(x) → }")
   }
 
   it should "report no errors with empty reporter when creating a reaction site" in {
@@ -324,7 +324,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
         go { case a(x) ⇒ }
         , go { case a(x) ⇒ }
       )
-    } should have message "In Site{a → ...; a → ...}: Identical repeated reactions: {a(x) → }, {a(x) → }; Unavoidable nondeterminism: reaction {a(x) → } is shadowed by {a(x) → }, reaction {a(x) → } is shadowed by {a(x) → }"
+    } should have message "In Site{a → ...; a → ...}: Identical repeated reactions: {a(x) → }, {a(x) → }; Unavoidable indeterminism: reaction {a(x) → } is shadowed by {a(x) → }, reaction {a(x) → } is shadowed by {a(x) → }"
     memLog.messages.size shouldEqual 0
   }
 
@@ -546,19 +546,19 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
         go { case c(x) => },
         go { case c(x) + a(_) => } // this is a livelock but we are interested in pipelining of c
       )
-    }.getMessage shouldEqual "In Site{a + c → ...; c → ...}: Unavoidable nondeterminism: reaction {a(_) + c(x) → } is shadowed by {c(x) → }"
+    }.getMessage shouldEqual "In Site{a + c → ...; c → ...}: Unavoidable indeterminism: reaction {a(_) + c(x) → } is shadowed by {c(x) → }"
     checkExpectedPipelined(Map(c -> true, a -> true)) shouldEqual ""
   }
 
-  it should "detect pipelining while also detecting nondeterminism" in {
+  it should "detect pipelining while also detecting indeterminism" in {
     val c = m[Int]
     intercept[Exception] {
       site(
         go { case c(x) if x > 0 => },
         go { case c(x) + c(y) => },
-        go { case c(x) + c(y) + c(z) => } // unconditional nondeterminism with several inputs
+        go { case c(x) + c(y) + c(z) => } // unconditional indeterminism with several inputs
       )
-    }.getMessage shouldEqual "In Site{c + c + c → ...; c + c → ...; c → ...}: Unavoidable nondeterminism: reaction {c(x) + c(y) + c(z) → } is shadowed by {c(x) + c(y) → }"
+    }.getMessage shouldEqual "In Site{c + c + c → ...; c + c → ...; c → ...}: Unavoidable indeterminism: reaction {c(x) + c(y) + c(z) → } is shadowed by {c(x) + c(y) → }"
     checkExpectedPipelined(Map(c -> true)) shouldEqual ""
   }
 
@@ -570,7 +570,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
       go { case c(x) if x > 0 => },
       go { case c(x) + a(_) if x > 0 => } // this is a livelock (although we can't detect it!) but we are interested in pipelining of c
     )
-    //    }.getMessage shouldEqual "In Site{a + c → ...; c → ...}: Unavoidable nondeterminism: reaction {a(_) + c(x) => } is shadowed by {c(x) => }"
+    //    }.getMessage shouldEqual "In Site{a + c → ...; c → ...}: Unavoidable indeterminism: reaction {a(_) + c(x) => } is shadowed by {c(x) => }"
     checkExpectedPipelined(Map(c -> true, a -> true)) shouldEqual ""
   }
 

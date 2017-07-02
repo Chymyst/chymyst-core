@@ -214,7 +214,7 @@ tp.shutdownNow() // all reactions running on `tp` will stop
 
 ```
 
-## Nondeterministic choice
+## Non-deterministic choice
 
 Whenever a molecule can start several reactions, the reaction is chosen arbitrarily.
 
