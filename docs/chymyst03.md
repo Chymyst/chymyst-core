@@ -375,26 +375,132 @@ The rest of the reaction body is then moved into a nested auxiliary reaction tha
 This code transformation can be seen as an optimization: When we translate blocking code into non-blocking code, we improve efficiency of the CPU usage because fewer threads will be waiting.
 For this reason, it is desirable to perform this **unblocking transformation** when possible.
 
-If the blocking molecule is emitted inside an `if-then-else` block, or inside a `match-case` block, the unblocking transformation will need more work.
-It will be necessary to introduce multiple auxiliary reply molecules and multiple nested reactions, corresponding to all the possible continuations of the reaction body.
-Also, the transformation may need to duplicate some parts of the code of the reaction body.
+If the blocking molecule is emitted inside an `if-else` or a `match-case` block, the unblocking transformation will need more work.
+Sometimes it will be necessary to introduce multiple auxiliary reply molecules and multiple nested reactions, corresponding to all the possible continuations of the reaction body.
+Also, the transformation may need to duplicate some parts of the reaction body's Scala code.
 
-Similarly, the unblocking transformation becomes more involved when several different blocking molecules are emitted in the same reaction body.
-
-There are some cases where the unblocking transformation seems to be impossible.
-For example, it is impossible to perform the transformation automatically if a blocking molecule is emitted inside a loop, or more generally, within a function scope, because that function could later be called elsewhere by arbitrary code.
-
-In order to ensure the possibility of the unblocking transformation for reaction bodies, `Chymyst` currently prohibits emitting blocking molecules in such contexts.
+As an example, consider this reaction:
 
 ```scala
-val c = m[Unit]
-val f = b[Unit, Unit]
-go { case c(_) ⇒ while (true) f() }
+val a = m[Int]
+val f = b[Unit, Int]
+val g = b[Unit, Int]
+val report = m[Int]
+
+site(go { case a(x) ⇒ 
+  val result = if (x > 0) {
+    1 + f()
+  } else {
+    2 + g()
+  }
+  // use `result` here
+  report(result)
+})
 
 ```
 
-`Error:(245, 8) reaction body must not emit blocking molecules inside function blocks (f(()))`
-`    go { case c(_) ⇒ while (true) f() }`
+The important detail is that the reply values of `f()` and `g()` are used for intermediate computations inside the `if-else` block.
+In this example, the computations are simply adding 1 or 2 to the reply values, but in general there can be arbitrary further computations within each of the two clauses.
+Because of this, the unblocking transformation needs two auxiliary reply molecules, and the Scala code following the `if-else` block needs to be duplicated:
+
+```scala
+val a = m[Int]
+val f = m[M[Int]]
+val g = m[M[Int]]
+val report = m[Int]
+val reply1 = m[Int]
+val reply2 = m[Int]
+
+site(go { case a(x) ⇒ 
+  site(
+    go { case reply1(r) ⇒
+      val result = 1 + r
+      // use `result` here
+      report(result)
+    },
+    go { case reply2(r) ⇒
+      val result = 2 + r
+     // use `result` here
+      report(result) }
+  )
+  if (x > 0) f(reply1) else g(reply2)
+})
+
+```
+
+The duplicated code could be refactored into an auxiliary function or, as shown in the code snippet above, into an emitted molecule `report()`, but the duplication of the `report()` call is unavoidable.
+
+Similarly, the unblocking transformation becomes more involved when several blocking molecules are emitted sequentially within a reaction body:
+
+```scala
+val a = m[Int]
+val f = b[Unit, Int]
+val g = b[Unit, Int]
+val report = m[Int]
+
+site(go { case a(x) ⇒ 
+  val result = f() + g()
+  // use `result` here
+  report(result)
+})
+
+```
+
+The unblocking transformation must be performed first for the `f()` and then for the `g()` call:
+
+```scala
+val a = m[Int]
+val f = b[Unit, Int]
+val g = b[Unit, Int]
+val report = m[Int]
+
+site(go { case a(x) ⇒ 
+  val result = f() + g()
+  // use `result` here
+  report(result)
+})
+
+```
+
+There are some cases where the unblocking transformation is problematic.
+One such case is a blocking molecule emitted inside a loop, or more generally, within a function scope:
+
+```scala
+val f = b[Unit, Int]
+def callF(): Int = {
+  val x = f()
+  val y = f()
+  x + y
+}
+
+```
+
+The unblocking transformation requires us to replace `val x = f()` by an auxiliary reaction such as
+
+```scala
+go { case reply(res) ⇒
+  val x = res
+  // continuation goes here!
+}
+
+```
+
+However, the function `callF()` could be invoked elsewhere in the application code,
+and we cannot insert a fixed continuation code into the auxiliary reaction shown above.
+In such cases, it is impossible to perform the unblocking transformation automatically.
+The programmer would need to redesign the program manually, - for example, replacing the function `callF()` by a molecule emitter `callF` with the corresponding reactions.
+
+In order to ensure the possibility of the unblocking transformation for reaction bodies, `Chymyst` currently prohibits emitting blocking molecules in code contexts that are not guaranteed to be evaluated exactly once:
+
+```scala
+val c = m[Unit]
+val f = b[Int, Int]
+go { case c(_) ⇒ (1 to 10).map(i ⇒ f(i + 1)) }
+
+```
+
+`Error:(245, 8) reaction body must not emit blocking molecules inside function blocks (f(?))`
+`    go { case c(_) ⇒ (1 to 10).map(i ⇒ f(i + 1)) }`
 
 In a future version of `Chymyst`, the unblocking transformation may be performed by macros as an automatic optimization.
 
@@ -402,7 +508,7 @@ In a future version of `Chymyst`, the unblocking transformation may be performed
 
 The unblocking transformation is closely related to programming in the continuation-passing style (CPS).
 
-Let us convert the same code snippet we used to illustrate the unblocking transformation, and convert it to CPS.
+Let us convert to CPS a code snippet we used to illustrate the unblocking transformation.
 
 The initial code snippet:
 
@@ -920,7 +1026,7 @@ If a condition needs to be checked before sending a reply, it should be a simple
 
 In the previous chapter, we have seen the following code for the ordered map/reduce problem:
 
-```
+```scala
 val reduceAll = m[(Array[T], M[T])]
 site(
  go { case reduceAll((arr, res)) ⇒

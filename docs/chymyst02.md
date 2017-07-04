@@ -229,7 +229,7 @@ How could we modify the program so that Readers and Writers exchange values with
 
 Let us assume that the resource contains an integer value, so that `readResource()` returns an `Int` while `writeResource()` takes an `Int` argument.
 
-Since there is no shared mutable state, the only way to pass values is to use molecules.
+Since we do not want to use any shared mutable state, the only way to pass values is to use molecules.
 So let us introduce a `readResult()` molecule with an `Int` value.
 This molecule will carry the value returned by `readResource()`.
 
@@ -312,7 +312,7 @@ site(
 ```
 
 The values of `a` and `b` would need to be passed to the second reaction somehow.
-Since the chemical machine does not support mutable global state, we could pass `a` and `b` as additional values along with `read()` and `readResult()`. 
+Since the chemical machine does not support shared mutable state, we could pass `a` and `b` as additional values along with `read()` and `readResult()`. 
 However, this is a cumbersome workaround that mixes unrelated concerns.
 The `read()` and `readResult()` molecules should be concerned only with the correct implementation of the concurrent access to the `readResource()` operation.
 These molecules should not be carrying any additional values that are used by other parts of the program and are completely unrelated to the `readResource()` operation.

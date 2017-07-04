@@ -74,7 +74,7 @@ Main differences between the chemical machine and the Actor model:
 | several concurrent reactions start automatically whenever several input molecules are available | a desired number of concurrent actors must be created and managed manually |
 | the user's code only manipulates molecules | the user's code must manipulate explicit references to actors as well as messages |
 | reactions typically wait for (and consume) several input molecules at once | actors wait for (and consume) only one input message at a time |
-| reactions are immutable and stateless, all data is stored on molecules | actors can mutate (“become another actor”); actors can hold mutable state |
+| reactions are immutable and stateless, all data is stored on molecules | actors can mutate (“become another actor”); actors hold mutable state |
 | molecules are held in an unordered bag and processed in random order | messages are held in an ordered queue (mailbox) and processed in the order received |
 | molecule data is statically typed | message data is untyped |
 

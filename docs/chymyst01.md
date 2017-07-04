@@ -118,7 +118,7 @@ The reaction body can be a _pure function_ that computes output values solely fr
 If the reaction body is a pure function, it is completely safe (free of contention or race conditions) to execute concurrently several copies of the same reaction.
 Each copy of the reaction will run in its own process, consuming its own set of input molecules and working with its own input values.
 This is how the chemical machine achieves safe and automatic concurrency in a purely functional way,
-with no global mutable state.
+with no shared mutable state.
 
 ## The syntax of `Chymyst`
 
@@ -162,7 +162,7 @@ The task at hand is to maintain a counter with an integer value, which can be in
 It should be safe to increment and decrement the counter from different processes running at the same time.
 
 To implement this in `Chymyst`, we begin by deciding which molecules we will need to use.
-Since there is no global mutable state, it is clear that the integer value of the counter needs to be carried by a molecule.
+Since the chemical machine paradigm does not use shared mutable state, it is clear that the integer value of the counter needs to be carried by a molecule.
 Let's call this molecule `counter` and specify that it carries an integer value:
 
 ```scala
@@ -646,7 +646,7 @@ What we need here is to keep track of how many `data(...)` molecules we already 
 and to print the final result only when we reach the total expected number of the `data(...)` molecules.
 Let us see how to implement this.
 
-Since reactions do not have mutable state, the information about the remaining `data(...)` molecules has to be carried on the `sum(...)` molecule.
+Since reactions do not hold any mutable state, the information about the remaining `data(...)` molecules has to be carried on the `sum(...)` molecule.
 So, we will define the `sum(...)` molecule with type `(Int, Int)`, where the second integer will be the number of `data(...)` molecules that remain to be consumed.
 
 The reaction `data + sum` should proceed only when we know that some `data(...)` molecules are still remaining.
@@ -719,7 +719,7 @@ The chemical machine will then start running all the possible reactions, constan
 
 Let us recapitulate the core ideas of the chemical paradigm of concurrency:
 
-- In the chemical machine, there is no mutable global state; all data is immutable and must be carried by some molecules.
+- In the chemical machine, there is no shared mutable state; all data is immutable and must be carried by some molecules.
 - Each reaction specifies its input molecules, and in this way determines all the data necessary for computing the reaction body.
 The chemical machine will automatically make this data available to a reaction, since the reaction can start only when all its input molecules are present in the soup.
 - A reaction body is a Scala expression that evaluates to `Any`. (The final result value of that expression is discarded.)
