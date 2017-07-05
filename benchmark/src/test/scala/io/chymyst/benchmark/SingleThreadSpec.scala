@@ -6,8 +6,8 @@ import java.util.{Timer, TimerTask}
 
 import io.chymyst.jc.{FixedPool, withPool}
 import io.chymyst.test.LogSpec
-import io.chymyst.util.LtqExecutor
 import io.chymyst.test.Common._
+
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Promise}
 

@@ -1,8 +1,8 @@
-package io.chymyst.util
+package io.chymyst.benchmark
 
 import java.util
 import java.util.concurrent.locks.LockSupport
-import java.util.concurrent.{Callable, ExecutorService, Future, LinkedBlockingQueue, LinkedTransferQueue, TimeUnit}
+import java.util.concurrent.{Callable, ExecutorService, Future, LinkedTransferQueue, TimeUnit}
 
 /* See http://fasterjava.blogspot.co.uk/2014/09/writing-non-blocking-executor.html */
 
