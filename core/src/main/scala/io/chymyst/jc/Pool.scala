@@ -25,6 +25,13 @@ abstract class Pool(val name: String, val priority: Int, private[this] var _repo
 
   def parallelism: Int
 
+  /** Create a new task queue. This is used to create the worker task queue and also to create the scheduler task queue.
+    *
+    * Possible implementations include [[LinkedBlockingQueue]] and [[LinkedTransferQueue]].
+    * @return A new instance of a [[BlockingQueue]].
+    */
+  def createQueue: BlockingQueue[Runnable] = new LinkedTransferQueue[Runnable]()
+
   /** Run a reaction closure on the thread pool.
     * The reaction closure will be created by [[ReactionSite.reactionClosure]].
     *
@@ -54,7 +61,7 @@ abstract class Pool(val name: String, val priority: Int, private[this] var _repo
     tg
   }
 
-  private val schedulerQueue: BlockingQueue[Runnable] = new LinkedBlockingQueue[Runnable]
+  private val schedulerQueue: BlockingQueue[Runnable] = createQueue
 
   private val schedulerThreadFactory: ThreadFactory = { (r: Runnable) ⇒ new Thread(threadGroup, r, toString + ",scheduler_thread") }
 
@@ -66,7 +73,7 @@ abstract class Pool(val name: String, val priority: Int, private[this] var _repo
 
   private[jc] def runScheduler(runnable: Runnable): Unit = schedulerExecutor.execute(runnable)
 
-  private val workerQueue: BlockingQueue[Runnable] = new LinkedBlockingQueue[Runnable]
+  private val workerQueue: BlockingQueue[Runnable] = createQueue
 
   private val workerThreadFactory: ThreadFactory = { (r: Runnable) ⇒ new ChymystThread(r, Pool.this) }
 

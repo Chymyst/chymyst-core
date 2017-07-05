@@ -99,7 +99,7 @@ object Common {
     (a0, a1, eps)
   }
 
-  private def showRegression(message: String, resultsRaw: Seq[Double]): Unit = {
+  def showRegression(message: String, resultsRaw: Seq[Double]): Unit = {
     // Perform regression to determine the effect of JVM warm-up.
     // Assume that the warm-up works as a0 + a1*x^(-c). Try linear regression with different values of c.
     val total = resultsRaw.length
@@ -133,7 +133,7 @@ object Common {
     println(s"Plot file produced in $plotdir$plotfile.pdf")
   }
 
-  private def showStd(message: String, results: Seq[Double], factor: Double): Unit = {
+  def showStd(message: String, results: Seq[Double], factor: Double = 20.0): Unit = {
     val total = results.length
     val take = (total / factor).toInt
     val (mean, std) = meanAndStdev(results.sortBy(-_).takeRight(take))
