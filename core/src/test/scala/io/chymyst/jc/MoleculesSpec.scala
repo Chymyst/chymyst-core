@@ -289,10 +289,10 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
       val p = m[M[Int]]
       val c = m[Int]
       site(tp0)(
-        go { case p(s) => if (i % 5 == 0) Thread.sleep(20); s(123) } // Some reactions will start later.
+        go { case p(s) => if (i % 5 == 0) Thread.sleep(150); s(123) } // Some reactions will start later.
       )
-      p(c)
-      if (i % 30 == 0) Thread.sleep(20)
+      p(c) // The reaction above will sometimes emit c() even though no reaction for c() is defined yet.
+      if (i % 6 == 0) Thread.sleep(150)
       site(tp0)(
         go { case c(x) ⇒ }
       )
@@ -317,7 +317,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     (1 to total).foreach { i =>
       val a = m[M[Int]]
       site(tp1)(
-        go { case a(s) => if (i % 25 == 0) Thread.sleep(20); s(123) }
+        go { case a(s) => if (i % 25 == 0) Thread.sleep(150); s(123) }
       )
 
       val begin = m[Unit]
