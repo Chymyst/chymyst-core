@@ -17,8 +17,8 @@ $ sbt
 val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   organization := "io.chymyst",
   version := "0.2.1-SNAPSHOT",
-  scalaVersion := "2.12.2",
-  crossScalaVersions := Seq("2.11.11", "2.12.2"),
+  scalaVersion := "2.12.3",
+  crossScalaVersions := Seq("2.11.11", "2.12.3"),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases"),
@@ -94,7 +94,7 @@ lazy val buildAll = (project in file("."))
     tutSourceDirectory := (sourceDirectory in core in Compile).value / "tut",
     tutTargetDirectory := baseDirectory.value / "docs", //(crossTarget in core).value / "tut",
     scalacOptions in Tut := scalacOptions.value.filterNot(disableWarningsForTut.contains),
-    name := "buildAll"
+    name := "chymyst-core-root"
   )
   .dependsOn(core % "compile->compile;test->test")
   .aggregate(core, benchmark)
