@@ -298,8 +298,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
       )
     }
     val errors = memLog.messages.count(_ contains "Molecule c is not bound to any reaction site")
-    // Sometimes (on fast machines) the reaction always produces an exception, in which case the result is `total` exceptions.
-    // Since this is expected and correct behavior, we should not fail the test when the reaction starts too fast to avoid the exception.
+
     println(s"unbound molecule exceptions, test 1: $errors errors out of $total runs")
     errors should be > 0
     errors should be < total
@@ -317,7 +316,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     (1 to total).foreach { i =>
       val a = m[M[Int]]
       site(tp1)(
-        go { case a(s) => if (i % 25 == 0) Thread.sleep(150); s(123) }
+        go { case a(s) => if (i % 5 == 0) Thread.sleep(150); s(123) }
       )
 
       val begin = m[Unit]
@@ -325,7 +324,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
         go { case begin(_) =>
           val e = m[Int]
           a(e) // The reaction for `a` will emit `e(123)`, unless it crashes due to `e` being unbound.
-          if (i % 20 == 0) Thread.sleep(2 * i)
+          if (i % 6 == 0) Thread.sleep(2 * i + 50)
           site(tp0)(
             go { case e(y) ⇒ }
           )
