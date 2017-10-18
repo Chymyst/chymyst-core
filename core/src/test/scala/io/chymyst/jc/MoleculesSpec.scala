@@ -454,7 +454,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     c("xyz")
 
     val result = g.timeout()(1500 millis)
-    result shouldEqual Some("")
+    result shouldEqual Some("<logSoup is disabled on reaction threads!>")
   }
 
   behavior of "fault-tolerant resume facility"
