@@ -6,7 +6,7 @@ import io.chymyst.test.LogSpec
 
 class MultithreadSpec extends LogSpec {
 
-  it should "run time-consuming tasks on many threads much faster than on one thread" in {
+  it should "run time-consuming tasks on many threads faster than on one thread" in {
 
     def runWork(threads: Int) = {
 
@@ -39,6 +39,6 @@ class MultithreadSpec extends LogSpec {
 
     println(s"with 1 thread $result1 ms, with 8 threads $result8 ms")
 
-    (3 * result8 / 2) should be < result1
+    (3 * result1 / 4) should be > result8
   }
 }

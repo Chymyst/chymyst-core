@@ -1308,17 +1308,17 @@ go { case res(x) + res(y) ⇒ res(x ++ y) }
 
 The result of this chemistry will be that eventually a single `res(r)` molecule will be present in the soup, and its value `r` will be the final result value.
 There remains, however, a major problem with the code as written so far: it does not terminate!
-The chemistry does not know how many `task` molecules to expect, and the code keeps waiting for more `task(...)` molecules to be emitted into the soup.
+The chemical machine does not know how many `task` molecules to expect, and so it keeps waiting for more `task(...)` molecules to be emitted into the soup.
 
-Not knowing when molecules are emitted is a fundamental feature of programming in the chemical machine paradigm.
+Not knowing _when_ molecules are emitted is a fundamental feature of programming in the chemical machine paradigm.
 That feature makes the programs robust with respect to accidental slowness of the computer, making race conditions impossible.
-The price is the need for additional "bookkeeping" in programs that need to wait until a number of tasks are finished.
+The price is the need for additional bookkeeping in programs that need to wait until a number of tasks are finished.
 
-In previous chapters, we have already seen two examples of this bookkeeping.
-In the "map/reduce" pattern, we put an additional counter on the `result` molecules so that we know when we finished aggregating the partial results.
+In previous chapters, we have already seen two examples of this kind of bookkeeping.
+In the "map/reduce" pattern, we had put an additional counter on the `result` molecules so that we would know when we finish aggregating the partial results.
 In the "merge/sort" example, we used a recursive chemical reaction to make sure that the computation tree terminates.
 
-The recursive code is elegant in its way but makes reasoning more complicated.
+The recursive code is elegant in its way, but makes reasoning more complicated.
 Let us first try to achieve termination by using a counter.
 
 If `Counter` represents the type of the counter value, we might write code similarly to the "map/reduce" pattern where we add up the counters on `res()` molecules until the total accumulated count reaches a predefined value:

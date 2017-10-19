@@ -220,7 +220,7 @@ sealed trait MolEmitter extends PersistentHashCode {
     */
   final def logSoup: String = ensureReactionSite {
     if (isChymystThread)
-      ""
+      "<logSoup is disabled on reaction threads!>"
     else reactionSite.printBag
   }
 

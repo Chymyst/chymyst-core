@@ -600,8 +600,8 @@ Note that reaction sites may contain molecules whose emitters are not visible to
 It is important to guarantee that the user does not have access to those emitters.
 Since `logSoup()` returns a `String`, it will not contain any emitter values (but may reveal the names of the emitters that the user has no access to).
 
-Currently, `logSoup()` is allowed only outside reactions; it will return an empty string if used on a reaction thread.
-User code should not use `logSoup()` to implement the logic of the concurrent application.
+Currently, `logSoup()` is allowed only outside reactions; it will return an error string if used on a reaction thread.
+User code should never depend on the output of `logSoup()` for implementing the logic of a concurrent application.
 
 ## Event reporters
 
