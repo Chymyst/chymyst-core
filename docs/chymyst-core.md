@@ -5,7 +5,7 @@
 `Chymyst Core` provides an embedded DSL for declarative concurrency in Scala.
 It follows the **chemical machine** paradigm and provides high-level, purely functional concurrency primitives used by the `Chymyst` framework.
 
-Currently, it compiles with Scala 2.11 and Scala 2.12 on Oracle JDK 8.
+Currently, it is tested with Scala 2.11 and Scala 2.12 on Oracle JDK 8.
 
 # Main structures
 
