@@ -17,8 +17,8 @@ $ sbt
 val commonSettings = Defaults.coreDefaultSettings ++ Seq(
   organization := "io.chymyst",
   version := "0.2.1-SNAPSHOT",
-  scalaVersion := "2.12.3",
-  crossScalaVersions := Seq("2.11.11", "2.12.3"),
+  scalaVersion := "2.12.4",
+  crossScalaVersions := Seq("2.11.11", "2.12.4"),
   resolvers ++= Seq(
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases"),
@@ -38,7 +38,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     //    "-language:existentials",
     "-language:higherKinds",
     "-language:implicitConversions",
-    "-opt:l:project",
+//    "-opt:l:project", // this is deprecated
     "-Yvirtpatmat",
     "-Ydelambdafy:inline",
     // "-Xfatal-warnings",

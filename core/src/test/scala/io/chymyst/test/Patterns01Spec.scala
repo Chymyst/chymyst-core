@@ -227,10 +227,10 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
   }
 
   it should "implement dance pairing without queue labels" in {
-    val man = m[Unit]
+    val man = m[Int]
     val manL = m[Int]
     val queueMen = m[Int]
-    val woman = m[Unit]
+    val woman = m[Int]
     val womanL = m[Int]
     val queueWomen = m[Int]
     val beginDancing = m[Int]
@@ -254,10 +254,10 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     )
     checkExpectedPipelined(Seq(man, woman, queueMen, queueWomen, manL, womanL).map(_ → true).toMap) shouldEqual ""
 
-    (0 until total / 2).foreach(_ => man())
+    (0 until total / 2).foreach(x => man(x))
     danceCounter.volatileValue shouldEqual Nil
-    (0 until total / 2).foreach(_ => man() + woman())
-    (0 until total / 2).foreach(_ => woman())
+    (0 until total / 2).foreach(x => man(x) + woman(x))
+    (0 until total / 2).foreach(x => woman(x))
 
     val initTime = System.currentTimeMillis()
     val ordering = done()
