@@ -38,7 +38,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     //    "-language:existentials",
     "-language:higherKinds",
     "-language:implicitConversions",
-    "-opt:l:project",
+//    "-opt:l:project", // this is deprecated
     "-Yvirtpatmat",
     "-Ydelambdafy:inline",
     // "-Xfatal-warnings",
