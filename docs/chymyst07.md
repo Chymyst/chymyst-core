@@ -1205,14 +1205,14 @@ Represented in this way, a state machine is translated into declarative code, at
 ### Ordered `m` : `n` Readers/Writers
 
 The Readers/Writers problem is now reformulated with a new requirement that processes should gain access to the resource in the order they requested it.
-The solution must support `m` concurrent Readers and `n` concurrent Writers.
+The code must limit the access to either `m` concurrent Readers or `n` concurrent Writers (but not both).
 
 TODO
 
 ### Fair `m` : `n` Readers/Writers ("Unisex bathroom")
 
 The key new requirement is that Readers and Writers should be able to work starvation-free.
-Even if there is a heavy stream of Readers and the ratio is `n` to `1`, a single incoming Writer should not wait indefinitely.
+Even if there is a heavy stream of Readers and a single incoming Writer, the Writer should not wait indefinitely.
 The program should guarantee a fixed upper limit on the waiting time for both Readers and Writers.
 
 The parameters `m` and `n` should allow the program to optimize its throughput when the incoming stream of Readers and Writers has the average ratio `m` : `n`.
