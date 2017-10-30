@@ -228,7 +228,7 @@ Repeating the same consideration for each reaction consuming `c()`, we obtain a 
 
 Now, the conditions for `c()` to be pipelined are that
 
-- each reaction's Boolean formula must be equivalent to a simple Boolean _conjunction_ of the form `p(x) && q(y, z, ...)`, and
+- each reaction's Boolean formula can be identically rewritten as a simple Boolean _conjunction_ of the form `p(x) && q(y, z, ...)`, where
 - the Boolean function `p(x)` involves only the value `x` and must be the same for all reactions, while `q(...)` could be different for each reaction,
 involving the presence of any other molecules and their specific values, but independent of `x`.
 
@@ -241,19 +241,52 @@ If this succeeds with `p(x)` being _the same for all reactions_, `Chymyst` deter
 `Chymyst` will then assign the `.isPipelined` property of the molecule emitter to `true` for that molecule.
 In debug output, the names of pipelined molecules will be suffixed with `/P`.
 
+Here is an example of a reaction site where some molecules are pipelined but others are not:
+
+```scala
+site(
+  go { case a(x) if x > 0 + e(_) ⇒ ... },
+  go { case a(x) + c(y) if x > 0 ⇒ ... },
+  go { case d(z) + c(y) if y > 0 ⇒ ...}
+)
+
+```
+
+In this program, `a(x)` can be consumed if and only if `x > 0`.
+This condition is the same for the two reactions that consume `a()`.
+Therefore, the condition for consuming `a(x)` has the form `x > 0 && q(...)` for some Boolean function `q()` that does not depend on `x`.
+`Chymyst` will determine that `a()` can be pipelined.
+
+The situation with the molecule `c()` is different:
+The second reaction accepts `c(y)` with any `y` but the third reaction requires `y > 0`.
+Therefore the Boolean condition for consuming `c(y)` has the form
+
+`q1(HAVE(a(x)), x) || y > 0 && Q2(HAVE(d(z)))`
+
+This formula cannot be decomposed into a conjunction of the form `p(y) && q(x, z, ...)`
+So the molecule `c()` cannot be pipelined in this reaction site.
+
+Finally, the molecule `d()` is pipelined because it is consumed without imposing any conditions on its value.
+Such molecules can be always pipelined.
+
 ### Derivation of the simplified condition
 
+This subsection shows a formal derivation of the pipelined condition using Boolean logic.
+Readers not interested in this theory may skip to next section.
+
 Consider a set of reactions, each consuming a single instance of `c(x)`.
-For each reaction `r`, we have a Boolean formula of the form `f`<sub>`r`</sub>`(x, y, z, HAVE(d(y)), HAVE(e(z)), ...)` that depends on a number of other variables.
+For each reaction `r`, we have a Boolean function of the form `f`<sub>`r`</sub>`(x, y, z, HAVE(d(y)), HAVE(e(z)), ...)` that depends on a number of other variables.
 
 Here, the symbolic expressions such as `HAVE(d(y))` are understood as simple Boolean variables.
 Values of these variables, as well as values of `y`, `z`, etc., describe the current population of molecules in the soup, excluding the molecule `c(x)`.
 For brevity, we denote all these "external" variables by `E` (these variables do not include `x`).
 
-The condition for a molecule `c(x)` to be consumed by any reaction is the disjunction of all `f`<sub>`r`</sub>`(x, E)`.
-Let us denote this disjunction by `F(x, E)`. 
+The condition for a molecule `c(x)` to be consumed by any reaction is the Boolean disjunction of all the per-reaction functions `f`<sub>`r`</sub>`(x, E)`.
+Let us denote this disjunction by `F(x, E)`:
 
-We will now show that the complicated requirements of Property 2 in the previous section are equivalent to the single requirement that
+`F(x, E) = `f`<sub>`r_1`</sub>`(x, E) || f`<sub>`r_2`</sub>`(x, E) || ... || f`<sub>`r_n`</sub>`(x, E)`.
+
+We will now show that the complicated requirements of Property 2 from the previous section are equivalent to the single requirement that
 
 `F(x, E) = p(x) && q(E)`,
 
@@ -265,17 +298,15 @@ Property 2 states that, for any `x` and at any time (i.e. for any `E`), one of t
 2. The molecule `c(x)` can be consumed immediately by some reaction.
 3. The molecule `c(x)` cannot be consumed immediately by any reaction, but also no other molecule instance `c(y)` with any `y != x` could be consumed immediately by any reaction, if that `c(y)` were present in the soup.
 
-Let us formulate these conditions in terms of the function `F(x, E)`:
+Let us formulate these conditions in terms of the function `F(x, E)`, where `x` and `E` describe the soup at the present time:
 
-1. `∀ E : !F(x, E)`
+1. `∀ E1 : !F(x, E1)`
 2. `F(x, E)`
-3. `∀ x : !F(x, E)`
+3. `∀ x1 : !F(x1, E)`
 
 The disjunction of these three Boolean formulas must be `true` for all `x` and `E`:
 
 `∀ x : ∀ E : (∀ E1 : !F(x, E1)) || F(x, E) || (∀ x1 : !F(x1, E))`.
-
-Here we have renamed some bound variables to avoid name clashes.
 
 We will use some tricks of Boolean algebra to prove that this formula is identically equivalent to
 
@@ -349,7 +380,39 @@ We use this identity to rewrite the result of step (2) as
 This is precisely the expression (**).
 Therefore, we find that for all `x` and `E` the Boolean function `F(x, E)` is equal to the conjunction `p(x) && q(E)`.
 
-_Q.E.D._
+Note that we have proved the decomposition of `F(x, E)` rather than each of the per-reaction functions `f`<sub>`r`</sub>`(x, E)`.
+If each of the per-reaction functions is decomposable with the same `p(x)`, their disjunction `F(x, E)` is also decomposable;
+but the converse does not hold.
+
+`Chymyst` checks that each per-reaction Boolean function is decomposed as a conjunction `p(x) && ...` with the same `p(x)`.
+Therefore, the condition actually checked by `Chymyst` is a sufficient (but not a necessary) condition for the molecule to be pipelined.
+
+The result is that `Chymyst` might, in rare cases, fail to determine that some molecules could be pipelined.
+The lack of pipelining is safe and will, at worst, lead to some degradation of performance.
+
+It would have been nearly impossible to obtain `F(x, E)` symbolically and to implement the strict necessary condition,
+because `x` and `E` are variables with values of arbitrary types (e.g. `Int`, `Double`, `String` and so on),
+which are not easily described through Boolean algebra.
+
+As an (admittedly artificial) example, consider the reaction site
+
+```scala
+site(
+  go { case c(x) + d(y) if x >= 0 && y > 0 ⇒ ... },
+  go { case c(x) + d(y) if x >= 0 && y < 1 ⇒ ... },
+  go { case c(x) + d(y) if x < 0 ⇒ ... }
+)
+
+```
+
+The Boolean condition for consuming `c(x)` has the form
+
+`HAVE(d(y)) && (x >= 0 && y > 0 || x >= 0 && y < 1 || x < 0)`
+
+This condition is equivalent to `HAVE(d(y))` because `y > 0 || y < 1` is equivalent to `true`.
+Thus, the molecule `c()` can be pipelined.
+However, `Chymyst` cannot deduce that `y > 0 || y < 1` is equivalent to `true` because simplifying numerical inequalities
+goes far beyond Boolean logic and may even be undecidable in some cases. 
 
 # Reaction constructors
 
