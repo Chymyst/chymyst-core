@@ -39,6 +39,8 @@ Oct. 16, 2017: Talk given at the [Scala Bay meetup](https://www.meetup.com/Scala
 - [Talk slides with audio](https://youtu.be/Iu2KBYNF-6M)
 - See also the [talk slides (PDF)](https://github.com/winitzki/talks/blob/master/join_calculus/join_calculus_2017_Scala_Bay.pdf) and the [code examples for the talk](https://github.com/Chymyst/jc-talk-2017-examples).
 
+July 2017: [Draft of an academic paper](https://github.com/winitzki/talks/blob/master/join-calculus-paper/join-calculus-paper.pdf) describing Chymyst and its approach to join calculus
+
 Nov. 11, 2016: Talk given at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala):
 
 - [Video presentation of early version of `Chymyst Core`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
