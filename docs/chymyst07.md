@@ -27,7 +27,7 @@ def wait_forever(): B[Unit, Unit] = {
   val godot = m[Unit]
   val waiting_for = b[Unit, Unit]
 
-  site ( go { case  waiting_for(_, r) + godot(_) => r() } )
+  site ( go { case  waiting_for(_, r) + godot(_) ⇒ r() } )
   
   // We do not emit `godot` here, which is the key to preventing this reaction from starting.
   
@@ -69,11 +69,11 @@ A convenient implementation is to define a function that will return an emitter 
 *                 to be emitted when the computation is done
 * @return A new non-blocking molecule that will start the job
 */
-def submitJob[R](closure: () => R, finished: M[R]): M[R] = {
+def submitJob[R](closure: () ⇒ R, finished: M[R]): M[R] = {
   val startJobMolecule = m[Unit] // Declare a new emitter.
 
   site (
-    go { case startJobMolecule(_) =>
+    go { case startJobMolecule(_) ⇒
       val result = closure()
       finished(result) 
     }
@@ -92,11 +92,11 @@ However, we lose some polymorphism since Scala values cannot be parameterized by
 The `startJobMolecule` cannot have type parameters and so has to carry values of type `Any`:
 
 ```scala
-val startJobMolecule = new M[() => Any, M[Any])]
+val startJobMolecule = new M[() ⇒ Any, M[Any])]
 
 site (
   go {
-    case startJobMolecule(closure, finished) =>
+    case startJobMolecule(closure, finished) ⇒
       val result = closure()
       finished(result)
   }
@@ -107,12 +107,12 @@ site (
 A solution to this difficulty is to create a method that is parameterized by type and returns a `startJobMolecule`:
 
 ```scala
-def makeStartJobMolecule[R]: M[(() => R, M[R])] = {
-  val startJobMolecule = m[(() => R, M[R])]
+def makeStartJobMolecule[R]: M[(() ⇒ R, M[R])] = {
+  val startJobMolecule = m[(() ⇒ R, M[R])]
 
   site (
     go {
-      case startJobMolecule(closure, finished) =>
+      case startJobMolecule(closure, finished) ⇒
         val result = closure()
         finished(result)
    }
@@ -131,7 +131,7 @@ We would like to implement a blocking molecule `all_done()` that will block unti
 
 To begin reasoning about the necessary molecules and reactions, consider that `done()` must react with some other molecule that keeps track of how many `done()` molecules remain to be seen.
 Call this other molecule `remaining(k)` where `k` is an integer value showing how many `done()` molecules were already seen.
-The reaction should have the form `done() + remaining(k) => ...`, and it is clear that the reaction should consume `done()`, otherwise the reaction will start with it again.
+The reaction should have the form `done() + remaining(k) ⇒ ...`, and it is clear that the reaction should consume `done()`, otherwise the reaction will start with it again.
 So the reaction will look like this:
 
 ```scala
@@ -139,7 +139,7 @@ val done = m[Unit]
 val remaining = m[Int]
 
 site(
-  go { done(_) + remaining(k) => remaining(k - 1) }
+  go { done(_) + remaining(k) ⇒ remaining(k - 1) }
 )
 remaining(n) // Emit the molecule with value `n`,
 // which is the initial number of remaining `done()` molecules.
@@ -153,11 +153,11 @@ Therefore, the reaction is
 ```scala
 val all_done = b[Unit,Unit]
 
-go { all_done(_, reply) + remaining(0) => reply() }
+go { all_done(_, reply) + remaining(0) ⇒ reply() }
 
 ```
 
-Since this reaction consumes `remaining()`, it should be declared at the same reaction site as the `{ done + remaining => ... }` reaction.
+Since this reaction consumes `remaining()`, it should be declared at the same reaction site as the `{ done + remaining ⇒ ... }` reaction.
 
 The complete code is
 
@@ -167,8 +167,8 @@ val remaining = m[Int]
 val all_done = b[Unit,Unit]
 
 site(
-  go { done(_) + remaining(k) if k > 0 => remaining(k - 1) }, // Adding a guard to be safe.
-  go { all_done(_, reply) + remaining(0) => reply() }
+  go { done(_) + remaining(k) if k > 0 ⇒ remaining(k - 1) }, // Adding a guard to be safe.
+  go { all_done(_, reply) + remaining(0) ⇒ reply() }
 )
 remaining(n) // Emit the molecule with value `n`,
 // which is the initial number of remaining `done()` molecules.
@@ -189,7 +189,7 @@ After emitting the input molecules for these reactions to start, we call `all_do
 val begin = m[Int]
 
 site(
-  go { begin(x) => long_computation(x); done() )}
+  go { begin(x) ⇒ long_computation(x); done() )}
 )
 val n = 10000
 (1 to n).foreach(begin) // Emit begin(1), begin(2), ..., begin(10000) now.
@@ -227,8 +227,8 @@ def make_all_done(n: Int): (M[Unit], B[Unit, Unit]) = {
   val all_done = b[Unit,Unit]
   
   site(
-    go { done(_) + remaining(k) if k > 0 => remaining(k - 1) }, // Adding a guard to be safe.
-    go { all_done(_, reply) + remaining(0) => reply() }
+    go { done(_) + remaining(k) if k > 0 ⇒ remaining(k - 1) }, // Adding a guard to be safe.
+    go { all_done(_, reply) + remaining(0) ⇒ reply() }
   )
   remaining(n)
   
@@ -246,7 +246,7 @@ val n = 10000
 val (done, all_done) = make_all_done(n)
 
 site(
-  go { begin(x) => long_computation(x); done() )}
+  go { begin(x) ⇒ long_computation(x); done() )}
 )
 
 (1 to n).foreach(begin) // Emit begin(1), begin(2), ..., begin(10000) now.
@@ -264,14 +264,14 @@ Let us take the code we just saw for `make_all_done()` and try to modify it for 
 The key reaction
 
 ```scala
-go { done(_) + remaining(k) if k > 0 => remaining(k - 1) }
+go { done(_) + remaining(k) if k > 0 ⇒ remaining(k - 1) }
 
 ```
 
 now needs to be modified because we must reply to the `done()` molecule at some point in that reaction:
 
 ```scala
-go { done(_, r) + remaining(k) if k > 0 => r() + remaining(k - 1) }
+go { done(_, r) + remaining(k) if k > 0 ⇒ r() + remaining(k - 1) }
 
 ```
 
@@ -291,7 +291,7 @@ If `doWork()` is already being called by one process, all other processes trying
 How would we solve this problem using the chemical machine?
 Since our only way to control concurrency is by manipulating molecules, we need to organize the chemistry such that `doWork()` is only called when certain molecules are available.
 In other words, `doWork()` must be called by a _reaction_ that consumes certain molecules whose presence or absence we will control.
-The reaction must be of the form `case [some molecules] => ... doWork() ...`.
+The reaction must be of the form `case [some molecules] ⇒ ... doWork() ...`.
 Let us call it the "worker reaction".
 Our code must be such that the only way to call `doWork()` is by starting this reaction.
 
@@ -305,7 +305,7 @@ Let us call that molecule `access()`.
 The worker reaction will then look like this:
 
 ```scala
-go { case access(_) + request(_, r) => ... doWork() ... }
+go { case access(_) + request(_, r) ⇒ ... doWork() ... }
 
 ```
 
@@ -324,7 +324,7 @@ After these considerations, the worker reaction becomes
 
 ```scala
 site (
-  go { case access(_) + request(_, reply) => reply(doWork()) + access() }
+  go { case access(_) + request(_, reply) ⇒ reply(doWork()) + access() }
 )
 access() // Emit just one copy of `access`.
 
@@ -349,20 +349,20 @@ The following code defines a convenience function that wraps `doWork()` and prov
 This illustrates how we can easily and safely package new chemistry into a reusable function.
 
 ```scala
-def wrapWithAccess[T](allowed: Int, doWork: () => T): () => T = {
+def wrapWithAccess[T](allowed: Int, doWork: () ⇒ T): () ⇒ T = {
   val access = m[Unit]
   val request = b[Unit, T]
 
   site (
-    go { case access(_) + request(_, reply) => reply(doWork()) + access() }
+    go { case access(_) + request(_, reply) ⇒ reply(doWork()) + access() }
   )
 
   (1 to n).foreach(access) // Emit `n` copies of `access`.
-  val result: () => T = () => request()
+  val result: () ⇒ T = () ⇒ request()
   result
 }
 // Example usage:
-val doWorkWithTwoAccesses = wrapWithAccess(2, () => println("do work"))
+val doWorkWithTwoAccesses = wrapWithAccess(2, () ⇒ println("do work"))
 // Now `doWork()` will be called by at most 2 processes at a time.
 
 // ... start a new process, in which:
@@ -388,20 +388,20 @@ We just need to change the type of `access` from `M[Unit]` to `M[TokenType]`, wh
 Here is the modified code:
 
 ```scala
-def wrapWithAccessTokens[T, TokenType](tokens: Set[TokenType], doWork: TokenType => T): () => T = {
+def wrapWithAccessTokens[T, TokenType](tokens: Set[TokenType], doWork: TokenType ⇒ T): () ⇒ T = {
   val access = m[TokenType]
   val request = b[Unit, T]
 
   site (
-    go { case access(token) + request(_, reply) => reply(doWork(token)); access(token) }
+    go { case access(token) + request(_, reply) ⇒ reply(doWork(token)); access(token) }
   )
 
   tokens.foreach(access) // Emit `tokens.size` copies of `access(...)`, putting a token on each molecule.
-  val result: () => T = () => request()
+  val result: () ⇒ T = () ⇒ request()
   result
 }
 // Example usage:
-val doWorkWithTwoAccesses = wrapWithAccessTokens(Set("token1", "token2"), t => println(s"do work with token $t"))
+val doWorkWithTwoAccesses = wrapWithAccessTokens(Set("token1", "token2"), t ⇒ println(s"do work with token $t"))
 // Now `doWork()` will be called by at most 2 processes at a time.
 
 // ... start a new process, in which:
@@ -443,7 +443,7 @@ val beginCritical = b[Unit, Unit]
 val access = m[Unit]
 
 site(
-  go { case beginCritical(_, reply) + access(_) => ???; reply(); ??? }
+  go { case beginCritical(_, reply) + access(_) ⇒ ???; reply(); ??? }
 )
 access() // Emit only one copy.
 
@@ -470,10 +470,10 @@ val beginCritical = b[Unit, M[Unit]]
 val access = m[Unit]
 
 site (
-  go { case beginCritical(_, reply) + access(_) =>
+  go { case beginCritical(_, reply) + access(_) ⇒
     val endCritical = m[Unit] // Declare a new emitter, unique for this call to `beginCritical`.
     site (
-      go { case endCritical(_) => ??? }
+      go { case endCritical(_) ⇒ ??? }
     )
     reply(endCritical) // beginCritical() returns the new emitter.
   }
@@ -500,10 +500,10 @@ val beginCritical = b[Unit, M[Unit]]
 val access = m[Unit]
 
 site (
-  go { case beginCritical(_, reply) + access(_) =>
+  go { case beginCritical(_, reply) + access(_) ⇒
     val endCritical = m[Unit] // Declare a new emitter.
     site (
-      go { case endCritical(_) => access() }
+      go { case endCritical(_) ⇒ access() }
     )
     reply(endCritical) // beginCritical() returns the new emitter.
   }
@@ -532,11 +532,11 @@ val beginCritical = b[Unit, M[Unit]]
 val access = m[Unit]
 
 site (
-  go { case beginCritical(_, reply) + access(_) =>
+  go { case beginCritical(_, reply) + access(_) ⇒
     val endCritical = m[Unit] // Declare a new emitter.
     val beganOnce = m[Unit]
     site (
-      go { case endCritical(_) + beganOnce(_) => access() }
+      go { case endCritical(_) + beganOnce(_) ⇒ access() }
     )
     beganOnce() // Emit only one copy.
     reply(endCritical) // beginCritical() returns the new emitter.
@@ -593,11 +593,11 @@ def newCriticalSectionMarker(): B[Unit, M[Unit]] = {
   val access = m[Unit]
 
   site (
-    go { case beginCritical(_, reply) + access(_) =>
+    go { case beginCritical(_, reply) + access(_) ⇒
       val endCritical = m[Unit] // Declare a new emitter.
       val beganOnce = m[Unit]
       site (
-        go { case endCritical(_) + beganOnce(_) => access() }
+        go { case endCritical(_) + beganOnce(_) ⇒ access() }
       )
       beganOnce() // Emit only one copy.
       reply(endCritical) // beginCritical() returns the new emitter.
@@ -644,13 +644,13 @@ val begin1 = m[Unit]
 val begin2 = m[Unit]
 
 site(
-  go { case begin1(_) =>
+  go { case begin1(_) ⇒
     val x1 = 123 // some computation
     ??? // send x1 to Process 2 somehow
     val y1 = ??? // receive value from Process 2
     val z = further_computation_1(y1)
    },
-  go { case begin2(_) =>
+  go { case begin2(_) ⇒
     val x2 = 456 // some computation
     ??? // send x2 to Process 1 somehow
     val y2 = ??? // receive value from Process 1
@@ -682,14 +682,14 @@ val begin2 = m[Unit]
 val barrier = b[Unit,Unit]
 
 site(
-  go { case begin1(_) =>
+  go { case begin1(_) ⇒
     val x1 = 123 // some computation
     barrier(x1) 
     ??? // send x1 to Process 2 somehow
     val y1 = ??? // receive value from Process 2
     val z = further_computation_1(y1)
    },
-  go { case begin2(_) =>
+  go { case begin2(_) ⇒
     val x2 = 456 // some computation
     barrier(x2)
     ??? // send x2 to Process 1 somehow
@@ -713,12 +713,12 @@ val begin2 = m[Unit]
 val barrier = b[Int,Int]
 
 site(
-  go { case begin1(_) =>
+  go { case begin1(_) ⇒
     val x1 = 123 // some computation
     val y1 = barrier(x1) // receive value from Process 2 
     val z = further_computation_1(y1)
    },
-  go { case begin2(_) =>
+  go { case begin2(_) ⇒
     val x2 = 456 // some computation
     val y2 = barrier(x2) // receive value from Process 1
     val z = further_computation_2(y2)
@@ -737,7 +737,7 @@ The easiest solution is to just let these two molecules react with each other.
 The reaction will then reply to both of them, exchanging the reply values. 
 
 ```scala
-go { case barrier(x1, reply1) + barrier(x2, reply2) => reply1(x2) + reply2(x1) }
+go { case barrier(x1, reply1) + barrier(x2, reply2) ⇒ reply1(x2) + reply2(x1) }
 
 ```
 
@@ -750,17 +750,17 @@ val begin2 = m[Unit]
 val barrier = b[Int,Int]
 
 site(
-  go { case begin1(_) =>
+  go { case begin1(_) ⇒
     val x1 = 123 // some computation
     val y1 = barrier(x1) // receive value from Process 2 
     val z = further_computation_1(y1)
    },
-  go { case begin2(_) =>
+  go { case begin2(_) ⇒
     val x2 = 456 // some computation
     val y2 = barrier(x2) // receive value from Process 1
     val z = further_computation_2(y2)
    },
-   go { case barrier(x1, reply1) + barrier(x2, reply2) => reply1(x2) + reply2(x1) }
+   go { case barrier(x1, reply1) + barrier(x2, reply2) ⇒ reply1(x2) + reply2(x1) }
 )
 begin1() + begin2() // emit both molecules to enable starting the two reactions
 
@@ -784,7 +784,7 @@ We could store these emitters in an array and also define an array of correspond
 However, we notice a problem when we try to generalize the reaction that performs the rendezvous:
 
 ```scala
-go { case barrier(x1, reply1) + barrier(x2, reply2) => ... }
+go { case barrier(x1, reply1) + barrier(x2, reply2) ⇒ ... }
 
 ```
 
@@ -799,7 +799,7 @@ We need a molecule, say `counter()`, to carry the integer value that shows the n
 Therefore, we need a reaction like this:
 
 ```scala
-go { case barrier(_, reply) + counter(k) ⇒ 
+go { case barrier(_, reply) + counter(k) ⇒
   ???
   if (k + 1 < n) counter(k + 1); ???; reply()
 }
@@ -827,10 +827,10 @@ Now we are faced with a question: should we perform that reply before emitting `
 Here are the two possible reactions:
 
 ```scala
-val reaction1 = go { case barrier(_, reply) + counter(k, replyCounter) =>
+val reaction1 = go { case barrier(_, reply) + counter(k, replyCounter) ⇒
   replyCounter(); if (k + 1 < n) counter(k + 1); reply()
 }
-val reaction2 = go { case barrier(_, reply) + counter(k, replyCounter) =>
+val reaction2 = go { case barrier(_, reply) + counter(k, replyCounter) ⇒
   if (k + 1 < n) counter(k + 1); replyCounter(); reply()
 }
 
@@ -846,15 +846,15 @@ We presently have three `barrier()` molecules and one `counter(7)` molecule.
 Note that the `counter(7)` molecule was emitted by a previous reaction of the same kind, 
 
 ```scala
-go { barrier() + counter(6) => ... counter(7); ... }
+go { barrier() + counter(6) ⇒ ... counter(7); ... }
 
 ```
 
 So, this previous reaction is now blocked at the place where it emitted `counter(7)`. 
 
-Next, the reaction `{ barrier() + counter(7) => ... }` will start and consume its input molecules, leaving two `barrier()` molecules present.
+Next, the reaction `{ barrier() + counter(7) ⇒ ... }` will start and consume its input molecules, leaving two `barrier()` molecules present.
 
-Now the reaction body of `{ barrier() + counter(7) => ... }` will run and emit `counter(8)`.
+Now the reaction body of `{ barrier() + counter(7) ⇒ ... }` will run and emit `counter(8)`.
 Then we will have the molecules `barrier(), barrier(), counter(8)` in the soup.
 This set of molecules will be the same whether we use `reaction1` or `reaction2`.
 
@@ -863,7 +863,7 @@ We see that in the body of `reaction1` the reply is sent to `counter(7)` before 
 The reply to `counter(7)` will unblock the previous reaction,
  
 ```scala
-{ case barrier(_, reply) + counter(6, replyCounter) => replyCounter(); counter(7); reply() }
+{ case barrier(_, reply) + counter(6, replyCounter) ⇒ replyCounter(); counter(7); reply() }
 
 ```
 
@@ -887,7 +887,7 @@ This may be undesirable.
 To avoid that, we can introduce a special initial molecule `counterInit()` with a reaction such as
 
 ```scala
-go { case barrier(_, reply) + counterInit(_) => counter(1); reply() }
+go { case barrier(_, reply) + counterInit(_) ⇒ counter(1); reply() }
 
 ```
 
@@ -899,12 +899,12 @@ val counterInit = m[Unit]
 val counter = b[Int,Unit]
 
 site(
-  go { case barrier(_, reply) + counterInit(_) =>
+  go { case barrier(_, reply) + counterInit(_) ⇒
     // this reaction will consume the very first barrier molecule emitted
     counter(1) // one reaction has reached the rendezvous point
     reply()
   },
-  go { case barrier(_, reply) + counter(k, replyCounter) =>
+  go { case barrier(_, reply) + counter(k, replyCounter) ⇒
     if (k + 1 < n) counter(k + 1) // k + 1 reactions have reached the rendezvous point
     replyCounter()
     reply()
@@ -924,7 +924,7 @@ Then we simply emit the `barrier()` molecule at that step:
 
 ```scala
 site (
-  go { case begin(_) =>
+  go { case begin(_) ⇒
     work()
     barrier() // need to wait here for other reactions
     more_work()
@@ -954,12 +954,12 @@ def makeRendezvous(n: Int): B[Unit, Unit] = {
   val counter = b[Int,Unit]
   
   site(
-    go { case barrier(_, reply) + counterInit(_) =>
+    go { case barrier(_, reply) + counterInit(_) ⇒
       // this reaction will consume the very first barrier molecule emitted
       counter(1) // one reaction has reached the rendezvous point
       reply()
     },
-    go { case barrier(_, reply) + counter(k, replyCounter) =>
+    go { case barrier(_, reply) + counter(k, replyCounter) ⇒
       if (k + 1 < n) counter(k + 1) // k + 1 reactions have reached the rendezvous point
       replyCounter()
       reply()
@@ -978,7 +978,7 @@ The usage example will then look like this:
 val barrier = makeRendezvous(1000)
 
 site (
-  go { case begin(_) =>
+  go { case begin(_) ⇒
     work()
     barrier() // need to wait here for other reactions
     more_work()
@@ -1051,14 +1051,14 @@ The reaction can start when a man and a woman are present.
 It is clear that we can simulate this via two molecules, `man` and `woman`, whose presence is required to start the reaction.
 
 ```scala
-go { case man(_) + woman(_) => beginDancing() }
+go { case man(_) + woman(_) ⇒ beginDancing() }
 
 ```
 
 To simplify this example, let us assume that some other reactions will randomly emit `man()` and `woman()` molecules.
 
-The problem with the above reaction is that it does not respect the linear order of molecules in the queue.
-If several `man()` and `woman()` molecules are emitted quickly enough, they will be paired up in random order, rather than in the order of arrival in the queue.
+The problem with the above reaction is that it does not necessarily respect the linear order of molecules in the queue.
+If several `man()` and `woman()` molecules are emitted quickly enough, they will be paired up in random order, rather than in the order of emission.
 Also, nothing prevents several pairs to begin dancing at once, regardless of the dancer's positions in the queues.
 
 How can we enforce the order of arrival on the pairs?
@@ -1073,7 +1073,7 @@ The dancing reaction will become something like this,
 ```scala
 val manL = m[Int]
 val womanL = m[Int]
-go { case manL(m) + womanL(w) if m == w => beginDancing() }
+go { case manL(m) + womanL(w) if m == w ⇒ beginDancing() }
 
 ```
 
@@ -1092,8 +1092,8 @@ val queueWomen = m[Int]
 val beginDancing = m[Unit]
 
 site(
-  go { case man(_) + queueMen(n) => manL(n) + queueMen(n+1) },
-  go { case woman(_) + queueWomen(n) => womanL(n) + queueWomen(n+1) }
+  go { case man(_) + queueMen(n) ⇒ manL(n) + queueMen(n+1) },
+  go { case woman(_) + queueWomen(n) ⇒ womanL(n) + queueWomen(n+1) }
 )
 
 ```
@@ -1107,19 +1107,27 @@ In that case, we should first let `manL(0)` and `womanL(0)` pair up and begin da
 The reaction we thought of,
 
 ```scala
-go { case manL(m) + womanL(w) if m == w => beginDancing() }
+go { case manL(m) + womanL(w) if m == w ⇒ beginDancing() }
 
 ```
 
 does not actually enforce the requirement that `manL(0)` and `womanL(0)` should begin dancing first.
 How can we prevent the molecules `manL(1)` and `womanL(1)` from reacting if `manL(0)` and `womanL(0)` have not yet reacted?
 
-In the chemical machine, the only way to prevent reactions is to omit some input molecules.
-Therefore, the dancing reaction must have _another_ input molecule, say `mayBegin`.
-If the dancing reaction has the form `manL + womanL + mayBegin → ...`, and if `mayBegin` carries value 0,
+There are two ways of achieving this in `Chymyst`:
+
+- adding a new static molecule,
+- using pipelined molecules with single-thread reactions.
+
+### Using an intermediate static molecule
+
+We would like to prevent the dancing reaction from starting out of order.
+In the chemical machine paradigm, a general way to prevent reactions from starting is to omit some input molecules.
+Therefore, the dancing reaction needs to have _another_ input molecule, say `mayBegin()`.
+If the dancing reaction has the form `manL + womanL + mayBegin → ...`, and if `mayBegin()` carries value 0,
 we can enforce the requirement that `manL(0)` and `womanL(0)` should begin dancing first.
 
-Now it is clear that the `mayBegin` molecule must carry the most recently used position label, and increment this label every time a new pair goes off to dance:
+Now it is clear that the `mayBegin` molecule must carry the most recently used position label, which will be incremented every time a new pair goes off to dance:
 
 ```scala
 go { case manL(m) + womanL(w) + mayBegin(l) if m == w && w == l ⇒
@@ -1128,23 +1136,74 @@ go { case manL(m) + womanL(w) + mayBegin(l) if m == w && w == l ⇒
 
 ```
 
-In order to make sure that the previous pair has actually began dancing, we can make `beginDancing()` a _blocking_ molecule.
-The next `mayBegin` will then be emitted only after `beginDancing` receives a reply, indicating that the dancing process has actually started.
+For this to work, only a single copy of `mayBegin()` should be available in the soup.
+To make this intent clear, we can declare `mayBegin()` as a static molecule. 
 
-Finally, we must make sure that the auxiliary molecules are emitted only once and with correct values.
-We can declare these molecules as static by writing a static reaction:
+The other auxiliary molecules, `queueMen()` and `queueWomen()`, should be also emitted only once.
+We write a static reaction to declare all these molecules as static:
 
 ```scala
-go { case _ => queueMen(0) + queueWomen(0) + mayBegin(0) }
+go { case _ ⇒ queueMen(0) + queueWomen(0) + mayBegin(0) }
 
 ```
 
-The complete working code is found in `Patterns01Spec.scala`.
+The complete working test code is found in `Patterns01Spec.scala`.
+
+### Using pipelined molecules and single-thread pools
+
+Pipelined molecules are stored in an ordered queue and always consumed in the FIFO order of their emission.
+We can implement the dancing problem with fewer molecules and reactions if we use pipelined molecules. 
+
+All emitted copies of a pipelined molecule are stored in an ordered queue, in the order they are emitted.
+Non-pipelined molecules are stored in an unordered multiset.
+
+Reactions consuming a pipelined molecule are chosen by examining the molecule at the head of the queue.
+The result is that pipelined molecules are always consumed in the FIFO order of their emission.
+`Chymyst` classifies molecules automatically into pipelined and non-pipelined by checking that no deadlocks will arise if a given molecule emitter were to store the molecule instances in an ordered queue.
+
+Consider again the reaction we started with:
+
+```scala
+go { case man(_) + woman(_) ⇒ beginDancing() }
+
+```
+
+In this reaction, both molecules `man()` and `woman()` have no guard conditions.
+Since this reaction is the only one consuming these molecules, they will be pipelined.
+
+In this case, each newly emitted `man()` molecule will arrive to its queue in the order it was emitted.
+Another queue would hold all emitted copies of the `woman()` molecule.
+The reaction will automatically pick the molecules from the top of each queue.
+
+Will this guarantee that calls to `beginDancing()` will be performed in the required order?
+Actually, no!
+
+The reason is that reactions are scheduled asynchronously, on some background threads.
+All we have achieved so far is that the instances of the reaction will be scheduled in the correct order.
+However, threads may become busy or free at unpredictable times, so it is not guaranteed that reactions start in the same order they are scheduled.
+
+To guarantee that calls to `beginDancing()` are performed in the correct order, we need to restrict this reaction to run on a _single thread_ rather than (by default) in parallel, on a number of threads in the default thread pool.
+
+This restriction does not modify the semantics of the program: it is meaningless to say that events occur in order and yet that several events may occur in parallel.
+If we need to restrict events to occur in a specific order, we must at the same time prohibit events from occurring in parallel.
+
+The following code creates a single-thread pool and defines the reaction to run on that pool only:
+
+```scala
+val pool = FixedPool(1)
+
+site(
+  go { case man(_) + woman(_) ⇒ beginDancing() } onThreads(pool)
+)
+
+```
+
+Test code in `Patterns01Spec.scala` verifies that this chemical program works correctly.
 
 ## State machines
 
 A state machine starts out in a certain initial state `s` of type `S` and receives actions of type `A`.
-The transition function `tr: (A, S) => S` defines what new state will be chosen when an action `a: A` is received in a given state `s: S`.
+The transition function `tr: (A, S) ⇒ S` defines what new state will be chosen when an action `a: A` is received in a given state `s: S`.
 While performing the state transition, the state machine can also execute arbitrary code for side effects.
 
 One way of modeling a state machine is to represent the current state by a molecule `state: M[S]` and actions by molecules `action: M[A]`.
@@ -1152,20 +1211,21 @@ One way of modeling a state machine is to represent the current state by a molec
 ```scala
 val a = m[A]
 val s = m[S]
-val tr: (A, S) => S = ???
+val tr: (A, S) ⇒ S = ???
 val initialState: S = ???
 
 site(
   go { case action(a) + state(s) ⇒ sideEffects(a, s); state(tr(a, s)) },
-  go { case _ => state(initialState) }
+  go { case _ ⇒ state(initialState) }
 )
 
 ```
 
 We declared `state()` as a static molecule because, most likely, it will be necessary to guarantee that there exists only one copy of `state()` in the soup.
 
-If the state type `S` is a disjunction type (in Scala, this is a sealed trait extended by a fixed number of case classes), we may choose another way of modeling the state machine:
-Each case class in the disjunction is represented by a different molecule, and there are separate  reactions for transitions involving different states.
+If the state type `S` is a disjunction type (in Scala, a disjunction type is a sealed trait extended by a fixed number of case classes),
+we may choose another way of modeling the state machine:
+Each case class in the disjunction is represented by a different molecule, and there are separate reactions for transitions involving different states.
 Here is an example:
 
 ```scala
