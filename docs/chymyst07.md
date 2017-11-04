@@ -1262,7 +1262,7 @@ Represented in this way, a state machine is translated into declarative code, at
 
 ## Variations on Readers/Writers
 
-### Ordered `m` : `n` Readers/Writers
+### Ordered `m` : `n` Readers/Writers ("Unisex bathroom")
 
 The Readers/Writers problem is now reformulated with a new requirement that processes should gain access to the resource in the order they requested it.
 The code should admit `m` concurrent Readers or `n` concurrent Writers (but not both at the same time).
@@ -1360,14 +1360,16 @@ site(
   go { case pending(Reader) + haveWriters(k) ⇒ haveWritersPendingReader(k) },
 
   go { case readerFinished(_) + haveReaders(k) ⇒ if (k > 1) haveReaders(k - 1) else noRequests() },
-  go { case readerFinished(_) + haveReadersPendingWriter(k) ⇒ if (k > 1) haveReadersPendingWriter(k - 1) else {
+  go { case readerFinished(_) + haveReadersPendingWriter(k) ⇒
+    if (k > 1) haveReadersPendingWriter(k - 1) else {
       haveWriters(1)
       writerRequest()
       consume()
       }
     },
   go { case writerFinished(_) + haveWriters(k) ⇒ if (k > 1) haveWriters(k - 1) else noRequests() },
-  go { case writerFinished(_) + haveWritersPendingReader(k) ⇒ if (k > 1) haveWritersPendingReader(k - 1) else {
+  go { case writerFinished(_) + haveWritersPendingReader(k) ⇒
+    if (k > 1) haveWritersPendingReader(k - 1) else {
       haveReaders(1)
       readerRequest()
       consume()
@@ -1382,24 +1384,29 @@ The complete working test is in `Patterns01Spec.scala`.
 ### Exercise: Ordered `m` : `n` Readers/Writers that work with data
 
 We have implemented the ordered `m` : `n` Readers/Writers problem where the read and write requests are functions without arguments returning `Unit`.
-Revise the program so that write requests have a `String` argument, while read requests cause an auxiliary molecule to be emitted with a `String` value.
-
-### Fair `m` : `n` Readers/Writers ("Unisex bathroom")
-
-The key new requirement is that Readers and Writers should be able to work starvation-free.
-Even if there is a heavy stream of Readers and a single incoming Writer, the Writer should not wait indefinitely.
-The program should guarantee a fixed upper limit on the waiting time for both Readers and Writers.
-
-The parameters `m` and `n` should allow the program to optimize its throughput when the incoming stream of Readers and Writers has the average ratio `m` : `n`.
-However, the order in which Readers and Writers get to work is now unimportant.
-
-TODO
+Modify the code so that write requests have a `String` argument, while read requests cause an auxiliary molecule to be emitted with a `String` value.
 
 ### Majority rule `n` : `n` Readers/Writers ("The Modus Hall problem")
 
 For this example, Readers and Writers have equal ratio `n` : `n`.
+We no longer require that all requests are served in the exact order received. 
 However, a new rule involving wait times is introduced:
-If more Readers than Writers are waiting to access the resource, no more Writers can be granted access, and vice versa.
+If more Readers than Writers are waiting to access the resource, no more Writers should be granted access, and vice versa.
+
+TODO
+
+### Fair `m` : `n` Readers/Writers
+
+The majority rule does not guarantee fairness:
+If, say, on the average twice as many Reader as Writer requests arrive per unit time, it can happen that there are _always_ more waiting Readers than waiting Writers.
+In that case, the majority rule will prevent all Writers from accessing the resource, causing "starvation" for the waiting Writers.
+
+To fix this situation, we introduce the key new requirement that both Readers and Writers should be able to work starvation-free.
+Even if there is a heavy stream of Readers and a single incoming Writer, that Writer should not wait indefinitely.
+The algorithm should guarantee a fixed upper limit on the waiting time for both Readers and Writers, regardless of the order of arriving Readers and Writers.
+
+The parameters `m` and `n` should allow the program to optimize its throughput when the incoming stream of Readers and Writers has the average ratio `m` : `n`.
+However, the order in which Readers and Writers get to work is now unimportant.
 
 TODO
 
