@@ -440,4 +440,140 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     result.reverse shouldNot equal((1 to total).toList) // emission order will not be preserved
   }
 
+  behavior of "ordered readers/writers"
+
+  it should "run correctly" in {
+    sealed trait RequestType
+    case object Reader extends RequestType
+    case object Writer extends RequestType
+
+    val log = new ConcurrentLinkedQueue[Either[String, RequestType]]()
+
+    def readResource() = {
+      log.add(Right(Reader))
+      Thread.sleep(20)
+    }
+
+    def writeResource() = {
+      log.add(Right(Writer))
+      Thread.sleep(40)
+    }
+
+    val request = m[RequestType]
+
+    val readerRequest = m[Unit]
+    val readerFinished = m[Unit]
+    val writerRequest = m[Unit]
+    val writerFinished = m[Unit]
+
+    site(
+      go { case readerRequest(_) ⇒ readResource(); readerFinished() },
+      go { case writerRequest(_) ⇒ writeResource(); writerFinished() }
+    )
+
+    val noRequests = m[Unit]
+    val haveReaders = m[Int]
+    val haveWriters = m[Int]
+    val haveReadersPendingWriter = m[Int]
+    val haveWritersPendingReader = m[Int]
+    val pending = m[RequestType]
+
+    val nReaders = 4
+    val nWriters = 2
+
+    val consume = m[Unit]
+
+    site(
+      go { case request(r) + consume(_) ⇒ pending(r) },
+      go { case pending(Reader) + noRequests(_) ⇒ log.add(Left(s"haveReaders(1)")); readerRequest() + haveReaders(1) + consume() },
+      go { case pending(Reader) + haveReaders(k) if k < nReaders ⇒ log.add(Left(s"haveReaders(${k + 1})")); readerRequest() + haveReaders(k + 1) + consume() },
+
+      go { case pending(Writer) + noRequests(_) ⇒ log.add(Left(s"haveWriters(1)")); writerRequest() + haveWriters(1) + consume() },
+      go { case pending(Writer) + haveWriters(k) if k < nWriters ⇒ log.add(Left(s"haveWriters(${k + 1})")); writerRequest() + haveWriters(k + 1) + consume() },
+
+      go { case pending(Writer) + haveReaders(k) ⇒ log.add(Left(s"haveReadersPendingWriter($k)")); haveReadersPendingWriter(k) },
+      go { case pending(Reader) + haveWriters(k) ⇒ log.add(Left(s"haveWritersPendingReader($k)")); haveWritersPendingReader(k) },
+
+      go { case readerFinished(_) + haveReaders(k) ⇒ if (k > 1) {
+        log.add(Left(s"haveReaders(${k - 1})"))
+        haveReaders(k - 1)
+      } else {
+        log.add(Left(s"noRequests"))
+        noRequests()
+      }
+      },
+      go { case readerFinished(_) + haveReadersPendingWriter(k) ⇒
+        if (k > 1) {
+          log.add(Left(s"haveReadersPendingWriter(${k - 1})"))
+          haveReadersPendingWriter(k - 1)
+        } else {
+          log.add(Left(s"haveWriters(1)"))
+          haveWriters(1)
+          writerRequest()
+          consume()
+        }
+      },
+
+      go { case writerFinished(_) + haveWriters(k) ⇒ if (k > 1) {
+        log.add(Left(s"haveWriters(${k - 1})"))
+        haveWriters(k - 1)
+      } else {
+        log.add(Left(s"noRequests"))
+        noRequests()
+      }
+      },
+      go { case writerFinished(_) + haveWritersPendingReader(k) ⇒
+        if (k > 1) {
+          log.add(Left(s"haveWritersPendingReader(${k - 1})"))
+          haveWritersPendingReader(k - 1)
+        } else {
+          log.add(Left(s"haveReaders(1)"))
+          haveReaders(1)
+          readerRequest()
+          consume()
+        }
+      }
+    )
+
+    consume() + noRequests()
+
+    Seq(Reader, Reader, Reader, Writer, Reader, Writer, Writer, Writer, Writer, Reader).foreach(request)
+
+    Thread.sleep(1000)
+
+    log.toArray.toList shouldEqual Seq(
+      Left("haveReaders(1)"),
+      Right(Reader),
+      Left("haveReaders(2)"),
+      Right(Reader),
+      Left("haveReaders(3)"),
+      Right(Reader),
+      Left("haveReadersPendingWriter(3)"),
+      Left("haveReadersPendingWriter(2)"),
+      Left("haveReadersPendingWriter(1)"),
+      Left("haveWriters(1)"),
+      Right(Writer),
+      Left("haveWritersPendingReader(1)"),
+      Left("haveReaders(1)"),
+      Right(Reader),
+      Left("haveReadersPendingWriter(1)"),
+      Left("haveWriters(1)"),
+      Right(Writer),
+      Left("haveWriters(2)"),
+      Right(Writer),
+      Left("haveWriters(1)"),
+      Left("haveWriters(2)"),
+      Right(Writer),
+      Left("haveWriters(1)"),
+      Left("haveWriters(2)"),
+      Right(Writer),
+      Left("haveWritersPendingReader(2)"),
+      Left("haveWritersPendingReader(1)"),
+      Left("haveReaders(1)"),
+      Right(Reader),
+      Left("noRequests")
+    )
+
+  }
+
 }

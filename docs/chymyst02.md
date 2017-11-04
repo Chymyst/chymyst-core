@@ -21,7 +21,7 @@ The task is to create a chemical machine program that allows any number of concu
 but restricts the number of concurrent calls to at most three `readResource()` calls or at most one `writeResource()` call.
 The program should also prevent a `readResource()` and a `writeResource()` to be called at the same time. 
 
-Let us begin reasoning about this problem in the chemical machine paradigm, deriving the solution in a systematic way.
+Let us derive the solution in a systematic way by reasoning about this problem within the chemical machine paradigm.
 
 We need to restrict code that calls certain functions.
 The only way a chemical machine can run any code is though running some _reactions_.
@@ -43,10 +43,22 @@ site(
 Processes will emit `read()` or `write()` molecules when they need to access the resource as readers or as writers.
 
 The reactions as written so far will always start whenever `read()` or `write()` are emitted.
-However, our task is to _prevent_ these reactions from starting in certain circumstances (when there are too many concurrent accesses).
+However, our task is to control when these reactions start.
+We need to _prevent_ these reactions from starting when there are too many concurrent accesses.
 
-One way of preventing a reaction from starting is to withhold some of its input molecules.
-Therefore, the two reactions we just discussed need to have _another_ input molecule.
+In `Chymyst`, there are only two ways of preventing a reaction from starting:
+
+- by withholding some of the required input molecules;
+- by using a guard condition with a mutable variable, setting the value of that variable as required.
+
+The second method requires complicated reasoning about the current values of mutable variables.
+Generally, shared mutable state is contrary to the spirit of functional programming, although it may be used in certain cases for performance optimization.
+Although Scala allows it, we will not use shared mutable state in `Chymyst`.
+
+It remains to use the first method.
+
+In order for us to be able to provide or withhold input molecules,
+the two reactions we just discussed need to have _another_ input molecule.
 Let us call this additional molecule `access()` and revise the reactions accordingly:
 
 ```scala

@@ -1265,9 +1265,124 @@ Represented in this way, a state machine is translated into declarative code, at
 ### Ordered `m` : `n` Readers/Writers
 
 The Readers/Writers problem is now reformulated with a new requirement that processes should gain access to the resource in the order they requested it.
-The code must limit the access to either `m` concurrent Readers or `n` concurrent Writers (but not both).
+The code should admit `m` concurrent Readers or `n` concurrent Writers (but not both at the same time).
 
-TODO
+We are going to model requests by emitting molecules, and we would like the molecules to be consumed in the order emitted.
+We can maintain the order of molecules in two ways:
+
+- add extra molecule values and perform explicit book-keeping, as in the "dancing pairs" problem
+- use pipelined molecules with single-thread reactions
+
+Let us use the second method, hoping that the code will be more concise.
+
+In order to handled requests via an ordered queue, we need to use a _single_ pipelined molecule for all Reader and Writer requests.
+Clients will need to emit that molecule with appropriate values; let us call it the `request` molecule.
+If this molecule is pipelined, the chemical machine will consume each copy of `request` in the correct order.
+
+The request molecule should carry a value that distinguishes Reader from Writer requests.
+For simplicity, we assume that the Reader and Writer requests do not pass any values but only produce some unspecified side-effect with the resource:
+
+```scala
+sealed trait RequestType
+case object Reader extends RequestType
+case object Writer extends RequestType
+
+val request = m[RequestType]
+
+val readerRequest = m[Unit]
+val readerFinished = m[Unit]
+val writerRequest = m[Unit]
+val writerFinished = m[Unit]
+
+site(
+  go { case readerRequest(_) ⇒ readResource(); readerFinished() },
+  go { case writerRequest(_) ⇒ writeResource(); writerFinished() }
+)
+
+```
+
+The resource should accept Reader requests only if it is currently being accessed by no writers and by less than `m` Readers; similarly for Writer requests.
+Accepting a request is modeled by starting a reaction.
+This reaction should not start when the requirements are not met.
+
+Since we would like the `request()` molecule to be pipelined, we cannot use any guard conditions on the reactions that consume `request()`.
+The only other way to control reactions is via the presence or the absence of input molecules.
+Therefore, we need to define another molecule, say `consume()`, that will react with the `request()` molecule.
+The `consume()` molecule will be present only when a new request molecule can be consumed.
+
+```scala
+val consume = m[Unit]
+go { case request(r) + consume(_) ⇒ ??? }
+
+```
+
+Suppose there are already some Readers accessing the resource, and a Writer request is received.
+The new request cannot be processed until all Readers are done.
+However, the information that the new request is a Writer request is only available as a value carried by the `request()` molecule.
+This value remains unknown until the new `request()` molecule is consumed by some reaction.
+
+Therefore, we need to consume the new `request()` molecule, consider this request as "pending", and then decide whether the pending request can be granted.
+If not, we should not consume any further `request()` molecules but instead wait for the pending request to be processed.
+
+Therefore, we need to model the resource by a state machine whose states represent not only the following situations:
+
+- no Readers or Writers currently working -- can accept any request; this is the initial state
+- less than `m` Readers currently working, no Writer requests pending, can accept a Reader request
+- some Readers currently working, a Writer request is pending, cannot accept any further requests
+- exactly `m` Readers currently working, cannot accept any further requests
+- less than `n` Writers currently working, no Reader requests pending, can accept a Writer request
+- some Writers currently working, a Reader request is pending, cannot accept any further requests
+- exactly `n` Writers currently working, cannot accept any further requests
+
+```scala
+val noRequests = m[Unit]
+val haveReaders = m[Int]
+val haveWriters = m[Int]
+val haveReadersPendingWriter = m[Int]
+val haveWritersPendingReader = m[Int]
+val pending = m[RequestType]
+
+```
+
+The initial emitted molecules are `admitAny()` and `accessGiven()`.
+The possible state transitions are directly described by the chemical program:
+
+```scala
+site(
+  go { case request(r) + consume(_) ⇒ pending(r) },
+  go { case pending(Reader) + noRequests(_) ⇒ readerRequest() + haveReaders(1) + consume() },
+  go { case pending(Reader) + haveReaders(k) if k < nReaders ⇒ readerRequest() + haveReaders(k + 1) + consume() },
+
+  go { case pending(Writer) + noRequests(_) ⇒ writerRequest() + haveWriters(1) + consume() },
+  go { case pending(Writer) + haveWriters(k) if k < nWriters ⇒ writerRequest() + haveWriters(k + 1) + consume() },
+
+  go { case pending(Writer) + haveReaders(k) ⇒ haveReadersPendingWriter(k) },
+  go { case pending(Reader) + haveWriters(k) ⇒ haveWritersPendingReader(k) },
+
+  go { case readerFinished(_) + haveReaders(k) ⇒ if (k > 1) haveReaders(k - 1) else noRequests() },
+  go { case readerFinished(_) + haveReadersPendingWriter(k) ⇒ if (k > 1) haveReadersPendingWriter(k - 1) else {
+      haveWriters(1)
+      writerRequest()
+      consume()
+      }
+    },
+  go { case writerFinished(_) + haveWriters(k) ⇒ if (k > 1) haveWriters(k - 1) else noRequests() },
+  go { case writerFinished(_) + haveWritersPendingReader(k) ⇒ if (k > 1) haveWritersPendingReader(k - 1) else {
+      haveReaders(1)
+      readerRequest()
+      consume()
+      }
+    }
+)
+
+```
+
+The complete working test is in `Patterns01Spec.scala`.
+
+### Exercise: Ordered `m` : `n` Readers/Writers that work with data
+
+We have implemented the ordered `m` : `n` Readers/Writers problem where the read and write requests are functions without arguments returning `Unit`.
+Revise the program so that write requests have a `String` argument, while read requests cause an auxiliary molecule to be emitted with a `String` value.
 
 ### Fair `m` : `n` Readers/Writers ("Unisex bathroom")
 
@@ -1278,11 +1393,15 @@ The program should guarantee a fixed upper limit on the waiting time for both Re
 The parameters `m` and `n` should allow the program to optimize its throughput when the incoming stream of Readers and Writers has the average ratio `m` : `n`.
 However, the order in which Readers and Writers get to work is now unimportant.
 
+TODO
+
 ### Majority rule `n` : `n` Readers/Writers ("The Modus Hall problem")
 
 For this example, Readers and Writers have equal ratio `n` : `n`.
 However, a new rule involving wait times is introduced:
 If more Readers than Writers are waiting to access the resource, no more Writers can be granted access, and vice versa.
+
+TODO
 
 ## Choose and reply to one of many blocking calls (Unix `select`, Actor model's `receive`)
 

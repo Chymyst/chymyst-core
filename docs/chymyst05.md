@@ -132,7 +132,8 @@ However, it is often necessary in practical applications to ensure that e.g. req
 If each request is represented by a newly emitted molecule, we will be required to ensure that molecules start their reactions in the order of emission.
 
 In principle, this can be implemented by, say, attaching an extra timestamp to each molecule and enforcing the order of molecule consumption via guard conditions on all relevant reactions.
-But this method of implementation is inefficient and also burdens the programmer with extra bookkeeping, making the code non-declarative.
+But this method of implementation is inefficient because the reaction scheduler will have to enumerate all the present molecules, looking for a molecule with the right timestamp.
+The programmer will be also burdened with extra bookkeeping, and the code will become less declarative.
 
 For this reason, `Chymyst` has special support for **pipelined molecules** - that is, molecules that are always consumed in the exact order they were emitted.
 
@@ -186,11 +187,68 @@ that could admit pipelined semantics without creating problems.
 For a molecule `c()` to be pipelined, the reactions consuming `c()` must be such that
 the chemical machine only needs to inspect a single copy of the molecule `c()` in order to be able to select correctly the next reaction to run.
 
+One use case for pipelined molecules is implementing a chain of asynchronous processing stages.
+Suppose that we need to process initial data by using transformations `x ⇒ f(x)`, then ` x ⇒ g(x)`, etc., where each stage takes a long time.
+We would like to run all these stages concurrently.
+At the same time, we would like to retain the order in which the data goes through the processing stages.
+
+The following program implements an example of this kind of computation.
+Each processing stage maintains local state (denoted by `s`), which is updated to a new value `newS` while the result is computed and passed on to the next stage.
+
+```scala
+val input1 = m[Int]
+val stage1 = m[Int]
+val input2 = m[Int]
+val stage2 = m[Int]
+val input3 = m[Int]
+val stage3 = m[Int]
+val output = m[Int]
+
+site(
+  go { case input1(x) + step1(s) ⇒
+    val newS = p(x, s)
+    val result = f(x, s)
+    stage1(newS) + input2(result)
+  },
+  go { case input2(x) + step2(s) ⇒
+    val newS = q(x, s)
+    val result = g(x, s)
+    stage2(newS) + input3(result)
+  },
+  go { case input3(x) + step3(s) ⇒
+    val newS = r(x, s)
+    val result = h(x, s)
+    stage3(newS) + output(result)
+  }
+)
+
+stage1(0) + stage2(0) + stage3(0)
+
+(1 to 10000).foreach(i ⇒ input1(i))
+
+```
+
+In this program, all three kinds of "input" molecules are pipelined, which means that they are consumed in the same order as they are emitted.
+This will create a linearly ordered data stream even if we emit a large number of `input1()` molecules at once. 
+
+It is important to note that having each of the "input" pipelined will not be sufficient for maintaining the linear order of the data stream.
+
+If we initially emit several copies of `stage1()`, several instances of the first stage could run in parallel.
+Typically, the parallel-running instances will not finish in the same order they started, so the `input2()` molecules will not be emitted in the same order as `input1()`.
+The only way to prevent this from happening is to assign a custom single-thread pool to each of the stage reactions.
+
+Therefore, we have two ways of building a linearly ordered data stream:
+
+- use static molecules or other single-copy molecules, together with pipelined molecules
+- use single-thread pools, together with pipelined molecules
+
 ### Detecting pipelined molecules
 
-Given a chemical program, how can we check whether a molecule `c()` can be pipelined?
+In the examples we have seen, there were no special annotations or syntax for pipelined molecules.
+This is so because `Chymyst` determines automatically which molecules should be made pipelined, in a given chemical program.
+Here is how this is decided.
 
-Let us assume that the molecule `c()` has value type `T`.
+Let us assume that a molecule `c()` has value type `T`.
 
 There may exist values `x: T` such that no reactions will _ever_ consume the instance `c(x)` with that `x` -- neither now, nor in the future.
 (This happens, for example, if `x` is such that no pattern or guard condition is ever satisfied in any of the available reactions. Molecule instances `c(y)` with some `y != x` might still be potentially consumed now or later.)
@@ -203,14 +261,13 @@ For a molecule `c()` to be pipelined, the chemical program must be such that the
 Two properties of the chemical program immediately follow from this requirement:
 
 - (Property 1.) Every reaction may consume at most one instance of `c()`. (No reaction should consume multiple input `c()` molecules, e.g. `go { c(x) + c(y) ⇒ ... }`.)
-
 - (Property 2.) If, for some non-ignorable value `x`, the molecule instance `c(x)` cannot be immediately consumed by any reaction at this time,
 no other molecule instance `c(y)` with _any other_ non-ignorable `y != x` can be immediately consumed by any reaction either.
 (If some reaction could consume`c(y)`, the program would become deadlocked by the presence of `c(x)` at the top of the queue.)
 
-Property 2 is somewhat difficult to reason about, if formulated in this way.
-By using Boolean logic, this property can be simplified and formulated as a certain criterion to be checked for all reactions consuming `c()`.
-The formal derivation of the simplified property is in the next subsection.
+Property 2 is somewhat difficult to reason about, when formulated in this way.
+By using Boolean logic, this property can be simplified and formulated as an easier property to be checked for all reactions consuming `c()`.
+A mathematical derivation of the simplified property is in the next subsection.
 
 To formulate the simplified property, let us assume that `c(x)` is at the head of the queue,
 and let us ask whether a molecule instance `c(x)` can be consumed by a certain reaction, say `go { c(x) + d(y) + e(z) if g(x, y, z) ⇒ ... }`.
@@ -220,7 +277,7 @@ This reaction can start if
 - a molecule instance `e(z)` is present with some `z`,
 - the values `y` and `z` satisfy the guard condition `g(x, y, z)`.
 
-We can write these conditions symbolically as a Boolean formula
+We can write these conditions symbolically as a single Boolean formula
 
 `HAVE(d(y)) && HAVE(e(z)) && g(x, y, z)`.
 
