@@ -88,7 +88,7 @@ val c = m[Option[Int]]
 val d = m[(String, List[String])]
 
 go { case c(Some(x)) + d( s@("xyz", List(p, q, r)) ) 
-      if x > 0 && p.length > q.length =>
+      if x > 0 && p.length > q.length ⇒
       // Reaction will start only if the patterns match and the condition holds.
       // Reaction body can use pattern variables x, s, p, q, r.
 }
@@ -102,7 +102,7 @@ Reactions can use repeated input molecules (“nonlinear” input patterns):
 ```scala
 val c = m[Int]
 
-go { case c(x) + c(y) + c(z) if x > y && y > z => c(x - y + z) }
+go { case c(x) + c(y) + c(z) if x > y && y > z ⇒ c(x - y + z) }
 
 ```
 
@@ -118,7 +118,7 @@ For example, the following reaction consumes 3 blocking molecules `f`, `f`, `g` 
 val f = b[Int, Int]
 val g = b[Unit, Unit]
 
-go { case f(x1, replyF1) + f(x2, replyF2) + g(_, replyG) =>
+go { case f(x1, replyF1) + f(x2, replyF2) + g(_, replyG) ⇒
    replyF1(x2); replyF2(x1); replyG()
 }
 
@@ -142,7 +142,7 @@ Reactions are not merely `case` clauses but locally scoped values of type `React
 
 ```scala
 val c = m[Int]
-val reaction: Reaction = go { case c(x) => println(x) }
+val reaction: Reaction = go { case c(x) ⇒ println(x) }
 // Declare a reaction, but do not run anything yet.
 
 ```
@@ -178,52 +178,70 @@ val result: Option[Int] = f.timeout()(200 millis)
 
 ```
 
-There can be two possibilities when the timeout occurs:
+If the timeout occurs, the blocking molecule does not receive any reply value.
 
-- no reaction consuming `f()` was able to start yet
-- a reaction consuming `f()` already started but has not yet sent a reply value 
+At this point, there can be two possibilities:
 
-If the timeout occurs before the reply is sent, the blocking molecule does not receive the reply value.
-The reply action can check whether the timeout occurred:
+- no reaction consuming `f()` was able to start so far
+- a reaction consuming `f()` already started but did not yet send a reply value 
+
+If no reaction was able to start so far, the timeout on `f()` will cause `Chymyst` to remove the relevant copy of `f()` from the chemical soup,
+so that no reaction would attempt to send a reply that the caller is no longer waiting for.
+
+If a reaction already started, it is too late to remove the copy of `f()` from the soup.
+The reaction will proceed to send a reply even though the caller is no longer waiting for it.
+
+In some cases, it may be necessary for the reaction to know that the caller has timed out.
+The reply action can check whether the timeout occurred because the reply emitter returns a `Boolean` value:
 
 ```scala
 val f = b[Unit, Int]
-go { f(_, reply) =>
-// offer to reply 123 and return true if there was no timeout
+go { f(_, reply) ⇒
+// Attempt to reply with `123`; return `false` if caller timed out.
   val status = reply(123)
-  if (status) ???
+  if (!status) ??? // caller timed out, maybe need to clean up, etc.
 }
 
 ```
 
 ## Static analysis for correctness and optimization
 
-`Chymyst` uses the `go()` macro for performing extensive static analysis of reactions at compile time, as well as at "early" run time (before any reactions are activated).
-This allows `Chymyst` to detect some classes of deadlock or livelock automatically.
-
-The static analysis also enforces constraints such as the uniqueness of the reply to blocking molecules.
+`Chymyst` uses the `go()` macro for gathering extensive information about the user's reaction code.
+This information is used to perform static analysis of reactions, both at compile time and at "early" run time (after creating reaction sites but before any reactions are activated).
+Thus `Chymyst` is able to detect some classes of deadlock or livelock automatically:
 
 ```scala
 val a = m[Int]
 val c = m[Unit]
-val f = b[Unit, int]
 
 // Does not compile: "Unconditional livelock due to a(x)"
-go { case a(x) => c() + a(x+1) }
+go { case a(x) ⇒ c(); a(x+1) }
+
+```
+
+The static analysis is used to enforce constraints such as the uniqueness of the reply to blocking molecules:
+
+```scala
+val a = m[Int]
+val f = b[Unit, Int]
 
 // Does not compile: "Blocking molecules should receive unconditional reply"
-go { case f(_, r) + a(x) => if (x > 0) r(x) }
+go { case f(_, r) + a(x) ⇒ if (x > 0) r(x) }
 
 // Compiles successfully because the reply is always sent.
-go { case f(_, r) + a(x) => if (x > 0) r(x) else r(-x) }
+go { case f(_, r) + a(x) ⇒ if (x > 0) r(x) else r(-x) }
 
 ```
 
 Common cases of invalid chemical definitions are flagged either at compile time, or as run-time errors that occur after defining a reaction site and before starting any processes.
-Other errors are flagged when reactions are run (e.g. if a blocking molecule gets no reply but static analysis was unable to determine that).
+Other errors are flagged at run time, such as:
+
+- a molecule was emitted without defining any reaction site for that molecule
+- a reaction cannot start because its thread pool was shut down
+- a reaction produced an exception and failed to send a reply
 
 The results of static analysis are also used to optimize the scheduling of reactions at run time.
-For instance, reactions that impose no cross-molecule conditions are scheduled significantly faster.
+For instance, reactions are scheduled significantly faster if they have no cross-molecule guard conditions.
 
 ## Thread pools
 
