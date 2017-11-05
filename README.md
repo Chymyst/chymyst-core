@@ -7,22 +7,22 @@
 
 # `Chymyst` — declarative concurrency in Scala
 
-This repository hosts `Chymyst Core` — a library that provides a Scala domain-specific language for declarative concurrency.
+This repository hosts `Chymyst Core` — a library that provides a Scala domain-specific language for purely functional, declarative concurrency.
 [`Chymyst`](https://github.com/Chymyst/Chymyst) is a framework-in-planning that will build upon `Chymyst Core` to enable creating concurrent applications declaratively.
 
-`Chymyst` is based on the **chemical machine** paradigm, known in the academic world as [Join Calculus (JC)](https://en.wikipedia.org/wiki/Join-calculus).
+`Chymyst` implements the **chemical machine** paradigm, known in the academic world as [Join Calculus (JC)](https://en.wikipedia.org/wiki/Join-calculus).
 JC has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) and [the Actor model](https://en.wikipedia.org/wiki/Actor_model), but is easier to use.
 (See also [Conceptual overview of concurrency](https://chymyst.github.io/chymyst-core/concurrency.html).)
 
-The initial code of `Chymyst Core` was based on [previous work by Jiansen He](https://github.com/Jiansen/ScalaJoin) (2011) and [Philipp Haller](http://lampwww.epfl.ch/~phaller/joins/index.html) (2008), as well as on Join Calculus prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin) (2012).
+The initial code of `Chymyst Core` was based on [previous work by He Jiansen](https://github.com/Jiansen/ScalaJoin) (2011) and [Philipp Haller](http://lampwww.epfl.ch/~phaller/joins/index.html) (2008), as well as on Join Calculus prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin) (2012).
 
-The current implementation is tested under Oracle JDK 8 with Scala `2.11.8`, `2.11.11`, `2.12.1`, and `2.12.2`.
+The current implementation is tested under Oracle JDK 8 with Scala `2.11.8`, `2.11.11`, and `2.12.2`-`2.12.4`.
 
 ### [Version history and roadmap](https://chymyst.github.io/chymyst-core/roadmap.html)
 
-## Overview of `Chymyst` and the chemical machine paradigm
+## Overview of `Chymyst` and the chemical machine programming paradigm
 
-#### [Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
+#### [Concurrency in Reactions: Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
  
 #### [Project documentation at Github Pages](https://chymyst.github.io/chymyst-core/chymyst00.html)
 
@@ -32,16 +32,18 @@ The current implementation is tested under Oracle JDK 8 with Scala `2.11.8`, `2.
 
 #### [A "Hello, world" project](https://github.com/Chymyst/helloworld)
 
-#### Presentations on Chymyst and the chemical machine programming
+#### Presentations on `Chymyst` and on the chemical machine programming paradigm
 
-Oct. 16, 2017: Talk given at the [Scala Bay meetup](https://www.meetup.com/Scala-Bay/events/243931229):
+Oct. 16, 2017: _Declarative concurrent programming with Join Calculus_. Talk given at the [Scala Bay meetup](https://www.meetup.com/Scala-Bay/events/243931229):
 
 - [Talk slides with audio](https://youtu.be/Iu2KBYNF-6M)
 - See also the [talk slides (PDF)](https://github.com/winitzki/talks/blob/master/join_calculus/join_calculus_2017_Scala_Bay.pdf) and the [code examples for the talk](https://github.com/Chymyst/jc-talk-2017-examples).
 
-Nov. 11, 2016: Talk given at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala):
+July 2017: [Industry-Strength Join Calculus: Declarative concurrent programming with `Chymyst`](https://github.com/winitzki/talks/blob/master/join-calculus-paper/join-calculus-paper.pdf): Draft of an academic paper describing Chymyst and its approach to join calculus
 
-- [Video presentation of early version of `Chymyst Core`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
+Nov. 11, 2016: _Concurrent Join Calculus in Scala_. Talk given at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala):
+
+- [Video presentation of early version of `Chymyst`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
 - See also the [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
 
 ### [Main features of the chemical machine](docs/chymyst_features.md)
@@ -54,7 +56,7 @@ Nov. 11, 2016: Talk given at [Scalæ by the Bay 2016](https://scalaebythebay2016
 
 #### [Developer documentation for `Chymyst Core`](docs/chymyst-core.md)
 
-## Example: "dining philosophers"
+## Example: the "dining philosophers" problem
 
 The following code snippet is a complete runnable example
 that implements the logic of "dining philosophers" in a fully declarative and straightforward way.
@@ -116,8 +118,10 @@ The library JAR is published to Maven Central.
 
 Extensive tutorial and usage documentation is available.
 
-Unit tests include examples such as asynchronous counter, parallel “or”, concurrent merge-sort, and “dining philosophers”.
+Unit tests (more than 500 at the moment) exercise all aspects of the DSL provided by `Chymyst`.
 Test coverage is [100% according to codecov.io](https://codecov.io/gh/Chymyst/chymyst-core?branch=master).
+
+Test suites also complement the tutorial book and include examples such as barriers, asynchronous and synchronous rendezvous, local critical sections, parallel “or”, map/reduce, parallel merge-sort, “dining philosophers”, as well as many other concurrency algorithms.
 
 Performance benchmarks indicate that `Chymyst Core` can schedule about 100,000 reactions per second per CPU core, and the performance bottleneck is in submitting jobs to threads (a distant second bottleneck is pattern-matching in the internals of the library).
 
@@ -198,4 +202,4 @@ it is possible to release manually on the [Sonatype web site](https://oss.sonaty
 [![Robert Boyle's self-flowing flask](docs/Boyle_Self-Flowing_Flask.png)](https://en.wikipedia.org/wiki/Robert_Boyle#/media/File:Boyle%27sSelfFlowingFlask.png)
 
 This drawing is by [Robert Boyle](https://en.wikipedia.org/wiki/Robert_Boyle), who was one of the founders of the science of chemistry.
-In 1661 he published a treatise titled [_“The Sceptical Chymyst”_](https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Sceptical_chymist_1661_Boyle_Title_page_AQ18_%283%29.jpg/220px-Sceptical_chymist_1661_Boyle_Title_page_AQ18_%283%29.jpg), from which the `Chymyst` framework borrows its name.
+In 1661 he published a treatise titled [_“The Sceptical Chymist”_](https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/Sceptical_chymist_1661_Boyle_Title_page_AQ18_%283%29.jpg/220px-Sceptical_chymist_1661_Boyle_Title_page_AQ18_%283%29.jpg), from which the `Chymyst` framework borrows its name.

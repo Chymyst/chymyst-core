@@ -21,7 +21,7 @@ The task is to create a chemical machine program that allows any number of concu
 but restricts the number of concurrent calls to at most three `readResource()` calls or at most one `writeResource()` call.
 The program should also prevent a `readResource()` and a `writeResource()` to be called at the same time. 
 
-Let us begin reasoning about this problem in the chemical machine paradigm, deriving the solution in a systematic way.
+Let us derive the solution in a systematic way by reasoning about this problem within the chemical machine paradigm.
 
 We need to restrict code that calls certain functions.
 The only way a chemical machine can run any code is though running some _reactions_.
@@ -43,10 +43,22 @@ site(
 Processes will emit `read()` or `write()` molecules when they need to access the resource as readers or as writers.
 
 The reactions as written so far will always start whenever `read()` or `write()` are emitted.
-However, our task is to _prevent_ these reactions from starting in certain circumstances (when there are too many concurrent accesses).
+However, our task is to control when these reactions start.
+We need to _prevent_ these reactions from starting when there are too many concurrent accesses.
 
-One way of preventing a reaction from starting is to withhold some of its input molecules.
-Therefore, the two reactions we just discussed need to have _another_ input molecule.
+In `Chymyst`, there are only two ways of preventing a reaction from starting:
+
+- by withholding some of the required input molecules;
+- by using a guard condition with a mutable variable, setting the value of that variable as required.
+
+The second method requires complicated reasoning about the current values of mutable variables.
+Generally, shared mutable state is contrary to the spirit of functional programming, although it may be used in certain cases for performance optimization.
+Although Scala allows it, we will not use shared mutable state in `Chymyst`.
+
+It remains to use the first method.
+
+In order for us to be able to provide or withhold input molecules,
+the two reactions we just discussed need to have _another_ input molecule.
 Let us call this additional molecule `access()` and revise the reactions accordingly:
 
 ```scala
@@ -941,8 +953,9 @@ The new molecules cannot be emitted outside that scope.
 
 This solution works but has a defect: the function `reduceAll()` is not tail-recursive.
 To remedy this, we can refactor the body of the function `reduceAll()` into a _reaction_.
-In other words, we declare `reduceAll` as a molecule emitter with tupled type `(Array[T], M[T])` rather than a function.
-The result is a “recursive chemistry”:
+
+We declare `reduceAll` as a molecule emitter with value type `(Array[T], M[T])`.
+Instead of a recursive function, we obtain non-recursive code that can be thought of as a “chain reaction”:
 
 ```
 val reduceAll = m[(Array[T], M[T])]
@@ -980,8 +993,8 @@ It guarantees that no other code could disturb the intended functionality of the
 
 Since the `reduceAll()` reaction emits its own input molecules until the array is fully split into individual elements,
 it will run many times to define the new reactions we previously denoted by `r01`, `r23`, `r45`, `r67`, `r03`, `r47`, and `r07`.
-Thus, emitting the initial molecule `reduceAll((arr, res))` will create a recursive structure of reactions at run time,
-reproducing what we previously hand-coded.
+Thus, emitting the initial molecule `reduceAll((arr, res))` will create a tree-like structure of chain reactions at run time,
+reproducing the tree-like computation structure that we previously hand-coded.
 
 ### Exercise:<sup>*</sup> concurrent ternary search 
 
@@ -997,12 +1010,14 @@ Implement the chemistry that performs the ternary search, as a recursive reactio
 
 ## Example: Concurrent merge-sort
 
-As we have just seen in the previous section, chemical programs can be recursive:
-A molecule can start a reaction whose reaction body defines further reactions and emits the same molecule.
-Since each reaction body will have a fresh scope, new molecules and new reactions will be defined each time.
+As we have just seen in the previous section, chemical programs can implement recursion:
+A molecule can start a reaction whose reaction body defines further reactions and emits the same molecule, which will start another copy of the same reaction, etc.
+One can visualize this situation as a “chain reaction” (of course, proper precautions are taken so that the computations eventually terminate).
+
+Since each reaction body will have a fresh local scope, the chain reaction will define _chemically new molecules and new reactions_ each time.
 This will create a recursive configuration of reactions, such as a linked list or a tree.
 
-We will now figure out how to use recursive chemistry for implementing the well-known “merge sort” algorithm in `Chymyst`.
+We will now figure out how to use chain reactions for implementing the well-known “merge sort” algorithm in `Chymyst`.
 
 The initial data will be an array of type `T`, and we will therefore need a molecule to carry that array.
 We will also need another molecule, `sorted()`, to carry the sorted result.

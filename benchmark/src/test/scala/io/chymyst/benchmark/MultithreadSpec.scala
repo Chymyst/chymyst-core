@@ -11,11 +11,9 @@ class MultithreadSpec extends LogSpec {
     def runWork(threads: Int) = {
 
       def performWork(): Unit = {
-        val n = 300
-        // load the CPU with some work:
-        (1 to n).foreach(i => (1 to i).foreach(j => (1 to j).foreach(k => math.cos(1.0))))
+        // Simulate CPU load.
+        Thread.sleep(1000)
       }
-
 
       val work = m[Unit]
       val finished = m[Unit]
@@ -39,6 +37,8 @@ class MultithreadSpec extends LogSpec {
 
     println(s"with 1 thread $result1 ms, with 8 threads $result8 ms")
 
-    (3 * result1 / 4) should be > result8
+    withClue("Running Thread.sleep() on 8 threads should be at least 7 times faster than on 1 thread") {
+      (result1 / 7) should be > result8
+    }
   }
 }

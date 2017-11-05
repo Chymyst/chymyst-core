@@ -226,6 +226,45 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     }.get
   }
 
+  it should "implement dance pairing with simple reaction" in {
+    val total = 10000
+
+    val man = m[Int]
+    val woman = m[Int]
+    val finished = m[Unit]
+    val counter = new ConcurrentLinkedQueue[Int]()
+
+    def beginDancing(x: Int): Boolean = {
+      counter.add(x)
+      counter.size == total
+    }
+
+    val done = b[Unit, Unit]
+
+    val tp = FixedPool(1)
+    val tp1 = FixedPool(1)
+    site(tp)(
+      go { case finished(_) + done(_, r) ⇒ r() }
+    )
+    site(tp1)(
+      go { case man(xy) + woman(xx) ⇒ if (beginDancing(Math.min(xx, xy))) finished() }
+    )
+    checkExpectedPipelined(Seq(man, woman).map(_ → true).toMap) shouldEqual ""
+
+    (0 until total / 2).foreach(x => man(x))
+    (0 until total / 2).foreach(x => man(x + total / 2) + woman(x))
+    (0 until total / 2).foreach(x => woman(x + total / 2))
+
+    val initTime = System.currentTimeMillis()
+    done()
+    tp.shutdownNow()
+    tp1.shutdownNow()
+    val ordering = counter.iterator().asScala.toIndexedSeq
+    val outOfOrder = ordering.zip(ordering.drop(1)).filterNot { case (x, y) => x + 1 == y }.map(_._1)
+    println(s"Dance pairing for $total pairs without queue labels took ${System.currentTimeMillis() - initTime} ms, yields ${outOfOrder.length} out-of-order instances")
+    outOfOrder shouldEqual Vector() // Dancing queue order is observed.
+  }
+
   it should "implement dance pairing without queue labels" in {
     val man = m[Int]
     val manL = m[Int]
@@ -344,7 +383,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
 
     checkExpectedPipelined(Map(man -> true, woman -> true, queueMen -> true, queueWomen -> true, manL -> false, womanL -> false, mayBegin -> false)) shouldEqual ""
 
-//    tp.reporter = ConsoleDebugAllReporter
+    //    tp.reporter = ConsoleDebugAllReporter
 
     (0 until total / 2).foreach(_ => man())
     danceCounter.volatileValue shouldEqual Nil
@@ -369,7 +408,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
 
     site(tp)(
       go { case c(x) + res(l) ⇒ val newL = x :: l; if (x >= total) done(newL); res(newL) }
-      , go { case f(_, r) + done(l) ⇒ r(l)  }
+      , go { case f(_, r) + done(l) ⇒ r(l) }
       , go { case _ ⇒ res(List[Int]()) }
     )
     checkExpectedPipelined(Map(c -> true, res -> true)) shouldEqual ""
@@ -390,7 +429,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     site(tp)(
       // This reaction has a cross-molecule guard that is always `true`, but its presence prevents `c` from being pipelined.
       go { case c(x) + res(l) if x > 0 || l.length > -1 ⇒ val newL = x :: l; if (x >= total) done(newL); res(newL) }
-      , go { case f(_, r) + done(l) ⇒ r(l)  }
+      , go { case f(_, r) + done(l) ⇒ r(l) }
       , go { case _ ⇒ res(List[Int]()) }
     )
 
@@ -398,7 +437,127 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     (1 to total).foreach(c)
     val result = f()
     println(s"non-pipelined molecule, checking with ${result.length} reactions")
-    result.reverse shouldNot equal ((1 to total).toList) // emission order will not be preserved
+    result.reverse shouldNot equal((1 to total).toList) // emission order will not be preserved
   }
 
+  behavior of "ordered readers/writers"
+
+  it should "run correctly" in {
+    sealed trait RequestType
+    case object Reader extends RequestType
+    case object Writer extends RequestType
+
+    val log = new ConcurrentLinkedQueue[Either[String, RequestType]]()
+
+    def readResource() = {
+      log.add(Right(Reader))
+      Thread.sleep(30)
+    }
+
+    def writeResource() = {
+      log.add(Right(Writer))
+      Thread.sleep(40)
+    }
+
+    val tp = FixedPool(4)
+
+    val request = m[RequestType]
+
+    val readerRequest = m[Unit]
+    val readerFinished = m[Unit]
+    val writerRequest = m[Unit]
+    val writerFinished = m[Unit]
+
+    site(tp)(
+      go { case readerRequest(_) ⇒ readResource(); log.add(Left("readerFinished")); readerFinished() },
+      go { case writerRequest(_) ⇒ writeResource(); log.add(Left("writerFinished")); writerFinished() }
+    )
+
+    val noRequests = m[Unit]
+    val haveReaders = m[Int]
+    val haveWriters = m[Int]
+    val haveReadersPendingWriter = m[Int]
+    val haveWritersPendingReader = m[Int]
+    val pending = m[RequestType]
+
+    val nReaders = 4
+    val nWriters = 2
+
+    val consume = m[Unit]
+
+    site(tp)(
+      go { case request(r) + consume(_) ⇒ pending(r) },
+      go { case pending(Reader) + noRequests(_) ⇒ log.add(Left(s"haveReaders(1)")); readerRequest() + haveReaders(1) + consume() },
+      go { case pending(Reader) + haveReaders(k) if k < nReaders ⇒ log.add(Left(s"haveReaders(${k + 1})")); readerRequest() + haveReaders(k + 1) + consume() },
+
+      go { case pending(Writer) + noRequests(_) ⇒ log.add(Left(s"haveWriters(1)")); writerRequest() + haveWriters(1) + consume() },
+      go { case pending(Writer) + haveWriters(k) if k < nWriters ⇒ log.add(Left(s"haveWriters(${k + 1})")); writerRequest() + haveWriters(k + 1) + consume() },
+
+      go { case pending(Writer) + haveReaders(k) ⇒ log.add(Left(s"haveReadersPendingWriter($k)")); haveReadersPendingWriter(k) },
+      go { case pending(Reader) + haveWriters(k) ⇒ log.add(Left(s"haveWritersPendingReader($k)")); haveWritersPendingReader(k) },
+
+      go { case readerFinished(_) + haveReaders(k) ⇒
+        if (k > 1) {
+          log.add(Left(s"haveReaders(${k - 1})"))
+          haveReaders(k - 1)
+        } else {
+          log.add(Left(s"noRequests"))
+          noRequests()
+        }
+      },
+      go { case readerFinished(_) + haveReadersPendingWriter(k) ⇒
+        if (k > 1) {
+          log.add(Left(s"haveReadersPendingWriter(${k - 1})"))
+          haveReadersPendingWriter(k - 1)
+        } else {
+          log.add(Left(s"haveWriters(1)"))
+          haveWriters(1)
+          writerRequest()
+          consume()
+        }
+      },
+
+      go { case writerFinished(_) + haveWriters(k) ⇒ if (k > 1) {
+        log.add(Left(s"haveWriters(${k - 1})"))
+        haveWriters(k - 1)
+      } else {
+        log.add(Left(s"noRequests"))
+        noRequests()
+      }
+      },
+      go { case writerFinished(_) + haveWritersPendingReader(k) ⇒
+        if (k > 1) {
+          log.add(Left(s"haveWritersPendingReader(${k - 1})"))
+          haveWritersPendingReader(k - 1)
+        } else {
+          log.add(Left(s"haveReaders(1)"))
+          haveReaders(1)
+          readerRequest()
+          consume()
+        }
+      }
+    )
+
+    consume() + noRequests()
+
+    (0 to 100).map(_ ⇒ if (scala.util.Random.nextInt(2) == 0) Reader else Writer).foreach(request)
+
+    Thread.sleep(5000)
+
+    tp.shutdownNow()
+
+    val trace = log.toArray.toList.map(_.asInstanceOf[Either[String, RequestType]]).scanLeft((0, 0)) {
+      case ((r, w), c) ⇒ c match {
+        case Right(Writer) ⇒ (r, w + 1)
+        case Right(Reader) ⇒ (r + 1, w)
+        case Left("readerFinished") ⇒ (r - 1, w)
+        case Left("writerFinished") ⇒ (r, w - 1)
+        case _ ⇒ (r, w)
+      }
+    }
+
+    withClue(s"There should not be more than $nReaders readers or $nWriters writers or any readers and writers concurrently") {
+      trace.find { case (r, w) ⇒ r < 0 || w < 0 || r > nReaders || w > nWriters || (r > 0 && w > 0) } shouldEqual None
+    }
+  }
 }
