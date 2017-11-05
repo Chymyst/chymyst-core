@@ -1386,6 +1386,10 @@ The complete working test is in `Patterns01Spec.scala`.
 We have implemented the ordered `m` : `n` Readers/Writers problem where the read and write requests are functions without arguments returning `Unit`.
 Modify the code so that write requests have a `String` argument, while read requests cause an auxiliary molecule to be emitted with a `String` value.
 
+### Exercise: Ordered `m` : `n` Readers/Writers that finish their work
+
+Add appropriate new reactions molecules such that the code can wait until a certain (fixed) number of Readers and Writers are finished with their requests.
+
 ### Majority rule `n` : `n` Readers/Writers ("The Modus Hall problem")
 
 For this example, the Readers/Writers access numbers are equal, `n` : `n`.

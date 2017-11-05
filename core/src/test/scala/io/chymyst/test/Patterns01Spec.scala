@@ -451,7 +451,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
 
     def readResource() = {
       log.add(Right(Reader))
-      Thread.sleep(20)
+      Thread.sleep(30)
     }
 
     def writeResource() = {
@@ -469,8 +469,8 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val writerFinished = m[Unit]
 
     site(tp)(
-      go { case readerRequest(_) ⇒ readResource(); readerFinished() },
-      go { case writerRequest(_) ⇒ writeResource(); writerFinished() }
+      go { case readerRequest(_) ⇒ readResource(); log.add(Left("readerFinished")); readerFinished() },
+      go { case writerRequest(_) ⇒ writeResource(); log.add(Left("writerFinished")); writerFinished() }
     )
 
     val noRequests = m[Unit]
@@ -540,44 +540,24 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
 
     consume() + noRequests()
 
-    Seq(Reader, Reader, Reader, Writer, Reader, Writer, Writer, Writer, Writer, Reader).foreach(request)
+    (0 to 100).map(_ ⇒ if (scala.util.Random.nextInt(2) == 0) Reader else Writer).foreach(request)
 
-    Thread.sleep(1000)
+    Thread.sleep(5000)
 
     tp.shutdownNow()
 
-    log.toArray.toList shouldEqual Seq(
-      Left("haveReaders(1)"),
-      Right(Reader),
-      Left("haveReaders(2)"),
-      Right(Reader),
-      Left("haveReaders(3)"),
-      Right(Reader),
-      Left("haveReadersPendingWriter(3)"),
-      Left("haveReadersPendingWriter(2)"),
-      Left("haveReadersPendingWriter(1)"),
-      Left("haveWriters(1)"),
-      Right(Writer),
-      Left("haveWritersPendingReader(1)"),
-      Left("haveReaders(1)"),
-      Right(Reader),
-      Left("haveReadersPendingWriter(1)"),
-      Left("haveWriters(1)"),
-      Right(Writer),
-      Left("haveWriters(2)"),
-      Right(Writer),
-      Left("haveWriters(1)"),
-      Left("haveWriters(2)"),
-      Right(Writer),
-      Left("haveWriters(1)"),
-      Left("haveWriters(2)"),
-      Right(Writer),
-      Left("haveWritersPendingReader(2)"),
-      Left("haveWritersPendingReader(1)"),
-      Left("haveReaders(1)"),
-      Right(Reader),
-      Left("noRequests")
-    )
-  }
+    val trace = log.toArray.toList.map(_.asInstanceOf[Either[String, RequestType]]).scanLeft((0, 0)) {
+      case ((r, w), c) ⇒ c match {
+        case Right(Writer) ⇒ (r, w + 1)
+        case Right(Reader) ⇒ (r + 1, w)
+        case Left("readerFinished") ⇒ (r - 1, w)
+        case Left("writerFinished") ⇒ (r, w - 1)
+        case _ ⇒ (r, w)
+      }
+    }
 
+    withClue(s"There should not be more than $nReaders readers or $nWriters writers or any readers and writers concurrently") {
+      trace.find { case (r, w) ⇒ r < 0 || w < 0 || r > nReaders || w > nWriters || (r > 0 && w > 0) } shouldEqual None
+    }
+  }
 }
