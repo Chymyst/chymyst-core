@@ -1,8 +1,7 @@
 package io.chymyst.benchmark
 
 // Make all imports explicit, just to see what is the entire set of required imports.
-import io.chymyst.jc.{+, FixedPool, M, m, B, b, go, Reaction, ReactionInfo, InputMoleculeInfo, AllMatchersAreTrivial, OutputMoleculeInfo, site, EmitMultiple}
-import io.chymyst.jc.ConsoleErrorsAndWarningsReporter
+import io.chymyst.jc.{+, EmitMultiple, FixedPool, M, b, go, m, site}
 
 import scala.annotation.tailrec
 import scala.collection.mutable
@@ -43,7 +42,7 @@ object MergeSort {
       go { case finalResult(arr) + getFinalResult(_, r) => r(arr) }
     )
 
-    // recursive molecule that will define the reactions at one level lower
+    // molecule that will start the chain reactions at one level lower
 
     val mergesort = m[(Coll[T], M[Coll[T]])]
 

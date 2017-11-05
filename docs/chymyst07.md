@@ -1506,7 +1506,7 @@ The price is the need for additional bookkeeping in programs that need to wait u
 
 In previous chapters, we have already seen two examples of this kind of bookkeeping.
 In the "map/reduce" pattern, we had put an additional counter on the `result` molecules so that we would know when we finish aggregating the partial results.
-In the "merge/sort" example, we used a recursive chemical reaction to make sure that the computation tree terminates.
+In the "merge/sort" example, we used a chain reaction that guarantees eventual termination of the computation tree.
 
 The recursive code is elegant in its way, but makes reasoning more complicated.
 Let us first try to achieve termination by using a counter.
@@ -1594,7 +1594,7 @@ Fix the chemistry so that the procedure works correctly in these corner cases.
 #### Ordered fork/join
 
 In the "fork/join" chemistry just described, partial results are aggregated in an arbitrary order.
-Implement the chemistry using recursive reactions instead of counters,
+Implement the chemistry using chain reactions instead of counters,
 so that the partial results are always aggregated first within the recursive split that generated them.
 
 ## Producer-consumer, or `java.util.concurrent.ConcurrentLinkedQueue`
