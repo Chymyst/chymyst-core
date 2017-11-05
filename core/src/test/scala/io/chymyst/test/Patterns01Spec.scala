@@ -459,6 +459,8 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
       Thread.sleep(40)
     }
 
+    val tp = FixedPool(4)
+
     val request = m[RequestType]
 
     val readerRequest = m[Unit]
@@ -466,7 +468,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
     val writerRequest = m[Unit]
     val writerFinished = m[Unit]
 
-    site(
+    site(tp)(
       go { case readerRequest(_) ⇒ readResource(); readerFinished() },
       go { case writerRequest(_) ⇒ writeResource(); writerFinished() }
     )
@@ -483,7 +485,7 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
 
     val consume = m[Unit]
 
-    site(
+    site(tp)(
       go { case request(r) + consume(_) ⇒ pending(r) },
       go { case pending(Reader) + noRequests(_) ⇒ log.add(Left(s"haveReaders(1)")); readerRequest() + haveReaders(1) + consume() },
       go { case pending(Reader) + haveReaders(k) if k < nReaders ⇒ log.add(Left(s"haveReaders(${k + 1})")); readerRequest() + haveReaders(k + 1) + consume() },
@@ -494,13 +496,14 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
       go { case pending(Writer) + haveReaders(k) ⇒ log.add(Left(s"haveReadersPendingWriter($k)")); haveReadersPendingWriter(k) },
       go { case pending(Reader) + haveWriters(k) ⇒ log.add(Left(s"haveWritersPendingReader($k)")); haveWritersPendingReader(k) },
 
-      go { case readerFinished(_) + haveReaders(k) ⇒ if (k > 1) {
-        log.add(Left(s"haveReaders(${k - 1})"))
-        haveReaders(k - 1)
-      } else {
-        log.add(Left(s"noRequests"))
-        noRequests()
-      }
+      go { case readerFinished(_) + haveReaders(k) ⇒
+        if (k > 1) {
+          log.add(Left(s"haveReaders(${k - 1})"))
+          haveReaders(k - 1)
+        } else {
+          log.add(Left(s"noRequests"))
+          noRequests()
+        }
       },
       go { case readerFinished(_) + haveReadersPendingWriter(k) ⇒
         if (k > 1) {
@@ -541,6 +544,8 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
 
     Thread.sleep(1000)
 
+    tp.shutdownNow()
+
     log.toArray.toList shouldEqual Seq(
       Left("haveReaders(1)"),
       Right(Reader),
@@ -573,7 +578,6 @@ class Patterns01Spec extends LogSpec with BeforeAndAfterEach {
       Right(Reader),
       Left("noRequests")
     )
-
   }
 
 }

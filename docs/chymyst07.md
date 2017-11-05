@@ -1388,10 +1388,10 @@ Modify the code so that write requests have a `String` argument, while read requ
 
 ### Majority rule `n` : `n` Readers/Writers ("The Modus Hall problem")
 
-For this example, Readers and Writers have equal ratio `n` : `n`.
-We no longer require that all requests are served in the exact order received. 
+For this example, the Readers/Writers access numbers are equal, `n` : `n`.
 However, a new rule involving wait times is introduced:
 If more Readers than Writers are waiting to access the resource, no more Writers should be granted access, and vice versa.
+Accordingly, we no longer require that all requests be served in the exact order received. 
 
 TODO
 
