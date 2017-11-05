@@ -1,7 +1,9 @@
 package io.chymyst.benchmark
 
 // Make all imports explicit, just to see what is the entire set of required imports.
-import io.chymyst.jc.{+, EmitMultiple, FixedPool, M, b, go, m, site}
+// Do not optimize imports in this file!
+import io.chymyst.jc.{+, FixedPool, M, m, B, b, go, Reaction, ReactionInfo, InputMoleculeInfo, AllMatchersAreTrivial, OutputMoleculeInfo, site, EmitMultiple}
+import io.chymyst.jc.ConsoleErrorsAndWarningsReporter
 
 import scala.annotation.tailrec
 import scala.collection.mutable
@@ -14,7 +16,7 @@ object MergeSort {
 
     def isLess(x: T, y: T) = implicitly[Ordering[T]].compare(x, y) < 0
 
-    // will now modify result
+    // Will now modify the `result` array in place.
     @tailrec
     def mergeRec(i1: Int, i2: Int, i: Int): Unit = {
       if (i1 == arr1.length && i2 == arr2.length) ()
@@ -42,7 +44,7 @@ object MergeSort {
       go { case finalResult(arr) + getFinalResult(_, r) => r(arr) }
     )
 
-    // molecule that will start the chain reactions at one level lower
+    // The `mergesort()` molecule will start the chain reactions at one level lower.
 
     val mergesort = m[(Coll[T], M[Coll[T]])]
 
@@ -51,7 +53,7 @@ object MergeSort {
         if (arr.length <= 1) resultToYield(arr)
         else {
           val (part1, part2) = arr.splitAt(arr.length / 2)
-          // "sorted1" and "sorted2" will be the sorted results from the lower level
+          // The `sorted1()` and `sorted2()` molecules will carry the sorted results from the lower level.
           val sorted1 = m[Coll[T]]
           val sorted2 = m[Coll[T]]
           site(reactionPool)(
@@ -64,7 +66,7 @@ object MergeSort {
         }
       }
     )
-    // sort our array: emit `mergesort` at top level
+    // Sort our array: emit `mergesort()` at top level.
     mergesort((array, finalResult))
 
     val result = getFinalResult()
