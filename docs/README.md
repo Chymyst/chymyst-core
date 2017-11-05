@@ -3,25 +3,25 @@
 # `Chymyst`: declarative concurrency in Scala
 
 `Chymyst` is a framework for concurrency in functional programming
-based on the **chemical machine** paradigm, also known as [Join Calculus](https://en.wikipedia.org/wiki/Join-calculus).
+implementing the **chemical machine** paradigm, also known in the academic world as [Join Calculus](https://en.wikipedia.org/wiki/Join-calculus).
 The chemical machine concurrency paradigm has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) or [the Actor model](https://en.wikipedia.org/wiki/Actor_model).
 
 [`Chymyst Core`](https://github.com/Chymyst/chymyst-core) is a library that implements the high-level concurrency primitives as a domain-specific language in Scala.
 [`Chymyst`](https://github.com/Chymyst/Chymyst) is a framework-in-planning that will build upon `Chymyst Core` and bring declarative concurrency to practical applications.
 
-The code of `Chymyst Core` is based on previous Join Calculus implementations by Jiansen He (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
+The code of `Chymyst Core` is based on previous Join Calculus implementations by He Jiansen (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
 # [The _Concurrency in Reactions_ tutorial book: table of contents](chymyst00.md) 
 
 ## Overview of `Chymyst` and the chemical machine paradigm
 
-### [Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
+### [Concurrency in Reactions: Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
 
 #### [From actors to reactions: a guide for those familiar with the Actor model](https://chymyst.github.io/chymyst-core/chymyst-actor.html)
 
 #### [A "Hello, world" project](https://github.com/Chymyst/helloworld)
 
-#### Presentations on Chymyst and the chemical machine programming
+#### Presentations on `Chymyst` and the chemical machine programming paradigm
 
 Oct. 16, 2017: Talk given at the [Scala Bay meetup](https://www.meetup.com/Scala-Bay/events/243931229):
 
