@@ -32,26 +32,31 @@ This imports all the necessary symbols such as `m`, `b`, `site`, `go` and so on.
 In the chemical machine, an asynchronous concurrent process (called a **reaction**) is implemented as a computation that works with a special kind of data called **molecules**.
 A reaction can consume one or more input molecules and may emit (zero or more) new molecules.
 
-Molecules are created out of ordinary data values by calling special **molecule emitters**. 
+Molecules are created out of ordinary data values by calling special **molecule emitters**.
 
 All molecule emitters must be declared before using them.
 A new molecule emitter is created using the special syntax `m[T]`, where `T` is the type of the value:
 
 ```scala
-scala> val in = m[Int] // emitter for molecule `in` with value of type `Int`
+scala> val c = m[Int] // emitter for molecule `c` with payload value of type `Int`
+c: io.chymyst.jc.M[Int] = c
+
+scala> val in = m[Int] // emitter for molecule `in` with `Int` payload value
 in: io.chymyst.jc.M[Int] = in
 
-scala> val result = m[Int] // emitter for molecule `result` with value of type `String`
+scala> val result = m[Int] // emitter for molecule `result` with `String` payload value
 result: io.chymyst.jc.M[Int] = result
 ```
 
 Molecules can be emitted using this syntax:
 
 ```scala
-val c = m[Int] // emitter for molecule `c` with value of type `Int`
-c(123) // emit a new molecule `c()` carrying the `Int` value `123`
+val c = m[Int] // emitter for molecule `c` with payload value of type `Int`
+c(123) // emit a new molecule `c()` carrying the payload value `123` of type `Int`
 
 ```
+
+The result of calling a molecule emitter such as `c(123)` with a data value `123` is to emit a new copy of a molecule that carries the value `123` as its payload.
 
 A reaction must be declared using the `go { }` syntax.
 The body of a reaction is a computation that can contain arbitrary Scala code.
@@ -63,7 +68,7 @@ scala> site(
      |   go { case in(x) ⇒     // consume a molecule `in(...)` as input
      |   // now declare the body of the reaction:
      |     val z = x * 2       // compute some new value using the value `x`
-     |     result(z)           // emit a new mmolecule `result(z)`
+     |     result(z)           // emit a new molecule `result(z)`
      |   },
      |   go { case result(x) ⇒ println(x) } // consume `result(...)`
      | )
@@ -72,16 +77,15 @@ res0: io.chymyst.jc.WarningsAndErrors = In Site{in → ...; result → ...}: no 
 scala> in(123); in(124); in(125)   // emit some initial molecules
 
 scala> Thread.sleep(200) // wait for reactions to start
-250
-248
 246
+248
+250
 ```
-
 
 Emitters can be called many times to emit many copies of a molecule:
 
 ```scala
-in(123); in(124); in(125)
+in(0); in(0); in(0)
 (1 to 10).foreach(x ⇒ in(x))
 
 ```
@@ -129,14 +133,16 @@ got result = false
 Emitting a molecule is a _non-blocking_ operation; execution continues immediately, without waiting for any reactions to start.
 Reactions will start as soon as possible and will run in parallel with the processes that emitted their input molecules.
 
-Molecules can carry data of any type as their **payload value** (but the type is fixed by the declared emitter's type).
-For example, a molecule can carry a payload value of function type, which allows us to implement **asynchronous continuations**:
+Once a molecule emitter is declared, the type of the molecule's payload value is statically fixed.
+This type can by any type, such as `Int`, `(Double, Double)`, `Option[Seq[Int]]`, a case class, a function type such as `Int ⇒  Boolean`, etc.
+
+Using molecules with a payload of function type will allow us to implement **asynchronous continuations**:
 
 ```scala
 scala> val in = m[Int] // input molecule
 in: io.chymyst.jc.M[Int] = in
 
-scala> val cont = m[Int ⇒ Unit]  // molecule that carries the continuation
+scala> val cont = m[Int ⇒ Unit]  // molecule that carries the continuation as payload
 cont: io.chymyst.jc.M[Int => Unit] = cont
 
 scala> site(
