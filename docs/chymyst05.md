@@ -260,7 +260,7 @@ For a molecule `c()` to be pipelined, the chemical program must be such that the
 
 Two properties of the chemical program immediately follow from this requirement:
 
-- (Property 1.) Every reaction may consume at most one instance of `c()`. (No reaction should consume multiple input `c()` molecules, e.g. `go { c(x) + c(y) ⇒ ... }`.)
+- (Property 1.) Every reaction may consume at most one instance of `c()`. No reaction should consume multiple input `c()` molecules, e.g. `go { c(x) + c(y) ⇒ ... }`.
 - (Property 2.) If, for some non-ignorable value `x`, the molecule instance `c(x)` cannot be immediately consumed by any reaction at this time,
 no other molecule instance `c(y)` with _any other_ non-ignorable `y != x` can be immediately consumed by any reaction either.
 (If some reaction could consume`c(y)`, the program would become deadlocked by the presence of `c(x)` at the top of the queue.)
@@ -329,7 +329,7 @@ Such molecules can be always pipelined.
 ### Derivation of the simplified condition
 
 This subsection shows a formal derivation of the pipelined condition using Boolean logic.
-Readers not interested in this theory may skip to next section.
+Readers not interested in this theory may skip to the next section.
 
 Consider a set of reactions, each consuming a single instance of `c(x)`.
 For each reaction `r`, we have a Boolean function of the form `f`<sub>`r`</sub>`(x, y, z, HAVE(d(y)), HAVE(e(z)), ...)` that depends on a number of other variables.
@@ -341,7 +341,7 @@ For brevity, we denote all these "external" variables by `E` (these variables do
 The condition for a molecule `c(x)` to be consumed by any reaction is the Boolean disjunction of all the per-reaction functions `f`<sub>`r`</sub>`(x, E)`.
 Let us denote this disjunction by `F(x, E)`:
 
-`F(x, E) = `f`<sub>`r_1`</sub>`(x, E) || f`<sub>`r_2`</sub>`(x, E) || ... || f`<sub>`r_n`</sub>`(x, E)`.
+`F(x, E)` = `f`<sub>`r_1`</sub>`(x, E) || f`<sub>`r_2`</sub>`(x, E) || ... || f`<sub>`r_n`</sub>`(x, E)`.
 
 We will now show that the complicated requirements of Property 2 from the previous section are equivalent to the single requirement that
 
