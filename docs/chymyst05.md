@@ -125,352 +125,6 @@ emitters(0)(10)
 
 ```
 
-## Pipelined molecules
-
-The chemical machine paradigm does not enforce any particular order on reactions or molecules.
-However, it is often necessary in practical applications to ensure that e.g. requests are processed in the order they are received.
-If each request is represented by a newly emitted molecule, we will be required to ensure that molecules start their reactions in the order of emission.
-
-In principle, this can be implemented by, say, attaching an extra timestamp to each molecule and enforcing the order of molecule consumption via guard conditions on all relevant reactions.
-But this method of implementation is inefficient because the reaction scheduler will have to enumerate all the present molecules, looking for a molecule with the right timestamp.
-The programmer will be also burdened with extra bookkeeping, and the code will become less declarative.
-
-For this reason, `Chymyst` has special support for **pipelined molecules** - that is, molecules that are always consumed in the exact order they were emitted.
-
-For each pipelined molecule, `Chymyst` allocates an (ordered) queue that stores molecule instances in the order they were emitted.
-Whenever a reaction consumes a pipelined molecule, it is always the head of the queue that is consumed.
-
-Pipelined molecules are detected automatically by `Chymyst` according to the conditions we will describe now.
-First we need to consider whether the chemical machine semantics is compatible with pipelined molecules at all.
-
-It turns out that, in a given chemical program, some molecules may be made pipelined without adverse effects, while others cannot be made pipelined.
-The following example illustrates why this is so.
-In this example, several reactions consume the same molecule but impose different guard conditions on the molecule value:
-
-```scala
-site(
-  go { case c(0) + a(y) ⇒ ... },
-  go { case c(y) if y > 0 ⇒ a(y) }
-)
-
-```
-
-Suppose the molecule `c()` is implemented via an ordered queue, and we emit `c(0)`, `c(1)`, `c(2)` in this order.
-The presence of `c(0)` at the head of the queue means that a reaction consuming `c(0)` must run first.
-
-Thus, the presence of `c(0)` at the head of the queue will prevent any other copy of `c()` from being consumed,
-until a molecule` a()` becomes available so that `c(0)` may be consumed and removed from the head of the queue.
-But `a()`  is emitted only by the second reaction, which will never run since `c(1)` is not at the head of the queue.
-
-So, implementing `c()` as a pipelined molecule will create a deadlock in this program.
-Programs like this one will work correctly only if reactions are allowed to consume the `c()` molecules out of order.
-
-However, the molecule `a()` can be made pipelined, since there are no conditions on its value, and the available instances of `a()` can be consumed in any order without creating deadlocks.
-
-Many chemical programs can be implemented with pipelined molecules.
-As another example, consider the "counter",
-
-```scala
-site(
-  go { case c(x) + incr(_) ⇒ c(x + 1) },
-  go { case c(x) + decr(_) if x > 0 ⇒ c(x - 1) }
-)
-
-```
-
-In this program, the molecules `incr()` and `decr()` can be made pipelined without any adverse effects.
-
-So we find that, in a given chemical program, some molecules can be made pipelined while others cannot.
-`Chymyst` performs static (early run-time) analysis of the user's code and automatically assigns ordered queues to all molecules
-that could admit pipelined semantics without creating problems.
-
-For a molecule `c()` to be pipelined, the reactions consuming `c()` must be such that
-the chemical machine only needs to inspect a single copy of the molecule `c()` in order to be able to select correctly the next reaction to run.
-
-One use case for pipelined molecules is implementing a chain of asynchronous processing stages.
-Suppose that we need to process initial data by using transformations `x ⇒ f(x)`, then ` x ⇒ g(x)`, etc., where each stage takes a long time.
-We would like to run all these stages concurrently.
-At the same time, we would like to retain the order in which the data goes through the processing stages.
-
-The following program implements an example of this kind of computation.
-Each processing stage maintains local state (denoted by `s`), which is updated to a new value `newS` while the result is computed and passed on to the next stage.
-
-```scala
-val input1 = m[Int]
-val stage1 = m[Int]
-val input2 = m[Int]
-val stage2 = m[Int]
-val input3 = m[Int]
-val stage3 = m[Int]
-val output = m[Int]
-
-site(
-  go { case input1(x) + step1(s) ⇒
-    val newS = p(x, s)
-    val result = f(x, s)
-    stage1(newS) + input2(result)
-  },
-  go { case input2(x) + step2(s) ⇒
-    val newS = q(x, s)
-    val result = g(x, s)
-    stage2(newS) + input3(result)
-  },
-  go { case input3(x) + step3(s) ⇒
-    val newS = r(x, s)
-    val result = h(x, s)
-    stage3(newS) + output(result)
-  }
-)
-
-stage1(0) + stage2(0) + stage3(0)
-
-(1 to 10000).foreach(i ⇒ input1(i))
-
-```
-
-In this program, all three kinds of "input" molecules are pipelined, which means that they are consumed in the same order as they are emitted.
-This will create a linearly ordered data stream even if we emit a large number of `input1()` molecules at once. 
-
-It is important to note that having each of the "input" pipelined will not be sufficient for maintaining the linear order of the data stream.
-
-If we initially emit several copies of `stage1()`, several instances of the first stage could run in parallel.
-Typically, the parallel-running instances will not finish in the same order they started, so the `input2()` molecules will not be emitted in the same order as `input1()`.
-The only way to prevent this from happening is to assign a custom single-thread pool to each of the stage reactions.
-
-Therefore, we have two ways of building a linearly ordered data stream:
-
-- use static molecules or other single-copy molecules, together with pipelined molecules
-- use single-thread pools, together with pipelined molecules
-
-### Detecting pipelined molecules
-
-In the examples we have seen, there were no special annotations or syntax for pipelined molecules.
-This is so because `Chymyst` determines automatically which molecules should be made pipelined, in a given chemical program.
-Here is how this is decided.
-
-Let us assume that a molecule `c()` has value type `T`.
-
-There may exist values `x: T` such that no reactions will _ever_ consume the instance `c(x)` with that `x` -- neither now, nor in the future.
-(This happens, for example, if `x` is such that no pattern or guard condition is ever satisfied in any of the available reactions. Molecule instances `c(y)` with some `y != x` might still be potentially consumed now or later.)
-Let us call these values of `x` **ignorable** values for the molecule `c()`.
-Molecule instances `c(x)` that carry an ignorable value `x` will never be consumed by any reactions and can be deleted from the soup immediately.
-
-Let us now examine the main assumption about pipelined molecules:
-For a molecule `c()` to be pipelined, the chemical program must be such that the next reaction consuming `c()` can be always found (with no deadlocks) by examining _only one_ instance `c(x)` of the molecule.
-
-Two properties of the chemical program immediately follow from this requirement:
-
-- (Property 1.) Every reaction may consume at most one instance of `c()`. (No reaction should consume multiple input `c()` molecules, e.g. `go { c(x) + c(y) ⇒ ... }`.)
-- (Property 2.) If, for some non-ignorable value `x`, the molecule instance `c(x)` cannot be immediately consumed by any reaction at this time,
-no other molecule instance `c(y)` with _any other_ non-ignorable `y != x` can be immediately consumed by any reaction either.
-(If some reaction could consume`c(y)`, the program would become deadlocked by the presence of `c(x)` at the top of the queue.)
-
-Property 2 is somewhat difficult to reason about, when formulated in this way.
-By using Boolean logic, this property can be simplified and formulated as an easier property to be checked for all reactions consuming `c()`.
-A mathematical derivation of the simplified property is in the next subsection.
-
-To formulate the simplified property, let us assume that `c(x)` is at the head of the queue,
-and let us ask whether a molecule instance `c(x)` can be consumed by a certain reaction, say `go { c(x) + d(y) + e(z) if g(x, y, z) ⇒ ... }`.
-This reaction can start if
-
-- a molecule instance `d(y)` is present with some `y`,
-- a molecule instance `e(z)` is present with some `z`,
-- the values `y` and `z` satisfy the guard condition `g(x, y, z)`.
-
-We can write these conditions symbolically as a single Boolean formula
-
-`HAVE(d(y)) && HAVE(e(z)) && g(x, y, z)`.
-
-Repeating the same consideration for each reaction consuming `c()`, we obtain a certain set of Boolean formulas of this kind, with various guard conditions and other molecules. 
-
-Now, the conditions for `c()` to be pipelined are that
-
-- each reaction's Boolean formula can be identically rewritten as a simple Boolean _conjunction_ of the form `p(x) && q(y, z, ...)`, where
-- the Boolean function `p(x)` involves only the value `x` and must be the same for all reactions, while `q(...)` could be different for each reaction,
-involving the presence of any other molecules and their specific values, but independent of `x`.
-
-In other words, the condition for `c(x)` to be consumed by any reaction must depend on the value `x` in a way that does not involve other molecules.
-
-To check whether any molecule `c()` satisfies this condition within a given chemical program, `Chymyst` goes through all reactions that consume `c(x)`,
-determines the Boolean formula for that reaction, and tries to simplify that formula into a conjunction of the form `p(x) && q(y, z, ...)`.
-If this succeeds with `p(x)` being _the same for all reactions_, `Chymyst` determines that the molecule `c()` can be pipelined.
-
-`Chymyst` will then assign the `.isPipelined` property of the molecule emitter to `true` for that molecule.
-In debug output, the names of pipelined molecules will be suffixed with `/P`.
-
-Here is an example of a reaction site where some molecules are pipelined but others are not:
-
-```scala
-site(
-  go { case a(x) if x > 0 + e(_) ⇒ ... },
-  go { case a(x) + c(y) if x > 0 ⇒ ... },
-  go { case d(z) + c(y) if y > 0 ⇒ ...}
-)
-
-```
-
-In this program, `a(x)` can be consumed if and only if `x > 0`.
-This condition is the same for the two reactions that consume `a()`.
-Therefore, the condition for consuming `a(x)` has the form `x > 0 && q(...)` for some Boolean function `q()` that does not depend on `x`.
-`Chymyst` will determine that `a()` can be pipelined.
-
-The situation with the molecule `c()` is different:
-The second reaction accepts `c(y)` with any `y` but the third reaction requires `y > 0`.
-Therefore the Boolean condition for consuming `c(y)` has the form
-
-`q1(HAVE(a(x)), x) || y > 0 && Q2(HAVE(d(z)))`
-
-This formula cannot be decomposed into a conjunction of the form `p(y) && q(x, z, ...)`
-So the molecule `c()` cannot be pipelined in this reaction site.
-
-Finally, the molecule `d()` is pipelined because it is consumed without imposing any conditions on its value.
-Such molecules can be always pipelined.
-
-### Derivation of the simplified condition
-
-This subsection shows a formal derivation of the pipelined condition using Boolean logic.
-Readers not interested in this theory may skip to next section.
-
-Consider a set of reactions, each consuming a single instance of `c(x)`.
-For each reaction `r`, we have a Boolean function of the form `f`<sub>`r`</sub>`(x, y, z, HAVE(d(y)), HAVE(e(z)), ...)` that depends on a number of other variables.
-
-Here, the symbolic expressions such as `HAVE(d(y))` are understood as simple Boolean variables.
-Values of these variables, as well as values of `y`, `z`, etc., describe the current population of molecules in the soup, excluding the molecule `c(x)`.
-For brevity, we denote all these "external" variables by `E` (these variables do not include `x`).
-
-The condition for a molecule `c(x)` to be consumed by any reaction is the Boolean disjunction of all the per-reaction functions `f`<sub>`r`</sub>`(x, E)`.
-Let us denote this disjunction by `F(x, E)`:
-
-`F(x, E) = `f`<sub>`r_1`</sub>`(x, E) || f`<sub>`r_2`</sub>`(x, E) || ... || f`<sub>`r_n`</sub>`(x, E)`.
-
-We will now show that the complicated requirements of Property 2 from the previous section are equivalent to the single requirement that
-
-`F(x, E) = p(x) && q(E)`,
-
-for some Boolean functions `p` and `q`.
-
-Property 2 states that, for any `x` and at any time (i.e. for any `E`), one of the three conditions must hold:
-
-1. The value `x` is ignorable.
-2. The molecule `c(x)` can be consumed immediately by some reaction.
-3. The molecule `c(x)` cannot be consumed immediately by any reaction, but also no other molecule instance `c(y)` with any `y != x` could be consumed immediately by any reaction, if that `c(y)` were present in the soup.
-
-Let us formulate these conditions in terms of the function `F(x, E)`, where `x` and `E` describe the soup at the present time:
-
-1. `∀ E1 : !F(x, E1)`
-2. `F(x, E)`
-3. `∀ x1 : !F(x1, E)`
-
-The disjunction of these three Boolean formulas must be `true` for all `x` and `E`:
-
-`∀ x : ∀ E : (∀ E1 : !F(x, E1)) || F(x, E) || (∀ x1 : !F(x1, E))`.
-
-We will use some tricks of Boolean algebra to prove that this formula is identically equivalent to
-
-`∀ x : ∀ E : F(x, E) == p(x) && q(E)`
-
-where `p` and `q` are suitably defined Boolean functions.
-
-To prove this, we will identically transform the expression under the quantifiers `∀ x : ∀ E :` into the form `F(x, E) == p(x) && q(E)`.
-
-Note that, in Boolean logic, `a == b` is the same as `a && b || (!a && !b)`.
-Thus our goal is to derive
-
-(**) `∀ x : ∀ E : F(x, E) && p(x) && q(E) || (!F(x, E) && !(p(x) && q(E)))`.
-
-The derivation proceeds in three steps.
-
-(1) We have the identity `!(∀ x : !f(x)) = ∃ x : f(x)` for any Boolean function `f`.
-
-Therefore, we can rewrite
-
-- `(∀ E1 : !F(x, E1)) = !(∃ E1 : F(x, E1))`
-- `(∀ x1 : !F(x1, E)) = !(∃ x1 : F(x1, E))`
-
-We also note that these two expressions are functions of `x` and of `E` respectively.
-
-Let us introduce names for these functions:
-
-- Define `p(x) = ∃ E1 : F(x, E1)`.
-- Define `q(E) = ∃ x1 : F(x1, E)`.
-
-Then we can rewrite the original expression under the quantifiers as
-
-`(∀ E1 : !F(x, E1)) || F(x, E) || (∀ x1 : !F(x1, E))`
-
-= `F(x, E) || !p(x) || !q(E) = F(x, E) || !(p(x) && q(E))`.
-
-(2) Another Boolean identity that holds for any Boolean functions `A` and `B` is
-
-`A || !B = (A && B) || !B`.
-
-We use this identity to rewrite the result of step (1) as
-
-`F(x, E) || !(p(x) && q(E)) = F(x, E) && p(x) && q(x) || !(p(x) && q(E))`.
-
-(3) We observe that, for any Boolean function `h(x)` and for any `a`,
-
-`(∀ x : h(x)) = h(a) && (∀ x : h(x))`.
-
-Adding an extra conjuction with `h(a)` does not change the value of `(∀ x : h(x))`:
-If `(∀ x : h(x))` is true, it means that `h(x)` holds for all possible values of `x`, including `x = a`.
-
-Using this transformation, we find that
-
-- `!p(x) = (∀ E1 : !F(x, E1)) = !F(x, E) && (∀ E1 : !F(x, E1)) = !F(x, E) && !p(x)`
-- `!q(E) = (∀ x1 : !F(x1, E)) = !F(x, E) && (∀ x1 : !F(x1, E)) = !F(x, E) && !q(E)`
-
-It follows that 
-
-`!(p(x) && q(E)) = !p(x) || !q(E) = !F(x, E) && !p(x) || !F(x, E) && !q(E)`
-
-= `!F(x, E) && (!p(x) || !q(E)) = !F(x, E) && !(p(x) && q(E))`.
-
-We use this identity to rewrite the result of step (2) as
-
-`F(x, E) && p(x) && q(x) || !(p(x) && q(E))`
-
-= `(F(x, E) && p(x) && q(E)) || (!F(x, E) && !(p(x) && q(E)))`
-
-= `(F(x, E) == p(x) && q(E))`.
-
-This is precisely the expression (**).
-Therefore, we find that for all `x` and `E` the Boolean function `F(x, E)` is equal to the conjunction `p(x) && q(E)`.
-
-Note that we have proved the decomposition of `F(x, E)` rather than each of the per-reaction functions `f`<sub>`r`</sub>`(x, E)`.
-If each of the per-reaction functions is decomposable with the same `p(x)`, their disjunction `F(x, E)` is also decomposable;
-but the converse does not hold.
-
-`Chymyst` checks that each per-reaction Boolean function is decomposed as a conjunction `p(x) && ...` with the same `p(x)`.
-Therefore, the condition actually checked by `Chymyst` is a sufficient (but not a necessary) condition for the molecule to be pipelined.
-
-The result is that `Chymyst` might, in rare cases, fail to determine that some molecules could be pipelined.
-The lack of pipelining is safe and will, at worst, lead to some degradation of performance.
-
-It would have been nearly impossible to obtain `F(x, E)` symbolically and to implement the strict necessary condition,
-because `x` and `E` are variables with values of arbitrary types (e.g. `Int`, `Double`, `String` and so on),
-which are not easily described through Boolean algebra.
-
-As an (admittedly artificial) example, consider the reaction site
-
-```scala
-site(
-  go { case c(x) + d(y) if x >= 0 && y > 0 ⇒ ... },
-  go { case c(x) + d(y) if x >= 0 && y < 1 ⇒ ... },
-  go { case c(x) + d(y) if x < 0 ⇒ ... }
-)
-
-```
-
-The Boolean condition for consuming `c(x)` has the form
-
-`HAVE(d(y)) && (x >= 0 && y > 0 || x >= 0 && y < 1 || x < 0)`
-
-This condition is equivalent to `HAVE(d(y))` because `y > 0 || y < 1` is equivalent to `true`.
-Thus, the molecule `c()` can be pipelined.
-However, `Chymyst` cannot deduce that `y > 0 || y < 1` is equivalent to `true` because simplifying numerical inequalities
-goes far beyond Boolean logic and may even be undecidable in some cases. 
-
 # Reaction constructors
 
 Chemical reactions are static: they are specified at compile time and cannot be modified at run time.
@@ -609,3 +263,350 @@ ExternalLibrary.consumeUserFuture(fut)
 // Now write some code that eventually emits `a` to start the reaction above.
 
 ```
+
+
+# Pipelined molecules
+
+The chemical machine paradigm does not enforce any particular order on reactions or molecules.
+However, it is often necessary in practical applications to ensure that e.g. requests are processed in the order they are received.
+If each request is represented by a newly emitted molecule, we will be required to ensure that molecules start their reactions in the order of emission.
+
+In principle, this can be implemented by, say, attaching an extra timestamp to each molecule and enforcing the order of molecule consumption via guard conditions on all relevant reactions.
+But this method of implementation is inefficient because the reaction scheduler will have to enumerate all the present molecules, looking for a molecule with the right timestamp.
+The programmer will be also burdened with extra bookkeeping, and the code will become less declarative.
+
+For this reason, `Chymyst` has special support for **pipelined molecules** - that is, molecules that are always consumed in the exact order they were emitted.
+
+For each pipelined molecule, `Chymyst` allocates an (ordered) queue that stores molecule instances in the order they were emitted.
+Whenever a reaction consumes a pipelined molecule, it is always the head of the queue that is consumed.
+
+Pipelined molecules are detected automatically by `Chymyst` according to the conditions we will describe now.
+First we need to consider whether the chemical machine semantics is compatible with pipelined molecules at all.
+
+It turns out that, in a given chemical program, some molecules may be made pipelined without adverse effects, while others cannot be made pipelined.
+The following example illustrates why this is so.
+In this example, several reactions consume the same molecule but impose different guard conditions on the molecule value:
+
+```scala
+site(
+  go { case c(0) + a(y) ⇒ ... },
+  go { case c(y) if y > 0 ⇒ a(y) }
+)
+
+```
+
+Suppose the molecule `c()` is implemented via an ordered queue, and we emit `c(0)`, `c(1)`, `c(2)` in this order.
+The presence of `c(0)` at the head of the queue means that a reaction consuming `c(0)` must run first.
+
+Thus, the presence of `c(0)` at the head of the queue will prevent any other copy of `c()` from being consumed,
+until a molecule` a()` becomes available so that `c(0)` may be consumed and removed from the head of the queue.
+But `a()`  is emitted only by the second reaction, which will never run since `c(1)` is not at the head of the queue.
+
+So, implementing `c()` as a pipelined molecule will create a deadlock in this program.
+Programs like this one will work correctly only if reactions are allowed to consume the `c()` molecules out of order.
+
+However, the molecule `a()` can be made pipelined, since there are no conditions on its value, and the available instances of `a()` can be consumed in any order without creating deadlocks.
+
+Many chemical programs can be implemented with pipelined molecules.
+As another example, consider the "counter",
+
+```scala
+site(
+  go { case c(x) + incr(_) ⇒ c(x + 1) },
+  go { case c(x) + decr(_) if x > 0 ⇒ c(x - 1) }
+)
+
+```
+
+In this program, the molecules `incr()` and `decr()` can be made pipelined without any adverse effects.
+
+So we find that, in a given chemical program, some molecules can be made pipelined while others cannot.
+`Chymyst` performs static (early run-time) analysis of the user's code and automatically assigns ordered queues to all molecules
+that could admit pipelined semantics without creating problems.
+
+For a molecule `c()` to be pipelined, the reactions consuming `c()` must be such that
+the chemical machine only needs to inspect a single copy of the molecule `c()` in order to be able to select correctly the next reaction to run.
+
+One use case for pipelined molecules is implementing a chain of asynchronous processing stages.
+Suppose that we need to process initial data by using transformations `x ⇒ f(x)`, then ` x ⇒ g(x)`, etc., where each stage takes a long time.
+We would like to run all these stages concurrently.
+At the same time, we would like to retain the order in which the data goes through the processing stages.
+
+The following program implements an example of this kind of computation.
+Each processing stage maintains local state (denoted by `s`), which is updated to a new value `newS` while the result is computed and passed on to the next stage.
+
+```scala
+val input1 = m[Int]
+val stage1 = m[Int]
+val input2 = m[Int]
+val stage2 = m[Int]
+val input3 = m[Int]
+val stage3 = m[Int]
+val output = m[Int]
+
+site(
+  go { case input1(x) + step1(s) ⇒
+    val newS = p(x, s)
+    val result = f(x, s)
+    stage1(newS) + input2(result)
+  },
+  go { case input2(x) + step2(s) ⇒
+    val newS = q(x, s)
+    val result = g(x, s)
+    stage2(newS) + input3(result)
+  },
+  go { case input3(x) + step3(s) ⇒
+    val newS = r(x, s)
+    val result = h(x, s)
+    stage3(newS) + output(result)
+  }
+)
+
+stage1(0) + stage2(0) + stage3(0)
+
+(1 to 10000).foreach(i ⇒ input1(i))
+
+```
+
+In this program, all three kinds of "input" molecules are pipelined, which means that they are consumed in the same order as they are emitted.
+This will create a linearly ordered data stream even if we emit a large number of `input1()` molecules at once. 
+
+It is important to note that having each of the "input" pipelined will not be sufficient for maintaining the linear order of the data stream.
+
+If we initially emit several copies of `stage1()`, several instances of the first stage could run in parallel.
+Typically, the parallel-running instances will not finish in the same order they started, so the `input2()` molecules will not be emitted in the same order as `input1()`.
+The only way to prevent this from happening is to assign a custom single-thread pool to each of the stage reactions.
+
+Therefore, we have two ways of building a linearly ordered data stream:
+
+- use static molecules or other single-copy molecules, together with pipelined molecules
+- use single-thread pools, together with pipelined molecules
+
+### Detecting pipelined molecules
+
+In the examples we have seen, there were no special annotations or syntax for pipelined molecules.
+This is so because `Chymyst` determines automatically which molecules should be made pipelined, in a given chemical program.
+Here is how this is decided.
+
+Let us assume that a molecule `c()` has value type `T`.
+
+There may exist values `x: T` such that no reactions will _ever_ consume the instance `c(x)` with that `x` -- neither now, nor in the future.
+(This happens, for example, if `x` is such that no pattern or guard condition is ever satisfied in any of the available reactions. Molecule instances `c(y)` with some `y != x` might still be potentially consumed now or later.)
+Let us call these values of `x` **ignorable** values for the molecule `c()`.
+Molecule instances `c(x)` that carry an ignorable value `x` will never be consumed by any reactions and can be deleted from the soup immediately.
+
+Let us now examine the main assumption about pipelined molecules:
+For a molecule `c()` to be pipelined, the chemical program must be such that the next reaction consuming `c()` can be always found (with no deadlocks) by examining _only one_ instance `c(x)` of the molecule.
+
+Two properties of the chemical program immediately follow from this requirement:
+
+- (Property 1.) Every reaction may consume at most one instance of `c()`. No reaction should consume multiple input `c()` molecules, e.g. `go { c(x) + c(y) ⇒ ... }`.
+- (Property 2.) If, for some non-ignorable value `x`, the molecule instance `c(x)` cannot be immediately consumed by any reaction at this time,
+no other molecule instance `c(y)` with _any other_ non-ignorable `y != x` can be immediately consumed by any reaction either.
+(If some reaction could consume`c(y)`, the program would become deadlocked by the presence of `c(x)` at the top of the queue.)
+
+Property 2 is somewhat difficult to reason about, when formulated in this way.
+By using Boolean logic, this property can be simplified and formulated as an easier property to be checked for all reactions consuming `c()`.
+A mathematical derivation of the simplified property is in the next subsection.
+
+To formulate the simplified property, let us assume that `c(x)` is at the head of the queue,
+and let us ask whether a molecule instance `c(x)` can be consumed by a certain reaction, say `go { c(x) + d(y) + e(z) if g(x, y, z) ⇒ ... }`.
+This reaction can start if
+
+- a molecule instance `d(y)` is present with some `y`,
+- a molecule instance `e(z)` is present with some `z`,
+- the values `y` and `z` satisfy the guard condition `g(x, y, z)`.
+
+We can write these conditions symbolically as a single Boolean formula
+
+`HAVE(d(y)) && HAVE(e(z)) && g(x, y, z)`.
+
+Repeating the same consideration for each reaction consuming `c()`, we obtain a certain set of Boolean formulas of this kind, with various guard conditions and other molecules. 
+
+Now, the conditions for `c()` to be pipelined are that
+
+- each reaction's Boolean formula can be identically rewritten as a simple Boolean _conjunction_ of the form `p(x) && q(y, z, ...)`, where
+- the Boolean function `p(x)` involves only the value `x` and must be the same for all reactions, while `q(...)` could be different for each reaction,
+involving the presence of any other molecules and their specific values, but independent of `x`.
+
+In other words, the condition for `c(x)` to be consumed by any reaction must depend on the value `x` in a way that does not involve other molecules.
+
+To check whether any molecule `c()` satisfies this condition within a given chemical program, `Chymyst` goes through all reactions that consume `c(x)`,
+determines the Boolean formula for that reaction, and tries to simplify that formula into a conjunction of the form `p(x) && q(y, z, ...)`.
+If this succeeds with `p(x)` being _the same for all reactions_, `Chymyst` determines that the molecule `c()` can be pipelined.
+
+`Chymyst` will then assign the `.isPipelined` property of the molecule emitter to `true` for that molecule.
+In debug output, the names of pipelined molecules will be suffixed with `/P`.
+
+Here is an example of a reaction site where some molecules are pipelined but others are not:
+
+```scala
+site(
+  go { case a(x) if x > 0 + e(_) ⇒ ... },
+  go { case a(x) + c(y) if x > 0 ⇒ ... },
+  go { case d(z) + c(y) if y > 0 ⇒ ...}
+)
+
+```
+
+In this program, `a(x)` can be consumed if and only if `x > 0`.
+This condition is the same for the two reactions that consume `a()`.
+Therefore, the condition for consuming `a(x)` has the form `x > 0 && q(...)` for some Boolean function `q()` that does not depend on `x`.
+`Chymyst` will determine that `a()` can be pipelined.
+
+The situation with the molecule `c()` is different:
+The second reaction accepts `c(y)` with any `y` but the third reaction requires `y > 0`.
+Therefore the Boolean condition for consuming `c(y)` has the form
+
+`q1(HAVE(a(x)), x) || y > 0 && Q2(HAVE(d(z)))`
+
+This formula cannot be decomposed into a conjunction of the form `p(y) && q(x, z, ...)`
+So the molecule `c()` cannot be pipelined in this reaction site.
+
+Finally, the molecule `d()` is pipelined because it is consumed without imposing any conditions on its value.
+Such molecules can be always pipelined.
+
+### Derivation of the simplified condition
+
+This subsection shows a formal derivation of the pipelined condition using Boolean logic.
+Readers not interested in this theory may skip to the next chapter.
+
+Consider a set of reactions, each consuming a single instance of `c(x)`.
+For each reaction `r`, we have a Boolean function of the form `f`<sub>`r`</sub>`(x, y, z, HAVE(d(y)), HAVE(e(z)), ...)` that depends on a number of other variables.
+
+Here, the symbolic expressions such as `HAVE(d(y))` are understood as simple Boolean variables.
+Values of these variables, as well as values of `y`, `z`, etc., describe the current population of molecules in the soup, excluding the molecule `c(x)`.
+For brevity, we denote all these "external" variables by `E` (these variables do not include `x`).
+
+The condition for a molecule `c(x)` to be consumed by any reaction is the Boolean disjunction of all the per-reaction functions `f`<sub>`r`</sub>`(x, E)`.
+Let us denote this disjunction by `F(x, E)`:
+
+`F(x, E)` = `f`<sub>`r_1`</sub>`(x, E) || f`<sub>`r_2`</sub>`(x, E) || ... || f`<sub>`r_n`</sub>`(x, E)`.
+
+We will now show that the complicated requirements of Property 2 from the previous section are equivalent to the single requirement that
+
+`F(x, E) = p(x) && q(E)`,
+
+for some Boolean functions `p` and `q`.
+
+Property 2 states that, for any `x` and at any time (i.e. for any `E`), one of the three conditions must hold:
+
+1. The value `x` is ignorable.
+2. The molecule `c(x)` can be consumed immediately by some reaction.
+3. The molecule `c(x)` cannot be consumed immediately by any reaction, but also no other molecule instance `c(y)` with any `y != x` could be consumed immediately by any reaction, if that `c(y)` were present in the soup.
+
+Let us formulate these conditions in terms of the function `F(x, E)`, where `x` and `E` describe the soup at the present time:
+
+1. `∀ E1 : !F(x, E1)`
+2. `F(x, E)`
+3. `∀ x1 : !F(x1, E)`
+
+The disjunction of these three Boolean formulas must be `true` for all `x` and `E`:
+
+`∀ x : ∀ E : (∀ E1 : !F(x, E1)) || F(x, E) || (∀ x1 : !F(x1, E))`.
+
+We will use some tricks of Boolean algebra to prove that this formula is identically equivalent to
+
+`∀ x : ∀ E : F(x, E) == p(x) && q(E)`
+
+where `p` and `q` are suitably defined Boolean functions.
+
+To prove this, we will identically transform the expression under the quantifiers `∀ x : ∀ E :` into the form `F(x, E) == p(x) && q(E)`.
+
+Note that, in Boolean logic, `a == b` is the same as `a && b || (!a && !b)`.
+Thus our goal is to derive
+
+(**) `∀ x : ∀ E : F(x, E) && p(x) && q(E) || (!F(x, E) && !(p(x) && q(E)))`.
+
+The derivation proceeds in three steps.
+
+(1) We have the identity `!(∀ x : !f(x)) = ∃ x : f(x)` for any Boolean function `f`.
+
+Therefore, we can rewrite
+
+- `(∀ E1 : !F(x, E1)) = !(∃ E1 : F(x, E1))`
+- `(∀ x1 : !F(x1, E)) = !(∃ x1 : F(x1, E))`
+
+We also note that these two expressions are functions of `x` and of `E` respectively.
+
+Let us introduce names for these functions:
+
+- Define `p(x) = ∃ E1 : F(x, E1)`.
+- Define `q(E) = ∃ x1 : F(x1, E)`.
+
+Then we can rewrite the original expression under the quantifiers as
+
+`(∀ E1 : !F(x, E1)) || F(x, E) || (∀ x1 : !F(x1, E))`
+
+= `F(x, E) || !p(x) || !q(E) = F(x, E) || !(p(x) && q(E))`.
+
+(2) Another Boolean identity that holds for any Boolean functions `A` and `B` is
+
+`A || !B = (A && B) || !B`.
+
+We use this identity to rewrite the result of step (1) as
+
+`F(x, E) || !(p(x) && q(E)) = F(x, E) && p(x) && q(x) || !(p(x) && q(E))`.
+
+(3) We observe that, for any Boolean function `h(x)` and for any `a`,
+
+`(∀ x : h(x)) = h(a) && (∀ x : h(x))`.
+
+Adding an extra conjuction with `h(a)` does not change the value of `(∀ x : h(x))`:
+If `(∀ x : h(x))` is true, it means that `h(x)` holds for all possible values of `x`, including `x = a`.
+
+Using this transformation, we find that
+
+- `!p(x) = (∀ E1 : !F(x, E1)) = !F(x, E) && (∀ E1 : !F(x, E1)) = !F(x, E) && !p(x)`
+- `!q(E) = (∀ x1 : !F(x1, E)) = !F(x, E) && (∀ x1 : !F(x1, E)) = !F(x, E) && !q(E)`
+
+It follows that 
+
+`!(p(x) && q(E)) = !p(x) || !q(E) = !F(x, E) && !p(x) || !F(x, E) && !q(E)`
+
+= `!F(x, E) && (!p(x) || !q(E)) = !F(x, E) && !(p(x) && q(E))`.
+
+We use this identity to rewrite the result of step (2) as
+
+`F(x, E) && p(x) && q(x) || !(p(x) && q(E))`
+
+= `(F(x, E) && p(x) && q(E)) || (!F(x, E) && !(p(x) && q(E)))`
+
+= `(F(x, E) == p(x) && q(E))`.
+
+This is precisely the expression (**).
+Therefore, we find that for all `x` and `E` the Boolean function `F(x, E)` is equal to the conjunction `p(x) && q(E)`.
+
+Note that we have proved the decomposition of `F(x, E)` rather than each of the per-reaction functions `f`<sub>`r`</sub>`(x, E)`.
+If each of the per-reaction functions is decomposable with the same `p(x)`, their disjunction `F(x, E)` is also decomposable;
+but the converse does not hold.
+
+`Chymyst` checks that each per-reaction Boolean function is decomposed as a conjunction `p(x) && ...` with the same `p(x)`.
+Therefore, the condition actually checked by `Chymyst` is a sufficient (but not a necessary) condition for the molecule to be pipelined.
+
+The result is that `Chymyst` might, in rare cases, fail to determine that some molecules could be pipelined.
+The lack of pipelining is safe and will, at worst, lead to some degradation of performance.
+
+It would have been nearly impossible to obtain `F(x, E)` symbolically and to implement the strict necessary condition,
+because `x` and `E` are variables with values of arbitrary types (e.g. `Int`, `Double`, `String` and so on),
+which are not easily described through Boolean algebra.
+
+As an (admittedly artificial) example, consider the reaction site
+
+```scala
+site(
+  go { case c(x) + d(y) if x >= 0 && y > 0 ⇒ ... },
+  go { case c(x) + d(y) if x >= 0 && y < 1 ⇒ ... },
+  go { case c(x) + d(y) if x < 0 ⇒ ... }
+)
+
+```
+
+The Boolean condition for consuming `c(x)` has the form
+
+`HAVE(d(y)) && (x >= 0 && y > 0 || x >= 0 && y < 1 || x < 0)`
+
+This condition is equivalent to `HAVE(d(y))` because `y > 0 || y < 1` is equivalent to `true`.
+Thus, the molecule `c()` can be pipelined.
+However, `Chymyst` cannot deduce that `y > 0 || y < 1` is equivalent to `true` because simplifying numerical inequalities
+goes far beyond Boolean logic and may even be undecidable in some cases. 
