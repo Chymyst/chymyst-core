@@ -101,8 +101,6 @@ lazy val buildAll = (project in file("."))
   .aggregate(core, benchmark)
   .disablePlugins(sbtassembly.AssemblyPlugin) // do not create an assembly JAR for `buildAll`, but do create it for aggregate subprojects
 
-lazy val rootProject = Some(buildAll)
-
 lazy val core = (project in file("core"))
   .settings(commonSettings: _*)
   .settings(

@@ -113,15 +113,16 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
 
  2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency (right now it's not used). Similarly for interop with Akka Stream, Scalaz Task etc.
 
- 3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is emitted from a thread T and the corresponding reaction site runs on the same thread T, do not schedule a task but simply run the reaction site synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a reaction site that runs on thread T and the reaction is configured to run on the same thread, do not schedule a task but simply run the reaction synchronously.
+ 3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is emitted from a thread T and the corresponding reaction site runs on the same thread T, do not schedule a task but simply run the reaction site synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a reaction site that runs on thread T and the reaction is configured to run on the same thread T, do not schedule a task but simply run the reaction synchronously.
 
  3 * 5 - implement automatic thread fusion for static molecules? — not sure how that would work.
+ Can we make at least some reactions, if scheduled very quickly, to be scheduled on the same thread? 
  
  4 * 3 - as an option, run a reaction site on the current thread (?) or on a given executor
  
  2 * 3 - when attaching molecules to futures or futures to molecules, we can perhaps schedule the new futures on the same thread pool as the reaction site to which the molecule is bound? This requires having access to that thread pool. Maybe that access would be handy to users anyway?
  
- 5 * 5 - is it possible to implement distributed execution by sharing the site pool with another machine (but running the reaction sites only on the master node)? Use Paxos, Raft, or other consensus algorithm to ensure consistency?
+ 5 * 5 - is it possible to implement distributed execution by sharing the site pool with another machine (but running the reaction sites only on the master node)? Use Paxos, Raft, or other consensus algorithm to ensure consistency? Using master-worker architecture, or fully symmetric p2p architecture?
  
  5 * 5 - Distributed vs. Remote; molecule vs. reaction vs. reaction site. This yields 6 distinct possibilities for distributed / remote execution. Need to figure out their logical dependencies and implementation possibilities. Note that, compared with the Actor model, we do not need to check that the actor is alive; distributed execution model only needs to verify that (1) network is up, (2) remote application is running.
   
@@ -150,6 +151,20 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
  3 * 3 - Write a tutorial section about timers and time-outs: cancellable recurring jobs, cancellable subscriptions, time-outs on receiving replies from non-blocking molecules (?)
  
  3 * 3 - Nested reactions could be automatically defined at the same reaction site as parent reactions? This seems to be required for the automatic unblocking transformation.
+ 
+ 2 * 3 - Error handling should be flexible enough to implement retry at most N times with backoff and other error recovery logic.
+ 
+ 3 * 2 - Should we be able to enable and disable reactions at run time? Should we be able to deactivate entire reaction sites?
+ 
+ 2 * 2 - Unit tests need examples; how would I diagnose a deadlock due to off-by-one error in the counter code? How would I use scalacheck to unit-test a reaction? (Emit input molecules with generated values, require output molecule with a value that satisfies a law?)
+ 
+ 3 * 5 - implement ING Baker in Chymyst
+ 
+ 3 * 5 - implement Benson Ma's example of graph-driven reaction construction. What is a good DSL for describing a DAG or a general graph? Should we use graphs instead of inline chemistry to program Chymyst?
+ 
+ 5 * 5 - describe chemistry with DOT graph visualizations https://en.wikipedia.org/wiki/DOT_(graph_description_language)
+ 
+ 3 * 4 - formulate the "Async monad" and automatically convert "async" monadic code to Chymyst, with automatic parallelization of applicative subgraphs
  
 ## Will not do for now
  
