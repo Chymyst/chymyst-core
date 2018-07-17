@@ -3,17 +3,19 @@
 # `Chymyst`: declarative concurrency in Scala
 
 `Chymyst` is a framework for concurrency in functional programming
-implementing the **chemical machine** paradigm, also known in the academic world as [Join Calculus](https://en.wikipedia.org/wiki/Join-calculus).
-The chemical machine concurrency paradigm has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) or [the Actor model](https://en.wikipedia.org/wiki/Actor_model).
+implementing the **Chemical Machine** paradigm, also known in the academic world as [Join Calculus](https://en.wikipedia.org/wiki/Join-calculus).
+This concurrency paradigm has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)),
+the [Pi calculus](https://en.wikipedia.org/wiki/%CE%A0-calculus), and [the Actor model](https://en.wikipedia.org/wiki/Actor_model).
 
 [`Chymyst Core`](https://github.com/Chymyst/chymyst-core) is a library that implements the high-level concurrency primitives as a domain-specific language in Scala.
 [`Chymyst`](https://github.com/Chymyst/Chymyst) is a framework-in-planning that will build upon `Chymyst Core` and bring declarative concurrency to practical applications.
 
-The code of `Chymyst Core` is based on previous Join Calculus implementations by He Jiansen (https://github.com/Jiansen/ScalaJoin, 2011) and Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008), as well as on my earlier prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
+The code of `Chymyst Core` is a clean-room implementation and is not based on previous Join Calculus implementations, such as `ScalaJoin` by He Jiansen (https://github.com/Jiansen/ScalaJoin, 2011) and `ScalaJoin` by Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
+The algorithm is similar to that used in my earlier Join Calculus prototypes, [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
 # [The _Concurrency in Reactions_ tutorial book: table of contents](chymyst00.md) 
 
-## Overview of `Chymyst` and the chemical machine paradigm
+## Overview of `Chymyst` and the Chemical Machine paradigm
 
 ### [Concurrency in Reactions: Get started with this extensive tutorial book](https://winitzki.gitbooks.io/concurrency-in-reactions-declarative-multicore-in/content/)
 
@@ -21,7 +23,9 @@ The code of `Chymyst Core` is based on previous Join Calculus implementations by
 
 #### [A "Hello, world" project](https://github.com/Chymyst/helloworld)
 
-#### Presentations on `Chymyst` and the chemical machine programming paradigm
+#### Presentations on `Chymyst` and on the Chemical Machine programming paradigm
+
+See [this YouTube channel](https://www.youtube.com/playlist?list=PLcoadSpY7rHWh23clCzL0SuJ4fAtzVzTb) for tutorials and presentations.
 
 Oct. 16, 2017: Talk given at the [Scala Bay meetup](https://www.meetup.com/Scala-Bay/events/243931229):
 
@@ -57,7 +61,7 @@ The `Chymyst Core` library is in alpha pre-release, with very few API changes en
 
 The semantics of the chemical machine (restricted to single-host, multicore computations) is fully implemented and tested on many nontrivial examples.
 
-The library JAR is published to Maven Central.
+The library JAR is [published to Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cchymyst-core).
 
 Extensive tutorial and usage documentation is available.
 
