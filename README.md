@@ -10,7 +10,7 @@
 This repository hosts `Chymyst Core` — a library that provides a Scala domain-specific language for purely functional, declarative concurrency.
 [`Chymyst`](https://github.com/Chymyst/Chymyst) is a framework-in-planning that will build upon `Chymyst Core` to enable creating concurrent applications declaratively.
 
-`Chymyst` implements the **chemical machine** paradigm, known in the academic world as [Join Calculus (JC)](https://en.wikipedia.org/wiki/Join-calculus).
+`Chymyst` (pronounced “chemist”) implements the **chemical machine** paradigm, known in the academic world as [Join Calculus (JC)](https://en.wikipedia.org/wiki/Join-calculus).
 JC has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) and [the Actor model](https://en.wikipedia.org/wiki/Actor_model), but is easier to use.
 (See also [Conceptual overview of concurrency](https://chymyst.github.io/chymyst-core/concurrency.html).)
 
