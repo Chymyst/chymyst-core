@@ -15,7 +15,7 @@ Here are other implementations of Join Calculus that I was able to find online.
 - Implementations of Join Calculus for iOS: [CocoaJoin](https://github.com/winitzki/AndroJoin) and for Android: [AndroJoin](https://github.com/winitzki/AndroJoin). These projects are not maintained.
 - [Join-Language](https://github.com/syallop/Join-Language): implementation of Join Calculus as an embedded Haskell DSL (2014). The project is in development.
 
-The implementation of JC in `Chymyst` is based on ideas from Jiansen He's `ScalaJoin` as well as on CocoaJoin / AndroJoin.
+The code of `Chymyst` is a clean-room implementation of JC, and the syntax aims to improve upon the design of He Jiansen's `ScalaJoin` as well as of CocoaJoin / AndroJoin.
 
 ## Improvements with respect to Jiansen He's `ScalaJoin`
 

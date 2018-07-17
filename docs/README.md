@@ -10,7 +10,7 @@ the [Pi calculus](https://en.wikipedia.org/wiki/%CE%A0-calculus), and [the Actor
 [`Chymyst Core`](https://github.com/Chymyst/chymyst-core) is a library that implements the high-level concurrency primitives as a domain-specific language in Scala.
 [`Chymyst`](https://github.com/Chymyst/Chymyst) is a framework-in-planning that will build upon `Chymyst Core` and bring declarative concurrency to practical applications.
 
-The code of `Chymyst Core` is a clean-room implementation and is not based on previous Join Calculus implementations, such as `ScalaJoin` by He Jiansen (https://github.com/Jiansen/ScalaJoin, 2011) and `ScalaJoin` by Philipp Haller (http://lampwww.epfl.ch/~phaller/joins/index.html, 2008).
+The code of `Chymyst Core` is a clean-room implementation and is not based on previous Join Calculus implementations, such as [`ScalaJoin` by He Jiansen](https://github.com/Jiansen/ScalaJoin) (2011) and [`ScalaJoins` by Philipp Haller](http://lampwww.epfl.ch/~phaller/joins/index.html) (2008).
 The algorithm is similar to that used in my earlier Join Calculus prototypes, [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin).
 
 # [The _Concurrency in Reactions_ tutorial book: table of contents](chymyst00.md) 
