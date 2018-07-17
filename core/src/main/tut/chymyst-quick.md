@@ -60,8 +60,10 @@ c(123) // Emit a new molecule `c()` carrying the payload value `123` of type `In
 So, a molecule can be seen as a data value together with a special "chemical" label (represented by the emitter).
 We may say that "a molecule `c` carries the payload value `123`".
 
-The result of evaluating `c(123)`, that is, the result of calling a molecule emitter `c` with data value `123`,
+The result of evaluating `c(123)`, - that is, the result of calling a molecule emitter `c` with data value `123`, -
 is to emit a new copy of a molecule `c` that carries the value `123` as its payload.
+
+### Declaring and activating reactions
 
 A reaction must be declared using the `go { }` syntax.
 The input molecules are defined via pattern-matching, and the pattern variables match the values carried by the input molecules.
@@ -100,14 +102,18 @@ in(0); in(0); in(0)
 ```
 
 All emitted molecules become available for reactions to consume them.
-Reactions will start whenever their required input molecules become available (i.e. are emitted).
+Reactions will start automatically, whenever their required input molecules become available (i.e. are emitted).
 Until then, all emitted molecules are stored at the reaction site and wait there.
 
 Emitting a molecule is a _non-blocking_ operation; execution continues immediately, without waiting for any reactions to start.
 Reactions will start as soon as possible and will run in parallel with the processes that emitted their input molecules.
 
+### Example: running several reactions in parallel
+
 A reaction can depend on _several_ input molecules at once, and may emit several molecules as output.
 The actual computation will start only when _all_ its input molecules are available (have been emitted and not yet consumed by other reactions).
+
+In this example, we will start a reaction that will emit two molecules that, in turn, will start two parallel reactions.
 
 ```tut
 val in1 = m[Int] // Molecule `in1` with value of type `Int`.
@@ -116,7 +122,7 @@ val in2 = m[Int] // Molecule `in2`.
 val result = m[Boolean] // Molecule `result` with value of type `Boolean`.
 
 site(
-  go { case in1(x) + in2(y) ⇒       // Wait for two molecules.
+  go { case in1(x) + in2(y) ⇒        // Wait for two molecules.
     println(s"Got x = $x, y = $y.")  // Some debug output.
     val z: Boolean = x != y          // Compute a new value `z`.
     result(z)                        // Emit `result` molecule with value `z`.
@@ -133,7 +139,7 @@ Thread.sleep(200)   // Wait for reactions to run.
 ```
 
 Once a molecule emitter is declared, the type of the molecule's payload value is statically fixed.
-This type can by any type, such as `Int`, `(Double, Double)`, `Option[Seq[Int]]`, a case class, a function type such as `Int ⇒  Boolean`, etc.
+This type can be any Scala type, such as `Int`, `(Double, Double)`, `Option[Seq[Int]]`, a custom class, a function type such as `Int ⇒ Boolean`, etc.
 
 Using molecules with a payload of _function type_ will allow us to implement **asynchronous continuations**:
 
@@ -157,7 +163,7 @@ Thread.sleep(200)
 
 ```
 
-New reactions and molecules can be defined anywhere in the code,
+New reactions and molecules can be defined anywhere in the code, -
 for instance, within a function scope or within the local scope of another reaction's body.
 
 ## What a Chemical Machine program looks like
@@ -173,24 +179,24 @@ A "chemical program" has the following three parts:
 ### Non-blocking read access
 
 We will now implement a counter that can be incremented and whose value can be read.
-Both the `incr`ement and the `read` operations are asynchronous (non-blocking).
+Both the `increment` and the `read` operations are asynchronous (non-blocking).
 The read operation is implemented as an _asynchronous continuation_.
 
 ```tut
 val counter = m[Int]
-val incr = m[Unit] // The `increment` operation.
+val increment = m[Unit] // The `increment` operation.
 val read = m[Int ⇒ Unit] // Continuation for the `read` operation.
 
 site(
-  go { case counter(x) + incr(_) ⇒ counter(x + 1) },
+  go { case counter(x) + increment(_) ⇒ counter(x + 1) },
   go { case counter(x) + read(cont) ⇒
     counter(x)   // Emit the `counter` molecule with unchanged value `x`.
     cont(x)      // Invoke continuation.
   } 
 )
-counter(0)  // Set initial value of `counter` to 0.
-incr()      // Short syntax: emit a molecule with a `Unit` value.
-incr()      // This can be called from any concurrently running code.
+counter(0)   // Set initial value of `counter` to 0.
+increment()  // Shorter syntax: emit a molecule with a `Unit` value.
+increment()  // The emitter can be called from any concurrently running code.
 read(i ⇒ println(s"counter = $i")) // this too
 Thread.sleep(200)
 
@@ -230,7 +236,7 @@ incr() // This can be called from any concurrent process.
 
 next { x ⇒
     // Continue the computation, having obtained `x`.
-    println(s"counter = $x")
+       println(s"counter = $x")
     // More code...
 }
 Thread.sleep(200)
@@ -246,10 +252,11 @@ For convenience, `Chymyst` supports this often-used pattern as a feature the lan
 The corresponding molecules are called **blocking molecules**.
 
 Blocking emitters can be understood as molecule emitters that automatically include a built-in continuation function.
-A reaction that consume a blocking molecule should call the continuation function, which can be seen as "emitting a reply value".
+A reaction that consume a blocking molecule should call the continuation function, which can be seen as emitting a **reply value**.
 A call to emit a blocking molecule will block the calling thread, until a reaction starts, consumes the blocking molecule, and emits a reply value.
+After that, the calling thread will receive the reply value, and its execution will continue.
 
-Blocking emitters are declared using the `b[T, R]` syntax, where `T` is the type of the molecule's payload value and `R` is the type of their **reply value**.
+Blocking emitters are declared using the `b[T, R]` syntax, where `T` is the type of the molecule's payload value and `R` is the type of the reply value.
 
 Using this feature, the previous code can be rewritten more concisely:
 
@@ -276,10 +283,9 @@ counter(0) // Set initial value of `counter` to 0.
 
 incr() + incr() // Convenience syntax; same as `incr(); incr()`.
 
-val x = next()  // This will block until a reply is sent.
-// Continue the computation, having obtained `x`.
-println(s"counter = $x")
-// More code...
+val x = next()  // This will block until a reply value is sent.
+// Continue the computation, having received the reply value as `x`.
+println(s"counter = $x")    // More code...
 ```
 
 More code can follow `println()`, and that code is no longer constrained to the scope of a closure, as before.

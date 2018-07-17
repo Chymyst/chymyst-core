@@ -62,8 +62,10 @@ c(123) // Emit a new molecule `c()` carrying the payload value `123` of type `In
 So, a molecule can be seen as a data value together with a special "chemical" label (represented by the emitter).
 We may say that "a molecule `c` carries the payload value `123`".
 
-The result of evaluating `c(123)`, that is, the result of calling a molecule emitter `c` with data value `123`,
+The result of evaluating `c(123)`, - that is, the result of calling a molecule emitter `c` with data value `123`, -
 is to emit a new copy of a molecule `c` that carries the value `123` as its payload.
+
+### Declaring and activating reactions
 
 A reaction must be declared using the `go { }` syntax.
 The input molecules are defined via pattern-matching, and the pattern variables match the values carried by the input molecules.
@@ -96,9 +98,9 @@ res0: io.chymyst.jc.WarningsAndErrors = In Site{in → ...; result → ...}: no 
 scala> in(123); in(124); in(125)   // Emit some initial molecules.
 
 scala> Thread.sleep(200) // Wait for reactions to start and run.
-248
 250
 246
+248
 ```
 
 Emitters can be called many times to emit many copies of a molecule:
@@ -110,7 +112,7 @@ in(0); in(0); in(0)
 ```
 
 All emitted molecules become available for reactions to consume them.
-Reactions will start whenever their required input molecules become available (i.e. are emitted).
+Reactions will start automatically, whenever their required input molecules become available (i.e. are emitted).
 Until then, all emitted molecules are stored at the reaction site and wait there.
 
 Emitting a molecule is a _non-blocking_ operation; execution continues immediately, without waiting for any reactions to start.
@@ -130,7 +132,7 @@ scala> val result = m[Boolean] // Molecule `result` with value of type `Boolean`
 result: io.chymyst.jc.M[Boolean] = result
 
 scala> site(
-     |   go { case in1(x) + in2(y) ⇒       // Wait for two molecules.
+     |   go { case in1(x) + in2(y) ⇒        // Wait for two molecules.
      |     println(s"Got x = $x, y = $y.")  // Some debug output.
      |     val z: Boolean = x != y          // Compute a new value `z`.
      |     result(z)                        // Emit `result` molecule with value `z`.
@@ -154,7 +156,7 @@ got result = false
 ```
 
 Once a molecule emitter is declared, the type of the molecule's payload value is statically fixed.
-This type can by any type, such as `Int`, `(Double, Double)`, `Option[Seq[Int]]`, a case class, a function type such as `Int ⇒  Boolean`, etc.
+This type can be any type, such as `Int`, `(Double, Double)`, `Option[Seq[Int]]`, a case class, a function type such as `Int ⇒  Boolean`, etc.
 
 Using molecules with a payload of _function type_ will allow us to implement **asynchronous continuations**:
 
@@ -184,7 +186,7 @@ Got x = 100.
 Computed result = 10000.
 ```
 
-New reactions and molecules can be defined anywhere in the code,
+New reactions and molecules can be defined anywhere in the code, -
 for instance, within a function scope or within the local scope of another reaction's body.
 
 ## What a Chemical Machine program looks like
@@ -200,33 +202,33 @@ A "chemical program" has the following three parts:
 ### Non-blocking read access
 
 We will now implement a counter that can be incremented and whose value can be read.
-Both the `incr`ement and the `read` operations are asynchronous (non-blocking).
+Both the `increment` and the `read` operations are asynchronous (non-blocking).
 The read operation is implemented as an _asynchronous continuation_.
 
 ```scala
 scala> val counter = m[Int]
 counter: io.chymyst.jc.M[Int] = counter
 
-scala> val incr = m[Unit] // The `increment` operation.
-incr: io.chymyst.jc.M[Unit] = incr
+scala> val increment = m[Unit] // The `increment` operation.
+increment: io.chymyst.jc.M[Unit] = increment
 
 scala> val read = m[Int ⇒ Unit] // Continuation for the `read` operation.
 read: io.chymyst.jc.M[Int => Unit] = read
 
 scala> site(
-     |   go { case counter(x) + incr(_) ⇒ counter(x + 1) },
+     |   go { case counter(x) + increment(_) ⇒ counter(x + 1) },
      |   go { case counter(x) + read(cont) ⇒
      |     counter(x)   // Emit the `counter` molecule with unchanged value `x`.
      |     cont(x)      // Invoke continuation.
      |   } 
      | )
-res12: io.chymyst.jc.WarningsAndErrors = In Site{counter + incr → ...; counter + read → ...}: no warnings or errors
+res12: io.chymyst.jc.WarningsAndErrors = In Site{counter + increment → ...; counter + read → ...}: no warnings or errors
 
-scala> counter(0)  // Set initial value of `counter` to 0.
+scala> counter(0)   // Set initial value of `counter` to 0.
 
-scala> incr()      // Short syntax: emit a molecule with a `Unit` value.
+scala> increment()  // Shorter syntax: emit a molecule with a `Unit` value.
 
-scala> incr()      // This can be called from any concurrently running code.
+scala> increment()  // The emitter can be called from any concurrently running code.
 
 scala> read(i ⇒ println(s"counter = $i")) // this too
 
@@ -279,7 +281,7 @@ scala> incr() // This can be called from any concurrent process.
 
 scala> next { x ⇒
      |     // Continue the computation, having obtained `x`.
-     |     println(s"counter = $x")
+     |        println(s"counter = $x")
      |     // More code...
      | }
 
@@ -296,10 +298,11 @@ For convenience, `Chymyst` supports this often-used pattern as a feature the lan
 The corresponding molecules are called **blocking molecules**.
 
 Blocking emitters can be understood as molecule emitters that automatically include a built-in continuation function.
-A reaction that consume a blocking molecule should call the continuation function, which can be seen as "emitting a reply value".
+A reaction that consume a blocking molecule should call the continuation function, which can be seen as emitting a **reply value**.
 A call to emit a blocking molecule will block the calling thread, until a reaction starts, consumes the blocking molecule, and emits a reply value.
+After that, the calling thread will receive the reply value, and its execution will continue.
 
-Blocking emitters are declared using the `b[T, R]` syntax, where `T` is the type of the molecule's payload value and `R` is the type of their **reply value**.
+Blocking emitters are declared using the `b[T, R]` syntax, where `T` is the type of the molecule's payload value and `R` is the type of the reply value.
 
 Using this feature, the previous code can be rewritten more concisely:
 
@@ -335,14 +338,12 @@ scala> counter(0) // Set initial value of `counter` to 0.
 
 scala> incr() + incr() // Convenience syntax; same as `incr(); incr()`.
 
-scala> val x = next()  // This will block until a reply is sent.
+scala> val x = next()  // This will block until a reply value is sent.
 x: Int = 2
 
-scala> // Continue the computation, having obtained `x`.
-     | println(s"counter = $x")
+scala> // Continue the computation, having received the reply value as `x`.
+     | println(s"counter = $x")    // More code...
 counter = 2
-
-scala> // More code...
 ```
 
 More code can follow `println()`, and that code is no longer constrained to the scope of a closure, as before.
@@ -352,7 +353,7 @@ More code can follow `println()`, and that code is no longer constrained to the 
 We can use a blocking molecule to implement the functionality of exclusive, blocking access to a counter's current value.
 
 ```scala
-     | val counter = m[Int]
+scala> val counter = m[Int]
 counter: io.chymyst.jc.M[Int] = counter
 
 scala> val read = b[Unit, Int] // `read` is a blocking emitter.
@@ -368,7 +369,7 @@ scala> site(
      |     reply(x)    // Emit reply with value `x`.
      |   } 
      | )
-res32: io.chymyst.jc.WarningsAndErrors = In Site{counter + incr → ...; counter + read/B → ...}: no warnings or errors
+res31: io.chymyst.jc.WarningsAndErrors = In Site{counter + incr → ...; counter + read/B → ...}: no warnings or errors
 
 scala> counter(0) // Set initial value of `counter` to 0.
 
@@ -427,7 +428,7 @@ scala> site(
      |   },
      |   go { case done(_) + waitDone(_, reply) + result(xs) ⇒ reply(xs) }
      | )
-res36: io.chymyst.jc.WarningsAndErrors = In Site{counter + incr → ...; done + result + waitDone/B → ...; result + start → ...}: no warnings or errors
+res35: io.chymyst.jc.WarningsAndErrors = In Site{counter + incr → ...; done + result + waitDone/B → ...; result + start → ...}: no warnings or errors
 
 scala> // Emit initial values.
      | (1 to total).foreach(i ⇒ start(i))
