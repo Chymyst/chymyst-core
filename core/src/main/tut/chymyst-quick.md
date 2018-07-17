@@ -1,6 +1,6 @@
 <link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
 
-# Concurrent programming in the Chemical Machine: Quick start
+# Programming the Chemical Machine: Quick start
 
 `Chymyst Core` implements a declarative DSL for purely functional concurrency in Scala.
 The DSL is based on the "chemical machine" paradigm, which is likely unfamiliar to many readers. 
@@ -86,7 +86,7 @@ val r1 = go { case in(x) ⇒     // Consume a molecule `in(...)` as input.
            result(z)           // Emit a new molecule `result(z)`.
         }
 val r2 = go { case result(x) ⇒ println(x) } // Consume `result(...)` and perform a side effect.
-site(r1, r2) // Create a reaction site.
+site(r1, r2) // Create and activate a reaction site containing these two reactions.
 
 in(123); in(124); in(125)   // Emit some initial molecules.
 Thread.sleep(200) // Wait for reactions to start and run.
@@ -108,7 +108,7 @@ Until then, all emitted molecules are stored at the reaction site and wait there
 Emitting a molecule is a _non-blocking_ operation; execution continues immediately, without waiting for any reactions to start.
 Reactions will start as soon as possible and will run in parallel with the processes that emitted their input molecules.
 
-### Example: running several reactions in parallel
+### Example: Running several reactions in parallel
 
 A reaction can depend on _several_ input molecules at once, and may emit several molecules as output.
 The actual computation will start only when _all_ its input molecules are available (have been emitted and not yet consumed by other reactions).
@@ -138,6 +138,8 @@ Thread.sleep(200)   // Wait for reactions to run.
 
 ```
 
+### Example: Asynchronous continuations
+
 Once a molecule emitter is declared, the type of the molecule's payload value is statically fixed.
 This type can be any Scala type, such as `Int`, `(Double, Double)`, `Option[Seq[Int]]`, a custom class, a function type such as `Int ⇒ Boolean`, etc.
 
@@ -166,13 +168,19 @@ Thread.sleep(200)
 New reactions and molecules can be defined anywhere in the code, -
 for instance, within a function scope or within the local scope of another reaction's body.
 
-## What a Chemical Machine program looks like
+### What a Chemical Machine program looks like
 
-A "chemical program" has the following three parts:
+A "chemical program" has the following three basic parts:
 
 1. Declarations of new molecule emitters and their types.
 2. Declarations of reactions and reaction sites containing them.
 3. Some emitter calls to emit initial molecules.
+
+Since reactions and molecule emitters are values, they may be passed as arguments to functions, returned by functions, or emitted as payload values on molecules.
+For this reason, any part of the application code - including reaction bodies - can define new emitters, new reactions and reactions sites, and emit new molecules.
+
+Reactions, molecules, and reaction sites are immutable.
+Once a reaction site is created, it is impossible to add new reactions to it, or to modify or remove existing reactions from it.
 
 ## Example: Asynchronous counter
 
@@ -312,7 +320,7 @@ counter(0) // Set initial value of `counter` to 0.
 
 incr()
 incr()         // These emitter calls do not block.
-val x = read() // Block until a reply is sent.
+val x = read() // Block until a reply value is sent.
 ```
 
 ## Parallel `map`
