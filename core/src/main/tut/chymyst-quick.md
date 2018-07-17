@@ -368,3 +368,14 @@ result(Nil)
 val result = waitDone() // Block until done, get result.
 
 ```
+
+### Exercise
+
+The code of "parallel map" actually does not compute the function `f(i)` in parallel!
+This is so because at most one copy of the molecule `result()` is present at any time, so
+at most one instance of the reaction `start() + result() ⇒ ...` could possibly run at once.
+
+Modify the code so that `f(i)` is computed in parallel.
+
+Hint: Introduce a new molecule that will react with `result()` instead of `start()`, and introduce
+a new reaction that will produce the new molecule out of `start()` and will perform the computation of `f()`.
