@@ -326,8 +326,8 @@ def start[A](func: () ⇒ A): B[Unit, A] = {
 
 // Usage:
 val wait_for_done = start { () ⇒ println("Running in the background, returning 123."); 123 }
-// Other code... Now join:
-val result = wait_for_done()
+// Other code... Now wait for completion and fetch the result:
+val result = wait_for_done() // Returns 123.
 
 ```
 
