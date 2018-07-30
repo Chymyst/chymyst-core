@@ -268,6 +268,28 @@ decr() + decr() // prints “new value is 99” and then “new value is 98”
 
 ## Exercises
 
+### Start a process in the background
+
+Implement a chemical program that starts a separate background thread, evaluating a given function of type `() ⇒ Unit` for side effect.
+Starting that thread should be a non-blocking call.
+
+#### Solution
+
+The data consists of a value of type `() ⇒ Unit`. This data must be on a molecule. This molecule must be consumed by a reaction.
+
+```scala
+
+val start = m[() ⇒ Unit]
+site(
+  go { case start(f) ⇒ f() }
+)
+// The call to emit `start()` is a non-blocking call.
+
+// Example of usage: 
+start { () ⇒ println("Running in background!") }
+
+```
+
 ### Producer-consumer
 
 Implement a chemical program that simulates a simple “producer-consumer” arrangement.
