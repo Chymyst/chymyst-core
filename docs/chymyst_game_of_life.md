@@ -117,15 +117,15 @@ go { case
       t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 ⇒
   val newState = getNewState(state0, state1, state2, state3,
     state4, state5, state6, state7, state8)
-  c0((x, y, t + 1, newState))
+  c0((x0, y0, t0 + 1, newState))
   ???
 }
 
 ```
 
 But how would the chemistry work at the next time step?
-The molecule `c0((x, y, t + 1, _))` will need to react with its 8 neighbors.
-However, each of the neighbor cells, such as `c0((x-1, y, t + 1, _))`, also needs to react with _its_ 8 neighbors.
+The molecule `c0((x0, y0, t0 + 1, _))` will need to react with its 8 neighbors.
+However, each of the neighbor cells, such as `c0((x0-1, y0, t0 + 1, _))`, also needs to react with _its_ 8 neighbors.
 
 Therefore, we need to have 9 _output_ molecules in this reaction: one molecule, `c0()`, represents the new state of the center cell,
 while 8 others will provide `newState` as "neighbor data" for each of the 8 neighbors.
@@ -152,17 +152,17 @@ go { case
       t0 == t5 && t0 == t6 && t0 == t7 && t0 == t8 ⇒
   val newState = getNewState(state0, state1, state2, state3,
     state4, state5, state6, state7, state8)
-  c1((x - 1, y - 1, t + 1, newState))
-  c2((x + 0, y - 1, t + 1, newState))
-  c3((x + 1, y - 1, t + 1, newState))
-  c4((x - 1, y + 0, t + 1, newState))
+  c1((x0 - 1, y0 - 1, t0 + 1, newState))
+  c2((x0 + 0, y0 - 1, t0 + 1, newState))
+  c3((x0 + 1, y0 - 1, t0 + 1, newState))
+  c4((x0 - 1, y0 + 0, t0 + 1, newState))
 
-  c0((x + 0, y + 0, t + 1, newState)) // center cell
+  c0((x0 + 0, y0 + 0, t0 + 1, newState)) // center cell
 
-  c5((x + 1, y + 0, t + 1, newState))
-  c6((x - 1, y + 1, t + 1, newState))
-  c7((x + 0, y + 1, t + 1, newState))
-  c8((x + 1, y + 1, t + 1, newState))
+  c5((x0 + 1, y0 + 0, t0 + 1, newState))
+  c6((x0 - 1, y0 + 1, t0 + 1, newState))
+  c7((x0 + 0, y0 + 1, t0 + 1, newState))
+  c8((x0 + 1, y0 + 1, t0 + 1, newState))
 }
 
 ```
