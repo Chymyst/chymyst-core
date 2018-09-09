@@ -472,7 +472,7 @@ val counter = new M[Int]("counter")
 
 Molecule names are not checked for uniqueness and have no effect on program execution.
 Nevertheless, descriptive names of molecules are very useful for visualizing the reactions, as well as for debugging and logging.
-In this tutorial, we will always use macros to define molecules.
+In this book, we will always use macros to define molecules.
 
 ## Common errors
 

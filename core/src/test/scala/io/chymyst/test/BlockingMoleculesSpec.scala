@@ -73,8 +73,8 @@ class BlockingMoleculesSpec extends LogSpec with BeforeAndAfterEach {
     }
     val (mean, std) = meanAndStdev(results.drop(total / 2))
     println(f"Timeout is late by ${mean - timeout}%1.3f ms ± $std%1.3f ms")
-    mean - timeout should be < 10.0 // typical shift is 1 ms ± 0.5 ms
-    mean - timeout should be > -1.0
+    mean - timeout should be < 20.0 // Typical shift is 1 ms ± 0.5 ms, but it can be as slow as 11 ms
+    mean - timeout should be > 1.0
   }
 
   it should "not timeout when a reply is sent quickly enough" in {

@@ -90,9 +90,9 @@ This reaction is impossible to express in JoCaml directly.
 
 # Other tutorials on Join Calculus
 
-This tutorial is a pragmatic, non-theoretical introduction to Join Calculus for programmers.
+This book is a pragmatic, non-theoretical introduction to Join Calculus for programmers.
 
-This text is based on my [earlier tutorial for JoCaml](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml). (However, be warned that the old JoCaml tutorial is unfinished and contains mistakes in some of the more advanced code examples.)
+Previously I wrote a [tutorial for JoCaml](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml). (However, be warned that the old JoCaml tutorial is unfinished and contains mistakes in some of the more advanced code examples.)
 
 See also [my recent presentation at _Scalæ by the Bay 2016_](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala).
 ([Talk slides are available](https://github.com/winitzki/talks/tree/master/join_calculus)).
@@ -106,7 +106,7 @@ I first found out about the “Reflexive Chemical Abstract Machine” from the i
 Do not start by reading academic papers if you never studied Join Calculus - you will be unnecessarily confused.
 All Join Calculus papers I've seen are written in an obscure jargon and are intended for advanced computer scientists.
 
-As another comparison, here is some code taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf), written in academic Join Calculus notation:
+As another comparison, here is some code in academic join calculus notation, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
 
 <img alt="def newVar(v0) def put(w) etc." src="academic_join_calculus_2.png" width="400" />
 
@@ -132,7 +132,7 @@ def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
 ```
 
 I also do not recommend reading the [Wikipedia page on Join Calculus](https://en.wikipedia.org/wiki/Join-calculus).
-As of June 2017, this page says this about Join Calculus:
+As of August 2018, the Wikipedia page says this about Join Calculus:
 
 > The join-calculus ... can be considered, at its core, an asynchronous π-calculus with several strong restrictions:
 >
@@ -143,17 +143,19 @@ As of June 2017, this page says this about Join Calculus:
 > However, as a language for programming, the join-calculus offers at least one convenience over the π-calculus — namely the use of multi-way join patterns, the ability to match against messages from multiple channels simultaneously.
 
 This explanation is impossible to understand unless you are already well-versed in the research literature.
-(I'm not sure what it means to have “communication on _defined_ names”, as opposed to communication on _undefined_ names...)
+(For instance, I'm not sure what it means to have “communication on _defined_ names”, as opposed to communication on _undefined_ names...?)
 
 Academic literature on Join Calculus typically uses terms such as “channel” and “message”, which are not helpful for understanding how JC works and how to write concurrent programs in JC.
-Indeed, a “channel” in JC holds an _unordered_ collection of messages, rather than an ordered queue or mailbox, as the word “channel” suggests.
+Indeed, a “channel” in JC holds an _unordered_ collection of messages, rather than an ordered queue or mailbox, as the word “channel” may suggest.
 Another metaphor for “channel” is a persistent path for sending and receiving messages, but this is also far from what a JC “channel” actually does.
 
 The word “message” again suggests that a mailbox or a queue receives messages and processes them one by one.
-This is very different from what happens in JC, where a reaction waits for several “messages” at once, and different reactions can contend on several “messages” they wait for.
+This is very different from what happens in JC, where a reaction may wait for several “messages” at once, and different reactions may contend on several “messages” they wait for.
 
 The JoCaml documentation is especially confusing as regards “channels”, “messages”, and “processes”.
-It is ill-suited as a pedagogical introduction to using JoCaml.
+It confuses a “process” as a piece of code running on some CPU thread, and a “process” as the side-effect of emitting a molecule that adds data to a reaction site. 
+The JoCaml documentation is ill-suited as a pedagogical introduction to using join calculus or JoCaml.
+Given the lack of tutorial-level documentation, it is not surprising that the JC paradigm remains unknown to the programming community.
 
 Instead of using academic terminology, I always follow the chemical machine metaphor and terminology when talking about `Chymyst` programming.
 Here is a dictionary:
