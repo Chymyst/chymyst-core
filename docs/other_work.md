@@ -14,8 +14,10 @@ Here are other implementations of Join Calculus that I was able to find online.
 - "Joinads", a Join-Calculus implementation as a compiler patch for F# and Haskell: [Petricek and Syme 2011](https://www.microsoft.com/en-us/research/publication/joinads-a-retargetable-control-flow-construct-for-reactive-parallel-and-concurrent-programming/). The project is not maintained.
 - Implementations of Join Calculus for iOS: [CocoaJoin](https://github.com/winitzki/AndroJoin) and for Android: [AndroJoin](https://github.com/winitzki/AndroJoin). These projects are not maintained.
 - [Join-Language](https://github.com/syallop/Join-Language): implementation of Join Calculus as an embedded Haskell DSL (2014). The project is in development.
+- [JEScala](https://www.stg.tu-darmstadt.de/research/programming_languages/jescala_menu/index.en.jsp): an implementation of Join Calculus in Scala (2014) that accompanied [this academic paper](http://www.guidosalvaneschi.com/attachments/papers/2014_JEScala-Modular-Coordination-with-Declarative-Events-and-Joins_pdf.pdf), and its development appears to be abandoned.
 
-The code of `Chymyst` is a clean-room implementation of JC, and the syntax aims to improve upon the design of He Jiansen's `ScalaJoin` as well as of CocoaJoin / AndroJoin.
+The code of `Chymyst` is a clean-room implementation of join calculus, not based on the code of any of the previous work.
+The chosen syntax in `Chymyst` aims to improve upon the design of He Jiansen's `ScalaJoin` as well as building on the experience of implementing CocoaJoin / AndroJoin.
 
 ## Improvements with respect to Jiansen He's `ScalaJoin`
 
@@ -97,12 +99,12 @@ See also [my recent presentation at _Scalæ by the Bay 2016_](https://scalaebyth
 That presentation covered an early version of `Chymyst`.
 
 There are a few academic papers on Join Calculus and a few expository descriptions, such as the Wikipedia article or the JoCaml documentation.
-Unfortunately, I cannot recommend reading them because they are unsuitable for learning about the chemical machine / Join Calculus paradigm.
+Unfortunately, I cannot recommend reading these sources: they are unsuitable for learning about the chemical machine / Join Calculus paradigm.
 
-I learned about the “Reflexive Chemical Abstract Machine” from the introduction in one of the [early papers on Join Calculus](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.32.3078&rep=rep1&type=pdf).
+I first found out about the “Reflexive Chemical Abstract Machine” from the introduction in one of the [early papers on Join Calculus](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.32.3078&rep=rep1&type=pdf).
 
 Do not start by reading academic papers if you never studied Join Calculus - you will be unnecessarily confused.
-All Join Calculus papers I've seen are not pedagogically written and are intended for advanced computer scientists.
+All Join Calculus papers I've seen are written in an obscure jargon and are intended for advanced computer scientists.
 
 As another comparison, here is some code taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf), written in academic Join Calculus notation:
 

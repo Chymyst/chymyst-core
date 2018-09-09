@@ -15,7 +15,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
   var memLog: MemoryLogger = _
 
-  implicit val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
+  implicit val patienceConfig = PatienceConfig(timeout = Span(1000, Millis))
 
   override def beforeEach(): Unit = {
     memLog = new MemoryLogger

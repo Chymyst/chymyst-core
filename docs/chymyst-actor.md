@@ -57,6 +57,10 @@ d1 ! 456
 
 Actor references have disappeared from the code. Instead, input message labels such as `c1`, `d1` select the computation that will be started.
 
+An input message label is similar to a reference to the mailbox corresponding to an actor.
+Since chemical actors are auto-created, it is sufficient to send a message to a mailbox rather than to a particular actor.
+Another important difference between chemical actors and ordinary actors is that messages in chemical actor's mailbox are kept as an unordered set, whereas ordinary actors' mailboxes contain ordered collections of messages.
+
 The second requirement means that a chemical actor should be able to wait for, say, two messages at once, allowing us to write pseudo-code like this,
 
 ```scala
