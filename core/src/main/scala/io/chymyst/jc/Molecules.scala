@@ -218,9 +218,9 @@ sealed trait MolEmitter extends PersistentHashCode {
     * This method is time-consuming and intended only for debugging, and should not be called within reactions.
     * If called from a reaction thread, it will return an empty string.
     */
-  final def logSoup: String = ensureReactionSite {
+  final def logSite: String = ensureReactionSite {
     if (isChymystThread)
-      "<logSoup is disabled on reaction threads!>"
+      "<logSite is disabled on reaction threads!>"
     else reactionSite.printBag
   }
 

@@ -428,14 +428,14 @@ consumeK(5)
 ### Logging the contents of the soup
 
 For debugging purposes, it is useful to see what molecules are currently present in the soup at a given reaction site (RS), waiting to react with other molecules.
-This is achieved by calling the `logSoup()` method on any of the molecule emitters.
+This is achieved by calling the `logSite()` method on any of the molecule emitters.
 This method will return a string showing the molecules that are currently present in the soup at that RS.
 The output will also show the values carried by each molecule.
 
 In our example, all three molecules `counter`, `incr`, and `decr` are declared as inputs at our RS, so we could use any of the emitters, say `decr`, to log the soup contents:
 
 ```
-> println(decr.logSoup)
+> println(decr.logSite)
 Site{counter + decr → ...; counter + incr → ...}
 Molecules: counter(98)
 
@@ -457,7 +457,7 @@ The RS will look at the presence or absence of these molecules when it decides w
 ### Molecule names
 
 A perceptive reader will ask at this point:
-How did the program know the names `counter`, `decr`, and `incr` when we called `logSoup()`?
+How did the program know the names `counter`, `decr`, and `incr` when we called `logSite()`?
 These are names of local variables we defined using `val counter = m[Int]` and so on.
 Ordinarily, Scala code does not have access to these names.
 
@@ -490,7 +490,7 @@ x(100)
 
 ```
 
-The same error will occur if the emitter call is attempted inside a reaction body, or if we call `logSoup()` on the molecule emitter.
+The same error will occur if the emitter call is attempted inside a reaction body, or if we call `logSite()` on the molecule emitter.
 
 The correct way of using `Chymyst` is first to define molecules, then to create a RS where these molecules are used as inputs for reactions, and only then to start emitting these molecules.
 

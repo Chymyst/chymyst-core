@@ -6,10 +6,9 @@ language: scala
 
 scala:
   - 2.11.8
-  - 2.11.11
+  - 2.11.12
   - 2.12.2
-  - 2.12.3
-  - 2.12.4
+  - 2.12.6
 jdk:
   - oraclejdk8
 
@@ -25,6 +24,7 @@ script:
 after_success:
   - bash <(curl -s https://codecov.io/bash)
 
+# This part of the script doesn't seem to work, actually! I never see any binary releases uploaded to github.
 deploy:
   file_glob: true
   provider: releases
