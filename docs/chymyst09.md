@@ -2,6 +2,8 @@
 
 # Generators and coroutines
 
+TODO
+
 # Timers and timeouts
 
 ## Timers in the chemical machine
@@ -113,6 +115,50 @@ go { case a(x) + b(y) ⇒ ... }
 
 consumes molecules `a()` and `b()`, and we are to cancel that reaction when some molecule `c()` is emitted.
 At that time, molecules `a()` and `b()` may or may not be present.
-The only way to prevent the reaction from starting is to remove `a()` or `b()` from the reaction site.
+The only way to prevent the reaction from starting without changing the reaction's code is to remove `a()` or `b()` from the reaction site.
+To do that, we could define an additional reaction that consumes, say, `a()` and `c()`, or `b()` and `c()`, and emits nothing:
 
-TODO
+```scala
+go { case a(_) + c(_) ⇒ }
+go { case b(_) + c(_) ⇒ }
+ 
+```
+
+These two reactions will need to be defined at the same reaction site as the original reaction.
+
+As we emit `c()`, one of these two reactions would start if `a()` is already present but `b()` is not yet present, or vice versa.
+If, however, both `a()` and `b()` are already emitted before `c()`, we are not guaranteed that we can cancel the reaction between `a()` and `b()`.
+
+There are two other ways of cancelling a reaction, but both require modifying the reaction's code.
+One way is to add a guard condition involving a mutable flag:
+
+```scala
+@volatile var enabled: Boolean = true
+
+site(
+  go { case a(x) + b(y) if enabled ⇒ ... }
+)
+
+```
+
+In this way, we can cancel a reaction without actually removing its input molecules, by setting `enabled = false`.
+We can also reset it back to true if we want to enable the reaction again.
+Of course, we have no control over _when_ the re-enabled reaction will start.
+
+Another way to implement cancellation is to put the flag on the value of, say, the molecule `a()`, and include a condition into the reaction's body:
+
+```scala
+site(
+  go { case a(x) + b(y) ⇒
+    if (x) do_something() else stop()
+  }
+)
+
+```
+
+This implementation would be suitable if we need to run this reaction many times with different input molecules, but stop it at some point.
+To stop the reaction, we emit `a(false)`.
+The function we called `stop()` would perform some cleanup or, at any rate, would not call `do_something()` as this reaction normally does.
+
+Since the molecule `a()` is pipelined in this program, each emitted copy of `a()` will be kept in a linear queue and consumed in the order emitted.
+So, we can be reasonably certain that the reaction will stop as soon as the emitted copy `a(false)` is consumed.
