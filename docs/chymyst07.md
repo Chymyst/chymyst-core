@@ -1032,7 +1032,7 @@ Revise the `n`-rendezvous chemistry to allow different "weights" for reactions w
 Weights are integers.
 The `n`-rendezvous is passed when enough reactions reach the barrier so that the sum of all their weights equals `n`.
 
-## Pair up for dance
+## "Pair up for dance"
 
 In the 18th century Paris, there are two doors that open to the dance floor where men must pair up with women to dance.
 At random intervals, men and women arrive to the dancing place.
@@ -1501,15 +1501,15 @@ There remains, however, a major problem with the code as written so far: it does
 The chemical machine does not know how many `task` molecules to expect, and so it keeps waiting for more `task(...)` molecules to be emitted into the soup.
 
 Not knowing _when_ molecules are emitted is a fundamental feature of programming in the chemical machine paradigm.
-That feature makes the programs robust with respect to accidental slowness of the computer, making race conditions impossible.
-The price is the need for additional bookkeeping in programs that need to wait until a number of tasks are finished.
+That feature forces us to write code that is robust with respect to accidental slowness of the computer, making race conditions impossible.
+The price is the need for additional bookkeeping, such as counting the results in programs that need to wait until a number of tasks are finished.
 
 In previous chapters, we have already seen two examples of this kind of bookkeeping.
 In the "map/reduce" pattern, we had put an additional counter on the `result` molecules so that we would know when we finish aggregating the partial results.
 In the "merge/sort" example, we used a chain reaction that guarantees eventual termination of the computation tree.
 
 The recursive code is elegant in its way, but makes reasoning more complicated.
-Let us first try to achieve termination by using a counter.
+Let us first try to achieve termination by using a counter, without using "recursive chemistry" (chain reactions).
 
 If `Counter` represents the type of the counter value, we might write code similarly to the "map/reduce" pattern where we add up the counters on `res()` molecules until the total accumulated count reaches a predefined value:
 

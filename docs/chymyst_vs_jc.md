@@ -15,7 +15,7 @@ Here is a dictionary:
 | emitting a blocking molecule | sending a synchronous message | `q()` _// returns_ `Int` |
 | reaction site | join definition | `site(r1, r2, ...)` |
 
-As another comparison, here is some code in academic Join Calculus, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
+As another comparison, here is some code in academic Join Calculus notation, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
 
 <img alt="def newVar(v0) def put(w) etc." src="docs/academic_join_calculus_2.png" width="400" />
 

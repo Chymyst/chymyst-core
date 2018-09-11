@@ -62,14 +62,14 @@ val x: Int = f() // blocking emitter
 The chemical machine emits a blocking molecule in a special way:
 
 1. The emission call, such as `f(x)`, will add a new copy of the molecule `f(x)` to the soup, — this is so with any molecule.
-2. However, the original emitting process (which can be a reaction body or any other code) will be blocked at least until _some other_ reaction starts running and consumes the emitted copy of `f(x)`.
-3. Once such a reaction starts, that reaction's body will **send a reply value** to the original process that emitted `f()`.
+2. However, the original emitting process (which can be a running reaction body or any other code) will be blocked at least until _some other_ reaction starts running and consumes the emitted copy of `f(x)`.
+3. Once such a reaction starts, that reaction's body must **send a reply value** to the original process that emitted `f()`.
 Sending a reply value is accomplished by calling a special **reply emitter**, which is only available within the scope of reactions that consume blocking molecules.
 4. The original process becomes unblocked right after it receives the reply value.
 To the original process, the reply value appears to be the value returned by the function call `f(x)`.
 Within the reaction that sends a reply, the reply call is asynchronous (it returns immediately, without waiting for the unblocked process).
 
-Here is an example showing the `Chymyst` syntax for emitting a reply.
+Here is an example showing `Chymyst`'s syntax for emitting a reply.
 Suppose we have a reaction that consumes a non-blocking molecule `c()` with an integer value and the blocking molecule `f()` defined above.
 We would like to use the blocking molecule in order to fetch the integer value that `c()` carries.
 The typical code for this kind of reaction looks like this:
@@ -225,6 +225,111 @@ So `c(); d()` has the same effect as `d(); c()` if `c` and `d` are non-blocking 
 - Blocking molecule names are printed with the suffix `"/B"` in the debugging output.
 - Molecules with unit values can be emitted simply by calling `decr()` and `fetch()` without arguments, but they still require a pattern variable when used in the `case` construction.
 For this reason, we need to write `decr(_)` and `fetch(_, reply)` in the match patterns.
+
+### Example: waiting for a background thread
+
+Previously, we implemented a function to start a background thread [using non-blocking molecules](chymyst01.md#start-a-process-in-the-background).
+That worked, but what if we wanted to wait until the background thread's computation is finished?
+We will now implement this functionality.
+
+We will still use a non-blocking molecule `start()` for starting a computation on a background thread.
+To wait for the completion of the computation, we will use a blocking molecule `wait_done()`.
+
+Clearly, that molecule needs to react with some other molecule, which should not be present until the computation is finished.
+Let us therefore define a third molecule, `done()`, which we will emit only at the end of the computation.
+
+We implement the solution as a function `start_join` that returns a pair of new molecule emitters implementing the required logic.
+
+```scala
+def start_wait(): (M[() ⇒ Unit], B[Unit, Unit]) = {
+  val start = m[() ⇒ Unit]
+  val wait_for_done = b[Unit, Unit]
+  val done = m[Unit]
+  site(
+    go { case start(f) ⇒ f(); done() },
+    go { case wait_for_done(_, reply) + done(_) ⇒ reply() }
+  )
+}
+
+// Usage:
+val (start, wait_for_done) = start_wait()
+start { () ⇒ println("Running in the background!") }
+// Other code... Now wait:
+wait_for_done()
+
+```
+
+### Exercise: waiting for a background thread, fetching its result.
+
+Implement a chemical program that starts a separate background thread, evaluating a given function of type `() ⇒ A`.
+Additionally, a blocking call should be available to wait for the background thread.
+The blocking call returns the value of type `A` computed by the given function, when the evaluation in the background thread is finished.
+
+#### Solution
+
+We implement a function `start_wait` that returns a pair of new molecule emitters implementing the required logic.
+
+```scala
+def start_wait[A]: (M[() ⇒ A], B[Unit, A]) = {
+  val start = m[() ⇒ A]
+  val wait_for_done = b[Unit, A]
+  val done = m[A]
+  site(
+    go { case start(f) ⇒ done(f()) }, // Equivalently, `val x = f(); done(x)`.
+    go { case wait_for_done(_, reply) + done(x) ⇒ reply(x) }
+  )
+}
+
+// Usage:
+val (start, wait_for_done) = start_wait[Int]
+start { () ⇒ println("Running in the background, returning 123."); 123 }
+// Other code... Now wait for completion and fetch the result:
+val result = wait_for_done()
+
+```
+
+### Example: waiting for multiple background threads
+
+The previous exercise works but has a drawback: if we call `start()` several times with different functions,
+several background computations will be started in parallel.
+If we then call `wait_for_done()`, we will not know which of the results we will get.
+We may get the first result computed by any of the started computations.
+
+To avoid this problem, we could create a new pair of `start` and `wait_done` molecule for each background computation.
+But this will not prevent the application code from calling `start()` several times by mistake.
+
+So let us now implement a function that starts a separate background thread, evaluating a given function of type `() ⇒ A`,
+and returning a value representing a “handle” on the started thread.
+A blocking call should be able to wait for the background thread by using the “handle”,
+and will return the value of type `A` computed by the thread corresponding to that “handle”.
+
+This functionality is equivalent to standard Scala's `Future` and `Await.result()`.
+
+#### Solution
+
+We can use the molecule `wait_for_done()` as a “handle” on the started thread, and then
+we will need to create and return a new `wait_for_done` each time.
+
+Note that `start()` is now a function, rather than a molecule emitter call. The `start_m` emitter is now hidden from the user.
+
+```scala
+def start[A](func: () ⇒ A): B[Unit, A] = {
+  val start_m = m[() ⇒ A]
+  val wait_for_done = b[Unit, A]
+  val done = m[A]
+  site(
+    go { case start_m(f) ⇒ done(f()) },
+    go { case wait_for_done(_, reply) + done(x) ⇒ reply(x) }
+  )
+  start_m(func)
+}
+
+// Usage:
+val wait_for_done = start { () ⇒ println("Running in the background, returning 123."); 123 }
+// Other code... Now wait for completion and fetch the result:
+val result = wait_for_done() // Returns 123.
+
+```
 
 ## Example: Readers/Writers with blocking molecules
 
@@ -917,7 +1022,7 @@ writing `f(); ()` will make the emitter call `f()` acceptable to `Chymyst` since
 
 Each blocking molecule must receive one (and only one) reply.
 It is an error if a reaction consumes a blocking molecule but does not reply.
-It is also an error to reply again after a reply was made.
+It is also an error to reply a second time, after one reply was made.
 
 Errors of this type are caught at compile time:
 

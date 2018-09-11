@@ -134,17 +134,17 @@ For this reason, reply emitters look like functions that return a `Boolean` valu
 
 ### Logging the present molecules
 
-The method `logSoup` returns a `String` that represents the molecules currently present in the reaction site to which the molecule is bound.
+The method `logSite` returns a `String` that represents the molecules currently present in the reaction site to which the molecule is bound.
 This is intended as a debugging tool only.
 
 ```scala
 val x = m[Int]
 site(...)
-println(x.logSoup)
+println(x.logSite)
 
 ```
 
-It is a run-time error to use `logSoup` on molecules that are not yet bound to any reaction site.
+It is a run-time error to use `logSite` on molecules that are not yet bound to any reaction site.
 
 ## Reactions
 
@@ -588,20 +588,20 @@ It is sometimes not easy to make sure that the reactions are correctly designed.
 `Chymyst` offers some debugging facilities:
 
 - all molecules, thread pools, and reaction threads are named, and macros will assign these names automatically
-- the user can log the current contents of a reaction site by using `logSoup()`
+- the user can log the current contents of a reaction site by using `logSite()`
 - the user can trace the operation of a reaction site by using event reporters
 - the user can orchestrate asynchronous unit tests by waiting for specific events (molecule consumed, molecule emitted, reaction decided for molecule) 
 
 ## Printing the list of present molecules
 
-Calling `c.logSoup()` on a molecule emitter `c` will return a `String` with a description of all molecules present at the reaction site to which `c` is bound.
+Calling `c.logSite()` on a molecule emitter `c` will return a `String` with a description of all molecules present at the reaction site to which `c` is bound.
 
 Note that reaction sites may contain molecules whose emitters are not visible to the user.
 It is important to guarantee that the user does not have access to those emitters.
-Since `logSoup()` returns a `String`, it will not contain any emitter values (but may reveal the names of the emitters that the user has no access to).
+Since `logSite()` returns a `String`, it will not contain any emitter values (but may reveal the names of the emitters that the user has no access to).
 
-Currently, `logSoup()` is allowed only outside reactions; it will return an error string if used on a reaction thread.
-User code should never depend on the output of `logSoup()` for implementing the logic of a concurrent application.
+Currently, `logSite()` is allowed only outside reactions; it will return an error string if used on a reaction thread.
+User code should never depend on the output of `logSite()` for implementing the logic of a concurrent application.
 
 ## Event reporters
 
@@ -722,7 +722,7 @@ decr() + decr() + decr()
 [1742620657091402] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule counter, molecules present: [counter(2)]
 [1742620657196664] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule counter, molecules present: [counter(2)]
 */
-println(counter.logSoup)
+println(counter.logSite)
 /* This prints:
  Site{counter + decr → ...; counter + get/S → ...}
  Molecules: counter(2)
@@ -749,7 +749,7 @@ decr() + decr() + decr()
 [1742669449027057] Debug: In Site{counter + decr → ...; counter + get/B → ...}: scheduler looks for reactions for molecule counter, molecules present: [counter(0) + decr/P()]
 [1742669449173158] Debug: In Site{counter + decr → ...; counter + get/B → ...}: no more reactions scheduled for molecule counter, molecules present: [counter(0) + decr/P()]
 */
-println(counter.logSoup)
+println(counter.logSite)
 /* This prints:
  Site{counter + decr → ...; counter + get/S → ...}
  Molecules: counter(0) + decr/P()

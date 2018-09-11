@@ -15,7 +15,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
   var memLog: MemoryLogger = _
 
-  implicit val patienceConfig = PatienceConfig(timeout = Span(500, Millis))
+  implicit val patienceConfig = PatienceConfig(timeout = Span(1000, Millis))
 
   override def beforeEach(): Unit = {
     memLog = new MemoryLogger
@@ -38,7 +38,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val c = m[Unit]
 
     site(tp0)(go { case a(_) + b(_) + c(_) => })
-    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
     a.typeSymbol shouldEqual 'Unit
   }
 
@@ -48,7 +48,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val c = m[Unit]
 
     tp0(go { case a(_) + b(_) + c(_) => })
-    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
     a.typeSymbol shouldEqual 'Unit
   }
 
@@ -70,7 +70,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     molecules.map(_.siteIndex) shouldEqual molecules.indices
     molecules.map(_.typeSymbol) shouldEqual Seq.fill(molecules.size)('Unit)
 
-    a.logSoup shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nNo molecules"
 
     a()
     a()
@@ -78,10 +78,10 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     Thread.sleep(300)
     d()
     g.timeout()(1.second) shouldEqual Some(())
-    a.logSoup shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nMolecules: a/P() * 2 + bb/P()"
+    a.logSite shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nMolecules: a/P() * 2 + bb/P()"
     c()
     f.timeout()(1.second) shouldEqual Some(())
-    a.logSoup shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nMolecules: a/P()"
+    a.logSite shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nMolecules: a/P()"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at end of reaction" in {
@@ -91,7 +91,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
     site(go { case b(_) + c(_) + a(Some(x)) => })
 
-    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with zero default pattern-matching at start of reaction" in {
@@ -101,7 +101,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
     site(go { case a(0) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant non-default pattern-matching at end of reaction" in {
@@ -111,7 +111,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
     site(go { case b(_) + c(_) + a(1) => })
 
-    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "start a simple reaction with one input, defining the emitter explicitly" in {
@@ -215,7 +215,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
   it should "throw exception when trying to log soup of a blocking molecule that has no reaction site" in {
     val thrown = intercept[Exception] {
       val a = new B[Unit, Unit]("x")
-      a.logSoup
+      a.logSite
     }
     thrown.getMessage shouldEqual "Molecule x/B is not bound to any reaction site"
   }
@@ -223,7 +223,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
   it should "throw exception when trying to log soup a non-blocking molecule that has no reaction site" in {
     val thrown = intercept[Exception] {
       val a = new M[Unit]("x")
-      a.logSoup
+      a.logSite
     }
     thrown.getMessage shouldEqual "Molecule x is not bound to any reaction site"
   }
@@ -444,17 +444,17 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     }.get shouldEqual 0
   }
 
-  it should "disallow logSoup() on reaction threads" in {
+  it should "disallow logSite() on reaction threads" in {
     val c = m[String]
     val g = b[Unit, String]
 
     site(tp0)(
-      go { case c(_) + g(_, r) ⇒ r(c.logSoup) }
+      go { case c(_) + g(_, r) ⇒ r(c.logSite) }
     )
     c("xyz")
 
     val result = g.timeout()(1500 millis)
-    result shouldEqual Some("<logSoup is disabled on reaction threads!>")
+    result shouldEqual Some("<logSite is disabled on reaction threads!>")
   }
 
   behavior of "fault-tolerant resume facility"

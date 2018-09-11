@@ -371,7 +371,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     site(tp0)(go { case b(_) + a(Some(x)) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with default pattern-matching in the middle of reaction" in {
@@ -381,7 +381,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     site(tp0)(go { case b(_) + a(None) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with non-simple default pattern-matching in the middle of reaction" in {
@@ -391,7 +391,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     site(go { case b(_) + a(List()) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "not fail to define a simple reaction with correct inputs with empty option pattern-matching at start of reaction" in {
@@ -401,7 +401,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     site(tp0)(go { case a(None) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with empty option pattern-matching at start of reaction" in {
@@ -411,7 +411,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     site(tp0)(go { case a(None) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at start of reaction" in {
@@ -421,7 +421,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     site(tp0)(go { case a(Some(x)) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "run reactions correctly with non-default pattern-matching at start of reaction" in {
@@ -433,9 +433,9 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     a(Some(1))
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a/P(Some(1))"
+    a.logSite shouldEqual "Site{a + f/B → ...}\nMolecules: a/P(Some(1))"
     f.timeout()(2.second) shouldEqual Some(1)
-    a.logSoup shouldEqual "Site{a + f/B → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + f/B → ...}\nNo molecules"
   }
 
   it should "not run a reaction whose static guard is false" in {
@@ -449,11 +449,11 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     a(Some(1))
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a/P(Some(1))"
+    a.logSite shouldEqual "Site{a + f/B → ...}\nMolecules: a/P(Some(1))"
     f.timeout()(2.second) shouldEqual None
     waitSome() // Removal of blocking molecule upon timeout is now asynchronous.
     waitSome()
-    a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a/P(Some(1))"
+    a.logSite shouldEqual "Site{a + f/B → ...}\nMolecules: a/P(Some(1))"
   }
 
   it should "not run a reaction whose cross-molecule guard is false" in {
@@ -467,11 +467,11 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     a(Some(10))
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a(Some(10))"
+    a.logSite shouldEqual "Site{a + f/B → ...}\nMolecules: a(Some(10))"
     f.timeout(0)(2.second) shouldEqual None
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a(Some(10))"
+    a.logSite shouldEqual "Site{a + f/B → ...}\nMolecules: a(Some(10))"
   }
 
   it should "run a reaction whose cross-molecule guard is true" in {
@@ -485,9 +485,9 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     a(Some(1))
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + f/B → ...}\nMolecules: a(Some(1))"
+    a.logSite shouldEqual "Site{a + f/B → ...}\nMolecules: a(Some(1))"
     f.timeout(0)(2.second) shouldEqual Some(1)
-    a.logSoup shouldEqual "Site{a + f/B → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + f/B → ...}\nNo molecules"
   }
 
   it should "run a reaction with cross-molecule guards and some independent molecules" in {
@@ -503,9 +503,9 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     c(123)
     waitSome()
     waitSome()
-    a.logSoup shouldEqual "Site{a + c + f/B → ...}\nMolecules: a(Some(1)) + c/P(123)"
+    a.logSite shouldEqual "Site{a + c + f/B → ...}\nMolecules: a(Some(1)) + c/P(123)"
     f.timeout(0)(2.second) shouldEqual Some(124)
-    a.logSoup shouldEqual "Site{a + c + f/B → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + c + f/B → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant non-default pattern-matching at start of reaction" in {
@@ -515,7 +515,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     site(tp0)(go { case a(1) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "define a reaction with correct inputs with constant default option pattern-matching at start of reaction" in {
@@ -525,7 +525,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     site(tp0)(go { case a(None) + b(_) + c(_) => })
 
-    a.logSoup shouldEqual "Site{a + b + c → ...}\nNo molecules"
+    a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
 
   it should "determine constant input and output patterns correctly" in {
@@ -1146,7 +1146,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
         r1.body.apply((inputs.length - 1, inputs)) shouldEqual 123 // Reaction ran on a non-reaction thread (i.e. on this thread) and attempted to emit the static molecule.
       } should have message s"In Site{${dIncorrectStaticMol.name} + e → ...}: Refusing to emit static molecule ${dIncorrectStaticMol.name}() because this thread does not run a chemical reaction"
       waitSome()
-      e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
+      e.logSite shouldEqual s"Site{${dIncorrectStaticMol.name} + e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
     }
   */
   it should "refuse to emit static molecule manually from non-reaction thread" in {
@@ -1164,7 +1164,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
       dIncorrectStaticMol() shouldEqual (()) // User code attempted to emit the static molecule.
     } should have message s"Error: static molecule ${dIncorrectStaticMol.name}(()) cannot be emitted non-statically"
     waitSome()
-    e.logSoup shouldEqual s"Site{${dIncorrectStaticMol.name} + e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
+    e.logSite shouldEqual s"Site{${dIncorrectStaticMol.name} + e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
   }
 
   it should "refuse to emit static molecule from a reaction that did not consume it when this cannot be determined statically" in {
@@ -1181,7 +1181,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     e(dIncorrectStaticMol)
     waitSome()
-    e.logSoup shouldEqual s"Site{c + ${dIncorrectStaticMol.name} → ...; e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
+    e.logSite shouldEqual s"Site{c + ${dIncorrectStaticMol.name} → ...; e → ...}\nMolecules: ${dIncorrectStaticMol.name}/P()"
     globalLogHas(memLog, "cannot be emitted", s"In Site{c + dIncorrectStaticMol → ...; e → ...}: Reaction {e(s) → } with inputs [e/P(dIncorrectStaticMol)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Error: static molecule dIncorrectStaticMol(()) cannot be emitted non-statically")
   }
 

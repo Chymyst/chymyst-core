@@ -10,7 +10,7 @@
 This repository hosts `Chymyst Core` — a library that provides a Scala domain-specific language for purely functional, declarative concurrency.
 [`Chymyst`](https://github.com/Chymyst/Chymyst) is a framework-in-planning that will build upon `Chymyst Core` to enable creating concurrent applications declaratively.
 
-`Chymyst` implements the **chemical machine** paradigm, known in the academic world as [Join Calculus (JC)](https://en.wikipedia.org/wiki/Join-calculus).
+`Chymyst` (pronounced “chemist”) implements the **chemical machine** paradigm, known in the academic world as [Join Calculus (JC)](https://en.wikipedia.org/wiki/Join-calculus).
 JC has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) and [the Actor model](https://en.wikipedia.org/wiki/Actor_model), but is easier to use.
 (See also [Conceptual overview of concurrency](https://chymyst.github.io/chymyst-core/concurrency.html).)
 
@@ -40,14 +40,21 @@ The current implementation is tested under Oracle JDK 8 with Scala `2.11.8`, `2.
 
 #### Presentations on `Chymyst` and on the chemical machine programming paradigm
 
-Oct. 16, 2017: _Declarative concurrent programming with Join Calculus_. Talk given at the [Scala Bay meetup](https://www.meetup.com/Scala-Bay/events/243931229):
+Nov. 18, 2017: _Declarative concurrent programming with Chymyst_. Presented at the [Scale by the Bay conference](https://scalebythebay2017.sched.com/event/BLwM/declarative-concurrent-programming-with-chymyst?iframe=no&w=100%&sidebar=yes&bg=no)
+
+- [Talk slides with audio - Long version](https://youtu.be/ubtj5g6SNaw)
+- [Talk slides in PDF](https://github.com/winitzki/talks/blob/master/join_calculus/join_calculus_2017_SBTB.pdf)
+- [Code examples used in the talk](https://github.com/Chymyst/jc-talk-2017-examples).
+
+Oct. 16, 2017: _Declarative concurrent programming with Join Calculus_. Presented at the [Scala Bay meetup](https://www.meetup.com/Scala-Bay/events/243931229):
 
 - [Talk slides with audio](https://youtu.be/Iu2KBYNF-6M)
-- See also the [talk slides (PDF)](https://github.com/winitzki/talks/blob/master/join_calculus/join_calculus_2017_Scala_Bay.pdf) and the [code examples for the talk](https://github.com/Chymyst/jc-talk-2017-examples).
+- [Talk slides (PDF)](https://github.com/winitzki/talks/blob/master/join_calculus/join_calculus_2017_Scala_Bay.pdf)
+- [Code examples used in the talk](https://github.com/Chymyst/jc-talk-2017-examples).
 
-July 2017: [Industry-Strength Join Calculus: Declarative concurrent programming with `Chymyst`](https://github.com/winitzki/talks/blob/master/join-calculus-paper/join-calculus-paper.pdf): Draft of an academic paper describing Chymyst and its approach to join calculus
+July 2017: [Industry-Strength Join Calculus: Declarative concurrent programming with `Chymyst`](https://github.com/winitzki/talks/blob/master/join-calculus-paper/join-calculus-paper.pdf): Draft of a paper describing Chymyst and its approach to join calculus
 
-Nov. 11, 2016: _Concurrent Join Calculus in Scala_. Talk given at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala):
+Nov. 11, 2016: _Concurrent Join Calculus in Scala_. Presented at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala):
 
 - [Video presentation of early version of `Chymyst`, then called `JoinRun`](https://www.youtube.com/watch?v=jawyHGjUfBU)
 - See also the [talk slides revised for the current syntax](https://github.com/winitzki/talks/raw/master/join_calculus/join_calculus_2016_revised.pdf).
