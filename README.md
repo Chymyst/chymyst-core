@@ -7,28 +7,28 @@
 
 # `Chymyst` — declarative concurrency in Scala
 
-This repository hosts `Chymyst Core` — a library that provides a Scala domain-specific language for purely functional, declarative concurrency.
+This repository hosts `Chymyst Core` — a domain-specific language for purely functional, declarative concurrency, implemented as a Scala library.
 [`Chymyst`](https://github.com/Chymyst/Chymyst) is a framework-in-planning that will build upon `Chymyst Core` to enable creating concurrent applications declaratively.
 
-`Chymyst` (pronounced “chemist”) implements the **chemical machine** paradigm, known in the academic world as [Join Calculus (JC)](https://en.wikipedia.org/wiki/Join-calculus).
-JC has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) and [the Actor model](https://en.wikipedia.org/wiki/Actor_model), but is easier to use.
+`Chymyst` (pronounced “chemist”) is a clean-room implementation of the **chemical machine** paradigm, known in the academic world as [Join Calculus (JC)](https://en.wikipedia.org/wiki/Join-calculus).
+JC has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)) and [the Actor model](https://en.wikipedia.org/wiki/Actor_model), but is easier to use and reason about, more high-level and more declarative.
 (See also [Conceptual overview of concurrency](https://chymyst.github.io/chymyst-core/concurrency.html).)
 
-The initial code of `Chymyst Core` was based on [previous work by He Jiansen](https://github.com/Jiansen/ScalaJoin) (2011) and [Philipp Haller](http://lampwww.epfl.ch/~phaller/joins/index.html) (2008), as well as on Join Calculus prototypes in [Objective-C/iOS](https://github.com/winitzki/CocoaJoin) and [Java/Android](https://github.com/winitzki/AndroJoin) (2012).
-
-The current implementation is tested under Oracle JDK 8 with Scala `2.11.8`, `2.11.11`, and `2.12.2`-`2.12.4`.
+The code is extensively tested under Oracle JDK 8 with Scala `2.11.8`, `2.11.11`, and `2.12.2`-`2.12.6`.
 
 ### [Version history and roadmap](https://chymyst.github.io/chymyst-core/roadmap.html)
 
 ## Overview of `Chymyst` and the chemical machine programming paradigm
 
-#### [Concurrency in Reactions: Get started with this extensive tutorial book](http://chemist.io/chymyst00.html)
+### [Concurrency in Reactions: Get started with this extensive tutorial book](http://chemist.io/chymyst00.html)
 
 - [Download the tutorial book in PDF](https://www.gitbook.com/download/pdf/book/winitzki/concurrency-in-reactions-declarative-multicore-in)
 
 - [Download the tutorial book in EPUB format](https://www.gitbook.com/download/epub/book/winitzki/concurrency-in-reactions-declarative-multicore-in)
 
-- [Manage book details (requires login)](https://www.gitbook.com/book/winitzki/concurrency-in-reactions-declarative-multicore-in/details)
+        - [Manage book details (requires login)](https://www.gitbook.com/book/winitzki/concurrency-in-reactions-declarative-multicore-in/details)
+
+Selected tutorial chapters from the book:
 
 #### [Project documentation at Github Pages](https://chymyst.github.io/chymyst-core/chymyst00.html)
 
@@ -52,7 +52,7 @@ Oct. 16, 2017: _Declarative concurrent programming with Join Calculus_. Presente
 - [Talk slides (PDF)](https://github.com/winitzki/talks/blob/master/join_calculus/join_calculus_2017_Scala_Bay.pdf)
 - [Code examples used in the talk](https://github.com/Chymyst/jc-talk-2017-examples).
 
-July 2017: [Industry-Strength Join Calculus: Declarative concurrent programming with `Chymyst`](https://github.com/winitzki/talks/blob/master/join-calculus-paper/join-calculus-paper.pdf): Draft of a paper describing Chymyst and its approach to join calculus
+July 2017: [Industry-Strength Join Calculus: Declarative concurrent programming with `Chymyst`](https://github.com/winitzki/talks/blob/master/join-calculus-paper/join-calculus-paper.pdf): Draft of a paper describing `Chymyst` and its approach to join calculus
 
 Nov. 11, 2016: _Concurrent Join Calculus in Scala_. Presented at [Scalæ by the Bay 2016](https://scalaebythebay2016.sched.org/event/7iU2/concurrent-join-calculus-in-scala):
 
@@ -72,7 +72,7 @@ Nov. 11, 2016: _Concurrent Join Calculus in Scala_. Presented at [Scalæ by the 
 ## Example: the "dining philosophers" problem
 
 The following code snippet is a complete runnable example
-that implements the logic of "dining philosophers" in a fully declarative and straightforward way.
+that implements the logic of “dining philosophers” in a fully declarative and straightforward way.
 
 ```scala
 import io.chymyst.jc._
@@ -101,17 +101,17 @@ object Main extends App {
   val fork51 = m[Unit]
   
   site (
-    go { case thinking1(_) => wait("Socrates is thinking");  hungry1() },
-    go { case thinking2(_) => wait("Confucius is thinking"); hungry2() },
-    go { case thinking3(_) => wait("Plato is thinking");     hungry3() },
-    go { case thinking4(_) => wait("Descartes is thinking"); hungry4() },
-    go { case thinking5(_) => wait("Voltaire is thinking");  hungry5() },
+    go { case thinking1(_) ⇒ wait("Socrates is thinking");  hungry1() },
+    go { case thinking2(_) ⇒ wait("Confucius is thinking"); hungry2() },
+    go { case thinking3(_) ⇒ wait("Plato is thinking");     hungry3() },
+    go { case thinking4(_) ⇒ wait("Descartes is thinking"); hungry4() },
+    go { case thinking5(_) ⇒ wait("Voltaire is thinking");  hungry5() },
   
-    go { case hungry1(_) + fork12(_) + fork51(_) => wait("Socrates is eating");  thinking1() + fork12() + fork51() },
-    go { case hungry2(_) + fork23(_) + fork12(_) => wait("Confucius is eating"); thinking2() + fork23() + fork12() },
-    go { case hungry3(_) + fork34(_) + fork23(_) => wait("Plato is eating");     thinking3() + fork34() + fork23() },
-    go { case hungry4(_) + fork45(_) + fork34(_) => wait("Descartes is eating"); thinking4() + fork45() + fork34() },
-    go { case hungry5(_) + fork51(_) + fork45(_) => wait("Voltaire is eating");  thinking5() + fork51() + fork45() }
+    go { case hungry1(_) + fork12(_) + fork51(_) ⇒ wait("Socrates is eating");  thinking1() + fork12() + fork51() },
+    go { case hungry2(_) + fork23(_) + fork12(_) ⇒ wait("Confucius is eating"); thinking2() + fork23() + fork12() },
+    go { case hungry3(_) + fork34(_) + fork23(_) ⇒ wait("Plato is eating");     thinking3() + fork34() + fork23() },
+    go { case hungry4(_) + fork45(_) + fork34(_) ⇒ wait("Descartes is eating"); thinking4() + fork45() + fork34() },
+    go { case hungry5(_) + fork51(_) + fork45(_) ⇒ wait("Voltaire is eating");  thinking5() + fork51() + fork45() }
   )
   // Emit molecules representing the initial state:
   thinking1() + thinking2() + thinking3() + thinking4() + thinking5()
@@ -121,11 +121,11 @@ object Main extends App {
 
 ```
 
-## Status
+## Status of the project
 
 The `Chymyst Core` library is in alpha pre-release, with very few API changes envisioned for the future.
 
-The semantics of the chemical machine (restricted to single-host, multicore computations) is fully implemented and tested on many nontrivial examples.
+The semantics of the chemical machine (restricted to single-host, multi-core computations) is fully implemented and tested on many nontrivial examples.
 
 The library JAR is published to Maven Central.
 
@@ -134,7 +134,7 @@ Extensive tutorial and usage documentation is available.
 Unit tests (more than 500 at the moment) exercise all aspects of the DSL provided by `Chymyst`.
 Test coverage is [100% according to codecov.io](https://codecov.io/gh/Chymyst/chymyst-core?branch=master).
 
-Test suites also complement the tutorial book and include examples such as barriers, asynchronous and synchronous rendezvous, local critical sections, parallel “or”, map/reduce, parallel merge-sort, “dining philosophers”, as well as many other concurrency algorithms.
+Test suites also complement the tutorial book and include examples such as barriers, asynchronous and synchronous rendezvous, local critical sections, parallel “or”, parallel map/reduce, parallel merge-sort, “dining philosophers”, as well as many other concurrency algorithms.
 
 Performance benchmarks indicate that `Chymyst Core` can schedule about 100,000 reactions per second per CPU core, and the performance bottleneck is in submitting jobs to threads (a distant second bottleneck is pattern-matching in the internals of the library).
 

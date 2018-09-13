@@ -2,10 +2,11 @@
 
 # `Chymyst`: declarative concurrency in Scala
 
-`Chymyst` is a framework for concurrency in functional programming
+`Chymyst` is a framework for declarative concurrency in functional programming
 implementing the **Chemical Machine** paradigm, also known in the academic world as [Join Calculus](https://en.wikipedia.org/wiki/Join-calculus).
 This concurrency paradigm has the same expressive power as CSP ([Communicating Sequential Processes](https://en.wikipedia.org/wiki/Communicating_sequential_processes)),
-the [Pi calculus](https://en.wikipedia.org/wiki/%CE%A0-calculus), and [the Actor model](https://en.wikipedia.org/wiki/Actor_model).
+the [Pi calculus](https://en.wikipedia.org/wiki/%CE%A0-calculus), and [the Actor model](https://en.wikipedia.org/wiki/Actor_model),
+but is easier to use and reason about, more high-level, and more declarative.
 
 [`Chymyst Core`](https://github.com/Chymyst/chymyst-core) is a library that implements the high-level concurrency primitives as a domain-specific language in Scala.
 [`Chymyst`](https://github.com/Chymyst/Chymyst) is a framework-in-planning that will build upon `Chymyst Core` and bring declarative concurrency to practical applications.
@@ -55,7 +56,7 @@ Nov. 11, 2016: Talk given at [Scalæ by the Bay 2016](https://scalaebythebay2016
 ### [Version history and roadmap](roadmap.md)
 
 
-## Status
+## Status of the project
 
 The `Chymyst Core` library is in alpha pre-release, with very few API changes envisioned for the future.
 
@@ -65,7 +66,9 @@ The library JAR is [published to Maven Central](http://search.maven.org/#search%
 
 Extensive tutorial and usage documentation is available.
 
-Unit tests include examples such as asynchronous counter, parallel “or”, concurrent merge-sort, and “dining philosophers”.
+Unit tests (more than 500 at the moment) exercise all aspects of the DSL provided by `Chymyst`.
 Test coverage is [100% according to codecov.io](https://codecov.io/gh/Chymyst/chymyst-core?branch=master).
+
+Test suites also complement the tutorial book and include examples such as barriers, asynchronous and synchronous rendezvous, local critical sections, parallel “or”, parallel map/reduce, parallel merge-sort, “dining philosophers”, as well as many other concurrency algorithms.
 
 Performance benchmarks indicate that `Chymyst Core` can schedule about 100,000 reactions per second per CPU core, and the performance bottleneck is in submitting jobs to threads (a distant second bottleneck is pattern-matching in the internals of the library).
