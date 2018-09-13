@@ -26,7 +26,7 @@ The code is extensively tested under Oracle JDK 8 with Scala `2.11.8`, `2.11.11`
 
 - [Download the tutorial book in EPUB format](https://www.gitbook.com/download/epub/book/winitzki/concurrency-in-reactions-declarative-multicore-in)
 
-        - [Manage book details (requires login)](https://www.gitbook.com/book/winitzki/concurrency-in-reactions-declarative-multicore-in/details)
+    - [Manage book details (requires login)](https://www.gitbook.com/book/winitzki/concurrency-in-reactions-declarative-multicore-in/details)
 
 Selected tutorial chapters from the book:
 
