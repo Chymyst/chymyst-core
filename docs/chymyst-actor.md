@@ -115,9 +115,10 @@ c2 ! "abc"
 ```
 
 The two messages carry data of different types; the two mailboxes are `c1` and `c2` respectively.
-The chemical actor starts only after _both_ messages have been sent, and consumes both messages atomically.
+The chemical actor starts only after _both_ messages are present in their mailboxes (i.e. after some other code has sent them).
+When the actor starts, it consumes the two messages atomically.
 
-It also follows from the atomicity requirement that we may define several computations that jointly contend on input messages:
+It also follows from the atomicity requirement that it is safe to define several computations that consume messages from the same mailbox:
 
 ```scala
 // Pseudo-code!
@@ -138,6 +139,8 @@ Since consuming the only message from `c1` will make the mailbox `c1` empty, the
 In this way, the program expresses the contention of several processes on a shared resource.
 
 This concludes the second and final step towards the chemical machine paradigm.
+We have completely decoupled mailboxes from chemical actors, in the sense that chemical actors
+may atomically wait on one or more incoming messages from arbitrary mailboxes.
 
 It remains to use the Scala syntax instead of pseudo-code.
 In Scala, we need to declare message types explicitly using the `m` macro,
@@ -182,8 +185,8 @@ Depending on what messages are present in any given time in various mailboxes, s
 In order to be able to make progress in such situations, a chemical actor may need to consume messages out of order. 
 
 For this reason, messages in certain mailboxes may need to be kept as an unordered multi-set or "bag", rather than as an ordered queue.
-This usually only applies to mailboxes that participate in computations with complicated guard conditions.
-`Chymyst` automatically detects these situations and decides which mailboxes need to be unordered.
+This only applies to mailboxes that participate in computations with sufficiently complicated guard conditions.
+`Chymyst` automatically detects these situations and activates unordered storage for the affected mailboxes.
 Since all the chemical actors are defined up front, this analysis can be performed before any computations are started.
 
 ## Conclusions
