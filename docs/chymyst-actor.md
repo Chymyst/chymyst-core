@@ -137,8 +137,7 @@ Suppose, for instance, that the second chemical actor starts; it will then atomi
 Since consuming the only message from `c1` will make the mailbox `c1` empty, the first chemical actor will not be able to start.
 In this way, the program expresses the contention of several processes on a shared resource.
 
-This concludes the second and final step towards the chemical machine paradigm where
-"chemical actors" are called **reactions**, "messages" are **molecules**, and "mailbox references" are **molecule emitters**.
+This concludes the second and final step towards the chemical machine paradigm.
 
 It remains to use the Scala syntax instead of pseudo-code.
 In Scala, we need to declare message types explicitly using the `m` macro,
@@ -163,7 +162,7 @@ The function calls `c1(123)` and `c2("abc")` emit messages (called "molecules") 
 
 ## Unordered mailboxes
 
-Since `Chymyst` uses the Scala partial function syntax to define chemical cators, the definition may contain arbitrary guard conditions, for example:
+Since `Chymyst` uses the Scala partial function syntax to define chemical actors, the definition may contain arbitrary guard conditions, for example:
 
 ```scala
 val c1 = m[Int]
@@ -182,9 +181,7 @@ A guard condition allows a computation to start only when the values of input me
 Depending on what messages are present in any given time in various mailboxes, some messages may satisfy the predicate while others do not.
 In order to be able to make progress in such situations, a chemical actor may need to consume messages out of order. 
 
-For this reason, messages in certain mailbox may need to be kept as an unordered set rather than as an ordered collection.
-If this is the case, messages may be consumed in an unknown order.
-
+For this reason, messages in certain mailboxes may need to be kept as an unordered multi-set or "bag", rather than as an ordered queue.
 This usually only applies to mailboxes that participate in computations with complicated guard conditions.
 `Chymyst` automatically detects these situations and decides which mailboxes need to be unordered.
 Since all the chemical actors are defined up front, this analysis can be performed before any computations are started.
@@ -197,13 +194,16 @@ Whenever there are sufficiently many input messages available for processing, th
 This is the main method for achieving parallelism in the chemical paradigm. The runtime engine is in the best position to balance the CPU load over low-level threads.
 The user's application code does not need to specify how many parallel processes to run at any given time.
 
-Input message contention is used in the chemical machine paradigm as a general mechanism for synchronization and mutual exclusion. (In the Actor model, these features are implemented by creating a fixed number of actor instances that alone can consume certain messages.) Since the runtime engine will arbitrarily decide which actor to run, input contention will result in indeterminism. This is quite similar to the indeterminism in the usual models of concurrent programming. For example, mutual exclusion allows the programmer to implement safe exclusive access to a resource for any number of concurrent processes, but the order of access among the contending processes remains unspecified.
+Input message contention is used in the chemical machine paradigm as a general mechanism for synchronization and mutual exclusion. (In the Actor model, these features are implemented by creating a fixed number of actor instances that alone can consume certain messages.) Since the runtime engine will arbitrarily decide which actor to run, contention on input messages will result in a certain degree of indeterminism. This is quite similar to the indeterminism in the usual models of concurrent programming. For example, mutual exclusion allows the programmer to implement safe exclusive access to a resource for any number of concurrent processes, but the order of access among the contending processes remains undetermined.
+It is up to the programmer to ensure that the final results of the computation remain deterministic (i.e. that there are no race conditions).
 The chemical machine forces the programmer to face the indeterminism where it is unavoidable, but at the same time frees the programmer from the low-level bookkeeping associated with managing parallelism explicitly. 
 
-Since chemical actors are stateless and instantiated automatically on demand, the application code does not need to manipulate explicit actor references, which is error-prone.
+Since chemical actors are stateless and instantiated automatically on demand, the application code does not need to manipulate references to actor instances, which is error-prone.
 (For example, books on Akka routinely warn against capturing `sender()` in a `Future`, which may yield an incorrect actor reference when the `Future` is resolved.)
-The application code also does not need to implement actor lifecycle management, actor hierarchies, backup and recovery of actors' internal state, or dead with the special “dead letter” actor. This removes a significant amount of complexity from the architecture of concurrent applications.
+With the chemical machine, the application code does not need to implement actor lifecycle management, actor hierarchies, backup and recovery of actors' internal state, or handle the special “dead letter” actor. This removes a significant amount of complexity from the architecture of concurrent applications.
 
 Working in the chemical machine paradigm is more declarative, more high-level, and closer to being purely functional than in the Actor model.
-Since all data resides on messages rather than in mutable state, program design becomes data-driven as the programmer can focus on
-assigning computations to data items, rather than on thinking in terms of parallel processes. 
+Since all data resides on immutable messages rather than in mutable state, program design becomes data-driven as the programmer can focus on
+assigning computations to messages, rather than on error-prone thinking in terms of synchronized parallel processes. 
+
+In the rest of the book, "chemical actors" are called **reactions**, "messages" are **molecules**, and "mailbox references" are **molecule emitters**. 
