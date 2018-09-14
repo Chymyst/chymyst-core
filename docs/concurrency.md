@@ -76,7 +76,7 @@ Therefore, it is the user who now needs to specify which steps of the pipeline s
 
 The class of problems I call "general dataflow" is very similar to "acyclic dataflow", except for removing the limitation that the dataflow graph should be acyclic.
 
-The main task of general dataflow remains the same - to process data that comes as a stream, chunk after chunk.
+The main task of general dataflow remains the same — to process data that comes as a stream, chunk after chunk.
 However, now we allow any step of the processing pipeline to use a "downstream" step as _input_, thus creating a loop in the dataflow graph.
 This loop, of course, must cross an asynchronous boundary somewhere, or else we will have an actual, synchronous infinite loop in the program.
 An "asynchronous infinite loop" means that the output of some downstream processing step will be _later_ (asynchronously) fed into the input of some upstream step.  
@@ -137,31 +137,30 @@ However, I do not know how to prove that this is so.)
 
 ## Why is Level 4 higher than Level 3
 
-How do we know that Level 4 is strictly more powerful than Level 3?
+The following argument helps establish that Level 4 is strictly more powerful than Level 3.
 
-I can give the following argument.
-Concurrency at Level 3 (and below) can be simulated on a single thread (although inefficiently).
-In other words, any program at Level 3 or below will give the same results when run on multiple threads and on a single thread.
+The key observation is that concurrency at Level 3 (and below) can be run on a _single execution thread_.
+In other words, any program at Level 3 or below will give the same results when run on multiple threads and on a single thread (although it may run slower).
 
 If we find an example of a program that cannot be implemented on a single thread, it will follow that Level 4 is strictly more powerful than Level 3.
 To obtain such an example, consider the following situation:
 
-Two objects, A and B, have methods `A.run()` and `B.run()`.
-Calling `run()` will start some computations that either return a value or go into an infinite loop, never returning a result.
-It is known that, when we call `A.run()` and `B.run()` concurrently,
-_at most one_ of A and B can go into an infinite loop (but it could be a different process every time).
-We need to implement a function `firstResult(A, B)` that will run processes A and B concurrently and wait for the value returned by whichever process finishes first.
-The function `firstResult(A, B)` needs to return that value.
+We are given two functions, `a()` and `b()`, that either eventually produce a result or go into an infinite loop, _never_ returning a result.
+It is known that, when we call `a()` and `b()` concurrently,
+_at most one_ of them may go into an infinite loop (but it could be a different process every time).
+We need to implement a function `firstResult(a, b)` that will run processes `a()` and `b()` concurrently and wait for the value returned by whichever process finishes first.
+By assumption, at least one of them will certainly produce a result value.
+The function `firstResult(a, b)` needs to return that value.
 
-Now, we claim that this task cannot be simulated on a single thread, because no program running on a single thread can decide correctly which of the two processes returns first.
+Now, we claim that this task cannot be run on a single thread, because no program running on a single thread can decide correctly which of the two processes returns first.
 Here is why:
-Regardless of how we implement `firstResult()`, a single-threaded program will have to call either `A.run()` or `B.run()` on that single thread.
+Regardless of how we implement `firstResult()`, a single-threaded program will have to call either `a()` or `b()` on that single thread.
 Sometimes, that call will go into an infinite loop, and then the single thread will be infinitely blocked.
 In that case, our program will never finish computing `firstResult()`.
 
 So, if implemented on a single thread, `firstResult()` will sometimes fail to return a value; in other words, it is a _partial function_.
 However, if we are allowed to use many threads, we can implement `firstResult()` as a _total function_, always returning a value.
-To do that, we simply run the processes A and B simultaneously on two different threads,
+To do that, we simply run the processes `a()` and `b()` simultaneously on two different threads,
 and we are guaranteed that at least one of the processes will return a result.
 
 ## Are there other levels?
@@ -172,17 +171,17 @@ Some assurance comes from the mathematical description of these levels:
 
 - We need at least an applicative functor to be able to parallelize computations. This is Level 1.
 - Adding `flatMap` to an applicative functor makes it into a monad, and we don't know any intermediate-power functors. Monadic streams is Level 2.
-- Adding recursion raises Level 2 to Level 3. There doesn't seem to be anything in between "non-recursive" and "recursive" powers.
+- Adding recursion to the monad will raise Level 2 to Level 3. There doesn't seem to be anything in between "non-recursive" and "recursive" powers.
 - Level 4 supports arbitrary concurrency. In computer science, several concurrency formalisms have been developed (Petri nets, CSP, pi-calculus, Actor model, join calculus), which are all equivalent in power to each other. I do not know of a concurrency language that is strictly less powerful than Level 4 but more powerful than Level 3.
 
 It is possible to take a level 3 framework and add a single feature that goes beyond the expressive power of Level 3.
-For instance, we can add `firstResult(A,B)` as a primitive to a streaming framework.
+For instance, we could add `firstResult(a, b)` as a primitive to a streaming framework.
 However, this single feature might not be sufficient to implement other Level 4 tasks.
 
 Similarly, adding a primitive for starting a new thread to a Level 1 framework will enable users to perform certain tasks but not others.
 
 I conjecture that the result of adding a single high-level feature to a lower-level framework will be a new framework that is hard to use because some concurrency tasks cannot be naturally expressed in it while others can.
-Users will have to work around these deficiencies or constantly ask for new features to be added to the framework, and the design of the program will become difficult to understand.
+Users will have to work around these deficiencies or constantly ask for new features to be added to the framework, and the design of concurrent programs will become difficult to understand.
 
 
 # Which level to use?

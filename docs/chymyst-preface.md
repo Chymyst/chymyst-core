@@ -2,7 +2,6 @@
 
 # Preface
 
-
 `Chymyst` is a library and a framework for declarative concurrent programming.
 
 It follows the **chemical machine** paradigm (known in the academic world as “Join Calculus”) and is implemented as an embedded DSL (domain-specific language) in Scala.

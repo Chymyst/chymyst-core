@@ -430,7 +430,7 @@ Declaring a molecule as static can be a useful tool for avoiding errors in chemi
 - A reaction may not emit static molecules from within a loop or within function calls.
 
 These restrictions are intended to maintain the semantics of static molecules.
-Application code that violates these restrictions will cause an "early" run-time error - that is, an exception thrown by the `site()` call before any reactions can run at that reaction site.
+Application code that violates these restrictions will cause an "early" run-time error — that is, an exception thrown by the `site()` call before any reactions can run at that reaction site.
 
 ### Volatile readers for static molecules
 

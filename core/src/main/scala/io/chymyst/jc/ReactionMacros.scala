@@ -692,13 +692,13 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
             // However, NotLastBlock() must be set, because molecule emission is not the last computation.
             renewOutputEnvId()
             pushEnv(NotLastBlock(currentOutputEnvId))
-            super.traverse(tree) // avoid infinite loop -- we are not destructuring this function application
+            super.traverse(tree) // avoid infinite loop — we are not destructuring this function application
             finishTraverseWithOutputEnv()
           } else if (emitMultipleFunctionCodes.contains(fullName)) {
             // We are under the a() + b() emission construct.
             // In that case, we don't need to set NotLastBlock on any of the emitted molecules.
             // We just traverse the tree and harvest the molecules normally.
-            super.traverse(tree) // avoid infinite loop -- we are not destructuring this function application
+            super.traverse(tree) // avoid infinite loop — we are not destructuring this function application
           } else {
             renewOutputEnvId()
             traverseWithOutputEnv(f, NotLastBlock(currentOutputEnvId))

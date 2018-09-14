@@ -1,12 +1,12 @@
 <link href="{{ site.github.url }}/tables.css" rel="stylesheet" />
 
-# Concurrency in Reactions: Declarative Scala multithreading with `Chymyst`
+# Concurrency in Reactions: Declarative Scala multiprocessing with `Chymyst`
 
 (c) by Sergei Winitzki, 2016-2018
 
 [Preface](chymyst-preface.md)
 
-[Chapter 0: Quick start](chymyst-quick.md)
+[Chapter 0: Quick start in a REPL](chymyst-quick.md)
 
 [Chapter 1: The chemical machine paradigm](chymyst01.md)
 

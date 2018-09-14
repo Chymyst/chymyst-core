@@ -1326,7 +1326,7 @@ If not, we should not consume any further `request()` molecules but instead wait
 
 Therefore, we need to model the resource by a state machine whose states represent not only the following situations:
 
-- no Readers or Writers currently working -- can accept any request; this is the initial state
+- no Readers or Writers currently working — can accept any request; this is the initial state
 - less than `m` Readers currently working, no Writer requests pending, can accept a Reader request
 - some Readers currently working, a Writer request is pending, cannot accept any further requests
 - exactly `m` Readers currently working, cannot accept any further requests

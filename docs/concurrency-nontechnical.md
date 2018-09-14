@@ -50,20 +50,20 @@ Cyclic streaming is usually not necessary for pure data processing pipelines bec
 
 ## Level 4: General concurrency
 
-Finally, consider the most general concurrency problem: to manage many computation threads running concurrently in unknown order and interacting in arbitrary ways. For instance, one thread may start another, then stop and wait until the other thread computes a certain result, and then examine that result to decide whether to continue its own computation, to wait further, or to create new computation threads.
+Finally, consider the most general concurrency problem: to manage many computation threads running concurrently in unknown order while interacting in arbitrary ways. For instance, one thread may start another, then stop and wait until the other thread computes a certain result, and then examine that result to decide whether to continue its own computation, to wait further, or to create new computation threads.
 
 The main difficulty here is to ensure that different threads are synchronized in the desired manner.
 
-Frameworks such as Akka Actors, Go coroutines/channels, and the Java concurrency primitives (`Thread`, `wait`/`notify`, `synchronized`) are all Level 4 concurrency systems. Recently I have published a new open-source implementation of the [abstract chemical machine](http://chymyst.github.io/chymyst-core/) (known in the academic world as “[Join Calculus](http://wiki.c2.com/?JoinCalculus)”), which is also a Level 4 concurrency system.
+Frameworks such as Akka Actors, Go coroutines/channels, and the Java concurrency primitives (`Thread`, `wait`/`notify`, `synchronized`) are all Level 4 concurrency systems. Recently I have published a new open-source implementation of the [chemical machine](http://chymyst.github.io/chymyst-core/) (known in the academic world as “[Join Calculus](http://wiki.c2.com/?JoinCalculus)”), which is also a Level 4 concurrency system.
 
-A typical program that requires this level of concurrency is an operating system where many running processes can synchronize and communicate with each other in arbitrary ways. Processes can also monitor and start or terminate other processes. This is the crucial piece of functionality that no streaming framework can provide.
+A typical program that requires this level of concurrency is an operating system where many running processes can synchronize and communicate with each other in arbitrary ways. Processes should be able to monitor, start, or terminate other processes. This is the crucial piece of functionality that no streaming framework can provide.
 
 ## Which concurrency stack to use?
 
 As I have shown, each concurrency level is a strict subset of the next one in terms of expressive power.
 (I have omitted the mathematical details; for instance, in the language of type theory, the first three levels [can be characterized formally](http://chymyst.github.io/chymyst-core/concurrency.html) as applicative, monadic, and recursive monadic functors respectively.)
 
-Clearly, the programmer should use the level of concurrency no higher than what is required to solve the task at hand. Experience shows that when unnecessarily higher-power features are available, developers _will_ use them and the code _will_ become difficult to manage. It is best to limit the possibilities up front, once it is established that a certain concurrency framework is adequate for the task.
+Clearly, the programmer should use the level of concurrency no higher than is required to solve the task at hand. Experience shows that when unnecessarily higher-power features are available, developers _will_ use them and the code _will_ become difficult to manage. It is best to limit the possibilities up front, once it is established that a certain concurrency framework is adequate for the task.
 
 For a batch data processing pipeline, data-parallel frameworks such as Spark (Level 1) are the right choice — while Akka Streaming (Level 3) is an overkill.
 

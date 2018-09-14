@@ -62,7 +62,7 @@ c(123) // Emit a new molecule `c()` carrying the payload value `123` of type `In
 So, a molecule can be seen as a data value together with a special "chemical" label (represented by the emitter).
 We may say that "a molecule `c` carries the payload value `123`".
 
-The result of evaluating `c(123)`, - that is, the result of calling a molecule emitter `c` with data value `123`, -
+The result of evaluating `c(123)`, — that is, the result of calling a molecule emitter `c` with data value `123`, -
 is to emit a new copy of a molecule `c` that carries the value `123` as its payload.
 
 ### Declaring and activating reactions
@@ -204,7 +204,7 @@ A "chemical program" has the following three basic parts:
 3. Some emitter calls to emit initial molecules.
 
 Since reactions and molecule emitters are values, they may be passed as arguments to functions, returned by functions, or emitted as payload values on molecules.
-For this reason, any part of the application code - including reaction bodies - can define new emitters, new reactions and reactions sites, and emit new molecules.
+For this reason, any part of the application code — including reaction bodies — can define new emitters, new reactions and reactions sites, and emit new molecules.
 
 Reactions, molecules, and reaction sites are immutable.
 Once a reaction site is created, it is impossible to add new reactions to it, or to modify or remove existing reactions from it.

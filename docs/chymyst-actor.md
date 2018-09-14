@@ -27,7 +27,7 @@ It follows that a chemical actor must be _stateless_: it cannot carry any mutabl
 
 Since chemical actors are immutable, the user's code does not need to handle an actor's “lifecycle” any more.
 There is no need to persist a chemical actor's state or restore it in case of a crash.
-The user's code merely needs to _define the computation_ that a chemical actor will perform after consuming a message.
+The user's code merely needs to _declare the computation_ that a chemical actor will perform after consuming a message.
 
 Implementing this functionality will allow us to write pseudo-code like this,
 
@@ -78,7 +78,7 @@ Compared with ordinary actors that can carry mutable state, what functionality n
 
 A chemical actor may be seen as a stateless, automatically concurrently running function whose argument is an incoming message.
 Ordinary actors that carry mutable state can be also seen as functions with two arguments: the incoming message and the previous state.
-Therefore, chemical actors that are stateless but can take _two incoming messages at once_ will be equivalent to ordinary actors with state.
+Therefore, stateless actors that can consume _two incoming messages at once_ will be equivalent to ordinary actors with state.
 
 In this way, we have logically arrived at the requirement that chemical actors should be able to wait for and consume several messages at once.
 How can we implement this requirement?
@@ -115,26 +115,28 @@ c2 ! "abc"
 ```
 
 The two messages carry data of different types; the two mailboxes are `c1` and `c2` respectively.
-The chemical actor starts only after _both_ messages are present in their mailboxes (i.e. after some other code has sent them).
+The chemical actor starts only after _both_ messages are present in their mailboxes (i.e. after some other code has sent these messages).
 When the actor starts, it consumes the two messages atomically.
 
-It also follows from the atomicity requirement that it is safe to define several computations that consume messages from the same mailbox:
+It also follows from the atomicity requirement that it is safe to define several chemical actors that consume messages from _the same_ mailbox:
 
 ```scala
 // Pseudo-code!
 go { x: Int from c1, y: String from c2 ⇒ h(x, y) }
-go { x: Int from c1, z: Unit from c3   ⇒ k(x) }
+go { x: Int from c1, z: Boolean from c3   ⇒ k(x, z) }
 c1 ! 123
 c2 ! "abc"
 
 ```
 
-If messages are present in `c1` but not in `c2` or `c3`, no computations will be started until some process emits messages to either `c2` or `c3`.
+In this example, we defined two chemical actors that wait for messages from mailbox `c1` and, at the same time, for messages from other mailboxes.
+The chemical actors run functions `h(x, y)` and `k(x, z)` that depend on the values of their input messages. 
+If messages are present in `c1` but not in `c2` or `c3`, no computations can be started until some process emits messages to either `c2` or `c3`.
 Each of the two chemical actors can start only if it can consume one message from `c1` and one message from another mailbox.
 
-If there is exactly one message in each of the three mailboxes `c1`, `c2`, `c3`, then any one of the two chemical actors might start.
+If there is exactly one message in each of the three mailboxes `c1`, `c2`, `c3`, then _any one_ of the two chemical actors might start.
 The runtime engine must make a non-deterministic choice to start one of them.
-Suppose, for instance, that the second chemical actor starts; it will then atomically consume two messages -- one message from `c1` and one from `c3`.
+Suppose, for instance, that the second chemical actor starts; it will then atomically consume two messages — one message from `c1` and one from `c3`.
 Since consuming the only message from `c1` will make the mailbox `c1` empty, the first chemical actor will not be able to start.
 In this way, the program expresses the contention of several processes on a shared resource.
 
@@ -142,8 +144,9 @@ This concludes the second and final step towards the chemical machine paradigm.
 We have completely decoupled mailboxes from chemical actors, in the sense that
 there is no direct correspondence between mailboxes and chemical actors.
 Chemical actors may atomically wait on one or more incoming messages from arbitrary mailboxes.
-The programmer's task is to define a number of mailboxes and a number of chemical actors
+The programmer's task is to define declaratively a number of mailboxes and a number of chemical actors
 so that the resulting message-passing logic corresponds to the desired tasks.
+The runtime engine will take care of instantiating and running all the declared computations.
 
 ## The Scala syntax
 
@@ -157,18 +160,18 @@ The syntax used by `Chymyst` to represent the above pseudo-code looks like this:
 ```scala
 val c1 = m[Int]
 val c2 = m[String]
-val c3 = m[Unit]
+val c3 = m[Boolean]
 site(
   go { case c1(x) + c2(y) ⇒ h(x, y) }
-  go { case c1(x) + c3(_) ⇒ k(x) }
+  go { case c1(x) + c3(z) ⇒ k(x, z) }
 )
 c1(123)
 c2("abc")
 
 ```
 
-Here, `m[Int]` creates a new mailbox reference (called "molecule emitter") with values of type `Int`.
-The function calls `c1(123)` and `c2("abc")` emit messages (called "molecules") to their respective mailboxes.
+Here, `m[Int]` creates a new mailbox reference (called “molecule emitter”) with values of type `Int`.
+The function calls `c1(123)` and `c2("abc")` emit messages (called “molecules”) to the respective mailboxes.
 
 ## Unordered mailboxes
 
@@ -177,21 +180,21 @@ Since `Chymyst` uses the Scala partial function syntax to define chemical actors
 ```scala
 val c1 = m[Int]
 val c2 = m[String]
-val c3 = m[Unit]
+val c3 = m[Boolean]
 site(
   go { case c1(x) + c2(y) if x > y.length ⇒ h(x, y) }
-  go { case c1(x) + c3(_) if x == 0 ⇒ k(x) }
+  go { case c1(x) + c3(z) if x == 0 && z  ⇒ k(x, z) }
 )
 c1(123)
 c2("abc")
 
 ```
 
-A guard condition allows a computation to start only when the values of input messages satisfy a given predicate.
-Depending on what messages are present in any given time in various mailboxes, some messages may satisfy the predicate while others do not.
-In order to be able to make progress in such situations, a chemical actor may need to consume messages out of order. 
+A guard condition allows a computation to start only when the values of input messages satisfy the given predicate.
+Depending on what messages are present at any given time in various mailboxes, some messages may satisfy the predicate while others do not.
+In order to be able to make progress in such situations, a chemical actor may need to consume messages _out of order_. 
 
-For this reason, messages in certain mailboxes may need to be kept as an unordered multi-set or "bag", rather than as an ordered queue.
+For this reason, messages in certain mailboxes may need to be kept as an unordered multi-set or “bag”, rather than as an ordered queue.
 This only applies to mailboxes that participate in computations with sufficiently complicated guard conditions.
 `Chymyst` automatically detects these situations and activates unordered storage for the affected mailboxes.
 Since all the chemical actors are defined up front, this analysis can be performed before any computations are started.
@@ -216,4 +219,4 @@ Working in the chemical machine paradigm is more declarative, more high-level, a
 Since all data resides on immutable messages rather than in mutable state, program design becomes data-driven as the programmer can focus on
 assigning computations to messages, rather than on error-prone thinking in terms of synchronized parallel processes. 
 
-In the rest of the book, "chemical actors" are called **reactions**, "messages" are **molecules**, and "mailbox references" are **molecule emitters**. 
+In the rest of the book, “chemical actors” are called **reactions**, “messages” are **molecules**, and “mailbox references” are **molecule emitters**. 

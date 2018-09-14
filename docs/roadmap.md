@@ -2,7 +2,7 @@
 
 # Version history
 
-- 0.2.1 Implemented new APIs: event reporter traits and per-molecule unit testing hooks. The old `setLogLevel()` and `globalErrorLog` APIs are both removed. The `.logSoup` method is renamed to `logSite`.
+- 0.2.1 Implemented new APIs: event reporter traits and per-molecule unit testing hooks. The old `setLogLevel()` and `globalErrorLog` APIs are both removed. The `.logSoup` method is renamed to `.logSite`.
 
 - 0.2.0 Renamed `SmartPool` to `BlockingPool` and simplified the thread info handling. More static checks for emission of static molecules. Radical rewrite of blocking molecules code without semaphores and without error replies, simplifying the API. The call `reply.checkTimeout()` is eliminated: the reply emitters now always return `Boolean`. New APIs for reply: `ReplyEmitter.noReplyAttemptedYet` and `B.futureReply`. Reactions will no longer throw exceptions to unblock waiting calls when errors occur. Instead, a more flexible per-reaction error recovery mechanism will be implemented in the future. New functionality for thread pools: pool names and thread names for debugging, shorter pool creation syntax, thread group priority API. Thread pools no longer need to be shut down explicitly (although this might be helpful if there are thousands of them). Added documentation chapter on `Chymyst` as an evolution of Actor model.
 
@@ -12,7 +12,7 @@
 
 - 0.1.7 New compile-time restrictions, towards guaranteeing single reply for blocking molecules. It is now not allowed to call blocking molecules inside loops, or to emit replies in any non-linear code context (such as, under a closure or in a loop). Change of artifact package from `code.chymyst` to `io.chymyst`. This version is the first one published on Sonatype Maven repository. 
 
-- 0.1.6 A different type-safe mechanism now implements the syntax `a()` for emitting molecules with `Unit` values; no more auxiliary classes `E`, `BE`, `EB`, `EE`, which simplified code and eliminated the need for whitebox macros. Breaking API change: `timeout(value)(duraction)` instead of `timeout(duraction)(value)` used previously. An optimization for the reaction scheduler now makes simple reactions start faster. The project build has been revamped: now there is a single JAR artifact and a single SBT project for `Chymyst`, rather than 3 as before. A skeleton "hello-world" project is available in a separate repository. `Chymyst` has been moved to a separate repository as well. Various improvements in the compile-time analysis of reactions: livelock detection now understands that molecules emitted under `if/else` constructions are not always emitted.
+- 0.1.6 A different type-safe mechanism now implements the syntax `a()` for emitting molecules with `Unit` values; no more auxiliary classes `E`, `BE`, `EB`, `EE`, which simplifies code and eliminates the need for whitebox macros. Breaking API change: `timeout(value)(duraction)` instead of `timeout(duraction)(value)` used previously. An optimization for the reaction scheduler now makes simple reactions start faster. The project build has been revamped: now there is a single JAR artifact and a single SBT project for `Chymyst`, rather than 3 as before. A skeleton "hello-world" project is available in a separate repository. `Chymyst` has been moved to a separate repository as well. Various improvements in the compile-time analysis of reactions: livelock detection now understands that molecules emitted under `if/else` constructions are not always emitted.
 
 - 0.1.5 Bug fix for a rare race condition with time-out on blocking molecules. New `checkTimeout` API to make a clean distinction between replies that need to check the timeout status and replies that don't. Documentation was improved. Code cleanups resulted in 100% test coverage. Revamped reaction site code now supports nonlinear input patterns.
 
@@ -43,18 +43,31 @@ These features are considered for implementation in the next versions:
 Version 0.1: (Released.) Perform static analysis of reactions, and warn the user about certain situations with unavoidable livelock, deadlock, or indeterminism.
 
 Version 0.2: (Released.) Rewrite the reaction scheduler, optimizing for performance and flexibility.
-In particular, do not lock the entire molecule bag - only lock some groups of molecules that have contention on certain molecule inputs (decide this using static analysis information).
-This will allow us to implement interesting features such as:
 
-- start many reactions at once when possible, even at one and the same reaction site (will not do)
+In particular, do not lock the entire molecule bag - only lock some groups of molecules that have contention on certain molecule inputs (decide this using static analysis information).
+(Will not do.)
+
+- start many reactions at once when possible, even at one and the same reaction site (will not do; scheduling has been converted to single-threaded)
 - allow nonlinear input patterns and arbitrary guards (done in 0.1.5, optimized in 0.1.8)
 - automatic pipelining (i.e. strict ordering of consumed molecules) should give a speedup (done in 0.1.8)
 
-Version 0.3: Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka Streaming, Kafka, Heron. Use "pipelined" molecules that are optimized for streaming usage (done in 0.1.8).
+Version 0.3: 
 
-Version 0.4: Enterprise readiness: fault tolerance, monitoring, flexible logging (done in 0.2.1), assertions on static molecules and perhaps on some other situations, thread fusing for static or pipelined molecule reactions.
+- Optimize some performance bottlenecks: creating new reactions and new reaction sites is slow
+- Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka, Akka Streaming, Kafka, etc.
+- Use "pipelined" molecules that are optimized for streaming usage (done in 0.1.8).
 
-Version 0.5: Application framework `Chymyst`, converting between molecules and various external APIs such as HTTP, GUI toolkits, Unix files and processes.
+Version 0.4: Enterprise readiness.
+
+- fault tolerance: a new system with per-reaction supervision
+- reaction and molecule monitoring, automatic back-pressure, "heating" / "cooling" of reaction sites
+- flexible logging (done in 0.2.1)
+- assertions on static molecules and perhaps on some other situations
+- automatic thread fusion for static or pipelined molecule reactions
+
+Version 0.5: Application framework `Chymyst`
+- converting between molecules and various external APIs such as HTTP, GUI toolkits, Unix files and processes
+- framework for applications
 
 Version 0.6: Automatic distributed and fault-tolerant execution of chemical reactions ("soup pools" or another mechanism).
 
@@ -62,7 +75,7 @@ Version 0.7: Static optimizations: use advanced macros and code transformations 
 
 Version 0.8: Distributed execution and cluster deployments.
 
-Version 1.0: Complete enterprise-ready features, adapters to other frameworks, and several real-life projects using `Chymyst Core`. Complete documentation as a separate developer documentation and a book "Concurrency in Reactions: Declarative Scala multithreading with `Chymyst`".
+Version 1.0: Complete enterprise-ready features, adapters to other frameworks, and several real-life projects using `Chymyst Core`. Complete documentation as a separate developer documentation and a book "Concurrency in Reactions: Declarative Scala multiprocessing with `Chymyst`".
 
 # Current To-Do List
 
@@ -93,6 +106,9 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
  5 * 5 - Implement performance metrics either through a given logger or through special molecules.
  Need to monitor: Bag size at reaction site; arrival rate; consumption rate; reaction error rate; reaction compute time; thread utilization (busy / locked waiting / idle) both for scheduler thread and for worker threads.
  
+ 4 * 4 - Move more code into the `go{}` macro, so that the `Reaction()` constructor has less work to do.
+ 5 * 5 - Implement caching of `Reaction` and `ReactionSite` values by md5 hash, so that we can reuse some data structures if possible instead of recomputing them. (Note that the reactions close over molecule emitters, and reaction sites close over reactions, but many data structures use only molecule indices, and so could be shared rather than recomputed.)
+ 
  2 * 2 - Detect this condition at the reaction site time:
  A cycle of input molecules being subset of output molecules, possibly spanning several reaction sites (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.  - This depends on better detection of output environments.
  
@@ -109,9 +125,7 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
  
  2 * 2 - thread pools should have an API for changing the number of threads at run time.
 
- 2 * 3 - implement `Perishable()` static molecules that can be eventually consumed (but not repeatedly emitted)
-
- 2 * 2 - refactor ActorPool into a separate project with its own artifact and dependency (right now it's not used). Similarly for interop with Akka Stream, Scalaz Task etc.
+ 2 * 2 - interop with Akka actors, in a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
 
  3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is emitted from a thread T and the corresponding reaction site runs on the same thread T, do not schedule a task but simply run the reaction site synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a reaction site that runs on thread T and the reaction is configured to run on the same thread T, do not schedule a task but simply run the reaction synchronously.
 
@@ -132,13 +146,13 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
 
  2 * 4 - allow molecule values to be parameterized types or even higher-kinded types? Need to test this.
 
- 2 * 2 - make memory profiling / benchmarking; how many molecules can we have per 1 GB of RAM?
+ 2 * 2 - make memory profiling / benchmarking; how many molecules can we have per 1 GB of RAM? Are reactions or reaction sites ever garbage-collected?
 
  2 * 2 - add tests for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
 
  3 * 5 - consider whether we would like to prohibit emitting molecules from non-reaction code. Maybe with a construct such as `withMolecule{ ... }` where the special molecule will be emitted by the system? Can we rewrite tests so that everything happens only inside reactions?
 
- 3 * 3 - implement "one-off" or "perishable" molecules that are emitted once (like static, from the reaction site itself) and may be emitted only if first consumed (but not necessarily emitted at start of the reaction site)
+ 3 * 3 - implement "one-off" or "perishable" molecules that are emitted once (like static, from the reaction site itself) and may be emitted only if first consumed (but not necessarily emitted at start of the reaction site), and not repeatedly emitted
 
  5 * 5 - How to rewrite reaction sites so that blocking molecules are transparently replaced by a pair of non-blocking molecules? Can this be done even if blocking emitters are used inside functions? (Perhaps with extra molecules emitted at the end of the function call?) Is it useful to emit an auxiliary molecule at the end of an "if" expression, to avoid code duplication? How can we continue to support real blocking emitters when used outside of macro code? 
  
@@ -148,9 +162,9 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
  
  3 * 3 - `ChymystThread` should keep information about which RS and which reaction is now running. This can be used both for monitoring and for automatic assignment of thread pools for reactions defined in the scope of another reaction. 
  
- 3 * 3 - Write a tutorial section about timers and time-outs: cancellable recurring jobs, cancellable subscriptions, time-outs on receiving replies from non-blocking molecules (?)
+ 3 * 3 - Write a tutorial section about timers and time-outs: cancellable recurring jobs, cancellable subscriptions, time-outs on receiving replies from non-blocking molecules (started on it already)
  
- 3 * 3 - Nested reactions could be automatically defined at the same reaction site as parent reactions? This seems to be required for the automatic unblocking transformation.
+ 3 * 3 - Nested reactions could be automatically defined at the same reaction site/thread pool as parent reactions? This seems to be required for the automatic unblocking transformation.
  
  2 * 3 - Error handling should be flexible enough to implement retry at most N times with backoff and other error recovery logic.
  
@@ -159,6 +173,8 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
  2 * 2 - Unit tests need examples; how would I diagnose a deadlock due to off-by-one error in the counter code? How would I use scalacheck to unit-test a reaction? (Emit input molecules with generated values, require output molecule with a value that satisfies a law?)
  
  3 * 5 - implement ING Baker in Chymyst
+ 
+ 3 * 3 - figure out whether the dual bipartite graph (e.g. "co-counter") has any usefulness
  
  3 * 5 - implement Benson Ma's example of graph-driven reaction construction. What is a good DSL for describing a DAG or a general graph? Should we use graphs instead of inline chemistry to program Chymyst?
  
@@ -188,7 +204,7 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
 
  4 * 5 - allow several reactions to be scheduled *truly simultaneously* out of the same reaction site, when this is possible. Avoid locking the entire bag? - perhaps partition it and lock only some partitions, based on reaction site information gleaned using a macro. — This was attempted, but yields a very complex algorithm and does not give a significant performance boost.
 
- 3 * 3 - perhaps prohibit using explicit thread pools? It's error-prone because the user can forget to stop a pool. Perhaps only expose an API such as `withFixedPool(4){ implicit tp => ...}`? Investigate using implicit values for pools. -- doesn't seem to be useful.
+ 3 * 3 - perhaps prohibit using explicit thread pools? It's error-prone because the user can forget to stop a pool. Perhaps only expose an API such as `withFixedPool(4){ implicit tp => ...}`? Investigate using implicit values for pools. — doesn't seem to be useful.
  Maybe remove default pools altogether? It seems that every pool needs to be stopped. — However, this would prevent sharing thread pools across scopes. Maybe that is not particularly useful? - Also, with the 0.2.0 changes, pools do not need to be stopped explicitly.
 
- 5 * 5 - Can we perform the unblocking transformation using delimited continuations? -- Not sure. Delimited continuations seem to require all code to reside inside `reset()`.
+ 5 * 5 - Can we perform the unblocking transformation using delimited continuations? — Not sure. Delimited continuations seem to require all code to reside inside `reset()`.

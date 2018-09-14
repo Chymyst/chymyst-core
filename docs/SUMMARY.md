@@ -1,7 +1,7 @@
 # Summary
 
 * [Preface](chymyst-preface.md)
-* [Chapter 0: Quick start](chymyst-quick.md)
+* [Chapter 0: Quick start in a REPL](chymyst-quick.md)
 * [Chapter 1: The chemical machine paradigm](chymyst01.md)
 * [Chapter 2: Readers/Writers, Map/Reduce, and Merge-Sort](chymyst02.md)
 * [Chapter 3: Blocking and non-blocking molecules](chymyst03.md)

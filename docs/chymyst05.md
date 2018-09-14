@@ -275,7 +275,7 @@ In principle, this can be implemented by, say, attaching an extra timestamp to e
 But this method of implementation is inefficient because the reaction scheduler will have to enumerate all the present molecules, looking for a molecule with the right timestamp.
 The programmer will be also burdened with extra bookkeeping, and the code will become less declarative.
 
-For this reason, `Chymyst` has special support for **pipelined molecules** - that is, molecules that are always consumed in the exact order they were emitted.
+For this reason, `Chymyst` has special support for **pipelined molecules** — that is, molecules that are always consumed in the exact order they were emitted.
 
 For each pipelined molecule, `Chymyst` allocates an (ordered) queue that stores molecule instances in the order they were emitted.
 Whenever a reaction consumes a pipelined molecule, it is always the head of the queue that is consumed.
@@ -390,7 +390,7 @@ Here is how this is decided.
 
 Let us assume that a molecule `c()` has value type `T`.
 
-There may exist values `x: T` such that no reactions will _ever_ consume the instance `c(x)` with that `x` -- neither now, nor in the future.
+There may exist values `x: T` such that no reactions will _ever_ consume the instance `c(x)` with that `x` — neither now, nor in the future.
 (This happens, for example, if `x` is such that no pattern or guard condition is ever satisfied in any of the available reactions. Molecule instances `c(y)` with some `y != x` might still be potentially consumed now or later.)
 Let us call these values of `x` **ignorable** values for the molecule `c()`.
 Molecule instances `c(x)` that carry an ignorable value `x` will never be consumed by any reactions and can be deleted from the soup immediately.

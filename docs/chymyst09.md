@@ -9,7 +9,7 @@ TODO
 ## Timers in the chemical machine
 
 The basic function of a **timer** is to schedule some computation at a fixed time in the future.
-In the chemical machine, any computation is a reaction, and reactions can be started in only one way - by emitting some molecules.
+In the chemical machine, any computation is a reaction, and reactions can be started in only one way — by emitting some molecules.
 
 However, the chemical machine does not provide a means of delaying a reaction when all input molecules are present.
 Doing so would be inconsistent with the semantics of chemical reactions,

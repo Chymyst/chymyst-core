@@ -17,7 +17,7 @@ Here is a dictionary:
 
 As another comparison, here is some code in academic Join Calculus notation, taken from [this tutorial](http://research.microsoft.com/en-us/um/people/fournet/papers/join-tutorial.pdf):
 
-<img alt="def newVar(v0) def put(w) etc." src="docs/academic_join_calculus_2.png" width="400" />
+<img alt="def newVar(v0) def put(w) etc." src="academic_join_calculus_2.png" width="400" />
 
 This code creates a shared value container `val` with synchronized single access.
 
@@ -42,14 +42,14 @@ def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
 
 ### Extensions to Join Calculus
 
-`Chymyst` implements significantly fewer restrictions than usually present in academic versions of Join Calculus:
+`Chymyst` implements significantly fewer restrictions than other versions of Join Calculus:
 
 - reactions may have arbitrary guard conditions on molecule values
-- reactions may consume several molecules of the same sort ("nonlinear input patterns")
-- reactions may consume an arbitrary number of blocking input molecules, and each blocking input molecule can receive its own reply ("nonlinear reply")
+- reactions may consume several molecules of the same sort (“nonlinear input patterns”)
+- reactions may consume an arbitrary number of blocking input molecules, and each blocking input molecule can receive its own reply (“nonlinear reply patterns”)
 - reactions are values — user's code can construct and define chemical laws incrementally at run time 
 
-`Chymyst` also implements some additional features that are important for practical applications but not supported by academic versions of Join Calculus:
+`Chymyst` also implements some additional features that are important for practical applications but not supported by other versions of Join Calculus:
 
 - timeouts on blocking calls
 - being able to terminate a reaction site, in order to make the program stop
@@ -76,7 +76,7 @@ Chemical machine programming is similar in some aspects to the well-known Actor 
 | several concurrent reactions start automatically whenever several input molecules are available | a desired number of concurrent actors must be created and managed manually |
 | the user's code only manipulates molecules | the user's code must manipulate explicit references to actors as well as messages |
 | reactions may wait for (and consume) several input molecules at once | actors wait for (and consume) only one input message at a time |
-| reactions are immutable and stateless; all data is stored on molecules | actors can mutate (“become another actor”); actors may hold mutable state |
+| reactions are immutable and stateless; all data is stored on molecules | actors can mutate (“become another actor”); actors may carry mutable state |
 | molecules are held in an unordered bag and may be processed in random order | messages are held in an ordered queue (mailbox) and are processed in the order received |
 | molecule data is statically typed | message data is untyped (but not if using [Akka Typed](https://doc.akka.io/docs/akka/2.5/typed/index.html)) |
 

@@ -4,14 +4,15 @@
 
 Here are other implementations of Join Calculus that I was able to find online.
 
-- The `Funnel` programming language: [M. Odersky et al., 2000](http://lampwww.epfl.ch/funnel/). This project was discontinued, and Odersky went on to create the [Scala language](https://www.scala-lang.org/), which does not include any concepts from Funnel or JC.
+- The `Funnel` programming language: [M. Odersky et al., 2000](http://lampwww.epfl.ch/funnel/). This project was discontinued, and Odersky went on to create the [Scala language](https://www.scala-lang.org/), which neither includes any concepts from Funnel or JC, nor implements any ideas from JC in a standard library.
 - _Join Java_: [von Itzstein et al., 2001-2005](http://www.vonitzstein.com/Project_JoinJava.html). This was a modified Java language compiler, with support for certain Join Calculus constructions. The project is not maintained.
 - The `JoCaml` language: [Official site](http://jocaml.inria.fr) and a publication about JoCaml: [Fournet et al. 2003](http://research.microsoft.com/en-us/um/people/fournet/papers/jocaml-afp4-summer-school-02.pdf). This project embeds JC into OCaml and is implemented as a patch to the mainstream OCaml compiler. The project is still maintained, and a full JoCaml distribution is available with the [OCaml OPAM](https://opam.ocaml.org/) platform.
 - “Join in Scala” compiler patch: [V. Cremet 2003](http://lampwww.epfl.ch/~cremet/misc/join_in_scala/index.html). The project is discontinued.
 - `Joins` library for .NET: [P. Crusso 2006](http://research.microsoft.com/en-us/um/people/crusso/joins/). The project is available as a .NET binary download from Microsoft Research, and is not maintained.
 - `ScalaJoins`, a prototype implementation in Scala: [P. Haller 2008](http://lampwww.epfl.ch/~phaller/joins/index.html). The project is not maintained.
-- `ScalaJoin`, an improvement over `ScalaJoins`: [J. He 2011](https://github.com/Jiansen/ScalaJoin). The project is not maintained.
-- "Joinads", a Join-Calculus implementation as a compiler patch for F# and Haskell: [Petricek and Syme 2011](https://www.microsoft.com/en-us/research/publication/joinads-a-retargetable-control-flow-construct-for-reactive-parallel-and-concurrent-programming/). The project is not maintained.
+- `Join`, a prototype implementation in C++/Boost [Liu Yigong 2009](http://channel.sourceforge.net/). The project is not maintained.
+- `ScalaJoin`, an improvement over `ScalaJoins`: [He Jiansen 2011](https://github.com/Jiansen/ScalaJoin). The project is not maintained.
+- “Joinads”, a Join-Calculus implementation as a compiler patch for F# and Haskell: [Petricek and Syme 2011](https://www.microsoft.com/en-us/research/publication/joinads-a-retargetable-control-flow-construct-for-reactive-parallel-and-concurrent-programming/). The project is not maintained.
 - Implementations of Join Calculus for iOS: [CocoaJoin](https://github.com/winitzki/AndroJoin) and for Android: [AndroJoin](https://github.com/winitzki/AndroJoin). These projects are not maintained.
 - [Join-Language](https://github.com/syallop/Join-Language): implementation of Join Calculus as an embedded Haskell DSL (2014). The project is in development.
 - [JEScala](https://www.stg.tu-darmstadt.de/research/programming_languages/jescala_menu/index.en.jsp): an implementation of Join Calculus in Scala (2014) that accompanied [this academic paper](http://www.guidosalvaneschi.com/attachments/papers/2014_JEScala-Modular-Coordination-with-Declarative-Events-and-Joins_pdf.pdf), and its development appears to be abandoned.
@@ -19,7 +20,7 @@ Here are other implementations of Join Calculus that I was able to find online.
 The code of `Chymyst` is a clean-room implementation of join calculus, not based on the code of any of the previous work.
 The chosen syntax in `Chymyst` aims to improve upon the design of He Jiansen's `ScalaJoin` as well as building on the experience of implementing CocoaJoin / AndroJoin.
 
-## Improvements with respect to Jiansen He's `ScalaJoin`
+## Improvements with respect to He Jiansen's `ScalaJoin`
 
 Compared to [`ScalaJoin` (Jiansen He's 2011 implementation of JC)](https://github.com/Jiansen/ScalaJoin), `Chymyst Core` offers the following improvements:
 
@@ -57,8 +58,8 @@ a(1)
 
 ```
 
-- Molecule emitters (“channel names”) are not singleton objects as in `ScalaJoin` but locally scoped values. This is how the semantics of JC is implemented in JoCaml. In this way, we get more flexibility in defining molecules.
-- Reactions are not merely `case` clauses but locally scoped values of type `Reaction`. `Chymyst` uses macros to perform static analysis of reactions at compile time and detect some errors.
+- Molecule emitters (“channel names”) are not singleton objects as in `ScalaJoin` but locally scoped values in `Chymyst`. This is also the way JoCaml implements the semantics of JC. In this way, we get more flexibility in defining molecules.
+- Reactions are not merely `case` clauses but locally scoped values of type `Reaction`. `Chymyst` performs static analysis of reactions and detects some errors as well as optimizations.
 - Reaction sites are not static objects — they are local values of type `ReactionSite` and are invisible to the user, as they should be according to the semantics of JC.
 
 ## Improvements with respect to JoCaml
@@ -72,13 +73,13 @@ spawn a(1)
 
 ```
 
-In the JoCaml syntax, `a` and `c` are declared implicitly, together with the reaction.
+In the JoCaml syntax, molecule emitters `a` and `c` are declared implicitly, together with the reaction.
 Implicit declaration of molecule emitters (“channels”) is not possible in `Chymyst` because Scala macros do not allow us to insert a new top-level name declaration into the code.
 So, molecule declarations need to be explicit and show the types of values (`b[Int, Int]` and so on).
 Other than that, `Chymyst`'s syntax is closely modeled on that of `ScalaJoin` and JoCaml.
 
-Another departure from JoCaml is that the linearity restriction is lifted for input patterns.
-In `Chymyst`, reactions can declare any number of repeated input molecules, as well as repeated blocking molecules.
+Another departure from JoCaml is that
+in `Chymyst`, reactions can declare any number of repeated input molecules, as well as repeated blocking molecules.
 The novel reply syntax disambiguates the destination of the reply value:
 
 ```scala
@@ -88,9 +89,9 @@ go { case a(x1, reply1) + a(x2, reply2) ⇒ reply2(x1); reply1(x2) }
 
 This reaction is impossible to express in JoCaml directly.
 
-# Other tutorials on Join Calculus
+## Other tutorials on Join Calculus
 
-This book is a pragmatic, non-theoretical introduction to Join Calculus for programmers.
+This book can be seen as a pragmatic, non-theoretical introduction to practical use of Join Calculus, written for programmers.
 
 Previously I wrote a [tutorial for JoCaml](https://sites.google.com/site/winitzki/tutorial-on-join-calculus-and-its-implementation-in-ocaml-jocaml). (However, be warned that the old JoCaml tutorial is unfinished and contains mistakes in some of the more advanced code examples.)
 
@@ -98,7 +99,7 @@ See also [my recent presentation at _Scalæ by the Bay 2016_](https://scalaebyth
 ([Talk slides are available](https://github.com/winitzki/talks/tree/master/join_calculus)).
 That presentation covered an early version of `Chymyst`.
 
-There are a few academic papers on Join Calculus and a few expository descriptions, such as the Wikipedia article or the JoCaml documentation.
+There are a few academic papers on Join Calculus and a few expository descriptions, such as the [Wikipedia page on Join Calculus](https://en.wikipedia.org/wiki/Join-calculus) or the JoCaml documentation.
 Unfortunately, I cannot recommend reading these sources: they are unsuitable for learning about the chemical machine / Join Calculus paradigm.
 
 I first found out about the “Reflexive Chemical Abstract Machine” from the introduction in one of the [early papers on Join Calculus](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.32.3078&rep=rep1&type=pdf).
@@ -143,18 +144,20 @@ As of August 2018, the Wikipedia page says this about Join Calculus:
 > However, as a language for programming, the join-calculus offers at least one convenience over the π-calculus — namely the use of multi-way join patterns, the ability to match against messages from multiple channels simultaneously.
 
 This explanation is impossible to understand unless you are already well-versed in the research literature.
-(For instance, I'm not sure what it means to have “communication on _defined_ names”, as opposed to communication on _undefined_ names...?)
+(For instance, I'm not sure what it means to have “communication on _defined_ names”; for instance, how could we communicate on _undefined_ names...?)
 
 Academic literature on Join Calculus typically uses terms such as “channel” and “message”, which are not helpful for understanding how JC works and how to write concurrent programs in JC.
 Indeed, a “channel” in JC holds an _unordered_ collection of messages, rather than an ordered queue or mailbox, as the word “channel” may suggest.
-Another metaphor for “channel” is a persistent path for sending and receiving messages, but this is also far from what a JC “channel” actually does.
+Another metaphor for “channel” is a persistent pathway for sending and receiving messages, but this is also far from what a JC “channel” actually does.
 
-The word “message” again suggests that a mailbox or a queue receives messages and processes them one by one.
+The word “message” suggests that a mailbox or a queue receives messages and processes them one by one.
 This is very different from what happens in JC, where a reaction may wait for several “messages” at once, and different reactions may contend on several “messages” they wait for.
+“Messages” in JC are better understood as specially labeled and managed data that has been made available for concurrent computations at a dedicated storage location (“reaction site”). 
 
 The JoCaml documentation is especially confusing as regards “channels”, “messages”, and “processes”.
-It confuses a “process” as a piece of code running on some CPU thread, and a “process” as the side-effect of emitting a molecule that adds data to a reaction site. 
-The JoCaml documentation is ill-suited as a pedagogical introduction to using join calculus or JoCaml.
+It confuses a “process” as a fragment of code running on some CPU thread, and a “process” as the side-effect of emitting a molecule that adds data to a reaction site. 
+
+For these reasons, the JoCaml documentation is ill-suited as a pedagogical introduction to using join calculus or JoCaml.
 Given the lack of tutorial-level documentation, it is not surprising that the JC paradigm remains unknown to the programming community.
 
 Instead of using academic terminology, I always follow the chemical machine metaphor and terminology when talking about `Chymyst` programming.
@@ -169,3 +172,13 @@ Here is a dictionary:
 | emitting a molecule | sending a message | `a(123)` _// side effect_ |
 | emitting a blocking molecule | sending a synchronous message | `q()` _// returns_ `Int` |
 | reaction site | join definition | `site(r1, r2, ...)` |
+
+## Why the industry ignores Join Calculus
+
+I conjecture three principal reasons for this:
+
+1. Lack of readable tutorial documentation about the new paradigm: Almost all available documentation on Join Calculus is 100% incomprehensible to ordinary software practitioners.
+2. Lack of industry-strength implementations in mainstream languages: The only well-maintained implementation (JoCaml) is in a language that is mostly used for university teaching. Apart from `Chymyst`, all other existing implementations are unmaintained academic projects. There is no industry-strength implementation of JC that provides facilities for unit testing, message-level debugging or logging, performance tuning, error recovery, or low-level thread control. (As an example, a facility to _terminate the concurrent computations_ is not present in any implementations of JC apart from `Chymyst`.)
+3. Lack of a developed set of design patterns for concurrent programming in JC: Most articles and books on JC are limited to academic or toy examples, and there is no documented systematic development of design patterns for implementing concurrency tasks such as barriers, rendez-vous, critical sections, map/reduce, fork/join, asynchronous pipelines with backpressure, throttling, cancellation, timeouts, and so on.
+
+In addition, there is no well-understood Join Calculus model for distributed computations, persistence, or consensus across a network of machines.

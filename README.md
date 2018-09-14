@@ -42,7 +42,7 @@ Selected tutorial chapters from the book:
 
 Nov. 18, 2017: _Declarative concurrent programming with Chymyst_. Presented at the [Scale by the Bay conference](https://scalebythebay2017.sched.com/event/BLwM/declarative-concurrent-programming-with-chymyst?iframe=no&w=100%&sidebar=yes&bg=no)
 
-- [Talk slides with audio - Long version](https://youtu.be/ubtj5g6SNaw)
+- [Talk slides with audio — Long version](https://youtu.be/ubtj5g6SNaw)
 - [Talk slides in PDF](https://github.com/winitzki/talks/blob/master/join_calculus/join_calculus_2017_SBTB.pdf)
 - [Code examples used in the talk](https://github.com/Chymyst/jc-talk-2017-examples).
 
@@ -142,7 +142,7 @@ Performance benchmarks indicate that `Chymyst Core` can schedule about 100,000 r
 
 `sbt test`
 
-The tests will print some error messages and exception stack traces - this is normal, as long as all tests pass.
+The tests will print some error messages and exception stack traces — this is normal, as long as all tests pass.
 
 Some tests are timed and will fail on a slow machine.
 

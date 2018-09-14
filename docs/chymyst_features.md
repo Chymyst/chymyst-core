@@ -12,14 +12,14 @@ Example code looks like this:
 ```scala
 import io.chymyst.jc._
 
-val s = m[Int] // declare a non-blocking molecule s
-val c = b[Int, Int] // declare a blocking molecule c
-site( // declare a reaction site
+val s = m[Int] // Declare a non-blocking molecule `s`.
+val c = b[Int, Int] // Declare a blocking molecule `c`.
+site( // Declare a reaction site with default settings.
   go { case s(x) + c(y, reply) ⇒
     s(x + y); reply(x)
   }
 )
-s(1) // emit non-blocking molecule s with value 1
+s(1) // Emit non-blocking molecule `s` with value `1`.
 
 ```
 
@@ -37,11 +37,11 @@ In the JoCaml syntax, `s` and `c` are declared implicitly, together with the rea
 Implicit declaration of molecule emitters (“channels”) is not possible in `Chymyst` because Scala macros cannot insert new top-level name declarations into the code.
 For this reason, `Chymyst` requires explicit declarations of molecule types (for example, `val c = b[Int, Int]`).
 
-However, `Chymyst` does not use keywords such as `spawn` or `reply/to`.
+Unlike JoCaml, `Chymyst` does not introduce new keywords such as `spawn` or `reply`/`to`.
 
 ## Compile-time checks for blocking molecules
 
-Reactions that consume a blocking molecule are required to send a reply corresponding to the consumed blocking molecule.
+Reactions that consume a blocking molecule are required to send a reply corresponding to that blocking molecule.
 This requirement applies separately to each consumed blocking molecule.
 
 `Chymyst` generates a compile-time error if
@@ -54,31 +54,32 @@ go { case a(x) + f(_, reply) ⇒ a(x + 1) }
 
 ```
 
-- a reaction has code that sends a reply but this code is not unconditional, for example  
+- a reaction has code that sends a reply but this code is not run unconditionally, for example
 
 ```scala
-// This code will not reply when x < 0.
+// This code will not emit a reply when `x < 0`.
 go { case a(x) + f(_, reply) ⇒ if (x >= 0) reply(x) else a(0) }
 
 ```
 
-- a reaction has code that uses the `reply` emitter within a closure or as a value that could be used outside the reaction, for example 
+- a reaction has code that uses a reply emitter within a closure, or manipulates it as a value that could be used outside the reaction, for example 
 
 ```scala
 // Store the `reply` emitter in a data structure.
 go { case a(x) + f(_, reply) ⇒ queue.add(reply); reply(x) }
-// This code might reply more than once, or not at all.
+// This code might reply more than once, or not at all,
+// because the reply is sent from within a closure.
 go { case c(n) + g(_, reply) ⇒ (1 to n).map(i ⇒ reply(i)) }
 
 ```
 
-These compile-time checks avoid common errors associated with blocking molecules.
+These compile-time checks are intended to help programmers avoid common errors associated with blocking molecules.
 
 ## Arbitrary input patterns
 
 In `Chymyst`'s Scala DSL, a reaction's input patterns is a `case` clause in a partial function.
 Within the limits of the Scala syntax, reactions can define arbitrary input patterns.
- 
+
 ### Unrestricted pattern matching
 
 Reactions can use pattern matching expressions as well as guard conditions for selecting molecule values:
@@ -90,7 +91,7 @@ val d = m[(String, List[String])]
 go { case c(Some(x)) + d( s@("xyz", List(p, q, r)) ) 
       if x > 0 && p.length > q.length ⇒
       // Reaction will start only if the patterns match and the condition holds.
-      // Reaction body can use pattern variables x, s, p, q, r.
+      // Reaction body can use pattern variables `x`, `s`, `p`, `q`, `r`.
 }
 
 ```
@@ -106,11 +107,12 @@ go { case c(x) + c(y) + c(z) if x > y && y > z ⇒ c(x - y + z) }
 
 ```
 
-Some concurrent algorithms are more easily expressed using repeated input molecules.
+Some concurrent algorithms are more easily expressed using repeated input molecules, although reactions may be scheduled more slowly.
+Static optimizations are used to optimize the performance of the reaction scheduler for such situations.
 
 ### Nonlinear blocking replies
 
-A reaction can consume any number of blocking molecules at once, and each blocking molecule will receive its own reply.
+A reaction can consume any number of blocking molecules at once, and each blocking molecule has its own reply.
 
 For example, the following reaction consumes 3 blocking molecules `f`, `f`, `g` and exchanges the values caried by the two `f` molecules:
 
@@ -118,6 +120,7 @@ For example, the following reaction consumes 3 blocking molecules `f`, `f`, `g` 
 val f = b[Int, Int]
 val g = b[Unit, Unit]
 
+// Synchronous rendez-vous with exchange of values.
 go { case f(x1, replyF1) + f(x2, replyF2) + g(_, replyG) ⇒
    replyF1(x2); replyF2(x1); replyG()
 }
@@ -138,24 +141,29 @@ However, this code cannot specify that the reply value `x2` should be sent to th
 
 ## Reactions are values
 
-Reactions are not merely `case` clauses but locally scoped values of type `Reaction`. The `go()` call is a macro that creates reaction values:
+Reactions are not merely `case` clauses in code; they are locally scoped values of type `Reaction`.
+The `go()` call is a macro that creates reaction values:
 
 ```scala
 val c = m[Int]
 val reaction: Reaction = go { case c(x) ⇒ println(x) }
-// Declare a reaction, but do not run anything yet.
+// Declare a reaction, but do not activate anything yet.
 
 ```
 
-Users can build reaction sites incrementally, constructing, say, an array of `n` reaction values, where `n` is a run-time parameter.
-Then a reaction site can be declared using the resulting array of reaction values.
-Nevertheless, reactions and reaction sites are immutable once declared.
+Users can build reaction sites incrementally, by constructing, say, an array of `n` reaction values, where `n` is a run-time parameter.
+Then a reaction site can be activated using the resulting array of reaction values.
 
 ```scala
+// Declare reactions, but do not activate anything yet.
 val reactions: Seq[Reaction] = ???
-site(reactions: _*) // Activate all reactions.
+// Create a reaction site and activate all reactions.
+site(reactions: _*)
 
 ```
+
+Reactions and reaction sites are immutable once declared and activated.
+It is impossible to add more reactions to an already created reaction site, or to modify a reaction that has already been defined.
 
 Since molecule emitters are local values, one can also define `n` different molecules, where `n` is a run-time parameter.
 There is no limit on the number of reactions in one reaction site, and no limit on the number of different molecules.
