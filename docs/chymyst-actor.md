@@ -32,6 +32,7 @@ The user's code merely needs to _define the computation_ that a chemical actor w
 Implementing this functionality will allow us to write pseudo-code like this,
 
 ```scala
+// Pseudo-code!
 val c1 = go { x: Int ⇒ f(x) }
 c1 ! 123
 
@@ -45,17 +46,19 @@ Chemical actors are stateless, so defining an actor means merely to specify a fu
 
 The value `c1` must be used to send messages to the chemical actor in our example.
 But `c1` is not a reference to a specific instance of an actor, or to a specific instance of a computation or a thread.
-Since all we do with `c1` is send messages through it, it follows that `c1` as a reference to a specific _mailbox_.
+Since all we do with `c1` is send messages through it, it follows that `c1` is a reference to a specific _mailbox_.
 Our intention is that the runtime will start a new instance of the computation `{ x: Int ⇒ f(x) }` whenever that mailbox receives new messages.
 
 Since chemical actors are stateless, they can only perform computations that are _functions of_ the incoming messages.
 So, if we send several copies of the same message, the chemical machine will run several instances of the same computation.
 If these computations are _pure_ functions, it is safe to run all these computations in parallel.
-Therefore, the chemical machine may decide _automatically_ to parallelize the chemical actors.
+Therefore, it makes sense for the chemical machine to decide _automatically_ that these computations can be parallelized,
+and to create and run several chemical actors at the same time.
 
-As an example, consider what should happen if we quickly send many messages to the same mailbox:
+As an example, consider what would happen if we quickly send many messages to the same mailbox:
 
 ```scala
+// Pseudo-code!
 val c1 = go { x: Int ⇒ f(x) }
 (1 to 100).foreach { c1 ! _ }
 
@@ -71,17 +74,20 @@ We have made the first step towards the chemical machine paradigm.
 
 ## Waiting for several messages at once
 
-Compared with ordinary actors that can carry mutable state, what functionality needs to be added to chemical actors so that they are equally expressive?
+Compared with ordinary actors that can carry mutable state, what functionality needs to be added to chemical actors to make them equally expressive?
 
-A chemical actor may be seen as a stateless, automatically concurrently running function whose argument is the incoming message.
+A chemical actor may be seen as a stateless, automatically concurrently running function whose argument is an incoming message.
 Ordinary actors that carry mutable state can be also seen as functions with two arguments: the incoming message and the previous state.
-Therefore, chemical actors that can take _two incoming messages at once_ will be equivalent to ordinary actors.
-Let us see how we can arrange for chemical actors to be able to wait for and consume several messages at once.  
+Therefore, chemical actors that are stateless but can take _two incoming messages at once_ will be equivalent to ordinary actors with state.
+
+In this way, we have logically arrived at the requirement that chemical actors should be able to wait for and consume several messages at once.  
+How can we implement this requirement?
 
 In our previous example, the pseudo-code `go { x: Int ⇒ f(x) }` was merely a declarative description of what needs to be done with messages sent to the mailbox `c1`.
 To express this semantics more clearly, let us change our pseudo-code notation to
 
 ```scala
+// Pseudo-code!
 go { x: Int from c1 ⇒ f(x) }
 c1 ! 123
 
@@ -90,6 +96,7 @@ c1 ! 123
 It is clear that different chemical actors can use different input mailboxes, for example:
 
 ```scala
+// Pseudo-code!
 go { x: Int from c1 ⇒ f(x) }
 go { x: Int from d1 ⇒ g(x) }
 c1 ! 123
@@ -97,21 +104,23 @@ d1 ! 456
 
 ```
 
-A chemical actor that waits for two messages at once can be represented by pseudo-code like this,
+A chemical actor that waits for two messages at once can now be represented by pseudo-code like this,
 
 ```scala
+// Pseudo-code!
 go { x: Int from c1, y: String from c2 ⇒ h(x, y) }
 c1 ! 123
 c2 ! "abc"
 
 ```
 
-The two messages carry data of different types; their mailboxes are `c1` and `c2` respectively.
-The computation starts only after _both_ messages have been sent, and consumes both messages atomically.
+The two messages carry data of different types; the two mailboxes are `c1` and `c2` respectively.
+The chemical actor starts only after _both_ messages have been sent, and consumes both messages atomically.
 
-It also follows from the atomicity requirement that we may define several computations that _jointly contend_ on input messages:
+It also follows from the atomicity requirement that we may define several computations that jointly contend on input messages:
 
 ```scala
+// Pseudo-code!
 go { x: Int from c1, y: String from c2 ⇒ h(x, y) }
 go { x: Int from c1, z: Unit from c3   ⇒ k(x) }
 c1 ! 123
@@ -122,14 +131,11 @@ c2 ! "abc"
 If messages are present in `c1` but not in `c2` or `c3`, no computations will be started until some process emits messages to either `c2` or `c3`.
 Each of the two chemical actors can start only if it can consume one message from `c1` and one message from another mailbox.
 
-If there is exactly one message in each of the three mailboxes `c1`, `c2`, `c3`, any one of the two chemical actors will start.
-It is a non-deterministic choice of which one will actually start.
-Suppose, for instance, that the second chemical actor starts; it will then consume one message from `c1` and one from `c3`.
+If there is exactly one message in each of the three mailboxes `c1`, `c2`, `c3`, then any one of the two chemical actors might start.
+The runtime engine must make a non-deterministic choice to start one of them.
+Suppose, for instance, that the second chemical actor starts; it will then atomically consume two messages -- one message from `c1` and one from `c3`.
 Since consuming the only message from `c1` will make the mailbox `c1` empty, the first chemical actor will not be able to start.
-
-Messages that carry data are now completely decoupled from computations that consume the data.
-All computations start concurrently whenever their input messages become available.
-The runtime engine needs to resolve message contention by making a non-deterministic choice of the messages that will be actually consumed.
+In this way, the program expresses the contention of several processes on a shared resource.
 
 This concludes the second and final step towards the chemical machine paradigm where
 "chemical actors" are called **reactions**, "messages" are **molecules**, and "mailbox references" are **molecule emitters**.
