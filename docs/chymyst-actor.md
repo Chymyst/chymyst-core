@@ -139,12 +139,19 @@ Since consuming the only message from `c1` will make the mailbox `c1` empty, the
 In this way, the program expresses the contention of several processes on a shared resource.
 
 This concludes the second and final step towards the chemical machine paradigm.
-We have completely decoupled mailboxes from chemical actors, in the sense that chemical actors
-may atomically wait on one or more incoming messages from arbitrary mailboxes.
+We have completely decoupled mailboxes from chemical actors, in the sense that
+there is no direct correspondence between mailboxes and chemical actors.
+Chemical actors may atomically wait on one or more incoming messages from arbitrary mailboxes.
+The programmer's task is to define a number of mailboxes and a number of chemical actors
+so that the resulting message-passing logic corresponds to the desired tasks.
 
-It remains to use the Scala syntax instead of pseudo-code.
-In Scala, we need to declare message types explicitly using the `m` macro,
-and to register reactions with the runtime engine as a separate step using the `site()` call.
+## The Scala syntax
+
+Let us now replace the pseudo-code by the actual Scala syntax used in `Chymyst`.
+
+In `Chymyst`, we declare mailboxes and their message types using the `m` macro,
+define the chemical actors with the `go{}` macro,
+and register the chemical actors with the runtime engine as a separate step using the `site()` call.
 The syntax used by `Chymyst` to represent the above pseudo-code looks like this:
 
 ```scala
