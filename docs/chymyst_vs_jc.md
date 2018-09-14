@@ -44,9 +44,9 @@ def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
 
 `Chymyst` implements significantly fewer restrictions than usually present in academic versions of Join Calculus:
 
-- reactions can have arbitrary guard conditions on molecule values
-- reactions can consume several molecules of the same sort ("nonlinear input patterns")
-- reactions can consume an arbitrary number of blocking and non-blocking input molecules, and each blocking input molecule can receive its own reply ("nonlinear reply")
+- reactions may have arbitrary guard conditions on molecule values
+- reactions may consume several molecules of the same sort ("nonlinear input patterns")
+- reactions may consume an arbitrary number of blocking input molecules, and each blocking input molecule can receive its own reply ("nonlinear reply")
 - reactions are values — user's code can construct and define chemical laws incrementally at run time 
 
 `Chymyst` also implements some additional features that are important for practical applications but not supported by academic versions of Join Calculus:
@@ -57,26 +57,28 @@ def newVar[T](v0: T): (B[T, Unit], B[Unit, T]) = {
 
 ## Comparison: chemical machine vs. Actor model
 
-Chemical machine programming is similar in some aspects to the well-known Actor model (e.g. the [Akka framework](https://github.com/akka/akka)).
+Chemical machine programming is similar in some aspects to the well-known Actor model (e.g. as implemented by the [Akka library](https://github.com/akka/akka)).
+
+### Similarities
 
 | Chemical machine | Actor model |
 |---|---|
 | molecules carry values | messages carry values |
-| reactions wait to receive certain molecules | actors wait to receive certain messages | 
+| reactions wait to consume certain molecules | actors wait to receive certain messages | 
 | synchronization is implicit in molecule emission | synchronization is implicit in message-passing | 
-| reactions start when input molecules are available | actors start running when a message is received |
-| reactions can define new reactions and emit new input molecules for them | actors can create and run new actors, and send messages to them |
+| reaction starts when input molecules are available | actor starts running when a message is received |
+| reactions can define new reactions and emit new input molecules for them | actors can create new actors and send messages to them |
 
-Main differences between the chemical machine and the Actor model:
+### Differences
 
 | Chemical machine | Actor model |
 |---|---|
 | several concurrent reactions start automatically whenever several input molecules are available | a desired number of concurrent actors must be created and managed manually |
 | the user's code only manipulates molecules | the user's code must manipulate explicit references to actors as well as messages |
-| reactions typically wait for (and consume) several input molecules at once | actors wait for (and consume) only one input message at a time |
-| reactions are immutable and stateless, all data is stored on molecules | actors can mutate (“become another actor”); actors hold mutable state |
-| molecules are held in an unordered bag and processed in random order | messages are held in an ordered queue (mailbox) and processed in the order received |
-| molecule data is statically typed | message data is untyped |
+| reactions may wait for (and consume) several input molecules at once | actors wait for (and consume) only one input message at a time |
+| reactions are immutable and stateless; all data is stored on molecules | actors can mutate (“become another actor”); actors may hold mutable state |
+| molecules are held in an unordered bag and may be processed in random order | messages are held in an ordered queue (mailbox) and are processed in the order received |
+| molecule data is statically typed | message data is untyped (but not if using [Akka Typed](https://doc.akka.io/docs/akka/2.5/typed/index.html)) |
 
 ## Comparison: chemical machine vs. CSP
 
