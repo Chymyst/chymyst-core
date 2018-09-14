@@ -181,4 +181,118 @@ I conjecture three principal reasons for this:
 2. Lack of industry-strength implementations in mainstream languages: The only well-maintained implementation (JoCaml) is in a language that is mostly used for university teaching. Apart from `Chymyst`, all other existing implementations are unmaintained academic projects. There is no industry-strength implementation of JC that provides facilities for unit testing, message-level debugging or logging, performance tuning, error recovery, or low-level thread control. (As an example, a facility to _terminate the concurrent computations_ is not present in any implementations of JC apart from `Chymyst`.)
 3. Lack of a developed set of design patterns for concurrent programming in JC: Most articles and books on JC are limited to academic or toy examples, and there is no documented systematic development of design patterns for implementing concurrency tasks such as barriers, rendez-vous, critical sections, map/reduce, fork/join, asynchronous pipelines with backpressure, throttling, cancellation, timeouts, and so on.
 
-In addition, there is no well-understood Join Calculus model for distributed computations, persistence, or consensus across a network of machines.
+In addition, there is no well-understood Join Calculus model for distributed computations, persistence, or consensus across a network of machines, that would compare, say, with Akka's persistence and cluster features.
+
+## Referee criticism on the `Chymyst` paper from 2017
+
+I submitted a [paper on `Chymyst`](https://github.com/winitzki/talks/blob/master/join-calculus-paper/join-calculus-paper.pdf) to the Scala'2017 ACM conference.
+The draft was rejected with the following comments.
+
+### Referee A
+
+It is a good idea that someone tends to a more practically 
+useful JC implementation. In order to become more popular, 
+JC needs compelling real-world use cases beyond academic 
+examples. 
+
+You may want to compare against another recent JC implementation
+in Scala [1]. Moreover, it would be interesting if you could 
+explain what kind of implementation strategy is used and how it 
+scales. For that matter, the algorithm from [2] may be relevant.
+For “Modern Concurrency Abstractions for C#” there is a TOPLAS
+paper that presumably supersedes the ECOOP paper.
+
+Detailed comments:
+
+Sec 1:
+
+- A joinad is a type class that generalizes
+pattern matching over notions of computations,
+just as monads generalize sequential computation.
+JC is just an instances fitting into this framework. 
+Hence, joinads are not about JC per se.
+
+Sec 2:
+
+- My concern is that the pedagogical issues you raise
+are not solved by using your own terminology, e.g.,
+
+- The choice of names for the primitives is not mnemonic, i.e., 
+  m, b, site and go. 
+- Switching from ampersand to plus in join patterns is
+  not a drastic improvement in readability. Moreover, it is
+  misleading, because the logical interpretation of a join
+  pattern is a conjunction/product, which is quite different
+  from a sum. Intuitively, a site is a disjunction of conjunctions.
+
+- 2.2.3: It is confusing that you write in the abstract
+that JC is extended with non-linear patterns, whereas 
+this "enhancement" is actually in comparison to JoCaml. 
+JC supported multiple occurrences of the same channel in a
+join pattern since its inception. Linear patterns refer to
+something else, i.e., that all the bound variables (in JC lingo:
+received variables) are distinct. However, this is a standard
+assumption in practically any programming language that has
+pattern matching, including Scala. I suggest naming 
+"non-linear" join patterns differently.
+
+- 2.2.5: I am not sure that excluding nondeterminism is a good idea
+all of the time. Can programmers disable this feature?
+Nondeterminism occurs when there is an interaction with several external
+sources that the application does not control, e.g., mouse, keyboard, network etc.
+A natural programming pattern is a state machine:
+  mouse<x> & state<s> |> {  state<f(x,s)>; ... }
+  key<y> & state<s> |> { state<f(y,s)>; ... }
+
+[1] http://dl.acm.org/citation.cfm?id=2577082
+
+[2] https://dl.acm.org/citation.cfm?id=2076021.2048111
+
+### Referee B
+
+Overall Chymyst looks like a well-designed project, and I like that it offers a way to explore programming with the join calculus in Scala that is easily accessible. Before publication, however, some aspects of the paper should be revised and improved:
+
+1) The paper provides almost no details on some core aspects of the implementation. On p.6, for instance, the process search is only hinted at, while it seems to be one of the most important aspects of the system. We also learn about the existence of macros to implement static analysis without any further explanations. These aspects are sure to be of high interest to readers of the paper and attendees. For instance, we don't know if the support for non-linear patterns comes for an implementation technique.
+
+2) One of the main claims is that the library is 'industry-strength'. While the bullet point list on p.6 is an excellent reference, a) not all points are in fact available in Chymyst, and, more importantly, b) the paper only presents very simple examples, and makes no reference to the existence of larger programs or benchmarks.
+
+3) Generally, I found the comments on pedagogical aspects to be lacking in supportive facts. It is perfectly possible that the "visually suggestive terminology" of molecular reactions is better suited for teaching about the join calculus, but this should only be presented as a fact if it can be backed. Some opinions are stated unsubstantiated:
+
+- p.1 "the original authors' introduction [... and] lecture notes [...] are largely incomprehensible to software engineers"
+- p.2 "deficiencies of the academic terminology of JC [...] make it unhelpful for explaining the concepts of JC"
+- p.3 "It appears that maintaining and supporting a completely new research language is hardly possible, even for a corporation such as Microsoft".
+- p.4 "increased code clarity due to the explicit labeling"
+- p.4 "[`a(x) + b(y) =>`] is somewhat easier to read than [... `a(x) & b(x)`]".
+
+Misc. points:
+
+- As presented, the main difference with previous implementations as described in Section 1.2 is that Chymyst is currently maintained while the other libraries are not. If there more distinguising features, they should be described, and if there are reasons to believe that the fate of Chymyst will be different, they should be laid out in the paper.
+
+- Section 2.2.5 is about static analysis but the paragraph on unavoidable non-determinism indicates that it is detected at runtime (it refers to the runtime engine and to throwing an exception).
+
+Summary:
+
+*Pros*:
+
+- the library offers an alternative for concurrent programming in Scala
+- it was designed with consideration for some important aspects of software development (in particular unit testing, error recovery and compatibility with other concurrency constructs)
+
+*Cons*:
+
+- the "industry-strength" qualifier is not backed by examples or benchmarks
+- the paper is light on implementation details
+- the value of the "chemical" analogy is unclear, and the pedagogical considerations are not backed by facts
+
+### Referee C
+
+This is a good paper which describes a library that seems quite useful. I'm particularly happy about the discussion of pedagogy -- how we teach complex concepts is sadly under-discussed.
+
+The major limitation of this paper is the lack of evaluation at any level. Have any applications been built with this library, that could be described? What about experience with the teaching approach? Or performance numbers? Or an evaluation of what features of JoCaml can be expressed by Chymyst? Any or all of those would make the claims of the paper easier to credit, and demonstrate the contributions more fully.
+
+A few smaller issues:
+
+* The work by Turon on Reagents in Scala (PLDI 2011), and also by Turon and Russo on join implementation in C# are quite related here, but not discussed. In particular, many of the syntactic conveniences here are provided by reagents, and the implementation of joins is not discussed much.
+
+* How much of the syntactic design is novel? The paper compares mostly to JoCaml, not to embeddings in languages more similar to Scala, or to Scala join embeddings.
+
+* It's unclear how much the "chemical" metaphor helps, versus just the analogy to actors, which as the paper says are very popular for Scala programmers.
