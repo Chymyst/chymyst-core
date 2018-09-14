@@ -80,7 +80,7 @@ A chemical actor may be seen as a stateless, automatically concurrently running 
 Ordinary actors that carry mutable state can be also seen as functions with two arguments: the incoming message and the previous state.
 Therefore, chemical actors that are stateless but can take _two incoming messages at once_ will be equivalent to ordinary actors with state.
 
-In this way, we have logically arrived at the requirement that chemical actors should be able to wait for and consume several messages at once.  
+In this way, we have logically arrived at the requirement that chemical actors should be able to wait for and consume several messages at once.
 How can we implement this requirement?
 
 In our previous example, the pseudo-code `go { x: Int ⇒ f(x) }` was merely a declarative description of what needs to be done with messages sent to the mailbox `c1`.
