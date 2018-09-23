@@ -9,9 +9,19 @@ In the Actor model, an actor receives messages and reacts to them by running a c
 An actor-based program declares several actors, defines the computations for them, stores references to the actors, and starts sending messages to some of the actors.
 Messages are sent either synchronously or asynchronously, enabling communication between different concurrent actors. 
 
+An ordinary actor can be described in pseudo-code as
+
+```scala
+// Pseudo-code!
+receive(x) ⇒ { f(x, s); s = newState(s, x) }
+
+```
+
+where `x` is the value on an incoming message, `s` represents the local mutable state, `f()` is a function that may depend on both `x` and `s`, and `newState()` is a function that updates the local state of the actor.
+
 The chemical machine paradigm is in many ways similar to the Actor model.
 A chemical program also runs light-weight concurrent processes,
-which we may think of as “chemical actors”, that communicate by sending data to each other.
+which we may think of as “chemical actors”, that can communicate by sending data to each other.
 The chemical machine paradigm departs from the Actor model in two major ways: 
 
 1. Chemical actors are created automatically by the runtime system whenever necessary. User's code does not create or manage specific instances of actors.
@@ -213,7 +223,7 @@ In the ordinary (non-chemical) Actor model, actors have the following features:
 
 Chemical actors can directly simulate all these features. Here is how we can translate an actor-based program into a chemical machine program.
 
-Consider an ordinary actor with a function body such as
+An ordinary actor can be written in pseudo-code as
 
 ```scala
 // Pseudo-code!
@@ -221,11 +231,9 @@ receive(x) ⇒ { f(x, s); s = newState(s, x) }
 
 ```
 
-where `x` is the value on an incoming message, `s` represents the local mutable state, `f()` is a function that may depend on both `x` and `s`, and `newState()` is a function that updates the local state of the actor.  
-
 In the chemical machine, we now introduce two new chemical mailboxes: one mailbox, `mx`, for this actor's messages, and another mailbox, `ms`, for this actor's local mutable state.
 
-The body of the actor is replaced by a chemical actor
+The body of the actor is replaced by a chemical actor,
 
 ```scala
 go { case mx(x) + ms(s) ⇒ f(x, s); ms(newState(s, x)) }
