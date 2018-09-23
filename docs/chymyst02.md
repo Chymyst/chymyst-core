@@ -46,14 +46,15 @@ The reactions as written so far will always start whenever `read()` or `write()`
 However, our task is to control when these reactions start.
 We need to _prevent_ these reactions from starting when there are too many concurrent accesses.
 
-In `Chymyst`, there are only two ways of preventing a reaction from starting:
+Now, there are only two ways of preventing a reaction from starting:
 
 - by withholding some of the required input molecules;
 - by using a guard condition with a mutable variable, setting the value of that variable as required.
 
 The second method requires complicated reasoning about the current values of mutable variables.
 Generally, shared mutable state is contrary to the spirit of functional programming, although it may be used in certain cases for performance optimization.
-Although Scala allows it, we will not use shared mutable state in `Chymyst`.
+Although Scala allows it, we will not use shared mutable state in our examples.
+The chemical machine works best when all values are immutable.
 
 It remains to use the first method.
 

@@ -1,22 +1,34 @@
 # Distributed programming in the chemical machine
 
 All programs considered in the previous chapters ran within a single JVM process on a single (possibly multi-core) computer.
-We now consider the extension of the chemical machine paradigm to distributed programming, where programs run concurrently and in parallel on several OS processes and/or on several computers.
-The resulting paradigm is the distributed chemical machine (DCM).
+This chapter describes the extension of the chemical machine paradigm to distributed programming, where programs can run concurrently and in parallel on several OS processes and/or on several computers.
+The resulting paradigm is the **distributed chemical machine** (DCM).
+
 Similarly to how the single-process chemical machine (CM) provides a declarative approach to concurrent programming, the DCM provides a declarative approach to distributed concurrent programming.
 
-In what way is a CM program declarative?
+To motivate the main concept of the DCM, we need to consider the features that make the CM declarative.
+
 In CM, the programmer merely specifies that certain computations need to be run concurrently and in parallel.
 Computations are started automatically as long as the required input data is available.
-The input data needs to be specially marked as "destined for" concurrent computations (i.e. emitted on molecules).
+The input data needs to be specially marked as “destined for” concurrent computations (i.e. emitted on molecules).
 However, the code does not explicitly start new tasks at certain times, nor does it need explicitly to wait for or to synchronize processes that run in parallel.
 
-Similarly, the DCM requires the programmer merely to declare certain molecules as having the property of being distributed.
+Similarly, the DCM requires the programmer merely to _declare_ certain molecules as having the property of being distributed.
 The runtime of the DCM will automatically distribute the chosen data across all JVM processes that participate in a given cluster.
 We will call each of these processes a **DCM peer** running on the cluster.
 From the programmer's point of view, it makes no difference whether a DCM peer is a JVM process that runs on the same machine or on a different machine within the cluster.
 
-So, the DCM extends the CM by introducing **distributed molecules** in addition to **local molecules**. 
+Also, there is no distinction between DCM peers (such as “master”/“worker”) at the architectural level.
+Every DCM peer participates in the computation in the same way -- by consuming and emitting distributed molecules.
+If needed, an application code can program certain DCM peers to perform specific functions differently from other DCM peers,
+but this is an application's responsibility to implement.
+
+The number of DCM peers in a cluster may fluctuate with time, because DCM peers may become temporarily or permanently disconnected from ZooKeeper, or because the number of active DCM peers is intentionally increased or decreased.
+By default, computations do not explicitly depend on the number of DCM peers; the user code does not need to be aware of the current status of the cluster.
+Progress towards and correctness of computational results is guaranteed regardless of the presence or absence of hardware connected to the cluster. 
+
+To summarize, the DCM extends the CM by introducing **distributed molecules** in addition to **local molecules**,
+and by extending the operational semantics to coordinate data exchange between any number of DCM peers. 
 The DCM runtime will also run local reactions with local molecules in the same way CM does.
 The programmer's job remains to declare certain molecules and reactions, and to emit certain initial molecules, such as to implement the required application logic.
 
@@ -32,10 +44,13 @@ The user code must create this value before a DCM program can be run.
 implicit val clusterConfig = ClusterConfig(
   url = "localhost:2345",
   user = "zkUser",
-  password = "zkPassword"
+  password = "zkPassword",
+  clientId = "client1"
 )
 
 ```
+
+The `clientId` assigned to a given DCM peer must be unique across the cluster.
 
 ## Distributed molecules
 
@@ -50,7 +65,7 @@ val c = new DM[Int]("c") // same as val c = dm[Int]
 Distributed molecules differ from local molecules in two ways:
 
 - they use a different emitter type: `DM` instead of `M`
-- defining a DM needs an implicit `ClusterConfig` value to be available in scope
+- defining a `DM` needs an implicit `ClusterConfig` value to be available in scope
 
 Distributed molecules are always non-blocking.
 
@@ -66,13 +81,13 @@ site( go { case a(x) + c(y) ⇒ ... })
 ```
 
 Reactions may consume and emit distributed and/or local molecules in any combination.
-The data carried by distributed molecules will be stored on the ZooKeeper and, in this way, made available to all the DCM peers in the cluster.
-Thus, distributed molecules are emitted _into the cluster_, not into a local reaction site.
+The data carried by distributed molecules will be stored on the ZooKeeper and, in this way, made available to all the DCM peers within the cluster.
+Thus, distributed molecules are emitted _into the cluster site_, not into a local reaction site.
 At any time, any DCM peer may start a reaction that consumes any of the available distributed molecules.
 
 ## Example: distributed map/reduce
 
-In [Chapter 2](chymyst02.md) we have implemented concurrent map/reduce with the following code:
+In [Chapter 2](chymyst02.md) we have implemented a concurrent map/reduce computation using the following code:
 
 ```scala
 // Declare the "map" and the "reduce" functions.
@@ -147,7 +162,7 @@ To clarify how the DCM will run this program, consider several DCM peers running
 Each of the DCM peers will emit 100 copies of the molecules `carrier()` carrying different values.
 Since the molecule `carrier()` is distributed, all these copies will be consumed by all DCM peers in parallel and in arbitrary order to start the "map" reaction.
 Each DCM peer may run several concurrent copies of the "map" reaction; the code leaves this decision to the implementation.
-In any case, the result will be that a number of molecules `interm()` are emitted back into the cluster.
+In any case, the result will be that a number of molecules `interm()` are emitted back into the cluster site.
 
 After that, the "reduce" reactions will be started by the DCM peers, all running in parallel.
 All the `interm()` molecules will be consumed until the final result is obtained.
@@ -227,7 +242,6 @@ val a = dm[Int]
 val c = dm[Int]
 val f: Int ⇒ Int = ???
 site( go { case a(x) ⇒ c(f(x)) } ) // Some computation.
-...
 
 ```
 
@@ -238,20 +252,30 @@ val a = dm[Int]
 val c = dm[Int]
 val g: Int ⇒ Int = ???
 site( go { case a(x) ⇒ c(g(x)) } ) // Another computation.
-...
 
 ```
 
-Both peers are be able to consume a copy of the distributed molecule `a()`.
-However, the resulting computations will be different, and the programmer has no control over the choice of peer that consumes various copies of `a()`.
-This kind of non-determinism appears to be undesirable.
-Therefore, `Chymyst` requires that all DCM peers should define identical Scala code for reactions that consume a given distributed molecule such as `a()`. 
+Both DCM peers are be able to consume a copy of the distributed molecule `a()`.
+However, the resulting computations will be different depending on which DCM peer succeeds in consuming `a()` first.
+If many copies of `a()` are emitted, the programmer has no control over the choice of the DSM peers that consume various copies of `a()`.
 
-If two DCM peers run two different programs as shown above, the DCM will consider their definitions of `a()` as incompatible.
+It appears to be undesirable to allow this sort of non-determinism because it yields completely unpredictable results.
+When we mark a molecule as distributed, the intent is to distribute a given, fixed computation across different executors to obtain the result faster or to provide resilience to errors.
+
+Therefore, `Chymyst` requires that all DCM peers should define _identical Scala code_ for reactions that consume a given distributed molecule such as `a()`.
+
+If two DCM peers run two different reactions as shown above, the DCM will consider their definitions of `a()` as "incompatible" with each other.
 The result will be that the molecule `a()` will _not_ be shared between these two DCM peers.
 
 It is unimportant that both programs call the molecule `"a"`, or that the local variable is named `a`.
 Molecule names and variable names do not determine the semantics of chemical programs.
+
+## Exercise: distributed counter
+
+Modify the code in [Chapter 1](chymyst01.md) for the concurrent counter to make it distributed,
+so that the counter can be incremented or decremented on any of the DCM peers.
+
+Make sure that there is only one copy of the `counter` molecule in the cluster site.
 
 ### Reactions defined in local scopes
 
