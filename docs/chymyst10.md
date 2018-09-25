@@ -250,13 +250,14 @@ while the second DCM peer runs
 ```scala
 val a = dm[Int]
 val c = dm[Int]
-val g: Int ⇒ Int = ???
-site( go { case a(x) ⇒ c(g(x)) } ) // Another computation.
+val d = m[Int]
+val g: (Int, Int) ⇒ Int = ???
+site( go { case a(x) + d(y) ⇒ c(g(x, y)) } ) // Another computation.
 
 ```
 
 Both DCM peers are be able to consume a copy of the distributed molecule `a()`.
-However, the resulting computations will be different depending on which DCM peer succeeds in consuming `a()` first.
+However, the resulting computations will be quite different depending on which DCM peer succeeds in consuming `a()` first.
 If many copies of `a()` are emitted, the programmer has no control over the choice of the DSM peers that consume various copies of `a()`.
 
 It appears to be undesirable to allow this sort of non-determinism because it yields completely unpredictable results.
@@ -265,10 +266,31 @@ When we mark a molecule as distributed, the intent is to distribute a given, fix
 Therefore, `Chymyst` requires that all DCM peers should define _identical Scala code_ for reactions that consume a given distributed molecule such as `a()`.
 
 If two DCM peers run two different reactions as shown above, the DCM will consider their definitions of `a()` as "incompatible" with each other.
-The result will be that the molecule `a()` will _not_ be shared between these two DCM peers.
+The result will be that the molecule `a()` will _not_ be shared between these two DCM peers,
+even though both programs define a molecule called `"a"`.
 
-It is unimportant that both programs call the molecule `"a"`, or that the local variable is named `a`.
-Molecule names and variable names do not determine the semantics of chemical programs.
+The DCM will make a reaction site into a distributed reaction site if two conditions are met:
+
+- a reaction site contains some input molecules of type `DM`
+- the Scala code of all reactions in the reaction site is _syntactically identical_ in several DCM peers (the order of reactions is unimportant)
+
+However, there may be runtime parameters that have different values for different DCM peers.
+We have seen an example of this situation when we implemented the distributed map/reduce.
+The reaction
+
+```scala
+go { case result(x) if isDriver ⇒ println(x) }
+
+```
+
+sets a runtime parameter `isDriver` by reading a configuration file.
+Another example of a runtime parameter is the function `f` in the reaction `go { case a(x) ⇒ c(f(x)) }`.
+However, it is important that the Scala code of the entire reaction site is syntactically the same in every DCM peer.
+This syntactic equality is sufficient for the DCM to recognize that these reaction sites correspond to each other and need to share input molecules.
+
+The programmer is still free to arrange the values of any runtime parameters according to application-specific needs.
+In this way, some DCM peers could play a different role from other DCM peers even though they run identical Scala code for their reaction sites. 
+However, the "chemical logic" (the input and the output molecules in each reaction) is required to be identical in all DCM peers.
 
 ## Exercise: distributed counter
 
@@ -276,24 +298,3 @@ Modify the code in [Chapter 1](chymyst01.md) for the concurrent counter to make 
 so that the counter can be incremented or decremented on any of the DCM peers.
 
 Make sure that there is only one copy of the `counter` molecule in the cluster site.
-
-### Reactions defined in local scopes
-
-Now consider two DCM peers that ???
-
-```scala
-val a = dm[Int]
-val c = dm[Int]
-val f: Int ⇒ Int = ???
-site( go { case a(x) ⇒ c(f(x)) } ) // Some computation.
-...
-
-```
-
-
-
-First, the DCM peers need to identify which of the locally defined DM emitters corresponds to `a()`.
-
-It is not possible to use the _name_ `"a"` of this molecule, since there may be several molecules named `a` in various scopes.
-In `Chymyst`, molecule names are used for debugging purposes only, and do not affect any computations.
-
