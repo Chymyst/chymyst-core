@@ -3,7 +3,7 @@ package io.chymyst.jc
 
 import java.util
 import java.util.concurrent.ConcurrentLinkedQueue
-import javolution.util.FastMap
+import Core.AnyOpsEquals
 import com.google.common.collect.ConcurrentHashMultiset
 
 import scala.collection.JavaConverters.{asScalaIteratorConverter, asScalaSetConverter}
@@ -12,6 +12,8 @@ import scala.util.Try
 
 trait MutCollection[T] {
   def size: Int
+
+  def isEmpty: Boolean = size === 0
 
   def add(v: T): Unit
 
@@ -28,19 +30,17 @@ trait MutCollection[T] {
   *
   * @tparam T Type of the value carried by molecule.
   */
-sealed trait MutableBag[T] extends MutCollection[T] {
-  def isEmpty: Boolean
+trait MutableBag[T] extends MutCollection[T] {
+  def find(predicate: T ⇒ Boolean): Option[T]
 
-  def find(predicate: T => Boolean): Option[T]
+  def takeOne: Seq[T] = try IndexedSeq(iteratorAsJava.next) catch { case _: Exception ⇒ IndexedSeq() }
 
-  def takeOne: Seq[T] = Try{IndexedSeq(iteratorAsJava.next)}.getOrElse(IndexedSeq())
-
-  def headOption: Option[T] = try { Some(iteratorAsJava.next) } catch { case _: Exception ⇒ None }
+  def headOption: Option[T] = try Some(iteratorAsJava.next) catch { case _: Exception ⇒ None }
 
   def takeAny(count: Int): Seq[T] =
     if (count > 1)
       iteratorAsScala.take(count).to[IndexedSeq]
-    else (takeOne : @inline)
+    else (takeOne: @inline)
 
   protected def iteratorAsScala: Iterator[T]
 
@@ -87,7 +87,7 @@ final class MutableMapBag[T] extends MutableBag[T] {
 
   override def remove(v: T): Boolean = bag.removeExactly(v, 1)
 
-  override def find(predicate: (T) => Boolean): Option[T] =
+  override def find(predicate: T ⇒ Boolean): Option[T] =
     bag.createEntrySet().asScala.view
       .map(_.getElement)
       .find(predicate)
@@ -126,8 +126,7 @@ final class MutableQueueBag[T] extends MutableBag[T] {
     *
     * @return Total number of elements in the bag.
     */
-  override def size: Int =
-    bag.size
+  override def size: Int = bag.size
 
   override def add(v: T): Unit = {
     bag.add(v)
@@ -143,7 +142,7 @@ final class MutableQueueBag[T] extends MutableBag[T] {
   override def remove(v: T): Boolean =
     bag.remove(v)
 
-  override def find(predicate: (T) => Boolean): Option[T] =
+  override def find(predicate: T ⇒ Boolean): Option[T] =
     iteratorAsScala.find(predicate)
 
   // Very inefficient! O(n) operations. Used only for debug output.
@@ -172,7 +171,7 @@ class MutableMultiset[T](bag: mutable.Map[T, Int] = mutable.Map[T, Int]()) exten
 
   def getCountMap: Map[T, Int] = bag.toMap
 
-  def isEmpty: Boolean = bag.isEmpty
+  override def isEmpty: Boolean = bag.isEmpty
 
   def size: Int = bag.values.sum
 

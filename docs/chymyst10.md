@@ -23,11 +23,11 @@ Every DCM peer participates in the computation in the same way -- by consuming a
 If needed, an application code can program certain DCM peers to perform specific functions differently from other DCM peers,
 but this is an application's responsibility to implement.
 
-The number of DCM peers in a cluster may fluctuate with time, because DCM peers may become temporarily or permanently disconnected from ZooKeeper, or because the number of active DCM peers is intentionally increased or decreased.
+The number of active DCM peers in a cluster may change with time, because individual DCM peers may become temporarily or permanently disconnected from ZooKeeper, or because the number of active DCM peers is intentionally increased or decreased by an external agent.
 By default, computations do not explicitly depend on the number of DCM peers; the user code does not need to be aware of the current status of the cluster.
 Progress towards and correctness of computational results is guaranteed regardless of the presence or absence of hardware connected to the cluster. 
 
-To summarize, the DCM extends the CM by introducing **distributed molecules** in addition to **local molecules**,
+To summarize, the DCM extends the CM by introducing **distributed molecules** (DMs) in addition to **local molecules**,
 and by extending the operational semantics to coordinate data exchange between any number of DCM peers. 
 The DCM runtime will also run local reactions with local molecules in the same way CM does.
 The programmer's job remains to declare certain molecules and reactions, and to emit certain initial molecules, such as to implement the required application logic.
@@ -43,14 +43,18 @@ The user code must create this value before a DCM program can be run.
 ```scala
 implicit val clusterConfig = ClusterConfig(
   url = "localhost:2345",
-  user = "zkUser",
-  password = "zkPassword",
-  clientId = "client1"
+  username = "zkUser",
+  password = "zkPassword"
 )
 
 ```
 
-The `clientId` assigned to a given DCM peer must be unique across the cluster.
+Each DCM peer is automatically assigned a unique ID in the cluster.
+The ID can be read as `clusterConfig.clientId`.
+
+## Serialization
+
+All data carried by DMs is serialized using the [Chill](https://github.com/twitter/chill) library.
 
 ## Distributed molecules
 
@@ -298,3 +302,72 @@ Modify the code in [Chapter 1](chymyst01.md) for the concurrent counter to make 
 so that the counter can be incremented or decremented on any of the DCM peers.
 
 Make sure that there is only one copy of the `counter` molecule in the cluster site.
+
+# The DCM protocol internals
+
+The details of the DCM peer communication are largely irrelevant to high-level DCM programming, and are provided for reference.
+
+## Cluster sessions
+
+Each DCM peer establishes one session with the ZooKeeper cluster.
+This *cluster session* is first opened when a `ClusterConfig` value is created. 
+The single cluster session is used by all reaction sites that consume or emit distributed molecules.
+
+A DCM peer may open several cluster sessions if different `ClusterConfig` values specify different cluster URLs.
+However, a single reaction site may not consume molecules from different clusters (this would have created unsolvable deadlock problems).
+
+Since `ClusterConfig` values are immutable, they are compared as values (not as JVM object identities).
+Therefore, different parts of the program may create their own copies of `ClusterConfig` values, still resulting in a single cluster session as long as all `ClusterConfig` values contain the same configuration data.
+
+If the cluster session is disconnected due to time-out or network failure, a new session will be created automatically to reconnect to the cluster if possible.
+Failure to connect to the cluster will be logged, and will result in stopping the emission or consumption of any DMs, while local (non-distributed) reactions will still proceed normally.
+
+## New data available
+
+New DMs can become available on the cluster site in two situations:
+
+- after explicitly emitting a DM (either within a reaction or outside reactions), the DM becomes available for participating DCM peers to consume
+- after a network failure or other failure in a DCM peer that previously consumed some DM from the cluster site and started a reaction, the DCM determines that the DCM peer failed to complete the reaction; the DCM then returns the affected DMs automatically to the cluster site, making them again available
+
+The DCM peer receives a "new data" notification each time a new distributed molecule becomes available on the cluster.
+A "new data" notification is also generated at the beginning of a cluster session.
+
+The content of the "new data" notification is the list of DM emitters that have new data available on the cluster site.
+The DCM peer automatically identifies the local DM emitters corresponding to these DMs.
+
+The DCM peer then determines the list of reaction sites that consume any of the newly available DMs.
+The "new data" notification is forwarded to each of these reaction sites.
+
+## Reaction scheduling
+
+## Reaction start
+
+## Reaction completion
+
+## Failure to complete a reaction
+
+## Emitting a new distributed molecule
+
+When any code in a DCM peer (within a reaction or outside reactions) emits a new DM, the DM must be already bound to some reaction site locally defined in the DCM peer. 
+The newly emitted DM is first sent to that reaction site using the private method `emitDistributed()`.
+The new DM is temporarily stored in a multiset for "outgoing" DMs.
+
+There are two different situations where a DM can be emitted by a DCM peer:
+
+1. The DM is emitted as a result of a reaction that consumes other DMs as input.
+2. The DM is emitted outside reactions, or in a reaction that does not consume any DMs as input.
+
+In the first case, the reaction's inputs have been consumed within a certain cluster session whose ID is preserved within the `ChymystThread` structure.
+If this session expires, the DCM will decide that the current DCM peer has failed to complete the reaction.
+In that case, the current DCM peer should not emit DMs as products of the reaction.
+
+Therefore, the DCM peer will check the current session ID before emitting any DMs from the "outgoing" multiset.
+If the current session ID differs from that of the reaction just finished, all DMs from the "outgoing" multiset will be cleared. 
+Otherwise, the DMs are emitted into the cluster.
+
+In the second case, the current DCM peer is free to emit DMs.
+
+Therefore, there are two ways of emitting a DM: with restriction to a specified cluster session ID, and without a specified session ID.
+
+If the connection to the cluster is up, the ZooKeeper client will send the DM to the cluster, and if successful, clear the DM from the "outgoing" multiset. 
+If the connection fails at that time, the same logic applies: the DMs are emitted only if the current cluster session ID is the same as the session ID specified by the emission request.

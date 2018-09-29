@@ -601,7 +601,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** This is called once, when the reaction site is first declared using the [[site]] call.
     * It is called on the thread that calls [[site]].
     *
-    * @return A tuple containing the molecule value bags, and a list of warning and error messages.
+    * @return A list of warning and error messages.
     */
   private def initializeReactionSite() = optimize {
     /** Find blocking molecules whose emitting reactions are all in a single thread pool. These emissions are potential deadlock threats for that pool, especially for a [[FixedPool]]. */
@@ -618,12 +618,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       val simpleType = simpleTypes contains valType
       val unitType = valType === 'Unit
       val useMapBag = unitType || (simpleType && !pipelined)
-      moleculesPresent(siteIndex) = if (useMapBag)
+      moleculesPresent(siteIndex) = if (mol.isDistributed)
+        new ClusterBag[AbsMolValue[_]]()
+      else if (useMapBag)
         new MutableMapBag[AbsMolValue[_]]()
       else
         new MutableQueueBag[AbsMolValue[_]]()
 
-      // Assign the RS info on molecule or throw exception on error.
+      // Assign the RS info on molecule.
       mol.isBoundToAnotherReactionSite(this) match {
         case Some(otherRS) =>
           throw new ExceptionMoleculeAlreadyBound(s"Molecule $mol cannot be used as input in $this since it is already bound to $otherRS")
@@ -771,8 +773,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     }
   }
 
-  // This call should be done at the very end of the reaction site constructor because it depends on `pipelinedMolecules`, `consumingReactions`, `knownInputMolecules`,
-  // and other values that need to be already computed. This call will also report the elapsed time, measuring the overhead of creating a new reaction site.
+  // This code should be at the very end of the reaction site constructor because it reports the elapsed time,
+  // measuring the overhead of creating a new reaction site, and also because it calls initializeReactionSite(),
+  // which depends on `pipelinedMolecules`, `consumingReactions`, `knownInputMolecules`, and other values.
   private val diagnostics: WarningsAndErrors = {
     val warningsAndErrors = initializeReactionSite()
     val endTime = System.nanoTime()

@@ -300,7 +300,7 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter with Emit
   * @param clusterConnector Implicit value describing the cluster into which this molecule will be emitted.
   * @tparam T Type of the value carried by the molecule.
   */
-final class DM[T](val name: String)(implicit val clusterConnector: ClusterConnector) extends (T => Unit) with MolEmitter {
+final class DM[T](val name: String)(implicit val clusterConnector: ClusterConfig) extends (T => Unit) with MolEmitter {
   override val isDistributed: Boolean = true
 
   def unapply(arg: ReactionBodyInput): Wrap[T] = {
