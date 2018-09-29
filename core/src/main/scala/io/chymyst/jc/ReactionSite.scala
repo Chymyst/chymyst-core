@@ -483,8 +483,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // (If no condition is satisfied, we will not emit this value for a pipelined molecule.)
         // For non-pipelined molecules, `admitsValue` will be identically `true`.
         val admitsValue = !mol.isPipelined ||
-          // TODO: could optimize this, since `pipelinedMolecules` is only used to check `admitsValue`. (optimize how??)
-          pipelinedMolecules.get(mol.siteIndex).forall(infos ⇒ infos.isEmpty || infos.exists(_.admitsValue(molValue)))
+          // TODO: could optimize this, since `pipelinedMolecules` is only used to check `admitsValue`.
+          // The conditions could be collapsed to a single condition, evaluated by a dedicated function rather than by set lookups each time.
+          // The dedicated function could be created by a macro at compile time (and left unused if the molecule turns out to be non-pipelined).
+          pipelinedMolecules.get(mol.siteIndex).forall(_.exists(_.admitsValue(molValue)))
 
         // If we are here, we are allowed to emit.
         // But will not emit if the pipeline does not admit the value.
@@ -510,6 +512,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         }
       }
     }
+  }
+  
+  private[jc] def emitDistributed[T](mol: DM[T], value: T): Unit = {
+    ???
   }
 
   /** Compute a map of molecule counts in the soup. This is potentially very expensive if there are many molecules present.
@@ -656,7 +662,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     } else staticDiagnostics
   }
 
-  private def emitStaticMols() = {
+  private def emitStaticMols(): Unit = {
     // Emit static molecules now.
     // This must be done without starting any reactions that might consume these molecules.
     // So, we set the flag `nowEmittingStaticMols`, which will prevent other reactions from starting.
@@ -814,7 +820,7 @@ private[jc] sealed trait ReactionExitStatus {
 }
 
 private[jc] case object ReactionExitSuccess extends ReactionExitStatus {
-  override val getMessage: String = ""
+  override final val getMessage: String = ""
 }
 
 private[jc] final case class ReactionExitFailure(message: String) extends ReactionExitStatus {

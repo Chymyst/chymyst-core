@@ -289,7 +289,7 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter with Emit
     Wrap(v)
   }
 
-  /** Emit a non-blocking molecule.
+  /** Emit a non-blocking molecule. The molecule must be already bound to a reaction site.
     *
     * Note that static molecules can be emitted only by a reaction that consumed them, and not by other code.
     *
@@ -303,6 +303,8 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter with Emit
 
   def apply()(implicit arg: TypeMustBeUnit[T]): Unit = (apply(arg.getUnit): @inline)
 
+  // The macros in `ReactionMacros.scala` will replace all `M#apply()` by `.applyStatic()` within reaction bodies.
+  // TODO: make these functions package-private to protect them from inadvertent use?
   def applyStatic(v: T): Unit = reactionSite.emit(this, MolValue(v))
 
   def applyStatic()(implicit arg: TypeMustBeUnit[T]): Unit = (applyStatic(arg.getUnit): @inline)
@@ -325,16 +327,12 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter with Emit
   @volatile private var volatileValueRef: T = _
 
   override lazy val isStatic: Boolean = reactionSite.staticMolDeclared.contains(this)
-
-  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: MolSiteIndex, valType: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]): Unit = {
-    super.setReactionSiteInfo(rs, index, valType, pipelined, selfBlocking)
-  }
 }
 
 /** Non-blocking distributed molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
   *
   * @param name             Name of the molecule, used for identifying distributed reaction site across the cluster.
-  * @param clusterConnector Implicit value to describe the cluster into which this molecule will be emitted.
+  * @param clusterConnector Implicit value describing the cluster into which this molecule will be emitted.
   * @tparam T Type of the value carried by the molecule.
   */
 final class DM[T](val name: String)(implicit val clusterConnector: ClusterConnector) extends (T => Unit) with MolEmitter {
@@ -344,25 +342,15 @@ final class DM[T](val name: String)(implicit val clusterConnector: ClusterConnec
     Wrap(v)
   }
 
-  /** Emit a non-blocking molecule.
-    *
-    * Note that static molecules can be emitted only by a reaction that consumed them, and not by other code.
+  /** Emit a non-blocking distributed molecule. The molecule must be already bound to a reaction site.
     *
     * @param v Value to be put onto the emitted molecule.
     */
   def apply(v: T): Unit = ensureReactionSite {
-   applyStatic(v)
+    reactionSite.emitDistributed(this, v)
   }
 
   def apply()(implicit arg: TypeMustBeUnit[T]): Unit = (apply(arg.getUnit): @inline)
-
-  def applyStatic(v: T): Unit = reactionSite.emit(this, MolValue(v))
-
-  def applyStatic()(implicit arg: TypeMustBeUnit[T]): Unit = (applyStatic(arg.getUnit): @inline)
-
-  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: MolSiteIndex, valType: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]): Unit = {
-    super.setReactionSiteInfo(rs, index, valType, pipelined, selfBlocking)
-  }
 }
 
 /** Reply emitter for blocking molecules. This is a mutable class that holds the reply value and monitors the time-out status.
