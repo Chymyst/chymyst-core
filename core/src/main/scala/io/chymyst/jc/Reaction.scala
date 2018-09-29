@@ -500,7 +500,7 @@ final case class OutputMoleculeInfo(molecule: MolEmitter, flag: OutputPatternTyp
   override val toString: String = s"${molecule.toString}($flag)"
 }
 
-// This class is immutable.
+// This class is immutable because all arrays are private.
 final class ReactionInfo(
   private[jc] val inputs: Array[InputMoleculeInfo],
   private[jc] val outputs: Array[OutputMoleculeInfo],
@@ -675,9 +675,9 @@ final class ReactionInfo(
 /** Represents a reaction. This class is immutable.
   *
   * @param info       A value of type [[ReactionInfo]] describing input and output molecules for this reaction.
-  * @param body       Partial function of type `InputMoleculeList => Any`
+  * @param body       Partial function of type `InputMoleculeList ⇒ Any`
   * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
-  * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is false.
+  * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is `false`.
   */
 final case class Reaction(
   private[jc] val info: ReactionInfo,
