@@ -412,7 +412,7 @@ final class B[T, R](val name: String) extends (T => R) with MolEmitter with Emit
   /** This enables the short syntax `b.futureReply()` instead of `b.futureReply(())`, and will only work when `T == Unit`. */
   def futureReply()(implicit arg: TypeMustBeUnit[T]): Future[R] = (futureReply(arg.getUnit): @inline)
 
-  /** Returns `true` if the molecule belongs to a reaction running on a fixed pool that also */
+  /** Returns `true` if the molecule belongs to a reaction running on a fixed pool that also emits this molecule. */
   private[jc] def isSelfBlocking: Boolean = valSelfBlockingPool.exists { pool ⇒
     Thread.currentThread match {
       case t: ChymystThread ⇒
