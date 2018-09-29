@@ -63,7 +63,7 @@ private[jc] sealed trait AbsMolValue[T] {
   */
 private[jc] final case class MolValue[T](private[jc] val moleculeValue: T) extends AbsMolValue[T] {
 
-  private var whenConsumedPromise: Option[Promise[T]] = None
+  @volatile private var whenConsumedPromise: Option[Promise[T]] = None
 
   override private[jc] def fulfillWhenConsumedPromise(): Unit = {
     whenConsumedPromise.foreach(_.success(moleculeValue))
@@ -105,7 +105,7 @@ private[jc] final case class BlockingMolValue[T, R](
   * This trait is not parameterized by type and is used in collections of molecules that do not require knowledge of molecule types.
   * Its only implementations are the (parameterized) classes [[B]]`[T, R]`, [[M]]`[T]`, and  [[DM]]`[T]`.
   */
-sealed trait MolEmitter extends PersistentHashCode {
+sealed trait MolEmitter extends PersistentHashCode with MolEmitterDebugging {
 
   /** The name of the molecule. Used for debugging and for identifying distributed reactions.
     * This will be assigned automatically if using the [[b]] or [[m]] macros to create a new molecule emitter.
@@ -240,41 +240,6 @@ sealed trait MolEmitter extends PersistentHashCode {
     * @return A molecule's displayed name as string.
     */
   override final val toString: MolString = MolString((if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else ""))
-
-  // This is `Any` because we need to call this on a `MolEmitter`, which does not have a type parameter.
-  // We could avoid this using a type downcast.
-  private var whenEmittedPromise: Option[Promise[Any]] = None
-
-  protected def whenEmittedFuture: Future[Any] = {
-    val newPromise = Promise[Any]()
-    whenEmittedPromise = Some(newPromise)
-    newPromise.future
-  }
-
-  private[jc] def fulfillWhenEmittedPromise(t: Any): Unit = {
-    whenEmittedPromise.foreach(_.success(t))
-    whenEmittedPromise = None
-  }
-
-  private var whenScheduledPromise: Option[Promise[String]] = None
-
-  protected def whenScheduledFuture: Future[String] = {
-    val newPromise = Promise[String]()
-    whenScheduledPromise = Some(newPromise)
-    newPromise.future
-  }
-
-  private[jc] def succeedWhenScheduledPromise(molName: String): Unit = {
-    whenScheduledPromise.foreach(_.success(molName))
-    whenScheduledPromise = None
-  }
-
-  private final val noReactionScheduledException = new Exception(s"$this.whenScheduled() failed because no reaction could be scheduled (this is not an error)")
-
-  private[jc] def failWhenScheduledPromise(): Unit = {
-    whenScheduledPromise.foreach(_.failure(noReactionScheduledException))
-    whenScheduledPromise = None
-  }
 }
 
 /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -336,6 +301,7 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter with Emit
   * @tparam T Type of the value carried by the molecule.
   */
 final class DM[T](val name: String)(implicit val clusterConnector: ClusterConnector) extends (T => Unit) with MolEmitter {
+  override val isDistributed: Boolean = true
 
   def unapply(arg: ReactionBodyInput): Wrap[T] = {
     val v = arg.inputs(arg.index).asInstanceOf[MolValue[T]].moleculeValue
@@ -396,7 +362,7 @@ private[jc] final class ReplyEmitter[T, R](useFuture: Boolean) extends (R => Boo
   * @tparam T Type of the value carried by the molecule.
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
-final class B[T, R](val name: String) extends (T => R) with MolEmitter {
+final class B[T, R](val name: String) extends (T => R) with MolEmitter with EmitterDebugging[T] {
   override def isBlocking = true
 
   /** Emit a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
@@ -454,8 +420,6 @@ final class B[T, R](val name: String) extends (T => R) with MolEmitter {
       case _ ⇒ false
     }
   }
-
-  def whenEmitted: Future[T] = whenEmittedFuture.asInstanceOf[Future[T]]
 }
 
 /** Mix this trait into your class to make the has code persistent after the first time it's computed.

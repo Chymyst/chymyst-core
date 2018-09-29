@@ -2,7 +2,49 @@ package io.chymyst.jc
 
 import scala.concurrent.{Future, Promise}
 
-/** Methods used for debugging a non-blocking molecule emitter.
+/** Methods used for debugging a non-blocking molecule emitter events.
+  * These methods are independent of the type of the molecule's value.
+  */
+trait MolEmitterDebugging {
+
+  // This is `Any` because we need to call this on a `MolEmitter`, which does not have a type parameter.
+  // We could avoid this using a type downcast.
+  @volatile private var whenEmittedPromise: Option[Promise[Any]] = None
+
+  protected def whenEmittedFuture: Future[Any] = {
+    val newPromise = Promise[Any]()
+    whenEmittedPromise = Some(newPromise)
+    newPromise.future
+  }
+
+  private[jc] def fulfillWhenEmittedPromise(t: Any): Unit = {
+    whenEmittedPromise.foreach(_.success(t))
+    whenEmittedPromise = None
+  }
+
+  @volatile private var whenScheduledPromise: Option[Promise[String]] = None
+
+  protected def whenScheduledFuture: Future[String] = {
+    val newPromise = Promise[String]()
+    whenScheduledPromise = Some(newPromise)
+    newPromise.future
+  }
+
+  private[jc] def succeedWhenScheduledPromise(molName: String): Unit = {
+    whenScheduledPromise.foreach(_.success(molName))
+    whenScheduledPromise = None
+  }
+
+  private final val noReactionScheduledException = new Exception(s"$this.whenScheduled() failed because no reaction could be scheduled (this is not an error)")
+
+  private[jc] def failWhenScheduledPromise(): Unit = {
+    whenScheduledPromise.foreach(_.failure(noReactionScheduledException))
+    whenScheduledPromise = None
+  }
+  
+}
+
+/** Methods used for debugging a non-blocking molecule's emitted values.
   * 
   * @tparam T The value type of the molecule.
   */
@@ -57,5 +99,4 @@ trait EmitterDebugging[T] { self: MolEmitter ⇒
     else whenScheduledFuture
 
   private val exceptionDisallowedwhenScheduled = new Exception(s"whenScheduled() is disallowed on reaction threads (molecule: $this)")
-
 }
