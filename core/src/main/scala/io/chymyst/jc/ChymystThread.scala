@@ -4,6 +4,9 @@ import io.chymyst.jc.Core.ReactionString
 
 /** Thread that knows which Chymyst reaction is running on it, and which pool it belongs to.
   * This is used for debugging and for implementing [[BlockingIdle]] functionality.
+  * 
+  * The reaction information is a simple `String` in order to make it quick to fetch.
+  * It is intended for debugging purposes only.
   *
   * @param runnable The initial task given to the thread. (Required by the [[Thread]] interface.)
   */

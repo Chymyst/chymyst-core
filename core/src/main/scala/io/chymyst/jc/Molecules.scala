@@ -103,11 +103,11 @@ private[jc] final case class BlockingMolValue[T, R](
 
 /** Abstract trait representing a molecule emitter.
   * This trait is not parameterized by type and is used in collections of molecules that do not require knowledge of molecule types.
-  * Its only implementations are the (parameterized) classes [[B]]`[T, R]` and [[M]]`[T]`.
+  * Its only implementations are the (parameterized) classes [[B]]`[T, R]`, [[M]]`[T]`, and  [[DM]]`[T]`.
   */
 sealed trait MolEmitter extends PersistentHashCode {
 
-  /** The name of the molecule. Used only for debugging.
+  /** The name of the molecule. Used for debugging and for identifying distributed reactions.
     * This will be assigned automatically if using the [[b]] or [[m]] macros to create a new molecule emitter.
     */
   val name: String
@@ -116,27 +116,29 @@ sealed trait MolEmitter extends PersistentHashCode {
   @inline def isPipelined: Boolean = valIsPipelined
 
   /** The type symbol corresponding to the value type of the molecule.
-    * For instance, a molcule emitter defined as `val f = b[Int, String]` has type symbol `'Int`.
+    * For instance, a molecule emitter of type `B[Int, String]` has type symbol `'Int`.
     *
     * @return A Scala [[Symbol]] representing the molecule value type, such as `'Unit`, `'Int` etc.
     */
   @inline def typeSymbol: Symbol = valTypeSymbol
 
-  /** Global site-wide index that numbers all molecules bound to a given reaction site. */
-  @inline private[jc] def siteIndex: MolSiteIndex = siteIndexValue
+  /** Global site-wide index that numbers all molecules bound to a given reaction site.
+    * Will be assigned when the reaction site is activated. 
+    */
+  @inline private[jc] def siteIndex: MolSiteIndex = valSiteIndex
 
-  /** This is called by a [[ReactionSite]] only once, for each molecule emitter when it first becomes bound to that reaction site.
+  /** This is called by a [[ReactionSite]] only once for each molecule emitter when it first becomes bound to that reaction site.
     *
     * @param rs        Reaction site to which the molecule is now bound.
-    * @param siteIndex Zero-based index of the input molecule at that reaction site.
+    * @param siteIndex Zero-based site-wide index of the input molecule at that reaction site.
     */
   private[jc] def setReactionSiteInfo(rs: ReactionSite, siteIndex: MolSiteIndex, typeSymbol: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]): Unit = {
     hasReactionSite = true
-    siteIndexValue = siteIndex
+    valSiteIndex = siteIndex
     valTypeSymbol = typeSymbol
     valIsPipelined = pipelined
     valSelfBlockingPool = selfBlocking
-    reactionSiteValue = rs
+    valReactionSite = rs
   }
 
   /** Check whether the molecule is already bound to a reaction site.
@@ -162,15 +164,15 @@ sealed trait MolEmitter extends PersistentHashCode {
   // All these variables will be assigned exactly once and will never change thereafter. It's not clear how best to enforce this in Scala.
   private var valIsPipelined: Boolean = false
 
-  private var reactionSiteValue: ReactionSite = _
+  private var valReactionSite: ReactionSite = _
 
-  @inline protected def reactionSite: ReactionSite = reactionSiteValue
+  @inline protected def reactionSite: ReactionSite = valReactionSite
 
   private var valTypeSymbol: Symbol = _
 
   protected var valSelfBlockingPool: Option[Pool] = None
 
-  private var siteIndexValue: MolSiteIndex = MolSiteIndex(-1)
+  private var valSiteIndex: MolSiteIndex = MolSiteIndex(-1)
 
   private var hasReactionSite: Boolean = false
 
@@ -191,7 +193,7 @@ sealed trait MolEmitter extends PersistentHashCode {
     * Note that these reactions may be defined in any reaction sites, not necessarily at the site to which this molecule is bound.
     * The set of these reactions may change at run time if new reaction sites are written that output this molecule.
     *
-    * This is used only during static analysis. This cannot be made a `lazy val` since static analysis can proceed before all emitting reactions are known.
+    * This is used only during static analysis. This cannot be made a `lazy val` since static analysis may run before all emitting reactions are known.
     * Static analysis may be incomplete if that happens; but we can do little about this, since reaction sites are activated at run time.
     *
     * @return Empty set if the molecule is not yet bound to any reaction site.
@@ -224,10 +226,12 @@ sealed trait MolEmitter extends PersistentHashCode {
     else reactionSite.printBag
   }
 
+  def isDistributed: Boolean = false
+
   def isBlocking: Boolean = false
 
   /** This is a `def` because we will only know whether this molecule is static after this molecule is bound to a reaction site, at run time.
-    * The value `false` will be overridden by the [[M]] class (only non-blocking molecules can be static).
+    * The value `false` will be overridden by the [[M]] class (only non-blocking, non-distributed molecules can be static).
     */
   def isStatic: Boolean = false
 
@@ -315,14 +319,14 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter {
   }
   else throw new Exception(s"Molecule $name is not bound to any reaction site, cannot read volatile value")
 
-  private[jc] def assignStaticMolVolatileValue(molValue: AbsMolValue[_]) =
+  private[jc] def assignStaticMolVolatileValue(molValue: AbsMolValue[_]): Unit =
     volatileValueRef.set(molValue.asInstanceOf[MolValue[T]].moleculeValue)
 
   private val volatileValueRef: AtomicReference[T] = new AtomicReference[T]()
 
   override lazy val isStatic: Boolean = reactionSite.staticMolDeclared.contains(this)
 
-  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: MolSiteIndex, valType: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]) = {
+  override private[jc] def setReactionSiteInfo(rs: ReactionSite, index: MolSiteIndex, valType: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]): Unit = {
     super.setReactionSiteInfo(rs, index, valType, pipelined, selfBlocking)
   }
 
@@ -377,7 +381,7 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter {
   private val exceptionDisallowedwhenScheduled = new Exception(s"whenScheduled() is disallowed on reaction threads (molecule: $this)")
 }
 
-/** Reply emitter for blocking molecules. This is a mutable class that holds the reply value and monitors time-out status.
+/** Reply emitter for blocking molecules. This is a mutable class that holds the reply value and monitors the time-out status.
   *
   * @tparam T Type of the value that the molecule carries.
   * @tparam R Type of the reply value.
