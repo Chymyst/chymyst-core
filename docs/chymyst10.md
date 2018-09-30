@@ -338,13 +338,102 @@ The DCM peer automatically identifies the local DM emitters corresponding to the
 The DCM peer then determines the list of reaction sites that consume any of the newly available DMs.
 The "new data" notification is forwarded to each of these reaction sites.
 
-## Reaction scheduling
+## Reaction scheduling for DM inputs
 
-## Reaction start
+Each reaction site attempts to schedule new reactions whenever a new molecule is emitted into that site,
+or whenever a "new data" notification arrives.
 
-## Reaction completion
+Each RS's reaction scheduler is single-threaded and so the local molecule multisets do not need any locking.
+However, if the RS consumes any distributed molecules as inputs, a distributed locking mechanism will be used,
+so that no DMs are removed from the cluster site while a given DCM peer is reading the list of the available DMs or consuming them.
 
-## Failure to complete a reaction
+New DMs may be emitted while a DCM peer is reading the available DMs; the new DMs may not be immediately visible to the DCM peer,
+but this will not reduce the number of possibly scheduled reactions.
+New DMs will generate another "new data" notification, which will cause them to be examined at a later time.
+
+Each distributed reaction site is identified by a unique hash.
+The hash depends on the entire reaction site's source code, as well as on the names of the input molecules.
+
+In ZooKeeper's filesystem, the information about available DMs is stored under the paths corresponding to each molecule's site index in the RS.
+To illustrate the directory structure, assume that two reaction sites have hashes `1a2b34cd` and `5678ef09` and consume 3 input DMs each,
+and that two copies of each DM is available.
+
+
+```
+DCM/
+   1a2b34cd/
+           lock/
+           dm-0/
+               val-0
+               val-1
+           dm-1/
+               val-0
+               val-1
+           dm-2/
+               val-0
+               val-1
+   5678ef09/
+           lock/
+           dm-0/
+               val-0
+               val-1
+           dm-1/
+               val-0
+               val-1
+           dm-2/
+               val-0
+               val-1
+```
+
+The RS's reaction scheduler will wait for an exclusive distributed lock on the reaction site's hash.
+In this way, different RS's (running on all DCM peers) can schedule their reactions concurrently,
+but input molecules for each RS are locked until that RS's scheduler decides what reactions to start.
+
+The serialized data values are stored as the content of the files `val-0`, `val-1` etc. 
+
+The distributed lock is implemented by creating files in the subdirectory `lock` of each reaction site's directory.
+The lock must be specific to the cluster session ID; if the session expires, the lock is abandoned and has to be requested again in a new session.
+
+## Starting a reaction
+
+To determine whether a given reaction can start, the DCM peer starts looking for local molecules and then, if they are found as needed, continues to look for distributed molecules by acquiring a distributed lock and downloading the available molecule values.
+Once these distributed molecules are determined, the DCM peer needs to mark these DMs as consumed and start a reaction.
+Marking DMs as consumed means to add an ephemeral child node like this,
+
+```
+DCM/1a2b34cd/dm-0/val-0/consumed-XXXX
+```
+
+where `XXXX` corresponds to the cluster session ID of the DCM peer.
+
+If a molecule node such as `val-0` has a child, it means the node is not currently available for consumption.
+Other DCM peers will not consume `dm-0/val-0` when they look for available DMs. 
+
+The ephemeral child node `consumed-XXXX` will automatically disappear if the cluster session expires.
+This means that the DCM peer failed to complete the reaction, crashed, or got disconnected by network long enough for the cluster session to break.
+In this way, the cluster will automatically mark the molecule `dm-0/val-0` as available, and another DCM peer may consume that molecule later.
+
+When the reaction starts by consuming one or more DMs, the cluster session ID must be stored in the runtime thread that runs the reaction. 
+
+## Completing a reaction
+
+The DCM follows the convention that a distributed reaction is successful if it finished without exceptions.
+If a reaction failed for any reason, its input molecules should be restored as again available in the cluster, rolling back the consumption step.
+"Transactions" (rolling back more than one reaction) are not supported by the DCM because, in general, there is no single sequence of reactions that automatically follow from a given reaction and could be considered as a "trnasaction".
+
+When a reaction completes successfully, the DCM peer needs to notify the cluster that the input molecules are irrevocably consumed.
+In the example above, the node `dm-0/val-0` must be now deleted, together with the ephemeral child node `consumed-XXXX`.
+The current DCM peer does this via its cluster session.
+
+If this last step fails (because of network failure), the ephemeral child node will be deleted, and the cluster will decide that the reaction failed.
+The absence of the ephemeral child node will be detected the next time the DCM peer connects to the cluster, which should signal to the current DCM peer that another DCM peer might have started another copy of the same reaction.
+Thus, any effects of this reaction must be undone or ignored.
+A special "clean-up" step might be executed in that case.
+
+When a reaction fails to complete due to an exception, the DCM peer may decide to abandon attempts to run this reaction.
+It will then delete the ephemeral child node `consumed-XXXX`, to let the cluster know that the molecule should be considered available.
+
+If the reaction has more than one input molecules, the node operations must be executed transactionally.
 
 ## Emitting a new distributed molecule
 
