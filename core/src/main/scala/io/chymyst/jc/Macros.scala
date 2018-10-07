@@ -396,11 +396,11 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     // However, the order of output molecules corresponds to the order in which they might be emitted.
     val allOutputInfo = bodyOut
     // Output molecule info comes only from the body since neither the pattern nor the guard can emit output molecules.
-    val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, ${p.patternTypeWithTree}, ${envs.reverse})" }.toArray
+    val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, ${m.asTerm.name.decodedName.toString.toScalaSymbol}, ${p.patternTypeWithTree}, ${envs.reverse})" }.toArray
 
     // Compute shrunk output info.
     val shrunkOutputInfo = OutputEnvironment.shrink(allOutputInfo.map { case (m, p, envs) => (m, p.patternTypeWithTree, envs) }, equalsToTree)
-    val shrunkOutputReactionInfo = shrunkOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
+    val shrunkOutputReactionInfo = shrunkOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, ${m.asTerm.name.decodedName.toString.toScalaSymbol}, $p, ${envs.reverse})" }.toArray
 
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
     // It is an error to have blocking molecules that do not match on a simple variable.
@@ -441,9 +441,8 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       .map { case (s, i, p, _) =>
         // Determine the value type of the molecule and create a symbol, e.g. 'Int or 'Unit.
         val valType = s.typeSignature.typeArgs.headOption.map(_.dealias.finalResultType.toString).getOrElse("<unknown>").toScalaSymbol
-        q"InputMoleculeInfo(${s.asTerm}, $i, $p, ${p.patternSha1(t => showCode(t), md)}, $valType)"
-      }
-      .toArray
+        q"InputMoleculeInfo(${s.asTerm}, ${s.asTerm.name.decodedName.toString.toScalaSymbol}, $i, $p, ${p.patternSha1(t => showCode(t), md)}, $valType)"
+      }.toArray
 
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of unconditionally emitted output molecules.

@@ -327,13 +327,14 @@ final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSym
 
 /** Compile-time information about an input molecule pattern in a certain reaction where the molecule is consumed.
   *
-  * @param molecule The molecule emitter value that represents the input molecule.
-  * @param index    Zero-based index of this molecule in the input list of the reaction.
-  * @param flag     A value of type [[InputPatternType]] that describes the value pattern: wildcard, constant match, etc.
-  * @param sha1     Hash sum of the input pattern's source code (desugared Scala representation).
-  * @param valType  String representation of the type `T` of the molecule's value, e.g. for [[M]]`[T]` or [[B]]`[T, R]`.
+  * @param molecule   The molecule emitter value that represents the input molecule.
+  * @param nameSymbol A Scala symbol representing the local name of the molecule emitter.
+  * @param index      Zero-based index of this molecule in the input list of the reaction.
+  * @param flag       A value of type [[InputPatternType]] that describes the value pattern: wildcard, constant match, etc.
+  * @param sha1       Hash sum of the input pattern's source code (desugared Scala representation).
+  * @param valType    String representation of the type `T` of the molecule's value, e.g. for [[M]]`[T]` or [[B]]`[T, R]`.
   */
-final case class InputMoleculeInfo(molecule: MolEmitter, index: Int, flag: InputPatternType, sha1: String, valType: ScalaSymbol) {
+final case class InputMoleculeInfo(molecule: MolEmitter, nameSymbol: ScalaSymbol, index: Int, flag: InputPatternType, sha1: String, valType: ScalaSymbol) {
   val isConstantValue: Boolean = flag.isConstantValue
 
   private[jc] def admitsValue(molValue: AbsMolValue[_]): Boolean = flag match {
@@ -491,10 +492,11 @@ final case class InputMoleculeInfo(molecule: MolEmitter, index: Int, flag: Input
   * This class is immutable.
   *
   * @param molecule     The molecule emitter value that represents the output molecule.
+  * @param nameSymbol   A Scala symbol representing the local name of the molecule emitter.
   * @param flag         Type of the output pattern: either a constant value or other value.
   * @param environments The code environment in which this output molecule was emitted.
   */
-final case class OutputMoleculeInfo(molecule: MolEmitter, flag: OutputPatternType, environments: List[OutputEnvironment]) {
+final case class OutputMoleculeInfo(molecule: MolEmitter, nameSymbol: ScalaSymbol, flag: OutputPatternType, environments: List[OutputEnvironment]) {
   val atLeastOnce: Boolean = environments.forall(_.atLeastOne)
 
   override val toString: String = s"${molecule.toString}($flag)"
@@ -508,7 +510,9 @@ final class ReactionInfo(
   private[jc] val guardPresence: GuardPresenceFlag,
   private[jc] val sha1: String
 ) {
-  private[jc] val hasBlockingInputs: Boolean = optimize { inputs.exists(_.molecule.isBlocking) }
+  private[jc] val hasBlockingInputs: Boolean = optimize {
+    inputs.exists(_.molecule.isBlocking)
+  }
 
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
@@ -591,7 +595,7 @@ final class ReactionInfo(
 
   // The input pattern sequence is pre-sorted by descending strength of constraint — for pretty-printing as well as for use in static analysis.
   private[jc] val inputsSortedByConstraintStrength: List[InputMoleculeInfo] = optimize {
-    inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha, _) =>
+    inputs.sortBy { case InputMoleculeInfo(mol, _, _, flag, sha, _) =>
       // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers.
       val patternPrecedence = flag match {
         case WildcardInput |
@@ -637,7 +641,9 @@ final class ReactionInfo(
         .map { case (i, is) ⇒ (i, is.toArray) }
         .toArray
     }
-    (inputsSortedIrrefutableGrouped, optimize{inputsSortedConditional.filter(info ⇒ independentInputMolecules contains info.index).toArray})
+    (inputsSortedIrrefutableGrouped, optimize {
+      inputsSortedConditional.filter(info ⇒ independentInputMolecules contains info.index).toArray
+    })
   }
 
   /* Not sure if this is still useful.

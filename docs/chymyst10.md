@@ -52,10 +52,6 @@ implicit val clusterConfig = ClusterConfig(
 Each DCM peer is automatically assigned a unique ID in the cluster.
 The ID can be read as `clusterConfig.clientId`.
 
-## Serialization
-
-All data carried by DMs is serialized using the [Chill](https://github.com/twitter/chill) library.
-
 ## Distributed molecules
 
 An emitter for a distributed molecule is defined using the class constructor `DM` or the macro `dm`:
@@ -302,6 +298,27 @@ Modify the code in [Chapter 1](chymyst01.md) for the concurrent counter to make 
 so that the counter can be incremented or decremented on any of the DCM peers.
 
 Make sure that there is only one copy of the `counter` molecule in the cluster site.
+
+
+## Serialization of molecule emitters
+
+All data carried by DMs is serialized using the [Chill](https://github.com/twitter/chill) library.
+
+Programmers need to take special care when a DM carries data that itself contains a molecule emitter (e.g. molecule of type `DM[M[Int]]`, `DM[DM[Int]]` and so on).
+All molecule emitters carried by DMs must be bound to reaction sites that can be unambiguously identified by their hash sum.
+
+A reaction site declared statically in the application code is easily identified.
+However, programmers may also declare reaction sites in the scope of a function, and then call that function several times with different parameters to create several reaction sites. 
+This will be typically the case, for instance, if reaction sites are declared by a library function.
+
+The reaction sites created "dynamically" by different function invocations will all have identical Scala code.
+However, these reactions (and the molecule emitters bound to them) will be _chemically_ different, since chemical reactions are decided by object identities.
+If molecule emitters are carried by DMs, it will be necessary to identify the specific instance of the reaction site to which the molecule emitter is bound.
+This identification becomes impossible if several reaction sites are created dynamically from identical Scala code but (possibly) different parameters and different object identities for molecule emitters.
+Therefore, molecule emitters bound to dynamically created reaction sites cannot be used as data carried by DMs. 
+
+For this reason, DCM restricts molecule emitters carried by DMs to be bound to **static reaction sites**, that is, reaction sites that exist in a single instance.
+If it is necessary for application code to create several reaction sites dynamically, the reaction sites must differ from each other at least in the names of some input molecules.
 
 # The DCM protocol internals
 

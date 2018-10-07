@@ -128,7 +128,7 @@ package object jc {
     * @return `true` if the current thread belongs to a Chymyst reaction pool, `false` otherwise.
     */
   def isChymystThread: Boolean = Thread.currentThread() match {
-    case t: ChymystThread ⇒ true
+    case _: ChymystThread ⇒ true
     case _ ⇒ false
   }
 }

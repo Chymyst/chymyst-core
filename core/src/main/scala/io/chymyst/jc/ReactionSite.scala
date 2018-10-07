@@ -1,7 +1,6 @@
 package io.chymyst.jc
 
 import java.util.concurrent.atomic.AtomicIntegerArray
-import java.util.function.IntUnaryOperator
 
 import io.chymyst.jc.Core._
 import io.chymyst.jc.StaticAnalysis._
@@ -513,7 +512,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       }
     }
   }
-  
+
   private[jc] def emitDistributed[T](mol: DM[T], value: T): Unit = {
     ???
   }
@@ -619,7 +618,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       val unitType = valType === 'Unit
       val useMapBag = unitType || (simpleType && !pipelined)
       moleculesPresent(siteIndex) = if (mol.isDistributed)
-        new ClusterBag[AbsMolValue[_]]()
+        new ClusterBag[AbsMolValue[_]](mol.asInstanceOf[DM[_]].clusterConnector)
       else if (useMapBag)
         new MutableMapBag[AbsMolValue[_]]()
       else
