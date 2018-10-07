@@ -72,10 +72,11 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
 
     a.logSite shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nNo molecules"
 
-    a()
+    a.apply()
     a()
     bb()
     Thread.sleep(300)
+    a.logSite shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nMolecules: a/P() * 2 + bb/P()"
     d()
     g.timeout()(1.second) shouldEqual Some(())
     a.logSite shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nMolecules: a/P() * 2 + bb/P()"

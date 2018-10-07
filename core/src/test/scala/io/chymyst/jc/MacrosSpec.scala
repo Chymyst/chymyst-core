@@ -1079,9 +1079,10 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
   it should "detect simple constant due to perfect if-then-else shrinkage within val block" in {
     val a = m[Int]
-    val r = go { case a(1) => val x = {
-      if (true) a(1) else a(1)
-    };
+    val r = go { case a(1) =>
+      val x: Unit = {
+        if (true) a(1) else a(1)
+      }
       x
     } // This livelock cannot be detected at compile time because it can't evaluate constants.
     r.info.shrunkOutputs shouldEqual List(OutputMoleculeInfo(a, 'a, ConstOutputPattern(1), List(NotLastBlock(1))))

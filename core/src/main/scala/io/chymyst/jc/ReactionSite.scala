@@ -485,7 +485,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           // TODO: could optimize this, since `pipelinedMolecules` is only used to check `admitsValue`.
           // The conditions could be collapsed to a single condition, evaluated by a dedicated function rather than by set lookups each time.
           // The dedicated function could be created by a macro at compile time (and left unused if the molecule turns out to be non-pipelined).
-          pipelinedMolecules.get(mol.siteIndex).forall(_.exists(_.admitsValue(molValue)))
+          pipelinedMolecules.get(mol.siteIndex).forall(infos ⇒ infos.isEmpty || infos.exists(_.admitsValue(molValue)))
 
         // If we are here, we are allowed to emit.
         // But will not emit if the pipeline does not admit the value.
