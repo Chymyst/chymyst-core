@@ -51,6 +51,6 @@ final class BlockingPool(
 }
 
 object BlockingPool {
-  def apply(): BlockingPool = macro PoolMacros.newBlockingPoolImpl0 // IntelliJ cannot resolve the symbol PoolMacros, but compilation works.
-  def apply(parallelism: Int): BlockingPool = macro PoolMacros.newBlockingPoolImpl1 // IntelliJ cannot resolve the symbol PoolMacros, but compilation works.
+  def apply(): BlockingPool = macro PoolMacros.newBlockingPoolImpl0
+  def apply(parallelism: Int): BlockingPool = macro PoolMacros.newBlockingPoolImpl1
 }

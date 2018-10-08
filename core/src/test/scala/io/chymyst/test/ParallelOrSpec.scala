@@ -103,7 +103,7 @@ class ParallelOrSpec extends LogSpec {
     val done = m[T]
 
     site(tp)(
-      go { case res1(_) => val x = b1(); done(x) }, // IntelliJ 2016.3 CE insists on `b1(())` here, but scalac is fine with `b1()`.
+      go { case res1(_) => val x = b1(); done(x) },
       go { case res2(_) => val x = b2(); done(x) }
     )
 
