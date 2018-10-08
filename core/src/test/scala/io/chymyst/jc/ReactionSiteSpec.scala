@@ -29,19 +29,19 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
   }
 
   behavior of "reaction site hash sums"
-  
+
   it should "create the same hash sums for the same reaction code" in {
     def makeRS[A](x: A): ReactionSite = {
       val a = m[A]
       site(go { case a(_) ⇒ x })
       a.reactionSite
     }
-    
+
     val rs1 = makeRS[Int](123)
     val rs2 = makeRS[String]("abc")
     rs1.sha1Code shouldEqual rs2.sha1Code
     rs1.sha1CodeWithNames shouldEqual rs2.sha1CodeWithNames
-    
+
     rs1.isDistributed shouldEqual false
     rs2.isDistributed shouldEqual false
   }
@@ -53,7 +53,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
 
     val code1 = a1.reactionSite.sha1Code
     val code1name = a1.reactionSite.sha1CodeWithNames
-    
+
     val a2 = new M[Int]("a")
     site(go { case a2(x) ⇒ x + n })
     val code2 = a2.reactionSite.sha1Code
@@ -80,12 +80,15 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     rs3.sha1Code shouldEqual rs4.sha1Code
     rs3.sha1CodeWithNames should not equal rs4.sha1CodeWithNames
   }
-  
+
   it should "detect distributed reaction site" in {
-    implicit val clusterConfig  = ClusterConfig("")
-    val a = new DM[Int]("a")
+    implicit val clusterConfig = ClusterConfig("")
+    val a = dm[Int]
+    val d = m[Int]
     site(go { case a(_) ⇒ })
     a.reactionSite.isDistributed shouldEqual true
+    site(go { case d(x) ⇒ a(x) })
+    d.reactionSite.isDistributed shouldEqual false
   }
 
   behavior of "reaction"

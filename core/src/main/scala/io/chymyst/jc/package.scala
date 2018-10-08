@@ -45,7 +45,7 @@ package object jc {
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
     * @return A [[Reaction]] value, containing the reaction body as well as static information about input and output molecules.
     */
-  def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl
+  def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.goImpl
 
   /**
     * Convenience syntax: users can write `a(x) + b(y)` to emit several molecules at once.
@@ -80,6 +80,15 @@ package object jc {
     * @return A new instance of class [[io.chymyst.jc.B]]`[T,R]`.
     */
   def b[T, R]: B[T, R] = macro MoleculeMacros.bImpl[T, R]
+
+  /** Declare a new distributed molecule emitter.
+    * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
+    *
+    * @tparam T Type of the value carried by the molecule.
+    * @param clusterConfig Implicit value describing how to connect to the cluster.
+    * @return A new instance of class [[io.chymyst.jc.B]]`[T,R]`.
+    */
+  def dm[T](implicit clusterConfig: ClusterConfig): DM[T] = macro MoleculeMacros.dmImpl[T]
 
   /** This pool is used for sites that do not specify a thread pool. */
   lazy val defaultPool = new BlockingPool("defaultPool")

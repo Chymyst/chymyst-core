@@ -168,10 +168,11 @@ final class MoleculeMacros(override val c: blackbox.Context) extends CommonMacro
     q"new B[$moleculeValueType,$replyValueType]($moleculeName)"
   }
 
-  def dmImpl[T: c.WeakTypeTag]: Tree = {
+  // Implicit arguments of the def macro become non-implicit arguments of the implementation function. See https://github.com/scala/scala/pull/1194
+  def dmImpl[T: c.WeakTypeTag](clusterConfig: c.Expr[ClusterConfig]): Tree = {
     val moleculeName = getEnclosingName
     val moleculeValueType = c.weakTypeOf[T]
-    q"new DM[$moleculeValueType]($moleculeName)"
+    q"new DM[$moleculeValueType]($moleculeName)($clusterConfig)"
   }
 
 }
@@ -208,8 +209,8 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
   private val md = getMessageDigest
 
-  // This is the main method that gathers the reaction info and performs some preliminary static analysis.
-  def buildReactionImpl(reactionBody: c.Expr[ReactionBody]): c.Expr[Reaction] = GetReactionCases.from(reactionBody.tree) match {
+  // This is the main method implementing `go` that gathers the reaction info and performs some preliminary static analysis.
+  def goImpl(reactionBody: c.Expr[ReactionBody]): c.Expr[Reaction] = GetReactionCases.from(reactionBody.tree) match {
     // Note: `caseDefs` should not be an empty list because that's a typecheck error (`go` only accepts a partial function, so at least one `case` needs to be given).
     // However, the user could be clever and write `val body = new PartialFunction...; go(body)`. We do not allow this because `go` needs to see the entire reaction body.
     case List((pattern, guard, body)) =>
