@@ -168,6 +168,12 @@ final class MoleculeMacros(override val c: blackbox.Context) extends CommonMacro
     q"new B[$moleculeValueType,$replyValueType]($moleculeName)"
   }
 
+  def dmImpl[T: c.WeakTypeTag]: Tree = {
+    val moleculeName = getEnclosingName
+    val moleculeValueType = c.weakTypeOf[T]
+    q"new DM[$moleculeValueType]($moleculeName)"
+  }
+
 }
 
 final class PoolMacros(override val c: blackbox.Context) extends CommonMacros(c) {

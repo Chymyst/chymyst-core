@@ -62,7 +62,7 @@ object Core {
   private[jc] def registerReactionSite(reactionSite: ReactionSite): Int = {
     val count = globalReactionSiteCount.getOrElseUpdate(reactionSite.sha1CodeWithNames, new AtomicInteger(0))
     // We will not store the emitters in `emittersBoundToStaticReactionSites` if there exist more than one reaction with the same sha1 hash.
-    if (count.get() == 0)
+    if (count.get() === 0)
       emittersBoundToStaticReactionSites.update(
         reactionSite.sha1CodeWithNames,
         Array.tabulate(reactionSite.moleculeAtIndex.size)(reactionSite.moleculeAtIndex.apply)
