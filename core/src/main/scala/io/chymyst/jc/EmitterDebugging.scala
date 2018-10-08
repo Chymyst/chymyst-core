@@ -5,7 +5,7 @@ import scala.concurrent.{Future, Promise}
 /** Methods used for debugging a non-blocking molecule emitter events.
   * These methods are independent of the type of the molecule's value.
   */
-trait MolEmitterDebugging {
+trait MolEmitterDebugging { self: MolEmitter ⇒
 
   // This is `Any` because we need to call this on a `MolEmitter`, which does not have a type parameter.
   // We could avoid this using a type downcast.
@@ -35,7 +35,7 @@ trait MolEmitterDebugging {
     whenScheduledPromise = None
   }
 
-  private final val noReactionScheduledException = new Exception(s"$this.whenScheduled() failed because no reaction could be scheduled (this is not an error)")
+  private final val noReactionScheduledException = new Exception(s"$name.whenScheduled() failed because no reaction could be scheduled (this is not an error)")
 
   private[jc] def failWhenScheduledPromise(): Unit = {
     whenScheduledPromise.foreach(_.failure(noReactionScheduledException))
