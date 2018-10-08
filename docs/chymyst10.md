@@ -27,10 +27,12 @@ The number of active DCM peers in a cluster may change with time, because indivi
 By default, computations do not explicitly depend on the number of DCM peers; the user code does not need to be aware of the current status of the cluster.
 Progress towards and correctness of computational results is guaranteed regardless of the presence or absence of hardware connected to the cluster. 
 
-To summarize, the DCM extends the CM by introducing **distributed molecules** (DMs) in addition to **local molecules**,
-and by extending the operational semantics to coordinate data exchange between any number of DCM peers. 
-The DCM runtime will also run local reactions with local molecules in the same way CM does.
-The programmer's job remains to declare certain molecules and reactions, and to emit certain initial molecules, such as to implement the required application logic.
+To summarize, the DCM extends the CM by introducing **distributed molecules** (DMs) in addition to **local molecules** (i.e. non-distributed molecules),
+and by extending the operational semantics to coordinate data exchange between any number of DCM peers.
+The DCM runtime will also run reactions with local molecules in the same way CM does.
+
+The programmer's job remains to implement the required application logic by declaring a number of molecules and reactions, and by arranging to emit certain initial molecules.
+In addition, the programmer will need to designate some molecules as DMs and others as local molecules.
 
 ## Cluster configuration
 
@@ -64,8 +66,8 @@ val c = new DM[Int]("c") // same as val c = dm[Int]
 
 Distributed molecules differ from local molecules in two ways:
 
-- they use a different emitter type: `DM` instead of `M`
-- defining a `DM` needs an implicit `ClusterConfig` value to be available in scope
+- They use a different emitter type: `DM` instead of `M`.
+- Defining a `DM` needs an implicit `ClusterConfig` value to be available in scope.
 
 Distributed molecules are always non-blocking.
 
@@ -74,16 +76,20 @@ Defining reactions and emitting a distributed molecule is done in the same way a
 ```scala
 val a = dm[Int] // Distributed molecule.
 val c = m[Int] // Local molecule.
-site( go { case a(x) + c(y) ⇒ ... })
+site( go { case a(x) + c(y) ⇒ ??? }) // Reaction site.
 
-(1 to 100).foreach(a)
+(1 to 100).foreach(a) // Initial molecules.
+c(0)
 
 ```
 
 Reactions may consume and emit distributed and/or local molecules in any combination.
-The data carried by distributed molecules will be stored on the ZooKeeper and, in this way, made available to all the DCM peers within the cluster.
-Thus, distributed molecules are emitted _into the cluster site_, not into a local reaction site.
-At any time, any DCM peer may start a reaction that consumes any of the available distributed molecules.
+The data carried by distributed molecules will be stored on the ZooKeeper instance and, in this way, will be made available to all the DCM peers within the cluster.
+Thus, we say that distributed molecules are emitted _into the cluster_, not into a local reaction site.
+
+At any time, any DCM peer may start a reaction that consumes any of the available molecules, as long as all the required local molecules as well as distributed molecules are present.
+The local molecules will be consumed from the local reaction site, while the DMs will be taken from the cluster.
+In this way, each reaction site that consumes DMs is automatically shared with other DCM peers.
 
 ## Example: distributed map/reduce
 
@@ -374,6 +380,142 @@ val (data2, get2) = makeQuery(20)
 ```
 
 The resulting reaction sites will be single-instance as long as the programmer does not call `makeQuery()` with the same value of `delta`.
+
+## Example: broadcasting
+
+Suppose we need to determine which DCM peers are currently active in the cluster.
+To do that, we would like to "broadcast a message" from a designated DCM peer to every other DCM peer.
+
+### Sending a broadcast message
+
+According to the chemical machine semantics, a message is represented by a molecule carrying data, and we cannot know exactly when a given copy of the molecule is actually consumed by a reaction.
+Thus we need a molecule that carries the broadcast message.
+Also, when more DCM peers join the cluster at a later time, these peers must still be able to consume a copy of the broadcast message emitted earlier.  
+
+Since the broadcast message must go from one DC peer to another, we must model it by a distributed molecule, say `broadcast()`.
+Other requirements mean that:
+
+- the `broadcast()` molecule must be consumed by each DCM peer in some reaction, to be defined;
+- any DCM peer, including DCM peers that connect to the cluster after the broadcast, must be able to consume this molecule;
+- any given DCM peer consumes this molecule only once.
+
+It also follows that we cannot have an "instantaneous" broadcast since it is not known when any given DCM peer can connect to the cluster and when it will become able to start reactions.
+The broadcast message will have to reach each of the DCM peers sequentially, one by one.
+This will be implemented by letting the DCM peers consume a copy of the `broadcast()` molecule. 
+ 
+To simplify this example, assume that the `broadcast()` molecule carries `Unit` values:
+
+```scala
+val broadcast = dm[Unit]
+
+```
+
+The `broadcast()` molecule must remain available to other peers after being consumed by a DCM peer.
+However, a given DCM peer should not consume this molecule a second time.
+The standard way of preventing a reaction is to withhold some input molecule.
+Therefore, the reaction that consumes the `broadcast()` molecule must have another input molecule, say `see()`:
+
+```scala
+val see = m[Unit]
+val seeBroadcast = go { case broadcast(_) + see(_) ⇒ println("Got broadcast") ; broadcast() }
+
+```
+
+The reaction `seeBroadcast` will run exactly once if the molecule `see()` is local (non-DM), and if we make sure that there is only one copy of `see()` ever emitted.
+However, we should not make `see()` a static molecule, since we do not want to emit `see()` again after consuming `broadcast()`.
+
+```scala
+site(seeBroadcast)
+see()
+
+```
+
+Now we need to arrange for `broadcast()` to be emitted by one of the DCM peers.
+We can do this by conditionally emitting `broadcast()` according to a configuration value `isDriver`, similarly to our implementation of distributed map/reduce:
+
+```scala
+if (isDriver) broadcast()
+
+```
+
+At this point, we have created a DCM program that will run the `seeBroadcast` reaction in every DCM peer exactly once.
+Each DCM peer will consume the single copy of `broadcast()`, print a message, and emit `broadcast()` back into the cluster for other DCM peers to consume.
+
+What if we emit several copies of `broadcast()` with identical data?
+Each DCM peer will still consume only one copy of `broadcast()` and emit it back.
+The resulting computations will be exactly the same, except that maybe more DCM peers will be able to consume the broadcast message at the same time.
+So, we may emit one or more copies of `broadcast()` at our discretion, in order to improve the throughput of the broadcast operation.
+
+### Responding to a broadcast
+
+It remains to implement a response that will allow the "driver" DCM peer to know how many other DCM peers exist in the cluster.
+
+It is clear that the response from each DCM peer may arrive at an unpredictable time and needs to be handled sequentially by the "driver" DCM peer.
+The response data must be transported from one DCM peer to another, therefore it must be a DM.
+Let us call it `response()` and make it carry `String`-valued data (say, representing the DCM peer's unique ID).
+We modify the previous code as follows:
+
+```scala
+val response = dm[String]
+val peerName = implicitly[ClusterConfig].clientId
+val seeBroadcast = go { case broadcast(_) + see(_) ⇒ broadcast(); response(peerName) }
+site(seeBroadcast)
+see()
+
+```
+
+The `response()` molecule must be consumed by a reaction that accumulates all peer names into a list.
+It is natural to model this by a local molecule, e.g. `peers()`:
+
+```scala
+val peers = m[List[String]]
+site(go { case peers(ps) + response(s) ⇒ peers(s :: ps) })
+if (isDriver) peers(Nil)
+
+```
+
+Since only the "driver" DCM peer emits the `peers()` molecule, the `response()` molecules will not be consumed by any other DCM peers.
+
+The `response()` molecules will be emitted to the cluster and then consumed by this reaction at unpredictable times.
+At any time, the `peers()` molecule will contain the latest available list of peers.
+
+### Exercise: peer removal
+
+The example shown above does not implement disconnection of peers; the semantics is that any peer may be temporarily disconnected from the cluster but may eventually reconnect.
+Implement an explicit message that tells the "driver" that a certain DCM peer is being removed from the cluster.
+The result must be that the `peers()` molecule (that is only present on the "driver") removes that DCM peer's ID from the list.
+
+## Example: distributed chat server
+
+To implement a simple distributed chat server, we need just two pieces of functionality:
+
+- find the list of available chat participants
+- send a chat message from one specific participant to another 
+
+We will assume for simplicity that there will be one chat participant per DCM peer, and that DCM peers do not enter or leave the session.
+
+To derive the DCM program for the chat server, we begin by considering the necessary data that must be distributed:
+
+- the list of available chat participants' names as `List[String]`
+- message data and the name of the target participant, as `(String, String)`
+
+Since the participant list needs to be shared among all DCM peers, it is sufficient to have a single copy of a DM carrying this list.
+Each participant needs to add their name to the list:
+
+```scala
+val users = dm[List[String]]
+
+site(go { case users(us) + myName(name) ⇒ users(name :: us) })
+
+val peerName = implicitly[ClusterConfig].clientId
+myName(peerName)
+if (isDriver) users(Nil)
+
+```
+
+We omit an application-specific logic that selects a user for chatting and only focus on implementing the chat messages.
+
+TODO: complete this example
 
 # The DCM protocol internals
 
