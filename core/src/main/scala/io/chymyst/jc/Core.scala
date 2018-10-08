@@ -1,9 +1,9 @@
 package io.chymyst.jc
 
 import java.security.MessageDigest
-import java.util.concurrent.atomic.AtomicLong
-import javax.xml.bind.DatatypeConverter
+import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
 
+import javax.xml.bind.DatatypeConverter
 import io.chymyst.util.LabeledTypes.Subtype
 
 import scala.annotation.tailrec
@@ -38,6 +38,13 @@ object Core {
   private[jc] val MolSiteIndex = Subtype[Int]
   private[jc] type MolSiteIndex = MolSiteIndex.T
 
+  private[jc] val ValTypeSymbol = Subtype[Symbol]
+  private[jc] type ValTypeSymbol = ValTypeSymbol.T
+
+  private[jc] val MolNameSymbol = Subtype[Symbol]
+  private[jc] type MolNameSymbol = MolNameSymbol.T
+
+  // Used for reporting molecule names.
   private[jc] val MolString = Subtype[String]
   private[jc] type MolString = MolString.T
 
@@ -46,6 +53,22 @@ object Core {
   private val globalReactionSiteIdCounter: AtomicLong = new AtomicLong(0L)
 
   private[jc] def nextReactionSiteId = ReactionSiteId(globalReactionSiteIdCounter.incrementAndGet())
+
+  // For each sha1 hash (computed with molecule names), store the number of known RSs with this hash.
+  private val globalReactionSiteCount: scala.collection.concurrent.Map[String, AtomicInteger] = scala.collection.concurrent.TrieMap()
+
+  private val emittersBoundToStaticReactionSites: scala.collection.concurrent.Map[String, Array[MolEmitter]] = scala.collection.concurrent.TrieMap()
+
+  private[jc] def registerReactionSite(reactionSite: ReactionSite): Int = {
+    val count = globalReactionSiteCount.getOrElseUpdate(reactionSite.sha1CodeWithNames, new AtomicInteger(0))
+    // We will not store the emitters in `emittersBoundToStaticReactionSites` if there exist more than one reaction with the same sha1 hash.
+    if (count.get() == 0)
+      emittersBoundToStaticReactionSites.update(
+        reactionSite.sha1CodeWithNames,
+        Array.tabulate(reactionSite.moleculeAtIndex.size)(reactionSite.moleculeAtIndex.apply)
+      )
+    count.incrementAndGet()
+  }
 
   def getMessageDigest: MessageDigest = MessageDigest.getInstance("SHA-1")
 

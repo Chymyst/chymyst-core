@@ -59,7 +59,7 @@ final class ClusterBag[T](clusterConnector: ClusterConfig) extends MutableBag[T]
     */
   override def allValuesSkipping(skipping: MutableMultiset[T]): Iterator[T] = ???
 
-  override def size: Int = ???
+  override def size: Int = 0
 
   override def add(v: T): Unit = ???
 

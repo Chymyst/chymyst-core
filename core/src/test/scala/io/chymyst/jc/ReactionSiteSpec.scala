@@ -2,6 +2,7 @@ package io.chymyst.jc
 
 import io.chymyst.test.Common._
 import io.chymyst.test.LogSpec
+import org.checkerframework.checker.units.qual.A
 import org.scalatest.BeforeAndAfterEach
 
 import scala.concurrent.duration._
@@ -25,6 +26,66 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     ReactionExitFailure("abc").getMessage shouldEqual ". Reported error: abc"
     ReactionExitSuccess.getMessage shouldEqual ""
     ReactionExitRetryFailure("abc").getMessage shouldEqual ". Reported error: abc"
+  }
+
+  behavior of "reaction site hash sums"
+  
+  it should "create the same hash sums for the same reaction code" in {
+    def makeRS[A](x: A): ReactionSite = {
+      val a = m[A]
+      site(go { case a(_) ⇒ x })
+      a.reactionSite
+    }
+    
+    val rs1 = makeRS[Int](123)
+    val rs2 = makeRS[String]("abc")
+    rs1.sha1Code shouldEqual rs2.sha1Code
+    rs1.sha1CodeWithNames shouldEqual rs2.sha1CodeWithNames
+    
+    rs1.isDistributed shouldEqual false
+    rs2.isDistributed shouldEqual false
+  }
+
+  it should "create different hash sums for different reaction code with the same molecule names" in {
+    val n = 1
+    val a1 = new M[Int]("a")
+    site(go { case a1(x) ⇒ x + n })
+
+    val code1 = a1.reactionSite.sha1Code
+    val code1name = a1.reactionSite.sha1CodeWithNames
+    
+    val a2 = new M[Int]("a")
+    site(go { case a2(x) ⇒ x + n })
+    val code2 = a2.reactionSite.sha1Code
+    val code2name = a2.reactionSite.sha1CodeWithNames
+
+    code1 should not equal code2
+    code1name should not equal code2name
+  }
+
+  it should "detect differences in molecule names when reaction code is the same" in {
+    def makeRS[A](x: A, name: String): ReactionSite = {
+      val a = new M[A](name)
+      site(go { case a(_) ⇒ x })
+      a.reactionSite
+    }
+
+    val rs1 = makeRS[Int](123, "x")
+    val rs2 = makeRS[String]("abc", "x")
+    rs1.sha1Code shouldEqual rs2.sha1Code
+    rs1.sha1CodeWithNames shouldEqual rs2.sha1CodeWithNames
+
+    val rs3 = makeRS[Int](123, "x")
+    val rs4 = makeRS[String]("abc", "y")
+    rs3.sha1Code shouldEqual rs4.sha1Code
+    rs3.sha1CodeWithNames should not equal rs4.sha1CodeWithNames
+  }
+  
+  it should "detect distributed reaction site" in {
+    implicit val clusterConfig  = ClusterConfig("")
+    val a = new DM[Int]("a")
+    site(go { case a(_) ⇒ })
+    a.reactionSite.isDistributed shouldEqual true
   }
 
   behavior of "reaction"

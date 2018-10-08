@@ -1,7 +1,5 @@
 package io.chymyst.jc
 
-import java.util.concurrent.atomic.AtomicReference
-
 import io.chymyst.jc.Core._
 import io.chymyst.util.Budu
 
@@ -166,7 +164,7 @@ sealed trait MolEmitter extends PersistentHashCode with MolEmitterDebugging {
 
   private var valReactionSite: ReactionSite = _
 
-  @inline protected def reactionSite: ReactionSite = valReactionSite
+  @inline protected[jc] def reactionSite: ReactionSite = valReactionSite
 
   private var valTypeSymbol: Symbol = _
 

@@ -2,8 +2,10 @@ package io.chymyst.jc
 
 import java.util.concurrent.atomic.AtomicIntegerArray
 
+import io.chymyst.jc
 import io.chymyst.jc.Core._
 import io.chymyst.jc.StaticAnalysis._
+import org.checkerframework.checker.units.qual.mol
 
 import scala.annotation.tailrec
 import scala.collection.breakOut
@@ -28,20 +30,21 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** Create the site-wide index map for all molecules bound to this reaction site.
     * This computation determines the site-wide index for each input molecule.
     */
-  private val knownInputMolecules: Map[MolEmitter, (MolSiteIndex, Symbol)] = optimize {
+  private[jc] val knownInputMolecules: Map[MolEmitter, (MolSiteIndex, ValTypeSymbol)] = optimize {
     nonStaticReactions
       .flatMap(_.inputMoleculesSortedAlphabetically)
       .distinct // Take all input molecules from all reactions; arrange them in a single list.
       .sortBy(_.name)
       .zipWithIndex
       .map { case (mol, index) ⇒
-        val valType = nonStaticReactions.view
-          .map(_.info.inputs)
-          .flatMap(_.find(_.molecule === mol))
-          .headOption
-          .map(_.valType)
-          .getOrElse("<unknown>".toScalaSymbol)
-
+        val valType = ValTypeSymbol(
+          nonStaticReactions
+            .map(_.info.inputs)
+            .flatMap(_.find(_.molecule === mol))
+            .headOption
+            .map(_.valType)
+            .getOrElse("<unknown>".toScalaSymbol)
+        )
         (mol, (MolSiteIndex(index), valType))
       }(breakOut)
   }
@@ -81,11 +84,16 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     )
   }
 
-  /** The sha1 hash sum of the entire reaction site, computed from sha1 of each reaction.
+  /** The sha1 hash sum of the entire reaction site's Scala code, computed from sha1 of each reaction.
     * The sha1 hash of each reaction is computed from the Scala syntax tree of the reaction's source code.
     * The result is implementation-dependent and is guaranteed to be the same only for reaction sites compiled from exactly the same source code with the same version of Scala compiler.
     */
-  //  private lazy val sha1 = getSha1String(knownReactions.map(_.info.sha1).sorted.mkString(","))
+  private[jc] val sha1Code = getSha1(reactions.map(_.info.sha1).sorted.mkString(","), getMessageDigest)
+
+  /** The sha1 hash sum of the entire reaction site's Scala code, together with molecule names.
+    * This hash sum will distinguish dynamically created reactions having identical Scala code but different molecule names.
+    */
+  private[jc] val sha1CodeWithNames = getSha1(sha1Code + knownInputMolecules.map {case (e, (i, t)) ⇒ s"$e:$i:$t"}.mkString(","), getMessageDigest)
 
   private[jc] def printBag: String = {
     val moleculesPrettyPrinted = if (moleculesPresent.exists(!_.isEmpty))
@@ -615,7 +623,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       // Assign the value bag.
       val pipelined = pipelinedMolecules contains siteIndex
       val simpleType = simpleTypes contains valType
-      val unitType = valType === 'Unit
+      val unitType = valType === ValTypeSymbol('Unit)
       val useMapBag = unitType || (simpleType && !pipelined)
       moleculesPresent(siteIndex) = if (mol.isDistributed)
         new ClusterBag[AbsMolValue[_]](mol.asInstanceOf[DM[_]].clusterConnector)
@@ -718,7 +726,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
   /** Map the site-wide index to molecule emitter. This is used often.
     */
-  private val moleculeAtIndex: Map[Int, MolEmitter] = knownInputMolecules.map { case (mol, (i, _)) ⇒ (i, mol) }(breakOut)
+  private[jc] val moleculeAtIndex: Map[Int, MolEmitter] = knownInputMolecules.map { case (mol, (i, _)) ⇒ (i, mol) }(breakOut)
 
   /** For each site-wide molecule index, this array holds the array of reactions consuming that molecule.
     */
@@ -771,6 +779,15 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       throw new Exception(s"In $this: $errorMessage")
     }
   }
+
+  /** Register the site's sha1 sum and detect duplicates.
+    * This value will be `1` for single-instance reaction sites and greater than 1 for multiple-instance RSs.
+    */
+  private[jc] val coincidentReactionSites: Int = Core.registerReactionSite(this)
+
+  /** A reaction site is distributed if at least one of its bound molecules is a DM.
+    */
+  val isDistributed: Boolean = moleculeAtIndex.exists(_._2.isDistributed)
 
   // This code should be at the very end of the reaction site constructor because it reports the elapsed time,
   // measuring the overhead of creating a new reaction site, and also because it calls initializeReactionSite(),
