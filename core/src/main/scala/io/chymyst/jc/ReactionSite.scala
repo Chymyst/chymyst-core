@@ -1,6 +1,6 @@
 package io.chymyst.jc
 
-import java.util.concurrent.atomic.AtomicIntegerArray
+import java.util.concurrent.atomic.{AtomicInteger, AtomicIntegerArray}
 
 import io.chymyst.jc
 import io.chymyst.jc.Core._
@@ -783,8 +783,16 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** Register the site's sha1 sum and detect duplicates.
     * This value will be `1` for single-instance reaction sites and greater than 1 for multiple-instance RSs.
     */
-  private[jc] val coincidentReactionSites: Int = Core.registerReactionSite(this)
+  private[jc] val coincidentReactionSites: AtomicInteger = Core.registerReactionSite(this)
 
+  /** Whether this reaction site is a single-instance reaction site.
+    * Single-instance reaction sites are uniquely identified throughout the entire code base through
+    * the Scala source code of reactions and the names of input molecules.
+    * 
+    * @return `true` if this reaction site is single-instance.
+    */
+  def isSingleInstance: Boolean = coincidentReactionSites.get() === 1
+  
   /** A reaction site is distributed if at least one of its bound molecules is a DM.
     */
   val isDistributed: Boolean = moleculeAtIndex.exists(_._2.isDistributed)

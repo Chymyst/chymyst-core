@@ -520,13 +520,13 @@ There are two different situations where a DM can be emitted by a DCM peer:
 
 In the first case, the reaction's inputs have been consumed within a certain cluster session whose ID is preserved within the `ChymystThread` structure.
 If this session expires, the DCM will decide that the current DCM peer has failed to complete the reaction.
-In that case, the current DCM peer should not emit DMs as products of the reaction.
+In that case, the current DCM peer should not emit DMs that are products of the reaction.
 
-Therefore, the DCM peer will check the current session ID before emitting any DMs from the "outgoing" multiset.
+To implement this, the DCM peer will check the current session ID before emitting any DMs from the "outgoing" multiset.
 If the current session ID differs from that of the reaction just finished, all DMs from the "outgoing" multiset will be cleared. 
 Otherwise, the DMs are emitted into the cluster.
 
-In the second case, the current DCM peer is free to emit DMs.
+In the second case, the current DCM peer is free to emit the DM.
 
 Therefore, there are two ways of emitting a DM: with restriction to a specified cluster session ID, and without a specified session ID.
 

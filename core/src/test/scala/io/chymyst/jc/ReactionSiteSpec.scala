@@ -81,6 +81,8 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     rs3.sha1CodeWithNames should not equal rs4.sha1CodeWithNames
   }
 
+  behavior of "distributed reaction sites"
+
   it should "detect distributed reaction site" in {
     implicit val clusterConfig = ClusterConfig("")
     val a = dm[Int]
@@ -89,6 +91,20 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     a.reactionSite.isDistributed shouldEqual true
     site(go { case d(x) ⇒ a(x) })
     d.reactionSite.isDistributed shouldEqual false
+  }
+
+  it should "detect single-instance and multiple-instance reaction site" in {
+    def makeRS(name: String): ReactionSite = {
+      val a = new M[Int](name)
+      site(go { case a(_) ⇒ })
+      a.reactionSite
+    }
+
+    val List(rs1a, rs1b, rs2, rs3) = List(1, 1, 2, 3).map(i ⇒ makeRS(i.toString))
+    rs1a.isSingleInstance shouldEqual false
+    rs1b.isSingleInstance shouldEqual false
+    rs2.isSingleInstance shouldEqual true
+    rs3.isSingleInstance shouldEqual true
   }
 
   behavior of "reaction"

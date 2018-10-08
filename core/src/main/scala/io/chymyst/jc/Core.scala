@@ -59,15 +59,15 @@ object Core {
 
   private val emittersBoundToStaticReactionSites: scala.collection.concurrent.Map[String, Array[MolEmitter]] = scala.collection.concurrent.TrieMap()
 
-  private[jc] def registerReactionSite(reactionSite: ReactionSite): Int = {
+  private[jc] def registerReactionSite(reactionSite: ReactionSite): AtomicInteger = {
     val count = globalReactionSiteCount.getOrElseUpdate(reactionSite.sha1CodeWithNames, new AtomicInteger(0))
     // We will not store the emitters in `emittersBoundToStaticReactionSites` if there exist more than one reaction with the same sha1 hash.
-    if (count.get() === 0)
+    if (count.incrementAndGet() === 1)
       emittersBoundToStaticReactionSites.update(
         reactionSite.sha1CodeWithNames,
         Array.tabulate(reactionSite.moleculeAtIndex.size)(reactionSite.moleculeAtIndex.apply)
       )
-    count.incrementAndGet()
+    count
   }
 
   def getMessageDigest: MessageDigest = MessageDigest.getInstance("SHA-1")
