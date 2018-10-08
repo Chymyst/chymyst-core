@@ -224,15 +224,18 @@ As before, all DCM peers run identical code; only the configuration files or the
 
 ## Identifying the distributed data across DCM peers
 
+When one DCM peer emits a distributed molecule (DM) into the cluster, other DCM peers must be able to consume that molecule and to start some reactions.
+In order to do that, the DCM peer must identify the local reaction value that can consume the DM, and the corresponding reaction site.
+
 ### The requirement of identical reaction code
 
 Just as with local molecules, it is necessary to bind distributed molecules to reaction sites,
 which is done by defining reactions that consume them.
 
-Reactions that consume DMs must have _the same Scala code_ in every DM peer.
-In this way, the DCM can identify the distributed data and share it automatically across instances.
-The distributed data is intended to be consumed by an arbitrary participating DM peer,
-which is safe only if every DM peer runs _the same reaction code_ consuming the data. 
+Reactions that consume DMs must have _the same Scala code_ in every DCM peer.
+In this way, the distributed data can be identified and shared automatically across DCM peers.
+The distributed data is intended to be consumed by an arbitrary participating DCM peer,
+which will produce predictable results only if every DCM peer runs _the same reaction code_ after consuming the data. 
 
 To see this, consider two DCM peers.
 Suppose that the first DCM peer runs a program such as
@@ -306,19 +309,71 @@ All data carried by DMs is serialized using the [Chill](https://github.com/twitt
 
 Programmers need to take special care when a DM carries data that itself contains a molecule emitter (e.g. molecule of type `DM[M[Int]]`, `DM[DM[Int]]` and so on).
 All molecule emitters carried by DMs must be bound to reaction sites that can be unambiguously identified by their hash sum.
+Otherwise, a DCM peer will be unable to identify the reaction that needs to be run when a molecule is emitted using an emitter carried by a DM.
 
-A reaction site declared statically in the application code is easily identified.
-However, programmers may also declare reaction sites in the scope of a function, and then call that function several times with different parameters to create several reaction sites. 
-This will be typically the case, for instance, if reaction sites are declared by a library function.
+The same consideration applies to molecule emitters for DMs themselves.
 
-The reaction sites created "dynamically" by different function invocations will all have identical Scala code.
-However, these reactions (and the molecule emitters bound to them) will be _chemically_ different, since chemical reactions are decided by object identities.
+Therefore, a DCM peer should contain only a _single instance_ of a reaction site that consumes a distributed molecule, or that consumes a molecule whose emitter is carried by a distributed molecule.
+Such reaction sites are called **single-instance**.
+
+To define a single-instance reaction site, it is sufficient to make sure that the Scala code of some reactions or the names of some molecules' names are different from those of other reaction sites.
+
+In `Chymyst`, each reaction site is declared in a certain local scope.
+A reaction site will not be single-instance (i.e. will be **multiple-instance**) if there are two or more distinct local scopes that define the same input molecule names and the same set of reactions for these molecules.  
+This will be the case, for instance, if a reaction site is declared by a library function within the scope of that function:
+
+```scala
+// Incorrect code.
+def makeQuery(delta: Int)(implicit clusterConfig: ClusterConfig): (DM[Int], B[Unit, Int]) = {
+  val data = dm[Int]
+  val get = b[Unit, Int]
+  site( go { case data(a) + get(_, r) ⇒ r(a); data(a + delta) })
+  (data, get)
+}
+// Make two instances of the reaction site.
+val (data1, get1) = makeQuery(10)
+val (data2, get2) = makeQuery(20)
+
+```
+
+This code is incorrect because the distributed molecule `data1()` cannot be distinguished from `data2()` across DCM peers.
+Both molecules have identical names (`"data"`) and are bound to their respective reaction sites that have identical reaction code (as identified by the hash sum of the Scala source code).
+If a DCM peer emits `data1(123)` to the cluster, other DCM peers will be able to see that a molecule with name `data` is emitted to the reaction site with a specific Scala code hash.
+But there exist two reaction sites with the same code hash, and two molecule emitters with name `data`.
+
+The runtime engine cannot use the fact that the two reaction sites were created using different values of the parameter `delta`, because this is a runtime parameter that is invisible in the reaction code at compile time.
+So the DCM peer does not have enough information to choose between `data1` and `data2` or between the two reaction sites.
+The reason is that the repeated calls to `makeQuery()` will define a multi-instance reaction site.
+
+The same problem will occur with multi-instance reaction sites that consume local (non-distributed) molecules whose emitters are carried as data by some DMs. 
+
+Generally, reaction sites created "dynamically" by different function invocations will all have identical Scala code.
+However, these reactions (and the molecule emitters bound to them) will be _chemically_ different, since chemical reactions are decided by local JVM object identities.
 If molecule emitters are carried by DMs, it will be necessary to identify the specific instance of the reaction site to which the molecule emitter is bound.
 This identification becomes impossible if several reaction sites are created dynamically from identical Scala code but (possibly) different parameters and different object identities for molecule emitters.
 Therefore, molecule emitters bound to dynamically created reaction sites cannot be used as data carried by DMs. 
 
-For this reason, DCM restricts molecule emitters carried by DMs to be bound to **static reaction sites**, that is, reaction sites that exist in a single instance.
-If it is necessary for application code to create several reaction sites dynamically, the reaction sites must differ from each other at least in the names of some input molecules.
+For this reason, DCM restricts DMs, as well as any molecules whose emitters are carried as data by DMs, to be bound to single-instance reaction sites.
+If it is necessary for application code to create several reaction sites with the same Scala code, the reaction sites must differ from each other at least in the names of some input molecules.
+The Scala code hash for a reaction site will be computed at run time, after all input molecules are bound to that RS, and will depend on the names of all input molecules as well as on the Scala code of all reactions in the RS.
+
+As a simple fix for the example shown above, we can make a molecule name depend on the parameter `delta`:  
+
+```scala
+// Corrected code.
+def makeQuery(delta: Int)(implicit clusterConfig: ClusterConfig): (DM[Int], B[Unit, Int]) = {
+  val data = new DM[Int](s"data_$delta")
+  val get = b[Unit, Int]
+  site( go { case data(a) + get(_, r) ⇒ r(a); data(a + delta) })
+  (data, get)
+}
+// Make two instances of the reaction site.
+val (data1, get1) = makeQuery(10)
+val (data2, get2) = makeQuery(20)
+
+```
+
+The resulting reaction sites will be single-instance as long as the programmer does not call `makeQuery()` with the same value of `delta`.
 
 # The DCM protocol internals
 
