@@ -16,7 +16,7 @@ final case class ClusterConfig(
   numRetries: Int = 5,
   retryIntervalMs: Int = 1000
 ) {
-  val clientId: String = Core.getSha1(this.toString + Cluster.guid, Core.getMessageDigest)
+  val peerId: String = Core.getSha1(this.toString + Cluster.guid, Core.getMessageDigest)
 }
 
 final class ClusterConnector(clusterConfig: ClusterConfig) {

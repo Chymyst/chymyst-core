@@ -52,7 +52,7 @@ implicit val clusterConfig = ClusterConfig(
 ```
 
 Each DCM peer is automatically assigned a unique ID in the cluster.
-The ID can be read as `clusterConfig.clientId`.
+The ID can be read as `clusterConfig.peerId`.
 
 ## Distributed molecules
 
@@ -440,6 +440,7 @@ if (isDriver) broadcast()
 
 At this point, we have created a DCM program that will run the `seeBroadcast` reaction in every DCM peer exactly once.
 Each DCM peer will consume the single copy of `broadcast()`, print a message, and emit `broadcast()` back into the cluster for other DCM peers to consume.
+If necessary, the `broadcast()` molecule could carry some data, and the `seeBroadcast` reaction could process this data, implementing any required functionality.
 
 What if we emit several copies of `broadcast()` with identical data?
 Each DCM peer will still consume only one copy of `broadcast()` and emit it back.
@@ -457,7 +458,7 @@ We modify the previous code as follows:
 
 ```scala
 val response = dm[String]
-val peerName = implicitly[ClusterConfig].clientId
+val peerName = implicitly[ClusterConfig].peerId
 val seeBroadcast = go { case broadcast(_) + see(_) ⇒ broadcast(); response(peerName) }
 site(seeBroadcast)
 see()
@@ -482,40 +483,79 @@ At any time, the `peers()` molecule will contain the latest available list of pe
 ### Exercise: peer removal
 
 The example shown above does not implement disconnection of peers; the semantics is that any peer may be temporarily disconnected from the cluster but may eventually reconnect.
-Implement an explicit message that tells the "driver" that a certain DCM peer is being removed from the cluster.
-The result must be that the `peers()` molecule (that is only present on the "driver") removes that DCM peer's ID from the list.
 
-## Example: distributed chat server
+Implement an explicit message that tells the "driver" that a certain DCM peer is being permanently removed from the cluster.
+The result must be that the `peers()` molecule (which is only present on the "driver") carries an updated list of DCM peer IDs that does not contain the removed ID.
 
-To implement a simple distributed chat server, we need just two pieces of functionality:
+## Example: distributed chat
+
+To implement a simple distributed chat application, we need just two pieces of functionality:
 
 - find the list of available chat participants
 - send a chat message from one specific participant to another 
 
-We will assume for simplicity that there will be one chat participant per DCM peer, and that DCM peers do not enter or leave the session.
+In the DCM paradigm, there are no "servers" and "clients"; every DCM peer runs identical code and participates in the distributed computation in the same way.
+We will assume for simplicity that there will be one chat user per DCM peer, and that DCM peers do not permanently leave the chat.
 
-To derive the DCM program for the chat server, we begin by considering the necessary data that must be distributed:
+To derive the DCM program for the chat application, we begin by considering the necessary data that must be distributed:
 
 - the list of available chat participants' names as `List[String]`
-- message data and the name of the target participant, as `(String, String)`
+- message data and the name of the target participant for that message
 
 Since the participant list needs to be shared among all DCM peers, it is sufficient to have a single copy of a DM carrying this list.
 Each participant needs to add their name to the list:
 
 ```scala
 val users = dm[List[String]]
-
+val myName = dm[String]
 site(go { case users(us) + myName(name) ⇒ users(name :: us) })
 
-val peerName = implicitly[ClusterConfig].clientId
+val peerName = implicitly[ClusterConfig].peerId
 myName(peerName)
 if (isDriver) users(Nil)
 
 ```
 
 We omit an application-specific logic that selects a user for chatting and only focus on implementing the chat messages.
+It is clear that a message from DCM peer `A` to DCM peer `B` must be represented by a distributed molecule emitted by `A` into the cluster
+and consumed by a "message reception" reaction running on the DCM peer `B`, such as `go { case message(x) ⇒ ... }`.
 
-TODO: complete this example
+To implement this functionality, we need to make sure that the message reception reaction does not start on any other DCM peers. 
+A difficulty is that the DCM paradigm assumes that any available distributed molecule can be consumed by _any_ DCM peer that defines a reaction site to which that molecule is bound.
+We cannot specify in an _ad hoc_ manner that a specific copy of a DM should be consumed only by a specific DCM peer.
+
+One possible solution is to define a _chemically unique_ message reception reaction at each DCM peer.
+The reaction will be chemically unique if it consumes a DM with a uniquely chosen name.
+For simplicity, we will use the DCM peer's ID as the name of that molecule:
+
+```scala
+val message = new DM[String](peerName) // Molecule name assigned manually.
+site(go { case message(x) ⇒ println(s"Peer $peerName gets message $x")})
+
+```
+
+Each DCM peer will now have its own unique reaction for message reception, and a unique molecule `message()` that needs to be used for sending messages to that DCM peer.
+It remains to make these molecules' emitters available to other peers.
+To achieve that, we will make the `myName` molecule carry the molecule emitter for `message`, rather than the name string.
+
+The code of the chat application becomes
+
+```scala
+val peerName = implicitly[ClusterConfig].peerId
+
+val users = dm[List[DM[String]]]
+val myMessage = dm[DM[String]]
+site(go { case users(ms) + myMessage(mess) ⇒ users(mess :: ms) })
+
+val message = new DM[String](peerName) // Molecule name assigned manually.
+site(go { case message(x) ⇒ println(s"Peer $peerName gets message $x")})
+
+myMessage(message)
+if (isDriver) users(Nil)
+
+``` 
+
+To send a message to a DCM peer, we need to fetch the message molecule list carried by `users()`, choose a molecule from that list, and emit that molecule with our message.
 
 # The DCM protocol internals
 
