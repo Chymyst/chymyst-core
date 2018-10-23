@@ -322,7 +322,8 @@ The same consideration applies to molecule emitters for DMs themselves.
 Therefore, a DCM peer should contain only a _single instance_ of a reaction site that consumes a distributed molecule, or that consumes a molecule whose emitter is carried by a distributed molecule.
 Such reaction sites are called **single-instance**.
 
-To define a single-instance reaction site, it is sufficient to make sure that the Scala code of some reactions or the names of some molecules' names are different from those of other reaction sites.
+To define a single-instance reaction site, it is sufficient to make sure that the Scala code of some reactions is different from the code of all other reaction sites,
+or when the Scala code is the same, that the names of some input molecules are different.
 
 In `Chymyst`, each reaction site is declared in a certain local scope.
 A reaction site will not be single-instance (i.e. will be **multiple-instance**) if there are two or more distinct local scopes that define the same input molecule names and the same set of reactions for these molecules.  
@@ -494,7 +495,7 @@ To implement a simple distributed chat application, we need just two pieces of f
 - find the list of available chat participants
 - send a chat message from one specific participant to another 
 
-In the DCM paradigm, there are no "servers" and "clients"; every DCM peer runs identical code and participates in the distributed computation in the same way.
+In the DCM paradigm, there are no "servers" or "clients"; every DCM peer runs identical code and participates in the distributed computation in the same way.
 We will assume for simplicity that there will be one chat user per DCM peer, and that DCM peers do not permanently leave the chat.
 
 To derive the DCM program for the chat application, we begin by considering the necessary data that must be distributed:
@@ -534,7 +535,8 @@ site(go { case message(x) ⇒ println(s"Peer $peerName gets message $x")})
 
 ```
 
-Each DCM peer will now have its own unique reaction for message reception, and a unique molecule `message()` that needs to be used for sending messages to that DCM peer.
+Each DCM peer will now have its own unique reaction for receiving messages.
+The input molecule for that reaction is a unique molecule `message()` that must be used for sending messages to that DCM peer.
 It remains to make these molecules' emitters available to other peers.
 To achieve that, we will make the `myName` molecule carry the molecule emitter for `message`, rather than the name string.
 
@@ -652,7 +654,7 @@ The lock must be specific to the cluster session ID; if the session expires, the
 
 To determine whether a given reaction can start, the DCM peer starts looking for local molecules and then, if they are found as needed, continues to look for distributed molecules by acquiring a distributed lock and downloading the available molecule values.
 Once these distributed molecules are determined, the DCM peer needs to mark these DMs as consumed and start a reaction.
-Marking DMs as consumed means to add an ephemeral child node like this,
+To "mark a DMs as consumed" means to add an ephemeral child node like this,
 
 ```
 DCM/1a2b34cd/dm-0/val-0/consumed-XXXX
@@ -679,7 +681,10 @@ When a reaction completes successfully, the DCM peer needs to notify the cluster
 In the example above, the node `dm-0/val-0` must be now deleted, together with the ephemeral child node `consumed-XXXX`.
 The current DCM peer does this via its cluster session.
 
-If this last step fails (because of network failure), the ephemeral child node will be deleted, and the cluster will decide that the reaction failed.
+If this last step (deletion of the molecule node) fails because of network failure, the ephemeral child node will be deleted by ZooKeeper while the molecule node remains.
+The molecule node will remain available for other DCM peers to consume.
+In this way, the cluster will know that the reaction failed.
+
 The absence of the ephemeral child node will be detected the next time the DCM peer connects to the cluster, which should signal to the current DCM peer that another DCM peer might have started another copy of the same reaction.
 Thus, any effects of this reaction must be undone or ignored.
 A special "clean-up" step might be executed in that case.
@@ -713,4 +718,5 @@ In the second case, the current DCM peer is free to emit the DM.
 Therefore, there are two ways of emitting a DM: with restriction to a specified cluster session ID, and without a specified session ID.
 
 If the connection to the cluster is up, the ZooKeeper client will send the DM to the cluster, and if successful, clear the DM from the "outgoing" multiset. 
-If the connection fails at that time, the same logic applies: the DMs are emitted only if the current cluster session ID is the same as the session ID specified by the emission request.
+If the connection fails at that time, the same logic applies:
+The DMs are emitted only if the current cluster session ID is the same as the session ID specified by the emission request.

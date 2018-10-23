@@ -93,7 +93,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   /** The sha1 hash sum of the entire reaction site's Scala code, together with molecule names.
     * This hash sum will distinguish dynamically created reactions having identical Scala code but different molecule names.
     */
-  private[jc] val sha1CodeWithNames = getSha1(sha1Code + knownInputMolecules.map {case (e, (i, t)) ⇒ s"$e:$i:$t"}.mkString(","), getMessageDigest)
+  private[jc] val sha1CodeWithNames = getSha1(sha1Code + knownInputMolecules.map { case (e, (i, t)) ⇒ s"$e:$i:$t" }.mkString(","), getMessageDigest)
 
   private[jc] def printBag: String = {
     val moleculesPrettyPrinted = if (moleculesPresent.exists(!_.isEmpty))
@@ -785,21 +785,24 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private[jc] val coincidentReactionSites: AtomicInteger = Core.registerReactionSite(this)
 
-  /** Whether this reaction site is a single-instance reaction site.
+  /** Whether this reaction site is "single-instance".
+    * Only single-instance reaction sites may consume distributed molecules and be used for distributed computations.
     * Single-instance reaction sites are uniquely identified throughout the entire code base through
     * the Scala source code of reactions and the names of input molecules.
-    * 
+    *
     * @return `true` if this reaction site is single-instance.
     */
   def isSingleInstance: Boolean = coincidentReactionSites.get() === 1
-  
-  /** A reaction site is distributed if at least one of its bound molecules is a DM.
+
+  /** A reaction site is distributed if at least one of its reactions has distributed input molecules.
     */
-  val isDistributed: Boolean = moleculeAtIndex.exists(_._2.isDistributed)
+  val isDistributed: Boolean = optimize {
+    reactions.exists(_.info.hasDistributedInputs)
+  }
 
   // This code should be at the very end of the reaction site constructor because it reports the elapsed time,
-  // measuring the overhead of creating a new reaction site, and also because it calls initializeReactionSite(),
-  // which depends on `pipelinedMolecules`, `consumingReactions`, `knownInputMolecules`, and other values.
+  // measuring the overhead of creating a new reaction site, and also because it calls `initializeReactionSite()`,
+  // which depends on having `pipelinedMolecules`, `consumingReactions`, `knownInputMolecules`, and other values.
   private val diagnostics: WarningsAndErrors = {
     val warningsAndErrors = initializeReactionSite()
     val endTime = System.nanoTime()

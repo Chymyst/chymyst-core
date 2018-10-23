@@ -514,6 +514,14 @@ final class ReactionInfo(
     inputs.exists(_.molecule.isBlocking)
   }
 
+  private[jc] val hasDistributedInputs: Boolean = optimize {
+    inputs.exists(_.molecule.isDistributed)
+  }
+  
+  private[jc] val hasDistributedOutputs: Boolean = optimize {
+    outputs.exists(_.molecule.isDistributed)
+  }
+  
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
     case GuardPresent(_, guards) =>
