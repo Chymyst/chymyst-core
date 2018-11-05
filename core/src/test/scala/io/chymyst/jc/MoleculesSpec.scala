@@ -59,30 +59,36 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val d = m[Unit]
     val f = b[Unit, Unit]
     val g = b[Unit, Unit]
+    val h = m[List[(Int, String)]]
 
     f.typeSymbol shouldEqual null
     f.siteIndex shouldEqual -1
     site(tp0)(
-      go { case g(_, r) + d(_) => r() },
-      go { case a(_) + bb(_) + c(_) + f(_, r) => r() }
+      go { case g(_, r) + d(_) + h(_) ⇒ r() },
+      go { case a(_) + bb(_) + c(_) + f(_, r) ⇒ r() }
     )
     val molecules = Seq(a, bb, c, d, f, g)
     molecules.map(_.siteIndex) shouldEqual molecules.indices
     molecules.map(_.typeSymbol) shouldEqual Seq.fill(molecules.size)('Unit)
 
-    a.logSite shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nNo molecules"
+    val siteString = "Site{a + bb + c + f/B → ...; d + g/B + h → ...}"
+    
+    a.logSite shouldEqual s"$siteString\nNo molecules"
 
+    h.typeSymbol.name shouldEqual "List[(Int, String)]"
+    
     a.apply()
     a()
     bb()
     Thread.sleep(300)
-    a.logSite shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nMolecules: a/P() * 2 + bb/P()"
+    a.logSite shouldEqual s"$siteString\nMolecules: a/P() * 2 + bb/P()"
     d()
+    h(Nil)
     g.timeout()(1.second) shouldEqual Some(())
-    a.logSite shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nMolecules: a/P() * 2 + bb/P()"
+    a.logSite shouldEqual s"$siteString\nMolecules: a/P() * 2 + bb/P()"
     c()
     f.timeout()(1.second) shouldEqual Some(())
-    a.logSite shouldEqual "Site{a + bb + c + f/B → ...; d + g/B → ...}\nMolecules: a/P()"
+    a.logSite shouldEqual s"$siteString\nMolecules: a/P()"
   }
 
   it should "define a reaction with correct inputs with non-default pattern-matching at end of reaction" in {
@@ -90,7 +96,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val b = new M[Unit]("b")
     val c = new M[Unit]("c")
 
-    site(go { case b(_) + c(_) + a(Some(x)) => })
+    site(go { case b(_) + c(_) + a(Some(_)) ⇒ })
 
     a.logSite shouldEqual "Site{a + b + c → ...}\nNo molecules"
   }
@@ -260,7 +266,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val b = m[Int]
     val c = m[Unit]
 
-    site(tp0)(go { case a(x) => }, go { case a1(x) => c() + c() }, go { case a2(x) => c() + b(x) })
+    site(tp0)(go { case a(_) => }, go { case a1(_) => c() + c() }, go { case a2(x) => c() + b(x) })
     val thrown = intercept[Exception] {
       a(1) // This molecule will not actually start any reactions that would emit unbound molecules.
       // Nevertheless, the error must be flagged.
@@ -295,7 +301,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
       p(c) // The reaction above will sometimes emit c() even though no reaction for c() is defined yet.
       if (i % 6 == 0) Thread.sleep(150)
       site(tp0)(
-        go { case c(x) ⇒ }
+        go { case c(_) ⇒ }
       )
     }
     val errors = memLog.messages.count(_ contains "Molecule c is not bound to any reaction site")
@@ -325,9 +331,9 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
         go { case begin(_) =>
           val e = m[Int]
           a(e) // The reaction for `a` will emit `e(123)`, unless it crashes due to `e` being unbound.
-          if (i % 6 == 0) Thread.sleep(2 * i)
+          if (i % 6 == 0) Thread.sleep(2L * i)
           site(tp0)(
-            go { case e(y) ⇒ }
+            go { case e(_) ⇒ }
           )
 
         }
@@ -430,17 +436,17 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
   }
 
   it should "use two threads for concurrent computations" in {
-    val c = m[Int]
-    val d = m[Int]
+    val c = m[Long]
+    val d = m[Long]
     val s = m[Unit]
-    val f = b[Unit, Int]
+    val f = b[Unit, Long]
     withPool(FixedPool(2)) { tp ⇒
       site(tp)(
         go { case c(x) ⇒ s(); Thread.sleep(x); d(x) },
         go { case s(_) ⇒ d(0) },
         go { case d(x) + f(_, r) ⇒ r(x) }
       )
-      c(10000)
+      c(10000L)
       f()
     }.get shouldEqual 0
   }

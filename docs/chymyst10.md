@@ -535,12 +535,13 @@ site(go { case message(x) ⇒ println(s"Peer $peerName gets message $x")})
 
 ```
 
-Each DCM peer will now have its own unique reaction for receiving messages.
+Each DCM peer will now have its own unique reaction site for receiving chat messages.
 The input molecule for that reaction is a unique molecule `message()` that must be used for sending messages to that DCM peer.
+
 It remains to make these molecules' emitters available to other peers.
 To achieve that, we will make the `myName` molecule carry the molecule emitter for `message`, rather than the name string.
 
-The code of the chat application becomes
+With these changes, the code of the chat application becomes:
 
 ```scala
 val peerName = implicitly[ClusterConfig].peerId
@@ -572,18 +573,18 @@ The single cluster session is used by all reaction sites that consume or emit di
 A DCM peer may open several cluster sessions if different `ClusterConfig` values specify different cluster URLs.
 However, a single reaction site may not consume molecules from different clusters (this would have created unsolvable deadlock problems).
 
-Since `ClusterConfig` values are immutable, they are compared as values (not as JVM object identities).
+Since `ClusterConfig` values are immutable, they are compared as values (not as JVM object pointers).
 Therefore, different parts of the program may create their own copies of `ClusterConfig` values, still resulting in a single cluster session as long as all `ClusterConfig` values contain the same configuration data.
 
-If the cluster session is disconnected due to time-out or network failure, a new session will be created automatically to reconnect to the cluster if possible.
-Failure to connect to the cluster will be logged, and will result in stopping the emission or consumption of any DMs, while local (non-distributed) reactions will still proceed normally.
+If the cluster session is disconnected due to a network time-out or network failure, a new session will be created automatically to reconnect to the cluster if possible.
+A temporary failure to connect to the cluster will result in temporarily stopping the emission or consumption of any DMs, while local (non-distributed) reactions will still proceed normally.
 
 ## New data available
 
 New DMs can become available on the cluster site in two situations:
 
-- after explicitly emitting a DM (either within a reaction or outside reactions), the DM becomes available for participating DCM peers to consume
-- after a network failure or other failure in a DCM peer that previously consumed some DM from the cluster site and started a reaction, the DCM determines that the DCM peer failed to complete the reaction; the DCM then returns the affected DMs automatically to the cluster site, making them again available
+- After explicitly emitting a DM (either within a reaction or outside reactions), the DM becomes available for participating DCM peers to consume.
+- After a network failure or other failure in a DCM peer that previously consumed some DM from the cluster site and started a reaction, the DCM determines that the DCM peer failed to complete the reaction; the DCM then returns the affected DMs automatically to the cluster site, making them again available.
 
 The DCM peer receives a "new data" notification each time a new distributed molecule becomes available on the cluster.
 A "new data" notification is also generated at the beginning of a cluster session.
@@ -599,16 +600,22 @@ The "new data" notification is forwarded to each of these reaction sites.
 Each reaction site attempts to schedule new reactions whenever a new molecule is emitted into that site,
 or whenever a "new data" notification arrives.
 
-Each RS's reaction scheduler is single-threaded and so the local molecule multisets do not need any locking.
+Each RS's reaction scheduler is single-threaded, and so the local molecule multisets do not need any locking.
 However, if the RS consumes any distributed molecules as inputs, a distributed locking mechanism will be used,
 so that no DMs are removed from the cluster site while a given DCM peer is reading the list of the available DMs or consuming them.
+
+If the RS fails to connect to the cluster and to establish a distributed lock on the relevant DMs, reactions consuming these DMs will not be scheduled.
+Reactions consuming solely local molecules will continue to be scheduled if possible.
+However, a failure to establish a distributed lock may take a long time to be detected.
+During this time, the RS scheduler will be blocked, and no other reactions (including reactions consuming solely local molecules) will be scheduled until the distributed lock is established or a network failure is detected.
+To avoid such delays in scheduling solely-local reactions, we could separate solely-local reactions into a separate reaction site that has no bound DMs.  
 
 New DMs may be emitted while a DCM peer is reading the available DMs; the new DMs may not be immediately visible to the DCM peer,
 but this will not reduce the number of possibly scheduled reactions.
 New DMs will generate another "new data" notification, which will cause them to be examined at a later time.
 
 Each distributed reaction site is identified by a unique hash.
-The hash depends on the entire reaction site's source code, as well as on the names of the input molecules.
+The hash depends on the entire reaction site's source code, as well as on the names and types of the input molecules.
 
 In ZooKeeper's filesystem, the information about available DMs is stored under the paths corresponding to each molecule's site index in the RS.
 To illustrate the directory structure, assume that two reaction sites have hashes `1a2b34cd` and `5678ef09` and consume 3 input DMs each,
@@ -675,7 +682,8 @@ When the reaction starts by consuming one or more DMs, the cluster session ID mu
 
 The DCM follows the convention that a distributed reaction is successful if it finished without exceptions.
 If a reaction failed for any reason, its input molecules should be restored as again available in the cluster, rolling back the consumption step.
-"Transactions" (rolling back more than one reaction) are not supported by the DCM because, in general, there is no single sequence of reactions that automatically follow from a given reaction and could be considered as a "trnasaction".
+"Complex transactions" (rolling back more than one reaction) are not supported by the DCM because, in general, the chemical program has no single, clearly defined sequence of reactions that would automatically follow a given reaction and could be considered as a "complex transaction" together with a given reaction.
+Therefore, the DCM treats each individual reaction as a single "transaction".
 
 When a reaction completes successfully, the DCM peer needs to notify the cluster that the input molecules are irrevocably consumed.
 In the example above, the node `dm-0/val-0` must be now deleted, together with the ephemeral child node `consumed-XXXX`.
@@ -720,3 +728,5 @@ Therefore, there are two ways of emitting a DM: with restriction to a specified 
 If the connection to the cluster is up, the ZooKeeper client will send the DM to the cluster, and if successful, clear the DM from the "outgoing" multiset. 
 If the connection fails at that time, the same logic applies:
 The DMs are emitted only if the current cluster session ID is the same as the session ID specified by the emission request.
+
+The current cluster session ID is stored within the thread-local data of a reaction.

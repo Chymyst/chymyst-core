@@ -115,6 +115,8 @@ sealed trait MolEmitter extends PersistentHashCode with MolEmitterDebugging {
 
   /** The type symbol corresponding to the value type of the molecule.
     * For instance, a molecule emitter of type `B[Int, String]` has type symbol `'Int`.
+    * 
+    * This value remains `null` until a molecule emitter becomes bound to a reaction site.
     *
     * @return A Scala [[Symbol]] representing the molecule value type, such as `'Unit`, `'Int` etc.
     */

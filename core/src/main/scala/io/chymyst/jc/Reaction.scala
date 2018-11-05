@@ -721,6 +721,12 @@ final case class Reaction(
     */
   def noRetry: Reaction = copy(retry = false)
 
+  // TODO: determine if we really need to sort the molecules alphabetically by assigned name, or
+  //       perhaps it is sufficient to sort them in the macro code by their Scala identifier's name.
+  private[jc] val inputInfosSortedBySha1: Array[InputMoleculeInfo] =
+  info.inputs
+    .sortBy(_.sha1)
+
   // Optimization: this is used often.
   private[jc] val inputMoleculesSortedAlphabetically: Seq[MolEmitter] =
     info.inputs
@@ -729,7 +735,7 @@ final case class Reaction(
 
   // java.security.MessageDigest is not thread safe, so we use a new MessageDigest for each reaction.
   private[jc] val inputInfoSha1: String =
-    getSha1(inputMoleculesSortedAlphabetically.map(_.hashCode()).mkString(","), getMessageDigest) + info.sha1
+    getSha1(inputInfosSortedBySha1.map(inputinfo ⇒ inputinfo.molecule.hashCode() + inputinfo.sha1).mkString(","), getMessageDigest) + info.sha1
 
   // Optimization: this is used often.
   private[jc] val inputMoleculesSet = inputMoleculesSortedAlphabetically.toSet
