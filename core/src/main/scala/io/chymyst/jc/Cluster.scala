@@ -34,14 +34,18 @@ private[jc] final case class ClusterConnector(clusterConfig: ClusterConfig) {
 
   def start(): Unit = zk.start()
 
-  def sessionId: Long = zk.getZookeeperClient.getZooKeeper.getSessionId
+  def sessionId: Option[Long] = {
+    if (zk.getZookeeperClient.isConnected)
+      Some(zk.getZookeeperClient.getZooKeeper.getSessionId)
+    else None
+  }
 
   start()
 }
 
 object Cluster {
   /** This value is used to compute the client ID, which needs to be unique and to persist per JVM lifetime.
-    * 
+    *
     */
   val guid: String = java.util.UUID.randomUUID().toString
 
@@ -50,7 +54,7 @@ object Cluster {
     * There is only one `ClusterConnector` for all DRSs using the same cluster.
     */
   private[jc] val connectors: TrieMap[ClusterConfig, ClusterConnector] = new TrieMap()
-  
+
   private[jc] def createClusterConnector(clusterConfig: ClusterConfig): ClusterConnector = {
     connectors.getOrElseUpdate(clusterConfig, ClusterConnector(clusterConfig))
   }
