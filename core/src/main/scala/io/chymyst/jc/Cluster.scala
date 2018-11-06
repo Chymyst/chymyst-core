@@ -2,6 +2,7 @@ package io.chymyst.jc
 
 import java.util
 
+import io.chymyst.jc.Core.ClusterSessionId
 import org.apache.curator.framework.{AuthInfo, CuratorFramework, CuratorFrameworkFactory}
 import org.apache.curator.retry.RetryNTimes
 
@@ -32,18 +33,18 @@ private[jc] final case class ClusterConnector(clusterConfig: ClusterConfig) {
 
   def start(): Unit = zk.start()
 
-  def sessionId: Option[Long] = {
+  def sessionId: Option[ClusterSessionId] = {
     if (zk.getZookeeperClient.isConnected)
-      Some(zk.getZookeeperClient.getZooKeeper.getSessionId)
+      Some(ClusterSessionId(zk.getZookeeperClient.getZooKeeper.getSessionId))
     else None
   }
 
   private val reactionSites: TrieMap[String, ReactionSite] = new TrieMap()
-  
+
   def addReactionSite(reactionSite: ReactionSite): Unit = {
     reactionSites.getOrElseUpdate(reactionSite.sha1CodeWithNames, reactionSite)
   }
-  
+
   start()
 }
 

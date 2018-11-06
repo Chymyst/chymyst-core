@@ -38,6 +38,9 @@ object Core {
   private[jc] val MolSiteIndex = Subtype[Int]
   private[jc] type MolSiteIndex = MolSiteIndex.T
 
+  private[jc] val ClusterSessionId = Subtype[Long]
+  private[jc] type ClusterSessionId = ClusterSessionId.T
+
   private[jc] val ValTypeSymbol = Subtype[Symbol]
   private[jc] type ValTypeSymbol = ValTypeSymbol.T
 
