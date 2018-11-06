@@ -670,7 +670,7 @@ The single cluster session is used by all reaction sites that consume or emit di
 Clusters are identified by ClusterConfig` values.
 
 A DCM peer may open several cluster sessions if different `ClusterConfig` values specify different cluster URLs.
-However, a single reaction site may not consume molecules from different clusters (this would create unsolvable deadlock problems).
+However, a single reaction site may not consume distributed molecules from different clusters (this would create unsolvable deadlock problems).
 
 Since `ClusterConfig` values are immutable, they are compared as values (not as JVM object pointers).
 Therefore, different parts of the program may create their own copies of `ClusterConfig` values, still resulting in a single cluster session as long as all `ClusterConfig` values contain the same configuration data.

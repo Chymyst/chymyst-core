@@ -2,9 +2,11 @@ package io.chymyst.jc
 
 import java.util
 
+import com.twitter.chill.ScalaKryoInstantiator
 import io.chymyst.jc.Core.ClusterSessionId
 import org.apache.curator.framework.{AuthInfo, CuratorFramework, CuratorFrameworkFactory}
 import org.apache.curator.retry.RetryNTimes
+import org.apache.zookeeper.CreateMode
 
 import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.collection.concurrent.TrieMap
@@ -24,6 +26,16 @@ final case class ClusterConfig(
 }
 
 private[jc] final case class ClusterConnector(clusterConfig: ClusterConfig) {
+  private[jc] def emit[T](mol: DM[T], value: T): Unit = {
+    val path: String = ???
+    val molData = Cluster.serialize(value)
+    val acl = ???
+    val createMode: CreateMode = CreateMode.PERSISTENT
+    zk.getZookeeperClient.getZooKeeper.create(path, molData, acl, createMode)
+  }
+
+  private[jc] def emit[T](mol: DM[T], value: T, currentSessionId: ClusterSessionId): Unit = ???
+
   private val zk: CuratorFramework = CuratorFrameworkFactory.builder
     .connectString(clusterConfig.url)
     .connectionTimeoutMs(clusterConfig.connectionTimeoutMs)
@@ -53,6 +65,11 @@ object Cluster {
     *
     */
   val guid: String = java.util.UUID.randomUUID().toString
+
+  // This code is taken from the chill-scala test suite.
+  def serialize[T](t: T): Array[Byte] = ScalaKryoInstantiator.defaultPool.toBytesWithClass(t)
+
+  def deserialize[T](bytes: Array[Byte]): T = ScalaKryoInstantiator.defaultPool.fromBytes(bytes).asInstanceOf[T]
 
   /** For each `ClusterConfig` value, a separate cluster connection is maintained by `ClusterConnector`
     * values in this dictionary. The values are created whenever a DRS is activated that uses a given cluster.

@@ -406,18 +406,38 @@ object Core {
       NO_REACTION_INFO_STRING
   }
 
-  private[jc] def setReactionInfoInThread(info: ReactionInfo): Unit = Thread.currentThread() match {
+  private[jc] def setReactionInfoOfThread(info: ReactionInfo): Unit = Thread.currentThread() match {
     case t: ChymystThread ⇒
       t.reactionInfoString = info.toString
     case _ ⇒
   }
 
-  private[jc] def clearReactionInfoInThread(): Unit = Thread.currentThread() match {
+  private[jc] def clearReactionInfoOfThread(): Unit = Thread.currentThread() match {
     case t: ChymystThread ⇒
       t.reactionInfoString = NO_REACTION_INFO_STRING
     case _ ⇒
   }
 
   val NO_REACTION_INFO_STRING = ReactionString("<none>")
+
+  def getClusterSessionIdOfThread: Option[ClusterSessionId] = Thread.currentThread() match {
+    case t: ChymystThread ⇒
+      t.clusterSessionId
+    case _ ⇒
+      None
+  }
+  
+  private[jc] def setClusterSessionOfThread(clusterSessionId: ClusterSessionId): Unit = Thread.currentThread() match {
+    case t: ChymystThread ⇒
+      t.clusterSessionIdValue = Some(clusterSessionId)
+    case _ ⇒
+  }
+
+  private[jc] def clearClusterSessionOfThread(): Unit = Thread.currentThread() match {
+    case t: ChymystThread ⇒
+      t.clusterSessionIdValue = None
+    case _ ⇒
+  }
+
 
 }

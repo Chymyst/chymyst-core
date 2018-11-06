@@ -251,14 +251,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val initNs = System.nanoTime()
     lazy val reactionInputsDebugString = reactionInputsToString(thisReaction, usedInputs)
     val exitStatus: ReactionExitStatus = try {
-      setReactionInfoInThread(thisReaction.info)
+      setReactionInfoOfThread(thisReaction.info)
       usedInputs.foreach(_.fulfillWhenConsumedPromise())
       ///////////
       // At this point, we apply the reaction body to its input molecules. This runs the reaction.
       //////////
 
       thisReaction.body.apply(ReactionBodyInput(index = usedInputs.length - 1, inputs = usedInputs))
-      clearReactionInfoInThread()
+      clearReactionInfoOfThread()
       // If we are here, we had no exceptions during evaluation of reaction body.
       ReactionExitSuccess
     } catch {
@@ -525,8 +525,18 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private[jc] def emitDistributed[T](mol: DM[T], value: T): Unit = {
-    val clusterConnector = Cluster.connectors(mol.clusterConfig) // This must exist by now.
-    ???
+    val clusterConnector = Cluster.connectors(mol.clusterConfig) // This entry must exist in the dictionary by now.
+    Core.getClusterSessionIdOfThread match {
+      case Some(clusterSessionId) ⇒
+        // We are running a reaction that depends on a cluster session.
+        // The new molecule must be emitted on the same session, or emission will need to fail.
+        clusterConnector.sessionId match {
+          case Some(currentSessionId) if clusterSessionId === currentSessionId ⇒
+            clusterConnector.emit(mol, value, currentSessionId)
+          case _ ⇒ throw new ExceptionEmittingDistributedMol(s"Distributed molecule $mol($value) cannot be emitted because session $clusterSessionId is not current")
+        }
+      case None ⇒ clusterConnector.emit(mol, value)
+    }
   }
 
   /** Compute a map of molecule counts in the soup. This is potentially very expensive if there are many molecules present.
@@ -850,6 +860,8 @@ final class ExceptionMoleculeAlreadyBound(message: String) extends ExceptionInCh
 final class ExceptionNoReactionPool(message: String) extends ExceptionInChymyst(message)
 
 final class ExceptionEmittingStaticMol(message: String) extends ExceptionInChymyst(message)
+
+final class ExceptionEmittingDistributedMol(message: String) extends ExceptionInChymyst(message)
 
 private[jc] sealed trait ReactionExitStatus {
   def getMessage: String
