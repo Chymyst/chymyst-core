@@ -91,7 +91,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private[jc] val sha1Code = getSha1(reactions.map(_.info.sha1).sorted.mkString(","), getMessageDigest)
 
   /** The sha1 hash sum of the entire reaction site's Scala code, together with molecule names.
-    * This hash sum will distinguish dynamically created reactions having identical Scala code but different molecule names.
+    * This hash sum will distinguish dynamically created reactions having identical Scala code but different molecule names or types.
     */
   private[jc] val sha1CodeWithNames = getSha1(sha1Code + knownInputMolecules.map { case (e, (i, t)) ⇒ s"$e:$i:$t" }.mkString(","), getMessageDigest)
 
@@ -142,10 +142,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * Return `true` if this function should be called again from the `while` loop.
     */
   private def decideReactionsForNewMolecule(mol: MolEmitter): Boolean = optimize {
-    // TODO: optimize: precompute all related molecules in ReactionSite? (what exactly to precompute??)
+    // TODO: optimize: precompute all related molecules in ReactionSite?
+    // (What exactly to precompute? `consumingReactions` is already precomputed.)
 
-    // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
     val candidateReactions = consumingReactions(mol.siteIndex)
+    // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
     val foundReactionAndInputs: Option[(Reaction, InputMoleculeList)] = candidateReactions.zipWithIndex.map { case (thisReaction, ind) ⇒
       // Optimization: ignore reactions that do not have all the required molecules. Not sure if this actually helps! Let's skip it for now.
       if ( //          thisReaction.inputMoleculesSet.exists(mol ⇒ moleculesPresent(mol.siteIndex).isEmpty) ||
@@ -201,7 +202,9 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             reactionPool.reporter.reactionScheduled(id, toString, mol.siteIndex, mol.toString, thisReaction.info.toString, reactionInputsToString(thisReaction, usedInputs), debugRemainingMolecules)
             // Signal success of scheduler decision.
             thisReaction.inputMoleculesSet.foreach(_.succeedWhenScheduledPromise(mol.toString))
-            // The scheduler loops, trying to run another reaction with the same molecule, if possible. This is required for correct operation.
+            // The scheduler loops, trying to run another reaction with the same molecule, if possible.
+            // This looping is required for correct operational semantics of the CM.
+            // Otherwise, deadlocks will sometimes occur even though molecules are available for starting reactions.
             true
           }
         }
@@ -216,7 +219,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private def scheduleReaction(reaction: Reaction, usedInputs: InputMoleculeList, poolForReaction: Pool): Unit =
-    poolForReaction.runReaction(reaction.info.toString, reactionClosure(reaction, usedInputs, poolForReaction: Pool))
+    poolForReaction.runReaction(reaction.info.toString, reactionClosure(reaction, usedInputs, poolForReaction))
 
   /** This [[Runnable]] will be run on a dedicated single scheduler thread, so we do not need to synchronize anything here.
     *
@@ -605,8 +608,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     emitAndCreateReplyEmitter(bm, v, useFuture = true).replyEmitter.reply.getFuture
   }
 
-  /** This is called once, when the reaction site is first declared using the [[site]] call.
-    * It is called on the thread that calls [[site]].
+  /** This method is called exactly once as the reaction site is declared using the [[site]] call.
+    * It is run on the thread that calls [[site]].
     *
     * @return A list of warning and error messages.
     */
@@ -626,7 +629,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       val unitType = valType === ValTypeSymbol('Unit)
       val useMapBag = unitType || (simpleType && !pipelined)
       moleculesPresent(siteIndex) = if (mol.isDistributed)
-        new ClusterBag[AbsMolValue[_]](mol.asInstanceOf[DM[_]].clusterConnector)
+        new ClusterBag[AbsMolValue[_]](mol.asInstanceOf[DM[_]].clusterConfig)
       else if (useMapBag)
         new MutableMapBag[AbsMolValue[_]]()
       else
@@ -794,11 +797,18 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   def isSingleInstance: Boolean = coincidentReactionSites.get() === 1
 
+  /** The set of all known cluster connectors. This set will be empty unless this reaction is a DRS.
+    * Connections will be created to each of the clusters used by any of the input molecules of this DRS. 
+    */
+  private[jc] val clusterConnectors: Set[ClusterConnector] = knownInputMolecules.keys
+    .collect {
+      case dm: DM[_] ⇒ dm.clusterConfig
+    }.toSet
+    .map(Cluster.createClusterConnector)
+
   /** A reaction site is distributed if at least one of its reactions has distributed input molecules.
     */
-  val isDistributed: Boolean = optimize {
-    reactions.exists(_.info.hasDistributedInputs)
-  }
+  val isDistributed: Boolean = clusterConnectors.nonEmpty
 
   // This code should be at the very end of the reaction site constructor because it reports the elapsed time,
   // measuring the overhead of creating a new reaction site, and also because it calls `initializeReactionSite()`,

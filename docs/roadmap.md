@@ -50,12 +50,12 @@ In particular, do not lock the entire molecule bag - only lock some groups of mo
 - start many reactions at once when possible, even at one and the same reaction site (will not do; scheduling has been converted to single-threaded)
 - allow nonlinear input patterns and arbitrary guards (done in 0.1.5, optimized in 0.1.8)
 - automatic pipelining (i.e. strict ordering of consumed molecules) should give a speedup (done in 0.1.8)
+- Use "pipelined" molecules that are optimized for streaming usage (done in 0.1.8).
 
 Version 0.3: 
 
 - Optimize some performance bottlenecks: creating new reactions and new reaction sites is slow
 - Investigate interoperability with streaming frameworks such as Scala Streams, Scalaz Streams, FS2, Akka, Akka Streaming, Kafka, etc.
-- Use "pipelined" molecules that are optimized for streaming usage (done in 0.1.8).
 
 Version 0.4: Enterprise readiness.
 
@@ -69,7 +69,8 @@ Version 0.5: Application framework `Chymyst`
 - converting between molecules and various external APIs such as HTTP, GUI toolkits, Unix files and processes
 - framework for applications
 
-Version 0.6: Automatic distributed and fault-tolerant execution of chemical reactions ("soup pools" or another mechanism).
+Version 0.6: Distributed Chemical Machine
+- Automatic distributed and fault-tolerant execution of chemical reactions ("site pools" or another mechanism)
 
 Version 0.7: Static optimizations: use advanced macros and code transformations to completely eliminate all blocking and all inessential pattern-matching overhead.
 
@@ -106,14 +107,15 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
  5 * 5 - Implement performance metrics either through a given logger or through special molecules.
  Need to monitor: Bag size at reaction site; arrival rate; consumption rate; reaction error rate; reaction compute time; thread utilization (busy / locked waiting / idle) both for scheduler thread and for worker threads.
  
- 4 * 4 - Move more code into the `go{}` macro, so that the `Reaction()` constructor has less work to do.
- 5 * 5 - Implement caching of `Reaction` and `ReactionSite` values by md5 hash, so that we can reuse some data structures if possible instead of recomputing them. (Note that the reactions close over molecule emitters, and reaction sites close over reactions, but many data structures use only molecule indices, and so could be shared rather than recomputed.)
+ 4 * 4 - Move more code into the `go{}` macro, so that the `Reaction()` constructor has less work to do. For instance: sort the input infos by Scala identifier names, rather than by runtime-assigned molecule names. The sorting can then be done at compile time. Use type signatures for sha1 hashes. Separate Scala code sha1 and runtime-dependent sha1?
+ 
+ 5 * 5 - Implement caching of `Reaction` and `ReactionSite` values by sha1 hash, so that we can reuse some data structures if possible instead of recomputing them. (Note that the reactions close over molecule emitters, and reaction sites close over reactions, but many data structures use only molecule indices, and so could be shared rather than recomputed.)
  
  2 * 2 - Detect this condition at the reaction site time:
  A cycle of input molecules being subset of output molecules, possibly spanning several reaction sites (a->b+..., b->c+..., c-> a+...). This is a warning if there are nontrivial matchers and an error otherwise.  - This depends on better detection of output environments.
  
- 3 * 3 - define a special "switch off" or "quiescence" molecule - per-join, with a callback parameter.
- Also define a "shut down" molecule which will enforce quiescence and then shut down the site pool and the reaction pool.
+ 3 * 3 - define a special "switch off" or "quiescence" molecule - per-RS, with a callback parameter.
+ Or, define a "shut down" molecule which will enforce quiescence and/or then shut down the site pool and the reaction pool.
 
  3 * 3 - add logging of reactions currently in progress at a given RS. (Need a custom thread class, or a registry of reactions?)
  
@@ -123,20 +125,24 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
  5 * 5 - reaction sites should detect the situation when another reaction site is pumping molecules into this RS while these molecules can't be consumed quickly enough.
  It should identify which reactions are emitting these molecules, and notify the other RS about it ("backpressure").
  
+ 3 * 3 Do not schedule reactions (even though input molecules are available) if the RS pool is insufficiently free (e.g. 2x pending tasks for each thread, or more detailed metrics).
+ 
  2 * 2 - thread pools should have an API for changing the number of threads at run time.
 
- 2 * 2 - interop with Akka actors, in a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task etc.
+ 2 * 2 - interop with Akka actors, in a separate project with its own artifact and dependency. Similarly for interop with Akka Stream, Scalaz Task, Kafka, etc.
 
  3 * 4 - implement "thread fusion" like in iOS/Android: 1) when a blocking molecule is emitted from a thread T and the corresponding reaction site runs on the same thread T, do not schedule a task but simply run the reaction site synchronously (non-blocking molecules still require a scheduled task? not sure); 2) when a reaction is scheduled from a reaction site that runs on thread T and the reaction is configured to run on the same thread T, do not schedule a task but simply run the reaction synchronously.
 
  3 * 5 - implement automatic thread fusion for static molecules? — not sure how that would work.
- Can we make at least some reactions, if scheduled very quickly, to be scheduled on the same thread? 
+ Can we make at least some reactions, if scheduled very quickly, to be scheduled on the same thread? A good first try is to implement thread fusion for static molecules only. If a static molecule is emitted and another reaction can be scheduled with it, run that other reaction right away, in the reaction closure runner.
  
- 4 * 3 - as an option, run a reaction site on the current thread (?) or on a given executor
+ 4 * 3 - as an option, run a reaction site on the current thread (?) or on a given thread executor (i.e. make a pool out of a given `Executor`, `ExecutionContext`, or `Thread`, is this possible without loss of functionality?).
+ 
+ 3 * 3 - is it possible to pre-allocate the reaction closures, rather than creating them each time at runtime?
+ 
+ 3 * 3 - simplify code by assuming that static molecules can be only emitted once
  
  2 * 3 - when attaching molecules to futures or futures to molecules, we can perhaps schedule the new futures on the same thread pool as the reaction site to which the molecule is bound? This requires having access to that thread pool. Maybe that access would be handy to users anyway?
- 
- 5 * 5 - is it possible to implement distributed execution by sharing the site pool with another machine (but running the reaction sites only on the master node)? Use Paxos, Raft, or other consensus algorithm to ensure consistency? Using master-worker architecture, or fully symmetric p2p architecture?
  
  5 * 5 - Distributed vs. Remote; molecule vs. reaction vs. reaction site. This yields 6 distinct possibilities for distributed / remote execution. Need to figure out their logical dependencies and implementation possibilities. Note that, compared with the Actor model, we do not need to check that the actor is alive; distributed execution model only needs to verify that (1) network is up, (2) remote application is running.
   
@@ -146,9 +152,9 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
 
  2 * 4 - allow molecule values to be parameterized types or even higher-kinded types? Need to test this.
 
- 2 * 2 - make memory profiling / benchmarking; how many molecules can we have per 1 GB of RAM? Are reactions or reaction sites ever garbage-collected?
+ 2 * 2 - make memory profiling / benchmarking; how many molecules can we have per 1 GB of RAM? Are reactions or reaction sites being actually garbage-collected if they are not used?
 
- 2 * 2 - add tests for Pool such that we submit a closure that sleeps and then submit another closure. Should get / or not get the RejectedExecutionException
+ 2 * 2 - add tests for `Pool` such that we submit a closure that sleeps and then submit another closure. Should get / or not get the `RejectedExecutionException`.
 
  3 * 5 - consider whether we would like to prohibit emitting molecules from non-reaction code. Maybe with a construct such as `withMolecule{ ... }` where the special molecule will be emitted by the system? Can we rewrite tests so that everything happens only inside reactions?
 
@@ -168,9 +174,9 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
  
  2 * 3 - Error handling should be flexible enough to implement retry at most N times with backoff and other error recovery logic.
  
- 3 * 2 - Should we be able to enable and disable reactions at run time? Should we be able to deactivate entire reaction sites?
+ 3 * 2 - Should we be able to enable and disable reactions at run time? Should we be able to deactivate and reactivate entire reaction sites?
  
- 2 * 2 - Unit tests need examples; how would I diagnose a deadlock due to off-by-one error in the counter code? How would I use scalacheck to unit-test a reaction? (Emit input molecules with generated values, require output molecule with a value that satisfies a law?)
+ 2 * 2 - The new unit-test functionality needs examples; how would I diagnose a deadlock due to off-by-one error in the counter code? How would I use scalacheck to unit-test a reaction? (Emit input molecules with generated values, require output molecule with a value that satisfies a law?)
  
  3 * 5 - implement ING Baker in Chymyst
  
@@ -188,8 +194,6 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
 
  3 * 4 - LAZY values on molecules? By default? What about pattern-matching then? Probably need to refactor SyncMol and AsyncMol into non-case classes and change some other logic. — Will not do now. Not sure that lazy values on molecules are important as a primitive. We can always simulate them using closures.
 
- 2 * 3 - investigate using a single wait/notify pair instead of 2 semaphores; does it give better performance? - Implemented in 0.2.0
- 
  5 * 5 - implement fairness with respect to molecules. - Will not do now. If reactions depend on fairness, something is probably wrong with the chemistry. Instead, pipelining should be a very often occurring optimization.
 
  3 * 5 - create and use an RDLL (random doubly linked list) data structure for storing molecule values; benchmark. Or use Vector with tail-swapping? This should help fetch random molecules out of the soup. - Will not do now. Not sure what value it brings us if molecule values are truly randomly chosen.

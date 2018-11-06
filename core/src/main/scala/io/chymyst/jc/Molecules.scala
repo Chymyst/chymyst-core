@@ -113,12 +113,15 @@ sealed trait MolEmitter extends PersistentHashCode with MolEmitterDebugging {
   /** Check whether the molecule has been automatically pipelined. */
   @inline def isPipelined: Boolean = valIsPipelined
 
-  /** The type symbol corresponding to the value type of the molecule.
+  /** The type symbol corresponding to the type of the molecule's payload value.
     * For instance, a molecule emitter of type `B[Int, String]` has type symbol `'Int`.
     * 
     * This value remains `null` until a molecule emitter becomes bound to a reaction site.
     *
-    * @return A Scala [[Symbol]] representing the molecule value type, such as `'Unit`, `'Int` etc.
+    * For more complicated types, e.g. `List[Int]`, the type symbol is created from the string that
+    * represents the corresponding Scala type expression, e.g. `Symbol("List[Int]")`.
+    * 
+    * @return A Scala [[Symbol]] representing the molecule value's type, such as `'Unit`, `'Int` etc.
     */
   @inline def typeSymbol: Symbol = valTypeSymbol
 
@@ -297,10 +300,10 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter with Emit
 /** Non-blocking distributed molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
   *
   * @param name             Name of the molecule, used for identifying distributed reaction site across the cluster.
-  * @param clusterConnector Implicit value describing the cluster into which this molecule will be emitted.
+  * @param clusterConfig Implicit value describing the cluster into which this molecule will be emitted.
   * @tparam T Type of the value carried by the molecule.
   */
-final class DM[T](val name: String)(implicit val clusterConnector: ClusterConfig) extends (T => Unit) with MolEmitter {
+final class DM[T](val name: String)(implicit val clusterConfig: ClusterConfig) extends (T => Unit) with MolEmitter {
   override val isDistributed: Boolean = true
 
   def unapply(arg: ReactionBodyInput): Wrap[T] = {

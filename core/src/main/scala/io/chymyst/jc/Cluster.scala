@@ -2,10 +2,12 @@ package io.chymyst.jc
 
 import java.util
 
+import com.sun.xml.internal.bind.v2.model.core.ID
 import org.apache.curator.framework.{AuthInfo, CuratorFramework, CuratorFrameworkFactory}
 import org.apache.curator.retry.RetryNTimes
 
 import scala.collection.JavaConverters.seqAsJavaListConverter
+import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
 final case class ClusterConfig(
@@ -16,10 +18,13 @@ final case class ClusterConfig(
   numRetries: Int = 5,
   retryIntervalMs: Int = 1000
 ) {
+  /** Each DCM peer is uniquely identified by this ID.
+    *
+    */
   val peerId: String = Core.getSha1(this.toString + Cluster.guid, Core.getMessageDigest)
 }
 
-final class ClusterConnector(clusterConfig: ClusterConfig) {
+private[jc] final case class ClusterConnector(clusterConfig: ClusterConfig) {
   private val zk: CuratorFramework = CuratorFrameworkFactory.builder
     .connectString(clusterConfig.url)
     .connectionTimeoutMs(clusterConfig.connectionTimeoutMs)
@@ -28,11 +33,27 @@ final class ClusterConnector(clusterConfig: ClusterConfig) {
     .build
 
   def start(): Unit = zk.start()
+
+  def sessionId: Long = zk.getZookeeperClient.getZooKeeper.getSessionId
+
+  start()
 }
 
 object Cluster {
+  /** This value is used to compute the client ID, which needs to be unique and to persist per JVM lifetime.
+    * 
+    */
   val guid: String = java.util.UUID.randomUUID().toString
-  val connectors: mutable.Map[String, ClusterConnector] = mutable.Map()
+
+  /** For each `ClusterConfig` value, a separate cluster connection is maintained by `ClusterConnector`
+    * values in this dictionary. The values are created whenever a DRS is activated that uses a given cluster.
+    * There is only one `ClusterConnector` for all DRSs using the same cluster.
+    */
+  private[jc] val connectors: TrieMap[ClusterConfig, ClusterConnector] = new TrieMap()
+  
+  private[jc] def createClusterConnector(clusterConfig: ClusterConfig): ClusterConnector = {
+    connectors.getOrElseUpdate(clusterConfig, ClusterConnector(clusterConfig))
+  }
 }
 
 final class ClusterBag[T](clusterConnector: ClusterConfig) extends MutableBag[T] {
