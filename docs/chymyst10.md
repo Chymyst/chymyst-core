@@ -400,11 +400,13 @@ Other DCM peers have no access to Java object identities in a different JVM, sin
 
 ### Example: inability to distinguish multi-instance DRSs
 
-To illustrate this problem, consider two DCM peers running the following (identical) code that defines two reaction sites using a helper function and then send a molecule emitter on a DM:
+To illustrate this problem, consider a situation with a multi-instance DRS,
+where two DCM peers run the following (identical) code that defines two reaction sites using a helper function and then send a molecule emitter on a DM:
 
 ```scala
 // Incorrect code.
 // This function defines a reaction site and returns an emitter.
+// We assume that this function always creates reaction sites with the same code hash. 
 def makeReaction(param: Int): M[Int] = ???
 
 val isDriver: Boolean = ??? // Read configuration.
@@ -436,21 +438,29 @@ Indeed, a molecule emitter `data1` also exists on the worker JVM.
 The worker needs to make the correspondence between the locally defined emitter `data1` and the data of type `M[Int]` carried by the DM `carrier()`. 
 The data on `carrier()` was received by the worker JVM from the network and can be deserialized into a value of type `M[Int]`.
 However, this should not be a _new_ molecule emitter; the intended functionality is to make this molecule emitter identical to `data1` in the worker JVM.
-How can the worker JVM decide that the serialized data carried by `carrier()` corresponds to the molecule emitter `data1` and not to some other molecule emitter of type `M[Int]`?
+How can the worker JVM decide that the serialized data carried by `carrier()` corresponds to the molecule emitter `data1`, and not to any other molecule emitter of type `M[Int]`?
 
 Molecule emitters can be identified in three different ways:
 
-- the molecule's printable name (normally used for debugging purposes only)
-- the name of the local Scala identifier for the molecule emitter
-- the Scala code hash of the reaction site to which the molecule is bound
+1. By the molecule's printable name (which is normally used for debugging purposes only).
+2. By the name of the local Scala identifier for the molecule emitter, such as `data1`.
+3. By the Scala code hash of the reaction site to which the molecule is bound, together with the site-wide molecule index (unique among all molecules bound to the reaction site).
 
-The
+The first two options are unreliable, since the user code can define local values equal to molecule emitters.
+Local variable names, as well as the molecules' printable names, should be easily changeable according to the programmer's convenience,
+and thus should not be used to denote the business logic of the application.
 
+It remains to identify molecule emitters by the hash of the reaction site and the site-wide molecule index.
+However, this identification is impossible here, since the reaction sites for both emitters have identical code.
+
+Reliable cross-cluster identification of molecule emitters is possible only for molecules bound to single-instance reaction sites.
 For this reason, DCM restricts DMs, as well as any molecules whose emitters are carried as data by DMs, to be bound to single-instance reaction sites.
 If it is necessary for application code to create several reaction sites with the same Scala code, the reaction sites must differ from each other at least in the names of some input molecules.
 The Scala code hash for a reaction site will be computed at run time, after all input molecules are bound to that RS, and will depend on the names of all input molecules as well as on the Scala code of all reactions in the RS.
 
-As a simple fix for the example shown above, we can make a molecule name depend on the parameter `delta`:  
+### Examples of avoiding multi-instance DRSs
+
+As a simple fix for the first example shown above, we can make a molecule name depend on the parameter `delta`:  
 
 ```scala
 // Corrected code.
@@ -467,6 +477,8 @@ val (data2, get2) = makeQuery(20)
 ```
 
 The resulting reaction sites will be single-instance as long as the programmer does not call `makeQuery()` with the same value of `delta`.
+
+Similarly, the second example can be fixed by making the molecule names depend on the parameter of the function `makeReaction()`.
 
 ## Example: broadcasting
 

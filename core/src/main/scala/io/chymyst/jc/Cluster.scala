@@ -38,6 +38,12 @@ private[jc] final case class ClusterConnector(clusterConfig: ClusterConfig) {
     else None
   }
 
+  private val reactionSites: TrieMap[String, ReactionSite] = new TrieMap()
+  
+  def addReactionSite(reactionSite: ReactionSite): Unit = {
+    reactionSites.getOrElseUpdate(reactionSite.sha1CodeWithNames, reactionSite)
+  }
+  
   start()
 }
 
@@ -53,8 +59,10 @@ object Cluster {
     */
   private[jc] val connectors: TrieMap[ClusterConfig, ClusterConnector] = new TrieMap()
 
-  private[jc] def createClusterConnector(clusterConfig: ClusterConfig): ClusterConnector = {
-    connectors.getOrElseUpdate(clusterConfig, ClusterConnector(clusterConfig))
+  private[jc] def addClusterConnector(reactionSite: ReactionSite)(clusterConfig: ClusterConfig): ClusterConfig = {
+    val connector = connectors.getOrElseUpdate(clusterConfig, ClusterConnector(clusterConfig))
+    connector.addReactionSite(reactionSite)
+    clusterConfig
   }
 }
 

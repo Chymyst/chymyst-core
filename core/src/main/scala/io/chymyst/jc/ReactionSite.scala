@@ -525,6 +525,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   }
 
   private[jc] def emitDistributed[T](mol: DM[T], value: T): Unit = {
+    val clusterConnector = Cluster.connectors(mol.clusterConfig) // This must exist by now.
     ???
   }
 
@@ -797,18 +798,17 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   def isSingleInstance: Boolean = coincidentReactionSites.get() === 1
 
-  /** The set of all known cluster connectors. This set will be empty unless this reaction is a DRS.
+  /** The set of all known cluster configs. This set will be empty unless this reaction is a DRS.
     * Connections will be created to each of the clusters used by any of the input molecules of this DRS. 
     */
-  private[jc] val clusterConnectors: Set[ClusterConnector] = knownInputMolecules.keys
-    .collect {
-      case dm: DM[_] ⇒ dm.clusterConfig
-    }.toSet
-    .map(Cluster.createClusterConnector)
+  private[jc] val clusterConfigs: Set[ClusterConfig] = knownInputMolecules.keys
+    .collect { case dm: DM[_] ⇒ dm.clusterConfig }
+    .toSet
+    .map(Cluster.addClusterConnector(this))
 
   /** A reaction site is distributed if at least one of its reactions has distributed input molecules.
     */
-  val isDistributed: Boolean = clusterConnectors.nonEmpty
+  val isDistributed: Boolean = clusterConfigs.nonEmpty
 
   // This code should be at the very end of the reaction site constructor because it reports the elapsed time,
   // measuring the overhead of creating a new reaction site, and also because it calls `initializeReactionSite()`,
