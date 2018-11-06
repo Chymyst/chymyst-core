@@ -26,15 +26,14 @@ final case class ClusterConfig(
 }
 
 private[jc] final case class ClusterConnector(clusterConfig: ClusterConfig) {
-  private[jc] def emit[T](mol: DM[T], value: T): Unit = {
-    val path: String = ???
+  private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit = {
+    val path: String = s"DCM/${reactionSite.sha1CodeWithNames}/dm-${mol.siteIndex}/v"
     val molData = Cluster.serialize(value)
-    val acl = ???
-    val createMode: CreateMode = CreateMode.PERSISTENT
-    zk.getZookeeperClient.getZooKeeper.create(path, molData, acl, createMode)
+    val createMode: CreateMode = CreateMode.PERSISTENT_SEQUENTIAL
+    zk.create().creatingParentsIfNeeded().withMode(createMode).forPath(path, molData)
   }
 
-  private[jc] def emit[T](mol: DM[T], value: T, currentSessionId: ClusterSessionId): Unit = ???
+  private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T, currentSessionId: ClusterSessionId): Unit = ???
 
   private val zk: CuratorFramework = CuratorFrameworkFactory.builder
     .connectString(clusterConfig.url)
