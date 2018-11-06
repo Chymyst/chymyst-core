@@ -2,13 +2,11 @@ package io.chymyst.jc
 
 import java.util
 
-import com.sun.xml.internal.bind.v2.model.core.ID
 import org.apache.curator.framework.{AuthInfo, CuratorFramework, CuratorFrameworkFactory}
 import org.apache.curator.retry.RetryNTimes
 
 import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.collection.concurrent.TrieMap
-import scala.collection.mutable
 
 final case class ClusterConfig(
   url: String,
