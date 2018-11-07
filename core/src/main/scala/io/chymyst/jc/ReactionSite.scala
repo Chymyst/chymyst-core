@@ -530,11 +530,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       case Some(clusterSessionId) ⇒
         // We are running a reaction that depends on a cluster session.
         // The new molecule must be emitted on the same session, or emission will need to fail.
-        clusterConnector.sessionId match {
-          case Some(currentSessionId) if clusterSessionId === currentSessionId ⇒
-            clusterConnector.emit(this, mol, value, currentSessionId)
-          case _ ⇒ throw new ExceptionEmittingDistributedMol(s"Distributed molecule $mol($value) cannot be emitted because session $clusterSessionId is not current")
-        }
+        clusterConnector.emit(this, mol, value, clusterSessionId)
       case None ⇒ clusterConnector.emit(this, mol, value)
     }
   }

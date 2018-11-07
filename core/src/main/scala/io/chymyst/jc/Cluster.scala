@@ -11,6 +11,15 @@ import org.apache.zookeeper.CreateMode
 import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.collection.concurrent.TrieMap
 
+/** Configuration value that describes how to connect to a cluster.
+  *
+  * @param url                 ZooKeeper URL or empty string. Empty string means a non-distributed cluster, used only for testing.
+  * @param username            ZooKeeper username string or empty string if no authentication is desired for ZooKeeper connection.
+  * @param password            ZooKeeper password string.
+  * @param connectionTimeoutMs ZooKeeper connection timeout in milliseconds.
+  * @param numRetries          Number of retries for connecting.
+  * @param retryIntervalMs     Retry interval in milliseconds.
+  */
 final case class ClusterConfig(
   url: String,
   username: String = "",
@@ -25,38 +34,96 @@ final case class ClusterConfig(
   val peerId: String = Core.getSha1(this.toString + Cluster.guid, Core.getMessageDigest)
 }
 
-private[jc] final case class ClusterConnector(clusterConfig: ClusterConfig) {
-  private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit = {
-    val path: String = s"DCM/${reactionSite.sha1CodeWithNames}/dm-${mol.siteIndex}/v"
-    val molData = Cluster.serialize(value)
-    val createMode: CreateMode = CreateMode.PERSISTENT_SEQUENTIAL
-    zk.create().creatingParentsIfNeeded().withMode(createMode).forPath(path, molData)
+private[jc] sealed trait ClusterConnector {
+  private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit
+
+  private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T, previousSessionId: ClusterSessionId): Unit = {
+    emit(reactionSite, mol, value)
+    lazy val error = new ExceptionEmittingDistributedMol(s"Distributed molecule $mol($value) cannot be emitted because session $previousSessionId is not current")
+    // Check that `sessionId` after emission matches what was given before emission.
+    sessionId() match {
+      case Some(currentSessionId) if currentSessionId === previousSessionId ⇒
+        // Session ID matches, can proceed to emitting.
+        emit(reactionSite, mol, value)
+        // Check that `sessionId` did not change.
+        sessionId() match {
+          case Some(currentSessionIdAfterEmission) if previousSessionId === currentSessionIdAfterEmission ⇒ // All clear.
+          case _ ⇒ throw error
+        }
+      case _ ⇒ throw error
+    }
   }
 
-  private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T, currentSessionId: ClusterSessionId): Unit = ???
+  def start(): Unit = {}
 
-  private val zk: CuratorFramework = CuratorFrameworkFactory.builder
-    .connectString(clusterConfig.url)
-    .connectionTimeoutMs(clusterConfig.connectionTimeoutMs)
-    .retryPolicy(new RetryNTimes(clusterConfig.numRetries, clusterConfig.retryIntervalMs))
-    .authorization(List[AuthInfo](new AuthInfo("digest", (clusterConfig.username + ":" + clusterConfig.password).getBytes("UTF-8"))).asJava)
-    .build
+  def sessionId(): Option[ClusterSessionId]
 
-  def start(): Unit = zk.start()
-
-  def sessionId: Option[ClusterSessionId] = {
-    if (zk.getZookeeperClient.isConnected)
-      Some(ClusterSessionId(zk.getZookeeperClient.getZooKeeper.getSessionId))
-    else None
-  }
-
-  private val reactionSites: TrieMap[String, ReactionSite] = new TrieMap()
+  protected val reactionSites: TrieMap[String, ReactionSite] = new TrieMap()
 
   def addReactionSite(reactionSite: ReactionSite): Unit = {
     reactionSites.getOrElseUpdate(reactionSite.sha1CodeWithNames, reactionSite)
   }
 
+  protected def dcmPathForMol(reactionSite: ReactionSite, mol: MolEmitter): String = {
+    s"DCM/${reactionSite.sha1CodeWithNames}/dm-${mol.siteIndex}/v"
+  }
+}
+
+private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends ClusterConnector {
+  private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit = {
+    val path = dcmPathForMol(reactionSite, mol)
+    val molData = Cluster.serialize(value)
+    val result = zk.create().creatingParentsIfNeeded()
+      .withMode(CreateMode.PERSISTENT_SEQUENTIAL)
+      .forPath(path, molData)
+    println(s"got zk result: $result")
+  }
+
+  private val zk: CuratorFramework = {
+    val builder = CuratorFrameworkFactory.builder
+      .connectString(clusterConfig.url)
+      .connectionTimeoutMs(clusterConfig.connectionTimeoutMs)
+      .retryPolicy(new RetryNTimes(clusterConfig.numRetries, clusterConfig.retryIntervalMs))
+    val builderWithAuth = if (clusterConfig.username.nonEmpty)
+      builder.authorization(List[AuthInfo](new AuthInfo("digest", (clusterConfig.username + ":" + clusterConfig.password).getBytes("UTF-8"))).asJava)
+    else builder
+    builderWithAuth.build
+  }
+
+  override def start(): Unit = zk.start()
+
+  /** Obtain current cluster session ID.
+    *
+    * @return Non-empty option if the current cluster connection is up, otherwise `None`.
+    */
+  def sessionId(): Option[ClusterSessionId] = {
+    if (zk.getZookeeperClient.isConnected)
+      Some(ClusterSessionId(zk.getZookeeperClient.getZooKeeper.getSessionId))
+    else None
+  }
+
   start()
+}
+
+/** A trivial implementation of ClusterConnector, automatically used when the ZooKeeper URL in `ClusterConfig` is empty.
+  *
+  * This implementation does not support clusters and holds all data in memory in the single JVM instance where it is created.
+  * Reaction sites connected to a TestOnlyConnector will behave as if they are running on a single-node cluster.
+  *
+  * Use for unit testing purposes only.
+  */
+final class TestOnlyConnector extends ClusterConnector {
+  private val allData: TrieMap[String, Array[Byte]] = new TrieMap()
+
+  override private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit = {
+    val path = dcmPathForMol(reactionSite, mol)
+    val molData = Cluster.serialize(value)
+    allData.update(path, molData)
+  }
+
+  private val sessionIdValue: ClusterSessionId = ClusterSessionId(scala.util.Random.nextLong())
+
+  override def sessionId(): Option[ClusterSessionId] = Some(sessionIdValue)
 }
 
 object Cluster {
@@ -76,8 +143,14 @@ object Cluster {
     */
   private[jc] val connectors: TrieMap[ClusterConfig, ClusterConnector] = new TrieMap()
 
+  private def createConnector(clusterConfig: ClusterConfig): ClusterConnector = {
+    if (clusterConfig.url.nonEmpty)
+      new ZkClusterConnector(clusterConfig)
+    else new TestOnlyConnector
+  }
+
   private[jc] def addClusterConnector(reactionSite: ReactionSite)(clusterConfig: ClusterConfig): ClusterConfig = {
-    val connector = connectors.getOrElseUpdate(clusterConfig, ClusterConnector(clusterConfig))
+    val connector = connectors.getOrElseUpdate(clusterConfig, createConnector(clusterConfig))
     connector.addReactionSite(reactionSite)
     clusterConfig
   }
