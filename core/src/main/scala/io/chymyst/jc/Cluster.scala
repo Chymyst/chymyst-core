@@ -121,9 +121,18 @@ final class TestOnlyConnector extends ClusterConnector {
     allData.update(path, molData)
   }
 
-  private val sessionIdValue: ClusterSessionId = ClusterSessionId(scala.util.Random.nextLong())
+  private var sessionIdValue: ClusterSessionId = ClusterSessionId(0L)
 
   override def sessionId(): Option[ClusterSessionId] = Some(sessionIdValue)
+
+  override def start(): Unit = {
+    sessionIdValue = ClusterSessionId(scala.util.Random.nextLong())
+  }
+
+  /** This method may be called repeatedly, refreshing the session ID for testing purposes.
+    * 
+    */
+  start()
 }
 
 object Cluster {
