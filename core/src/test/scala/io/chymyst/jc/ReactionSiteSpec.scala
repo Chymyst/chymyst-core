@@ -88,8 +88,6 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     val d = m[Int]
     site(go { case a(_) ⇒ })
     a.reactionSite.isDistributed shouldEqual true
-    a.isDistributed shouldEqual true
-    a.toString shouldEqual "a/D"
     site(go { case d(x) ⇒ a(x) })
     d.reactionSite.isDistributed shouldEqual false
   }
@@ -140,8 +138,6 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
       val x1 = dm[Int]
       x1
     }
-    x1a.isDistributed shouldEqual true
-
     val x1b = {
       implicit val clusterConfig = ClusterConfig("", "", "b")
       val x1 = dm[Int]

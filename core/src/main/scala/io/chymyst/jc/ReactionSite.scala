@@ -788,7 +788,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     else {
       val errorMessage = warningsAndErrors.errors.mkString("; ")
       reactionPool.reporter.reactionSiteError(id, toString, errorMessage)
-      throw new Exception(s"In $this: $errorMessage")
+      throw new ExceptionCreatingReactionSite(s"In $this: $errorMessage", warningsAndErrors)
     }
   }
 
@@ -860,6 +860,8 @@ final class ExceptionNoReactionPool(message: String) extends ExceptionInChymyst(
 final class ExceptionEmittingStaticMol(message: String) extends ExceptionInChymyst(message)
 
 final class ExceptionEmittingDistributedMol(message: String) extends ExceptionInChymyst(message)
+
+final class ExceptionCreatingReactionSite(message: String, val warningsAndErrors: WarningsAndErrors) extends ExceptionInChymyst(message)
 
 private[jc] sealed trait ReactionExitStatus {
   def getMessage: String
