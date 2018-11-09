@@ -115,7 +115,7 @@ private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends
   * Use for unit testing purposes only.
   */
 final class TestOnlyConnector extends ClusterConnector {
-  private val allData: TrieMap[String, Array[Byte]] = new TrieMap()
+  private[jc] val allData: TrieMap[String, Array[Byte]] = new TrieMap()
 
   override private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit = {
     val path = dcmPathForMol(reactionSite, mol)
