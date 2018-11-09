@@ -683,7 +683,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
       site(
         go { case c(x) if x > 0 => },
         go { case c(x) + c(y) => },
-        go { case c(x) + c(y) + c(z) => } // unconditional indeterminism with several inputs
+        go { case c(x) + c(y) + c(z) => } // Unavoidable indeterminism with several repeated inputs.
       )
     }.getMessage shouldEqual "In Site{c + c + c → ...; c + c → ...; c → ...}: Unavoidable indeterminism: reaction {c(x) + c(y) + c(z) → } is shadowed by {c(x) + c(y) → }"
     checkExpectedPipelined(Map(c -> true)) shouldEqual ""
