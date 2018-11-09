@@ -369,7 +369,7 @@ private[jc] final class ReplyEmitter[T, R](useFuture: Boolean) extends (R => Boo
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
 final class B[T, R](val name: String) extends (T => R) with MolEmitter with EmitterDebugging[T] {
-  override val isBlocking = true
+  override def isBlocking = true
 
   /** Emit a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
     *
