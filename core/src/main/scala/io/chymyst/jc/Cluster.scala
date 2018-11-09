@@ -7,7 +7,7 @@ import io.chymyst.jc.Core.ClusterSessionId
 import org.apache.curator.framework.{AuthInfo, CuratorFramework, CuratorFrameworkFactory}
 import org.apache.curator.retry.RetryNTimes
 import org.apache.zookeeper.CreateMode
-
+import Core.AnyOpsEquals
 import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.collection.concurrent.TrieMap
 
@@ -60,8 +60,9 @@ private[jc] sealed trait ClusterConnector {
 
   protected val reactionSites: TrieMap[String, ReactionSite] = new TrieMap()
 
-  def addReactionSite(reactionSite: ReactionSite): Unit = {
+  private[jc] def addReactionSite(reactionSite: ReactionSite): Unit = {
     reactionSites.getOrElseUpdate(reactionSite.sha1CodeWithNames, reactionSite)
+    ()
   }
 
   protected def dcmPathForMol(reactionSite: ReactionSite, mol: MolEmitter): String = {
@@ -74,6 +75,7 @@ private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends
     val path = dcmPathForMol(reactionSite, mol)
     val molData = Cluster.serialize(value)
     val result = zk.create().creatingParentsIfNeeded()
+//      .withProtection() // Curator protection may be necessary only for ephemeral ZK nodes.
       .withMode(CreateMode.PERSISTENT_SEQUENTIAL)
       .forPath(path, molData)
     println(s"got zk result: $result")

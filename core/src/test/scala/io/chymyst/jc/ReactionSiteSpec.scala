@@ -2,7 +2,6 @@ package io.chymyst.jc
 
 import io.chymyst.test.Common._
 import io.chymyst.test.LogSpec
-import org.checkerframework.checker.units.qual.A
 import org.scalatest.BeforeAndAfterEach
 
 import scala.concurrent.duration._
@@ -105,6 +104,30 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     rs1b.isSingleInstance shouldEqual false
     rs2.isSingleInstance shouldEqual true
     rs3.isSingleInstance shouldEqual true
+  }
+
+  it should "detect error in multiple-instance reaction site with DMs" in {
+    implicit val clusterConfig = ClusterConfig("")
+
+    def makeRS(name: String): ReactionSite = {
+      val a = new DM[Int](name)
+      site(go { case a(_) ⇒ })
+      a.reactionSite
+    }
+
+    val rs0 = makeRS("a0")
+    val rs1a = makeRS("a1")
+    the[Exception] thrownBy makeRS("a1") should have message "In Site{a1 → ...}: Non-single-instance reaction site Site{a1 → ...} may not consume distributed molecule(s) a1"
+  }
+
+  it should "detect error when a DM is declared static" in {
+    implicit val clusterConfig = ClusterConfig("")
+    val a = dm[Int]
+    val c = m[Unit]
+    the[Exception] thrownBy site(
+      go { case a(x) + c(_) ⇒ a(x) }
+      , go { case _ ⇒ a(0) }
+    ) should have message "In Site{a + c → ...}: Distributed molecules may not be declared static, but found such molecule(s): a"
   }
 
   behavior of "reaction"

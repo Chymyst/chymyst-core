@@ -22,7 +22,6 @@ import scalaxy.streams.strategy.aggressive
   * @param reactionPool The thread pool on which reactions will be scheduled.
   */
 private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Pool) {
-
   private val initTime = System.nanoTime()
 
   private val (staticReactions, nonStaticReactions) = reactions.toArray.partition(_.info.isStatic)
@@ -48,6 +47,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         (mol, (MolSiteIndex(index), valType))
       }(breakOut)
   }
+
+  private[jc] val knownDMs = knownInputMolecules.filterKeys(_.isDistributed)
 
   /** For each (site-wide) molecule index, the corresponding array element represents the container for
     * that molecule's present values.
@@ -665,7 +666,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val foundErrors = findStaticMolDeclarationErrors(staticReactions) ++
       findStaticMolErrors(staticMolDeclared, nonStaticReactions) ++
       findGeneralErrors(nonStaticReactions) ++
-      findShadowingErrors(nonStaticReactions.filter(contendedReactions.contains))
+      checkNonSingleInstanceDistributed(this)
+    findShadowingErrors(nonStaticReactions.filter(contendedReactions.contains))
 
     val staticDiagnostics = WarningsAndErrors(foundWarnings, foundErrors, s"$this")
 
