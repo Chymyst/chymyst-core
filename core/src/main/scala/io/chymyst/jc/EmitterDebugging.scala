@@ -35,7 +35,7 @@ trait MolEmitterDebugging { self: MolEmitter ⇒
     whenScheduledPromise = None
   }
 
-  private final val noReactionScheduledException = new Exception(s"$name.whenScheduled() failed because no reaction could be scheduled (this is not an error)")
+  private lazy val noReactionScheduledException = new Exception(s"$name.whenScheduled() failed because no reaction could be scheduled (this is not an error)")
 
   private[jc] def failWhenScheduledPromise(): Unit = {
     whenScheduledPromise.foreach(_.failure(noReactionScheduledException))

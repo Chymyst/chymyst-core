@@ -666,7 +666,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val foundErrors = findStaticMolDeclarationErrors(staticReactions) ++
       findStaticMolErrors(staticMolDeclared, nonStaticReactions) ++
       findGeneralErrors(nonStaticReactions) ++
-      checkNonSingleInstanceDistributed(this)
+      findDistributedRSErrors(this)
     findShadowingErrors(nonStaticReactions.filter(contendedReactions.contains))
 
     val staticDiagnostics = WarningsAndErrors(foundWarnings, foundErrors, s"$this")
@@ -806,17 +806,17 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   def isSingleInstance: Boolean = coincidentReactionSites.get() === 1
 
-  /** The set of all known cluster configs. This set will be empty unless this reaction is a DRS.
-    * Connections will be created to each of the clusters used by any of the input molecules of this DRS. 
+  /** The set of all cluster configs. This set will be empty unless this reaction is a DRS.
+    * Connections will be created to the first of the clusters in this set. 
     */
-  private[jc] val clusterConfigs: Set[ClusterConfig] = knownInputMolecules.keys
+  private[jc] val clusterConfig: Option[ClusterConfig] = knownInputMolecules.keys
+    .find(_.isInstanceOf[DM[_]])
     .collect { case dm: DM[_] ⇒ dm.clusterConfig }
-    .toSet
     .map(Cluster.addClusterConnector(this))
 
   /** A reaction site is distributed if at least one of its reactions has distributed input molecules.
     */
-  val isDistributed: Boolean = clusterConfigs.nonEmpty
+  val isDistributed: Boolean = clusterConfig.nonEmpty
 
   // This code should be at the very end of the reaction site constructor because it reports the elapsed time,
   // measuring the overhead of creating a new reaction site, and also because it calls `initializeReactionSite()`,

@@ -115,12 +115,12 @@ sealed trait MolEmitter extends PersistentHashCode with MolEmitterDebugging {
 
   /** The type symbol corresponding to the type of the molecule's payload value.
     * For instance, a molecule emitter of type `B[Int, String]` has type symbol `'Int`.
-    * 
+    *
     * This value remains `null` until a molecule emitter becomes bound to a reaction site.
     *
     * For more complicated types, e.g. `List[Int]`, the type symbol is created from the string that
     * represents the corresponding Scala type expression, e.g. `Symbol("List[Int]")`.
-    * 
+    *
     * @return A Scala [[Symbol]] representing the molecule value's type, such as `'Unit`, `'Int` etc.
     */
   @inline def typeSymbol: Symbol = valTypeSymbol
@@ -242,7 +242,10 @@ sealed trait MolEmitter extends PersistentHashCode with MolEmitterDebugging {
     *
     * @return A molecule's displayed name as string.
     */
-  override final val toString: MolString = MolString((if (name.isEmpty) "<no name>" else name) + (if (isBlocking) "/B" else ""))
+  override final val toString: MolString = MolString((if (name.isEmpty) "<no name>" else name) +
+    (if (isBlocking) "/B" else "") +
+    (if (isDistributed) "/D" else "")
+  )
 }
 
 /** Non-blocking molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
@@ -299,12 +302,12 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter with Emit
 
 /** Non-blocking distributed molecule class. Instance is mutable until the molecule is bound to a reaction site and until all reactions involving this molecule are declared.
   *
-  * @param name             Name of the molecule, used for identifying distributed reaction site across the cluster.
+  * @param name          Name of the molecule, used for identifying distributed reaction site across the cluster.
   * @param clusterConfig Implicit value describing the cluster into which this molecule will be emitted.
   * @tparam T Type of the value carried by the molecule.
   */
-final class DM[T](val name: String)(implicit val clusterConfig: ClusterConfig) extends (T => Unit) with MolEmitter {
-  override val isDistributed: Boolean = true
+final class DM[T](val name: String)(implicit val clusterConfig: ClusterConfig) extends (T ⇒ Unit) with MolEmitter {
+  override def isDistributed: Boolean = true
 
   def unapply(arg: ReactionBodyInput): Wrap[T] = {
     val v = arg.inputs(arg.index).asInstanceOf[MolValue[T]].moleculeValue
@@ -366,7 +369,7 @@ private[jc] final class ReplyEmitter[T, R](useFuture: Boolean) extends (R => Boo
   * @tparam R Type of the value replied to the caller via the "reply" action.
   */
 final class B[T, R](val name: String) extends (T => R) with MolEmitter with EmitterDebugging[T] {
-  override def isBlocking = true
+  override val isBlocking = true
 
   /** Emit a blocking molecule and receive a value when the reply action is performed, unless a timeout is reached.
     *

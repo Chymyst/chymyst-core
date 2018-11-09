@@ -93,10 +93,16 @@ private[jc] object StaticAnalysis {
     None
   }
 
-  private[jc] def checkNonSingleInstanceDistributed(reactionSite: ReactionSite): Seq[String] = {
-    if (reactionSite.isDistributed && !reactionSite.isSingleInstance)
-      Seq(s"Non-single-instance reaction site $reactionSite may not consume distributed molecule(s) ${reactionSite.knownDMs.keys.mkString(", ")}")
+  private[jc] def findDistributedRSErrors(reactionSite: ReactionSite): Seq[String] = {
+    val nonSingleInstance = if (reactionSite.isDistributed && !reactionSite.isSingleInstance)
+      Seq(s"Non-single-instance reaction site may not consume distributed molecules, but found molecule(s) ${reactionSite.knownDMs.keys.mkString(", ")}")
     else Nil
+    val nonSingleCluster = if (reactionSite.knownInputMolecules.keys
+      .collect { case dm: DM[_] ⇒ dm.clusterConfig }
+      .toSet.size > 1)
+      Seq(s"All input distributed molecules must belong to the same cluster, but found molecule(s) ${reactionSite.knownDMs.keys.mkString(", ")}")
+    else Nil
+    nonSingleInstance ++ nonSingleCluster
   }
 
   private def unboundMoleculeWarning(reactions: Array[Reaction]): Option[String] = {

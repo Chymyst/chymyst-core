@@ -88,6 +88,8 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     val d = m[Int]
     site(go { case a(_) ⇒ })
     a.reactionSite.isDistributed shouldEqual true
+    a.isDistributed shouldEqual true
+    a.toString shouldEqual "a/D"
     site(go { case d(x) ⇒ a(x) })
     d.reactionSite.isDistributed shouldEqual false
   }
@@ -117,17 +119,39 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
 
     val rs0 = makeRS("a0")
     val rs1a = makeRS("a1")
-    the[Exception] thrownBy makeRS("a1") should have message "In Site{a1 → ...}: Non-single-instance reaction site Site{a1 → ...} may not consume distributed molecule(s) a1"
+    the[Exception] thrownBy makeRS("a1") should 
+      have message "In Site{a1/D → ...}: Non-single-instance reaction site may not consume distributed molecules, but found molecule(s) a1/D"
   }
 
   it should "detect error when a DM is declared static" in {
     implicit val clusterConfig = ClusterConfig("")
     val a = dm[Int]
-    val c = m[Unit]
+    val c = dm[Unit]
     the[Exception] thrownBy site(
       go { case a(x) + c(_) ⇒ a(x) }
       , go { case _ ⇒ a(0) }
-    ) should have message "In Site{a + c → ...}: Distributed molecules may not be declared static, but found such molecule(s): a"
+    ) should
+      have message "In Site{a/D + c/D → ...}: Distributed molecules may not be declared static, but found such molecule(s): a/D"
+  }
+
+  it should "detect RS error when input DMs belong to different clusters" in {
+    val x1a = {
+      implicit val clusterConfig = ClusterConfig("", "", "a")
+      val x1 = dm[Int]
+      x1
+    }
+    x1a.isDistributed shouldEqual true
+
+    val x1b = {
+      implicit val clusterConfig = ClusterConfig("", "", "b")
+      val x1 = dm[Int]
+      x1
+    }
+
+    the[Exception] thrownBy site(
+      go { case x1a(_) + x1b(_) ⇒ }
+    ) should
+      have message "In Site{x1/D + x1/D → ...}: All input distributed molecules must belong to the same cluster, but found molecule(s) x1/D, x1/D"
   }
 
   behavior of "reaction"
