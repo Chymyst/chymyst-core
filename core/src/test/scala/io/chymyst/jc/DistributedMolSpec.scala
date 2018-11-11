@@ -45,6 +45,8 @@ class DistributedMolSpec extends LogSpec with Matchers {
     oldSession should not equal newSession
     connector.invalidateSession()
     connector.sessionId() shouldEqual None
+    connector.updateSession()
+    connector.sessionId().nonEmpty shouldEqual true
   }
 
   behavior of "serializing data on DMs"
