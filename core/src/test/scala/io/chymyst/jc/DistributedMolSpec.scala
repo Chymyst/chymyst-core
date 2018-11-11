@@ -24,13 +24,19 @@ class DistributedMolSpec extends LogSpec with Matchers {
     val x = dm[Int]
 
     site(go { case x(_) ⇒ })
+    x.isBound shouldEqual true
+    
     val n: Int = 123
     x(n)
 
     // Connector should reflect an emitted molecule.
-    val connector = Cluster.connectors(clusterConfig).asInstanceOf[TestOnlyConnector]
+    val connector: TestOnlyConnector = Cluster.connectors(clusterConfig).asInstanceOf[TestOnlyConnector]
     connector.sessionId().nonEmpty shouldEqual true
 
-    Cluster.deserialize[Int](connector.allData.values.head) shouldEqual n
+    // The test-only connector should now have this molecule in its dictionary.
+    Cluster.deserialize[Int](connector.allMoleculeData.values.head) shouldEqual n
+    // The path to the molecule must be of the form <headPath>/v-0
+    val headPath = connector.molValueCounters.keys.head
+    connector.allMoleculeData.keySet should contain (headPath + "/v-0")
   }
 }

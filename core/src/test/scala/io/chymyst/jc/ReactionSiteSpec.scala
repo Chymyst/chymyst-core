@@ -116,9 +116,12 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     }
 
     val rs0 = makeRS("a0")
-    val rs1a = makeRS("a1")
+    val rs1 = makeRS("a1")
     the[Exception] thrownBy makeRS("a1") should 
       have message "In Site{a1/D → ...}: Non-single-instance reaction site may not consume distributed molecules, but found molecule(s) a1/D"
+    
+    rs0.knownInputMolecules.keySet.head.isBound shouldEqual true
+    rs1.knownInputMolecules.keySet.head.isBound shouldEqual true
   }
 
   it should "detect error when a DM is declared static" in {
@@ -130,6 +133,10 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
       , go { case _ ⇒ a(0) }
     ) should
       have message "In Site{a/D + c/D → ...}: Distributed molecules may not be declared static, but found such molecule(s): a/D"
+    
+    // Input molecules remain unbound since reaction site had errors.
+    a.isBound shouldEqual false
+    c.isBound shouldEqual false
   }
 
   it should "detect RS error when input DMs belong to different clusters" in {

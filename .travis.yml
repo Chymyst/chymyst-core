@@ -46,7 +46,7 @@ before_install:
 #- "sudo dpkg -i cdh4-repository_1.0_all.deb"
 - "sudo apt-get update -qq"
 # Install ZooKeeper
-- "sudo apt-get install -y zookeeper-server zookeeper-bin"
+- "sudo apt-get install -y zookeeper"
 before_script:
 - "sudo service zookeeper-server init"
 - "sudo service zookeeper-server start"

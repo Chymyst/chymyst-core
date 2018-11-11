@@ -1,6 +1,7 @@
 package io.chymyst.jc
 
 import java.util
+import java.util.concurrent.atomic.AtomicInteger
 
 import com.twitter.chill.ScalaKryoInstantiator
 import io.chymyst.jc.Core.ClusterSessionId
@@ -8,6 +9,7 @@ import org.apache.curator.framework.{AuthInfo, CuratorFramework, CuratorFramewor
 import org.apache.curator.retry.RetryNTimes
 import org.apache.zookeeper.CreateMode
 import Core.AnyOpsEquals
+
 import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.collection.concurrent.TrieMap
 
@@ -66,13 +68,13 @@ private[jc] sealed trait ClusterConnector {
   }
 
   protected def dcmPathForMol(reactionSite: ReactionSite, mol: MolEmitter): String = {
-    s"DCM/${reactionSite.sha1CodeWithNames}/dm-${mol.siteIndex}/v"
+    s"DCM/${reactionSite.sha1CodeWithNames}/dm-${mol.siteIndex}"
   }
 }
 
 private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends ClusterConnector {
   private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit = {
-    val path = dcmPathForMol(reactionSite, mol)
+    val path = dcmPathForMol(reactionSite, mol) + "/v"
     val molData = Cluster.serialize(value)
     val result = zk.create().creatingParentsIfNeeded()
 //      .withProtection() // Curator protection may be necessary only for ephemeral ZK nodes.
@@ -115,12 +117,14 @@ private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends
   * Use for unit testing purposes only.
   */
 final class TestOnlyConnector extends ClusterConnector {
-  private[jc] val allData: TrieMap[String, Array[Byte]] = new TrieMap()
+  private[jc] val allMoleculeData: TrieMap[String, Array[Byte]] = new TrieMap()
+  private[jc] val molValueCounters: TrieMap[String, AtomicInteger] = new TrieMap()
 
   override private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit = {
     val path = dcmPathForMol(reactionSite, mol)
+    val index = molValueCounters.getOrElseUpdate(path, new AtomicInteger()).getAndIncrement()
     val molData = Cluster.serialize(value)
-    allData.update(path, molData)
+    allMoleculeData.update(path + "/v-" + index.toString, molData)
   }
 
   private var sessionIdValue: ClusterSessionId = ClusterSessionId(0L)

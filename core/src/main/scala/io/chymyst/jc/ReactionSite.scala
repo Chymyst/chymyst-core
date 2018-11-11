@@ -630,7 +630,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // Set the RS info on all input molecules in this reaction site.
     knownInputMolecules.foreach { case (mol, (siteIndex, valType)) ⇒
-      // Assign the value bag.
+      // Allocate and assign the value bags for all bound molecules.
       val pipelined = pipelinedMolecules contains siteIndex
       val simpleType = simpleTypes contains valType
       val unitType = valType === ValTypeSymbol('Unit)
