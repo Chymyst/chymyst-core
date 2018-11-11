@@ -144,6 +144,14 @@ sealed trait MolEmitter extends PersistentHashCode with MolEmitterDebugging {
     valReactionSite = reactionSite
   }
 
+  /** Clear the binding of the molecule to a reaction site.
+    * This is called if the reaction site failed to initialize due to errors.
+    */
+  private[jc] def clearReactionSiteInfo(): Unit = {
+    valReactionSite = null
+    hasReactionSite = false
+  }
+  
   /** Check whether the molecule is already bound to a reaction site.
     * Note that molecules can be emitted only if they are bound.
     *

@@ -616,6 +616,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     emitAndCreateReplyEmitter(bm, v, useFuture = true).replyEmitter.reply.getFuture
   }
 
+  private def clearMoleculeInfos(): Unit = {
+    knownInputMolecules.keySet.foreach { mol ⇒
+      mol.clearReactionSiteInfo()
+    }
+  }
+  
   /** For each molecule consumed by any reactions in this reaction site,
     * assign the molecule's info (this will mutate the molecule emitter).
     * This method is called only if the reaction site has no errors.
@@ -664,6 +670,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @return A list of warning and error messages.
     */
   private def initializeReactionSite() = {
+    // Some static analysis requires initialized molecule infos.
+    // We will clear them if this reaction site turns out to have errors.
+    initializeMoleculeInfos()
+
     // Perform static analysis.
     val foundWarnings = findStaticMolWarnings(staticMolDeclared, nonStaticReactions) ++ findGeneralWarnings(nonStaticReactions)
 
@@ -679,7 +689,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // This is necessary to prevent the static reactions from running in case there are already errors.
     if (staticDiagnostics.noErrors) {
-      initializeMoleculeInfos()
       emitStaticMols()
       // Register this reaction site with the global DCM registry. This is necessary for deserializing LMs.
       Cluster.addReactionSite(this)
@@ -689,9 +698,12 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       val staticMolsActuallyEmitted = getMoleculeCountsAfterInitialStaticEmission
       val staticMolsEmissionWarnings = findStaticMolsEmissionWarnings(staticMolDeclared, staticMolsActuallyEmitted)
       val staticMolsEmissionErrors = findStaticMolsEmissionErrors(staticMolDeclared, staticMolsActuallyEmitted)
-      val staticMolsDiagnostics = WarningsAndErrors(staticMolsEmissionWarnings, staticMolsEmissionErrors, s"$this")
-      staticDiagnostics ++ staticMolsDiagnostics
-    } else staticDiagnostics
+      val staticMolsEmissionDiagnostics = WarningsAndErrors(staticMolsEmissionWarnings, staticMolsEmissionErrors, s"$this")
+      staticDiagnostics ++ staticMolsEmissionDiagnostics
+    } else {
+      clearMoleculeInfos()
+      staticDiagnostics
+    }
   }
 
   private def emitStaticMols(): Unit = {
