@@ -48,7 +48,7 @@ before_install:
 # Install ZooKeeper
 - "sudo apt-get install -y zookeeper"
 before_script:
-- "sudo service zookeeper-server init"
-- "sudo service zookeeper-server start"
+- "sudo service zookeeper init"
+- "sudo service zookeeper start"
 after_script:
-- "sudo service zookeeper-server stop"
+- "sudo service zookeeper stop"
