@@ -38,7 +38,7 @@ class DistributedMolSpec extends LogSpec with Matchers {
     // The path to the molecule must be of the form <headPath>/v-0
     val headPath = connector.molValueCounters.keys.head
     connector.allMoleculeData.keySet should contain(headPath + "/v-0")
-    
+
     val oldSession = connector.sessionId().get
     connector.updateSession()
     val newSession = connector.sessionId().get
@@ -65,8 +65,19 @@ class DistributedMolSpec extends LogSpec with Matchers {
     Cluster.deserialize[M[Int]](Cluster.serialize(x)) shouldEqual x
   }
 
+  it should "serialize M and B emitters" in {
+    val x = m[B[Int, Int]]
+    val y = b[Int, Int]
+    // Serializing an unbound molecule emitter.
+    the[ExceptionEmittingDistributedMol] thrownBy Cluster.serialize(x) should have message "Data on a DM cannot be serialized because emitter x is not bound"
+    site(go { case x(_) ⇒ }, go { case y(_, r) ⇒ r(0) })
+    // Serializing a molecule emitter bound to a non-distributed reaction site.
+    Cluster.deserialize[M[B[Int, Int]]](Cluster.serialize(x)) shouldEqual x
+    Cluster.deserialize[B[Int, Int]](Cluster.serialize(y)) shouldEqual y
+  }
+
   it should "serialize DM emitter when it is emitted as data" in {
-    implicit val clusterConfig = ClusterConfig("")
+    implicit val clusterConfig = ClusterConfig("", "xyz")
     val x = dm[DM[Int]]
     val y = dm[Int]
     x.isDistributed shouldEqual true
