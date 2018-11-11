@@ -38,6 +38,13 @@ class DistributedMolSpec extends LogSpec with Matchers {
     // The path to the molecule must be of the form <headPath>/v-0
     val headPath = connector.molValueCounters.keys.head
     connector.allMoleculeData.keySet should contain(headPath + "/v-0")
+    
+    val oldSession = connector.sessionId().get
+    connector.updateSession()
+    val newSession = connector.sessionId().get
+    oldSession should not equal newSession
+    connector.invalidateSession()
+    connector.sessionId() shouldEqual None
   }
 
   behavior of "serializing data on DMs"

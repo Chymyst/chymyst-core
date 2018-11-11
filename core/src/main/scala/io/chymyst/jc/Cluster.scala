@@ -3,14 +3,13 @@ package io.chymyst.jc
 import java.util
 import java.util.concurrent.atomic.AtomicInteger
 
+import com.esotericsoftware.kryo.io.{Input, Output}
+import com.esotericsoftware.kryo.{Kryo, Serializer}
 import com.twitter.chill.{IKryoRegistrar, KryoInstantiator, KryoPool, KryoSerializer, ScalaKryoInstantiator}
-import io.chymyst.jc.Core.ClusterSessionId
+import io.chymyst.jc.Core.{AnyOpsEquals, ClusterSessionId}
 import org.apache.curator.framework.{AuthInfo, CuratorFramework, CuratorFrameworkFactory}
 import org.apache.curator.retry.RetryNTimes
 import org.apache.zookeeper.CreateMode
-import Core.AnyOpsEquals
-import com.esotericsoftware.kryo.io.{Input, Output}
-import com.esotericsoftware.kryo.{Kryo, Serializer}
 
 import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.collection.concurrent.TrieMap
@@ -133,12 +132,26 @@ final class TestOnlyConnector extends ClusterConnector {
     allMoleculeData.update(path + "/v-" + index.toString, molData)
   }
 
-  private var sessionIdValue: ClusterSessionId = ClusterSessionId(0L)
+  private var sessionIdValue: Option[ClusterSessionId] = None
 
-  override def sessionId(): Option[ClusterSessionId] = Some(sessionIdValue)
+  override def sessionId(): Option[ClusterSessionId] = sessionIdValue
 
   override def start(): Unit = {
-    sessionIdValue = ClusterSessionId(scala.util.Random.nextLong())
+    updateSession()
+  }
+
+  /** For testing purposes: invalidate the cluster session.
+    *
+    */
+  def invalidateSession(): Unit = {
+    sessionIdValue = None
+  }
+
+  /** For testing purposes: change the cluster session.
+    *
+    */
+  def updateSession(): Unit = {
+    sessionIdValue = Some(ClusterSessionId(scala.util.Random.nextLong()))
   }
 
   /** This method may be called repeatedly, refreshing the session ID for testing purposes.
