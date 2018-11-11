@@ -132,16 +132,16 @@ sealed trait MolEmitter extends PersistentHashCode with MolEmitterDebugging {
 
   /** This is called by a [[ReactionSite]] only once for each molecule emitter when it first becomes bound to that reaction site.
     *
-    * @param rs        Reaction site to which the molecule is now bound.
-    * @param siteIndex Zero-based site-wide index of the input molecule at that reaction site.
+    * @param reactionSite Reaction site to which the molecule is now bound.
+    * @param siteIndex    Zero-based site-wide index of the input molecule at that reaction site.
     */
-  private[jc] def setReactionSiteInfo(rs: ReactionSite, siteIndex: MolSiteIndex, typeSymbol: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]): Unit = {
+  private[jc] def setReactionSiteInfo(reactionSite: ReactionSite, siteIndex: MolSiteIndex, typeSymbol: Symbol, pipelined: Boolean, selfBlocking: Option[Pool]): Unit = {
     hasReactionSite = true
     valSiteIndex = siteIndex
     valTypeSymbol = typeSymbol
     valIsPipelined = pipelined
     valSelfBlockingPool = selfBlocking
-    valReactionSite = rs
+    valReactionSite = reactionSite
   }
 
   /** Check whether the molecule is already bound to a reaction site.

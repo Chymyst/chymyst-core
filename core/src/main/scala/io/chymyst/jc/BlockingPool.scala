@@ -11,7 +11,7 @@ object BlockingIdle {
   private[jc] def apply[T](selfBlocking: Boolean)(expr: => T): T =
     Thread.currentThread() match {
       case t: ChymystThread => t.blockingCall(expr, selfBlocking)
-      case _ => expr // BlockingIdle{...} has no effect if we are not running on a ChymystThread
+      case _ => expr // BlockingIdle{...} has no effect if we are not running on a `ChymystThread`.
     }
 }
 

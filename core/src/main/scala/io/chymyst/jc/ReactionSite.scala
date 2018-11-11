@@ -616,12 +616,11 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     emitAndCreateReplyEmitter(bm, v, useFuture = true).replyEmitter.reply.getFuture
   }
 
-  /** This method is called exactly once as the reaction site is declared using the [[site]] call.
-    * It is run on the thread that calls [[site]].
-    *
-    * @return A list of warning and error messages.
+  /** For each molecule consumed by any reactions in this reaction site,
+    * assign the molecule's info (this will mutate the molecule emitter).
+    * This method is called only if the reaction site has no errors.
     */
-  private def initializeReactionSite() = optimize {
+  private def initializeMoleculeInfos(): Unit = optimize {
     /** Find blocking molecules whose emitting reactions are all in a single thread pool. These emissions are potential deadlock threats for that pool, especially for a [[FixedPool]]. */
     val selfBlockingMols: Map[MolEmitter, Pool] =
       knownInputMolecules
@@ -657,7 +656,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     nonStaticReactions.foreach { r =>
       r.info.outputs.foreach(_.molecule.addEmittingReaction(r))
     }
-
+  }
+  
+  /** This method is called exactly once as the reaction site is declared using the [[site]] call.
+    * It is run on the thread that calls [[site]].
+    *
+    * @return A list of warning and error messages.
+    */
+  private def initializeReactionSite() = {
     // Perform static analysis.
     val foundWarnings = findStaticMolWarnings(staticMolDeclared, nonStaticReactions) ++ findGeneralWarnings(nonStaticReactions)
 
@@ -673,6 +679,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
 
     // This is necessary to prevent the static reactions from running in case there are already errors.
     if (staticDiagnostics.noErrors) {
+      initializeMoleculeInfos()
       emitStaticMols()
 
       val staticMolsActuallyEmitted = getMoleculeCountsAfterInitialStaticEmission
