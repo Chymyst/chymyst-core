@@ -45,9 +45,10 @@ before_install:
 #- "wget http://archive.cloudera.com/cdh4/one-click-install/precise/amd64/cdh4-repository_1.0_all.deb"
 - "wget https://archive.cloudera.com/cdh5/one-click-install/trusty/amd64/cdh5-repository_1.0_all.deb"
 - "sudo dpkg -i cdh5-repository_1.0_all.deb"
+- "sudo wget https://archive.cloudera.com/cdh5/ubuntu/trusty/amd64/cdh/cloudera.list -O /etc/apt/sources.list.d/cloudera.list"
 - "sudo apt-get update -qq"
 # Install ZooKeeper
-#- "sudo apt-get install -y zookeeper"
+- "sudo apt-get install -y zookeeper-server"
 before_script:
 - "sudo service zookeeper-server init"
 - "sudo service zookeeper-server start"

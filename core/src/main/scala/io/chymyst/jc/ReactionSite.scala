@@ -681,7 +681,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     if (staticDiagnostics.noErrors) {
       initializeMoleculeInfos()
       emitStaticMols()
-      // Register this reaction site with the global DCM registry. This is necessary for LMs.
+      // Register this reaction site with the global DCM registry. This is necessary for deserializing LMs.
       Cluster.addReactionSite(this)
       // Possibly register this site with the cluster connector.
       clusterConfig.map(Cluster.addClusterConnector(this))

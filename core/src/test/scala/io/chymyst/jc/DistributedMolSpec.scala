@@ -93,4 +93,5 @@ class DistributedMolSpec extends LogSpec with Matchers {
   }
 }
 
+// This case class cannot be an inner class in the test, or else serialization will be impossible.
 case class TestData[A](x: A, y: String, z: List[Int])

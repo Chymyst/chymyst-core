@@ -186,7 +186,7 @@ object Cluster {
         // Register my custom serializers.
         k.register(classOf[MolEmitter], new MolEmitterSerializer[MolEmitter])
         k.register(classOf[DM[_]], new MolEmitterSerializer[DM[_]])
-        k.register(classOf[B[_,_]], new MolEmitterSerializer[B[_,_]])
+        k.register(classOf[B[_, _]], new MolEmitterSerializer[B[_, _]])
         k.register(classOf[M[_]], new MolEmitterSerializer[M[_]])
         // Register all other Scala serializers supplied by `chill`.
         scalaRegistrar(k)
@@ -196,8 +196,24 @@ object Cluster {
     KryoPool.withByteArrayOutputStream(Runtime.getRuntime.availableProcessors * 2, kryoInstantiator)
   }
 
+  /** Serialize data carried by a molecule.
+    * If the data is a molecule emitter, the emitter must be bound to a reaction site.
+    *
+    * @param t Molecule value.
+    * @tparam T Type of the molecule value.
+    * @return Serialized byte array. Throws `ExceptionEmittingDistributedMol` if the data contains an unbound emitter.
+    */
   def serialize[T](t: T): Array[Byte] = kryoPool.toBytesWithoutClass(t)
 
+  /** Deserialize data carried by a molecule.
+    * If the data is a molecule emitter, the emitter must be bound to a reaction site.
+    * The deserialized emitter will be JVM-object-identical to the local emitter defined in the reaction site.
+    *
+    * @param bytes    Serialized molecule value.
+    * @param classTag Class tag for the type of the molecule.
+    * @tparam T Type of the molecule value.
+    * @return Deserialized molecule value. Throws `ExceptionEmittingDistributedMol` if the data contains an emitter bound to an unknown reaction site.
+    */
   def deserialize[T](bytes: Array[Byte])(implicit classTag: ClassTag[T]): T = kryoPool.fromBytes(bytes, classTag.runtimeClass.asInstanceOf[Class[T]])
 
   /** For each `ClusterConfig` value, a separate cluster connection is maintained by `ClusterConnector`
@@ -207,14 +223,14 @@ object Cluster {
   private[jc] val connectors: TrieMap[ClusterConfig, ClusterConnector] = new TrieMap()
 
   /** A dictionary of all known distributed reaction sites that have been activated without errors.
-    * 
+    *
     */
   private[jc] val knownReactionSites: TrieMap[String, ReactionSite] = new TrieMap()
-  
+
   private[jc] def addReactionSite(reactionSite: ReactionSite): Unit = {
     knownReactionSites.update(reactionSite.sha1CodeWithNames, reactionSite)
   }
-  
+
   private def createConnector(clusterConfig: ClusterConfig): ClusterConnector = {
     if (clusterConfig.url.nonEmpty)
       new ZkClusterConnector(clusterConfig)
