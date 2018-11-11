@@ -47,8 +47,9 @@ before_install:
 #- "sudo dpkg -i cdh5-repository_1.0_all.deb"
 #- "sudo wget https://archive.cloudera.com/cdh5/ubuntu/trusty/amd64/cdh/cloudera.list -O /etc/apt/sources.list.d/cloudera.list"
 - "sudo echo 'deb [arch=amd64] http://archive.cloudera.com/cdh5/ubuntu/trusty/amd64/cdh trusty-cdh5 contrib' > /etc/apt/sources.list.d/cloudera.list"
-- "sudo echo -e 'Package: *\\nPin: release o=Cloudera, l=Cloudera\\nPin-Priority: 501' > /etc/apt/preferences.d/cloudera.pref"
-- "cat /etc/apt/preferences.d/cloudera.pref"
+- "sudo echo -e 'Package: *\\nPin: release o=Cloudera, l=Cloudera\\nPin-Priority: 501' > cloudera.pref"
+- "cat cloudera.pref"
+- "sudo mv cloudera.pref /etc/apt/preferences.d/cloudera.pref"
 - "sudo apt-get update -qq"
 # Install ZooKeeper
 - "sudo apt-get install -y zookeeper-server"
