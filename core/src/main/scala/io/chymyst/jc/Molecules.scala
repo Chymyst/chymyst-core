@@ -167,12 +167,16 @@ sealed trait MolEmitter extends PersistentHashCode with MolEmitterDebugging {
   // All these variables will be assigned exactly once and will never change thereafter. It's not clear how best to enforce this in Scala.
   private var valIsPipelined: Boolean = false
 
+  // We should not serialize reaction sites.
+  @transient
   private var valReactionSite: ReactionSite = _
 
   @inline protected[jc] def reactionSite: ReactionSite = valReactionSite
 
   private var valTypeSymbol: Symbol = _
 
+  // We should not serialize thread pools.
+  @transient
   protected var valSelfBlockingPool: Option[Pool] = None
 
   private var valSiteIndex: MolSiteIndex = MolSiteIndex(-1)

@@ -657,7 +657,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
       r.info.outputs.foreach(_.molecule.addEmittingReaction(r))
     }
   }
-  
+
   /** This method is called exactly once as the reaction site is declared using the [[site]] call.
     * It is run on the thread that calls [[site]].
     *
@@ -681,6 +681,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     if (staticDiagnostics.noErrors) {
       initializeMoleculeInfos()
       emitStaticMols()
+      // Register this reaction site with the global DCM registry. This is necessary for LMs.
+      Cluster.addReactionSite(this)
+      // Possibly register this site with the cluster connector.
+      clusterConfig.map(Cluster.addClusterConnector(this))
 
       val staticMolsActuallyEmitted = getMoleculeCountsAfterInitialStaticEmission
       val staticMolsEmissionWarnings = findStaticMolsEmissionWarnings(staticMolDeclared, staticMolsActuallyEmitted)
@@ -819,7 +823,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
   private[jc] val clusterConfig: Option[ClusterConfig] = knownInputMolecules.keys
     .find(_.isInstanceOf[DM[_]])
     .collect { case dm: DM[_] ⇒ dm.clusterConfig }
-    .map(Cluster.addClusterConnector(this))
 
   /** A reaction site is distributed if at least one of its reactions has distributed input molecules.
     */

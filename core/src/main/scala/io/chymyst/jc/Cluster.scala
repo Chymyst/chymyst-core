@@ -3,15 +3,18 @@ package io.chymyst.jc
 import java.util
 import java.util.concurrent.atomic.AtomicInteger
 
-import com.twitter.chill.ScalaKryoInstantiator
+import com.twitter.chill.{IKryoRegistrar, KryoInstantiator, KryoPool, KryoSerializer, ScalaKryoInstantiator}
 import io.chymyst.jc.Core.ClusterSessionId
 import org.apache.curator.framework.{AuthInfo, CuratorFramework, CuratorFrameworkFactory}
 import org.apache.curator.retry.RetryNTimes
 import org.apache.zookeeper.CreateMode
 import Core.AnyOpsEquals
+import com.esotericsoftware.kryo.io.{Input, Output}
+import com.esotericsoftware.kryo.{Kryo, Serializer}
 
 import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.collection.concurrent.TrieMap
+import scala.reflect.ClassTag
 
 /** Configuration value that describes how to connect to a cluster.
   *
@@ -60,6 +63,9 @@ private[jc] sealed trait ClusterConnector {
 
   def sessionId(): Option[ClusterSessionId]
 
+  /** A dictionary of all distributed reaction sites that are activated and connected to this cluster.
+    *
+    */
   protected val reactionSites: TrieMap[String, ReactionSite] = new TrieMap()
 
   private[jc] def addReactionSite(reactionSite: ReactionSite): Unit = {
@@ -77,7 +83,7 @@ private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends
     val path = dcmPathForMol(reactionSite, mol) + "/v"
     val molData = Cluster.serialize(value)
     val result = zk.create().creatingParentsIfNeeded()
-//      .withProtection() // Curator protection may be necessary only for ephemeral ZK nodes.
+      //      .withProtection() // Curator protection may be necessary only for ephemeral ZK nodes.
       .withMode(CreateMode.PERSISTENT_SEQUENTIAL)
       .forPath(path, molData)
     println(s"got zk result: $result")
@@ -136,7 +142,7 @@ final class TestOnlyConnector extends ClusterConnector {
   }
 
   /** This method may be called repeatedly, refreshing the session ID for testing purposes.
-    * 
+    *
     */
   start()
 }
@@ -147,10 +153,52 @@ object Cluster {
     */
   val guid: String = java.util.UUID.randomUUID().toString
 
-  // This code is taken from the chill-scala test suite.
-  def serialize[T](t: T): Array[Byte] = ScalaKryoInstantiator.defaultPool.toBytesWithClass(t)
+  /** Serializing molecule emitters is possible only if they are bound,
+    * because the serialized data consist of the molecule emitter's reaction site hash and site-wide index.
+    * If the emitter is not bound, serializing or deserializing it will fail.
+    */
+  final class MolEmitterSerializer[ME <: MolEmitter] extends Serializer[ME] {
+    override def write(kryo: Kryo, output: Output, molEmitter: ME): Unit = {
+      if (molEmitter.isBound) {
+        output.writeString(molEmitter.reactionSite.sha1CodeWithNames)
+        output.writeInt(molEmitter.siteIndex, true)
+        output.close() // TODO: figure out whether we need this
+      } else throw new ExceptionEmittingDistributedMol(s"Data on a DM cannot be serialized because emitter $molEmitter is not bound")
+    }
 
-  def deserialize[T](bytes: Array[Byte]): T = ScalaKryoInstantiator.defaultPool.fromBytes(bytes).asInstanceOf[T]
+    override def read(kryo: Kryo, input: Input, tpe: Class[ME]): ME = {
+      val reactionSiteHash = input.readString()
+      val molEmitterOpt = for {
+        reactionSite ← knownReactionSites.get(reactionSiteHash)
+        siteIndex = input.readInt(true)
+        molEmitter ← reactionSite.moleculeAtIndex.get(siteIndex)
+      } yield molEmitter
+      input.close() // TODO: figure out whether we need this
+      molEmitterOpt.getOrElse(throw new ExceptionEmittingDistributedMol(s"Data on a DM cannot be deserialized because reaction site hash $reactionSiteHash does not correspond to an activated reaction site")).asInstanceOf[ME]
+    }
+  }
+
+  // This Kryo `Pool` will register some custom serializers with Kryo.
+  private val kryoPool = {
+    val scalaRegistrar: IKryoRegistrar = KryoSerializer.registerAll
+    val registrar = new IKryoRegistrar {
+      override def apply(k: Kryo): Unit = {
+        // Register my custom serializers.
+        k.register(classOf[MolEmitter], new MolEmitterSerializer[MolEmitter])
+        k.register(classOf[DM[_]], new MolEmitterSerializer[DM[_]])
+        k.register(classOf[B[_,_]], new MolEmitterSerializer[B[_,_]])
+        k.register(classOf[M[_]], new MolEmitterSerializer[M[_]])
+        // Register all other Scala serializers supplied by `chill`.
+        scalaRegistrar(k)
+      }
+    }
+    val kryoInstantiator: KryoInstantiator = (new ScalaKryoInstantiator).withRegistrar(registrar)
+    KryoPool.withByteArrayOutputStream(Runtime.getRuntime.availableProcessors * 2, kryoInstantiator)
+  }
+
+  def serialize[T](t: T): Array[Byte] = kryoPool.toBytesWithoutClass(t)
+
+  def deserialize[T](bytes: Array[Byte])(implicit classTag: ClassTag[T]): T = kryoPool.fromBytes(bytes, classTag.runtimeClass.asInstanceOf[Class[T]])
 
   /** For each `ClusterConfig` value, a separate cluster connection is maintained by `ClusterConnector`
     * values in this dictionary. The values are created whenever a DRS is activated that uses a given cluster.
@@ -158,6 +206,15 @@ object Cluster {
     */
   private[jc] val connectors: TrieMap[ClusterConfig, ClusterConnector] = new TrieMap()
 
+  /** A dictionary of all known distributed reaction sites that have been activated without errors.
+    * 
+    */
+  private[jc] val knownReactionSites: TrieMap[String, ReactionSite] = new TrieMap()
+  
+  private[jc] def addReactionSite(reactionSite: ReactionSite): Unit = {
+    knownReactionSites.update(reactionSite.sha1CodeWithNames, reactionSite)
+  }
+  
   private def createConnector(clusterConfig: ClusterConfig): ClusterConnector = {
     if (clusterConfig.url.nonEmpty)
       new ZkClusterConnector(clusterConfig)
