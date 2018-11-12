@@ -4,7 +4,9 @@ import io.chymyst.test.Common._
 import io.chymyst.test.LogSpec
 import org.scalatest.BeforeAndAfterEach
 
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
+import scala.util.Try
 
 class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
 
@@ -117,9 +119,9 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
 
     val rs0 = makeRS("a0")
     val rs1 = makeRS("a1")
-    the[Exception] thrownBy makeRS("a1") should 
+    the[Exception] thrownBy makeRS("a1") should
       have message "In Site{a1/D → ...}: Non-single-instance reaction site may not consume distributed molecules, but found molecule(s) a1/D"
-    
+
     rs0.knownInputMolecules.keySet.head.isBound shouldEqual true
     rs1.knownInputMolecules.keySet.head.isBound shouldEqual true
   }
@@ -133,7 +135,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
       , go { case _ ⇒ a(0) }
     ) should
       have message "In Site{a/D + c/D → ...}: Distributed molecules may not be declared static, but found such molecule(s): a/D"
-    
+
     // Input molecules remain unbound since reaction site had errors.
     a.isBound shouldEqual false
     c.isBound shouldEqual false
@@ -155,6 +157,8 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
       go { case x1a(_) + x1b(_) ⇒ }
     ) should
       have message "In Site{x1/D + x1/D → ...}: All input distributed molecules must belong to the same cluster, but found molecule(s) x1/D, x1/D"
+    // Cannot emit DMs since reaction site is not active. 
+    the[ExceptionNoReactionSite] thrownBy x1a(1) should have message "Molecule x1/D is not bound to any reaction site"
   }
 
   behavior of "reaction"
@@ -740,6 +744,33 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
       c(1)
     }
     globalLogHas(memLog, "Refusing to emit", "Debug: In Site{c → ...}: Refusing to emit pipelined molecule c(-1) since its value fails the relevant conditions")
+  }
+
+  behavior of "errors when initializing reaction site"
+
+  it should "refuse to emit molecules while reaction site is not yet active" in {
+    val a = m[Int]
+    val c = m[Unit]
+    import scala.concurrent.ExecutionContext.Implicits.global
+    // While we try to create this reaction site, we also try to emit molecule c() on a different thread. This should fail.
+    val resultFuture = Future {
+      (1 to 200000).map { i ⇒ Try(c(i)) }
+    }
+
+    the[ExceptionCreatingReactionSite] thrownBy
+      site(go { case a(_) + c(_) ⇒ }, go { case _ ⇒ a(0) }) should // This is a runtime error due to incorrect usage of static molecule.
+      have message "In Site{a + c → ...}: Incorrect static molecule usage: static molecule (a) consumed but not emitted by reaction {a(_) + c(_) → }"
+
+    val result = Await.result(resultFuture, Duration.Inf)
+    // First, molecules c() are not emitted because c() is not bound.
+    result.exists(_.failed.get.getMessage.contains("Molecule c is not bound to any reaction site")) shouldEqual true
+    // Later c() is bound but reaction site is not active.
+    result.exists(_.failed.get.getMessage.contains("Cannot emit c() because reaction site is inactive")) shouldEqual true
+    // There should be no other errors.
+    result.forall { r ⇒
+      val message = r.failed.get.getMessage
+      message.contains("not bound") || message.contains("Cannot emit c() because reaction site is inactive")
+    } shouldEqual true
   }
 
 }
