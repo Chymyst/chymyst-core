@@ -754,7 +754,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     import scala.concurrent.ExecutionContext.Implicits.global
     // While we try to create this reaction site, we also try to emit molecule c() on a different thread. This should fail.
     val resultFuture = Future {
-      (1 to 200000).map { i ⇒ Try(c(i)) }
+      (1 to 500000).map { i ⇒ Try(c(i)) }
     }
 
     the[ExceptionCreatingReactionSite] thrownBy
@@ -767,7 +767,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     // Some molecules c() are not emitted because c() is not yet bound.
     // Later c() is bound but reaction site is not active.
     // There should be no other errors. Let's collect all error messages.
-    result.map(_.failed.get.getMessage).toSet shouldEqual Set("Molecule c is not bound to any reaction site", "Cannot emit c() because reaction site is inactive")
+    result.map(_.failed.get.getMessage).toSet shouldEqual Set("Molecule c is not bound to any reaction site, cannot emit", "Cannot emit c() because reaction site is inactive")
   }
 
 }

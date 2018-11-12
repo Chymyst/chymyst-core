@@ -209,14 +209,14 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
       val a = new B[Unit, Unit]("x")
       a()
     }
-    thrown.getMessage shouldEqual "Molecule x/B is not bound to any reaction site"
+    thrown.getMessage shouldEqual "Molecule x/B is not bound to any reaction site, cannot emit"
   }
 
   it should "throw exception when trying to emit a non-blocking molecule that has no reaction site" in {
     val a = new M[Unit]("x")
     the[Exception] thrownBy {
       a()
-    } should have message "Molecule x is not bound to any reaction site"
+    } should have message "Molecule x is not bound to any reaction site, cannot emit"
   }
 
   it should "throw exception when trying to log soup of a blocking molecule that has no reaction site" in {
@@ -224,7 +224,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
       val a = new B[Unit, Unit]("x")
       a.logSite
     }
-    thrown.getMessage shouldEqual "Molecule x/B is not bound to any reaction site"
+    thrown.getMessage shouldEqual "Molecule x/B is not bound to any reaction site, cannot emit"
   }
 
   it should "throw exception when trying to log soup a non-blocking molecule that has no reaction site" in {
@@ -232,7 +232,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
       val a = new M[Unit]("x")
       a.logSite
     }
-    thrown.getMessage shouldEqual "Molecule x is not bound to any reaction site"
+    thrown.getMessage shouldEqual "Molecule x is not bound to any reaction site, cannot emit"
   }
 
   it should "fail to start reactions when pattern is not matched" in {
@@ -304,12 +304,13 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
         go { case c(_) ⇒ }
       )
     }
-    val errors = memLog.messages.count(_ contains "Molecule c is not bound to any reaction site")
+    val errors = memLog.messages.count(_ contains "Molecule c is not bound to any reaction site, cannot emit")
 
     println(s"unbound molecule exceptions, test 1: $errors errors out of $total runs")
     errors should be > 0
     errors should be < total
-    globalLogHas(memLog, "xception", "In Site{p → ...}: Reaction {p(s) → } with inputs [p/P(c)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
+    globalLogHas(memLog, "xception", "In Site{p → ...}: Reaction {p(s) → } with inputs [p/P(c)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c")
+    // Error message could be either that molecule c() is not bound, or that the reaction site is not active.
   }
 
   // This test verifies that unbound molecule emitters will cause an exception when used in a nested reaction site.
@@ -343,11 +344,11 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     Thread.sleep(1000)
     tp1.shutdownNow()
 
-    val errors = memLog1.messages.count(_ contains "Molecule e is not bound to any reaction site")
+    val errors = memLog1.messages.count(_ contains "Molecule e is not bound to any reaction site, cannot emit")
     // Sometimes (on fast machines) the reaction always produces an exception, in which case the result is `total` exceptions.
     // Since this is expected and correct behavior, we should not fail the test when the reaction starts too fast to avoid the exception.
     println(s"unbound molecule exceptions, test 2: $errors errors out of $total runs")
-    globalLogHas(memLog1, "xception", "In Site{a → ...}: Reaction {a(s) → } with inputs [a/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site")
+    globalLogHas(memLog1, "xception", "In Site{a → ...}: Reaction {a(s) → } with inputs [a/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e Fis not bound to any reaction site, cannot emit")
     errors should be > 0
     errors should be < total
   }
@@ -376,8 +377,8 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
       f()
     }
     println(s"results for test 3: ${results.groupBy(identity).mapValues(_.size)}")
-    memLog.messages.exists(_ contains "In Site{q → ...}: Reaction {q(s) → } with inputs [q/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site") should be(false)
-    memLog.messages.count(_ contains "Molecule e is not bound to any reaction site") shouldEqual 0
+    memLog.messages.exists(_ contains "In Site{q → ...}: Reaction {q(s) → } with inputs [q/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site, cannot emit") should be(false)
+    memLog.messages.count(_ contains "Molecule e is not bound to any reaction site, cannot emit") shouldEqual 0
     results should contain(246)
     results should not contain 0
   }
@@ -392,7 +393,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     // `c` is unbound, emitting `a(c)` will cause the reaction to fail.
     a(c)
     f.timeout()(300.millis) shouldEqual None // This should not pass.
-    globalLogHas(memLog, "finished without replying", "In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/BP()] finished without replying to f/B. Reported error: In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/BP()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site")
+    globalLogHas(memLog, "finished without replying", "In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/BP()] finished without replying to f/B. Reported error: In Site{a + f/B → ...}: Reaction {a(s) + f/B(_) → } with inputs [a/P(c) + f/BP()] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule c is not bound to any reaction site, cannot emit")
   }
 
   behavior of "basic functionality"

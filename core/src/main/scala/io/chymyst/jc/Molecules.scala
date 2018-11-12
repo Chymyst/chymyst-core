@@ -228,7 +228,7 @@ sealed trait MolEmitter extends PersistentHashCode with MolEmitterDebugging {
   @inline final protected[jc] def ensureReactionSite[T](x: => T): T = {
     if (hasReactionSite)
       x
-    else throw new ExceptionNoReactionSite(s"Molecule $this is not bound to any reaction site")
+    else throw new ExceptionNoReactionSite(s"Molecule $this is not bound to any reaction site, cannot emit")
   }
 
   /** List all molecules (with their values) currently present at the reaction site to which this molecule emitter is bound.

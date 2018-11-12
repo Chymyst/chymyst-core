@@ -481,7 +481,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         throw new ExceptionNoReactionSite(message)
       }
       else if (reactionPool.isInactive) {
-        val message = s"In $this: Cannot emit molecule $mol($molValue) because reaction pool $reactionPool is not active"
+        val message = s"In $this: Molecule $mol($molValue) cannot be emitted because reaction pool $reactionPool is not active"
         reportError(message, printToConsole = false)
         throw new ExceptionNoReactionPool(message)
       }
@@ -492,7 +492,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             addToBag(mol, molValue)
             mol.asInstanceOf[M[T]].assignStaticMolVolatileValue(molValue)
           } else {
-            val message = s"In $this: Refusing to emit molecule $mol($molValue) initially as static (must be a non-blocking molecule)"
+            val message = s"In $this: Molecule $mol($molValue) cannot be emitted initially as static (must be a non-blocking molecule)"
             reportError(message, printToConsole = true)
             throw new ExceptionEmittingStaticMol(message)
           }
@@ -530,7 +530,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           }
         }
       }
-    } else throw new ExceptionNoReactionSite(s"Cannot emit $mol($molValue) because reaction site is inactive")
+    } else throw new ExceptionNoReactionSite(s"Molecule $mol($molValue) cannot be emitted because reaction site is inactive")
   }
 
   private[jc] def emitDistributed[T](mol: DM[T], value: T): Unit = {
