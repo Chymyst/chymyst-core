@@ -114,12 +114,12 @@ private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends
   start()
 }
 
-/** A trivial implementation of ClusterConnector, automatically used when the ZooKeeper URL in `ClusterConfig` is empty.
+/** A trivial implementation of [[ClusterConnector]], automatically used when the ZooKeeper URL in [[ClusterConfig]] is empty.
   *
   * This implementation does not support clusters and holds all data in memory in the single JVM instance where it is created.
-  * Reaction sites connected to a TestOnlyConnector will behave as if they are running on a single-node cluster.
+  * Reaction sites connected to a [[TestOnlyConnector]] will behave as if they are running on a single-node cluster.
   *
-  * Use for unit testing purposes only.
+  * Use for testing purposes only. The results should be no different from running in full cluster mode.
   */
 final class TestOnlyConnector extends ClusterConnector {
   private[jc] val allMoleculeData: TrieMap[String, Array[Byte]] = new TrieMap()
@@ -260,11 +260,15 @@ object Cluster {
 final class ClusterBag[T](clusterConnector: ClusterConfig) extends MutableBag[T] {
   override def find(predicate: T ⇒ Boolean): Option[T] = ???
 
+  override def takeOne: Seq[T] = ???
+
+  override def takeAny(count: Int): Seq[T] = ???
+// Might not need these iterators?  
   override protected def iteratorAsScala: Iterator[T] = ???
 
   override protected def iteratorAsJava: util.Iterator[T] = ???
 
-  override def getCountMap: Map[T, Int] = ???
+  override def getCountMap: Map[T, Int] = Map() // This is used only for debugging, and we do not include DMs.
 
   /** List all values, perhaps with repetitions.
     * It is not guaranteed that the values will be repeated the correct number of times.
@@ -281,9 +285,9 @@ final class ClusterBag[T](clusterConnector: ClusterConfig) extends MutableBag[T]
     */
   override def allValuesSkipping(skipping: MutableMultiset[T]): Iterator[T] = ???
 
-  override def size: Int = 0
+  override def size: Int = 0 // This is never used: the `size` method is called only to determine the number of static molecules emitted.
 
-  override def add(v: T): Unit = ???
+  override def add(v: T): Unit = () // This is never used: molecules are emitted into the cluster via `emitDistributed()`.
 
   override def remove(v: T): Boolean = ???
 }

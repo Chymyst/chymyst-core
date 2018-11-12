@@ -12,15 +12,13 @@ import scala.collection.mutable
 trait MutCollection[T] {
   def size: Int
 
-  def isEmpty: Boolean = size === 0
+  def isEmpty: Boolean = size === 0 // Used only for debugging messages (`.logSite`) and to detect the number of static molecules emitted.
 
   def add(v: T): Unit
 
   def remove(v: T): Boolean
 
   def takeOne: Seq[T]
-
-  def headOption: Option[T]
 
   def takeAny(count: Int): Seq[T]
 }
@@ -34,10 +32,6 @@ trait MutableBag[T] extends MutCollection[T] {
 
   def takeOne: Seq[T] = try IndexedSeq(iteratorAsJava.next) catch {
     case _: Exception ⇒ IndexedSeq()
-  }
-
-  def headOption: Option[T] = try Some(iteratorAsJava.next) catch {
-    case _: Exception ⇒ None
   }
 
   def takeAny(count: Int): Seq[T] =
@@ -205,8 +199,6 @@ class MutableMultiset[T](bag: mutable.Map[T, Int] = mutable.Map[T, Int]()) exten
   override def toString: String = getCountMap.toString
 
   def takeOne: Seq[T] = bag.headOption.map(_._1).to[Seq]
-
-  def headOption: Option[T] = bag.headOption.map(_._1)
 
   def takeAny(count: Int): Seq[T] = ??? // Not used.
 }

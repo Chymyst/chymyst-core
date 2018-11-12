@@ -334,7 +334,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         // It is probably useless to try optimizing the selection of a constant value, because 1) values are wrapped and 2) values that are not "simple types" are most likely to be stored in a queue-based molecule bag rather than in a hash map-based molecule bag.
         // So we handle pipelined and non-pipelined molecules here, without a special case for constant values.
           if (inputInfo.molecule.isPipelined)
-            molBag.headOption.filter(inputInfo.admitsValue) // For pipelined molecules, we take the first one; if condition fails, we treat that case as if no molecule is available.
+          // For pipelined molecules, we take the first one; if condition fails, we treat that case as if no molecule is available.
+            molBag.takeOne.find(inputInfo.admitsValue)
           else
             molBag.find(inputInfo.admitsValue)
 

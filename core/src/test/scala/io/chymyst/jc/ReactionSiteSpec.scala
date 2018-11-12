@@ -762,15 +762,12 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
       have message "In Site{a + c → ...}: Incorrect static molecule usage: static molecule (a) consumed but not emitted by reaction {a(_) + c(_) → }"
 
     val result = Await.result(resultFuture, Duration.Inf)
-    // First, molecules c() are not emitted because c() is not bound.
-    result.exists(_.failed.get.getMessage.contains("Molecule c is not bound to any reaction site")) shouldEqual true
+    // There should be no successful emissions of the molecule `c()`.
+    result.forall(_.isFailure) shouldEqual true
+    // Some molecules c() are not emitted because c() is not yet bound.
     // Later c() is bound but reaction site is not active.
-    result.exists(_.failed.get.getMessage.contains("Cannot emit c() because reaction site is inactive")) shouldEqual true
-    // There should be no other errors.
-    result.forall { r ⇒
-      val message = r.failed.get.getMessage
-      message.contains("not bound") || message.contains("Cannot emit c() because reaction site is inactive")
-    } shouldEqual true
+    // There should be no other errors. Let's collect all error messages.
+    result.map(_.failed.get.getMessage).toSet shouldEqual Set("Molecule c is not bound to any reaction site", "Cannot emit c() because reaction site is inactive")
   }
 
 }
