@@ -8,7 +8,6 @@ import com.google.common.collect.ConcurrentHashMultiset
 
 import scala.collection.JavaConverters.{asScalaIteratorConverter, asScalaSetConverter}
 import scala.collection.mutable
-import scala.util.Try
 
 trait MutCollection[T] {
   def size: Int
@@ -33,9 +32,13 @@ trait MutCollection[T] {
 trait MutableBag[T] extends MutCollection[T] {
   def find(predicate: T ⇒ Boolean): Option[T]
 
-  def takeOne: Seq[T] = try IndexedSeq(iteratorAsJava.next) catch { case _: Exception ⇒ IndexedSeq() }
+  def takeOne: Seq[T] = try IndexedSeq(iteratorAsJava.next) catch {
+    case _: Exception ⇒ IndexedSeq()
+  }
 
-  def headOption: Option[T] = try Some(iteratorAsJava.next) catch { case _: Exception ⇒ None }
+  def headOption: Option[T] = try Some(iteratorAsJava.next) catch {
+    case _: Exception ⇒ None
+  }
 
   def takeAny(count: Int): Seq[T] =
     if (count > 1)
@@ -88,19 +91,18 @@ final class MutableMapBag[T] extends MutableBag[T] {
   override def remove(v: T): Boolean = bag.removeExactly(v, 1)
 
   override def find(predicate: T ⇒ Boolean): Option[T] =
-    bag.createEntrySet().asScala.view
+    bag.entrySet().asScala
+      .view
       .map(_.getElement)
       .find(predicate)
 
   override def getCountMap: Map[T, Int] = bag
-    .createEntrySet()
-    .asScala
+    .entrySet().asScala
     .map(entry => (entry.getElement, entry.getCount))
     .toMap
 
   override def allValues: Iterator[T] = bag
-    .createEntrySet()
-    .asScala
+    .entrySet().asScala
     .toIterator
     .map(_.getElement)
 

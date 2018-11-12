@@ -472,7 +472,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @tparam T Type of the molecule value.
     */
   private[jc] def emit[T](mol: MolEmitter, molValue: AbsMolValue[T]): Unit = {
-    if (isActive) {
+    if (isActive || nowEmittingStaticMols) {
       if (findUnboundOutputMolecules) {
         val moleculesString = unboundOutputMoleculesString(nonStaticReactions)
         val message = s"In $this: As $mol($molValue) is emitted, some reactions may emit molecules ($moleculesString) that are not bound to any reaction site"
@@ -575,7 +575,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     )
   }
 
-  // Remove a blocking molecule if it is present.
+  // Remove a blocking molecule if it is present. This is used only when the emitting process has waited but did not get any reply value.
   private def removeBlockingMolecule[T, R](bm: B[T, R], blockingMolValue: BlockingMolValue[T, R]): Unit = {
     if (internalRemoveFromBag(bm, blockingMolValue))
       reactionPool.reporter.removed(id, toString, bm.siteIndex, bm.toString, blockingMolValue.toString, moleculesPresentToString)
@@ -695,27 +695,31 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val staticDiagnostics = WarningsAndErrors(foundWarnings, foundErrors, s"$this")
 
     // This is necessary to prevent the static reactions from running in case there are already errors.
-    if (staticDiagnostics.noErrors) {
+    val finalDiagnostics = if (staticDiagnostics.noErrors) {
       emitStaticMols()
       val staticMolsActuallyEmitted = getMoleculeCountsAfterInitialStaticEmission
       val staticMolsEmissionWarnings = findStaticMolsEmissionWarnings(staticMolDeclared, staticMolsActuallyEmitted)
       val staticMolsEmissionErrors = findStaticMolsEmissionErrors(staticMolDeclared, staticMolsActuallyEmitted)
       val staticMolsEmissionDiagnostics = WarningsAndErrors(staticMolsEmissionWarnings, staticMolsEmissionErrors, s"$this")
-      val finalDiagnostics = staticDiagnostics ++ staticMolsEmissionDiagnostics
-      if (finalDiagnostics.noErrors) {
-        // Register this reaction site with the global DCM registry. This is necessary for deserializing LMs.
-        Cluster.addReactionSite(this)
-        // Possibly register this site with the cluster connector.
-        clusterConfig.map(Cluster.addClusterConnector(this))
-        // Now we can finally activate this reaction site.
-        isActive = true
-      }
-      finalDiagnostics
+      val finalStaticDiagnostics = staticDiagnostics ++ staticMolsEmissionDiagnostics
+      finalStaticDiagnostics
     } else {
-      // We failed to create a reaction site. Input molecules need to be unbound.
-      clearMoleculeInfos()
       staticDiagnostics
     }
+    if (finalDiagnostics.noErrors) {
+      // Register this reaction site with the global DCM registry. This is necessary for deserializing LMs.
+      Cluster.addReactionSite(this)
+      // Possibly register this site with the cluster connector.
+      clusterConfig.map(Cluster.addClusterConnector(this))
+      // Now we can provisionally activate this reaction site and emit static molecules.
+      isActive = true
+    } else {
+      // If there are errors, we need to deactivate this reaction site.
+      // Input molecules need to be unbound.
+      isActive = false
+      clearMoleculeInfos()
+    }
+    finalDiagnostics
   }
 
   private def emitStaticMols(): Unit = {
