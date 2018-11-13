@@ -147,6 +147,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     // (What exactly to precompute? `consumingReactions` is already precomputed.)
 
     val candidateReactions = consumingReactions(mol.siteIndex)
+    // Obtain lock on the distributed reaction site, if needed.
+    val clusterSession = for {
+      config ← clusterConfig
+      connector ← Cluster.connectors.get(config)
+      sessionId ← connector.obtainLock(this)
+    } yield sessionId
+
     // This option value will be non-empty if we have a reaction with some input molecules that all have admissible values for that reaction.
     val foundReactionAndInputs: Option[(Reaction, InputMoleculeList)] = candidateReactions.zipWithIndex.map { case (thisReaction, ind) ⇒
       // Optimization: ignore reactions that do not have all the required molecules. Not sure if this actually helps! Let's skip it for now.
@@ -158,29 +165,42 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         val result: Option[InputMoleculeList] = findInputMolecules(thisReaction, moleculesPresent)
 
         // If we have found a reaction that can be run, remove its input molecule values from their bags.
-        result.map { thisInputList ⇒
-          thisReaction.info.inputs.zipWithIndex.foreach { case (molInfo, i) ⇒
+        result.flatMap { thisInputList ⇒
+          val removedStatus = thisReaction.info.inputs.zipWithIndex.forall { case (molInfo, i) ⇒
             val molValue = thisInputList(i)
             val molEmitter = molInfo.molecule
-            // This error (molecule value was found for a reaction but is now not present) indicates a bug in this code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
-
-            if (!internalRemoveFromBag(molEmitter, molValue)) reportError(s"Error: In $this: Internal error: Failed to remove molecule $molEmitter($molValue) from its bag; molecule index ${molEmitter.siteIndex}, bag ${moleculesPresent(molEmitter.siteIndex)}", printToConsole = true)
+            // For a local molecule, this error (molecule value was found for a reaction but is now not present) indicates a bug in the code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
+            // For a DM, this error can occur when failing to remove the DM from the cluster (e.g. due to network failure). In this case, we should stop and not schedule the reaction. 
+            // TODO: remove DMs first, if failed - unconsume; if successful, only then remove LMs.
+            if (!internalRemoveFromBag(molEmitter, molValue)) {
+              //$COVERAGE-OFF$
+              reportError(s"Error: In $this: Internal error: Failed to remove molecule $molEmitter($molValue) from its bag; molecule index ${molEmitter.siteIndex}, bag ${moleculesPresent(molEmitter.siteIndex)}", printToConsole = true)
+              false
+              //$COVERAGE-ON$
+            } else true
           }
+          if (removedStatus) {
+            // Optimization:
+            // Shuffle this reaction to the beginning of consumingReactions, so that it will be considered first in the next scheduling round.
+            if (ind > 0) {
+              val r = candidateReactions(0)
+              candidateReactions(0) = thisReaction
+              candidateReactions(ind) = r
+            }
 
-          // Shuffle this reaction to the beginning of consumingReactions, so that it will be considered first in the next scheduling round.
-          if (ind > 0) {
-            val r = candidateReactions(0)
-            candidateReactions(0) = thisReaction
-            candidateReactions(ind) = r
-          }
-
-          (thisReaction, thisInputList)
+            Some((thisReaction, thisInputList))
+          } else None
         }
       }
 
     }.find(_.nonEmpty).flatten
 
     // At this point, we may release the lock on the molecule bags. (Right now, the scheduler is single-threaded, but in the future it could become multi-threaded.)
+    for {
+      config ← clusterConfig
+      connector ← Cluster.connectors.get(config)
+      sessionId ← clusterSession
+    } yield connector.releaseLock(this, sessionId)
 
     // We need to return `true` only if we have successfully scheduled a new reaction.
     foundReactionAndInputs.exists {
@@ -188,6 +208,13 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         val poolForReaction = thisReaction.threadPool.getOrElse(reactionPool)
         if (poolForReaction.isInactive) {
           reportError(s"In $this: cannot run reaction {${thisReaction.info}} since reaction pool $poolForReaction is not active; input molecules ${reactionInputsToString(thisReaction, usedInputs)} were consumed and not emitted again", printToConsole = false)
+          // Tell the cluster to unconsume the input molecules for this reaction.
+          for {
+            config ← clusterConfig
+            connector ← Cluster.connectors.get(config)
+            sessionId ← clusterSession
+          } yield connector.unconsume(this, thisReaction, sessionId)
+
           // In this case, we do not attempt to schedule a reaction. However, input molecules were consumed and not emitted again.
           false
         } else {

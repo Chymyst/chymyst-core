@@ -39,6 +39,8 @@ final case class ClusterConfig(
 }
 
 private[jc] sealed trait ClusterConnector {
+  def unconsume(site: ReactionSite, thisReaction: Reaction, sessionId: ClusterSessionId): Unit
+
   private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit
 
   private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T, previousSessionId: ClusterSessionId): Unit = {
@@ -58,6 +60,10 @@ private[jc] sealed trait ClusterConnector {
     }
   }
 
+  private[jc] def obtainLock(reactionSite: ReactionSite): Option[ClusterSessionId]
+
+  private[jc] def releaseLock(reactionSite: ReactionSite, clusterSessionId: ClusterSessionId): Unit
+
   def start(): Unit = {}
 
   def sessionId(): Option[ClusterSessionId]
@@ -75,9 +81,13 @@ private[jc] sealed trait ClusterConnector {
   protected def dcmPathForMol(reactionSite: ReactionSite, mol: MolEmitter): String = {
     s"DCM/${reactionSite.sha1CodeWithNames}/dm-${mol.siteIndex}"
   }
+
+  start()
 }
 
 private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends ClusterConnector {
+  override def unconsume(site: ReactionSite, thisReaction: Reaction, sessionId: ClusterSessionId): Unit = ???
+
   private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit = {
     val path = dcmPathForMol(reactionSite, mol) + "/v"
     val molData = Cluster.serialize(value)
@@ -111,7 +121,9 @@ private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends
     else None
   }
 
-  start()
+  override def obtainLock(reactionSite: ReactionSite): Option[ClusterSessionId] = ???
+
+  override def releaseLock(reactionSite: ReactionSite, clusterSessionId: ClusterSessionId): Unit = ???
 }
 
 /** A trivial implementation of [[ClusterConnector]], automatically used when the ZooKeeper URL in [[ClusterConfig]] is empty.
@@ -125,6 +137,8 @@ final class TestOnlyConnector extends ClusterConnector {
   private[jc] val allMoleculeData: TrieMap[String, Array[Byte]] = new TrieMap()
   private[jc] val molValueCounters: TrieMap[String, AtomicInteger] = new TrieMap()
 
+  override def unconsume(site: ReactionSite, thisReaction: Reaction, sessionId: ClusterSessionId): Unit = ???
+
   override private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit = {
     val path = dcmPathForMol(reactionSite, mol)
     val index = molValueCounters.getOrElseUpdate(path, new AtomicInteger()).getAndIncrement()
@@ -132,10 +146,18 @@ final class TestOnlyConnector extends ClusterConnector {
     allMoleculeData.update(path + "/v-" + index.toString, molData)
   }
 
+  // Only one RS thread will access this connector at a time, so locks are unnecessary. 
+  override def obtainLock(reactionSite: ReactionSite): Option[ClusterSessionId] = sessionId()
+
+  override def releaseLock(reactionSite: ReactionSite, clusterSessionId: ClusterSessionId): Unit = ()
+
   private var sessionIdValue: Option[ClusterSessionId] = None
 
   override def sessionId(): Option[ClusterSessionId] = sessionIdValue
 
+  /** This method may be called repeatedly, refreshing the session ID for testing purposes.
+    *
+    */
   override def start(): Unit = {
     updateSession()
   }
@@ -154,10 +176,6 @@ final class TestOnlyConnector extends ClusterConnector {
     sessionIdValue = Some(ClusterSessionId(scala.util.Random.nextLong()))
   }
 
-  /** This method may be called repeatedly, refreshing the session ID for testing purposes.
-    *
-    */
-  start()
 }
 
 object Cluster {
@@ -263,7 +281,8 @@ final class ClusterBag[T](clusterConnector: ClusterConfig) extends MutableBag[T]
   override def takeOne: Seq[T] = ???
 
   override def takeAny(count: Int): Seq[T] = ???
-// Might not need these iterators?  
+
+  // Might not need these iterators?  
   override protected def iteratorAsScala: Iterator[T] = ???
 
   override protected def iteratorAsJava: util.Iterator[T] = ???
