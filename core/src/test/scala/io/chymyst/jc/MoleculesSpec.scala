@@ -320,7 +320,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     val tp1 = FixedPool(2)
     val memLog1 = new MemoryLogger
     tp1.reporter = new ErrorReporter(memLog1)
-    val total = 100
+    val total = 300
     (1 to total).foreach { i =>
       val a = m[M[Int]]
       site(tp1)(
@@ -348,7 +348,7 @@ class MoleculesSpec extends LogSpec with BeforeAndAfterEach {
     // Sometimes (on fast machines) the reaction always produces an exception, in which case the result is `total` exceptions.
     // Since this is expected and correct behavior, we should not fail the test when the reaction starts too fast to avoid the exception.
     println(s"unbound molecule exceptions, test 2: $errors errors out of $total runs")
-    globalLogHas(memLog1, "xception", "In Site{a → ...}: Reaction {a(s) → } with inputs [a/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e Fis not bound to any reaction site, cannot emit")
+    globalLogHas(memLog1, "xception", "In Site{a → ...}: Reaction {a(s) → } with inputs [a/P(e)] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: Molecule e is not bound to any reaction site, cannot emit")
     errors should be > 0
     errors should be < total
   }

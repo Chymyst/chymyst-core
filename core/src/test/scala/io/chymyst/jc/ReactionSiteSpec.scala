@@ -158,7 +158,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     ) should
       have message "In Site{x1/D + x1/D → ...}: All input distributed molecules must belong to the same cluster, but found molecule(s) x1/D, x1/D"
     // Cannot emit DMs since reaction site is not active. 
-    the[ExceptionNoReactionSite] thrownBy x1a(1) should have message "Molecule x1/D is not bound to any reaction site"
+    the[ExceptionNoReactionSite] thrownBy x1a(1) should have message "Molecule x1/D is not bound to any reaction site, cannot emit"
   }
 
   behavior of "reaction"
@@ -767,7 +767,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     // Some molecules c() are not emitted because c() is not yet bound.
     // Later c() is bound but reaction site is not active.
     // There should be no other errors. Let's collect all error messages.
-    result.map(_.failed.get.getMessage).toSet shouldEqual Set("Molecule c is not bound to any reaction site, cannot emit", "Cannot emit c() because reaction site is inactive")
+    result.map(_.failed.get.getMessage).toSet shouldEqual Set("Molecule c is not bound to any reaction site, cannot emit", "Molecule c() cannot be emitted because reaction site is inactive")
   }
 
 }
