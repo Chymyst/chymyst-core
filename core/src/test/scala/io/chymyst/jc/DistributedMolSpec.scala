@@ -8,11 +8,11 @@ class DistributedMolSpec extends LogSpec with Matchers {
   behavior of "distributed molecules"
 
   it should "print DMs correctly" in {
-    implicit val clusterConfig = ClusterConfig("")
+    implicit val clusterConfig = ClusterConfig("", "1")
     val x = dm[Int]
     x.isDistributed shouldEqual true
     x.toString shouldEqual "x/D"
-    x.clusterConfig shouldEqual ClusterConfig("")
+    x.clusterConfig shouldEqual ClusterConfig("", "1")
     x.isBlocking shouldEqual false
     x.isBound shouldEqual false
     x.isStatic shouldEqual false
@@ -20,7 +20,7 @@ class DistributedMolSpec extends LogSpec with Matchers {
   }
 
   it should "emit DMs using a test-only cluster config" in {
-    implicit val clusterConfig = ClusterConfig("")
+    implicit val clusterConfig = ClusterConfig("", "2")
     val x = dm[Int]
 
     site(go { case x(_) ⇒ })
@@ -79,7 +79,7 @@ class DistributedMolSpec extends LogSpec with Matchers {
   }
 
   it should "serialize DM emitter when it is emitted as data" in {
-    implicit val clusterConfig = ClusterConfig("", "xyz")
+    implicit val clusterConfig = ClusterConfig("", "3")
     val x = dm[DM[Int]]
     val y = dm[Int]
     x.isDistributed shouldEqual true

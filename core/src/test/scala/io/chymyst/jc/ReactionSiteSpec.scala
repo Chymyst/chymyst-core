@@ -767,7 +767,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     // Some molecules c() are not emitted because c() is not yet bound.
     // Later c() is bound but reaction site is not active.
     // There should be no other errors. Let's collect all error messages.
-    result.map(_.failed.get.getMessage).toSet shouldEqual Set("Molecule c is not bound to any reaction site, cannot emit", "Molecule c() cannot be emitted because reaction site is inactive")
+    (result.map(_.failed.get.getMessage).toSet diff Set("Molecule c is not bound to any reaction site, cannot emit", "Molecule c() cannot be emitted because reaction site is inactive")) shouldEqual Set()
   }
 
 }

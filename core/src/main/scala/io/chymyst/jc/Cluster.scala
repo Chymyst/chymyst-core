@@ -64,7 +64,7 @@ private[jc] sealed trait ClusterConnector {
 
   private[jc] def releaseLock(reactionSite: ReactionSite, clusterSessionId: ClusterSessionId): Unit
 
-  def start(): Unit = {}
+  def start(): Unit
 
   def sessionId(): Option[ClusterSessionId]
 
@@ -81,8 +81,6 @@ private[jc] sealed trait ClusterConnector {
   protected def dcmPathForMol(reactionSite: ReactionSite, mol: MolEmitter): String = {
     s"DCM/${reactionSite.sha1CodeWithNames}/dm-${mol.siteIndex}"
   }
-
-  start()
 }
 
 private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends ClusterConnector {
@@ -124,6 +122,8 @@ private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends
   override def obtainLock(reactionSite: ReactionSite): Option[ClusterSessionId] = ???
 
   override def releaseLock(reactionSite: ReactionSite, clusterSessionId: ClusterSessionId): Unit = ???
+  
+  start()
 }
 
 /** A trivial implementation of [[ClusterConnector]], automatically used when the ZooKeeper URL in [[ClusterConfig]] is empty.
@@ -176,6 +176,7 @@ final class TestOnlyConnector extends ClusterConnector {
     sessionIdValue = Some(ClusterSessionId(scala.util.Random.nextLong()))
   }
 
+  start()
 }
 
 object Cluster {

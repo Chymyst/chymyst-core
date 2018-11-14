@@ -238,7 +238,7 @@ sealed trait MolEmitter extends PersistentHashCode with MolEmitterDebugging {
   final def logSite: String = ensureReactionSite {
     if (isChymystThread)
       "<logSite is disabled on reaction threads!>"
-    else reactionSite.printBag
+    else reactionSite.printAllMolecules
   }
 
   def isDistributed: Boolean = false

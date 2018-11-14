@@ -96,7 +96,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     */
   private[jc] val sha1CodeWithNames = getSha1(sha1Code + knownInputMolecules.map { case (e, (i, t)) ⇒ s"$e:$i:$t" }.mkString(","), getMessageDigest)
 
-  private[jc] def printBag: String = {
+  private[jc] def printAllMolecules: String = {
     val moleculesPrettyPrinted = if (moleculesPresent.exists(!_.isEmpty))
       s"Molecules: $moleculesPresentToString"
     else "No molecules"
@@ -171,10 +171,10 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             val molEmitter = molInfo.molecule
             // For a local molecule, this error (molecule value was found for a reaction but is now not present) indicates a bug in the code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
             // For a DM, this error can occur when failing to remove the DM from the cluster (e.g. due to network failure). In this case, we should stop and not schedule the reaction. 
-            // TODO: remove DMs first, if failed - unconsume; if successful, only then remove LMs.
+            // TODO: remove DMs first, if failed - unconsume; if successful, only then remove LMs from bags.
             if (!internalRemoveFromBag(molEmitter, molValue)) {
               //$COVERAGE-OFF$
-              reportError(s"Error: In $this: Internal error: Failed to remove molecule $molEmitter($molValue) from its bag; molecule index ${molEmitter.siteIndex}, bag ${moleculesPresent(molEmitter.siteIndex)}", printToConsole = true)
+              reportError(s"Error: In $this: Internal error: Failed to remove molecule $molEmitter($molValue) from its bag; molecule index ${molEmitter.siteIndex}, bag contains ${Core.moleculeBagToString(Map(molEmitter -> moleculesPresent(molEmitter.siteIndex).getCountMap))}", printToConsole = true)
               false
               //$COVERAGE-ON$
             } else true
@@ -351,9 +351,8 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val foundResult: Boolean =
     // `foundResult` will be `true` (and then `foundValues` has the molecule values) or `false` (we found no values that match).
 
-    // Handle molecules that have no cross-dependencies of molecule values, but have conditionals.
+    // Handle molecules that have no cross-molecule guards, but have conditionals.
     // For each single (non-repeated) input molecule, select a molecule value that satisfies the conditional.
-
     // If we fail to find all such values, `foundResult` will be `false`.
       info.inputsSortedIndependentConditional.forall { inputInfo ⇒
         val molBag = moleculesPresent(inputInfo.molecule.siteIndex)
@@ -393,17 +392,23 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         else {
           // Map from site-wide molecule index to the multiset of values that have been selected for repeated copies of this molecule.
           // This is used only for selecting repeated input molecules.
-          type MolVals = Map[Int, List[AbsMolValue[_]]]
+          type RepeatedMolVals = Map[Int, List[AbsMolValue[_]]]
 
-          // We are using a much faster Iterator instead of Stream now. Conceptually it's a stream of `MolVals` values.
-          val initStream = Iterator[MolVals](Map())
+          // We are using a much faster Iterator instead of Stream now. Conceptually it's a stream of `RepeatedMolVals` values.
+          // Each value of type `RepeatedMolVals` represents the values already selected for some of the repeated input molecule instances (so we don't select one of them again).
+          // Initially, the set contains the repeated molecule values that are included into `inputsSortedIndependentConditional`, e.g. a(1), because these values can and should be selected earlier than other repeated values.
+          val initRepeatedMolValueMap: RepeatedMolVals = info.crossConditionalsForRepeatedMols
+            .filter(i ⇒ foundValues(i) != null)
+            .map(i ⇒ i → List(foundValues(i)))
+            .toMap
+          val initStream = Iterator[RepeatedMolVals](initRepeatedMolValueMap)
 
-          val found: Option[Iterator[MolVals]] = r.info.searchDSLProgram
+          val found: Option[Iterator[RepeatedMolVals]] = r.info.searchDSLProgram
             // The `flatFoldLeft` accumulates the value `repeatedMolValues`, representing the stream of value maps for repeated input molecules (only).
             // This is used to build a "skipping iterator" over molecule values that correctly handles repeated input molecules.
 
             // This is a "flat fold" because should be able to stop early even though we can't examine the stream value.
-            .flatFoldLeft[Iterator[MolVals]](initStream) { (repeatedMolValuesStream, searchDslCommand) ⇒
+            .flatFoldLeft[Iterator[RepeatedMolVals]](initStream) { (repeatedMolValuesStream, searchDslCommand) ⇒
             // We need to return Option[Iterator[MolVals]].
             searchDslCommand match {
               case ChooseMol(i) ⇒
@@ -422,7 +427,6 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
                         // TODO: move this to the skipping interface, restore Seq[T] as its argument?
                         .allValuesSkipping(new MutableMultiset[AbsMolValue[_]](prevValMap))
                         .filter(inputInfo.admitsValue)
-
                         .map { v ⇒
                           foundValues(i) = v
                           repeatedVals.updated(siteMolIndex, v :: prevValMap)
