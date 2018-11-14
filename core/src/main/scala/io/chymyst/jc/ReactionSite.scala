@@ -2,10 +2,8 @@ package io.chymyst.jc
 
 import java.util.concurrent.atomic.{AtomicInteger, AtomicIntegerArray}
 
-import io.chymyst.jc
 import io.chymyst.jc.Core._
 import io.chymyst.jc.StaticAnalysis._
-import org.checkerframework.checker.units.qual.mol
 
 import scala.annotation.tailrec
 import scala.collection.breakOut
@@ -199,8 +197,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     for {
       config ← clusterConfig
       connector ← Cluster.connectors.get(config)
-      sessionId ← clusterSession
-    } yield connector.releaseLock(this, sessionId)
+    } yield connector.releaseLock(this)
 
     // We need to return `true` only if we have successfully scheduled a new reaction.
     foundReactionAndInputs.exists {
@@ -398,7 +395,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
           // Each value of type `RepeatedMolVals` represents the values already selected for some of the repeated input molecule instances (so we don't select one of them again).
           // Initially, the set contains the repeated molecule values that are included into `inputsSortedIndependentConditional`, e.g. a(1), because these values can and should be selected earlier than other repeated values.
           val initRepeatedMolValueMap: RepeatedMolVals = info.crossConditionalsForRepeatedMols
-            .filter(i ⇒ foundValues(i) != null)
+            .filter(i ⇒ foundValues(i) =!= null)
             .map(i ⇒ i → List(foundValues(i)))
             .toMap
           val initStream = Iterator[RepeatedMolVals](initRepeatedMolValueMap)

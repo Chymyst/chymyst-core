@@ -7,6 +7,7 @@ import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, Serializer}
 import com.twitter.chill.{IKryoRegistrar, KryoInstantiator, KryoPool, KryoSerializer, ScalaKryoInstantiator}
 import io.chymyst.jc.Core.{AnyOpsEquals, ClusterSessionId}
+import org.apache.curator.framework.recipes.locks.{InterProcessLock, InterProcessSemaphoreMutex}
 import org.apache.curator.framework.{AuthInfo, CuratorFramework, CuratorFrameworkFactory}
 import org.apache.curator.retry.RetryNTimes
 import org.apache.zookeeper.CreateMode
@@ -14,6 +15,7 @@ import org.apache.zookeeper.CreateMode
 import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.collection.concurrent.TrieMap
 import scala.reflect.ClassTag
+import scala.util.Try
 
 /** Configuration value that describes how to connect to a cluster.
   *
@@ -62,14 +64,17 @@ private[jc] sealed trait ClusterConnector {
 
   private[jc] def obtainLock(reactionSite: ReactionSite): Option[ClusterSessionId]
 
-  private[jc] def releaseLock(reactionSite: ReactionSite, clusterSessionId: ClusterSessionId): Unit
+  // If releasing the lock fails due to network failure, ZooKeeper should delete the ephemeral nodes anyway.
+  // So this method does not need to return any status.
+  private[jc] def releaseLock(reactionSite: ReactionSite): Unit
 
+  // Start the connection.
   def start(): Unit
 
   def sessionId(): Option[ClusterSessionId]
 
   /** A dictionary of all distributed reaction sites that are activated and connected to this cluster.
-    *
+    * The key is the reaction site's full hash.
     */
   protected val reactionSites: TrieMap[String, ReactionSite] = new TrieMap()
 
@@ -78,9 +83,11 @@ private[jc] sealed trait ClusterConnector {
     ()
   }
 
-  protected def dcmPathForMol(reactionSite: ReactionSite, mol: MolEmitter): String = {
+  protected def dcmPathForMol(reactionSite: ReactionSite, mol: MolEmitter): String =
     s"DCM/${reactionSite.sha1CodeWithNames}/dm-${mol.siteIndex}"
-  }
+
+  protected def lockPath(reactionSite: ReactionSite): String =
+    s"DCM/${reactionSite.sha1CodeWithNames}/lock"
 }
 
 private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends ClusterConnector {
@@ -119,10 +126,26 @@ private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends
     else None
   }
 
-  override def obtainLock(reactionSite: ReactionSite): Option[ClusterSessionId] = ???
+  override def obtainLock(reactionSite: ReactionSite): Option[ClusterSessionId] = {
+    val mutex = new InterProcessSemaphoreMutex(zk, lockPath(reactionSite))
+    for {
+      _ ← Try(mutex.acquire()).toOption
+      session ← sessionId()
+    } yield {
+      drsLocks.update(reactionSite.sha1CodeWithNames, (session, mutex))
+      session
+    }
+  }
 
-  override def releaseLock(reactionSite: ReactionSite, clusterSessionId: ClusterSessionId): Unit = ???
-  
+  override def releaseLock(reactionSite: ReactionSite): Unit = {
+    drsLocks.get(reactionSite.sha1CodeWithNames).foreach { case (_, mutex) ⇒ mutex.release() }
+  }
+
+  /** A dictionary of all locks that are activated for any reaction sites connected to this cluster.
+    * The key is the reaction site's full hash.
+    */
+  protected val drsLocks: TrieMap[String, (ClusterSessionId, InterProcessLock)] = new TrieMap()
+
   start()
 }
 
@@ -146,10 +169,10 @@ final class TestOnlyConnector extends ClusterConnector {
     allMoleculeData.update(path + "/v-" + index.toString, molData)
   }
 
-  // Only one RS thread will access this connector at a time, so locks are unnecessary. 
+  // Only one RS thread at a time will access `TestOnlyConnector`, so locks are unnecessary. 
   override def obtainLock(reactionSite: ReactionSite): Option[ClusterSessionId] = sessionId()
 
-  override def releaseLock(reactionSite: ReactionSite, clusterSessionId: ClusterSessionId): Unit = ()
+  override def releaseLock(reactionSite: ReactionSite): Unit = ()
 
   private var sessionIdValue: Option[ClusterSessionId] = None
 

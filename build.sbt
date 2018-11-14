@@ -113,6 +113,7 @@ lazy val core = (project in file("core"))
       //      "com.google.code.findbugs" % "jsr305" % "3.0.1", // Include this if there are weird compiler bugs due to guava. See http://stackoverflow.com/questions/10007994/why-do-i-need-jsr305-to-use-guava-in-scala
       , "org.apache.zookeeper" % "zookeeper" % "3.4.13"
       , "org.apache.curator" % "curator-framework" % "4.0.1"
+      , "org.apache.curator" % "curator-recipes" % "4.0.1"
       //      "org.javolution" % "javolution" % "6.0.0", // source code not published on Maven Central!
       // We need scala-reflect because we use macros.
       , "org.scala-lang" % "scala-reflect" % scalaVersion.value
