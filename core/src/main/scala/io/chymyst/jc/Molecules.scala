@@ -19,7 +19,7 @@ object + {
   def unapply(inputs: ReactionBodyInput): ReactionBodyInput = inputs
 }
 
-/** Abstract container for molecule values. This is a common wrapper for values of blocking and non-blocking molecules.
+/** Abstract container for molecule values. This is a common wrapper for values of blocking, non-blocking, and distributed molecules.
   *
   * @tparam T Type of the molecule value.
   */
@@ -53,9 +53,11 @@ private[jc] sealed trait AbsMolValue[T] {
   private[jc] def reactionSentNoReply: Boolean = false
 
   private[jc] def fulfillWhenConsumedPromise(): Unit = ()
+
+  private[jc] def clusterSessionId: Option[ClusterSessionId] = None
 }
 
-/** Container for the value of a non-blocking molecule.
+/** Container for the value carried by a non-blocking molecule.
   *
   * @tparam T The type of the value.
   */
@@ -75,7 +77,21 @@ private[jc] final case class MolValue[T](private[jc] val moleculeValue: T) exten
   }
 }
 
-/** Container for the value of a blocking molecule.
+/** Container for the value carried by a distributed molecule.
+  *
+  * @param moleculeValue Value of the molecule instance.
+  * @param path          ZooKeeper path of the molecule instance.
+  * @tparam T The type of the value.
+  */
+private[jc] final case class DMolValue[T](
+  private[jc] val moleculeValue: T,
+  private[jc] val path: String,
+  private[jc] val sessionId: ClusterSessionId
+) extends AbsMolValue[T] {
+  override private[jc] def clusterSessionId: Option[ClusterSessionId] = Some(sessionId)
+}
+
+/** Container for the value carried by a blocking molecule.
   * The `hashCode` of a [[BlockingMolValue]] should depend only on the `hashCode` of the value `v`,
   * and not on the reply value (which is mutable). This is now implemented in the parent trait [[AbsMolValue]].
   *
@@ -151,7 +167,7 @@ sealed trait MolEmitter extends PersistentHashCode with MolEmitterDebugging {
     valReactionSite = null
     hasReactionSite = false
   }
-  
+
   /** Check whether the molecule is already bound to a reaction site.
     * Note that molecules can be emitted only if they are bound.
     *

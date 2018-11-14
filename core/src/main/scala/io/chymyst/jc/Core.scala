@@ -406,7 +406,7 @@ object Core {
       NO_REACTION_INFO_STRING
   }
 
-  private[jc] def setReactionInfoOfThread(info: ReactionInfo): Unit = Thread.currentThread() match {
+  private[jc] def setReactionInfoOnThread(info: ReactionInfo): Unit = Thread.currentThread() match {
     case t: ChymystThread ⇒
       t.reactionInfoString = info.toString
     case _ ⇒
@@ -427,7 +427,7 @@ object Core {
       None
   }
   
-  private[jc] def setClusterSessionOfThread(clusterSessionId: ClusterSessionId): Unit = Thread.currentThread() match {
+  private[jc] def setClusterSessionOnThread(clusterSessionId: ClusterSessionId): Unit = Thread.currentThread() match {
     case t: ChymystThread ⇒
       t.clusterSessionIdValue = Some(clusterSessionId)
     case _ ⇒

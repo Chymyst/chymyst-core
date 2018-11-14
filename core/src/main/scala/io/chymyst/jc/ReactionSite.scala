@@ -162,22 +162,32 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
         startedLookingAtMolBag(mol)
         val result: Option[InputMoleculeList] = findInputMolecules(thisReaction, moleculesPresent)
 
-        // If we have found a reaction that can be run, remove its input molecule values from their bags.
+        // If we have found a reaction that can be run, we remove its input molecule values from their bags.
         result.flatMap { thisInputList ⇒
-          val removedStatus = thisReaction.info.inputs.zipWithIndex.forall { case (molInfo, i) ⇒
+          val allMolsRemovedSuccessfully = thisReaction.info.inputs.zipWithIndex.forall { case (molInfo, i) ⇒
             val molValue = thisInputList(i)
             val molEmitter = molInfo.molecule
-            // For a local molecule, this error (molecule value was found for a reaction but is now not present) indicates a bug in the code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
-            // For a DM, this error can occur when failing to remove the DM from the cluster (e.g. due to network failure). In this case, we should stop and not schedule the reaction. 
             // TODO: remove DMs first, if failed - unconsume; if successful, only then remove LMs from bags.
-            if (!internalRemoveFromBag(molEmitter, molValue)) {
-              //$COVERAGE-OFF$
-              reportError(s"Error: In $this: Internal error: Failed to remove molecule $molEmitter($molValue) from its bag; molecule index ${molEmitter.siteIndex}, bag contains ${Core.moleculeBagToString(Map(molEmitter -> moleculesPresent(molEmitter.siteIndex).getCountMap))}", printToConsole = true)
-              false
-              //$COVERAGE-ON$
-            } else true
+            if (molEmitter.isDistributed) {
+              // For a DM, this error (molecule value was found for a reaction but is now not present) can occur when failing to remove the DM from the cluster (e.g. due to network failure). In this case, we should stop and not schedule the reaction.
+              val newClusterSession = for {
+                config ← clusterConfig
+                connector ← Cluster.connectors.get(config)
+                sessionId ← connector.consume(this, molEmitter, molValue.asInstanceOf[DMolValue[_]])
+              } yield sessionId
+              // TODO: check that the session ID did not change
+              newClusterSession.isDefined
+            } else {
+              // For a local molecule, this error (molecule value was found for a reaction but is now not present) indicates a bug in the code, which should already manifest itself in failing tests! We can't cover this error by tests if the code is correct.
+              if (!internalRemoveFromBag(molEmitter, molValue)) {
+                //$COVERAGE-OFF$
+                reportError(s"Error: In $this: Internal error: Failed to remove molecule $molEmitter($molValue) from its bag; molecule index ${molEmitter.siteIndex}, bag contains ${Core.moleculeBagToString(Map(molEmitter -> moleculesPresent(molEmitter.siteIndex).getCountMap))}", printToConsole = true)
+                false
+                //$COVERAGE-ON$
+              } else true
+            }
           }
-          if (removedStatus) {
+          if (allMolsRemovedSuccessfully) {
             // Optimization:
             // Shuffle this reaction to the beginning of consumingReactions, so that it will be considered first in the next scheduling round.
             if (ind > 0) {
@@ -210,7 +220,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             config ← clusterConfig
             connector ← Cluster.connectors.get(config)
             sessionId ← clusterSession
-          } yield connector.unconsume(this, thisReaction, sessionId)
+          } yield connector.unconsume(this, usedInputs)
 
           // In this case, we do not attempt to schedule a reaction. However, input molecules were consumed and not emitted again.
           false
@@ -276,26 +286,53 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     val initNs = System.nanoTime()
     lazy val reactionInputsDebugString = reactionInputsToString(thisReaction, usedInputs)
     val exitStatus: ReactionExitStatus = try {
-      setReactionInfoOfThread(thisReaction.info)
+      setReactionInfoOnThread(thisReaction.info)
+      // TODO: check that cluster session IDs are the same on all input DMs
+      val clusterSession = usedInputs.find(_.clusterSessionId.isDefined).flatMap(_.clusterSessionId)
+
+      clusterSession match {
+        case Some(session) ⇒ setClusterSessionOnThread(session)
+        case None ⇒ clearClusterSessionOfThread()
+      }
+
       usedInputs.foreach(_.fulfillWhenConsumedPromise())
+
       ///////////
       // At this point, we apply the reaction body to its input molecules. This runs the reaction.
       //////////
 
       thisReaction.body.apply(ReactionBodyInput(index = usedInputs.length - 1, inputs = usedInputs))
+
+      ///////////
+      // At this point, we finished running the reaction body. If exception is thrown, we will be in the catch clause below.
+      //////////
       clearReactionInfoOfThread()
+      clearClusterSessionOfThread()
+      // Commit consumed molecules in the cluster.
+      // TODO: refactor all these for/yields everywhere
+      for {
+        config ← clusterConfig
+        connector ← Cluster.connectors.get(config)
+        session ← clusterSession
+      } yield connector.commit(this, usedInputs, session)
+
       // If we are here, we had no exceptions during evaluation of reaction body.
       ReactionExitSuccess
     } catch {
       // Catch various exceptions that occurred while running the reaction body.
-      case e: ExceptionInChymyst =>
+      case e: ExceptionInChymyst ⇒
         // Running the reaction body produced an exception that is internal to `Chymyst Core`.
         // We should not try to recover from this; it is either an error on user's part or a bug in `Chymyst Core`.
         val message = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputsDebugString] produced an exception internal to Chymyst Core. Retry run was not scheduled. Message: ${e.getMessage}"
         reportError(message, printToConsole = true)
+        for {
+          config ← clusterConfig
+          connector ← Cluster.connectors.get(config)
+        } yield connector.unconsume(this, usedInputs)
+
         ReactionExitFailure(message)
 
-      case e: Exception =>
+      case e: Exception ⇒
         // Running the reaction body produced an exception. Note that the exception has killed a thread.
         // We will now schedule this reaction again if retry was requested. Hopefully, no side-effects or output molecules were produced so far.
         val (status, retryMessage) =
@@ -304,7 +341,14 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
             scheduleReaction(thisReaction, usedInputs, poolForReaction)
             (ReactionExitRetryFailure(e.getMessage), " Retry run was scheduled.")
           }
-          else (ReactionExitFailure(e.getMessage), " Retry run was not scheduled.")
+          else {
+            for {
+              config ← clusterConfig
+              connector ← Cluster.connectors.get(config)
+            } yield connector.unconsume(this, usedInputs)
+
+            (ReactionExitFailure(e.getMessage), " Retry run was not scheduled.")
+          }
 
         val generalExceptionMessage = s"In $this: Reaction {${thisReaction.info}} with inputs [$reactionInputsDebugString] produced ${e.getClass.getSimpleName}.$retryMessage Message: ${e.getMessage}"
 

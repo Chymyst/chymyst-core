@@ -188,6 +188,17 @@ Version 1.0: Complete enterprise-ready features, adapters to other frameworks, a
  
  3 * 4 - formulate the "Async monad" and automatically convert "async" monadic code to Chymyst, with automatic parallelization of applicative subgraphs
  
+ To do list for DCM:
+ 
+ - The ClusterBag needs to work same as other bags. All calls are synchronous.
+ + The cluster bag or the RS scheduler must know the lock ID and check it before scheduling a reaction and also before starting it. The reaction closure must know the session ID so as to be able to set it in the ChymystThread structure.
+ + The lock is removed once molecules are removed and before scheduling a reaction, or it is determined that no reaction can begin.
+ - Need to wrap the molecule value as DMolValue[_] after deserializing.
+ - Connector must trigger scheduling when watch events occur. Connector must watch all known DRSs.
+ - DRS should not schedule reactions if threads are busy. Let molecules accumulate rather than reaction closures, since molecules are cheaper. Possibly, do this with all reactions, not just DRS.
+ - Postpone the decision to let static mols be emitted multiple times. This seems to be a good simplification overall, but needs more work.
+ - ClusterBag should be able to iterate over *its* molecule values alone. CBag must know the mol index (dm-X). Does it have the necessary info for that?
+ 
 ## Will not do for now
  
  3 * 2 - add per-molecule logging; log to file or to logger function (do we need this, if we already have event reporting and test hooks?)

@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, Serializer}
 import com.twitter.chill.{IKryoRegistrar, KryoInstantiator, KryoPool, KryoSerializer, ScalaKryoInstantiator}
-import io.chymyst.jc.Core.{AnyOpsEquals, ClusterSessionId}
+import io.chymyst.jc.Core.{AnyOpsEquals, ClusterSessionId, InputMoleculeList}
 import org.apache.curator.framework.recipes.locks.{InterProcessLock, InterProcessSemaphoreMutex}
 import org.apache.curator.framework.{AuthInfo, CuratorFramework, CuratorFrameworkFactory}
 import org.apache.curator.retry.RetryNTimes
@@ -41,7 +41,20 @@ final case class ClusterConfig(
 }
 
 private[jc] sealed trait ClusterConnector {
-  def unconsume(site: ReactionSite, thisReaction: Reaction, sessionId: ClusterSessionId): Unit
+  def commit(reactionSite: ReactionSite, usedInputs: InputMoleculeList, session: ClusterSessionId): Unit
+
+  def consume(reactionSite: ReactionSite, molEmitter: MolEmitter, value: DMolValue[_]): Option[ClusterSessionId]
+
+  /** Unconsume all input molecules for the given reaction. This is called when the reaction aborted or could not run.
+    *
+    * If this operation fails due to network failure, ZooKeeper will automatically unconsume these molecules.
+    * So this method does not need to return any status values. 
+    *
+    * @param reactionSite A distributed reaction site where the reaction ran.
+    * @param inputs       A list of input molecule values that should be inconsumed.
+    *                     Out of this list, only DMs will be unconsumed, and local molecules will be ignored.
+    */
+  def unconsume(reactionSite: ReactionSite, inputs: InputMoleculeList): Unit
 
   private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit
 
@@ -91,7 +104,11 @@ private[jc] sealed trait ClusterConnector {
 }
 
 private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends ClusterConnector {
-  override def unconsume(site: ReactionSite, thisReaction: Reaction, sessionId: ClusterSessionId): Unit = ???
+  override def commit(reactionSite: ReactionSite, usedInputs: InputMoleculeList, session: ClusterSessionId): Unit = ???
+
+  override def consume(reactionSite: ReactionSite, molEmitter: MolEmitter, value: DMolValue[_]): Option[ClusterSessionId] = ???
+
+  override def unconsume(reactionSite: ReactionSite, inputs: InputMoleculeList): Unit = ???
 
   private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit = {
     val path = dcmPathForMol(reactionSite, mol) + "/v"
@@ -127,10 +144,13 @@ private[jc] final class ZkClusterConnector(clusterConfig: ClusterConfig) extends
   }
 
   override def obtainLock(reactionSite: ReactionSite): Option[ClusterSessionId] = {
-    val mutex = new InterProcessSemaphoreMutex(zk, lockPath(reactionSite))
     for {
+      oldSession ← sessionId()
+      mutex = new InterProcessSemaphoreMutex(zk, lockPath(reactionSite))
       _ ← Try(mutex.acquire()).toOption
       session ← sessionId()
+      if session === oldSession
+      // TODO: safer handling of mutex, using events? or at least releasing the mutex if we believe that session changed
     } yield {
       drsLocks.update(reactionSite.sha1CodeWithNames, (session, mutex))
       session
@@ -160,7 +180,11 @@ final class TestOnlyConnector extends ClusterConnector {
   private[jc] val allMoleculeData: TrieMap[String, Array[Byte]] = new TrieMap()
   private[jc] val molValueCounters: TrieMap[String, AtomicInteger] = new TrieMap()
 
-  override def unconsume(site: ReactionSite, thisReaction: Reaction, sessionId: ClusterSessionId): Unit = ???
+  override def commit(reactionSite: ReactionSite, usedInputs: InputMoleculeList, session: ClusterSessionId): Unit = ???
+
+  override def consume(reactionSite: ReactionSite, molEmitter: MolEmitter, value: DMolValue[_]): Option[ClusterSessionId] = ???
+
+  override def unconsume(reactionSite: ReactionSite, inputs: InputMoleculeList): Unit = ???
 
   override private[jc] def emit[T](reactionSite: ReactionSite, mol: DM[T], value: T): Unit = {
     val path = dcmPathForMol(reactionSite, mol)
