@@ -64,7 +64,7 @@ val commonSettings = Defaults.coreDefaultSettings ++ Seq(
     else Nil
     )
     ++ (
-    if (scalaBinaryVersion.value == "2.12") Seq("-target:jvm-1.8", "-Ypartial-unification") // (SI-2712 pertains to partial-unification)
+    if (scalaBinaryVersion.value != "2.11") Seq("-target:jvm-1.8", "-Ypartial-unification") // (SI-2712 pertains to partial-unification)
     else Nil
     )
 )
@@ -109,21 +109,21 @@ lazy val core = (project in file("core"))
     wartremoverErrors in(Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
       // We need guava only because we use its concurrent hash map.
-      "com.google.guava" % "guava" % "22.0",
+      "com.google.guava" % "guava" % "29.0-jre",
       //      "com.google.code.findbugs" % "jsr305" % "3.0.1", // Include this if there are weird compiler bugs due to guava. See http://stackoverflow.com/questions/10007994/why-do-i-need-jsr305-to-use-guava-in-scala
 
       //      "org.javolution" % "javolution" % "6.0.0", // source code not published on Maven Central!
       // We need scala-reflect because we use macros.
       "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      "org.scalatest" %% "scalatest" % "3.0.1" % Test,
-      "org.scalacheck" %% "scalacheck" % "1.13.4" % Test,
-      "com.lihaoyi" %% "utest" % "0.4.5" % Test,
+      "org.scalatest" %% "scalatest" % "3.0.4" % Test,
+      "org.scalacheck" %% "scalacheck" % "1.14.3" % Test,
+      "com.lihaoyi" %% "utest" % "0.4.5" % Test, // 0.7.4 has a different API
 
       // We need the "scala-compiler" only in order to debug macros;
       // the project or its tests do not actually depend on scala-compiler.
       "org.scala-lang" % "scala-compiler" % scalaVersion.value % Provided
 //      , "com.nativelibs4java" %% "scalaxy-streams" % "0.4-SNAPSHOT" % Provided // 2.12 is not published on Maven Central!
-      , "org.sameersingh.scalaplot" % "scalaplot" % "0.0.4" % Test
+      , "org.sameersingh.scalaplot" % "scalaplot" % "0.1" % Test
     )
     , testFrameworks += new TestFramework("utest.runner.Framework")
   )
@@ -157,8 +157,8 @@ lazy val benchmark = (project in file("benchmark"))
       )
     },
     libraryDependencies ++= Seq(
-      "org.scalatest" %% "scalatest" % "3.0.1" % Test
-      , "com.lihaoyi" %% "ammonite-ops" % "1.0.0-RC7" % Test
+      "org.scalatest" %% "scalatest" % "3.0.4" % Test
+      , "com.lihaoyi" %% "ammonite-ops" % "2.2.0" % Test
     )
   ).dependsOn(core % "compile->compile;test->test")
 

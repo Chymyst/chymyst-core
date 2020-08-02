@@ -168,7 +168,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     case _ => exprTree.children match {
       case firstChild :: restOfChildren => for {
         extractorHead <- firstChild.children.headOption
-        if seqConstantExtractorHeads.contains(extractorHead.symbol.fullName)
+        extractorHeadSymbol ← Option(extractorHead.symbol).map(_.fullName) // Prevent null pointer
+        if seqConstantExtractorHeads.contains(extractorHeadSymbol)
         unapplySelector <- firstChild.children.zipWithIndex.find(_._2 === 1).map(_._1) // safe on empty lists
         if unapplySelector.symbol.toString === "value <unapply-selector>"
         extrCode = showCode(exprTree.asInstanceOf[Tree])
