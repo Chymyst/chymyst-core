@@ -258,7 +258,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     val a = m[Int]
     val c = m[Int]
     val f = b[Unit, Int]
-    val status = site(go { case a(x) + c(_) + f(_, r) ⇒  c(f() + 1); r(x) })
+    val status = site(go { case a(x) + c(_) + f(_, r) ⇒ c(f() + 1); r(x) })
     status shouldEqual WarningsAndErrors(List("Possible deadlock: molecule f/B may deadlock due to outputs of {a(x) + c(_) + f/B(_) → f/B() + c(?)}", "Possible deadlock: molecule (f/B) may deadlock due to (c) among the outputs of {a(x) + c(_) + f/B(_) → f/B() + c(?)}"), Nil, "Site{a + c + f/B → ...}")
   }
 
@@ -1096,12 +1096,32 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
   behavior of "auxiliary functions"
 
   it should "find expression trees for constant values" in {
+    rawTree(null) shouldEqual "Literal(Constant(null))"
     rawTree(1) shouldEqual "Literal(Constant(1))"
     rawTree(None) shouldEqual "Select(Ident(scala), scala.None)"
+    rawTree(Nil) shouldEqual "Select(Select(Select(Ident(scala), scala.collection), scala.collection.immutable), scala.collection.immutable.Nil)"
+
+    rawTree(0.asInstanceOf[Unit]) shouldEqual "TypeApply(Select(Literal(Constant(0)), TermName(\"asInstanceOf\")), List(TypeTree().setOriginal(Select(Ident(scala), scala.Unit))))"
 
     (Set(
       "Apply(TypeApply(Select(Select(Ident(scala), scala.Some), TermName(\"apply\")), List(TypeTree())), List(Literal(Constant(1))))"
     ) contains rawTree(Some(1))) shouldEqual true
+  }
+
+  it should "compile reactions with problematic constant terms" in {
+    // This was previously causing a null pointer exception in macro expansion.
+    val start = m[Unit]
+    val r1a = go { case start(_) ⇒ if (false) start(0.asInstanceOf[Unit]) }
+    val r1b = go { case start(_) ⇒ if (false) start(0.asInstanceOf[Unit]: Unit) }
+    r1a.info.toString shouldEqual r1b.info.toString
+    r1a.toString shouldEqual r1b.toString
+
+    val c = m[Option[Throwable]]
+    val d = m[Unit]
+    val r2a = go { case d(_) ⇒ c(Some(new Exception(""))) }
+    val r2b = go { case d(_) ⇒ c(Some(new Exception(""): Throwable)) }
+    r2a.info.toString shouldEqual r2b.info.toString
+    r2a.toString shouldEqual r2b.toString
   }
 
   it should "find expression trees for matchers" in {

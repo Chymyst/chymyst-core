@@ -90,13 +90,13 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     replyEmitterReadOps
 
   /** Detect whether a pattern-matcher expression tree represents an irrefutable pattern.
-    * For example, `Some(_)` is refutable because it does not match `None`.
-    * The pattern `(_, x, y, (z, _))` is irrefutable.
-    * Patterns with single-case-classes are irrefutable.
-    *
-    * @param binderTerm Binder pattern tree.
-    * @return `true` or `false`
-    */
+   * For example, `Some(_)` is refutable because it does not match `None`.
+   * The pattern `(_, x, y, (z, _))` is irrefutable.
+   * Patterns with single-case-classes are irrefutable.
+   *
+   * @param binderTerm Binder pattern tree.
+   * @return `true` or `false`
+   */
   def isIrrefutablePattern(binderTerm: Tree): Boolean = binderTerm match {
     case Ident(termNames.WILDCARD) =>
       true
@@ -123,11 +123,11 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   }
 
   /** Detect whether an expression tree represents a constant expression.
-    * A constant expression is either a literal constant (Int, String, Symbol, etc.), (), None, Nil, or Some(...), Left(...), Right(...), List(...), and tuples of constant expressions.
-    *
-    * @param exprTree Binder pattern tree or expression tree.
-    * @return `Some(tree)` if the expression represents a constant of the recognized form. Here `tree` will be a quoted expression tree (not a binder tree). `None` otherwise.
-    */
+   * A constant expression is either a literal constant (Int, String, Symbol, etc.), (), None, Nil, or Some(...), Left(...), Right(...), List(...), and tuples of constant expressions.
+   *
+   * @param exprTree Binder pattern tree or expression tree.
+   * @return `Some(tree)` if the expression represents a constant of the recognized form. Here `tree` will be a quoted expression tree (not a binder tree). `None` otherwise.
+   */
   def getConstantTree(exprTree: Trees#Tree): Option[Trees#Tree] = exprTree match {
 
     case Literal(_) => Some(exprTree)
@@ -168,7 +168,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     case _ => exprTree.children match {
       case firstChild :: restOfChildren => for {
         extractorHead <- firstChild.children.headOption
-        extractorHeadSymbol ← Option(extractorHead.symbol).map(_.fullName) // Prevent null pointer
+        extractorHeadSymbol <- Option(extractorHead.symbol).map(_.fullName) // Prevent null pointer exception.
+        // TODO: figure out why null pointer exception occurs. See the test with a comment "null pointer exception in macro expansion".
         if seqConstantExtractorHeads.contains(extractorHeadSymbol)
         unapplySelector <- firstChild.children.zipWithIndex.find(_._2 === 1).map(_._1) // safe on empty lists
         if unapplySelector.symbol.toString === "value <unapply-selector>"
@@ -190,12 +191,12 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   def identToScalaSymbol(ident: Ident): ScalaSymbol = ident.name.decodedName.toString.toScalaSymbol
 
   /** Convert a term to conjunctive normal form (CNF).
-    * CNF is represented as a list of lists of Boolean term trees.
-    * For example, `List( List(q"x>0", q"y<x"), List(q"x>z", q"z<1") )` represents `( x > 0 || y < x ) && ( x > z || z < 1)`.
-    *
-    * @param term Initial expression tree.
-    * @return Equivalent expression in CNF. Terms will be duplicated when necessary. No simplification is performed on terms.
-    */
+   * CNF is represented as a list of lists of Boolean term trees.
+   * For example, `List( List(q"x>0", q"y<x"), List(q"x>z", q"z<1") )` represents `( x > 0 || y < x ) && ( x > z || z < 1)`.
+   *
+   * @param term Initial expression tree.
+   * @return Equivalent expression in CNF. Terms will be duplicated when necessary. No simplification is performed on terms.
+   */
   def convertToCNF(term: Tree): List[List[Tree]] = {
 
     import io.chymyst.util.ConjunctiveNormalForm._
@@ -248,9 +249,9 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   }
 
   /** Obtain the owner of the current macro call site.
-    *
-    * @return The owner symbol of the current macro call site.
-    */
+   *
+   * @return The owner symbol of the current macro call site.
+   */
   def getCurrentSymbolOwner: MacroSymbol = {
     val freshName = c.freshName(TypeName("Probe$"))
     val probe = c.typecheck(q""" {class $freshName; ()} """)
@@ -260,12 +261,12 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   }
 
   /** Detect whether the symbol `s` is defined inside the scope of the symbol `owner`.
-    * Will return true for code like ` val owner = .... { val s = ... }  `
-    *
-    * @param s     Symbol to be examined.
-    * @param owner Owner symbol of the scope to be examined.
-    * @return True if `s` is defined inside the scope of `owner`.
-    */
+   * Will return true for code like ` val owner = .... { val s = ... }  `
+   *
+   * @param s     Symbol to be examined.
+   * @param owner Owner symbol of the scope to be examined.
+   * @return True if `s` is defined inside the scope of `owner`.
+   */
   @tailrec
   final def isOwnedBy(s: MacroSymbol, owner: MacroSymbol): Boolean = s.owner match {
     case `owner` =>
@@ -277,8 +278,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   }
 
   /** Obtain the list of `case` expressions in a reaction.
-    * There should be only one `case` expression.
-    */
+   * There should be only one `case` expression.
+   */
   object GetReactionCases extends Traverser {
     private var info: List[CaseDef] = List()
     private var isFirstReactionCase: Boolean = true
@@ -386,8 +387,8 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   }
 
   /** Input molecules in a reaction must be given using a chemical notation such as `a(x) + b(y) + c(z) => ...`.
-    * It is an error to group input molecules such as `a(x) + (b(y) + c(z)) => ...`, or to use pattern grouping such as `q @ a(x) + ...`
-    */
+   * It is an error to group input molecules such as `a(x) + (b(y) + c(z)) => ...`, or to use pattern grouping such as `q @ a(x) + ...`
+   */
   object DetectInvalidInputGrouping extends Traverser {
     var found: Boolean = _
 
@@ -403,10 +404,10 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
     }
 
     /** Detect invalid groupings in a pattern matching tree.
-      *
-      * @param tree A pattern matching tree.
-      * @return `true` if an invalid grouping is detected, `false` otherwise.
-      */
+     *
+     * @param tree A pattern matching tree.
+     * @return `true` if an invalid grouping is detected, `false` otherwise.
+     */
     def in(tree: Tree): Boolean = {
       found = false
       traverse(tree)
@@ -418,10 +419,10 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   class MoleculeInfo(reactionBodyOwner: MacroSymbol) extends Traverser {
 
     /** Examine an expression tree, looking for molecule expressions.
-      *
-      * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
-      * @return A 4-tuple: List of input molecule patterns, list of output molecule patterns, list of reply action patterns, and list of molecules erroneously used inside pattern matching expressions.
-      */
+     *
+     * @param reactionPart An expression tree (could be the "case" pattern, the "if" guard, or the reaction body).
+     * @return A 4-tuple: List of input molecule patterns, list of output molecule patterns, list of reply action patterns, and list of molecules erroneously used inside pattern matching expressions.
+     */
     def from(reactionPart: Tree): (List[(MacroSymbol, InputPatternFlag, Option[InputPatternFlag])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[(MacroSymbol, OutputPatternFlag, List[OutputEnvironment])], List[MacroSymbol]) = synchronized {
       inputMolecules = mutable.ArrayBuffer()
       outputMolecules = mutable.ArrayBuffer()
@@ -793,15 +794,15 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
   }
 
   /** Build an error message about incorrect usage of chemical notation.
-    * The phrase looks like this: (Beginning of phrase) must (Phrase connector) (What was incorrect) (molecule list)
-    *
-    * @param what        Beginning of phrase.
-    * @param patternWhat What was incorrect about the molecule usage.
-    * @param molecules   List of molecules (or other objects) that were incorrectly used.
-    * @param connector   Phrase connector. By default: `"not contain a pattern that"`.
-    * @param method      How to report the error; by default, will use `c.error`.
-    * @tparam T Type of molecule or other object.
-    */
+   * The phrase looks like this: (Beginning of phrase) must (Phrase connector) (What was incorrect) (molecule list)
+   *
+   * @param what        Beginning of phrase.
+   * @param patternWhat What was incorrect about the molecule usage.
+   * @param molecules   List of molecules (or other objects) that were incorrectly used.
+   * @param connector   Phrase connector. By default: `"not contain a pattern that"`.
+   * @param method      How to report the error; by default, will use `c.error`.
+   * @tparam T Type of molecule or other object.
+   */
   def maybeError[T](what: String, patternWhat: String, molecules: Seq[T], connector: String = "not contain a pattern that", method: (c.Position, String) => Unit = c.error): Unit = {
     if (molecules.nonEmpty)
       method(c.enclosingPosition, s"$what must $connector $patternWhat (${molecules.mkString(", ")})")

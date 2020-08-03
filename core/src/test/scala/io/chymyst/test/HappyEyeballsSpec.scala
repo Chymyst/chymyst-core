@@ -69,16 +69,13 @@ class HappyEyeballsSpec extends LogSpec {
 
     // When user emits start(), a sequence of data values is supplied.
     site(
-      go { case start(inputs) ⇒
-        if (inputs.isEmpty)
-          report(Left(List(new Exception("Cannot run HEB with empty input sequence"))))
-        else {
-          finalResult((inputs.length, List(new Exception("no result computed yet"))))
-          inputs.foreach(data(_))
-          val (delayed, cancel) = delayedTimeoutElapsed
-          token(cancel)
-          delayed()
-        }
+      go { case start(Nil) ⇒ report(Left(List(new Exception("Cannot run HEB with empty input sequence")))) },
+      go { case start(inputs) if inputs.nonEmpty ⇒
+        finalResult((inputs.length, List(new Exception("no result computed yet"))))
+        inputs.foreach(data(_))
+        val (delayed, cancel) = delayedTimeoutElapsed
+        token(cancel)
+        delayed()
       },
       go { case timeoutElapsed(_) ⇒
         val (delayed, cancel) = delayedTimeoutElapsed
@@ -102,7 +99,6 @@ class HappyEyeballsSpec extends LogSpec {
   }
 
   it should "run HEB with some delayed computations" in {
-
     val testSuccess = Promise[Int]()
 
     // Our reaction that consumes the result of the HEB algorithm. The type of the result is Int.
