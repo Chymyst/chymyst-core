@@ -559,7 +559,7 @@ private[jc] final class ReactionSite(reactions: Seq[Reaction], reactionPool: Poo
     * @return Wrapper for the blocking molecule's value.
     */
   @inline private def emitAndCreateReplyEmitter[T, R](bm: B[T, R], v: T, useFuture: Boolean = false) = {
-    val blockingMolValue = BlockingMolValue(v, new ReplyEmitter[T, R](useFuture))
+    val blockingMolValue = BlockingMolValue(v, new ReplyEmitter[R](useFuture))
     emit[T](bm, blockingMolValue)
     blockingMolValue
   }

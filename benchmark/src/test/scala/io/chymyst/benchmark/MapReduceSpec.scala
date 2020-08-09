@@ -615,7 +615,7 @@ class MapReduceSpec extends LogSpec {
     val len = data.length
     val (reactions, emitterList) = makeReactionPlanLogN(len, IndexedSeq(len), IndexedSeq((result, 0, len)), assocNonCommutOperation)
 
-    println(s"computed reaction plan at ${elapsed(initTime)}")
+    println(s"computed reaction plan at ${elapsed(initTime)} ms")
 
     // Declare reaction sites.
     reactions.foreach(rs ⇒ site(tp)(rs: _*))

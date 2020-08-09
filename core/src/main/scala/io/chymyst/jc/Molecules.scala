@@ -87,7 +87,7 @@ private[jc] final case class MolValue[T](private[jc] val moleculeValue: T) exten
   */
 private[jc] final case class BlockingMolValue[T, R](
   private[jc] val moleculeValue: T,
-  private[jc] val replyEmitter: ReplyEmitter[T, R]
+  private[jc] val replyEmitter: ReplyEmitter[R]
 ) extends AbsMolValue[T] {
 
   override private[jc] def reactionSentNoReply: Boolean = replyEmitter.noReplyAttemptedYet // `true` if no value, no error, and no timeout
@@ -98,7 +98,7 @@ private[jc] final case class BlockingMolValue[T, R](
 
   def _1: T = moleculeValue
 
-  def _2: ReplyEmitter[T, R] = replyEmitter.asInstanceOf[ReplyEmitter[T, R]]
+  def _2: ReplyEmitter[R] = replyEmitter.asInstanceOf[ReplyEmitter[R]]
 }
 
 /** Abstract trait representing a molecule emitter.
@@ -379,10 +379,9 @@ final class M[T](val name: String) extends (T => Unit) with MolEmitter {
 
 /** Reply emitter for blocking molecules. This is a mutable class that holds the reply value and monitors time-out status.
   *
-  * @tparam T Type of the value that the molecule carries.
   * @tparam R Type of the reply value.
   */
-private[jc] final class ReplyEmitter[T, R](useFuture: Boolean) extends (R => Boolean) {
+private[jc] final class ReplyEmitter[R](useFuture: Boolean) extends (R => Boolean) {
   @inline private[jc] val reply = Budu[R](useFuture)
 
   /** Check whether this reply emitter has been already used to send a reply.

@@ -501,7 +501,7 @@ class ReactionMacros(override val c: blackbox.Context) extends CommonMacros(c) {
 
     private def isMolecule(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< typeOf[MolEmitter]
 
-    private def isReplyEmitter(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< weakTypeOf[ReplyEmitter[_, _]]
+    private def isReplyEmitter(t: Trees#Tree): Boolean = t.asInstanceOf[Tree].tpe <:< weakTypeOf[ReplyEmitter[_]]
 
     @SuppressWarnings(Array("org.wartremover.warts.Equals")) // For some reason, q"while($cond) $body" triggers wartremover's error about disabled `==` operator.
     override def traverse(tree: Tree): Unit = {
