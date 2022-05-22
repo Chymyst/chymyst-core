@@ -4,20 +4,20 @@
 
 Here are other implementations of Join Calculus that I was able to find online.
 
-- The `Funnel` programming language: [M. Odersky et al., 2000](http://lampwww.epfl.ch/funnel/). This project was discontinued, and Odersky went on to create the [Scala language](https://www.scala-lang.org/), which neither includes any concepts from Funnel or JC, nor implements any ideas from JC in a standard library.
+- The `Funnel` programming language: [M. Odersky et al., 2000](http://lampwww.epfl.ch/funnel/). This project was discontinued in 2002. Martin Odersky went on to create the [Scala language](https://www.scala-lang.org/), which neither includes any concepts from Funnel or JC, nor implements any ideas from JC in a standard library.
 - _Join Java_: [von Itzstein et al., 2001-2005](http://www.vonitzstein.com/Project_JoinJava.html). This was a modified Java language compiler, with support for certain Join Calculus constructions. The project is not maintained.
-- The `JoCaml` language: [Official site](http://jocaml.inria.fr) and a publication about JoCaml: [Fournet et al. 2003](http://research.microsoft.com/en-us/um/people/fournet/papers/jocaml-afp4-summer-school-02.pdf). This project embeds JC into OCaml and is implemented as a patch to the mainstream OCaml compiler. The project is still maintained, and a full JoCaml distribution is available with the [OCaml OPAM](https://opam.ocaml.org/) platform.
+- The `JoCaml` language: [Official site](http://jocaml.inria.fr) and a publication about JoCaml: [Fournet et al. 2003](http://research.microsoft.com/en-us/um/people/fournet/papers/jocaml-afp4-summer-school-02.pdf). This project embeds JC into OCaml and is implemented as a patch to the mainstream OCaml compiler. The project is still maintained. A full JoCaml distribution is available with the [OCaml OPAM](https://opam.ocaml.org/) platform.
 - “Join in Scala” compiler patch: [V. Cremet 2003](http://lampwww.epfl.ch/~cremet/misc/join_in_scala/index.html). The project is discontinued.
 - `Joins` library for .NET: [P. Crusso 2006](http://research.microsoft.com/en-us/um/people/crusso/joins/). The project is available as a .NET binary download from Microsoft Research, and is not maintained.
 - `ScalaJoins`, a prototype implementation in Scala: [P. Haller 2008](http://lampwww.epfl.ch/~phaller/joins/index.html). The project is not maintained.
 - `Join`, a prototype implementation in C++/Boost [Liu Yigong 2009](http://channel.sourceforge.net/). The project is not maintained.
 - `ScalaJoin`, an improvement over `ScalaJoins`: [He Jiansen 2011](https://github.com/Jiansen/ScalaJoin). The project is not maintained.
 - “Joinads”, a Join-Calculus implementation as a compiler patch for F# and Haskell: [Petricek and Syme 2011](https://www.microsoft.com/en-us/research/publication/joinads-a-retargetable-control-flow-construct-for-reactive-parallel-and-concurrent-programming/). The project is not maintained.
-- Implementations of Join Calculus for iOS: [CocoaJoin](https://github.com/winitzki/AndroJoin) and for Android: [AndroJoin](https://github.com/winitzki/AndroJoin). These projects are not maintained.
+- Implementations of Join Calculus for iOS: [CocoaJoin](https://github.com/winitzki/AndroJoin) and for Android: [AndroJoin](https://github.com/winitzki/AndroJoin). These projects are no longer maintained.
 - [Join-Language](https://github.com/syallop/Join-Language): implementation of Join Calculus as an embedded Haskell DSL (2014). The project is in development.
 - [JEScala](https://www.stg.tu-darmstadt.de/research/programming_languages/jescala_menu/index.en.jsp): an implementation of Join Calculus in Scala (2014) that accompanied [this academic paper](http://www.guidosalvaneschi.com/attachments/papers/2014_JEScala-Modular-Coordination-with-Declarative-Events-and-Joins_pdf.pdf), and its development appears to be abandoned.
 
-The code of `Chymyst` is a clean-room implementation of join calculus, not based on the code of any of the previous work.
+The code of `Chymyst` is a clean-room implementation of join calculus, not based on the code of any of that previous work.
 The chosen syntax in `Chymyst` aims to improve upon the design of He Jiansen's `ScalaJoin` as well as building on the experience of implementing CocoaJoin / AndroJoin.
 
 ## Improvements with respect to He Jiansen's `ScalaJoin`
