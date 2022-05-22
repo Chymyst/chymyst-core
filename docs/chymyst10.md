@@ -1,55 +1,110 @@
 # Distributed programming in the chemical machine
 
-All programs considered in the previous chapters ran within a single JVM process on a single (possibly multi-core) computer.
-This chapter describes the extension of the chemical machine paradigm to distributed programming, where programs can run concurrently and in parallel on several OS processes and/or on several computers.
+All programs considered in the previous chapters run within a single process on a single (possibly multi-core) computer. Programs may use many threads but share the memory.
+This chapter describes an extension of the chemical machine paradigm to distributed programming, where programs can run concurrently and in parallel on several OS processes and/or on several computers.
 The resulting paradigm is the **distributed chemical machine** (DCM).
 
-Similarly to how the single-process chemical machine (CM) provides a declarative approach to concurrent programming, the DCM provides a declarative approach to distributed concurrent programming.
+Similarly to how the single-process chemical machine provides a declarative approach to concurrent programming, the DCM provides a declarative approach to distributed concurrent programming.
 
-To motivate the main concept of the DCM, we need to consider the features that make the CM declarative.
+Distributed programming is enabled by adding one feature to the chemical machine: a new type of molecules called **distributed molecules** (DMs), in distinction to **local molecules** (LMs, which are the ordinary molecules in the chemical machine).
+When a DM is emitted, it may be consumed by a reaction that starts within another process, either on the same computer or on a remote computer connected to the DCM network.
 
-In CM, the programmer merely specifies that certain computations need to be run concurrently and in parallel.
-Computations are started automatically as long as the required input data is available.
-The input data needs to be specially marked as “destined for” concurrent computations; this marking is done through emitting molecules with data.
-However, the code does not explicitly start new tasks at certain times, nor does it explicitly wait for or synchronize processes that run in parallel.
+Processes that may connect to the DCM network are called **DCM peers**.
+The set of all possible DCM peers is called the **DCM cluster**.
 
-Similarly, the DCM requires the programmer merely to _declare_ certain molecules as having the property of being distributed on a given cluster.
-We call these molecules **distributed molecules** (DMs), in distinction to **local molecules** (LMs, i.e. non-distributed molecules).
+Distributed molecules are made available to any DCM peer within the cluster, and the data on those molecules is automatically serialized and sent over the network as needed.
+The DCM runtime will coordinate the exchange of data between any number of DCM peers.
+
+The programmer's job remains to implement the required application logic by declaring a number of molecules and reactions, and by arranging to emit certain initial molecules.
+In addition, the programmer will need to designate some molecules as DMs and others as local molecules.
+The DCM runtime will run reactions with local molecules in the same way as with the ordinary chemical machine.
+
+In order to make it possible to emit DMs into a remote process in a safe and declarative manner, the DCM imposes several restrictions on the user's code.
+The two main restrictions are:
+
+- DMs can be emitted into a remote reaction site only if the remote process defines exactly the same code for the reaction site.
+- Within any process, there may be at most one active copy of the reaction site that consumes DMs.
+
+We will now explain the implementation of this paradigm in more detail.
+
+## Motivation
+
+To motivate the introduction of distributed molecules in the DCM, we need to consider the features that make the CM declarative.
+
+In the chemical machine paradigm, the programmer merely specifies that certain computations need to be run concurrently and in parallel.
+Computations are started automatically as soon as the required input data becomes available.
+The input data needs to be (conceptually) marked as “concurrent data”, that is, data intended as input for a specific concurrent computation.
+This marking is done in the program code by wrapping the data by a molecule and emitting that molecule.
+
+The runtime system of the chemical machine is responsible for scheduling the necessary concurrent tasks at appropriate times and for providing the input data to those tasks.
+The user's code does not explicitly start new tasks, nor does it explicitly wait for or synchronize any processes that may run in parallel.
+
+Similarly, the DCM requires the programmer merely to _declare_ certain data as having the property of being distributed within a given DCM cluster.
+This is done by wrapping a value in a distributed molecule (DM) and emitting that molecule.
+Once a DM is emitted, the value on that molecule should be thought of as “distributed data”, that is, input data intended for a remote process.
+
+It is the responsibility of the runtime system to make the “distributed data” automatically available to all participating processes.
+Users do not need to write any code that sends messages across the network, discovers DCM peers and waits for them to connect, or monitors any remote processes.
+
+## Distributed reactions
 
 Reactions may consume DMs and/or LMs as input molecules.
 If a reaction consumes some DMs, it is called a **distributed reaction** (DR).
 A **distributed reaction site** (DRS) is a reaction site that declares one or more distributed reactions.
 In other words, a DRS is a reaction site to which at least one DM is bound.
 
-Data carried by DMs is thus declared to be available to all JVM processes that participate in the cluster. 
-We will call each of these processes a **DCM peer** running on the cluster.
-From the programmer's point of view, it makes no difference whether a DCM peer is a JVM process that runs on the same machine or on a different machine within the cluster.
-The DCM runtime will automatically distribute the DMs among all participants.
+From the programmer's point of view, it makes no difference whether a DCM peer runs on the same machine or on a different machine within the cluster.
+The DCM runtime will automatically make the DMs available to all DCM peers that are active at a given time.
 
 Also, there is no distinction between DCM peers at the protocol level.
 For instance, unlike [Apache Spark](https://spark.apache.org/), there is no concept of “driver” vs. “worker” peers.
-Every DCM peer participates in the computation in the same way -- by consuming and emitting distributed molecules (DMs).
+Every DCM peer participates in the computation in the same way -- by consuming and/or emitting distributed molecules (DMs).
 
-As we will see later in this chapter, it is natural in the DCM paradigm to run identical JVM code on all DCM peers.
-This does not mean, however, that the DCM peers must always perform exactly the same computations.
-If needed, certain DCM peers may be configured to perform specific functions differently from other DCM peers.
-The programmer can easily use the DCM paradigm to implement a “driver”/“worker” architecture or another hierarchy of DCM peers. 
+When a distributed reaction consumes only DMs and no LMs, the reaction will run in the same way on any DCM peer because the conditions for starting the reaction will be everywhere the same. This kind of distributed reactions is useful for massively parallel computations, where a large data set is split into smaller parts, and each part is processed in parallel.
+This corresponds closely to the intuition of a “chemical soup” being automatically distributed across many processes that collectively simulate a large number of reactions running in parallel.
+
+This scenario is realized when all reactions consume and emit only DMs and no LMs.
+In this scenario, it is natural in the DCM paradigm to run identical code on all DCM peers.
+This does not mean, however, that the DCM peers will always perform exactly the same computations.
+Identical code may depend on runtime configuration and perform specific functions differently from other DCM peers.
+For instance, the configuration in some DCM peers may instruct the code to emit certain local molecules at the initial time.
+But other DCM peers will not emit these local molecules.
+
+So, the programmer may define a distributed reaction consumes both DMs and LMs as input molecules. The reaction will start only when the local input molecules are present. The presence of local molecules may be designed by the programmer to depend on runtime conditions configured differently at each DCM peer.
+In this way, the programmer is able to specify that certain reactions may start only at certain designated DCM peers.
+The code will be able to implement a “driver”/“worker” architecture or another hierarchy of DCM peers.
+
+## Fault tolerance
 
 The number of active DCM peers in a cluster may change with time, because individual DCM peers may become temporarily or permanently disconnected from the network, or because the number of active DCM peers is intentionally changed by an external agent.
 By default, computations do not explicitly depend on the number of DCM peers; the user code does not need to be aware of the current status of the cluster.
 Progress towards completion and correctness of computational results is guaranteed regardless of the presence or absence of hardware connected to the cluster.
 If more DCM peers become available, computations may proceed faster.
+When no DCM peers are connected, distributed computations will temporarily stop but automatically resume as DCM peers again connect to the cluster.
 
-To summarize, the DCM extends the CM by introducing **distributed molecules** (DMs) in addition to ,
-and by extending the operational semantics to coordinate the exchange of data between any number of DCM peers that form a cluster.
-The DCM runtime will continue to run reactions with local molecules in the same way CM does.
+Here are some failure scenarios handled by the DCM runtime engine:
 
-The programmer's job remains to implement the required application logic by declaring a number of molecules and reactions, and by arranging to emit certain initial molecules.
-In addition, the programmer will need to designate some molecules as DMs and others as local molecules.
+- A DCM peer needs to emit a DM into a cluster but the cluster is not reachable.
+
+The DCM runtime will store the molecule and its data persistently and retry later, until the connection to the cluster is restored.
+
+- A distributed reaction consumes a DM on a certain DCM peer, the reaction starts, but then that DCM peer becomes unreachable from the cluster.
+
+There are two cases that are handled differently in this scenario.
+
+In the first case, the reaction consumes a DM and, after some processing, tries to emit one or more new DMs into the cluster.
+If the reaction fails to emit these DMs because the DCM peer became unreachable, it is assumed that the processing should be repeated by other DCM peers.
+The DM consumed by the first peer will be restored into the cluster, and another DCM peer may pick it up later to run the same reaction.
+
+In the second case, the reaction consumes a DM but does not emit any DMs. It may emit LMs or nothing at all.
+In that case, it is assumed that the programmer's intention was to emit a DM for the purpose of signalling or communicating a message to that DCM peer.
+We consider that the message has been communicated successfully to the DCM peer when the distributed molecule has been successfully consumed by that DCM peer.
+It is then unimportant that the DCM peer becomes disconnected from the cluster.
+The products of the reaction are local molecules that are assumed to have no direct relevance to other DCM peers.
 
 ## Cluster configuration
 
-The coordination of distibuted computations for DCM is performed by [Apache ZooKeeper](https://zookeeper.apache.org/).
+The coordination of distributed computations for DCM is performed by [Apache ZooKeeper](https://zookeeper.apache.org/).
 When a DCM program runs on a cluster, each participating DCM peer must be connected to a running ZooKeeper instance.
 
 The information about connecting to the cluster, such as the ZooKeeper URL and other parameters, is encapsulated in a value of type `ClusterConfig`.
@@ -65,7 +120,7 @@ implicit val clusterConfig = ClusterConfig(
 ```
 
 Each DCM peer is automatically assigned a unique ID in the cluster.
-The ID can be read as `clusterConfig.peerId` and persists throughout the lifetime of each JVM process.
+The ID can be read as `clusterConfig.peerId` and persists throughout the lifetime of each DCM peer process.
 
 ## Distributed molecules
 
@@ -83,8 +138,8 @@ Distributed molecules differ from local molecules in several ways:
 - Defining a `DM` needs an implicit `ClusterConfig` value to be available in scope.
 - Distributed molecules are always non-blocking.
 - Distributed molecules may be consumed by any DCM peer connected to the cluster.
-- If a cluster connection becomes unavailable (e.g. due to a network timeout), emitting a DM will fail and instead throw an exception.
-- If a cluster connection is restored after being temporarily unavailable, emitting a DM may fail if the DM is bound to a specific cluster session (see below).
+- If a cluster connection becomes unavailable (e.g. due to a network timeout), emitting a DM will still not fail, but the data will be stored persistently and sending will be tried again later.
+- If a cluster connection is restored after being temporarily unavailable, emitting a DM or other reaction products may be denied (cause a special exception) if the reaction is bound to a specific cluster session (see below).
 
 Defining reactions and emitting a distributed molecule is done in the same way as with local molecules:
 
