@@ -143,7 +143,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     reaction.info.inputs shouldEqual Nil
     reaction.info.guardPresence.noCrossGuards shouldEqual true
-    reaction.info.outputs shouldEqual List(OutputMoleculeInfo(a, ConstOutputPattern(123), List()))
+    reaction.info.outputs shouldEqual List(OutputMoleculeInfo(a, 'a, ConstOutputPattern(123), List()))
   }
 
   it should "inspect reaction body containing local molecule emitters" in {
@@ -156,7 +156,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
         go { case q(_) + s(_) => }
         q(0)
       }
-    reaction.info.inputs.toList should matchPattern { case List(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, _)) => }
+    reaction.info.inputs.toList should matchPattern { case List(InputMoleculeInfo(`a`, 'a, 0, SimpleVarInput('x, _), `simpleVarXSha1`, _)) => }
     reaction.info.outputs shouldEqual List()
   }
 
@@ -206,8 +206,8 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     (result.info.inputs.toList match {
       case List(
-      InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), sha_a, Symbol("Int")),
-      InputMoleculeInfo(`bb`, 1, ConstInputPattern(None), sha_bb, Symbol("Option[Int]"))
+      InputMoleculeInfo(`a`, 'a, 0, SimpleVarInput('x, _), sha_a, Symbol("Int")),
+      InputMoleculeInfo(`bb`, 'bb, 1, ConstInputPattern(None), sha_bb, Symbol("Option[Int]"))
       ) =>
         sha_a shouldEqual simpleVarXSha1
         sha_bb shouldEqual constantNoneSha1
@@ -215,7 +215,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
       case _ => false
     }) shouldEqual true
 
-    result.info.outputs shouldEqual List(OutputMoleculeInfo(bb, ConstOutputPattern(None), List()))
+    result.info.outputs shouldEqual List(OutputMoleculeInfo(bb, 'bb, ConstOutputPattern(None), List()))
     result.info.guardPresence shouldEqual GuardAbsent
     result.info.sha1 shouldEqual "C10342E86F1AEB8992D97883B15773F4A2DBCF1F"
   }
@@ -230,14 +230,14 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     (result.info.inputs.toList match {
       case List(
-      InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, 'Int),
-      InputMoleculeInfo(`qq`, 1, WildcardInput, sha_qq, 'Unit)
+      InputMoleculeInfo(`a`, 'a, 0, SimpleVarInput('x, _), `simpleVarXSha1`, 'Int),
+      InputMoleculeInfo(`qq`, 'qq, 1, WildcardInput, sha_qq, 'Unit)
       ) =>
         sha_qq shouldEqual wildcardSha1
         true
       case _ => false
     }) shouldEqual true
-    result.info.outputs shouldEqual List(OutputMoleculeInfo(qq, ConstOutputPattern(()), List()))
+    result.info.outputs shouldEqual List(OutputMoleculeInfo(qq, 'qq, ConstOutputPattern(()), List()))
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
     result.info.sha1 shouldEqual ax_qq_reaction_sha1
   }
@@ -258,7 +258,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     val a = m[Int]
     val c = m[Int]
     val f = b[Unit, Int]
-    val status = site(go { case a(x) + c(_) + f(_, r) ⇒  c(f() + 1); r(x) })
+    val status = site(go { case a(x) + c(_) + f(_, r) ⇒ c(f() + 1); r(x) })
     status shouldEqual WarningsAndErrors(List("Possible deadlock: molecule f/B may deadlock due to outputs of {a(x) + c(_) + f/B(_) → f/B() + c(?)}", "Possible deadlock: molecule (f/B) may deadlock due to (c) among the outputs of {a(x) + c(_) + f/B(_) → f/B() + c(?)}"), Nil, "Site{a + c + f/B → ...}")
   }
 
@@ -290,18 +290,18 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     (result.info.inputs.toList match {
       case List(
-      InputMoleculeInfo(`a`, 0, WildcardInput, `wildcardSha1`, 'Int),
-      InputMoleculeInfo(`a`, 1, SimpleVarInput('x, _), `simpleVarXSha1`, 'Int),
-      InputMoleculeInfo(`a`, 2, ConstInputPattern(1), sha_a, 'Int)
+      InputMoleculeInfo(`a`, 'a, 0, WildcardInput, `wildcardSha1`, 'Int),
+      InputMoleculeInfo(`a`, 'a, 1, SimpleVarInput('x, _), `simpleVarXSha1`, 'Int),
+      InputMoleculeInfo(`a`, 'a, 2, ConstInputPattern(1), sha_a, 'Int)
       ) =>
         sha_a shouldEqual constantOneSha1
         true
       case _ => false
     }) shouldEqual true
     result.info.outputs.toList should matchPattern { case List(
-    OutputMoleculeInfo(`a`, OtherOutputPattern, List(NotLastBlock(_))),
-    OutputMoleculeInfo(`a`, OtherOutputPattern, List(NotLastBlock(_), ChooserBlock(_, 0, 2))),
-    OutputMoleculeInfo(`qqq`, ConstOutputPattern(""), List())
+    OutputMoleculeInfo(`a`, 'a, OtherOutputPattern, List(NotLastBlock(_))),
+    OutputMoleculeInfo(`a`, 'a, OtherOutputPattern, List(NotLastBlock(_), ChooserBlock(_, 0, 2))),
+    OutputMoleculeInfo(`qqq`, 'qqq, ConstOutputPattern(""), List())
     ) =>
     }
 
@@ -315,9 +315,9 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     val result = go { case a(x) => go { case qq(_) => a(0) }; qq() }
 
     result.info.inputs.toList should matchPattern {
-      case List(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, _)) =>
+      case List(InputMoleculeInfo(`a`, 'a, 0, SimpleVarInput('x, _), `simpleVarXSha1`, _)) =>
     }
-    result.info.outputs shouldEqual List(OutputMoleculeInfo(qq, ConstOutputPattern(()), List()))
+    result.info.outputs shouldEqual List(OutputMoleculeInfo(qq, 'qq, ConstOutputPattern(()), List()))
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
   }
 
@@ -335,23 +335,23 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     result.info.inputs.toList should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, 0, SimpleVarInput('p, _), _, Symbol("Int")),
-      InputMoleculeInfo(`a`, 1, SimpleVarInput('y, _), _, 'Int),
-      InputMoleculeInfo(`a`, 2, ConstInputPattern(1), _, _),
-      InputMoleculeInfo(`c`, 3, WildcardInput, _, Symbol("Unit")),
-      InputMoleculeInfo(`c`, 4, WildcardInput, _, 'Unit),
-      InputMoleculeInfo(`bb`, 5, ConstInputPattern((0, None)), _, Symbol("(Int, Option[Int])")),
-      InputMoleculeInfo(`bb`, 6, ConstInputPattern((1, Some(2))), _, _),
-      InputMoleculeInfo(`bb`, 7, OtherInputPattern(_, List('z), false), _, _),
-      InputMoleculeInfo(`bb`, 8, OtherInputPattern(_, List(), false), _, _),
-      InputMoleculeInfo(`bb`, 9, OtherInputPattern(_, List('t, 'q), false), _, _),
-      InputMoleculeInfo(`s`, 10, WildcardInput, _, 'Unit)
+      InputMoleculeInfo(`a`, 'a, 0, SimpleVarInput('p, _), _, Symbol("Int")),
+      InputMoleculeInfo(`a`, 'a, 1, SimpleVarInput('y, _), _, 'Int),
+      InputMoleculeInfo(`a`, 'a, 2, ConstInputPattern(1), _, _),
+      InputMoleculeInfo(`c`, 'c, 3, WildcardInput, _, Symbol("Unit")),
+      InputMoleculeInfo(`c`, 'c, 4, WildcardInput, _, 'Unit),
+      InputMoleculeInfo(`bb`, 'bb, 5, ConstInputPattern((0, None)), _, Symbol("(Int, Option[Int])")),
+      InputMoleculeInfo(`bb`, 'bb, 6, ConstInputPattern((1, Some(2))), _, _),
+      InputMoleculeInfo(`bb`, 'bb, 7, OtherInputPattern(_, List('z), false), _, _),
+      InputMoleculeInfo(`bb`, 'bb, 8, OtherInputPattern(_, List(), false), _, _),
+      InputMoleculeInfo(`bb`, 'bb, 9, OtherInputPattern(_, List('t, 'q), false), _, _),
+      InputMoleculeInfo(`s`, 's, 10, WildcardInput, _, 'Unit)
       ) ⇒
     }
     result.info.outputs.toList should matchPattern { case List(
-    OutputMoleculeInfo(`s`, ConstOutputPattern(()), _),
-    OutputMoleculeInfo(`a`, OtherOutputPattern, _),
-    OutputMoleculeInfo(`qq`, ConstOutputPattern(()), _)
+    OutputMoleculeInfo(`s`, 's, ConstOutputPattern(()), _),
+    OutputMoleculeInfo(`a`, 'a, OtherOutputPattern, _),
+    OutputMoleculeInfo(`qq`, 'qq, ConstOutputPattern(()), _)
     ) ⇒
     }
     result.info.outputs.toList.map(_.environments) should matchPattern { case List(
@@ -541,18 +541,18 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     r.info.inputs.toList should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, 0, ConstInputPattern(Some(1)), _, Symbol("Option[Int]")),
-      InputMoleculeInfo(`b`, 1, ConstInputPattern("xyz"), _, 'String),
-      InputMoleculeInfo(`d`, 2, WildcardInput, _, _),
-      InputMoleculeInfo(`c`, 3, ConstInputPattern((2, 3)), _, Symbol("(Int, Int)")),
-      InputMoleculeInfo(`e`, 4, ConstInputPattern(Left(Some(1))), _, Symbol("scala.util.Either[Option[Int],String]")),
-      InputMoleculeInfo(`e`, 5, ConstInputPattern(Right("input")), _, _)
+      InputMoleculeInfo(`a`, 'a, 0, ConstInputPattern(Some(1)), _, Symbol("Option[Int]")),
+      InputMoleculeInfo(`b`, 'b, 1, ConstInputPattern("xyz"), _, 'String),
+      InputMoleculeInfo(`d`, 'd, 2, WildcardInput, _, _),
+      InputMoleculeInfo(`c`, 'c, 3, ConstInputPattern((2, 3)), _, Symbol("(Int, Int)")),
+      InputMoleculeInfo(`e`, 'e, 4, ConstInputPattern(Left(Some(1))), _, Symbol("scala.util.Either[Option[Int],String]")),
+      InputMoleculeInfo(`e`, 'e, 5, ConstInputPattern(Right("input")), _, _)
       ) =>
     }
     r.info.outputs.toList should matchPattern { case List(
-    OutputMoleculeInfo(`a`, ConstOutputPattern(Some(2)), List(NotLastBlock(_))),
-    OutputMoleculeInfo(`e`, ConstOutputPattern(Left(Some(2))), List(NotLastBlock(_))),
-    OutputMoleculeInfo(`e`, ConstOutputPattern(Right("output")), List())
+    OutputMoleculeInfo(`a`, 'a, ConstOutputPattern(Some(2)), List(NotLastBlock(_))),
+    OutputMoleculeInfo(`e`, 'e, ConstOutputPattern(Left(Some(2))), List(NotLastBlock(_))),
+    OutputMoleculeInfo(`e`, 'e, ConstOutputPattern(Right("output")), List())
     ) ⇒
     }
     r.info.guardPresence shouldEqual GuardAbsent
@@ -570,18 +570,18 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     val r3 = go { case bbb(x) + c(_) + c(_) => bbb(1); c(x); bbb(2); cc(None); cc(Some(1)) }
 
     r1.info.outputs.toList should matchPattern { case List(
-    OutputMoleculeInfo(`c`, OtherOutputPattern, List(NotLastBlock(_))),
-    OutputMoleculeInfo(`bb`, ConstOutputPattern((1, 2)), List(NotLastBlock(_))),
-    OutputMoleculeInfo(`bb`, OtherOutputPattern, List())
+    OutputMoleculeInfo(`c`, 'c, OtherOutputPattern, List(NotLastBlock(_))),
+    OutputMoleculeInfo(`bb`, 'bb, ConstOutputPattern((1, 2)), List(NotLastBlock(_))),
+    OutputMoleculeInfo(`bb`, 'bb, OtherOutputPattern, List())
     ) ⇒
     }
-    r2.info.outputs shouldEqual List(OutputMoleculeInfo(bbb, ConstOutputPattern(0), List()))
+    r2.info.outputs shouldEqual List(OutputMoleculeInfo(bbb, 'bbb, ConstOutputPattern(0), List()))
     r3.info.outputs.toList should matchPattern { case List(
-    OutputMoleculeInfo(`bbb`, ConstOutputPattern(1), List(NotLastBlock(_))),
-    OutputMoleculeInfo(`c`, OtherOutputPattern, List(NotLastBlock(_))),
-    OutputMoleculeInfo(`bbb`, ConstOutputPattern(2), List(NotLastBlock(_))),
-    OutputMoleculeInfo(`cc`, ConstOutputPattern(None), List(NotLastBlock(_))),
-    OutputMoleculeInfo(`cc`, ConstOutputPattern(Some(1)), List())
+    OutputMoleculeInfo(`bbb`, 'bbb, ConstOutputPattern(1), List(NotLastBlock(_))),
+    OutputMoleculeInfo(`c`, 'c, OtherOutputPattern, List(NotLastBlock(_))),
+    OutputMoleculeInfo(`bbb`, 'bbb, ConstOutputPattern(2), List(NotLastBlock(_))),
+    OutputMoleculeInfo(`cc`, 'cc, ConstOutputPattern(None), List(NotLastBlock(_))),
+    OutputMoleculeInfo(`cc`, 'cc, ConstOutputPattern(Some(1)), List())
     ) ⇒
     }
   }
@@ -594,9 +594,9 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     val result = go { case a(1 | 2) + c(()) + bb(p@(ytt, 1, None, (s, Some(t)))) => }
     result.info.inputs.toList should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List(), false), _, _),
-      InputMoleculeInfo(`c`, 1, WildcardInput, _, _),
-      InputMoleculeInfo(`bb`, 2, OtherInputPattern(_, List('p, 'ytt, 's, 't), false), _, Symbol("(Int, Int, Option[Int], (Int, Option[Int]))"))
+      InputMoleculeInfo(`a`, 'a, 0, OtherInputPattern(_, List(), false), _, _),
+      InputMoleculeInfo(`c`, 'c, 1, WildcardInput, _, _),
+      InputMoleculeInfo(`bb`, 'bb, 2, OtherInputPattern(_, List('p, 'ytt, 's, 't), false), _, Symbol("(Int, Int, Option[Int], (Int, Option[Int]))"))
       ) =>
     }
     result.info.toString shouldEqual "a(?) + bb(?p,ytt,s,t) + c(_) → "
@@ -608,7 +608,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
 
     val result = go { case aa(Some(x)) + bb((0, None)) => aa(Some(x + 1)) }
 
-    result.info.outputs shouldEqual List(OutputMoleculeInfo(aa, OtherOutputPattern, List()))
+    result.info.outputs shouldEqual List(OutputMoleculeInfo(aa, 'aa, OtherOutputPattern, List()))
 
     val pat_aa = result.info.inputs.head
     pat_aa.molecule shouldEqual aa
@@ -660,7 +660,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     val f = b[Unit, Unit]
     val r = go { case a(_) => Some(f.timeout()(1.second).get).foreach(_ => ()) }
     r.info.outputs.toList should matchPattern { case List(
-    OutputMoleculeInfo(`f`, ConstOutputPattern(()), _)
+    OutputMoleculeInfo(`f`, 'f, ConstOutputPattern(()), _)
     ) ⇒
     }
   }
@@ -670,7 +670,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     val f = b[Unit, List[Int]]
     val r = go { case a(_) => f().foreach(_ => ()) }
     r.info.outputs.toList should matchPattern { case List(
-    OutputMoleculeInfo(`f`, ConstOutputPattern(()), _)
+    OutputMoleculeInfo(`f`, 'f, ConstOutputPattern(()), _)
     ) ⇒
     }
     r.info.outputs(0).environments should matchPattern { case List(NotLastBlock(1)) ⇒ }
@@ -944,7 +944,7 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
       site(
         go { case a(1) => a(1) }
       )
-      a.consumingReactions.map(_.info.outputs) shouldEqual Array(Array(OutputMoleculeInfo(a, ConstOutputPattern(1), List())))
+      a.consumingReactions.map(_.info.outputs) shouldEqual Array(Array(OutputMoleculeInfo(a, 'a, ConstOutputPattern(1), List())))
     }
     thrown.getMessage shouldEqual "In Site{a → ...}: Unavoidable livelock: reaction {a(1) → a(1)}"
   }
@@ -962,10 +962,10 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     )
     a.emittingReactions.size shouldEqual 1
     a.consumingReactions.length shouldEqual 1
-    a.consumingReactions.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, ConstOutputPattern(2), List()))
-    a.consumingReactions.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, ConstInputPattern(1), constantOneSha1, 'Int))
-    a.emittingReactions.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, ConstOutputPattern(2), List()))
-    a.emittingReactions.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 0, ConstInputPattern(1), constantOneSha1, Symbol("Int")))
+    a.consumingReactions.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, 'a, ConstOutputPattern(2), List()))
+    a.consumingReactions.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 'a, 0, ConstInputPattern(1), constantOneSha1, 'Int))
+    a.emittingReactions.map(_.info.outputs).head shouldEqual List(OutputMoleculeInfo(a, 'a, ConstOutputPattern(2), List()))
+    a.emittingReactions.map(_.info.inputs).head shouldEqual List(InputMoleculeInfo(a, 'a, 0, ConstInputPattern(1), constantOneSha1, Symbol("Int")))
   }
 
   it should "compute outputs for an inline nested reaction" in {
@@ -993,9 +993,9 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     a.consumingReactions.length shouldEqual 1
     val infos = a.consumingReactions.map(_.info.outputs).head.toList
     infos should matchPattern { case List(
-    OutputMoleculeInfo(`b`, ConstOutputPattern(2), List(NotLastBlock(_))),
-    OutputMoleculeInfo(`a`, ConstOutputPattern(1), List(NotLastBlock(_))),
-    OutputMoleculeInfo(`b`, ConstOutputPattern(1), List())
+    OutputMoleculeInfo(`b`, 'b, ConstOutputPattern(2), List(NotLastBlock(_))),
+    OutputMoleculeInfo(`a`, 'a, ConstOutputPattern(1), List(NotLastBlock(_))),
+    OutputMoleculeInfo(`b`, 'b, ConstOutputPattern(1), List())
     ) ⇒
     }
   }
@@ -1021,11 +1021,11 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     a.emittingReactions.head shouldEqual reaction
 
     reaction.info.inputs.toList should matchPattern {
-      case List(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, 'Int), InputMoleculeInfo(`d`, 1, WildcardInput, `wildcardSha1`, 'Boolean)) =>
+      case List(InputMoleculeInfo(`a`, 'a, 0, SimpleVarInput('x, _), `simpleVarXSha1`, 'Int), InputMoleculeInfo(`d`, 'd, 1, WildcardInput, `wildcardSha1`, 'Boolean)) =>
     }
     reaction.info.outputs.toList should matchPattern { case List(
-    OutputMoleculeInfo(`a`, ConstOutputPattern(1), _),
-    OutputMoleculeInfo(`c`, OtherOutputPattern, _)
+    OutputMoleculeInfo(`a`, 'a, ConstOutputPattern(1), _),
+    OutputMoleculeInfo(`c`, 'c, OtherOutputPattern, _)
     ) ⇒
     }
     reaction.info.outputs.map(_.environments).toList should matchPattern { case List(
@@ -1056,17 +1056,17 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
     val reaction2 = a.consumingReactions.head
     d.emittingReactions.head shouldEqual reaction2
 
-    reaction1.info.inputs.toList shouldEqual List(InputMoleculeInfo(d, 0, WildcardInput, wildcardSha1, 'Unit))
+    reaction1.info.inputs.toList shouldEqual List(InputMoleculeInfo(d, 'd, 0, WildcardInput, wildcardSha1, 'Unit))
     reaction1.info.outputs.toList should matchPattern { case List(
-    OutputMoleculeInfo(`a`, ConstOutputPattern(1), List(NotLastBlock(_))),
-    OutputMoleculeInfo(`c`, OtherOutputPattern, List())
+    OutputMoleculeInfo(`a`, 'a, ConstOutputPattern(1), List(NotLastBlock(_))),
+    OutputMoleculeInfo(`c`, 'c, OtherOutputPattern, List())
     ) ⇒
     }
 
     reaction2.info.inputs.toList should matchPattern {
-      case List(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, _), `simpleVarXSha1`, _)) =>
+      case List(InputMoleculeInfo(`a`, 'a, 0, SimpleVarInput('x, _), `simpleVarXSha1`, _)) =>
     }
-    reaction2.info.outputs shouldEqual List(OutputMoleculeInfo(d, OtherOutputPattern, List()))
+    reaction2.info.outputs shouldEqual List(OutputMoleculeInfo(d, 'd, OtherOutputPattern, List()))
   }
 
   behavior of "output environment shrinkage"
@@ -1074,23 +1074,24 @@ class MacrosSpec extends LogSpec with BeforeAndAfterEach {
   it should "detect simple constant due to perfect if-then-else shrinkage" in {
     val a = m[Int]
     val r = go { case a(1) => if (true) a(1) else a(1) } // This livelock cannot be detected at compile time because it can't evaluate constants.
-    r.info.shrunkOutputs shouldEqual Array(OutputMoleculeInfo(a, ConstOutputPattern(1), Nil))
+    r.info.shrunkOutputs shouldEqual Array(OutputMoleculeInfo(a, 'a, ConstOutputPattern(1), Nil))
   }
 
   it should "detect simple constant due to perfect if-then-else shrinkage within val block" in {
     val a = m[Int]
-    val r = go { case a(1) => val x = {
-      if (true) a(1) else a(1)
-    };
+    val r = go { case a(1) =>
+      val x: Unit = {
+        if (true) a(1) else a(1)
+      }
       x
     } // This livelock cannot be detected at compile time because it can't evaluate constants.
-    r.info.shrunkOutputs shouldEqual List(OutputMoleculeInfo(a, ConstOutputPattern(1), List(NotLastBlock(1))))
+    r.info.shrunkOutputs shouldEqual List(OutputMoleculeInfo(a, 'a, ConstOutputPattern(1), List(NotLastBlock(1))))
   }
 
   it should "detect other pattern due to non-perfect if-then-else shrinkage" in {
     val a = m[Int]
     val r = go { case a(1) => if (true) a(1) else a(2) }
-    r.info.shrunkOutputs shouldEqual Array(OutputMoleculeInfo(a, OtherOutputPattern, Nil))
+    r.info.shrunkOutputs shouldEqual Array(OutputMoleculeInfo(a, 'a, OtherOutputPattern, Nil))
   }
 
   behavior of "auxiliary functions"

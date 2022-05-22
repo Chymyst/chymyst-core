@@ -3,23 +3,22 @@ package io.chymyst.jc
 
 import java.util
 import java.util.concurrent.ConcurrentLinkedQueue
-import javolution.util.FastMap
+import Core.AnyOpsEquals
 import com.google.common.collect.ConcurrentHashMultiset
 
 import scala.collection.JavaConverters.{asScalaIteratorConverter, asScalaSetConverter}
 import scala.collection.mutable
-import scala.util.Try
 
 trait MutCollection[T] {
   def size: Int
+
+  def isEmpty: Boolean = size === 0 // Used only for debugging messages (`.logSite`) and to detect the number of static molecules emitted.
 
   def add(v: T): Unit
 
   def remove(v: T): Boolean
 
   def takeOne: Seq[T]
-
-  def headOption: Option[T]
 
   def takeAny(count: Int): Seq[T]
 }
@@ -28,19 +27,17 @@ trait MutCollection[T] {
   *
   * @tparam T Type of the value carried by molecule.
   */
-sealed trait MutableBag[T] extends MutCollection[T] {
-  def isEmpty: Boolean
+trait MutableBag[T] extends MutCollection[T] {
+  def find(predicate: T ⇒ Boolean): Option[T]
 
-  def find(predicate: T => Boolean): Option[T]
-
-  def takeOne: Seq[T] = Try{IndexedSeq(iteratorAsJava.next)}.getOrElse(IndexedSeq())
-
-  def headOption: Option[T] = try { Some(iteratorAsJava.next) } catch { case _: Exception ⇒ None }
+  def takeOne: Seq[T] = try IndexedSeq(iteratorAsJava.next) catch {
+    case _: Exception ⇒ IndexedSeq()
+  }
 
   def takeAny(count: Int): Seq[T] =
     if (count > 1)
       iteratorAsScala.take(count).to[IndexedSeq]
-    else (takeOne : @inline)
+    else (takeOne: @inline)
 
   protected def iteratorAsScala: Iterator[T]
 
@@ -87,20 +84,19 @@ final class MutableMapBag[T] extends MutableBag[T] {
 
   override def remove(v: T): Boolean = bag.removeExactly(v, 1)
 
-  override def find(predicate: (T) => Boolean): Option[T] =
-    bag.createEntrySet().asScala.view
+  override def find(predicate: T ⇒ Boolean): Option[T] =
+    bag.entrySet().asScala
+      .view
       .map(_.getElement)
       .find(predicate)
 
   override def getCountMap: Map[T, Int] = bag
-    .createEntrySet()
-    .asScala
+    .entrySet().asScala
     .map(entry => (entry.getElement, entry.getCount))
     .toMap
 
   override def allValues: Iterator[T] = bag
-    .createEntrySet()
-    .asScala
+    .entrySet().asScala
     .toIterator
     .map(_.getElement)
 
@@ -126,8 +122,7 @@ final class MutableQueueBag[T] extends MutableBag[T] {
     *
     * @return Total number of elements in the bag.
     */
-  override def size: Int =
-    bag.size
+  override def size: Int = bag.size
 
   override def add(v: T): Unit = {
     bag.add(v)
@@ -143,7 +138,7 @@ final class MutableQueueBag[T] extends MutableBag[T] {
   override def remove(v: T): Boolean =
     bag.remove(v)
 
-  override def find(predicate: (T) => Boolean): Option[T] =
+  override def find(predicate: T ⇒ Boolean): Option[T] =
     iteratorAsScala.find(predicate)
 
   // Very inefficient! O(n) operations. Used only for debug output.
@@ -172,7 +167,7 @@ class MutableMultiset[T](bag: mutable.Map[T, Int] = mutable.Map[T, Int]()) exten
 
   def getCountMap: Map[T, Int] = bag.toMap
 
-  def isEmpty: Boolean = bag.isEmpty
+  override def isEmpty: Boolean = bag.isEmpty
 
   def size: Int = bag.values.sum
 
@@ -204,8 +199,6 @@ class MutableMultiset[T](bag: mutable.Map[T, Int] = mutable.Map[T, Int]()) exten
   override def toString: String = getCountMap.toString
 
   def takeOne: Seq[T] = bag.headOption.map(_._1).to[Seq]
-
-  def headOption: Option[T] = bag.headOption.map(_._1)
 
   def takeAny(count: Int): Seq[T] = ??? // Not used.
 }

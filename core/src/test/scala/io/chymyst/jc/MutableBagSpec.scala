@@ -186,15 +186,6 @@ class MutableBagSpec extends LogSpec {
     measureBagOp(new MutableMapBag[Int](), n, _.takeOne, message)
   }
 
-  it should "quickly compute headOption() on a MutableMapBag" in {
-    val message = "takeOne()"
-    measureBagOp(new MutableMapBag[Int](), 0, _.headOption, message)
-    measureBagOp(new MutableMapBag[Int](), n / 4, _.headOption, message)
-    measureBagOp(new MutableMapBag[Int](), n / 2, _.headOption, message)
-    measureBagOp(new MutableMapBag[Int](), 3 * n / 4, _.headOption, message)
-    measureBagOp(new MutableMapBag[Int](), n, _.headOption, message)
-  }
-
   it should "quickly take several elements from a MutableMapBag" in {
     val take = 5
     val message = s"takeAny($take)"
@@ -322,15 +313,6 @@ class MutableBagSpec extends LogSpec {
   }
 
   behavior of "MutableMultiset performance"
-
-  it should "quickly compute headOption() on a MutableMultiset" in {
-    val message = "headOption()"
-    measureBagOp(new MutableMultiset[Int](), 0, _.headOption, message)
-    measureBagOp(new MutableMultiset[Int](), n / 4, _.headOption, message)
-    measureBagOp(new MutableMultiset[Int](), n / 2, _.headOption, message)
-    measureBagOp(new MutableMultiset[Int](), 3 * n / 4, _.headOption, message)
-    measureBagOp(new MutableMultiset[Int](), n, _.headOption, message)
-  }
 
   it should "quickly compute takeOne() on a MutableMultiset" in {
     val message = "takeOne()"

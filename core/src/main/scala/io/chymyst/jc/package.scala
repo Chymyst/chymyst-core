@@ -45,7 +45,7 @@ package object jc {
     * @param reactionBody The body of the reaction. This must be a partial function with pattern-matching on molecules.
     * @return A [[Reaction]] value, containing the reaction body as well as static information about input and output molecules.
     */
-  def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.buildReactionImpl // IntelliJ cannot resolve symbol `BlackboxMacros`, but compilation works.
+  def go(reactionBody: Core.ReactionBody): Reaction = macro BlackboxMacros.goImpl
 
   /**
     * Convenience syntax: users can write `a(x) + b(y)` to emit several molecules at once.
@@ -70,7 +70,7 @@ package object jc {
     * @tparam T Type of the value carried by the molecule.
     * @return A new instance of class [[io.chymyst.jc.M]]`[T]`.
     */
-  def m[T]: M[T] = macro MoleculeMacros.mImpl[T] // IntelliJ cannot resolve symbol `MoleculeMacros`, but compilation works.
+  def m[T]: M[T] = macro MoleculeMacros.mImpl[T]
 
   /** Declare a new blocking molecule emitter.
     * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
@@ -79,7 +79,16 @@ package object jc {
     * @tparam R Type of the reply value.
     * @return A new instance of class [[io.chymyst.jc.B]]`[T,R]`.
     */
-  def b[T, R]: B[T, R] = macro MoleculeMacros.bImpl[T, R] // IntelliJ cannot resolve symbol `MoleculeMacros`, but compilation works.
+  def b[T, R]: B[T, R] = macro MoleculeMacros.bImpl[T, R]
+
+  /** Declare a new distributed molecule emitter.
+    * The name of the molecule will be automatically assigned (via macro) to the name of the enclosing variable.
+    *
+    * @tparam T Type of the value carried by the molecule.
+    * @param clusterConfig Implicit value describing how to connect to the cluster.
+    * @return A new instance of class [[io.chymyst.jc.B]]`[T,R]`.
+    */
+  def dm[T](implicit clusterConfig: ClusterConfig): DM[T] = macro MoleculeMacros.dmImpl[T]
 
   /** This pool is used for sites that do not specify a thread pool. */
   lazy val defaultPool = new BlockingPool("defaultPool")
@@ -128,7 +137,7 @@ package object jc {
     * @return `true` if the current thread belongs to a Chymyst reaction pool, `false` otherwise.
     */
   def isChymystThread: Boolean = Thread.currentThread() match {
-    case t: ChymystThread ⇒ true
+    case _: ChymystThread ⇒ true
     case _ ⇒ false
   }
 }

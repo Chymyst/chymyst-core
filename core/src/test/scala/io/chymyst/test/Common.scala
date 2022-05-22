@@ -11,7 +11,7 @@ object Common {
 
   def globalLogHas(reporter: MemoryLogger, part: String, message: String): Assertion = {
     reporter.messages.find(_.contains(part)) match {
-      case Some(str) ⇒ str should endWith(message)
+      case Some(str) ⇒ str should include(message)
       case None ⇒
         reporter.messages.foreach(println) shouldEqual "Test failed, see log messages above" // this fails and alerts the user
     }

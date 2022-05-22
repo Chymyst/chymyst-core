@@ -39,6 +39,6 @@ final class FixedPool(
 }
 
 object FixedPool {
-  def apply(): FixedPool = macro PoolMacros.newFixedPoolImpl0 // IntelliJ cannot resolve the symbol PoolMacros, but compilation works.
+  def apply(): FixedPool = macro PoolMacros.newFixedPoolImpl0
   def apply(parallelism: Int): FixedPool = macro PoolMacros.newFixedPoolImpl1
 }

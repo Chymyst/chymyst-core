@@ -11,7 +11,7 @@ object BlockingIdle {
   private[jc] def apply[T](selfBlocking: Boolean)(expr: => T): T =
     Thread.currentThread() match {
       case t: ChymystThread => t.blockingCall(expr, selfBlocking)
-      case _ => expr // BlockingIdle{...} has no effect if we are not running on a ChymystThread
+      case _ => expr // BlockingIdle{...} has no effect if we are not running on a `ChymystThread`.
     }
 }
 
@@ -51,6 +51,6 @@ final class BlockingPool(
 }
 
 object BlockingPool {
-  def apply(): BlockingPool = macro PoolMacros.newBlockingPoolImpl0 // IntelliJ cannot resolve the symbol PoolMacros, but compilation works.
-  def apply(parallelism: Int): BlockingPool = macro PoolMacros.newBlockingPoolImpl1 // IntelliJ cannot resolve the symbol PoolMacros, but compilation works.
+  def apply(): BlockingPool = macro PoolMacros.newBlockingPoolImpl0
+  def apply(parallelism: Int): BlockingPool = macro PoolMacros.newBlockingPoolImpl1
 }

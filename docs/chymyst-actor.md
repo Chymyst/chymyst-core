@@ -9,9 +9,19 @@ In the Actor model, an actor receives messages and reacts to them by running a c
 An actor-based program declares several actors, defines the computations for them, stores references to the actors, and starts sending messages to some of the actors.
 Messages are sent either synchronously or asynchronously, enabling communication between different concurrent actors. 
 
+An ordinary actor can be described in pseudo-code as
+
+```scala
+// Pseudo-code!
+receive(x) ⇒ { f(x, s); s = newState(s, x) }
+
+```
+
+where `x` is the value on an incoming message, `s` represents the local mutable state, `f()` is a function that may depend on both `x` and `s`, and `newState()` is a function that updates the local state of the actor.
+
 The chemical machine paradigm is in many ways similar to the Actor model.
 A chemical program also runs light-weight concurrent processes,
-which we may think of as “chemical actors”, that communicate by sending data to each other.
+which we may think of as “chemical actors”, that can communicate by sending data to each other.
 The chemical machine paradigm departs from the Actor model in two major ways: 
 
 1. Chemical actors are created automatically by the runtime system whenever necessary. User's code does not create or manage specific instances of actors.
@@ -104,7 +114,7 @@ d1 ! 456
 
 ```
 
-A chemical actor that waits for two messages at once can now be represented by pseudo-code like this,
+We can now write the following pseudo-code to represent a chemical actor that waits for two messages at once:
 
 ```scala
 // Pseudo-code!
@@ -118,27 +128,31 @@ The two messages carry data of different types; the two mailboxes are `c1` and `
 The chemical actor starts only after _both_ messages are present in their mailboxes (i.e. after some other code has sent these messages).
 When the actor starts, it consumes the two messages atomically.
 
-It also follows from the atomicity requirement that it is safe to define several chemical actors that consume messages from _the same_ mailbox:
+It also follows from the atomicity requirement that it is safe for several chemical actors to consume messages from _the same_ mailbox:
 
 ```scala
 // Pseudo-code!
-go { x: Int from c1, y: String from c2 ⇒ h(x, y) }
-go { x: Int from c1, z: Boolean from c3   ⇒ k(x, z) }
+go { x: Int from c1, y: String from c2  ⇒ h(x, y) }
+go { x: Int from c1, z: Boolean from c3 ⇒ k(x, z) }
 c1 ! 123
 c2 ! "abc"
 
 ```
 
-In this example, we defined two chemical actors that wait for messages from mailbox `c1` and, at the same time, for messages from other mailboxes.
-The chemical actors run functions `h(x, y)` and `k(x, z)` that depend on the values of their input messages. 
+In this example, we defined two chemical actors that wait for messages from mailbox `c1` and, at the same time, for messages from some other mailboxes.
+The chemical actors run functions `h(x, y)` and `k(x, z)` that depend on the values of their respective input messages. 
 If messages are present in `c1` but not in `c2` or `c3`, no computations can be started until some process emits messages to either `c2` or `c3`.
 Each of the two chemical actors can start only if it can consume one message from `c1` and one message from another mailbox.
 
-If there is exactly one message in each of the three mailboxes `c1`, `c2`, `c3`, then _any one_ of the two chemical actors might start.
+What if there is exactly one message in each of the three mailboxes `c1`, `c2`, `c3`?
+In that case, _any one_ of the two chemical actors is able to start.
 The runtime engine must make a non-deterministic choice to start one of them.
+
 Suppose, for instance, that the second chemical actor starts; it will then atomically consume two messages — one message from `c1` and one from `c3`.
-Since consuming the only message from `c1` will make the mailbox `c1` empty, the first chemical actor will not be able to start.
+Consuming the only message from `c1` will make the mailbox `c1` empty, so the first chemical actor will not be able to start.
+
 In this way, the program expresses the contention of several processes on a shared resource.
+As long as only one message is available in the mailbox `c1`, only one of the contending processes will start.
 
 This concludes the second and final step towards the chemical machine paradigm.
 We have completely decoupled mailboxes from chemical actors, in the sense that
@@ -199,6 +213,59 @@ This only applies to mailboxes that participate in computations with sufficientl
 `Chymyst` automatically detects these situations and activates unordered storage for the affected mailboxes.
 Since all the chemical actors are defined up front, this analysis can be performed before any computations are started.
 
+## Chemical actors can simulate ordinary actors
+
+In the ordinary (non-chemical) Actor model, actors have the following features:
+
+1. An actor runs a function that uses the message value as input and may update the actor's local mutable state.
+2. The actor's function body may send messages to other actors and/or create other actors.
+3. Additionally, an actor may “become another actor” after processing a message. After this, all messages will be processed by the new designated actor's function body. 
+
+Chemical actors can directly simulate all these features. Here is how we can translate an actor-based program into a chemical machine program.
+
+An ordinary actor can be written in pseudo-code as
+
+```scala
+// Pseudo-code!
+receive(x) ⇒ { f(x, s); s = newState(s, x) }
+
+```
+
+In the chemical machine, we now introduce two new chemical mailboxes: one mailbox, `mx`, for this actor's messages, and another mailbox, `ms`, for this actor's local mutable state.
+
+The body of the actor is replaced by a chemical actor,
+
+```scala
+go { case mx(x) + ms(s) ⇒ f(x, s); ms(newState(s, x)) }
+
+```
+
+where the functions `f()` and `newState()` are exactly the same as before.
+
+Defined in this way, the chemical actor will consume two messages: a message from `mx` (which corresponds to the old, non-chemical message) and a message from `ms` (which carries the old actor's local state).
+At the end of processing each message, the chemical actor will always emit a message into `ms` with the updated state.
+In this way, stateless chemical actors can easily simulate the local mutable state of the old actor.
+
+Sending messages to the actor is replaced by emitting messages to mailbox `mx`.
+
+The initial construction of the actor with an initial state `s0` is replaced by emitting a single message `ms(s0)` to the mailbox `ms`.
+
+Whenever the body of the actor needs to send messages to other actors or create other actors, we replace those operations in the same way.
+(The body of a chemical actor is perfectly able to define new chemical actors and mailboxes, in its local scope.)
+
+To imitate the operation of “becoming another actor”, we introduce another mailbox, say `ms2`, for the new actor's state.
+We then define another chemical actor that consumes messages from `mx` and `ms2`:
+
+```scala
+go { case mx(x) + ms2(s) ⇒ ... }
+
+```
+
+In order to simulate “becoming another actor”, we emit the message `ms2(newState(...))` instead of emitting `ms(newState(...))`.
+
+Thus, any program in the Actor model can be unambiguously mapped onto a program on the chemical machine.
+(The reverse is not as easy, however.)   
+
 ## Conclusions
 
 As we have just seen, the chemical machine paradigm is a radical departure from the Actor model.
@@ -207,7 +274,11 @@ Whenever there are sufficiently many input messages available for processing, th
 This is the main method for achieving parallelism in the chemical paradigm. The runtime engine is in the best position to balance the CPU load over low-level threads.
 The user's application code does not need to specify how many parallel processes to run at any given time.
 
-Input message contention is used in the chemical machine paradigm as a general mechanism for synchronization and mutual exclusion. (In the Actor model, these features are implemented by creating a fixed number of actor instances that alone can consume certain messages.) Since the runtime engine will arbitrarily decide which actor to run, contention on input messages will result in a certain degree of indeterminism. This is quite similar to the indeterminism in the usual models of concurrent programming. For example, mutual exclusion allows the programmer to implement safe exclusive access to a resource for any number of concurrent processes, but the order of access among the contending processes remains undetermined.
+Input message contention is used in the chemical machine paradigm as a general mechanism for synchronization and mutual exclusion.
+(In the Actor model, these features are implemented by creating a fixed number of actor instances that alone can consume certain messages.)
+Since the runtime engine will arbitrarily decide which actor to run, contention on input messages will result in a certain degree of indeterminism.
+This is quite similar to the indeterminism in the usual models of concurrent programming.
+For example, mutual exclusion allows the programmer to implement safe exclusive access to a resource for any number of concurrent processes, but the order of access among the contending processes remains undetermined.
 It is up to the programmer to ensure that the final results of the computation remain deterministic (i.e. that there are no race conditions).
 The chemical machine forces the programmer to face the indeterminism where it is unavoidable, but at the same time frees the programmer from the low-level bookkeeping associated with managing parallelism explicitly. 
 
