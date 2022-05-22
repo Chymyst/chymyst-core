@@ -19,13 +19,12 @@ The programmer's job remains to implement the required application logic by decl
 In addition, the programmer will need to designate some molecules as DMs and others as local molecules.
 The DCM runtime will run reactions with local molecules in the same way as with the ordinary chemical machine.
 
-In order to make it possible to emit DMs into a remote process in a safe and declarative manner, the DCM imposes several restrictions on the user's code.
-The two main restrictions are:
+In order to make it possible to emit DMs into a remote process in a safe and declarative manner, the DCM imposes two restrictions on the user's code:
 
-- DMs can be emitted into a remote reaction site only if the remote process defines exactly the same code for the reaction site.
-- Within any process, there may be at most one active copy of the reaction site that consumes DMs.
+- DMs can be emitted into a remote reaction site only if the remote process and the local process contain exactly the same code for that reaction site.
+- Within any process, there may be at most one active copy of each reaction site that consumes DMs.
 
-We will now explain the implementation of this paradigm in more detail.
+We will now explain the implementation of the DCM paradigm in more detail.
 
 ## Motivation
 
@@ -139,7 +138,7 @@ Distributed molecules differ from local molecules in several ways:
 - Distributed molecules are always non-blocking.
 - Distributed molecules may be consumed by any DCM peer connected to the cluster.
 - If a cluster connection becomes unavailable (e.g. due to a network timeout), emitting a DM will still not fail, but the data will be stored persistently and sending will be tried again later.
-- If a cluster connection is restored after being temporarily unavailable, emitting a DM or other reaction products may be denied (cause a special exception) if the reaction is bound to a specific cluster session (see below).
+- If a reaction has started and cluster connection is lost, emitting the reaction products may be denied (throwing a special exception) if the reaction is bound to a specific cluster session, even if the cluster connection is later restored.
 
 Defining reactions and emitting a distributed molecule is done in the same way as with local molecules:
 
@@ -232,7 +231,7 @@ arr.foreach(carrier)
 
 ```
 
-With virtually no code changes, we have created a first distributed application!
+With virtually no code changes, we have converted the map/reduce application to a distributed application.
 
 To clarify how the DCM will run this program, consider several DCM peers running exactly the same program code.
 Each of the DCM peers will emit 100 copies of the molecules `carrier()` carrying different values.
@@ -308,12 +307,41 @@ Make sure that there is only one copy of the `counter` molecule in the cluster s
 ## Identifying the distributed data across DCM peers
 
 When one DCM peer emits a distributed molecule (DM) into the cluster, other DCM peers must be able to consume that molecule and to start some reactions.
-In order to do that, the DCM peer must identify the local reaction value that can consume the DM, and the corresponding reaction site.
+In order to do that, a DCM peer must find the local emitter value in its own code that corresponds to the DM's emitter. Only then the local code will be able to put the DM into the correct local reaction site.
+
+The design of the DCM is based on two requirements that restrict possible DCM programs:
+
+- DMs can be emitted into a remote reaction site only if the remote process and the local process contain exactly the same code for that reaction site.
+- Within any process, there may be at most one active copy of each reaction site that consumes DMs.
+
+We will now motivate these requirements.
 
 ### The requirement of identical reaction code
 
 Just as with local molecules, it is necessary to make DMs bound to reaction sites,
 which is done by defining reactions that consume these DMs.
+
+When the cluster tells the DCM peer that a DM is available, the DCM peer must be able to emit the correct molecule into the correct reaction site, just as if that molecule were emitted by a local reaction.
+
+Consider an example code that defines a distributed molecule `counter`:
+
+```scala
+val counter = dm[Int]
+val enable_print = m[Unit]
+val needPrinting: Boolean = ??? // May read some configuration files here.
+
+site(
+  go { case counter(x) + enable_print() ⇒ println(x); counter(x) }
+)
+
+if (needPrinting) enable_print()
+```
+
+The code creates a local reaction site and emits `enable_print()` into it. Then the code waits for `counter()` to be received from the cluster, since the reaction will not start without that molecule. Suppose that another DCM peer emits `counter(1)` into the cluster. The local DCM runtime engine now needs to emit `counter(1)` into that same _local_ reaction site, as if some local code has emitted it.
+
+Suppose that the cluster now sends an event to the local DCM runtime engine, telling it that a distributed molecule named `"counter"` is available in the cluster. How can the engine identify the local reaction site to which that molecule is bound? It is not sufficient to look for a molecule with name `"counter"`, since there may be several molecules with the same name (and the local code cannot prohibit defining new molecules with arbitrary names). We need to identify the molecule _chemically_, that is, through the reactions where it participates as input. Then we will guarantee that the emitted molecule will participate in the reactions that the programmer expects.
+
+***
 
 Reactions that consume DMs must have _the same Scala code_ in every DCM peer.
 In this way, the distributed data can be identified and shared automatically across DCM peers.
@@ -322,7 +350,7 @@ The reason for the same-code requirement is that a given item of distributed dat
 which will produce predictable results only if every DCM peer runs _the same reaction code_ after consuming the data. 
 
 To see this on an example, consider two DCM peers.
-Suppose that the first DCM peer runs a program such as
+Suppose that the first DCM peer runs a program such as:
 
 ```scala
 val a = dm[Int]
@@ -332,7 +360,7 @@ site( go { case a(x) ⇒ c(f(x)) } ) // Some computation.
 
 ```
 
-while the second DCM peer runs
+while the second DCM peer runs:
 
 ```scala
 val a = dm[Int]
@@ -349,7 +377,7 @@ If many copies of `a()` are emitted, the programmer has no control over the choi
 
 It appears to be undesirable to allow this sort of non-determinism because it yields completely unpredictable results
 that the programmer is powerless to control.
-When we define a molecule as a DM, the intent is to distribute a given, fixed computation across different computers to obtain the result faster or to provide resilience to errors,
+When we define a molecule as a DM, the intent is to obtain a desired result via a distributed and concurrent computation,
 rather than to produce random results that depend on network latencies and CPU loads.
 
 Therefore, `Chymyst` requires that all DCM peers should define _identical Scala code_ for reactions that consume a given distributed molecule such as `a()`.
@@ -369,7 +397,7 @@ The requirement of identical code might appear very restrictive; however, it doe
 
 For instance, there may be runtime parameters that have different values for different DCM peers.
 We have seen an example of this situation when we implemented the distributed map/reduce.
-The reaction
+The reaction:
 
 ```scala
 go { case result(x) if isDriver ⇒ println(x) }
