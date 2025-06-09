@@ -318,7 +318,7 @@ class StaticMoleculesSpec extends LogSpec with BeforeAndAfterEach {
       )
     }
 
-    thrown.getMessage shouldEqual "In Site{c + d → ...; f/B → ...}: Refusing to emit molecule f/B() initially as static (must be a non-blocking molecule)"
+    thrown.getMessage shouldEqual "In Site{c + d → ...; f/B → ...}: Molecule f/B() cannot be emitted initially as static (must be a non-blocking molecule)"
   }
 
   behavior of "volatile reader"

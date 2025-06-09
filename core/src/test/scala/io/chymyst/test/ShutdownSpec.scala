@@ -47,7 +47,7 @@ class ShutdownSpec extends LogSpec {
     site(pool)(go { case x(()) => })
     the[Exception] thrownBy {
       x()
-    } should have message "In Site{x → ...}: Cannot emit molecule x() because reaction pool FixedPool:pool is not active"
+    } should have message "In Site{x → ...}: Molecule x() cannot be emitted because reaction pool FixedPool:pool is not active"
   }
 
   it should "fail to schedule reactions after shutdown of default thread pools" in {
@@ -59,7 +59,7 @@ class ShutdownSpec extends LogSpec {
 
     the[Exception] thrownBy {
       x()
-    } should have message "In Site{x → ...}: Cannot emit molecule x() because reaction pool BlockingPool:defaultPool is not active"
+    } should have message "In Site{x → ...}: Molecule x() cannot be emitted because reaction pool BlockingPool:defaultPool is not active"
   }
 
 }

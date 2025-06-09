@@ -26,6 +26,8 @@
 
 [Chapter 9: Game of Life](chymyst_game_of_life.md)
 
+[Chapter 10: Programming the Distributed Chemical Machine](chymyst10.md)
+
 [Appendix A: From actors to reactions: The chemical machine explained through the Actor model](chymyst-actor.md)
 
 [Appendix B: Other work on Join Calculus](other_work.md)

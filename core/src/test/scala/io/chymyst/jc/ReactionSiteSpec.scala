@@ -4,7 +4,9 @@ import io.chymyst.test.Common._
 import io.chymyst.test.LogSpec
 import org.scalatest.BeforeAndAfterEach
 
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
+import scala.util.Try
 
 class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
 
@@ -25,6 +27,138 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
     ReactionExitFailure("abc").getMessage shouldEqual ". Reported error: abc"
     ReactionExitSuccess.getMessage shouldEqual ""
     ReactionExitRetryFailure("abc").getMessage shouldEqual ". Reported error: abc"
+  }
+
+  behavior of "reaction site hash sums"
+
+  it should "create the same hash sums for the same reaction code" in {
+    def makeRS[A](x: A): ReactionSite = {
+      val a = m[A]
+      site(go { case a(_) ⇒ x })
+      a.reactionSite
+    }
+
+    val rs1 = makeRS[Int](123)
+    val rs2 = makeRS[String]("abc")
+    rs1.sha1Code shouldEqual rs2.sha1Code
+    rs1.sha1CodeWithNames shouldEqual rs2.sha1CodeWithNames
+
+    rs1.isDistributed shouldEqual false
+    rs2.isDistributed shouldEqual false
+  }
+
+  it should "create different hash sums for different reaction code with the same molecule names" in {
+    val n = 1
+    val a1 = new M[Int]("a")
+    site(go { case a1(x) ⇒ x + n })
+
+    val code1 = a1.reactionSite.sha1Code
+    val code1name = a1.reactionSite.sha1CodeWithNames
+
+    val a2 = new M[Int]("a")
+    site(go { case a2(x) ⇒ x + n })
+    val code2 = a2.reactionSite.sha1Code
+    val code2name = a2.reactionSite.sha1CodeWithNames
+
+    code1 should not equal code2
+    code1name should not equal code2name
+  }
+
+  it should "detect differences in molecule names when reaction code is the same" in {
+    def makeRS[A](x: A, name: String): ReactionSite = {
+      val a = new M[A](name)
+      site(go { case a(_) ⇒ x })
+      a.reactionSite
+    }
+
+    val rs1 = makeRS[Int](123, "x")
+    val rs2 = makeRS[String]("abc", "x")
+    rs1.sha1Code shouldEqual rs2.sha1Code
+    rs1.sha1CodeWithNames shouldEqual rs2.sha1CodeWithNames
+
+    val rs3 = makeRS[Int](123, "x")
+    val rs4 = makeRS[String]("abc", "y")
+    rs3.sha1Code shouldEqual rs4.sha1Code
+    rs3.sha1CodeWithNames should not equal rs4.sha1CodeWithNames
+  }
+
+  behavior of "distributed reaction sites"
+
+  it should "detect distributed reaction site" in {
+    implicit val clusterConfig = ClusterConfig("")
+    val a = dm[Int]
+    val d = m[Int]
+    site(go { case a(_) ⇒ })
+    a.reactionSite.isDistributed shouldEqual true
+    site(go { case d(x) ⇒ a(x) })
+    d.reactionSite.isDistributed shouldEqual false
+  }
+
+  it should "detect single-instance and multiple-instance reaction site" in {
+    def makeRS(name: String): ReactionSite = {
+      val a = new M[Int](name)
+      site(go { case a(_) ⇒ })
+      a.reactionSite
+    }
+
+    val List(rs1a, rs1b, rs2, rs3) = List(1, 1, 2, 3).map(i ⇒ makeRS(i.toString))
+    rs1a.isSingleInstance shouldEqual false
+    rs1b.isSingleInstance shouldEqual false
+    rs2.isSingleInstance shouldEqual true
+    rs3.isSingleInstance shouldEqual true
+  }
+
+  it should "detect error in multiple-instance reaction site with DMs" in {
+    implicit val clusterConfig = ClusterConfig("")
+
+    def makeRS(name: String): ReactionSite = {
+      val a = new DM[Int](name)
+      site(go { case a(_) ⇒ })
+      a.reactionSite
+    }
+
+    val rs0 = makeRS("a0")
+    val rs1 = makeRS("a1")
+    the[Exception] thrownBy makeRS("a1") should
+      have message "In Site{a1/D → ...}: Non-single-instance reaction site may not consume distributed molecules, but found molecule(s) a1/D"
+
+    rs0.knownInputMolecules.keySet.head.isBound shouldEqual true
+    rs1.knownInputMolecules.keySet.head.isBound shouldEqual true
+  }
+
+  it should "detect error when a DM is declared static" in {
+    implicit val clusterConfig = ClusterConfig("")
+    val a = dm[Int]
+    val c = dm[Unit]
+    the[Exception] thrownBy site(
+      go { case a(x) + c(_) ⇒ a(x) }
+      , go { case _ ⇒ a(0) }
+    ) should
+      have message "In Site{a/D + c/D → ...}: Distributed molecules may not be declared static, but found such molecule(s): a/D"
+
+    // Input molecules remain unbound since reaction site had errors.
+    a.isBound shouldEqual false
+    c.isBound shouldEqual false
+  }
+
+  it should "detect RS error when input DMs belong to different clusters" in {
+    val x1a = {
+      implicit val clusterConfig = ClusterConfig("", "", "a")
+      val x1 = dm[Int]
+      x1
+    }
+    val x1b = {
+      implicit val clusterConfig = ClusterConfig("", "", "b")
+      val x1 = dm[Int]
+      x1
+    }
+
+    the[Exception] thrownBy site(
+      go { case x1a(_) + x1b(_) ⇒ }
+    ) should
+      have message "In Site{x1/D + x1/D → ...}: All input distributed molecules must belong to the same cluster, but found molecule(s) x1/D, x1/D"
+    // Cannot emit DMs since reaction site is not active. 
+    the[ExceptionNoReactionSite] thrownBy x1a(1) should have message "Molecule x1/D is not bound to any reaction site, cannot emit"
   }
 
   behavior of "reaction"
@@ -556,7 +690,7 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
       site(
         go { case c(x) if x > 0 => },
         go { case c(x) + c(y) => },
-        go { case c(x) + c(y) + c(z) => } // unconditional indeterminism with several inputs
+        go { case c(x) + c(y) + c(z) => } // Unavoidable indeterminism with several repeated inputs.
       )
     }.getMessage shouldEqual "In Site{c + c + c → ...; c + c → ...; c → ...}: Unavoidable indeterminism: reaction {c(x) + c(y) + c(z) → } is shadowed by {c(x) + c(y) → }"
     checkExpectedPipelined(Map(c -> true)) shouldEqual ""
@@ -610,6 +744,30 @@ class ReactionSiteSpec extends LogSpec with BeforeAndAfterEach {
       c(1)
     }
     globalLogHas(memLog, "Refusing to emit", "Debug: In Site{c → ...}: Refusing to emit pipelined molecule c(-1) since its value fails the relevant conditions")
+  }
+
+  behavior of "errors when initializing reaction site"
+
+  it should "refuse to emit molecules while reaction site is not yet active" in {
+    val a = m[Int]
+    val c = m[Unit]
+    import scala.concurrent.ExecutionContext.Implicits.global
+    // While we try to create this reaction site, we also try to emit molecule c() on a different thread. This should fail.
+    val resultFuture = Future {
+      (1 to 500000).map { i ⇒ Try(c(i)) }
+    }
+
+    the[ExceptionCreatingReactionSite] thrownBy
+      site(go { case a(_) + c(_) ⇒ }, go { case _ ⇒ a(0) }) should // This is a runtime error due to incorrect usage of static molecule.
+      have message "In Site{a + c → ...}: Incorrect static molecule usage: static molecule (a) consumed but not emitted by reaction {a(_) + c(_) → }"
+
+    val result = Await.result(resultFuture, Duration.Inf)
+    // There should be no successful emissions of the molecule `c()`.
+    result.forall(_.isFailure) shouldEqual true
+    // Some molecules c() are not emitted because c() is not yet bound.
+    // Later c() is bound but reaction site is not active.
+    // There should be no other errors. Let's collect all error messages.
+    (result.map(_.failed.get.getMessage).toSet diff Set("Molecule c is not bound to any reaction site, cannot emit", "Molecule c() cannot be emitted because reaction site is inactive")) shouldEqual Set()
   }
 
 }

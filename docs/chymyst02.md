@@ -46,14 +46,15 @@ The reactions as written so far will always start whenever `read()` or `write()`
 However, our task is to control when these reactions start.
 We need to _prevent_ these reactions from starting when there are too many concurrent accesses.
 
-In `Chymyst`, there are only two ways of preventing a reaction from starting:
+Now, there are only two ways of preventing a reaction from starting:
 
 - by withholding some of the required input molecules;
 - by using a guard condition with a mutable variable, setting the value of that variable as required.
 
 The second method requires complicated reasoning about the current values of mutable variables.
 Generally, shared mutable state is contrary to the spirit of functional programming, although it may be used in certain cases for performance optimization.
-Although Scala allows it, we will not use shared mutable state in `Chymyst`.
+Although Scala allows it, we will not use shared mutable state in our examples.
+The chemical machine works best when all values are immutable.
 
 It remains to use the first method.
 
@@ -456,7 +457,7 @@ Only the emitter `a` is returned as the result value of the block.
 So, the emitter `a` is now accessible as the value `a` in the outer scope.
 
 This trick gives us the ability to hide some emitters and to encapsulate their chemistry, making it safe to use by outside code.
-In this example, the correct function of the counter depends on having a _single_ copy of `c()` in the soup.
+In this example, the correct function of the counter depends on having a _single_ copy of `c()` at the reaction site.
 If the user were to emit (by mistake) any further copies of `c()`, the incrementing functionality would become unpredictable
 since the reaction `c + a → ...` could consume any of the available copies of `c()`,
 and the user has no control over the resulting indeterminism.
@@ -551,7 +552,8 @@ When there are no more `interm()` molecules, we will print the final accumulated
 However, there is a serious problem with this implementation: We will not actually find out when the work is finished!
 Our idea was that the processing will stop when there are no `interm()` molecules left.
 However, the `interm()` molecules are produced by previous reactions, which may take time.
-We do not know when each `interm()` molecule will be emitted: there may be prolonged periods of absence of any `interm()` molecules in the soup, while some reactions are still busy evaluating `f()`.
+We do not know when each `interm()` molecule will be emitted:
+There may be prolonged periods of absence of any `interm()` molecules at the reaction site, while some reactions are still busy evaluating `f()`.
 The second reaction can start at any time — even when some `interm()` molecules are going to be emitted very soon. 
 The runtime engine cannot know whether any reaction is going to eventually emit some more `interm()` molecules, and so the present program is unable to determine whether the entire map/reduce job is finished.
 The chemical machine will sometimes run the second reaction too early.
@@ -589,32 +591,33 @@ import io.chymyst.jc._
 
 object C1 extends App {
 
-  // declare the "map" and the "reduce" functions
+  // Declare the "map" and the "reduce" functions.
   def f(x: Int): Int = x * x
   def reduceB(acc: Int, x: Int): Int = acc + x
 
   val arr = 1 to 100
 
-  // declare molecule types
+  // Declare molecule emitters.
   val carrier = m[Int]
   val interm = m[Int]
   val accum = m[(Int,Int)]
 
-  // declare the reaction for the "map" step
+  // Declare the reaction for the "map" step.
   site(
     go { case carrier(x) ⇒ val res = f(x); interm(res) }
   )
 
-  // The two reactions for the "reduce" step must be together since they both consume `accum`.
+  // The two reactions for the "reduce" step must be together
+  // in a single reaction site, since they both consume `accum`.
   site(
       go { case accum((n, b)) + interm(res) ⇒ accum( (n + 1, reduceB(b, res)) ) },
       go { case accum((n, b)) if n == arr.length ⇒ println(b) }
   )
 
-  // emit molecules
+  // Emit initial molecules.
   accum((0, 0))
   arr.foreach(i ⇒ carrier(i))
- // prints "338350"
+ // This prints `338350`.
 }
 
 ```
@@ -638,7 +641,7 @@ As `interm()` molecules are emitted, this reaction could run between any availab
 When running on a multi-core CPU, the chemical machine should be able to schedule many such reactions concurrently and optimize the CPU load.
 
 This code, however, is not yet correct.
-When all `interm()` molecule pairs have reacted, the single `interm()` molecule will remain inert in the soup, since no other molecules can react with it.
+When all `interm()` molecule pairs have reacted, the single `interm()` molecule will remain inert at the reaction site, since no other molecules can react with it.
 To fix this problem, we need a means of tracking progress and detecting when the entire computation is finished. 
 
 In our previous solution, we kept track of progress by using a counter `n` on the `accum()` molecule.
@@ -665,23 +668,23 @@ import io.chymyst.jc._
 
 object C2 extends App {
 
-  // declare the "map" and the "reduce" functions
+  // Declare the "map" and the "reduce" functions.
   def f(x: Int): Int = x * x
   def reduceB(acc: Int, x: Int): Int = acc + x
 
   val arr = 1 to 100
 
-  // declare molecule types
+  // Declare molecule emitters.
   val carrier = m[Int]
   val interm = m[(Int, Int)]
 
-  // declare the reaction for the "map" step
+  // Declare the reaction for the "map" step.
   site(
     go { case carrier(x) ⇒ val res = f(x); interm((1, res)) }
   )
 
-  // The two reactions for the "reduce" step must be together
-  // since they both consume `accum`.
+  // Declare the reaction for the "reduce" step,
+  // keeping track of the number of partially reduced items.
   site(
     go { case interm((n1, x1)) + interm((n2, x2)) ⇒
       val x = reduceB(x1, x2)
@@ -690,9 +693,9 @@ object C2 extends App {
     }
   )
 
-  // emit initial molecules
+  // Emit initial molecules.
   arr.foreach(i ⇒ carrier(i))
- // prints 338350
+  // This prints `338350`.
 }
 
 ```
@@ -932,7 +935,7 @@ This refactoring would be the same in any programming language and is not specif
 
 Let us now inline the call to `reduceOne()` and rewrite the code as a self-contained function:
 
-```
+```scala
 def reduceAll[T](arr: Array[T], res: M[T]) =
   if (arr.length == 1) res(arr(0))
   else  {
@@ -957,7 +960,7 @@ To remedy this, we can refactor the body of the function `reduceAll()` into a _r
 We declare `reduceAll` as a molecule emitter with value type `(Array[T], M[T])`.
 Instead of a recursive function, we obtain non-recursive code that can be thought of as a “chain reaction”:
 
-```
+```scala
 val reduceAll = m[(Array[T], M[T])]
 site(
  go { case reduceAll((arr, res)) ⇒

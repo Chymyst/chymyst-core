@@ -14,14 +14,14 @@ class GuardsSpec extends LogSpec {
     val result = go { case aaa(Nil) + aaa(List()) => bbb(List()) + bbb(Nil) }
     result.info.inputs.toList should matchPattern {
       case List(
-      InputMoleculeInfo(`aaa`, 0, ConstInputPattern(List()), _, Symbol("List[Int]")),
-      InputMoleculeInfo(`aaa`, 1, ConstInputPattern(List()), _, _)
+      InputMoleculeInfo(`aaa`, 'aaa, 0, ConstInputPattern(List()), _, Symbol("List[Int]")),
+      InputMoleculeInfo(`aaa`, 'aaa, 1, ConstInputPattern(List()), _, _)
       ) =>
     }
     result.info.outputs.toList should matchPattern {
       case List(
-      OutputMoleculeInfo(`bbb`, ConstOutputPattern(List()), _),
-      OutputMoleculeInfo(`bbb`, ConstOutputPattern(List()), _)
+      OutputMoleculeInfo(`bbb`, 'bbb, ConstOutputPattern(List()), _),
+      OutputMoleculeInfo(`bbb`, 'bbb, ConstOutputPattern(List()), _)
       ) ⇒
     }
     result.info.outputs.toList.map(_.environments) should matchPattern {
@@ -44,12 +44,12 @@ class GuardsSpec extends LogSpec {
 
     result.info.inputs.toList should matchPattern {
       case List(
-      InputMoleculeInfo(`ccc`, 0, ConstInputPattern(Nil), _, Symbol("List[Int]")),
-      InputMoleculeInfo(`ccc`, 1, ConstInputPattern(List()), _, _),
-      InputMoleculeInfo(`ccc`, 2, ConstInputPattern(List(1)), _, _),
-      InputMoleculeInfo(`ccc`, 3, ConstInputPattern(List(1, 2, 3)), _, _),
-      InputMoleculeInfo(`bb`, 4, ConstInputPattern('input), _, 'Symbol),
-      InputMoleculeInfo(`a`, 5, ConstInputPattern(Right("input")), _, Symbol("scala.util.Either[Int,String]"))
+      InputMoleculeInfo(`ccc`, 'ccc, 0, ConstInputPattern(Nil), _, Symbol("List[Int]")),
+      InputMoleculeInfo(`ccc`, 'ccc, 1, ConstInputPattern(List()), _, _),
+      InputMoleculeInfo(`ccc`, 'ccc, 2, ConstInputPattern(List(1)), _, _),
+      InputMoleculeInfo(`ccc`, 'ccc, 3, ConstInputPattern(List(1, 2, 3)), _, _),
+      InputMoleculeInfo(`bb`, 'bb, 4, ConstInputPattern('input), _, 'Symbol),
+      InputMoleculeInfo(`a`, 'a, 5, ConstInputPattern(Right("input")), _, Symbol("scala.util.Either[Int,String]"))
       ) =>
     }
 
@@ -69,10 +69,10 @@ class GuardsSpec extends LogSpec {
 
     result.info.inputs.toList should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, 0, ConstInputPattern(Left(1)), _, _),
-      InputMoleculeInfo(`a`, 1, ConstInputPattern(Right("input")), _, _),
-      InputMoleculeInfo(`bb`, 2, ConstInputPattern((2, Some(3))), _, _),
-      InputMoleculeInfo(`bb`, 3, ConstInputPattern((0, None)), _, _)
+      InputMoleculeInfo(`a`, 'a, 0, ConstInputPattern(Left(1)), _, _),
+      InputMoleculeInfo(`a`, 'a, 1, ConstInputPattern(Right("input")), _, _),
+      InputMoleculeInfo(`bb`, 'bb, 2, ConstInputPattern((2, Some(3))), _, _),
+      InputMoleculeInfo(`bb`, 'bb, 3, ConstInputPattern((0, None)), _, _)
       ) =>
     }
 
@@ -91,8 +91,8 @@ class GuardsSpec extends LogSpec {
 
     result.info.inputs.toList should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, 0, SimpleVarInput('xOpt, Some(_)), _, _),
-      InputMoleculeInfo(`bb`, 1, SimpleVarInput('y, Some(_)), _, _)
+      InputMoleculeInfo(`a`, 'a, 0, SimpleVarInput('xOpt, Some(_)), _, _),
+      InputMoleculeInfo(`bb`, 'bb, 1, SimpleVarInput('y, Some(_)), _, _)
       ) =>
     }
     result.info.toString shouldEqual "a(xOpt if ?) + bb(y if ?) → "
@@ -111,8 +111,8 @@ class GuardsSpec extends LogSpec {
 
     result.info.inputs.toList should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x), false), _, _),
-      InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y), false), _, _)
+      InputMoleculeInfo(`a`, 'a, 0, OtherInputPattern(_, List('x), false), _, _),
+      InputMoleculeInfo(`bb`, 'bb, 1, OtherInputPattern(_, List('list, 'y), false), _, _)
       ) =>
     }
     result.info.toString shouldEqual "a(?x) + bb(?list,y) → "
@@ -131,8 +131,8 @@ class GuardsSpec extends LogSpec {
 
     result.info.inputs.toList should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, 0, SimpleVarInput('xOpt, None), _, Symbol("Option[Int]")),
-      InputMoleculeInfo(`bb`, 1, SimpleVarInput('y, None), _, Symbol("(Int, Option[String])"))
+      InputMoleculeInfo(`a`, 'a, 0, SimpleVarInput('xOpt, None), _, Symbol("Option[Int]")),
+      InputMoleculeInfo(`bb`, 'bb, 1, SimpleVarInput('y, None), _, Symbol("(Int, Option[String])"))
       ) =>
     }
     result.info.toString shouldEqual "a(xOpt) + bb(y) if(xOpt,y) → "
@@ -151,8 +151,8 @@ class GuardsSpec extends LogSpec {
 
     result.info.inputs.toList should matchPattern {
       case List(
-      InputMoleculeInfo(`a`, 0, OtherInputPattern(_, List('x), false), _, Symbol("Option[Int]")),
-      InputMoleculeInfo(`bb`, 1, OtherInputPattern(_, List('list, 'y), false), _, Symbol("(List[Int], Option[String])"))
+      InputMoleculeInfo(`a`, 'a, 0, OtherInputPattern(_, List('x), false), _, Symbol("Option[Int]")),
+      InputMoleculeInfo(`bb`, 'bb, 1, OtherInputPattern(_, List('list, 'y), false), _, Symbol("(List[Int], Option[String])"))
       ) =>
     }
     result.info.toString shouldEqual "a(?x) + bb(?list,y) if(x,list,y) → "
@@ -165,7 +165,7 @@ class GuardsSpec extends LogSpec {
 
     result.info.guardPresence shouldEqual AllMatchersAreTrivial
 
-    result.info.inputs.toList should matchPattern { case List(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, None), _, 'Int)) => }
+    result.info.inputs.toList should matchPattern { case List(InputMoleculeInfo(`a`, 'a, 0, SimpleVarInput('x, None), _, 'Int)) => }
     result.info.toString shouldEqual "a(x) → "
   }
 
@@ -183,7 +183,7 @@ class GuardsSpec extends LogSpec {
       case _ => false
     }) shouldEqual true
 
-    result.info.inputs.toList should matchPattern { case List(InputMoleculeInfo(`a`, 0, SimpleVarInput('x, None), _, _)) => }
+    result.info.inputs.toList should matchPattern { case List(InputMoleculeInfo(`a`, 'a, 0, SimpleVarInput('x, None), _, _)) => }
     result.info.toString shouldEqual "a(x) if(?) → "
   }
 
@@ -296,7 +296,7 @@ class GuardsSpec extends LogSpec {
     }
     result.info.toString shouldEqual "a(xyz if ?) → "
     (result.info.inputs.toList match {
-      case List(InputMoleculeInfo(`a`, 0, SimpleVarInput('xyz, Some(cond)), _, _)) =>
+      case List(InputMoleculeInfo(`a`, 'a, 0, SimpleVarInput('xyz, Some(cond)), _, _)) =>
         cond.isDefinedAt(n + 1) shouldEqual true
         cond.isDefinedAt(n) shouldEqual false
         true
@@ -356,10 +356,10 @@ class GuardsSpec extends LogSpec {
     val d = m[Array[Int]]
 
     val reaction1 = go { case c((_, arr)) if arr.nonEmpty => }
-    reaction1.info.inputs.head should matchPattern { case InputMoleculeInfo(`c`, 0, OtherInputPattern(_, List('arr), false), _, Symbol("(Int, Array[Int])")) => }
+    reaction1.info.inputs.head should matchPattern { case InputMoleculeInfo(`c`, 'c, 0, OtherInputPattern(_, List('arr), false), _, Symbol("(Int, Array[Int])")) => }
 
     val reaction2 = go { case d(arr) if arr.nonEmpty => }
-    reaction2.info.inputs.head should matchPattern { case InputMoleculeInfo(`d`, 0, SimpleVarInput('arr, Some(_)), _, Symbol("Array[Int]")) => }
+    reaction2.info.inputs.head should matchPattern { case InputMoleculeInfo(`d`, 'd, 0, SimpleVarInput('arr, Some(_)), _, Symbol("Array[Int]")) => }
   }
 
   behavior of "cross-molecule guards"
@@ -531,7 +531,8 @@ class GuardsSpec extends LogSpec {
 
     withPool(FixedPool(4)) { tp ⇒
       site(tp)(go { case a(Some(px@(1))) + bb(py@Some(y)) + f(_, r) // ignore warning about "non-variable type argument Int"
-        if py.get > px ⇒ r(true) })
+        if py.get > px ⇒ r(true)
+      })
       // TODO: fix type breakage if we write z + px.get instead of z + x: the reason is that `px` is inferred to be Some[Any] instead of Some[Int]
 
       a(Some(1)) + bb(Some(2))
@@ -604,7 +605,8 @@ class GuardsSpec extends LogSpec {
 
     withPool(FixedPool(4)) { tp ⇒
       site(tp)(go { case a(Some(px@(1))) + a(py@Some(y)) + a(Some(z)) + f(_, r) // ignore warning about "non-variable type argument Int"
-        if py.get >= z + px ⇒ r(true) })
+        if py.get >= z + px ⇒ r(true)
+      })
       // TODO: fix type breakage if we write z + px.get instead of z + x: the reason is that `px` is inferred to be Some[Any] instead of Some[Int]
 
       (1 to 3).foreach { i ⇒ a(Some(i)) }

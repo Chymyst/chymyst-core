@@ -109,19 +109,21 @@ lazy val core = (project in file("core"))
     wartremoverErrors in(Compile, compile) ++= errorsForWartRemover,
     libraryDependencies ++= Seq(
       // We need guava only because we use its concurrent hash map.
-      "com.google.guava" % "guava" % "22.0",
+      "com.google.guava" % "guava" % "26.0-jre"
       //      "com.google.code.findbugs" % "jsr305" % "3.0.1", // Include this if there are weird compiler bugs due to guava. See http://stackoverflow.com/questions/10007994/why-do-i-need-jsr305-to-use-guava-in-scala
-
+      , "org.apache.zookeeper" % "zookeeper" % "3.4.13"
+      , "org.apache.curator" % "curator-framework" % "4.0.1"
+      , "org.apache.curator" % "curator-recipes" % "4.0.1"
       //      "org.javolution" % "javolution" % "6.0.0", // source code not published on Maven Central!
       // We need scala-reflect because we use macros.
-      "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-      "org.scalatest" %% "scalatest" % "3.0.1" % Test,
-      "org.scalacheck" %% "scalacheck" % "1.13.4" % Test,
-      "com.lihaoyi" %% "utest" % "0.4.5" % Test,
-
+      , "org.scala-lang" % "scala-reflect" % scalaVersion.value
+      , "org.scalatest" %% "scalatest" % "3.0.1" % Test
+      , "org.scalacheck" %% "scalacheck" % "1.13.4" % Test
+      , "com.lihaoyi" %% "utest" % "0.4.5" % Test
+      , "com.twitter" %% "chill" % "0.9.3"
       // We need the "scala-compiler" only in order to debug macros;
       // the project or its tests do not actually depend on scala-compiler.
-      "org.scala-lang" % "scala-compiler" % scalaVersion.value % Provided
+      , "org.scala-lang" % "scala-compiler" % scalaVersion.value % Provided
 //      , "com.nativelibs4java" %% "scalaxy-streams" % "0.4-SNAPSHOT" % Provided // 2.12 is not published on Maven Central!
       , "org.sameersingh.scalaplot" % "scalaplot" % "0.0.4" % Test
     )

@@ -5,10 +5,8 @@ language: scala
 # dist: trusty
 
 scala:
-  - 2.11.8
   - 2.11.12
-  - 2.12.2
-  - 2.12.6
+  - 2.12.7
 jdk:
   - oraclejdk8
 
@@ -34,3 +32,28 @@ deploy:
   skip_cleanup: true
   on:
     tags
+
+# See https://gist.github.com/estliberitas/b2c004f7447ed6fa3248
+# Use following configuration to run ZooKeeper while executing tests
+
+before_install:
+## Add repository key
+#- "curl -s http://archive.cloudera.com/cdh4/ubuntu/precise/amd64/cdh/archive.key | sudo apt-key add -"
+- "curl -s http://archive.cloudera.com/cdh5/ubuntu/trusty/amd64/cdh/archive.key | sudo apt-key add -"
+#- "wget http://archive.cloudera.com/cdh4/one-click-install/precise/amd64/cdh4-repository_1.0_all.deb"
+#- "wget https://archive.cloudera.com/cdh5/one-click-install/trusty/amd64/cdh5-repository_1.0_all.deb"
+#- "sudo dpkg -i cdh5-repository_1.0_all.deb"
+#- "sudo wget https://archive.cloudera.com/cdh5/ubuntu/trusty/amd64/cdh/cloudera.list -O /etc/apt/sources.list.d/cloudera.list"
+- "sudo echo 'deb [arch=amd64] http://archive.cloudera.com/cdh5/ubuntu/trusty/amd64/cdh trusty-cdh5 contrib' > cloudera.list"
+- "sudo mv cloudera.list /etc/apt/sources.list.d/cloudera.list"
+- "sudo echo -e 'Package: *\\nPin: release o=Cloudera, l=Cloudera\\nPin-Priority: 501' > cloudera.pref"
+- "cat cloudera.pref"
+- "sudo mv cloudera.pref /etc/apt/preferences.d/cloudera.pref"
+- "sudo apt-get update -qq"
+# Install ZooKeeper
+- "sudo apt-get install -y zookeeper-server"
+before_script:
+- "sudo service zookeeper-server init"
+- "sudo service zookeeper-server start"
+after_script:
+- "sudo service zookeeper-server stop"

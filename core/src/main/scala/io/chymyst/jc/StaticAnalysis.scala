@@ -93,6 +93,18 @@ private[jc] object StaticAnalysis {
     None
   }
 
+  private[jc] def findDistributedRSErrors(reactionSite: ReactionSite): Seq[String] = {
+    val nonSingleInstance = if (reactionSite.isDistributed && !reactionSite.isSingleInstance)
+      Seq(s"Non-single-instance reaction site may not consume distributed molecules, but found molecule(s) ${reactionSite.knownDMs.keys.mkString(", ")}")
+    else Nil
+    val nonSingleCluster = if (reactionSite.knownInputMolecules.keys
+      .collect { case dm: DM[_] ⇒ dm.clusterConfig }
+      .toSet.size > 1)
+      Seq(s"All input distributed molecules must belong to the same cluster, but found molecule(s) ${reactionSite.knownDMs.keys.mkString(", ")}")
+    else Nil
+    nonSingleInstance ++ nonSingleCluster
+  }
+
   private def unboundMoleculeWarning(reactions: Array[Reaction]): Option[String] = {
     val warningList = unboundOutputMoleculesString(reactions)
     if (warningList.nonEmpty)
@@ -198,6 +210,15 @@ private[jc] object StaticAnalysis {
     ).flatMap(_ (reactions))
   }
 
+  private def checkStaticMolsNotDistributed(staticMols: Map[MolEmitter, Int], reactions: Array[Reaction]): Option[String] = optimize {
+    val errorList = staticMols.keySet
+      .filter(_.isDistributed)
+      .map(_.toString)
+    if (errorList.nonEmpty)
+      Some(s"Distributed molecules may not be declared static, but found such molecule(s): ${errorList.mkString(", ")}")
+    else None
+  }
+
   // Each static molecule must occur in some reaction as an input.
   // No static molecule should be consumed twice by a reaction.
   // Each static molecule that is consumed by a reaction should also be emitted by the same reaction.
@@ -279,6 +300,7 @@ private[jc] object StaticAnalysis {
 
   private[jc] def findStaticMolErrors(staticMols: Map[MolEmitter, Int], reactions: Array[Reaction]) = {
     Seq(
+      checkStaticMolsNotDistributed _,
       checkOutputsForStaticMols _,
       checkInputsForStaticMols _
     ).flatMap(_ (staticMols, reactions))

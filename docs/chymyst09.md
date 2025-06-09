@@ -15,7 +15,7 @@ However, the chemical machine does not provide a means of delaying a reaction wh
 Doing so would be inconsistent with the semantics of chemical reactions,
 because it is impossible to know or to predict when the required molecules are going to be emitted and arrive at a reaction site.
 
-So, a "chemical timer" would be a facility for emitting a molecule after a fixed time delay.
+So, a “chemical timer” would be a facility for emitting a molecule after a fixed time delay.
 
 How can we implement this in the chemical machine?
 For example, what code needs to be written if a reaction needs to emit its output molecules after a 10 second delay?

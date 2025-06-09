@@ -327,13 +327,14 @@ final case class CrossMoleculeGuard(indices: Array[Int], symbols: Array[ScalaSym
 
 /** Compile-time information about an input molecule pattern in a certain reaction where the molecule is consumed.
   *
-  * @param molecule The molecule emitter value that represents the input molecule.
-  * @param index    Zero-based index of this molecule in the input list of the reaction.
-  * @param flag     A value of type [[InputPatternType]] that describes the value pattern: wildcard, constant match, etc.
-  * @param sha1     Hash sum of the input pattern's source code (desugared Scala representation).
-  * @param valType  String representation of the type `T` of the molecule's value, e.g. for [[M]]`[T]` or [[B]]`[T, R]`.
+  * @param molecule   The molecule emitter value that represents the input molecule.
+  * @param nameSymbol A Scala symbol representing the local name of the molecule emitter.
+  * @param index      Zero-based index of this molecule in the input list of the reaction.
+  * @param flag       A value of type [[InputPatternType]] that describes the value pattern: wildcard, constant match, etc.
+  * @param sha1       Hash sum of the input pattern's source code (desugared Scala representation).
+  * @param valType    String representation of the type `T` of the molecule's value, e.g. for [[M]]`[T]` or [[B]]`[T, R]`.
   */
-final case class InputMoleculeInfo(molecule: MolEmitter, index: Int, flag: InputPatternType, sha1: String, valType: ScalaSymbol) {
+final case class InputMoleculeInfo(molecule: MolEmitter, nameSymbol: ScalaSymbol, index: Int, flag: InputPatternType, sha1: String, valType: ScalaSymbol) {
   val isConstantValue: Boolean = flag.isConstantValue
 
   private[jc] def admitsValue(molValue: AbsMolValue[_]): Boolean = flag match {
@@ -491,16 +492,17 @@ final case class InputMoleculeInfo(molecule: MolEmitter, index: Int, flag: Input
   * This class is immutable.
   *
   * @param molecule     The molecule emitter value that represents the output molecule.
+  * @param nameSymbol   A Scala symbol representing the local name of the molecule emitter.
   * @param flag         Type of the output pattern: either a constant value or other value.
   * @param environments The code environment in which this output molecule was emitted.
   */
-final case class OutputMoleculeInfo(molecule: MolEmitter, flag: OutputPatternType, environments: List[OutputEnvironment]) {
+final case class OutputMoleculeInfo(molecule: MolEmitter, nameSymbol: ScalaSymbol, flag: OutputPatternType, environments: List[OutputEnvironment]) {
   val atLeastOnce: Boolean = environments.forall(_.atLeastOne)
 
   override val toString: String = s"${molecule.toString}($flag)"
 }
 
-// This class is immutable.
+// This class is immutable because all arrays are private.
 final class ReactionInfo(
   private[jc] val inputs: Array[InputMoleculeInfo],
   private[jc] val outputs: Array[OutputMoleculeInfo],
@@ -508,7 +510,17 @@ final class ReactionInfo(
   private[jc] val guardPresence: GuardPresenceFlag,
   private[jc] val sha1: String
 ) {
-  private[jc] val hasBlockingInputs: Boolean = optimize { inputs.exists(_.molecule.isBlocking) }
+  private[jc] val hasBlockingInputs: Boolean = optimize {
+    inputs.exists(_.molecule.isBlocking)
+  }
+
+  private[jc] val hasDistributedInputs: Boolean = optimize {
+    inputs.exists(_.molecule.isDistributed)
+  }
+
+  private[jc] val hasDistributedOutputs: Boolean = optimize {
+    outputs.exists(_.molecule.isDistributed)
+  }
 
   // Optimization: avoid pattern-match every time we need to find cross-molecule guards.
   private[jc] val crossGuards: Array[CrossMoleculeGuard] = guardPresence match {
@@ -591,7 +603,7 @@ final class ReactionInfo(
 
   // The input pattern sequence is pre-sorted by descending strength of constraint — for pretty-printing as well as for use in static analysis.
   private[jc] val inputsSortedByConstraintStrength: List[InputMoleculeInfo] = optimize {
-    inputs.sortBy { case InputMoleculeInfo(mol, _, flag, sha, _) =>
+    inputs.sortBy { case InputMoleculeInfo(mol, _, _, flag, sha, _) =>
       // Wildcard and SimpleVar without a conditional are sorted together; more specific matchers will precede less specific matchers.
       val patternPrecedence = flag match {
         case WildcardInput |
@@ -637,7 +649,9 @@ final class ReactionInfo(
         .map { case (i, is) ⇒ (i, is.toArray) }
         .toArray
     }
-    (inputsSortedIrrefutableGrouped, optimize{inputsSortedConditional.filter(info ⇒ independentInputMolecules contains info.index).toArray})
+    (inputsSortedIrrefutableGrouped, optimize {
+      inputsSortedConditional.filter(info ⇒ independentInputMolecules contains info.index).toArray
+    })
   }
 
   /* Not sure if this is still useful.
@@ -675,9 +689,9 @@ final class ReactionInfo(
 /** Represents a reaction. This class is immutable.
   *
   * @param info       A value of type [[ReactionInfo]] describing input and output molecules for this reaction.
-  * @param body       Partial function of type `InputMoleculeList => Any`
+  * @param body       Partial function of type `InputMoleculeList ⇒ Any`
   * @param threadPool Thread pool on which this reaction will be scheduled. (By default, the common pool is used.)
-  * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is false.
+  * @param retry      Whether the reaction should be run again when an exception occurs in its body. Default is `false`.
   */
 final case class Reaction(
   private[jc] val info: ReactionInfo,
@@ -707,6 +721,12 @@ final case class Reaction(
     */
   def noRetry: Reaction = copy(retry = false)
 
+  // TODO: determine if we really need to sort the molecules alphabetically by assigned name, or
+  //       perhaps it is sufficient to sort them in the macro code by their Scala identifier's name.
+  private[jc] val inputInfosSortedBySha1: Array[InputMoleculeInfo] =
+  info.inputs
+    .sortBy(_.sha1)
+
   // Optimization: this is used often.
   private[jc] val inputMoleculesSortedAlphabetically: Seq[MolEmitter] =
     info.inputs
@@ -715,7 +735,7 @@ final case class Reaction(
 
   // java.security.MessageDigest is not thread safe, so we use a new MessageDigest for each reaction.
   private[jc] val inputInfoSha1: String =
-    getSha1(inputMoleculesSortedAlphabetically.map(_.hashCode()).mkString(","), getMessageDigest) + info.sha1
+    getSha1(inputInfosSortedBySha1.map(inputinfo ⇒ inputinfo.molecule.hashCode().toString + inputinfo.sha1).mkString(","), getMessageDigest) + info.sha1
 
   // Optimization: this is used often.
   private[jc] val inputMoleculesSet = inputMoleculesSortedAlphabetically.toSet

@@ -168,6 +168,13 @@ final class MoleculeMacros(override val c: blackbox.Context) extends CommonMacro
     q"new B[$moleculeValueType,$replyValueType]($moleculeName)"
   }
 
+  // Implicit arguments of the def macro become non-implicit arguments of the implementation function. See https://github.com/scala/scala/pull/1194
+  def dmImpl[T: c.WeakTypeTag](clusterConfig: c.Expr[ClusterConfig]): Tree = {
+    val moleculeName = getEnclosingName
+    val moleculeValueType = c.weakTypeOf[T]
+    q"new DM[$moleculeValueType]($moleculeName)($clusterConfig)"
+  }
+
 }
 
 final class PoolMacros(override val c: blackbox.Context) extends CommonMacros(c) {
@@ -202,8 +209,8 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
 
   private val md = getMessageDigest
 
-  // This is the main method that gathers the reaction info and performs some preliminary static analysis.
-  def buildReactionImpl(reactionBody: c.Expr[ReactionBody]): c.Expr[Reaction] = GetReactionCases.from(reactionBody.tree) match {
+  // This is the main method implementing `go` that gathers the reaction info and performs some preliminary static analysis.
+  def goImpl(reactionBody: c.Expr[ReactionBody]): c.Expr[Reaction] = GetReactionCases.from(reactionBody.tree) match {
     // Note: `caseDefs` should not be an empty list because that's a typecheck error (`go` only accepts a partial function, so at least one `case` needs to be given).
     // However, the user could be clever and write `val body = new PartialFunction...; go(body)`. We do not allow this because `go` needs to see the entire reaction body.
     case List((pattern, guard, body)) =>
@@ -396,11 +403,11 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
     // However, the order of output molecules corresponds to the order in which they might be emitted.
     val allOutputInfo = bodyOut
     // Output molecule info comes only from the body since neither the pattern nor the guard can emit output molecules.
-    val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, ${p.patternTypeWithTree}, ${envs.reverse})" }.toArray
+    val outputMoleculesReactionInfo = allOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, ${m.asTerm.name.decodedName.toString.toScalaSymbol}, ${p.patternTypeWithTree}, ${envs.reverse})" }.toArray
 
     // Compute shrunk output info.
     val shrunkOutputInfo = OutputEnvironment.shrink(allOutputInfo.map { case (m, p, envs) => (m, p.patternTypeWithTree, envs) }, equalsToTree)
-    val shrunkOutputReactionInfo = shrunkOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, $p, ${envs.reverse})" }.toArray
+    val shrunkOutputReactionInfo = shrunkOutputInfo.map { case (m, p, envs) => q"OutputMoleculeInfo(${m.asTerm}, ${m.asTerm.name.decodedName.toString.toScalaSymbol}, $p, ${envs.reverse})" }.toArray
 
     val blockingMolecules = patternIn.filter(_._3.nonEmpty)
     // It is an error to have blocking molecules that do not match on a simple variable.
@@ -441,9 +448,8 @@ final class BlackboxMacros(override val c: blackbox.Context) extends ReactionMac
       .map { case (s, i, p, _) =>
         // Determine the value type of the molecule and create a symbol, e.g. 'Int or 'Unit.
         val valType = s.typeSignature.typeArgs.headOption.map(_.dealias.finalResultType.toString).getOrElse("<unknown>").toScalaSymbol
-        q"InputMoleculeInfo(${s.asTerm}, $i, $p, ${p.patternSha1(t => showCode(t), md)}, $valType)"
-      }
-      .toArray
+        q"InputMoleculeInfo(${s.asTerm}, ${s.asTerm.name.decodedName.toString.toScalaSymbol}, $i, $p, ${p.patternSha1(t => showCode(t), md)}, $valType)"
+      }.toArray
 
     // Detect whether this reaction has a simple livelock:
     // All input molecules have trivial matchers and are a subset of unconditionally emitted output molecules.

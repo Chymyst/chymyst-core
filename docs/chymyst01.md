@@ -486,7 +486,7 @@ It is an error to emit a molecule that is not yet defined as input molecule at a
 ```scala
 val x = m[Int]
 x(100)
-// java.lang.Exception: Molecule x is not bound to any reaction site
+// java.lang.Exception: Molecule x is not bound to any reaction site, cannot emit
 
 ```
 

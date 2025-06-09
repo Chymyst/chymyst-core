@@ -1,9 +1,9 @@
 package io.chymyst.jc
 
 import java.security.MessageDigest
-import java.util.concurrent.atomic.AtomicLong
-import javax.xml.bind.DatatypeConverter
+import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
 
+import javax.xml.bind.DatatypeConverter
 import io.chymyst.util.LabeledTypes.Subtype
 
 import scala.annotation.tailrec
@@ -38,6 +38,16 @@ object Core {
   private[jc] val MolSiteIndex = Subtype[Int]
   private[jc] type MolSiteIndex = MolSiteIndex.T
 
+  private[jc] val ClusterSessionId = Subtype[Long]
+  private[jc] type ClusterSessionId = ClusterSessionId.T
+
+  private[jc] val ValTypeSymbol = Subtype[Symbol]
+  private[jc] type ValTypeSymbol = ValTypeSymbol.T
+
+  private[jc] val MolNameSymbol = Subtype[Symbol]
+  private[jc] type MolNameSymbol = MolNameSymbol.T
+
+  // Used for reporting molecule names.
   private[jc] val MolString = Subtype[String]
   private[jc] type MolString = MolString.T
 
@@ -46,6 +56,22 @@ object Core {
   private val globalReactionSiteIdCounter: AtomicLong = new AtomicLong(0L)
 
   private[jc] def nextReactionSiteId = ReactionSiteId(globalReactionSiteIdCounter.incrementAndGet())
+
+  // For each sha1 hash (computed with molecule names), store the number of known RSs with this hash.
+  private val globalReactionSiteCount: scala.collection.concurrent.Map[String, AtomicInteger] = scala.collection.concurrent.TrieMap()
+
+  private val emittersBoundToStaticReactionSites: scala.collection.concurrent.Map[String, Array[MolEmitter]] = scala.collection.concurrent.TrieMap()
+
+  private[jc] def registerReactionSite(reactionSite: ReactionSite): AtomicInteger = {
+    val count = globalReactionSiteCount.getOrElseUpdate(reactionSite.sha1CodeWithNames, new AtomicInteger(0))
+    // We will not store the emitters in `emittersBoundToStaticReactionSites` if there exist more than one reaction with the same sha1 hash.
+    if (count.incrementAndGet() === 1)
+      emittersBoundToStaticReactionSites.update(
+        reactionSite.sha1CodeWithNames,
+        Array.tabulate(reactionSite.moleculeAtIndex.size)(reactionSite.moleculeAtIndex.apply)
+      )
+    count
+  }
 
   def getMessageDigest: MessageDigest = MessageDigest.getInstance("SHA-1")
 
@@ -380,18 +406,38 @@ object Core {
       NO_REACTION_INFO_STRING
   }
 
-  private[jc] def setReactionInfoInThread(info: ReactionInfo): Unit = Thread.currentThread() match {
+  private[jc] def setReactionInfoOnThread(info: ReactionInfo): Unit = Thread.currentThread() match {
     case t: ChymystThread ⇒
       t.reactionInfoString = info.toString
     case _ ⇒
   }
 
-  private[jc] def clearReactionInfoInThread(): Unit = Thread.currentThread() match {
+  private[jc] def clearReactionInfoOfThread(): Unit = Thread.currentThread() match {
     case t: ChymystThread ⇒
       t.reactionInfoString = NO_REACTION_INFO_STRING
     case _ ⇒
   }
 
   val NO_REACTION_INFO_STRING = ReactionString("<none>")
+
+  def getClusterSessionIdOfThread: Option[ClusterSessionId] = Thread.currentThread() match {
+    case t: ChymystThread ⇒
+      t.clusterSessionId
+    case _ ⇒
+      None
+  }
+  
+  private[jc] def setClusterSessionOnThread(clusterSessionId: ClusterSessionId): Unit = Thread.currentThread() match {
+    case t: ChymystThread ⇒
+      t.clusterSessionIdValue = Some(clusterSessionId)
+    case _ ⇒
+  }
+
+  private[jc] def clearClusterSessionOfThread(): Unit = Thread.currentThread() match {
+    case t: ChymystThread ⇒
+      t.clusterSessionIdValue = None
+    case _ ⇒
+  }
+
 
 }
